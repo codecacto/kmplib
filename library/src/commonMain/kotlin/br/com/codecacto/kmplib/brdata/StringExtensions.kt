@@ -1,0 +1,148 @@
+package br.com.codecacto.kmplib.brdata
+
+/**
+ * Remove acentos e caracteres especiais de uma string.
+ *
+ * Uso:
+ * ```kotlin
+ * "São Paulo".removeAccents() // "Sao Paulo"
+ * "Maringá".removeAccents()   // "Maringa"
+ * ```
+ */
+fun String.removeAccents(): String {
+    return this.map { char ->
+        when (char) {
+            // Minúsculas
+            'à', 'á', 'â', 'ã', 'ä', 'å' -> 'a'
+            'æ' -> 'a'
+            'ç' -> 'c'
+            'è', 'é', 'ê', 'ë' -> 'e'
+            'ì', 'í', 'î', 'ï' -> 'i'
+            'ð' -> 'd'
+            'ñ' -> 'n'
+            'ò', 'ó', 'ô', 'õ', 'ö', 'ø' -> 'o'
+            'ù', 'ú', 'û', 'ü' -> 'u'
+            'ý', 'ÿ' -> 'y'
+
+            // Maiúsculas
+            'À', 'Á', 'Â', 'Ã', 'Ä', 'Å' -> 'A'
+            'Æ' -> 'A'
+            'Ç' -> 'C'
+            'È', 'É', 'Ê', 'Ë' -> 'E'
+            'Ì', 'Í', 'Î', 'Ï' -> 'I'
+            'Ð' -> 'D'
+            'Ñ' -> 'N'
+            'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'Ø' -> 'O'
+            'Ù', 'Ú', 'Û', 'Ü' -> 'U'
+            'Ý' -> 'Y'
+
+            else -> char
+        }
+    }.joinToString("")
+}
+
+/**
+ * Verifica se uma string contém outra, ignorando acentos e case.
+ *
+ * Uso:
+ * ```kotlin
+ * "São Paulo".containsIgnoringAccents("sao") // true
+ * ```
+ */
+fun String.containsIgnoringAccents(other: String): Boolean {
+    return this.removeAccents().contains(other.removeAccents(), ignoreCase = true)
+}
+
+/**
+ * Verifica se duas strings são iguais, ignorando acentos e case.
+ *
+ * Uso:
+ * ```kotlin
+ * "São Paulo".equalsIgnoringAccents("sao paulo") // true
+ * ```
+ */
+fun String.equalsIgnoringAccents(other: String): Boolean {
+    return this.removeAccents().equals(other.removeAccents(), ignoreCase = true)
+}
+
+/**
+ * Capitaliza a primeira letra de cada palavra.
+ *
+ * Uso:
+ * ```kotlin
+ * "são paulo".toTitleCase() // "São Paulo"
+ * ```
+ */
+fun String.toTitleCase(): String {
+    return this.split(" ").joinToString(" ") { word ->
+        word.lowercase().replaceFirstChar { it.uppercase() }
+    }
+}
+
+/**
+ * Remove espaços extras e trim.
+ *
+ * Uso:
+ * ```kotlin
+ * "  São   Paulo  ".normalizeSpaces() // "São Paulo"
+ * ```
+ */
+fun String.normalizeSpaces(): String {
+    return this.trim().replace(Regex("\\s+"), " ")
+}
+
+/**
+ * Extrai apenas dígitos de uma string.
+ *
+ * Uso:
+ * ```kotlin
+ * "(11) 98765-4321".onlyDigits() // "11987654321"
+ * ```
+ */
+fun String.onlyDigits(): String = this.filter { it.isDigit() }
+
+/**
+ * Extrai apenas letras de uma string.
+ *
+ * Uso:
+ * ```kotlin
+ * "ABC123".onlyLetters() // "ABC"
+ * ```
+ */
+fun String.onlyLetters(): String = this.filter { it.isLetter() }
+
+/**
+ * Extrai apenas caracteres alfanuméricos de uma string.
+ *
+ * Uso:
+ * ```kotlin
+ * "ABC-123!".onlyAlphanumeric() // "ABC123"
+ * ```
+ */
+fun String.onlyAlphanumeric(): String = this.filter { it.isLetterOrDigit() }
+
+/**
+ * Verifica se uma string contém apenas dígitos.
+ */
+fun String.isDigitsOnly(): Boolean = this.isNotEmpty() && this.all { it.isDigit() }
+
+/**
+ * Verifica se uma string contém apenas letras.
+ */
+fun String.isLettersOnly(): Boolean = this.isNotEmpty() && this.all { it.isLetter() }
+
+/**
+ * Trunca uma string em um tamanho máximo, adicionando reticências se necessário.
+ *
+ * Uso:
+ * ```kotlin
+ * "Um texto muito longo".truncate(10) // "Um texto..."
+ * ```
+ */
+fun String.truncate(maxLength: Int, suffix: String = "..."): String {
+    return if (this.length <= maxLength) {
+        this
+    } else {
+        this.take(maxLength - suffix.length) + suffix
+    }
+}

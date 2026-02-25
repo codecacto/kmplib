@@ -1,0 +1,227 @@
+package br.com.codecacto.kmplib.platform
+
+import android.content.Intent
+import android.net.Uri
+import android.provider.MediaStore
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import androidx.fragment.app.FragmentActivity
+import br.com.codecacto.kmplib.KmpLib
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
+import kotlin.coroutines.resume
+
+actual fun getFilePicker(): FilePicker {
+    return AndroidFilePicker.instance
+}
+
+object AndroidFilePicker : FilePicker {
+    internal val instance = AndroidFilePicker
+
+    private var currentActivity: FragmentActivity? = null
+    private var getContentLauncher: ActivityResultLauncher<Intent>? = null
+    private var getMultipleContentsLauncher: ActivityResultLauncher<Intent>? = null
+    private var takePictureLauncher: ActivityResultLauncher<Uri>? = null
+
+    private var currentContinuation: ((List<Uri>?) -> Unit)? = null
+    private var currentPhotoUri: Uri? = null
+
+    fun setActivity(activity: FragmentActivity) {
+        currentActivity = activity
+
+        // Registrar launchers
+        getContentLauncher = activity.registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val uri = result.data?.data
+            currentContinuation?.invoke(if (uri != null) listOf(uri) else null)
+            currentContinuation = null
+        }
+
+        getMultipleContentsLauncher = activity.registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val uris = mutableListOf<Uri>()
+
+            result.data?.clipData?.let { clipData ->
+                for (i in 0 until clipData.itemCount) {
+                    clipData.getItemAt(i).uri?.let { uris.add(it) }
+                }
+            } ?: result.data?.data?.let { uris.add(it) }
+
+            currentContinuation?.invoke(uris.ifEmpty { null })
+            currentContinuation = null
+        }
+
+        takePictureLauncher = activity.registerForActivityResult(
+            ActivityResultContracts.TakePicture()
+        ) { success ->
+            currentContinuation?.invoke(
+                if (success && currentPhotoUri != null) listOf(currentPhotoUri!!) else null
+            )
+            currentContinuation = null
+            currentPhotoUri = null
+        }
+    }
+
+    fun clearActivity() {
+        currentActivity = null
+        getContentLauncher = null
+        getMultipleContentsLauncher = null
+        takePictureLauncher = null
+    }
+
+    override suspend fun pickImage(): FileData? {
+        val activity = currentActivity ?: return null
+        val launcher = getContentLauncher ?: return null
+
+        val uris = suspendCancellableCoroutine { continuation ->
+            currentContinuation = { uris ->
+                continuation.resume(uris)
+            }
+
+            val intent = Intent(Intent.ACTION_PICK).apply {
+                type = "image/*"
+            }
+            launcher.launch(intent)
+        }
+
+        return uris?.firstOrNull()?.let { uri ->
+            uriToFileData(activity, uri)
+        }
+    }
+
+    override suspend fun pickMultipleImages(maxCount: Int): List<FileData> {
+        val activity = currentActivity ?: return emptyList()
+        val launcher = getMultipleContentsLauncher ?: return emptyList()
+
+        val uris = suspendCancellableCoroutine { continuation ->
+            currentContinuation = { uris ->
+                continuation.resume(uris)
+            }
+
+            val intent = Intent(Intent.ACTION_PICK).apply {
+                type = "image/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+            launcher.launch(intent)
+        }
+
+        val results = uris?.mapNotNull { uri ->
+            uriToFileData(activity, uri)
+        } ?: emptyList()
+
+        return if (maxCount > 0) results.take(maxCount) else results
+    }
+
+    override suspend fun pickFile(mimeTypes: List<String>): FileData? {
+        val activity = currentActivity ?: return null
+        val launcher = getContentLauncher ?: return null
+
+        val uris = suspendCancellableCoroutine { continuation ->
+            currentContinuation = { uris ->
+                continuation.resume(uris)
+            }
+
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = if (mimeTypes.size == 1) mimeTypes.first() else "*/*"
+                if (mimeTypes.size > 1) {
+                    putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+                }
+            }
+            launcher.launch(Intent.createChooser(intent, "Selecionar arquivo"))
+        }
+
+        return uris?.firstOrNull()?.let { uri ->
+            uriToFileData(activity, uri)
+        }
+    }
+
+    override suspend fun pickMultipleFiles(mimeTypes: List<String>, maxCount: Int): List<FileData> {
+        val activity = currentActivity ?: return emptyList()
+        val launcher = getMultipleContentsLauncher ?: return emptyList()
+
+        val uris = suspendCancellableCoroutine { continuation ->
+            currentContinuation = { uris ->
+                continuation.resume(uris)
+            }
+
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = if (mimeTypes.size == 1) mimeTypes.first() else "*/*"
+                if (mimeTypes.size > 1) {
+                    putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+                }
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+            launcher.launch(Intent.createChooser(intent, "Selecionar arquivos"))
+        }
+
+        val results = uris?.mapNotNull { uri ->
+            uriToFileData(activity, uri)
+        } ?: emptyList()
+
+        return if (maxCount > 0) results.take(maxCount) else results
+    }
+
+    override suspend fun takePhoto(): FileData? {
+        val activity = currentActivity ?: return null
+        val launcher = takePictureLauncher ?: return null
+        val context = KmpLib.applicationContext ?: return null
+
+        // Criar arquivo temporário para a foto
+        val photoFile = File(context.cacheDir, "photo_${System.currentTimeMillis()}.jpg")
+        val photoUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            photoFile
+        )
+
+        currentPhotoUri = photoUri
+
+        val uris = suspendCancellableCoroutine { continuation ->
+            currentContinuation = { uris ->
+                continuation.resume(uris)
+            }
+
+            launcher.launch(photoUri)
+        }
+
+        return uris?.firstOrNull()?.let { uri ->
+            uriToFileData(activity, uri)
+        }
+    }
+
+    private fun uriToFileData(activity: FragmentActivity, uri: Uri): FileData? {
+        return try {
+            val contentResolver = activity.contentResolver
+            val inputStream = contentResolver.openInputStream(uri) ?: return null
+
+            val data = inputStream.use { it.readBytes() }
+
+            // Obter nome do arquivo
+            val cursor = contentResolver.query(uri, null, null, null, null)
+            val name = cursor?.use {
+                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (it.moveToFirst() && nameIndex != -1) {
+                    it.getString(nameIndex)
+                } else {
+                    "file_${System.currentTimeMillis()}"
+                }
+            } ?: "file_${System.currentTimeMillis()}"
+
+            // Obter MIME type
+            val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+
+            FileData(
+                name = name,
+                mimeType = mimeType,
+                data = data,
+                size = data.size.toLong()
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+}

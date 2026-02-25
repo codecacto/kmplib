@@ -1,0 +1,219 @@
+package br.com.codecacto.kmplib.ui.components
+
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+/**
+ * TextField customizado com estilo padronizado
+ *
+ * @param value Valor atual do campo
+ * @param onValueChange Callback quando o valor muda
+ * @param modifier Modificador customizado
+ * @param label Texto do label
+ * @param placeholder Texto do placeholder
+ * @param leadingIcon Ícone à esquerda
+ * @param isPassword Se é campo de senha (com toggle de visibilidade)
+ * @param keyboardType Tipo de teclado
+ * @param imeAction Ação do IME
+ * @param keyboardActions Ações do teclado
+ * @param visualTransformation Transformação visual do texto
+ * @param errorMessage Mensagem de erro (null = sem erro)
+ * @param enabled Se o campo está habilitado
+ * @param singleLine Se é single-line
+ * @param maxLength Comprimento máximo (null = ilimitado)
+ * @param showCharCounter Se deve mostrar contador de caracteres
+ * @param primaryColor Cor primária (borda focada, label focado)
+ * @param borderColor Cor da borda não focada
+ * @param labelColor Cor do label não focado
+ */
+@Composable
+fun AppTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    placeholder: String? = null,
+    leadingIcon: ImageVector? = null,
+    isPassword: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Next,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    errorMessage: String? = null,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    maxLength: Int? = null,
+    showCharCounter: Boolean = false,
+    primaryColor: Color = Color(0xFF6C63FF),
+    borderColor: Color = Color(0xFFE0E0E0),
+    labelColor: Color = Color(0xFF9E9E9E)
+) {
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // Supporting text (error ou contador)
+    val supportingText: (@Composable () -> Unit)? = when {
+        errorMessage != null -> {{ Text(errorMessage) }}
+        showCharCounter && maxLength != null -> {{
+            Text(
+                text = "${value.length}/$maxLength",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }}
+        else -> null
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = { newValue ->
+            // Aplicar maxLength se definido
+            if (maxLength != null && newValue.length > maxLength) {
+                onValueChange(newValue.take(maxLength))
+            } else {
+                onValueChange(newValue)
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+        label = label?.let { { Text(it) } },
+        placeholder = placeholder?.let { { Text(it) } },
+        leadingIcon = leadingIcon?.let {
+            { Icon(imageVector = it, contentDescription = null) }
+        },
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (passwordVisible) "Ocultar senha" else "Mostrar senha"
+                    )
+                }
+            }
+        } else null,
+        visualTransformation = when {
+            isPassword && !passwordVisible -> PasswordVisualTransformation()
+            else -> visualTransformation
+        },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isPassword) KeyboardType.Password else keyboardType,
+            imeAction = imeAction
+        ),
+        keyboardActions = keyboardActions,
+        singleLine = singleLine,
+        isError = errorMessage != null,
+        supportingText = supportingText,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = primaryColor,
+            unfocusedBorderColor = borderColor,
+            focusedLabelColor = primaryColor,
+            unfocusedLabelColor = labelColor,
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            errorLabelColor = MaterialTheme.colorScheme.error
+        )
+    )
+}
+
+/**
+ * TextArea (multi-line) customizado com contador de caracteres
+ *
+ * @param value Valor atual do campo
+ * @param onValueChange Callback quando o valor muda
+ * @param modifier Modificador customizado
+ * @param label Texto do label
+ * @param placeholder Texto do placeholder
+ * @param maxLength Comprimento máximo (null = ilimitado)
+ * @param minLines Número mínimo de linhas visíveis
+ * @param maxLines Número máximo de linhas visíveis (null = ilimitado)
+ * @param showCharCounter Se deve mostrar contador de caracteres
+ * @param errorMessage Mensagem de erro (null = sem erro)
+ * @param enabled Se o campo está habilitado
+ * @param height Altura do componente (opcional, usa minLines se null)
+ * @param primaryColor Cor primária (borda focada, label focado)
+ * @param borderColor Cor da borda não focada
+ * @param labelColor Cor do label não focado
+ */
+@Composable
+fun AppTextArea(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    placeholder: String? = null,
+    maxLength: Int? = null,
+    minLines: Int = 3,
+    maxLines: Int? = null,
+    showCharCounter: Boolean = true,
+    errorMessage: String? = null,
+    enabled: Boolean = true,
+    height: Dp? = null,
+    primaryColor: Color = Color(0xFF6C63FF),
+    borderColor: Color = Color(0xFFE0E0E0),
+    labelColor: Color = Color(0xFF9E9E9E)
+) {
+    // Supporting text (error ou contador)
+    val supportingText: (@Composable () -> Unit)? = when {
+        errorMessage != null -> {{ Text(errorMessage) }}
+        showCharCounter && maxLength != null -> {{
+            Text(
+                text = "${value.length}/$maxLength",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }}
+        else -> null
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = { newValue ->
+            // Aplicar maxLength se definido
+            if (maxLength != null && newValue.length > maxLength) {
+                onValueChange(newValue.take(maxLength))
+            } else {
+                onValueChange(newValue)
+            }
+        },
+        modifier = if (height != null) {
+            modifier.fillMaxWidth().height(height)
+        } else {
+            modifier.fillMaxWidth()
+        },
+        label = label?.let { { Text(it) } },
+        placeholder = placeholder?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Default
+        ),
+        singleLine = false,
+        minLines = minLines,
+        maxLines = maxLines ?: Int.MAX_VALUE,
+        isError = errorMessage != null,
+        supportingText = supportingText,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = primaryColor,
+            unfocusedBorderColor = borderColor,
+            focusedLabelColor = primaryColor,
+            unfocusedLabelColor = labelColor,
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            errorLabelColor = MaterialTheme.colorScheme.error
+        )
+    )
+}

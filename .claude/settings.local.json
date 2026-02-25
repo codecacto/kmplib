@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.\\\\gradlew.bat build:*)",
+      "Bash(gradlew.bat build:*)",
+      "Bash(cmd /c \"gradlew.bat build --no-daemon\")",
+      "Bash(powershell -Command \"cd ''E:\\\\CodeCacto\\\\Lib\\\\kmplib''; .\\\\gradlew.bat build --no-daemon 2>&1\")",
+      "Bash(powershell -Command:*)",
+      "Bash(dir:*)",
+      "Bash(./gradlew clean build:*)",
+      "Bash(find:*)",
+      "Bash(.\\\\gradlew.bat cleanTest test:*)",
+      "Bash(findstr:*)",
+      "Bash(.gradlew.bat cleanTest test --console=plain)",
+      "Bash(cmd.exe /c \"gradlew.bat test --console=plain\")",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew cleanTest test:*)",
+      "Bash(./gradlew tasks:*)",
+      "Bash(./gradlew cleanAllTests allTests:*)",
+      "Bash(./gradlew cleanTest:*)",
+      "Bash(tree:*)",
+      "Bash(.gradlew.bat cleanAllTests testDebugUnitTest:*)",
+      "Bash(tee:*)",
+      "Bash(./gradlew cleanAllTests testDebugUnitTest:*)",
+      "Bash(wc:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew publishToMavenLocal:*)",
+      "Bash(./gradlew allTests:*)",
+      "Bash(./gradlew compileKotlinMetadata:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(./gradlew :library:compileCommonMainKotlinMetadata:*)",
+      "Bash(.\\\\gradlew :library:testDebugUnitTest:*)",
+      "Bash(.\\\\gradlew.bat:*)",
+      "Bash(gradlew.bat:*)",
+      "Bash(./gradlew.bat publishToMavenLocal:*)",
+      "Bash(./gradlew.bat:*)",
+      "WebSearch",
+      "Bash(powershell:*)",
+      "Bash(del \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\generate_cities.ps1\" \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\generate_kotlin.ps1\" \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\cities_generated.txt\")",
+      "Bash(cd:*)"
+    ]
+  }
+}

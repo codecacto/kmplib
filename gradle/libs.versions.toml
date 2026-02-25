@@ -1,0 +1,63 @@
+[versions]
+agp = "8.13.0"
+kotlin = "2.2.20"
+android-minSdk = "24"
+android-compileSdk = "35"
+vanniktechMavenPublish = "0.34.0"
+
+# KMP dependencies
+coroutines = "1.9.0"
+kotlinxSerialization = "1.7.3"
+kotlinxDatetime = "0.6.1"
+
+# Firebase (GitLive)
+firebaseGitlive = "2.1.0"
+
+# Compose
+composeMultiplatform = "1.7.3"
+
+# AndroidX
+biometric = "1.1.0"
+lifecycle = "2.8.0"
+
+[libraries]
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+
+# Coroutines
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Serialization
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# DateTime
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+
+# Firebase GitLive
+firebase-auth = { module = "dev.gitlive:firebase-auth", version.ref = "firebaseGitlive" }
+firebase-firestore = { module = "dev.gitlive:firebase-firestore", version.ref = "firebaseGitlive" }
+firebase-storage = { module = "dev.gitlive:firebase-storage", version.ref = "firebaseGitlive" }
+
+# Firebase Android (explicit versions for GitLive compatibility)
+firebase-auth-android = { module = "com.google.firebase:firebase-auth-ktx", version = "23.1.0" }
+firebase-firestore-android = { module = "com.google.firebase:firebase-firestore", version = "25.1.1" }
+firebase-storage-android = { module = "com.google.firebase:firebase-storage", version = "21.0.1" }
+firebase-common-android = { module = "com.google.firebase:firebase-common-ktx", version = "21.0.0" }
+
+# Compose Runtime (for VisualTransformation and UI Components)
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMultiplatform" }
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "composeMultiplatform" }
+
+# AndroidX
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+
+[plugins]
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

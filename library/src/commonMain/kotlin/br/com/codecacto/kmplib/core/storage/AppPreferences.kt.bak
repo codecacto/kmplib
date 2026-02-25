@@ -1,0 +1,144 @@
+package br.com.codecacto.kmplib.core.storage
+
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
+
+/**
+ * Wrapper multiplataforma para persistência local de dados
+ *
+ * Android: SharedPreferences
+ * iOS: UserDefaults
+ *
+ * Suporta tipos primitivos e serialização JSON para objetos.
+ */
+interface AppPreferences {
+    /**
+     * Obtém uma string
+     */
+    fun getString(key: String, default: String = ""): String
+
+    /**
+     * Obtém um inteiro
+     */
+    fun getInt(key: String, default: Int = 0): Int
+
+    /**
+     * Obtém um boolean
+     */
+    fun getBoolean(key: String, default: Boolean = false): Boolean
+
+    /**
+     * Obtém um long
+     */
+    fun getLong(key: String, default: Long = 0L): Long
+
+    /**
+     * Obtém um float
+     */
+    fun getFloat(key: String, default: Float = 0f): Float
+
+    /**
+     * Salva uma string
+     */
+    fun putString(key: String, value: String)
+
+    /**
+     * Salva um inteiro
+     */
+    fun putInt(key: String, value: Int)
+
+    /**
+     * Salva um boolean
+     */
+    fun putBoolean(key: String, value: Boolean)
+
+    /**
+     * Salva um long
+     */
+    fun putLong(key: String, value: Long)
+
+    /**
+     * Salva um float
+     */
+    fun putFloat(key: String, value: Float)
+
+    /**
+     * Remove uma chave
+     */
+    fun remove(key: String)
+
+    /**
+     * Limpa todas as preferências
+     */
+    fun clear()
+
+    /**
+     * Verifica se uma chave existe
+     */
+    fun contains(key: String): Boolean
+
+    /**
+     * Obtém todas as chaves
+     */
+    fun getKeys(): Set<String>
+}
+
+/**
+ * Instância expect que será implementada em cada plataforma
+ */
+expect fun createAppPreferences(): AppPreferences
+
+/**
+ * JSON instance para serialização
+ * @PublishedApi permite que funções inline acessem esta propriedade
+ */
+@PublishedApi
+internal val json = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
+
+/**
+ * Salva um objeto serializado como JSON
+ */
+inline fun <reified T> AppPreferences.putObject(key: String, value: T) {
+    val jsonString = json.encodeToString(value)
+    putString(key, jsonString)
+}
+
+/**
+ * Obtém um objeto deserializado do JSON
+ */
+inline fun <reified T> AppPreferences.getObject(key: String): T? {
+    val jsonString = getString(key, "")
+    if (jsonString.isEmpty()) return null
+
+    return try {
+        json.decodeFromString<T>(jsonString)
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * Salva uma lista de objetos
+ */
+inline fun <reified T> AppPreferences.putList(key: String, value: List<T>) {
+    val jsonString = json.encodeToString(value)
+    putString(key, jsonString)
+}
+
+/**
+ * Obtém uma lista de objetos
+ */
+inline fun <reified T> AppPreferences.getList(key: String): List<T>? {
+    val jsonString = getString(key, "")
+    if (jsonString.isEmpty()) return null
+
+    return try {
+        json.decodeFromString<List<T>>(jsonString)
+    } catch (e: Exception) {
+        null
+    }
+}

@@ -1,0 +1,731 @@
+Sim — segue uma proposta bem completa (e prática) de como eu montaria sua biblioteca KMP para Android + iOS, com módulos, o que colocar além do que você já listou, padrões, testes, publicação no GitHub Packages e documentação.
+
+Objetivo da lib
+Um “Core Kit” KMP para você reaproveitar em qualquer app, com:
+
+
+API estável e pequena (fácil de usar)
+
+
+implementações internas trocáveis
+
+
+testes fortes (unit + alguns “platform tests” onde fizer sentido)
+
+
+zero UI nesta fase (mas pronto pra um módulo UI depois, se quiser)
+
+
+
+Sugestão de módulos (estrutura ideal)
+Recomendo multi-module (melhor manutenção do que um módulo gigante).
+1) core
+Coisas genéricas, sem depender de Firebase.
+
+
+Result/Either/AppError padronizado
+
+
+Helpers de Coroutine (dispatchers injetáveis)
+
+
+Extensions úteis (String, Number, Date, Collections)
+
+
+Clock (abstração de tempo) para testes
+
+
+Logger interface (Logger) com implementação Android/iOS separada
+
+
+Por quê? tudo o resto depende disso.
+
+2) validation
+Tudo de validação (pure Kotlin, testável).
+
+
+Email (RFC “boa o suficiente”)
+
+
+CPF, CNPJ (com dígitos verificadores)
+
+
+Telefone BR (DDD + 8/9 dígitos)
+
+
+CEP
+
+
+Nome, senha (políticas configuráveis)
+
+
+Validadores composáveis: Rule<T> + Validator<T>
+
+
+Extra bom: validação “explicável”:
+
+
+retorna erro padronizado (ValidationError) com código + mensagem default + params
+
+
+
+3) mask
+Máscaras e normalização de entrada (sem UI).
+
+
+Máscara telefone BR
+
+
+CPF/CNPJ
+
+
+CEP
+
+
+Cartão (se algum app precisar)
+
+
+Funções:
+
+
+onlyDigits()
+
+
+applyMask(pattern)
+
+
+unmask()
+
+
+
+
+Dica: mantenha máscara como funções puras (string in/string out). UI de máscara fica no app.
+
+4) br-data
+Dados estáticos e pesquisa local (estados/municípios).
+
+
+Embedded data (JSON/CSV compactado no resources)
+
+
+API:
+
+
+listStates()
+
+
+listCities(uf)
+
+
+searchCities(query, uf?)
+
+
+
+
+Normalização: remover acento, casefolding
+
+
+Extra: versão do dataset e checksum pra você saber quando atualizar.
+
+5) linking
+Ações de sistema:
+
+
+openUrl(url: String)
+
+
+openEmail(to, subject, body)
+
+
+openWhatsApp(phone, text) (se você usa muito)
+
+
+openStorePage(appId) (Android package / iOS app id)
+
+
+Implementação:
+
+
+expect/actual (Android Intents / iOS UIApplication)
+
+
+
+6) permissions
+Uma camada mínima e reaproveitável.
+
+
+Defina um “contrato”:
+
+
+Permission (Camera, Photos, Notifications, Location, etc.)
+
+
+PermissionState (Granted/Denied/PermanentlyDenied/Restricted)
+
+
+request(permission) e check(permission)
+
+
+
+
+Android: ActivityResult API (vai precisar de “bridge” no app)
+
+
+iOS: APIs específicas por permissão
+
+
+Observação realista: permissão varia muito por app. Faça esse módulo bem pequeno, e deixe “UI/flow” por conta do app.
+
+7) firebase-auth
+Aqui é onde você ganha MUITO tempo.
+Forneça uma API única do tipo:
+
+
+AuthRepository
+
+
+signInEmail(email, pass)
+
+
+signUpEmail(email, pass)
+
+
+sendPasswordReset(email)
+
+
+signInWithGoogle(...)
+
+
+signInWithApple(...)
+
+
+signOut()
+
+
+deleteAccount()
+
+
+currentUser()
+
+
+idToken(forceRefresh)
+
+
+
+
+Como lidar com Google/Apple sem UI na lib?
+
+
+A lib expõe o “contrato” e o app fornece o token/credential:
+
+
+signInWithGoogle(idToken, accessToken?)
+
+
+signInWithApple(idToken, nonce, fullName?)
+
+
+
+
+Assim sua lib não depende de telas/fluxos e continua reutilizável.
+
+8) firebase-firestore
+Operações comuns e padronizadas:
+
+
+addDocument(collection, data)
+
+
+setDocument(path, data, merge)
+
+
+updateDocument(path, fields)
+
+
+deleteDocument(path)
+
+
+getDocument(path)
+
+
+query(collection, filters, order, limit)
+
+
+Serialização padronizada (ex: kotlinx.serialization)
+
+
+Extra: camada de “convenções”:
+
+
+paths/collections constantes
+
+
+timestamps server-side
+
+
+id gerado
+
+
+retries/backoff simples para falhas transitórias
+
+
+
+9) firebase-storage
+Upload padronizado:
+
+
+Upload de bytes / arquivo / stream
+
+
+Retornar:
+
+
+downloadUrl
+
+
+path
+
+
+metadata
+
+
+
+
+Progresso por callback/Flow
+
+
+Regras: validação de tamanho e tipo antes de enviar
+
+
+
+10) email
+Você citou “enviar e-mail”. Aqui entram dois cenários:
+
+
+Abrir app de e-mail (client-side) → vai no linking
+
+
+Enviar e-mail de verdade (server-side) → normalmente via backend/Cloud Functions
+Se você quer reaproveitar isso, faça um módulo:
+
+
+
+
+mail-api com um EmailService que chama seu endpoint/Function
+
+
+não tente guardar credenciais na lib
+
+
+
+11) network
+Mesmo que você não tenha citado, quase todo app repete isso:
+
+
+Ktor Client configurado:
+
+
+timeouts, retries, logging (controlado por build type)
+
+
+interceptors: auth header, locale, app version
+
+
+
+
+“safe api call”:
+
+
+mapeamento de erro HTTP/timeout/serialization para AppError
+
+
+
+
+
+12) storage
+Persistência local reaproveitável:
+
+
+Settings (multiplatform-settings) pra preferences
+
+
+SQL (SQLDelight) se você quiser padrão de DB reaproveitável
+
+
+Cache simples:
+
+
+Cache<Key, Value> com TTL
+
+
+
+
+
+13) analytics e crash
+Você usa Crashlytics e Sentry — ótimo pra unificar:
+
+
+Analytics interface:
+
+
+track(event, props)
+
+
+setUser(id, props)
+
+
+
+
+CrashReporter interface:
+
+
+captureException(t, extras)
+
+
+
+
+Implementações:
+
+
+Android: Sentry/Crashlytics
+
+
+iOS: Sentry/Crashlytics
+
+
+
+
+Seus apps só falam com a interface → troca de fornecedor fica fácil.
+
+
+
+O que mais vale colocar (além do que você listou)
+Se você quer “biblioteca mãe” pra acelerar todos os apps, os itens abaixo costumam dar o maior ROI:
+
+
+Error handling padrão (um único modelo de erro)
+
+
+Network + auth token + retry padrão
+
+
+Logger + Analytics + Crash padronizados
+
+
+Storage (Settings/Cache) padronizado
+
+
+Feature Flags simples (habilitar/desabilitar features por build, por usuário, remoto via Firestore/Remote Config se quiser)
+
+
+Security helpers
+
+
+hashing, base64, random nonce (Apple Sign-in)
+
+
+secure storage wrapper (Keychain/Keystore) via interface
+
+
+
+
+i18n helpers
+
+
+formatação de moeda BRL, datas pt-BR
+
+
+
+
+Utils de arquivo
+
+
+mime type, tamanho, compressão leve (onde der)
+
+
+
+
+
+Padrão de API (pra manter a lib “bonita”)
+
+
+Exponha interfaces no commonMain
+
+
+Use internal para implementações
+
+
+Forneça uma função única de setup por módulo:
+
+
+FirebaseAuthKit.create(config, platformDeps)
+
+
+
+
+Use kotlinx.coroutines + Flow para streams (auth state, upload progress)
+
+
+Evite “God object”: prefira vários serviços pequenos
+
+
+
+Testes automatizados (o que eu recomendo)
+Unit tests (maioria)
+
+
+commonTest:
+
+
+validações (CPF/CNPJ/email)
+
+
+máscaras
+
+
+cache/TTL
+
+
+mapeamento de erros
+
+
+normalização de dados BR
+
+
+
+
+Use kotlin.test + kotlinx-coroutines-test
+
+
+Platform tests (onde faz sentido)
+
+
+androidInstrumentedTest:
+
+
+linking/openUrl (se você quiser validar intents)
+
+
+secure storage Android
+
+
+
+
+iOS:
+
+
+iosTest via Kotlin/Native tests (para lógica)
+
+
+coisas de UIKit geralmente ficam melhor como testes manuais/smoke
+
+
+
+
+Regra: quanto mais “puro Kotlin”, mais testável e reutilizável.
+
+Publicação no GitHub Packages (KMP)
+Estratégia comum:
+
+
+versionamento SemVer: MAJOR.MINOR.PATCH
+
+
+publicar artefatos por módulo:
+
+
+com.codecacto.kit:validation:1.2.0
+
+
+...:firebase-auth:1.2.0
+
+
+
+
+CI (GitHub Actions):
+
+
+./gradlew test
+
+
+./gradlew publish
+
+
+publicar em release/tag (ex: tag v1.2.0)
+
+
+
+Documentação (do jeito que você quer: bem explicadinha)
+
+
+KDoc em tudo que é público
+
+
+Dokka:
+
+
+gera site HTML com exemplos
+
+
+
+
+README por módulo:
+
+
+“Instalação”
+
+
+“Quick start”
+
+
+“Casos comuns”
+
+
+“Erros e como tratar”
+
+
+
+
+Pasta /samples (um projetinho KMP mínimo) mostrando:
+
+
+validação + máscara
+
+
+auth (com tokens mockados)
+
+
+upload storage com progresso
+
+
+
+
+
+Sugestão de “primeira fase” (pra não ficar grande demais)
+
+
+core
+
+
+validation
+
+
+mask
+
+
+br-data
+
+
+network (safe call + erros)
+
+
+analytics/crash (interfaces + 1 implementação base)
+
+
+Depois:
+7) firebase-auth
+8) firebase-firestore
+9) firebase-storage
+10) permissions e secure-storage
+
+Se você quiser, eu já te devolvo também:
+
+
+um esqueleto de repositório (estrutura de pastas + build.gradle.kts por módulo)
+
+
+e um padrão de API (interfaces + exemplos reais de uso no app)
+
+
+além de um checklist de CI (build/test/publish + versionamento por tag).
+
+Biblioteca KMP para Funcionalidades Reutilizáveis em Apps Android e iOSBiblioteca Utilitária KMP: Recursos Propostos e Estrutura
+Visão Geral
+Desenvolver uma biblioteca Kotlin Multiplataforma (KMP) para Android e iOS permitirá consolidar funcionalidades comuns dos seus aplicativos em um único código-fonte compartilhado. Isso elimina duplicações e divergências de implementação entre projetos, aumentando a reutilização de código e facilitando a manutenção – ao corrigir ou aprimorar a funcionalidade em um lugar, todos os apps se beneficiam. O objetivo é colocar o máximo das APIs no código comum (commonMain), expondo comportamento consistente em todas as plataformas suportadas. Para diferenças necessárias (como chamadas de APIs nativas), utiliza-se o mecanismo de expect/actual do Kotlin, definindo a interface em comum e fornecendo implementações específicas em androidMain e iosMain, porém mantendo o mesmo comportamento em cada plataforma. A seguir detalhamos os recursos principais planejados para a biblioteca e sugerimos funcionalidades adicionais, bem como uma estrutura recomendada do projeto, incluindo estratégias de teste e distribuição.
+Funcionalidades Principais Previstas
+Você já identificou diversas funcionalidades repetitivas que serão incluídas na biblioteca utilitária KMP. Estes componentes centrais incluem:
+
+
+Validações de Dados: Um módulo de validações comum para entradas de usuário. Isso abrangerá verificação de formato de e-mail, validação de CPF e CNPJ, entre outros. As regras de CPF/CNPJ, por exemplo, podem ser implementadas em um só lugar – incluindo a checagem dos dígitos verificadores usando o algoritmo módulo 11, evitando duplicação dessa lógica em cada app. Com isso, qualquer projeto poderá chamar funções utilitárias como validaCPF(cpf: String) ou validaEmail(email: String) da biblioteca, recebendo um resultado consistente (possivelmente um boolean ou uma exceção de validação). Todos os casos inválidos devem ser tratados de forma uniforme nas plataformas, garantindo previsibilidade.
+
+
+Máscaras e Formatação: Funções utilitárias para formatar ou aplicar máscaras em campos de texto. Um caso citado é a máscara de telefone Brasil, que pode ser padronizada – por exemplo, formatar automaticamente o input para (DD) NNNN-NNNN em números fixos de 8 dígitos e (DD) NNNNN-NNNN em celulares de 9 dígitos, aceitando somente dígitos. De modo similar, a biblioteca pode fornecer máscaras para CPF/CNPJ (inserindo pontuação .xxx.xxx.xxx-xx ou xx.xxx.xxx/xxxx-xx conforme o caso) e possivelmente CEP (código postal) no formato NNNNN-NNN. Em vez de reimplementar TextWatchers ou lógica de formatação em cada app, a função comum (por exemplo, formataTelefone(numero: String): String) retornaria o número no padrão desejado, e até poderia auxiliar na validação básica de comprimento. Embora a aplicação de máscara em tempo real dependa da UI, a biblioteca pode oferecer métodos de formatting para serem usados nas camadas de apresentação.
+
+
+Fluxos de Autenticação e Firebase: Muitos aplicativos compartilham fluxos similares de autenticação e integração com backend (no seu caso, usando Firebase). A biblioteca KMP pode encapsular chamadas ao Firebase Authentication para login por e-mail/senha, login via Google e login via Apple, além de operações de gerenciamento de conta (como logout e exclusão de conta). Usando Kotlin Multiplatform, é possível escrever essas lógicas de forma unificada: por exemplo, utilizar um SDK multiplataforma do Firebase (como o Firebase Kotlin SDK da GitLive ou o mais recente KFire mencionado em 2026) para chamar APIs de Auth, Firestore e Storage diretamente do código comum. Isso significa que funções como loginEmailSenha(email, senha), loginGoogle() ou excluirUsuario() podem residir no módulo compartilhado, evitando implementar duas vezes (Android/iOS). Caso seja necessário integrar fluxos específicos de cada plataforma (por exemplo, obter o token OAuth do Google Sign-In na UI nativa), a biblioteca pode definir interfaces de callback ou usar expect/actual – mas o ideal é aproveitar soluções multiplataforma existentes que já unificam o Firebase. Em 2026, por exemplo, o KFire oferece uma API Kotlin multiplataforma que internamente usa os SDKs nativos mas expõe chamadas type-safe com coroutines para Auth, Firestore, Storage etc., em todas as plataformas suportadas. Com isso, fluxos como criar usuário, login e até monitorar usuário atual podem ser escritos uma vez no common. Da mesma forma, operações de Firestore (adicionar/ler documentos) e Storage (upload/download de arquivos) podem ser abstraídas. Por exemplo, a biblioteca pode fornecer um método salvarDocumento(collection, data) que internamente chama Firestore (common code) e um uploadArquivo(path, bytes) que usa o SDK de Storage – ambos aproveitando coroutines/Flows em Kotlin para facilitar o uso assíncrono. Assim, funcionalidades repetidas como “adicionar um documento no Firestore e enviar um arquivo ao Storage” ficam centralizadas e testadas em um único ponto. É importante também definir claramente os retornos e erros dessas funções, para que comportem-se de forma igual no Android e iOS (ex.: uma exceção de autenticação ou falha de rede deve ser reportada do mesmo jeito em ambas plataformas).
+
+
+Ações de Sistema Reutilizáveis: Outra categoria de código repetido envolve interações simples com recursos do sistema operacional ou outras apps – por exemplo, abrir um link no navegador externo, iniciar um e-mail no cliente de e-mail ou abrir o discador de telefone. Essas funcionalidades podem ser abstraídas em funções comuns utilizando expect/actual. Por exemplo, pode-se definir em commonMain uma função openUrl(url: String) que abre a URL no navegador padrão, e então fornecer implementações: no Android usando um Intent.ACTION_VIEW e no iOS usando o método openURL da UIApplication. Esse padrão já é conhecido em Compose Multiplatform para manter a UI compartilhada livre de chamadas nativas específicas. De forma similar, uma função enviarEmail(destinatario, assunto, corpo) poderia ser implementada com Intent.ACTION_SENDTO (mailto:) no Android e via MFMailComposeViewController ou esquema mailto: no iOS. O mesmo vale para ligar ou enviar SMS – e.g., ligarTelefone(numero) usando Intent.ACTION_DIAL no Android e UIApplication.openURL("tel:") no iOS. Ao encapsular essas ações, qualquer módulo de UI compartilhada (por exemplo, suas telas em Compose) pode chamar diretamente openUrl(someLink) ou enviarEmail(supportEmail), enquanto a biblioteca cuida de invocar a API nativa correta em segundo plano. Lembre-se de que essas funções launchers geralmente precisam de contexto de UI (no Android, um Context para o startActivity; no iOS, talvez obter a UIViewController atual para apresentar algo). Muitas vezes, a solução é passá-los via injeção de dependência ou aproveitar que em Compose você consegue acessar o contexto local no lambda de ação. O importante é centralizar a lógica e seguir as boas práticas para garantir que funcione em todas plataformas (por exemplo, adicionar FLAG_ACTIVITY_NEW_TASK no intent Android para poder chamar fora de uma Activity, checar canSendMail() no iOS antes de abrir o composer de e-mail, etc).
+
+
+Dados Estáticos Incorporados: Você mencionou possuir um JSON com todos os estados brasileiros e outro com todos os municípios. Essa informação pode ser embarcada na biblioteca (por exemplo, dentro de resources comum ou como strings Kotlin geradas) para que cada app a consuma diretamente. Assim, em vez de cada projeto incluir esses JSONs separadamente, a lib fornece métodos utilitários, como obterEstados() retornando uma lista/array de estados (nome e sigla) e obterMunicipios(estado) retornando os municípios correspondentes. Isso padroniza a fonte dos dados e evita divergências. Como esses dados mudam raramente, tê-los localmente é viável. Uma dica é eventualmente expor esses dados como objetos Kotlin (data classes) já prontos, talvez carregendo o JSON e fazendo parsing apenas uma vez (pode usar Kotlinx Serialization para parsear JSON em multiplataforma). Assim, o app consumidor simplesmente chama a função e obtém a lista pronta de estados/municípios. A biblioteca deve incluir documentação indicando a fonte e atualização desses dados para futuras manutenções.
+
+
+Sugestões de Funcionalidades Adicionais
+Além dos itens já levantados, considere incorporar outros utilitários multiplataforma que costumam ser transversais a muitos projetos:
+
+
+Registro de Log Unificado: Ter um mecanismo de logging multiplataforma facilita o debug e monitoramento de comportamento em todos os apps. Em vez de usar Log.d no Android e print() no iOS separadamente, pode-se incluir uma biblioteca de log KMP como o Napier. O Napier, por exemplo, permite chamar Napier.d("mensagem") no código comum, e ele envia o log para o Logcat no Android, para o console no iOS (ou outro destino), etc. Ou seja, os logs escritos no módulo compartilhado aparecem automaticamente no logger nativo de cada plataforma. Isso ajuda durante o desenvolvimento e também padroniza a forma de registrar erros/exceções (Napier suporta níveis de log e até envio de exceptions). Alternativamente, você poderia escrever seu próprio wrapper simples usando expect/actual (por exemplo, uma função logDebug(tag, msg) que no Android chame Log.d e no iOS use NSLog), mas aproveitar uma biblioteca pronta economiza tempo e traz recursos extras (como integração fácil com multiplatform).
+
+
+Preferências e Armazenamento Local: Muitos apps precisam armazenar pequenas preferências ou configurações localmente (tokens de sessão, flags booleans, última data sincronizada etc.). Em vez de cada app implementar isso separadamente (SharedPreferences no Android, UserDefaults no iOS), a biblioteca pode oferecer um serviço de key-value storage unificado. Há soluções prontas como o Multiplatform Settings (de Russ Wolf), cujo propósito é exatamente permitir persistir dados simples no código comum, abstraindo SharedPreferences e NSUserDefaults. Com essa abordagem, você poderia expor um objeto Settings ou funções saveConfig(chave, valor) e getConfig(chave) em comum, tornando o acesso igual nas duas plataformas. Internamente, ou se usa a biblioteca mencionada (que já lida com a criação do container correto em cada plataforma) ou implementa via expect class Preferences com actual usando as APIs nativas. Essa funcionalidade aumentaria a utilidade da sua lib caso vários projetos seus precisem guardar estado simples do usuário ou do app. Também é possível incluir uma variante segura (armazenamento criptografado) se for relevante – existem libs multiplataforma para secure storage, mas inicialmente o foco pode ser a persistência simples mesmo.
+
+
+Verificação de Conectividade de Rede: Outra funcionalidade utilitária comum é checar se o dispositivo tem conexão à internet ativa, ou distinguir se está no Wi-Fi ou celular, etc. Em Kotlin Multiplatform, isso tipicamente requer código nativo (ConnectivityManager no Android, frameworks Network/Reachability no iOS). Contudo, você pode abstrair isso facilmente: por exemplo, uma função isOnline() ou mesmo um Flow/callback que emita mudanças de conectividade. Já existe inclusive biblioteca comunitária, como o Konnectivity, que provê monitoramento de status de rede multiplataforma. Integrando algo assim, seu código comum pode perguntar if (isOnline()) antes de fazer chamadas de rede ou exibir mensagens “sem internet” de forma padronizada. Implementando manualmente: no Android, verificar se há alguma network ativa via ConnectivityManager; no iOS, usar NWPathMonitor (ou uma chamada simples de reachability). Mesmo que cada app tenha requisitos específicos, ter uma verificação básica compartilhada é útil.
+
+
+Outros Utilitários Gerais: Dependendo dos tipos de aplicativos que você desenvolverá, existem mais alguns utilitários que poderiam entrar na biblioteca:
+
+
+Formato de Data/Hora: funções para formatar datas, por exemplo, um método formatarData(localDate) que retorna string no padrão brasileiro ou ISO, usando DateTimeFormatter multiplataforma (do kotlinx-datetime). Isso evita repetir padrões de formatação.
+
+
+Conversões e Extensões: talvez extensões utilitárias que você se pega escrevendo em vários projetos, como transformar strings (ex: remover acentuação, capitalizar nomes), cálculos comuns, etc.
+
+
+Componentes de UI Comuns: nesta primeira versão você optou por não incluir UI, mas no futuro, se notar padrões repetidos de interface, pode criar um módulo UI compartilhado. Por exemplo, talvez um componente Compose padrão de botão de carregamento, ou um diálogo de confirmação reutilizável. Como você usa Jetpack Compose Multiplatform, seria possível criar composables utilizáveis tanto no Android quanto no iOS (via Compose para iOS). Inicialmente, entretanto, manter a biblioteca focada em lógica de negócio/utilitários torna-a mais simples e flexível, evitando restrições de design nos apps.
+
+
+
+
+Estrutura do Projeto e Implementação Multiplataforma
+Para organizar a biblioteca, é recomendável seguir a estrutura padrão de projetos KMP. Você terá um módulo Gradle (digamos, :util-lib) com source sets separados: commonMain e commonTest para código compartilhado, e plataformas específicas como androidMain, iosMain (e possivelmente iosSimulatorArm64Main, etc., dependendo do setup). Coloque a maior parte do código na seção comum, garantindo que as APIs sejam consumíveis diretamente do common code dos aplicativos. Por exemplo, as classes de validação e formatação certamente são 100% em Kotlin puro, logo residem em common. Já funcionalidades que precisem de APIs nativas (abrir navegador, acesso Firebase nativo, armazenamento local) podem ser implementadas via expect/actual. Defina interfaces no common e realize as chamadas nativamente em cada plataforma – como demonstrado no caso do openUrl() com Intent vs UIApplication. Esse padrão mantém a API da biblioteca limpa e idêntica para Android e iOS, escondendo os detalhes internos. Lembre-se de sincronizar o comportamento: as implementações actual devem ter efeitos e retorno equivalentes – ex.: se openUrl retorna sucesso/falha via callback, ambas plataformas devem chamar esse callback de forma consistente conforme o resultado obtido.
+No caso dos recursos Firebase, você tem dois caminhos: usar uma dependência multiplataforma pronta (como o Firebase Kotlin SDK da comunidade GitLive, ou o KFire se optar por ele) ou criar suas próprias abstrações. A opção de usar uma SDK multiplataforma pronta é conveniente – por exemplo, o Firebase Kotlin SDK da GitLive oferece artefatos KMP para Auth, Firestore, Storage etc., possibilitando chamar Firebase direto do common code (com suporte a coroutines/Flow). Caso opte por ela, sua biblioteca pode simplesmente expor funções que internamente chamam essas APIs (por exemplo, Firebase.auth.signInWithEmail(email, pass) já funciona em comum, autenticando no Android ou iOS conforme o runtime). Alternativamente, se preferir controle total ou se alguma feature não tiver suporte KMP oficial, você pode usar expect/actual com SDKs nativos: por exemplo, um expect fun loginGoogle() que na implementação Android usa o Firebase Auth + GoogleSignInClient e na iOS utilize FirebaseAuth via interop com Swift/Objective-C. Essa abordagem exige mais código (configurar CocoaPods interop no Gradle, etc.) e duplicação de lógica de integração, então usar a biblioteca multiplataforma (ou uma combinação – talvez GitLive para Auth e Firestore, e você mesmo implementa algo não coberto) tende a poupar trabalho e erros. Em qualquer caso, garanta configurações padrão e documentação claras. Por exemplo, se o Firebase precisar ser inicializado, sua biblioteca pode cuidar disso (como o KFire faz, auto-inicializando ao rodar um kfire init script) ou instruir o desenvolvedor a chamar alguma função de setup no aplicativo.
+Sobre organização interna, você pode manter tudo em um único artefato (uma só biblioteca .aar/.framework) ou separar em sub-módulos. Considerando que pretende unificar todas as soluções e que provavelmente todos os seus apps usarão a maioria desses recursos, um único módulo KMP é mais simples de gerenciar. No entanto, modularizar pode ser útil se houver casos de uso muito distintos – por exemplo, talvez criar um módulo separado core-util (validações, máscaras, utils gerais) e outro firebase-util (que só é incluído em projetos com Firebase). Essa separação pode evitar que um app que não use Firebase traga dependências desnecessárias. Mas isso adiciona complexidade de projeto (publicar dois artefatos, etc.), então é uma decisão de equilíbrio. Inicialmente, pode-se criar um módulo único com tudo, e futuramente extrair módulos se sentir necessidade.
+Como você mencionou Compose Multiplatform, vale notar que se no futuro incluir componentes de UI, talvez seja melhor colocá-los em um módulo separado (pois o artefato de UI poderia depender de Compose, enquanto o core não precisaria). Por ora, com foco só em lógica, seu módulo KMP terá dependência apenas das bibliotecas Kotlin comuns (kotlinx-coroutines, kotlinx-serialization, talvez Ktor se for fazer chamadas HTTP, etc.) e de quaisquer libs multiplataforma auxiliares (Firebase KMP SDK, Napier, Settings, etc. conforme discutido). Garanta também definir no Gradle os targets adequados: certamente android() e os iOS (iosArm64, iosX64, iosSimulatorArm64) para cobrir device e simulador. Se planeja desktop futuramente, você pode já ativar um target jvm (ou mesmo macosX64) – isso facilitaria testar lógicas no desktop e adiantar suporte caso precise. O Kotlin Multiplatform hoje suporta vários alvos; o guia sugere dar suporte ao máximo que fizer sentido, mas não é obrigatório adicionar todos desde o início.
+Testes Automatizados e Qualidade
+Uma grande vantagem de concentrar a lógica em um lugar é poder escrever testes automatizados abrangentes. Recomenda-se configurar desde cedo testes unitários no commonTest, pois o Kotlin permite rodar os mesmos testes em todas as plataformas suportadas. Por exemplo, testes de validação de CPF/CNPJ (casos válidos e inválidos conhecidos), testes para as funções de máscara (verificar se formatam corretamente diferentes inputs), e testes das funções de negócio (login, etc., usando talvez Firebase em modo de teste ou mocks). A biblioteca kotlin-test facilita escrever testes multiplataforma e você pode executá-los tanto na JVM (mais rápido) quanto em um destino nativo para garantir que passam em ambos.
+Para funcionalidades que interagem com plataformas, como abrir URLs ou integrar com Firebase, os testes podem exigir abordagem diferente. Como não é trivial (nem necessário) abrir um navegador de verdade nos testes, você pode estruturar essas funções de forma testável – por exemplo, retornando um resultado que possa ser verificado (um código de sucesso/erro) em vez de simplesmente lançar a Intent sem feedback. No caso de Firebase, pode usar os Emulators do Firebase para rodar testes de integração sem tocar em serviços reais, ou mockar as chamadas se usar um wrapper. Também é possível configurar testes instrumentados Android (rodar um teste no emulador Android) para verificar comportamentos específicos do Android, mas para a maioria dos utilitários, os testes comuns já bastam. Dado que sua lib será publicada e reutilizada, mantenha uma boa cobertura de testes – isso garantirá confiança ao usar em novos projetos e agilizará identificar regressões quando aprimorar algo.
+Além dos testes, considere configurar uma CI (por exemplo, GitHub Actions) para construir a biblioteca e rodar a suite de testes em todos os targets suportados automaticamente a cada mudança. Isso ajuda a manter a consistência e detectar qualquer problema de compatibilidade (especialmente se adicionar novos targets como desktop, ou ao atualizar versões do Kotlin).
+Publicação e Documentação
+Como planeja disponibilizar a biblioteca via GitHub Packages (ou possivelmente Maven Central no futuro), é importante configurar o Gradle para publicar artefatos multiplataforma corretamente. A configuração deve empacotar tanto o artifact comum quanto os específicos de plataforma juntos, garantindo que ao adicionar a dependência, os consumidores baixem as partes adequadas (Android .aar, iOS .klib etc.). O Gradle KMP plugin já fornece tasks de publicação para isso; por exemplo, usando maven-publish, você terá publicações para kotlinMultiplatform (com metadata e common) e para cada target. Certifique-se de incluir a configuração do plugin Android Library no módulo (já que é uma lib Android, gradle com.android.library ou o novo plugin KMP Android Library) e definir namespace, SDK mínimo, etc., para gerar o AAR Android. Para publicar no GitHub Packages, você precisará autenticar no Gradle (fornecendo gpr.user e gpr.key ou usando uma GitHub Actions CI). Várias fontes descrevem o passo-a-passo – em resumo, criar a publicação, ajustar o pom (nome, descrição, URL do repo) e acionar ./gradlew publish apontando para o repositório GitHub. Feito isso, seus apps poderão incluir a dependência via Gradle usando a coordenação do pacote no GitHub Packages.
+Não se esqueça da documentação: isso é parte crucial para uso eficiente da lib, sobretudo se outros desenvolvedores forem utilizá-la (ou mesmo você no futuro, após meses, vai querer uma referência rápida). Capriche no README do repositório, explicando para que serve cada componente e como integrá-lo em um app KMP. Inclua exemplos de código de uso – por exemplo, como chamar a função de validação, ou um snippet de uso do login. Como a biblioteca é multiplataforma, documente também qualquer detalhe de configuração por plataforma (por exemplo: “é necessário adicionar um esquema URL no Info.plist do iOS para o login Google” – se for o caso –, ou “lembre de adicionar Internet Permission no AndroidManifest do app para usar a função X”). Um README bem estruturado complementa o código autodocumentado com KDoc. Considere também gerar documentação de API com Dokka, que suporta KMP e pode publicar um site HTML com as classes e funções bem comentadas. Conforme as boas práticas, toda API exposta em commonMain deve ter comentários KDoc explicando comportamento, parâmetros, possíveis exceções, etc.. Lembre-se que, se for usar a lib em iOS via interoperabilidade Swift, é útil prestar atenção em como as APIs aparecem em Swift (nomes de métodos, etc.) – às vezes vale ajustar nomes ou adicionar @ObjCName para ficar mais idiomático ao usá-las do lado Swift, conforme as dicas do guia Kotlin/Swift interop.
+Em suma, centralizar essas funcionalidades em uma biblioteca multiplataforma trará grandes benefícios de produtividade e qualidade. A estrutura KMP permitirá compartilhar a lógica de negócio e utilitários entre Android e iOS (e potencialmente outras plataformas) mantendo uma única base de código testada. Seguindo as sugestões acima – agregando mais utilidades (logs, prefs, conexão), usando adequadamente expect/actual para integrações nativas e adotando boas práticas de projeto de libs – você terá uma biblioteca robusta. Com testes automatizados garantindo o comportamento consistente e uma documentação clara, cada novo aplicativo seu poderá iniciar já “turbinado” com essa fundação comum, reduzindo retrabalho e favorecendo a consistência entre projetos. Boa sorte com o desenvolvimento da sua biblioteca KMP!
+Referências Utilizadas:
+
+
+Kotlin Documentation – Building a Kotlin library for multiplatform
+
+
+Mural Pay Dev Docs – Validação de CPF/CNPJ com algoritmo Mod11
+
+
+Wikipedia (en) – Formato de números de telefone no Brasil
+
+
+Medium (Devarsh Bhalara) – Exemplo de expect/actual para abrir URL no Android/iOS
+
+
+GitLive Firebase Kotlin SDK – Suporte Firebase multiplataforma (Auth, Firestore, etc.)
+
+
+Medium (Riad Mahi) – Firebase with KMP in 2026 (KFire)
+
+
+GitHub – Napier: Logging multiplataforma em Kotlin
+
+
+GitHub – Multiplatform Settings: Armazenamento chave-valor KMP
+
+
+GitHub – Konnectivity: Verificação de conectividade de rede KMP
