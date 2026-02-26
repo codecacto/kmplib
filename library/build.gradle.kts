@@ -24,15 +24,9 @@ kotlin {
         namespace = "br.com.codecacto.kmplib"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
-
-        compilations.configureEach {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_17)
-                }
-            }
-        }
     }
+
+    jvmToolchain(17)
 
     listOf(
         iosX64(),
@@ -65,11 +59,12 @@ kotlin {
             implementation(libs.firebase.storage)
 
             // Compose (for VisualTransformation and UI Components)
-            implementation(compose.ui)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.components.resources)
-            implementation(libs.compose.material.icons.extended)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.components.resources)
+            @Suppress("DEPRECATION")
+            implementation(compose.materialIconsExtended)
         }
 
         commonTest.dependencies {

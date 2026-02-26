@@ -1,44 +1,30 @@
 package br.com.codecacto.kmplib.brdata
 
 /**
- * Remove acentos e caracteres especiais de uma string.
+ * Normaliza uma string para NFD (Canonical Decomposition).
+ * Implementação específica por plataforma.
+ */
+expect fun String.normalizeNFD(): String
+
+/**
+ * Remove acentos e caracteres especiais de uma string usando Unicode NFD normalization.
+ *
+ * Usa decomposição canônica (NFD) para separar caracteres base de seus diacríticos,
+ * e então remove os diacríticos (combining marks).
  *
  * Uso:
  * ```kotlin
  * "São Paulo".removeAccents() // "Sao Paulo"
  * "Maringá".removeAccents()   // "Maringa"
+ * "Cáceres".removeAccents()   // "Caceres"
  * ```
  */
 fun String.removeAccents(): String {
-    return this.map { char ->
-        when (char) {
-            // Minúsculas
-            'à', 'á', 'â', 'ã', 'ä', 'å' -> 'a'
-            'æ' -> 'a'
-            'ç' -> 'c'
-            'è', 'é', 'ê', 'ë' -> 'e'
-            'ì', 'í', 'î', 'ï' -> 'i'
-            'ð' -> 'd'
-            'ñ' -> 'n'
-            'ò', 'ó', 'ô', 'õ', 'ö', 'ø' -> 'o'
-            'ù', 'ú', 'û', 'ü' -> 'u'
-            'ý', 'ÿ' -> 'y'
-
-            // Maiúsculas
-            'À', 'Á', 'Â', 'Ã', 'Ä', 'Å' -> 'A'
-            'Æ' -> 'A'
-            'Ç' -> 'C'
-            'È', 'É', 'Ê', 'Ë' -> 'E'
-            'Ì', 'Í', 'Î', 'Ï' -> 'I'
-            'Ð' -> 'D'
-            'Ñ' -> 'N'
-            'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'Ø' -> 'O'
-            'Ù', 'Ú', 'Û', 'Ü' -> 'U'
-            'Ý' -> 'Y'
-
-            else -> char
-        }
-    }.joinToString("")
+    // NFD decompõe caracteres acentuados em base + combining mark
+    // Ex: "é" -> "e" + combining acute accent
+    val normalized = this.normalizeNFD()
+    // Remove combining diacritical marks (Unicode range \u0300-\u036f)
+    return normalized.replace(Regex("[\\u0300-\\u036f]"), "")
 }
 
 /**

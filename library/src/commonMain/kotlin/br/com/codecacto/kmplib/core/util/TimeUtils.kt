@@ -1,6 +1,5 @@
 package br.com.codecacto.kmplib.core.util
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -17,7 +16,7 @@ expect fun currentTimeMillis(): Long
 /**
  * Obtém o Instant atual.
  */
-fun currentInstant(): Instant = Clock.System.now()
+fun currentInstant(): Instant = Instant.fromEpochMilliseconds(currentTimeMillis())
 
 /**
  * Converte Instant para LocalDateTime no timezone do sistema.

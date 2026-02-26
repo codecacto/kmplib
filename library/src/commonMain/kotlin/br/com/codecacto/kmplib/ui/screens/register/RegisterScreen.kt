@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.register
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,8 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -198,7 +202,7 @@ fun RegisterScreen(
                     if (fields.showTermsCheckbox && (termsUrl != null || privacyUrl != null)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.Top
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
                                 checked = state.acceptedTerms,
@@ -208,54 +212,38 @@ fun RegisterScreen(
                                     checkedColor = colors.primary
                                 )
                             )
-                            Column(
-                                modifier = Modifier.padding(start = 8.dp, top = 12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = texts.termsPrefix(),
-                                        fontSize = 14.sp,
-                                        color = colors.textSecondary
-                                    )
+                            Text(
+                                text = buildAnnotatedString {
+                                    append(texts.termsPrefix())
                                     if (termsUrl != null) {
-                                        TextButton(
-                                            onClick = { onAction(RegisterAction.Click.Terms) },
-                                            contentPadding = PaddingValues(0.dp),
-                                            enabled = !state.isLoading
-                                        ) {
-                                            Text(
-                                                text = texts.termsText(),
-                                                fontSize = 14.sp,
-                                                color = colors.primary,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                        pushStringAnnotation(tag = "terms", annotation = "terms")
+                                        withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium)) {
+                                            append(texts.termsText())
                                         }
+                                        pop()
                                     }
                                     if (termsUrl != null && privacyUrl != null) {
-                                        Text(
-                                            text = texts.andText(),
-                                            fontSize = 14.sp,
-                                            color = colors.textSecondary
-                                        )
+                                        append(" ${texts.andText()} ")
                                     }
                                     if (privacyUrl != null) {
-                                        TextButton(
-                                            onClick = { onAction(RegisterAction.Click.Privacy) },
-                                            contentPadding = PaddingValues(0.dp),
-                                            enabled = !state.isLoading
-                                        ) {
-                                            Text(
-                                                text = texts.privacyText(),
-                                                fontSize = 14.sp,
-                                                color = colors.primary,
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                        pushStringAnnotation(tag = "privacy", annotation = "privacy")
+                                        withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium)) {
+                                            append(texts.privacyText())
+                                        }
+                                        pop()
+                                    }
+                                },
+                                fontSize = 14.sp,
+                                color = colors.textSecondary,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        // Fallback - abre termos por padrão
+                                        if (termsUrl != null) {
+                                            onAction(RegisterAction.Click.Terms)
                                         }
                                     }
-                                }
-                            }
+                            )
                         }
                     }
 

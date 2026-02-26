@@ -2,7 +2,12 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -14,14 +19,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Container genérico para formulários com scroll e gerenciamento de teclado
+ * Container for form screens that handles keyboard behavior properly:
+ * - Scrolls content when keyboard appears (imePadding)
+ * - Allows scrolling through form fields
+ * - Dismisses keyboard when tapping outside input fields
  *
- * @param modifier Modificador customizado
- * @param horizontalPadding Padding horizontal do container
- * @param verticalPadding Padding vertical do container
- * @param horizontalAlignment Alinhamento horizontal do conteúdo
- * @param verticalArrangement Arranjo vertical dos elementos
- * @param content Conteúdo do formulário
+ * @param modifier Modifier to apply to the container
+ * @param horizontalPadding Horizontal padding for the content (default: 24.dp)
+ * @param verticalPadding Vertical padding for the content (default: 16.dp)
+ * @param horizontalAlignment Horizontal alignment for the column items
+ * @param verticalArrangement Vertical arrangement for the column items
+ * @param content The form content
  */
 @Composable
 fun FormContainer(
@@ -32,16 +40,15 @@ fun FormContainer(
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(12.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
-    val interactionSource = remember { MutableInteractionSource() }
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .imePadding()
             .clickable(
-                interactionSource = interactionSource,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 focusManager.clearFocus()
@@ -49,7 +56,8 @@ fun FormContainer(
             .verticalScroll(scrollState)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         horizontalAlignment = horizontalAlignment,
-        verticalArrangement = verticalArrangement,
-        content = content
-    )
+        verticalArrangement = verticalArrangement
+    ) {
+        content()
+    }
 }
