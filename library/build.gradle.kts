@@ -1,9 +1,8 @@
-import com.android.build.api.dsl.androidLibrary
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.vanniktech.mavenPublish)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.composeMultiplatform)
@@ -19,12 +18,16 @@ compose.resources {
     generateResClass = always
 }
 
-kotlin {
-    androidLibrary {
-        namespace = "br.com.codecacto.kmplib"
-        compileSdk = libs.versions.android.compileSdk.get().toInt()
+android {
+    namespace = "br.com.codecacto.kmplib"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
+}
+
+kotlin {
+    androidTarget()
 
     jvmToolchain(17)
 
