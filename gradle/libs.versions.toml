@@ -17,6 +17,9 @@ firebaseGitlive = "2.1.0"
 # AdMob
 playServicesAds = "23.6.0"
 
+# RevenueCat
+revenuecatKmp = "2.2.13+17.23.0"
+
 # Compose
 composeMultiplatform = "1.10.0"
 material3 = "1.10.0-alpha05"
@@ -56,6 +59,11 @@ firebase-config-android = { module = "com.google.firebase:firebase-config", vers
 
 # AdMob
 play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
+
+# RevenueCat
+purchases-kmp-core = { module = "com.revenuecat.purchases:purchases-kmp-core", version.ref = "revenuecatKmp" }
+purchases-kmp-result = { module = "com.revenuecat.purchases:purchases-kmp-result", version.ref = "revenuecatKmp" }
+purchases-kmp-datetime = { module = "com.revenuecat.purchases:purchases-kmp-datetime", version.ref = "revenuecatKmp" }
 
 # Compose Runtime (for VisualTransformation and UI Components)
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }

@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.cinterop.googleads.GADFullScreenContentDelegatePr
 import br.com.codecacto.kmplib.cinterop.googleads.GADFullScreenPresentingAdProtocol
 import br.com.codecacto.kmplib.cinterop.googleads.GADRequest
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.monetization.MonetizationManager
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSError
 import platform.darwin.NSObject
@@ -40,7 +41,7 @@ actual class AppOpenAdController actual constructor() {
     }
 
     actual fun show(onDismissed: () -> Unit) {
-        if (!AdManager.adsEnabled.value) {
+        if (!MonetizationManager.shouldShowAds.value) {
             onDismissed()
             return
         }

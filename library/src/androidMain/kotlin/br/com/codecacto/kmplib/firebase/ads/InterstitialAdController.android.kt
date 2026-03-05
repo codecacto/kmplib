@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.firebase.ads
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.monetization.MonetizationManager
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
@@ -46,7 +47,7 @@ actual class InterstitialAdController actual constructor() {
     }
 
     actual fun show(onDismissed: () -> Unit) {
-        if (!AdManager.adsEnabled.value) {
+        if (!MonetizationManager.shouldShowAds.value) {
             onDismissed()
             return
         }

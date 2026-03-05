@@ -69,6 +69,11 @@ kotlin {
             implementation(libs.firebase.storage)
             implementation(libs.firebase.config)
 
+            // RevenueCat
+            implementation(libs.purchases.kmp.core)
+            implementation(libs.purchases.kmp.result)
+            implementation(libs.purchases.kmp.datetime)
+
             // Compose (for VisualTransformation and UI Components)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)

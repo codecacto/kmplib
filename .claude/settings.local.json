@@ -37,7 +37,10 @@
       "WebSearch",
       "Bash(powershell:*)",
       "Bash(del \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\generate_cities.ps1\" \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\generate_kotlin.ps1\" \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\\\\cities_generated.txt\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(xargs grep:*)",
+      "Bash(./gradlew :library:compileKotlinAndroid:*)",
+      "Bash(./gradlew :library:compileDebugKotlinAndroid:*)"
     ]
   }
 }
