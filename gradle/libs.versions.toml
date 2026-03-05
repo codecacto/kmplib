@@ -14,6 +14,9 @@ kotlinxDatetime = "0.6.2"
 # Firebase (GitLive)
 firebaseGitlive = "2.1.0"
 
+# AdMob
+playServicesAds = "23.6.0"
+
 # Compose
 composeMultiplatform = "1.10.0"
 material3 = "1.10.0-alpha05"
@@ -48,6 +51,11 @@ firebase-auth-android = { module = "com.google.firebase:firebase-auth-ktx", vers
 firebase-firestore-android = { module = "com.google.firebase:firebase-firestore", version = "25.1.1" }
 firebase-storage-android = { module = "com.google.firebase:firebase-storage", version = "21.0.1" }
 firebase-common-android = { module = "com.google.firebase:firebase-common-ktx", version = "21.0.0" }
+firebase-config = { module = "dev.gitlive:firebase-config", version.ref = "firebaseGitlive" }
+firebase-config-android = { module = "com.google.firebase:firebase-config", version = "22.0.1" }
+
+# AdMob
+play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
 
 # Compose Runtime (for VisualTransformation and UI Components)
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }

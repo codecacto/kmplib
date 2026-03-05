@@ -68,5 +68,5 @@ package br.com.codecacto.kmplib
  * Para biometria, a permissão é solicitada automaticamente.
  */
 object KmpLib {
-    const val VERSION = "1.0.0"
+    const val VERSION = "1.1.0"
 }

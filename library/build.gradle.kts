@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "1.0.0"
+version = "1.1.0"
 
 compose.resources {
     publicResClass = true
@@ -39,6 +39,13 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "KmpLib"
             isStatic = true
+            linkerOpts("-weak_framework", "GoogleMobileAds")
+        }
+
+        iosTarget.compilations["main"].cinterops {
+            create("GoogleMobileAds") {
+                defFile(project.file("src/nativeInterop/cinterop/GoogleMobileAds.def"))
+            }
         }
     }
 
@@ -60,6 +67,7 @@ kotlin {
             implementation(libs.firebase.auth)
             implementation(libs.firebase.firestore)
             implementation(libs.firebase.storage)
+            implementation(libs.firebase.config)
 
             // Compose (for VisualTransformation and UI Components)
             implementation(libs.compose.ui)
@@ -82,6 +90,12 @@ kotlin {
             implementation(libs.firebase.firestore.android)
             implementation(libs.firebase.storage.android)
             implementation(libs.firebase.common.android)
+
+            // AdMob
+            implementation(libs.play.services.ads)
+
+            // Firebase Remote Config Android
+            implementation(libs.firebase.config.android)
 
             // AndroidX Biometric
             implementation(libs.androidx.biometric)
