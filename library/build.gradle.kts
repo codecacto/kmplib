@@ -31,6 +31,10 @@ kotlin {
 
     jvmToolchain(17)
 
+    val xcframeworkPath = rootProject.file(".build/artifacts/swift-package-manager-google-mobile-ads/GoogleMobileAds/GoogleMobileAds.xcframework")
+    val iosDeviceFrameworkPath = xcframeworkPath.resolve("ios-arm64/GoogleMobileAds.framework")
+    val iosSimulatorFrameworkPath = xcframeworkPath.resolve("ios-arm64_x86_64-simulator/GoogleMobileAds.framework")
+
     listOf(
         iosX64(),
         iosArm64(),
@@ -42,9 +46,15 @@ kotlin {
             linkerOpts("-weak_framework", "GoogleMobileAds")
         }
 
+        val frameworkPath = when (iosTarget.name) {
+            "iosArm64" -> iosDeviceFrameworkPath
+            else -> iosSimulatorFrameworkPath
+        }
+
         iosTarget.compilations["main"].cinterops {
             create("GoogleMobileAds") {
                 defFile(project.file("src/nativeInterop/cinterop/GoogleMobileAds.def"))
+                compilerOpts("-F${frameworkPath.parentFile.absolutePath}")
             }
         }
     }

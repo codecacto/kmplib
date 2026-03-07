@@ -7,6 +7,7 @@ import br.com.codecacto.kmplib.cinterop.googleads.GADBannerView
 import br.com.codecacto.kmplib.cinterop.googleads.GADAdSizeBanner
 import br.com.codecacto.kmplib.cinterop.googleads.GADRequest
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readValue
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
@@ -17,7 +18,7 @@ internal actual fun BannerAdPlatform(modifier: Modifier) {
     UIKitView(
         modifier = modifier,
         factory = {
-            val bannerView = GADBannerView(adSize = GADAdSizeBanner)
+            val bannerView = GADBannerView(GADAdSizeBanner.readValue())
             bannerView.adUnitID = adUnitId
             bannerView.rootViewController = getRootViewController()
 

@@ -9,6 +9,8 @@ import br.com.codecacto.kmplib.monetization.MonetizationManager
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSError
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 private const val TAG = "InterstitialAd.ios"
 
@@ -62,14 +64,18 @@ actual class InterstitialAdController actual constructor() {
             override fun adDidDismissFullScreenContent(ad: GADFullScreenPresentingAdProtocol) {
                 interstitialAd = null
                 load()
-                onDismissed()
+                dispatch_async(dispatch_get_main_queue()) {
+                    onDismissed()
+                }
             }
 
             override fun ad(ad: GADFullScreenPresentingAdProtocol, didFailToPresentFullScreenContentWithError: NSError) {
                 AppLogger.e(TAG, "Erro ao exibir interstitial: ${didFailToPresentFullScreenContentWithError.localizedDescription}")
                 interstitialAd = null
                 load()
-                onDismissed()
+                dispatch_async(dispatch_get_main_queue()) {
+                    onDismissed()
+                }
             }
         }
 
