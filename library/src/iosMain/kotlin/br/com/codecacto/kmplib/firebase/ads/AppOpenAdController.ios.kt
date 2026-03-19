@@ -9,6 +9,8 @@ import br.com.codecacto.kmplib.monetization.MonetizationManager
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSError
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 private const val TAG = "AppOpenAd.ios"
 
@@ -62,14 +64,18 @@ actual class AppOpenAdController actual constructor() {
             override fun adDidDismissFullScreenContent(ad: GADFullScreenPresentingAdProtocol) {
                 appOpenAd = null
                 load()
-                onDismissed()
+                dispatch_async(dispatch_get_main_queue()) {
+                    onDismissed()
+                }
             }
 
             override fun ad(ad: GADFullScreenPresentingAdProtocol, didFailToPresentFullScreenContentWithError: NSError) {
                 AppLogger.e(TAG, "Erro ao exibir app open ad: ${didFailToPresentFullScreenContentWithError.localizedDescription}")
                 appOpenAd = null
                 load()
-                onDismissed()
+                dispatch_async(dispatch_get_main_queue()) {
+                    onDismissed()
+                }
             }
         }
 
