@@ -34,6 +34,11 @@ package br.com.codecacto.kmplib
  * - `FirestoreService` - Operações CRUD no Firestore
  * - `StorageService` - Upload/download de arquivos
  *
+ * ### Feedback
+ * - `FeedbackService` - Envio centralizado de feedbacks via Firestore REST API
+ * - `FeedbackScreen` - Tela completa de feedback com formulário
+ * - `AppReviewDialog` - Dialog de avaliação com persistência automática
+ *
  * ### Plataforma
  * - `UrlLauncher` - Abrir URLs, emails, WhatsApp
  * - `ShareHandler` - Compartilhamento de texto e arquivos

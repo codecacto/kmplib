@@ -57,7 +57,23 @@
       "Bash(\"/c/Program Files/Java/jdk-21/bin/jar\" tf classes.jar)",
       "Bash(\"/c/Program Files/Java/jdk-21/bin/jar\" tf:*)",
       "Bash(./gradlew :composeApp:dependencies:*)",
-      "Bash(grep -r \"rating\\\\|review\\\\|feedback\" /e/CodeCacto/Lib/kmplib/library/src -l --include=*.kt)"
+      "Bash(grep -r \"rating\\\\|review\\\\|feedback\" /e/CodeCacto/Lib/kmplib/library/src -l --include=*.kt)",
+      "Bash(xargs -I {} find {} -type f -name \"*.kt\")",
+      "Bash(where java:*)",
+      "Bash(java -version)",
+      "Read(//c/Program Files/Android/Android Studio/jbr/**)",
+      "Read(//c/Program Files/Android/Android Studio//**)",
+      "Bash(\"C:/Program Files/Android/Android Studio/jbr/bin/java\" -version 2>&1)",
+      "Bash(echo $JAVA_HOME)",
+      "Read(//e/CodeCacto/Lib/kmplib/$JAVA_HOME/bin/**)",
+      "Read(//c/Program Files/Java//**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/rapha/.jdks//**)",
+      "Bash(mkdir -p \"E:/CodeCacto/Super 8/composeApp/src/commonMain/kotlin/br/com/codecacto/superoito/core/preferences\")",
+      "Bash(mkdir -p \"E:/CodeCacto/Super 8/composeApp/src/androidMain/kotlin/br/com/codecacto/superoito/core/preferences\")",
+      "Bash(mkdir -p \"E:/CodeCacto/Super 8/composeApp/src/iosMain/kotlin/br/com/codecacto/superoito/core/preferences\")",
+      "Bash(jar tf:*)",
+      "Bash($JAVA_HOME/bin/jar tf:*)"
     ]
   }
 }

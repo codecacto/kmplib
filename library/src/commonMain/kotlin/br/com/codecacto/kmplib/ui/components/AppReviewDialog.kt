@@ -22,8 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.codecacto.kmplib.feedback.FeedbackService
+import br.com.codecacto.kmplib.feedback.FeedbackSource
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Estado interno do fluxo de avaliação.
@@ -42,6 +45,9 @@ private enum class ReviewStep {
  * 2. Se "Sim" → Redireciona para a loja (Play Store / App Store)
  * 3. Se "Não" → Exibe campo de texto para feedback → Tela de agradecimento
  *
+ * O feedback negativo é automaticamente persistido no Firestore centralizado
+ * se [FeedbackService] estiver inicializado (via [persistFeedback] = true).
+ *
  * Uso:
  * ```kotlin
  * var showReview by remember { mutableStateOf(false) }
@@ -50,7 +56,7 @@ private enum class ReviewStep {
  *     show = showReview,
  *     onDismiss = { showReview = false },
  *     onFeedbackSubmit = { feedback ->
- *         // Enviar feedback para o backend
+ *         // Callback adicional (opcional)
  *     },
  *     androidPackage = "com.example.app",
  *     iosAppId = "123456789"
@@ -63,6 +69,7 @@ private enum class ReviewStep {
  * @param androidPackage Package name do app no Android (opcional, usa o atual se null)
  * @param iosAppId ID do app na App Store (opcional)
  * @param primaryColor Cor primária dos botões
+ * @param persistFeedback Se true, persiste o feedback negativo via FeedbackService
  * @param thankYouAutoDismissMs Tempo em ms para fechar automaticamente a tela de agradecimento (0 = não fecha)
  * @param title Título da pergunta inicial
  * @param subtitle Subtítulo da pergunta inicial
@@ -79,10 +86,11 @@ private enum class ReviewStep {
 fun AppReviewDialog(
     show: Boolean,
     onDismiss: () -> Unit,
-    onFeedbackSubmit: (String) -> Unit,
+    onFeedbackSubmit: (String) -> Unit = {},
     androidPackage: String? = null,
     iosAppId: String? = null,
     primaryColor: Color = Color(0xFF3B82F6),
+    persistFeedback: Boolean = true,
     thankYouAutoDismissMs: Long = 2500L,
     title: String = "Está gostando da experiência?",
     subtitle: String = "Sua opinião é muito importante para nós!",
@@ -97,6 +105,7 @@ fun AppReviewDialog(
 ) {
     var currentStep by remember { mutableStateOf(ReviewStep.Initial) }
     var feedbackText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     // Reset state when dialog is shown/hidden
     LaunchedEffect(show) {
@@ -171,6 +180,17 @@ fun AppReviewDialog(
                             onFeedbackTextChange = { feedbackText = it },
                             onSubmit = {
                                 onFeedbackSubmit(feedbackText)
+
+                                // Persistir no Firestore se habilitado
+                                if (persistFeedback && FeedbackService.config != null) {
+                                    scope.launch {
+                                        FeedbackService.sendFeedback(
+                                            source = FeedbackSource.REVIEW_DIALOG,
+                                            mensagem = feedbackText
+                                        )
+                                    }
+                                }
+
                                 currentStep = ReviewStep.ThankYou
                             }
                         )
@@ -316,14 +336,14 @@ private fun FeedbackStep(
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFF0F0F0)),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.ThumbDown,
                 contentDescription = null,
                 modifier = Modifier.size(28.dp),
-                tint = Color(0xFF9E9E9E)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -352,7 +372,7 @@ private fun FeedbackStep(
             placeholder = {
                 Text(
                     text = placeholder,
-                    color = Color(0xFFBDBDBD)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             minLines = 4,
@@ -360,7 +380,7 @@ private fun FeedbackStep(
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = primaryColor,
-                unfocusedBorderColor = Color(0xFFE0E0E0)
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
 
@@ -376,8 +396,8 @@ private fun FeedbackStep(
             colors = ButtonDefaults.buttonColors(
                 containerColor = primaryColor,
                 contentColor = Color.White,
-                disabledContainerColor = Color(0xFFE0E0E0),
-                disabledContentColor = Color(0xFF9E9E9E)
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
             Text(

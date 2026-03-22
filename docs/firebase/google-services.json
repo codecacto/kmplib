@@ -1,0 +1,219 @@
+{
+  "project_info": {
+    "project_number": "234743070333",
+    "project_id": "code-cacto",
+    "storage_bucket": "code-cacto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:d8cc1e210fe6699c0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.cactocode.repelentemosquito"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:3c6e594b6644be460fbb14",
+        "android_client_info": {
+          "package_name": "br.com.cactocode.repelentemosquito.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:0a7a99e8f18e755b0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:d19b100722e38b910fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.calculadorabtu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:f2a2ced7b79cc7890fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.calculadorabtu.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:36df61f545d59b000fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.medicines"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:6575b7541cec330f0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.medicines.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:c7c4e1d0b323f98d0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.meuritmo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:5e18c7fab019e6fe0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.meuritmo.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:60d0c48cdfd3320d0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.superoito"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234743070333:android:45c17b5f94706bca0fbb14",
+        "android_client_info": {
+          "package_name": "br.com.codecacto.superoito.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
