@@ -17,7 +17,6 @@ import platform.Foundation.setValue
 import kotlin.coroutines.resume
 
 internal actual val currentPlatform: String = "ios"
-internal actual val feedbackApiKey: String = "AIzaSyCRSX0fO8k1yhFbUhGscyjZDx2_vrWUdZA"
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal actual suspend fun httpPost(url: String, body: String): Result<Unit> {

@@ -268,3 +268,57 @@ fun AppleLoginButton(
         }
     }
 }
+
+/**
+ * Botão secundário menor com borda sutil e texto em cor secundária.
+ *
+ * @param text Texto do botão
+ * @param onClick Callback de clique
+ * @param modifier Modificador customizado
+ * @param enabled Se o botão está habilitado
+ * @param isLoading Se está em estado de loading
+ * @param height Altura do botão
+ * @param fontSize Tamanho da fonte
+ * @param borderColor Cor da borda
+ * @param contentColor Cor do conteúdo (texto/ícone)
+ */
+@Composable
+fun AppSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isLoading: Boolean = false,
+    height: Dp = 48.dp,
+    fontSize: TextUnit = 14.sp,
+    borderColor: Color = Color(0xFFE0E0E0),
+    contentColor: Color = Color(0xFF757575)
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height),
+        enabled = enabled && !isLoading,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, borderColor),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = contentColor,
+            disabledContentColor = contentColor.copy(alpha = 0.6f)
+        )
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = contentColor,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Text(
+                text = text,
+                fontSize = fontSize,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}

@@ -1,0 +1,62 @@
+name: KMP CI (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      gradle_task:
+        description: 'Task Gradle para testes (ex: :composeApp:test)'
+        type: string
+        required: false
+        default: 'test'
+      java_version:
+        description: 'Versão do JDK'
+        type: string
+        required: false
+        default: '17'
+      run_ios_tests:
+        description: 'Executar testes iOS (requer macOS runner)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout kmplib
+        uses: actions/checkout@v4
+        with:
+          repository: codecacto/kmplib
+          ref: main
+          path: ../Lib/kmplib
+
+      - name: Setup KMP
+        uses: codecacto/kmplib/.github/actions/setup-kmp@main
+        with:
+          java-version: ${{ inputs.java_version }}
+
+      - name: Run tests
+        run: ./gradlew ${{ inputs.gradle_task }}
+
+  ios-tests:
+    if: ${{ inputs.run_ios_tests }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout kmplib
+        uses: actions/checkout@v4
+        with:
+          repository: codecacto/kmplib
+          ref: main
+          path: ../Lib/kmplib
+
+      - name: Setup KMP
+        uses: codecacto/kmplib/.github/actions/setup-kmp@main
+        with:
+          java-version: ${{ inputs.java_version }}
+
+      - name: Run iOS tests
+        run: ./gradlew iosSimulatorArm64Test

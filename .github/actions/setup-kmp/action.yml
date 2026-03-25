@@ -1,0 +1,37 @@
+name: 'Setup KMP Build Environment'
+description: 'Configura Java, Gradle e cache para projetos KMP'
+
+inputs:
+  java-version:
+    description: 'Versão do JDK'
+    required: false
+    default: '17'
+  java-distribution:
+    description: 'Distribuição do JDK'
+    required: false
+    default: 'temurin'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: ${{ inputs.java-distribution }}
+        java-version: ${{ inputs.java-version }}
+        cache: gradle
+
+    - name: Cache Kotlin/Native
+      uses: actions/cache@v4
+      with:
+        path: ~/.konan
+        key: ${{ runner.os }}-konan-${{ hashFiles('**/*.gradle.kts', '**/gradle.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-konan-
+
+    - name: Validate Gradle Wrapper
+      uses: gradle/actions/wrapper-validation@v4
+
+    - name: Make gradlew executable
+      shell: bash
+      run: chmod +x ./gradlew

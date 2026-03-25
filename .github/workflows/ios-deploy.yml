@@ -1,0 +1,169 @@
+name: iOS Build & Deploy (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app_module:
+        description: 'Módulo Gradle do KMP (ex: composeApp)'
+        type: string
+        required: false
+        default: 'composeApp'
+      scheme:
+        description: 'Xcode scheme (ex: iosApp)'
+        type: string
+        required: false
+        default: 'iosApp'
+      xcode_project:
+        description: 'Caminho do .xcodeproj ou .xcworkspace'
+        type: string
+        required: false
+        default: 'iosApp/iosApp.xcodeproj'
+      use_workspace:
+        description: 'Usar .xcworkspace (true se usa CocoaPods)'
+        type: boolean
+        required: false
+        default: false
+      workspace_path:
+        description: 'Caminho do .xcworkspace (se use_workspace=true)'
+        type: string
+        required: false
+        default: 'iosApp/iosApp.xcworkspace'
+      java_version:
+        description: 'Versão do JDK'
+        type: string
+        required: false
+        default: '17'
+      ruby_version:
+        description: 'Versão do Ruby para Fastlane'
+        type: string
+        required: false
+        default: '3.3'
+      marketing_version:
+        description: 'Override da versão iOS'
+        type: string
+        required: false
+        default: ''
+      submit_for_review:
+        description: 'Submeter para review na App Store'
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      IOS_CERT_P12_B64:
+        description: 'Certificado de distribuição (.p12) em base64'
+        required: true
+      IOS_CERT_PASSWORD:
+        description: 'Senha do certificado .p12'
+        required: true
+      IOS_PROFILE_B64:
+        description: 'Provisioning profile (.mobileprovision) em base64'
+        required: true
+      ASC_KEY_ID:
+        description: 'App Store Connect API Key ID'
+        required: true
+      ASC_ISSUER_ID:
+        description: 'App Store Connect API Issuer ID'
+        required: true
+      ASC_KEY_CONTENT_B64:
+        description: 'App Store Connect API Key (.p8) em base64'
+        required: true
+      KEYCHAIN_PASSWORD:
+        description: 'Senha para o keychain temporário'
+        required: false
+      GOOGLE_SERVICE_INFO_PLIST_B64:
+        description: 'GoogleService-Info.plist em base64 (se não estiver no repo)'
+        required: false
+
+jobs:
+  ios-build-deploy:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout kmplib
+        uses: actions/checkout@v4
+        with:
+          repository: codecacto/kmplib
+          ref: main
+          path: ../Lib/kmplib
+
+      - name: Setup KMP
+        uses: codecacto/kmplib/.github/actions/setup-kmp@main
+        with:
+          java-version: ${{ inputs.java_version }}
+
+      - name: Compute version
+        id: version
+        uses: codecacto/kmplib/.github/actions/compute-version@main
+        with:
+          version-override: ${{ inputs.marketing_version }}
+
+      - name: Decode GoogleService-Info.plist
+        if: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 != '' }}
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}" | base64 --decode > iosApp/iosApp/GoogleService-Info.plist
+
+      - name: Install CocoaPods dependencies
+        if: ${{ inputs.use_workspace }}
+        run: |
+          cd iosApp
+          pod install
+
+      - name: Install signing assets
+        run: |
+          KEYCHAIN_PASS="${{ secrets.KEYCHAIN_PASSWORD }}"
+          KEYCHAIN_PASS="${KEYCHAIN_PASS:-build_temp_$(date +%s)}"
+
+          security create-keychain -p "${KEYCHAIN_PASS}" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "${KEYCHAIN_PASS}" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          echo "${{ secrets.IOS_CERT_P12_B64 }}" | base64 --decode > cert.p12
+          security import cert.p12 -k build.keychain -P "${{ secrets.IOS_CERT_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASS}" build.keychain
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "${{ secrets.IOS_PROFILE_B64 }}" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/profile.mobileprovision"
+
+          rm -f cert.p12
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby_version }}
+          bundler-cache: true
+
+      - name: Decode ASC API Key
+        run: |
+          mkdir -p private_keys
+          echo "${{ secrets.ASC_KEY_CONTENT_B64 }}" | base64 --decode > "private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+
+      - name: Build & Upload to TestFlight
+        run: |
+          bundle exec fastlane ios release \
+            scheme:${{ inputs.scheme }} \
+            xcode_project:${{ inputs.xcode_project }} \
+            use_workspace:${{ inputs.use_workspace }} \
+            workspace_path:${{ inputs.workspace_path }} \
+            marketing_version:${{ steps.version.outputs.marketing_version }} \
+            build_number:${{ steps.version.outputs.build_number }} \
+            asc_key_id:${{ secrets.ASC_KEY_ID }} \
+            asc_issuer_id:${{ secrets.ASC_ISSUER_ID }} \
+            submit_for_review:${{ inputs.submit_for_review }}
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: |
+            *.ipa
+            **/*.ipa
+          retention-days: 30
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain build.keychain 2>/dev/null || true

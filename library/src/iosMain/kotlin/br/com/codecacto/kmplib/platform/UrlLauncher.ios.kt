@@ -99,6 +99,10 @@ class IosUrlLauncher : UrlLauncher {
         }
     }
 
+    override fun openSubscriptionManagement() {
+        openUrl("https://apps.apple.com/account/subscriptions")
+    }
+
     private fun encodeUrlComponent(value: String): String {
         return (value as NSString).stringByAddingPercentEncodingWithAllowedCharacters(
             NSCharacterSet.URLQueryAllowedCharacterSet

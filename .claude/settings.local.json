@@ -73,7 +73,25 @@
       "Bash(mkdir -p \"E:/CodeCacto/Super 8/composeApp/src/androidMain/kotlin/br/com/codecacto/superoito/core/preferences\")",
       "Bash(mkdir -p \"E:/CodeCacto/Super 8/composeApp/src/iosMain/kotlin/br/com/codecacto/superoito/core/preferences\")",
       "Bash(jar tf:*)",
-      "Bash($JAVA_HOME/bin/jar tf:*)"
+      "Bash($JAVA_HOME/bin/jar tf:*)",
+      "Bash(grep -r \"kmplib\\\\|KmpLib\" E:CodeCactoProspecta --include=*.kt --include=*.kts)",
+      "Bash(grep -r \"RevenueCat\\\\|monetization\\\\|Monetization\" E:CodeCactoProspecta --include=*.kt)",
+      "Bash(grep -r \"review\\\\|Review\\\\|appReview\" E:CodeCactoProspecta --include=*.kt)",
+      "Bash(grep -l \"expect \" \"E:\\\\CodeCacto\\\\Meu Fisio/composeApp/src/commonMain/kotlin/br/com/codecacto/meufisio/core/platform/\"*.kt)",
+      "Bash(grep -l \"Feedback\\\\|Monetization\\\\|RevenueCat\\\\|AdMob\" E:CodeCactoMeu Fisio/composeApp/src/commonMain/kotlin/br/com/codecacto/meufisio/features/**/*.kt)",
+      "Bash(xargs ls:*)",
+      "Bash(grep -r AppDatabaseConstructor 'E:\\\\CodeCacto\\\\Super 8\\\\composeApp\\\\src' --include=*.kt)",
+      "Bash(\"/c/Program Files/Java/jdk-21/bin/java\" -version)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/java\" -version)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean build)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean build --no-configuration-cache)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean assemble --no-configuration-cache)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew publishToMavenLocal -x test --no-configuration-cache)",
+      "Bash(rm \"E:/CodeCacto/Super 8/composeApp/src/commonMain/kotlin/br/com/codecacto/superoito/core/util/BuildInfo.kt\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/kmplib-iosarm64/**)",
+      "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/library-iosarm64/**)",
+      "WebFetch(domain:nek12.dev)"
     ]
   }
 }

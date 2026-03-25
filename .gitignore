@@ -15,3 +15,20 @@ xcuserdata
 # Swift Package Manager
 .build/
 Package.resolved
+
+# Firebase config files (contêm API keys do projeto)
+google-services.json
+**/google-services.json
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+
+# Arquivos gerados/temporários
+teste.txt
+test-output.log
+cities_generated.txt
+municipios.json
+generate_cities.ps1
+generate_kotlin.ps1
+
+# Claude Code local settings
+.claude/settings.local.json

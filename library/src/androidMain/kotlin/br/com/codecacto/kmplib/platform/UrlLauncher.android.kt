@@ -133,6 +133,11 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             AppLogger.e(TAG, "Erro ao abrir mapa", e)
         }
     }
+
+    override fun openSubscriptionManagement() {
+        val packageName = context.packageName
+        openUrl("https://play.google.com/store/account/subscriptions?package=$packageName")
+    }
 }
 
 actual fun getUrlLauncher(): UrlLauncher {

@@ -7,7 +7,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 internal actual val currentPlatform: String = "android"
-internal actual val feedbackApiKey: String = "AIzaSyD4FxyMlm7yEAfCaKIF_TAvW4hAeqQWPD0"
 
 internal actual suspend fun httpPost(url: String, body: String): Result<Unit> {
     return withContext(Dispatchers.IO) {

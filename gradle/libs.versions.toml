@@ -8,10 +8,10 @@ vanniktechMavenPublish = "0.34.0"
 # KMP dependencies
 coroutines = "1.10.2"
 doistNormalize = "1.2.0"
-kotlinxSerialization = "1.8.1"
-kotlinxDatetime = "0.6.2"
+kotlinxSerialization = "1.9.0"
+kotlinxDatetime = "0.7.1"
 
-# Firebase (GitLive)
+# Firebase (GitLive) - mantido em 2.1.0 pois 2.3.0 não suporta iosX64
 firebaseGitlive = "2.1.0"
 
 # AdMob
@@ -27,6 +27,10 @@ material3 = "1.10.0-alpha05"
 # AndroidX
 biometric = "1.1.0"
 lifecycle = "2.9.6"
+credentials = "1.5.0"
+
+# Google Identity
+googleid = "1.1.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -48,14 +52,17 @@ doist-normalize = { module = "com.doist.x:normalize", version.ref = "doistNormal
 firebase-auth = { module = "dev.gitlive:firebase-auth", version.ref = "firebaseGitlive" }
 firebase-firestore = { module = "dev.gitlive:firebase-firestore", version.ref = "firebaseGitlive" }
 firebase-storage = { module = "dev.gitlive:firebase-storage", version.ref = "firebaseGitlive" }
+firebase-crashlytics = { module = "dev.gitlive:firebase-crashlytics", version.ref = "firebaseGitlive" }
 
-# Firebase Android (explicit versions for GitLive compatibility)
+# Firebase Android (explicit versions for GitLive 2.1.0 compatibility)
 firebase-auth-android = { module = "com.google.firebase:firebase-auth-ktx", version = "23.1.0" }
 firebase-firestore-android = { module = "com.google.firebase:firebase-firestore", version = "25.1.1" }
 firebase-storage-android = { module = "com.google.firebase:firebase-storage", version = "21.0.1" }
 firebase-common-android = { module = "com.google.firebase:firebase-common-ktx", version = "21.0.0" }
 firebase-config = { module = "dev.gitlive:firebase-config", version.ref = "firebaseGitlive" }
 firebase-config-android = { module = "com.google.firebase:firebase-config", version = "22.0.1" }
+firebase-crashlytics-android = { module = "com.google.firebase:firebase-crashlytics-ktx", version = "19.3.0" }
+firebase-analytics-android = { module = "com.google.firebase:firebase-analytics-ktx", version = "22.1.2" }
 
 # AdMob
 play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
@@ -75,6 +82,9 @@ compose-material-icons-extended = { module = "org.jetbrains.compose.material:mat
 # AndroidX
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
+androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
+google-googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 
 [plugins]
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }

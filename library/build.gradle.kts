@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "1.1.0"
+version = "2.0.0"
 
 compose.resources {
     publicResClass = true
@@ -100,21 +100,33 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
 
-            // Firebase Android (required by GitLive)
-            implementation(libs.firebase.auth.android)
-            implementation(libs.firebase.firestore.android)
-            implementation(libs.firebase.storage.android)
-            implementation(libs.firebase.common.android)
+            // Firebase Android (required by GitLive) - exposed as api() for consumer projects
+            api(libs.firebase.auth.android)
+            api(libs.firebase.firestore.android)
+            api(libs.firebase.storage.android)
+            api(libs.firebase.common.android)
+            api(libs.firebase.crashlytics.android)
+            api(libs.firebase.analytics.android)
+            api(libs.firebase.config.android)
+
+            // Firebase Crashlytics GitLive (KMP)
+            implementation(libs.firebase.crashlytics)
 
             // AdMob
             implementation(libs.play.services.ads)
 
-            // Firebase Remote Config Android
-            implementation(libs.firebase.config.android)
-
             // AndroidX Biometric
             implementation(libs.androidx.biometric)
+
+            // Credentials (for Google Sign-In)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.play.services)
+            implementation(libs.google.googleid)
         }
+
+        // Note: firebase-crashlytics GitLive não suporta iosX64.
+        // A impl iOS do CrashlyticsService usa NSLog como fallback.
+        // O Crashlytics real no iOS funciona via SDK nativo no Xcode.
     }
 }
 

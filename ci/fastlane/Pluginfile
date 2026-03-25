@@ -1,0 +1,2 @@
+# Plugins compartilhados para CI/CD CodeCacto
+gem 'fastlane-plugin-versioning', '~> 0.5'

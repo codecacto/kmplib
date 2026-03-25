@@ -59,6 +59,11 @@ interface UrlLauncher {
      * @param query Endereço ou "latitude,longitude"
      */
     fun openMap(query: String)
+
+    /**
+     * Abre a página de gerenciamento de assinaturas na loja (Play Store / App Store).
+     */
+    fun openSubscriptionManagement()
 }
 
 /**

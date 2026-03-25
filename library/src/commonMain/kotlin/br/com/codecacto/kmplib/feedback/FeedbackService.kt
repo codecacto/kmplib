@@ -40,7 +40,6 @@ import kotlinx.serialization.json.putJsonObject
 object FeedbackService {
 
     private const val TAG = "FeedbackService"
-    private const val PROJECT_ID = "code-cacto"
     private const val COLLECTION = "feedbacks"
 
     private var _config: FeedbackConfig? = null
@@ -96,8 +95,10 @@ object FeedbackService {
      */
     suspend fun send(data: FeedbackData): Result<Unit> {
         return try {
+            val cfg = _config
+                ?: return Result.failure(IllegalStateException("FeedbackService não inicializado."))
             val json = buildFirestoreJson(data)
-            val url = "https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/$COLLECTION?key=$feedbackApiKey"
+            val url = "https://firestore.googleapis.com/v1/projects/${cfg.firebaseProjectId}/databases/(default)/documents/$COLLECTION?key=${cfg.firebaseApiKey}"
 
             AppLogger.d(TAG, "Enviando feedback: source=${data.source}, app=${data.appId}")
             val result = httpPost(url, json)
@@ -136,5 +137,4 @@ object FeedbackService {
 }
 
 internal expect val currentPlatform: String
-internal expect val feedbackApiKey: String
 internal expect suspend fun httpPost(url: String, body: String): Result<Unit>

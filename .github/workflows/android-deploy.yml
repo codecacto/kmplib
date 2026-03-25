@@ -1,0 +1,139 @@
+name: Android Build & Deploy (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app_module:
+        description: 'Módulo Gradle do app (ex: composeApp)'
+        type: string
+        required: false
+        default: 'composeApp'
+      play_track:
+        description: 'Track do Play Store (internal, alpha, beta, production)'
+        type: string
+        required: false
+        default: 'internal'
+      play_rollout:
+        description: 'Percentual de rollout para production (0.01 a 1.0)'
+        type: string
+        required: false
+        default: '1.0'
+      java_version:
+        description: 'Versão do JDK'
+        type: string
+        required: false
+        default: '17'
+      ruby_version:
+        description: 'Versão do Ruby para Fastlane'
+        type: string
+        required: false
+        default: '3.3'
+      marketing_version:
+        description: 'Override da versão (ignora tag git)'
+        type: string
+        required: false
+        default: ''
+      fastlane_git_url:
+        description: 'URL do repo com Fastfile compartilhado'
+        type: string
+        required: false
+        default: 'https://github.com/codecacto/kmplib.git'
+      fastlane_git_branch:
+        description: 'Branch do Fastfile compartilhado'
+        type: string
+        required: false
+        default: 'main'
+      package_name:
+        description: 'Package name do app Android (ex: br.com.codecacto.meuadvogado)'
+        type: string
+        required: false
+        default: ''
+    secrets:
+      ANDROID_KEYSTORE_B64:
+        description: 'Keystore Android em base64'
+        required: true
+      ANDROID_KEYSTORE_PASSWORD:
+        description: 'Senha do keystore'
+        required: true
+      ANDROID_KEY_ALIAS:
+        description: 'Alias da chave'
+        required: true
+      ANDROID_KEY_PASSWORD:
+        description: 'Senha da chave'
+        required: true
+      PLAY_SA_JSON_B64:
+        description: 'Service account JSON do Play Console em base64'
+        required: true
+      GOOGLE_SERVICES_JSON_B64:
+        description: 'google-services.json em base64 (se não estiver no repo)'
+        required: false
+
+jobs:
+  android-build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout kmplib
+        uses: actions/checkout@v4
+        with:
+          repository: codecacto/kmplib
+          ref: main
+          path: ../Lib/kmplib
+
+      - name: Setup KMP
+        uses: codecacto/kmplib/.github/actions/setup-kmp@main
+        with:
+          java-version: ${{ inputs.java_version }}
+
+      - name: Compute version
+        id: version
+        uses: codecacto/kmplib/.github/actions/compute-version@main
+        with:
+          version-override: ${{ inputs.marketing_version }}
+
+      - name: Decode google-services.json
+        if: ${{ secrets.GOOGLE_SERVICES_JSON_B64 != '' }}
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 --decode > ${{ inputs.app_module }}/google-services.json
+
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > ${{ github.workspace }}/android.keystore
+
+      - name: Build AAB (release)
+        run: |
+          ./gradlew :${{ inputs.app_module }}:bundleRelease \
+            -PMARKETING_VERSION="${{ steps.version.outputs.marketing_version }}" \
+            -PANDROID_VERSION_CODE="${{ steps.version.outputs.version_code }}"
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: ${{ inputs.app_module }}/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.ruby_version }}
+          bundler-cache: true
+
+      - name: Decode Play credentials
+        run: echo "${{ secrets.PLAY_SA_JSON_B64 }}" | base64 --decode > play-sa.json
+
+      - name: Deploy to Play Store
+        run: |
+          bundle exec fastlane android deploy \
+            track:${{ inputs.play_track }} \
+            rollout:${{ inputs.play_rollout }} \
+            aab_path:"${{ inputs.app_module }}/build/outputs/bundle/release/${{ inputs.app_module }}-release.aab" \
+            json_key_path:"play-sa.json" \
+            package_name:"${{ inputs.package_name }}"
