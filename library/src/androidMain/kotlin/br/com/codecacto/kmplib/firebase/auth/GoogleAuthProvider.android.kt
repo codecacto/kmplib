@@ -9,11 +9,12 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 actual class GoogleAuthProvider actual constructor(private val webClientId: String) {
 
     actual suspend fun signIn(): GoogleSignInResult {
-        val context = GoogleAuthHolder.getContext()
+        val activity = GoogleAuthHolder.getActivity()
             ?: return GoogleSignInResult(
                 idToken = null,
-                error = "GoogleAuthHolder não foi inicializado. Chame KmpLib.init(context) no Application.onCreate()"
+                error = "GoogleAuthHolder sem Activity. Chame KmpLib.setActivity(this) no Activity.onResume()"
             )
+        val context = activity
 
         return try {
             val googleIdOption = GetGoogleIdOption.Builder()

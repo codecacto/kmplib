@@ -54,6 +54,7 @@ fun KmpLib.setActivity(activity: FragmentActivity) {
     BiometricAuthHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
     AdManagerHolder.setActivity(activity)
+    GoogleAuthHolder.setActivity(activity)
 }
 
 /**
@@ -64,4 +65,5 @@ fun KmpLib.clearActivity() {
     BiometricAuthHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
     AdManagerHolder.clearActivity()
+    GoogleAuthHolder.clearActivity()
 }
