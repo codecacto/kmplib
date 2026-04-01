@@ -115,6 +115,12 @@ kotlin {
             // AdMob
             implementation(libs.play.services.ads)
 
+            // AndroidX Activity Compose (for ImagePicker camera/gallery launchers)
+            implementation(libs.androidx.activity.compose)
+
+            // AndroidX ExifInterface (for ImagePicker orientation correction)
+            implementation(libs.androidx.exifinterface)
+
             // AndroidX Biometric
             implementation(libs.androidx.biometric)
 

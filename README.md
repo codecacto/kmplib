@@ -643,6 +643,67 @@ FormContainer { /* campos do formulario — gerencia scroll, teclado e foco */ }
 NumberField(value = quantidade, onValueChange = { quantidade = it }, label = "Quantidade")
 ```
 
+### ImagePicker — Camera + Galeria
+
+```kotlin
+// Cria o launcher (funciona em todas as telas que usam)
+val picker = rememberImagePickerLauncher { imageBytes: ByteArray ->
+    // imageBytes = JPEG, max 1024px, 85% quality
+    viewModel.uploadFoto(imageBytes)
+}
+
+// Ao clicar, exibe BottomSheet (Android) ou ActionSheet (iOS)
+// com opcoes "Tirar foto" e "Escolher da galeria"
+Button(onClick = { picker.launch() }) {
+    Text("Adicionar foto")
+}
+```
+
+**Requisitos no app consumidor:**
+- Android: adicionar `<uses-permission android:name="android.permission.CAMERA" />` no AndroidManifest
+- Android: configurar FileProvider com `<cache-path name="photos" path="photos/" />`
+- iOS: adicionar `NSCameraUsageDescription` e `NSPhotoLibraryUsageDescription` no Info.plist
+- A permissao de camera e solicitada automaticamente em runtime (Android)
+
+### FullScreenImageViewer — Visualizacao com pinch-to-zoom
+
+```kotlin
+var showViewer by remember { mutableStateOf(false) }
+
+// Thumbnail clicavel
+AsyncImage(
+    model = imageUrl,
+    contentDescription = null,
+    modifier = Modifier.clickable { showViewer = true }
+)
+
+// Viewer fullscreen com zoom
+if (showViewer) {
+    FullScreenImageViewer(onDismiss = { showViewer = false }) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+```
+
+Gestos suportados:
+- Pinch-to-zoom (dois dedos) — zoom de 1x ate 5x
+- Pan/arrastar quando zoom > 1x
+- Duplo toque para alternar entre 1x e 2.5x
+- Botao X para fechar
+
+Tambem disponivel o `ZoomableBox` para uso standalone:
+
+```kotlin
+ZoomableBox(minScale = 1f, maxScale = 5f) {
+    // qualquer conteudo com suporte a zoom
+}
+```
+
 ### Campos de autenticacao prontos
 
 ```kotlin

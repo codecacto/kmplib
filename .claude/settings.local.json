@@ -91,7 +91,8 @@
       "Bash(echo \"EXIT: $?\")",
       "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/kmplib-iosarm64/**)",
       "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/library-iosarm64/**)",
-      "WebFetch(domain:nek12.dev)"
+      "WebFetch(domain:nek12.dev)",
+      "Bash(gh pr:*)"
     ]
   }
 }
