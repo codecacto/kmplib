@@ -357,3 +357,64 @@ interface AppleLoginHandler {
 
 **Data:** 30/01/2026
 **Versão:** 2.0.0
+
+---
+
+## Adendo 2026-05-17 — Sprint de aceleradores (Tier 1 + StorageProgress + Crashlytics)
+
+**Não-breaking.** Adições puras. Nenhum app precisa mudar nada para continuar
+funcionando; quem quiser usar os novos recursos pode adotar incrementalmente.
+
+### Novos pacotes / componentes
+
+- `br.com.codecacto.kmplib.core.prefs.AppPreferences` — wrapper KMP de preferências
+  chave/valor (SharedPreferences / NSUserDefaults) com suporte a `observe*` reativo.
+  Suporta `String`, `Boolean`, `Int`, `Long`, `Float`. Chaves comuns em `PrefKeys`.
+- `br.com.codecacto.kmplib.platform.AppReviewManager` — helper que decide quando
+  mostrar o `AppReviewDialog` baseado em "completions". Persiste via `ReviewPreferences`.
+- `br.com.codecacto.kmplib.ui.components.Avatar` — circular com iniciais (cor de
+  fundo derivada do nome) ou imagem via slot composable.
+- `br.com.codecacto.kmplib.ui.components.OfflineBanner` — banner reativo wireado
+  com `ConnectivityObserver`. Gerencia `start()`/`stop()` automaticamente.
+- `br.com.codecacto.kmplib.ui.components.LoadingOverlay` — modal fullscreen com
+  spinner e texto opcional. Bloqueia interação por trás.
+
+### Novas APIs em pacotes existentes
+
+- `StorageService.uploadBytesWithProgress(path, bytes, mimeType?): Flow<UploadProgress>`
+  e o sealed `UploadProgress` (`Started`, `Uploading`, `Completed`, `Failed`).
+  Contrato pronto; progresso intermediário real fica para quando GitLive expor
+  o `Flow<TaskState>` ou se evoluirmos via SDK nativo Android/iOS.
+- Extensões `CrashlyticsService.runCatchingAndReport { }`,
+  `runCatchingAndReportSuspend { }`, `reportAndRethrow(e, ...)`, `reportSilently(e, ...)`.
+  `CancellationException` é sempre re-lançada.
+
+### Itens "planejados" que valem revisitar
+
+`AboutScreen template`, `PermissionsHandler Compose` foram adicionados à lista de
+planejados (README seção 17), justificados por padrão recorrente entre apps.
+
+---
+
+## Adendo 2026-05-17 — Markers em LoginContract / RegisterContract
+
+`LoginState`, `LoginAction`, `LoginEffect`, `RegisterState`, `RegisterAction` e
+`RegisterEffect` passam a implementar respectivamente `UiState`, `UiAction` e
+`UiEffect` (de `br.com.codecacto.kmplib.ui.mvi`).
+
+**Motivação:** sem isso, `SimpleMviViewModel<LoginState, LoginEffect, LoginAction>`
+falhava compilação porque a classe exige os markers. Apps que herdavam de
+`SimpleMviViewModel` tinham que criar uma classe wrapper sem bounds.
+
+**Impacto:** zero para apps que herdavam de `BaseViewModel<State, Action, Effect>`
+(que não exige markers). Apps que já implementavam wrappers locais
+podem deletá-los e usar `SimpleMviViewModel` direto. Ver Casca como referência:
+
+```kotlin
+typealias BaseViewModel<STATE, EFFECT, ACTION> =
+    br.com.codecacto.kmplib.ui.mvi.SimpleMviViewModel<STATE, EFFECT, ACTION>
+
+class LoginViewModel(
+    private val authRepository: AuthRepository
+) : BaseViewModel<LoginState, LoginEffect, LoginAction>(LoginState())
+```

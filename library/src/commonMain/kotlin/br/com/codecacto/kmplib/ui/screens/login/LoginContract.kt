@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.ui.screens.login
 
+import br.com.codecacto.kmplib.ui.mvi.UiAction
+import br.com.codecacto.kmplib.ui.mvi.UiEffect
+import br.com.codecacto.kmplib.ui.mvi.UiState
+
 /**
  * Contrato MVI para LoginScreen
  */
@@ -30,12 +34,12 @@ data class LoginState(
 
     // Visibilidade
     val isPasswordVisible: Boolean = false
-)
+) : UiState
 
 /**
  * Ações que podem ser disparadas na tela de login
  */
-sealed interface LoginAction {
+sealed interface LoginAction : UiAction {
 
     // Inputs
     sealed interface Input : LoginAction {
@@ -66,7 +70,7 @@ sealed interface LoginAction {
 /**
  * Efeitos colaterais da tela de login
  */
-sealed interface LoginEffect {
+sealed interface LoginEffect : UiEffect {
     // Navegação
     sealed interface Navigate : LoginEffect {
         data object ToHome : Navigate

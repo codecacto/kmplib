@@ -882,6 +882,22 @@ class RestViewModel : SimpleMviViewModel<RestState, RestEffect, RestAction>(Rest
 }
 ```
 
+### Marker interfaces obrigatórios em `SimpleMviViewModel`
+
+`SimpleMviViewModel` exige que State, Effect e Action implementem os markers
+`UiState`, `UiEffect` e `UiAction` (de `br.com.codecacto.kmplib.ui.mvi`):
+
+```kotlin
+data class RestState(val isResting: Boolean = false) : UiState
+sealed interface RestAction : UiAction { /* ... */ }
+sealed interface RestEffect : UiEffect { /* ... */ }
+```
+
+Os contratos prontos da lib (`LoginContract`, `RegisterContract`) já implementam
+os markers, portanto `SimpleMviViewModel<LoginState, LoginEffect, LoginAction>`
+compila direto. Para `BaseViewModel<State, Action, Effect>` (ordem clássica)
+os markers não são exigidos.
+
 ---
 
 ## 14a. Network (ApiResult, handleApiCall, ConnectivityObserver)
@@ -1011,6 +1027,165 @@ AppLogger.e("TAG", "error", throwable)
 AppLogger.setMinLevel(Level.WARN) // filtrar logs
 ```
 
+### AppPreferences — Preferências chave/valor (DataStore-like)
+
+Wrapper KMP para preferências persistentes. Android usa `SharedPreferences`
+(cache `app_prefs`); iOS usa `NSUserDefaults`.
+
+```kotlin
+val prefs = AppPreferences()
+
+// Suspend get/set
+prefs.setString(PrefKeys.THEME, "dark")
+val theme = prefs.getString(PrefKeys.THEME, default = "light")
+
+prefs.setBoolean(PrefKeys.ONBOARDING_SEEN, true)
+prefs.setInt("session_count", 5)
+prefs.has("token")     // Boolean
+prefs.remove("token")
+prefs.clear()
+
+// Reativo
+prefs.observeBoolean(PrefKeys.NOTIFICATIONS_ENABLED, default = true)
+    .collect { enabled -> ... }
+
+prefs.observeString(PrefKeys.LANGUAGE, "pt-BR")
+    .collect { lang -> ... }
+```
+
+Chaves comuns sugeridas em `PrefKeys`: `THEME`, `DARK_MODE`, `LANGUAGE`,
+`ONBOARDING_SEEN`, `NOTIFICATIONS_ENABLED`, `FCM_TOKEN_PENDING`, `LAST_SYNC`.
+
+Use como singleton via DI. Múltiplas instâncias compartilham o mesmo flow de
+mudanças (companion).
+
+### Crashlytics — Helpers
+
+Além de `getCrashlyticsService()`, há extensões para reduzir try/catch repetitivo:
+
+```kotlin
+val crashlytics = getCrashlyticsService()
+
+// runCatching que também reporta a exceção
+val result = crashlytics.runCatchingAndReport(
+    customKeys = mapOf("user_action" to "save_profile")
+) {
+    repository.saveProfile(profile)
+}
+result.onSuccess { ... }.onFailure { ... }
+
+// Suspend
+val r = crashlytics.runCatchingAndReportSuspend {
+    apiClient.upload(file)
+}
+
+// Reportar exceção em catch já existente, sem capturar
+try { ... } catch (e: IOException) {
+    crashlytics.reportAndRethrow(e, "stage" to "upload")
+}
+
+// Reportar sem propagar (erro já tratado)
+runCatching { /* ... */ }.onFailure {
+    crashlytics.reportSilently(it, "context" to "background")
+}
+```
+
+`CancellationException` é sempre re-lançada (não é erro de negócio).
+
+### AppReviewManager — Acionar AppReviewDialog após N completions
+
+```kotlin
+val reviewManager = AppReviewManager(triggerCount = 3)
+
+// Ao terminar uma ação relevante (completar tarefa, salvar, etc.)
+if (reviewManager.onCompletion()) {
+    showReviewDialog = true
+}
+
+// Quando o dialog for exibido (clique positivo ou negativo)
+reviewManager.markShown()
+
+// Checagens passivas
+reviewManager.shouldShow()
+reviewManager.completionCount()
+reviewManager.hasReviewed()
+```
+
+Persiste via `ReviewPreferences` (NSUserDefaults / SharedPreferences).
+
+### Avatar — Foto ou iniciais
+
+```kotlin
+// Só iniciais (cor de fundo derivada do nome)
+Avatar(name = "Joao Silva", size = 48.dp)
+
+// Com imagem (consumer passa AsyncImage/Kamel/Coil)
+Avatar(name = user.name, size = 56.dp) {
+    AsyncImage(
+        model = user.photoUrl,
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
+}
+
+// Cor estável para outros usos
+val color = colorForName("Maria")
+```
+
+### OfflineBanner — Banner reativo quando offline
+
+```kotlin
+val observer: ConnectivityObserver by koinInject()
+
+Column {
+    OfflineBanner(observer)          // gerencia start/stop automático
+    // resto da UI
+}
+
+// Customizando
+OfflineBanner(
+    observer = observer,
+    text = "Você está offline",
+    backgroundColor = Color(0xFFFEE2E2),
+    contentColor = Color(0xFF991B1B)
+)
+```
+
+### LoadingOverlay — Bloqueio fullscreen com spinner
+
+```kotlin
+Box(Modifier.fillMaxSize()) {
+    MyScreen(state, onAction)
+    LoadingOverlay(show = state.isLoading, text = "Salvando...")
+}
+```
+
+Bloqueia interação com a UI por trás. Para loading inline (não-bloqueante),
+use `CircularProgressIndicator` direto.
+
+### Storage — Upload com progresso reativo
+
+```kotlin
+storageService.uploadBytesWithProgress(path, bytes, mimeType = "image/jpeg")
+    .collect { progress ->
+        when (progress) {
+            is UploadProgress.Started -> setState { copy(isUploading = true) }
+            is UploadProgress.Uploading -> setState { copy(percent = progress.percent) }
+            is UploadProgress.Completed -> {
+                setState { copy(isUploading = false, downloadUrl = progress.downloadUrl) }
+            }
+            is UploadProgress.Failed -> {
+                setState { copy(isUploading = false, error = progress.cause.message) }
+            }
+        }
+    }
+```
+
+Nota: GitLive Firebase 2.1.0 não expõe progresso intermediário real — o flow
+emite `Started → Uploading(0%) → Uploading(100%) → Completed`. Quando GitLive
+evoluir, a API permanecerá igual mas o progresso passará a ser real.
+
 ---
 
 ## 17. O que NAO esta na lib (fica no app)
@@ -1042,11 +1217,14 @@ Estes itens sao especificos de cada app e NAO devem ser centralizados:
 | PremiumScreen + ViewModel | Quando extrair de Super8/MeuFisio/Prospecta | Planejado |
 | Onboarding template | Quando padrao estiver maduro | Planejado |
 | Legal Pages template | Quando padronizar termos/privacidade | Planejado |
+| AboutScreen template | Padrao recorrente em vários apps | Planejado |
 | Multi-step Form wizard | Quando padrao estiver maduro | Planejado |
 | LocationService GPS | Quando 2+ apps precisarem | Planejado |
 | PlatformMapView | Quando 2+ apps precisarem | Planejado |
+| PermissionsHandler Compose | Padrão recorrente (camera, notification, location) | Planejado |
 | VibrationManager | Quando 2+ apps precisarem | Planejado |
 | Timer/Countdown | Quando 2+ apps precisarem | Planejado |
+| Upload com progresso real | Quando GitLive expor `Flow<TaskState>` ou via SDK nativo | Contrato pronto, impl básica |
 
 ---
 

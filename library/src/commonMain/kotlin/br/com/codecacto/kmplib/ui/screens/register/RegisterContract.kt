@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.screens.register
 
+import br.com.codecacto.kmplib.ui.mvi.UiAction
+import br.com.codecacto.kmplib.ui.mvi.UiEffect
+import br.com.codecacto.kmplib.ui.mvi.UiState
 import br.com.codecacto.kmplib.ui.screens.login.AppleSignInResult
 import br.com.codecacto.kmplib.ui.screens.login.GoogleSignInResult
 
@@ -35,12 +38,12 @@ data class RegisterState(
     // Visibilidade
     val isPasswordVisible: Boolean = false,
     val isConfirmPasswordVisible: Boolean = false
-)
+) : UiState
 
 /**
  * Ações que podem ser disparadas na tela de registro
  */
-sealed interface RegisterAction {
+sealed interface RegisterAction : UiAction {
 
     // Inputs
     sealed interface Input : RegisterAction {
@@ -72,7 +75,7 @@ sealed interface RegisterAction {
 /**
  * Efeitos colaterais da tela de registro
  */
-sealed interface RegisterEffect {
+sealed interface RegisterEffect : UiEffect {
     // Navegação
     sealed interface Navigate : RegisterEffect {
         data object ToHome : Navigate

@@ -4,6 +4,8 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.storage.FirebaseStorage
 import dev.gitlive.firebase.storage.storage
 import br.com.codecacto.kmplib.core.util.AppLogger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * Serviço de Firebase Storage para download e exclusão de arquivos.
@@ -49,6 +51,51 @@ class StorageService {
         } catch (e: Exception) {
             AppLogger.e(TAG, "Erro ao enviar: $path", e)
             Result.failure(mapStorageException(e))
+        }
+    }
+
+    /**
+     * Envia bytes emitindo progresso em um [Flow].
+     *
+     * Emite [UploadProgress.Started], depois (limitação atual do GitLive 2.1.0
+     * que não expõe progresso reativo) um [UploadProgress.Uploading] indicando
+     * que o upload está em andamento, e por fim [UploadProgress.Completed] ou
+     * [UploadProgress.Failed].
+     *
+     * Quando a versão GitLive evoluir para expor progresso real, este método
+     * passará a emitir [UploadProgress.Uploading] periodicamente sem mudar a API.
+     *
+     * Uso:
+     * ```
+     * storageService.uploadBytesWithProgress(path, bytes).collect { progress ->
+     *     when (progress) {
+     *         is UploadProgress.Started -> setState { copy(isUploading = true) }
+     *         is UploadProgress.Uploading -> setState { copy(percent = progress.percent) }
+     *         is UploadProgress.Completed -> setState { copy(downloadUrl = progress.downloadUrl) }
+     *         is UploadProgress.Failed -> setState { copy(error = progress.cause.message) }
+     *     }
+     * }
+     * ```
+     */
+    fun uploadBytesWithProgress(
+        path: String,
+        bytes: ByteArray,
+        mimeType: String? = null
+    ): Flow<UploadProgress> = flow {
+        val total = bytes.size.toLong()
+        emit(UploadProgress.Started(total))
+        try {
+            val reference = storage.reference.child(path)
+            emit(UploadProgress.Uploading(transferred = 0L, total = total))
+            reference.putData(bytes.toFirebaseData())
+            val downloadUrl = reference.getDownloadUrl()
+            val mimeSuffix = mimeType?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+            AppLogger.d(TAG, "Arquivo enviado: $path$mimeSuffix")
+            emit(UploadProgress.Uploading(transferred = total, total = total))
+            emit(UploadProgress.Completed(downloadUrl = downloadUrl, totalBytes = total))
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao enviar: $path", e)
+            emit(UploadProgress.Failed(cause = mapStorageException(e)))
         }
     }
 
@@ -205,6 +252,39 @@ class StorageService {
             else -> StorageException.Unknown(e.message ?: "Erro desconhecido")
         }
     }
+}
+
+/**
+ * Estados de progresso de um upload de bytes.
+ *
+ * Usado por [StorageService.uploadBytesWithProgress].
+ */
+sealed class UploadProgress {
+    /** Upload iniciado. Antes de qualquer transferência. */
+    data class Started(val totalBytes: Long) : UploadProgress()
+
+    /**
+     * Upload em andamento.
+     *
+     * Nota: na versão atual do GitLive Firebase Storage 2.1.0, [transferred]
+     * pode ser apenas 0 (início) ou [total] (fim) — sem progresso intermediário
+     * real. Quando a lib evoluir, este campo passará a refletir o progresso
+     * verdadeiro sem mudança de API.
+     */
+    data class Uploading(val transferred: Long, val total: Long) : UploadProgress() {
+        /** Percentual 0.0..1.0 (clamped). */
+        val fraction: Float
+            get() = if (total > 0) (transferred.toFloat() / total).coerceIn(0f, 1f) else 0f
+
+        /** Percentual 0..100 inteiro. */
+        val percent: Int get() = (fraction * 100).toInt()
+    }
+
+    /** Upload finalizado com sucesso. */
+    data class Completed(val downloadUrl: String, val totalBytes: Long) : UploadProgress()
+
+    /** Upload falhou. */
+    data class Failed(val cause: Throwable) : UploadProgress()
 }
 
 /**
