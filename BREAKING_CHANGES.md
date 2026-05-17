@@ -360,6 +360,51 @@ interface AppleLoginHandler {
 
 ---
 
+## Adendo 2026-05-17 — Refactor para testabilidade (AppPreferences interface + ReviewStore)
+
+**Mudança técnica para permitir testes com fakes em commonTest.** Ninguém em
+produção usa essas APIs ainda (adicionadas no mesmo dia), então sem impacto real.
+
+### `AppPreferences` virou interface + factory
+
+Antes (era `expect class`, impossível mockar em commonTest):
+```kotlin
+val prefs = AppPreferences()
+```
+
+Agora:
+```kotlin
+val prefs: AppPreferences = appPreferences()
+```
+
+Razão: `expect class` não pode ter subclasses fake em `commonTest`. Refatorar
+para `interface AppPreferences` + `expect fun appPreferences()` torna a API
+testável e mantém o uso quase igual. A versão `FakeAppPreferences` (in-memory)
+foi adicionada em `commonTest` para reuso entre testes.
+
+### `AppReviewManager` recebe `ReviewStore` em vez de `ReviewPreferences`
+
+Antes:
+```kotlin
+class AppReviewManager(triggerCount: Int = 3, prefs: ReviewPreferences = ReviewPreferences())
+```
+
+Agora:
+```kotlin
+interface ReviewStore { ... }
+class PreferencesReviewStore(prefs: ReviewPreferences = ReviewPreferences()) : ReviewStore
+class AppReviewManager(triggerCount: Int = 3, store: ReviewStore = PreferencesReviewStore())
+```
+
+Usuários típicos (`AppReviewManager()` ou `AppReviewManager(triggerCount = 5)`)
+continuam funcionando idênticos. Apenas quem passava `prefs = ...`
+explicitamente precisa trocar para `store = ...` ou passar
+`PreferencesReviewStore(customPrefs)`. Em produção ninguém ainda chama assim.
+
+Em testes: injetar `FakeReviewStore` (in-memory) — adicionado em `commonTest`.
+
+---
+
 ## Adendo 2026-05-17 — Sprint de aceleradores (Tier 1 + StorageProgress + Crashlytics)
 
 **Não-breaking.** Adições puras. Nenhum app precisa mudar nada para continuar

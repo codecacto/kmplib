@@ -8,12 +8,15 @@ import kotlinx.coroutines.flow.Flow
  * - Android: usa SharedPreferences (cache `app_prefs`)
  * - iOS: usa NSUserDefaults
  *
- * Use como singleton (via DI ou via [getAppPreferences]). Toda operação `set*`
+ * Use como singleton (via DI ou via [appPreferences]). Toda operação `set*`
  * notifica os flows correspondentes em `observe*`.
+ *
+ * Para testes, use uma implementação fake (in-memory) que implemente esta
+ * interface — não tente instanciar a versão real.
  *
  * Exemplos:
  * ```
- * val prefs = AppPreferences()
+ * val prefs: AppPreferences = appPreferences()
  *
  * // Suspend get/set
  * prefs.setString("theme", "dark")
@@ -26,7 +29,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * @see PrefKeys para chaves comuns sugeridas.
  */
-expect class AppPreferences() {
+interface AppPreferences {
     suspend fun getString(key: String, default: String = ""): String
     suspend fun setString(key: String, value: String)
     suspend fun getBoolean(key: String, default: Boolean = false): Boolean
@@ -47,6 +50,14 @@ expect class AppPreferences() {
     fun observeInt(key: String, default: Int = 0): Flow<Int>
     fun observeLong(key: String, default: Long = 0L): Flow<Long>
 }
+
+/**
+ * Factory que retorna a implementação real de [AppPreferences] para a plataforma.
+ *
+ * Para uso em produção. Em testes, use uma fake que implemente diretamente
+ * a interface [AppPreferences] e injete via DI.
+ */
+expect fun appPreferences(): AppPreferences
 
 /**
  * Chaves sugeridas para uso comum entre apps. Cada app pode adicionar suas próprias

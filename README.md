@@ -1032,8 +1032,11 @@ AppLogger.setMinLevel(Level.WARN) // filtrar logs
 Wrapper KMP para preferências persistentes. Android usa `SharedPreferences`
 (cache `app_prefs`); iOS usa `NSUserDefaults`.
 
+`AppPreferences` é uma **interface**; obtenha a implementação real via
+`appPreferences()` ou injete uma fake (`FakeAppPreferences` em commonTest).
+
 ```kotlin
-val prefs = AppPreferences()
+val prefs: AppPreferences = appPreferences()
 
 // Suspend get/set
 prefs.setString(PrefKeys.THEME, "dark")
@@ -1225,6 +1228,68 @@ Estes itens sao especificos de cada app e NAO devem ser centralizados:
 | VibrationManager | Quando 2+ apps precisarem | Planejado |
 | Timer/Countdown | Quando 2+ apps precisarem | Planejado |
 | Upload com progresso real | Quando GitLive expor `Flow<TaskState>` ou via SDK nativo | Contrato pronto, impl básica |
+
+---
+
+## 17a. Testes
+
+A lib possui suite de testes em `library/src/commonTest/` rodando em Android + iOS via `:library:allTests`. Cobertura medida via [Kover](https://kotlin.github.io/kotlinx-kover/).
+
+### Rodando localmente
+
+```bash
+# Android unit tests
+./gradlew :library:testDebugUnitTest
+
+# iOS simulator tests (precisa macOS)
+./gradlew :library:iosSimulatorArm64Test
+
+# Todos os targets disponíveis
+./gradlew :library:allTests
+
+# Relatório de cobertura (HTML em library/build/reports/kover/html/)
+./gradlew :library:koverHtmlReport
+./gradlew :library:koverXmlReport
+```
+
+### CI
+
+Workflow `.github/workflows/tests.yml` roda em cada push/PR para `main`:
+- **Android unit tests** + **Kover** em Ubuntu (relatórios HTML/XML como artifacts)
+- **iOS simulator tests** em macOS
+
+### Fakes disponíveis em `commonTest`
+
+Para consumidores de testes que querem reutilizar:
+
+| Fake | Substitui | Uso |
+|---|---|---|
+| `FakeAppPreferences` | `AppPreferences` real | Storage in-memory completo, com `observe*` reativo |
+| `FakeReviewStore` | `ReviewStore` / `ReviewPreferences` | Para testar `AppReviewManager` ou lógica de review do app |
+| `FakeCrashlyticsService` | `CrashlyticsService` real | Registra `messages`, `customKeys`, `recordedExceptions`, `userId`, `collectionEnabled` |
+| `FakePushNotificationService` | `PushNotificationService` real | Rastreia operações sem chamar Firebase |
+
+### O que está coberto hoje
+
+- `brdata/` BrazilianStates, StringExtensions
+- `core/format/` BrazilianFormatters, CurrencyFormatters, DateFormatters, PhoneFormatters
+- `core/network/` ApiResult, **handleApiCall** (Ktor MockEngine), defaultHttpErrorMessage, mapGenericNetworkMessage
+- `core/prefs/` **AppPreferences** (via FakeAppPreferences)
+- `core/util/` TimeUtils
+- `mask/` filterPhoneInput, filterCpfInput, filterCnpjInput, filterCepInput, filterDateInput, filterCrefitoInput, filterCurrencyInput, `currencyToDouble`, `formatAsCurrency`, CrefitoMask
+- `firebase/crashlytics/` **CrashlyticsExtensions** (`runCatchingAndReport`, `runCatchingAndReportSuspend`, `reportAndRethrow`, `reportSilently`)
+- `firebase/storage/` **UploadProgress** (fraction, percent, edge cases)
+- `platform/` FileData, **AppReviewManager**
+- `push/` PushNotificationService
+- `ui/` AuthMethods, Badge, LoginColors, LoginContract, LoginTexts, Navigation, NumberField, RegisterContract, RegisterFields, RegisterTexts, Toast, **ContractMarkersTest** (markers MVI)
+- `ui/mvi/` BaseViewModel, SimpleMviViewModel
+- `validation/` Cpf, Cnpj, Email, Phone, Password, Crefito (todos)
+
+### O que ainda **não** é testado em commonTest
+
+- UI components Compose (Avatar, OfflineBanner, LoadingOverlay etc.) — exige `compose.uiTest` + setup; planejado em fase futura
+- `AppLogger` — é `expect object` (não mockável em commonTest); cobertura via testes de plataforma se necessário
+- `ConnectivityObserver`, `BiometricAuth`, `NotificationScheduler` — dependem de plataforma real; testar via instrumentation Android/iOS
 
 ---
 
