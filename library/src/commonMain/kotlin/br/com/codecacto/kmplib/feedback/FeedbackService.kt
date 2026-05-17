@@ -79,10 +79,10 @@ object FeedbackService {
             source = source.valor,
             motivo = motivo,
             mensagem = mensagem,
-            email = email,
-            whatsapp = whatsapp,
+            email = email.trim(),
+            whatsapp = whatsapp.trim(),
             usuarioId = cfg.userId,
-            usuarioEmail = cfg.userEmail,
+            usuarioEmail = cfg.userEmail.trim(),
             platform = currentPlatform,
             criadoEm = currentTimeMillis()
         )

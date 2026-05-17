@@ -35,7 +35,8 @@ import kotlinx.coroutines.launch
  * Tela completa de feedback com formulário.
  *
  * Gerencia seu próprio estado internamente e envia o feedback
- * via [FeedbackService] (deve estar inicializado).
+ * via [FeedbackService] (deve estar inicializado). Mensagem e WhatsApp
+ * são obrigatórios para permitir retorno ao usuário.
  *
  * ```kotlin
  * FeedbackScreen(
@@ -314,7 +315,10 @@ fun FeedbackScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Submit Button
-                val isFormValid = selectedMotivo != null && mensagem.trim().isNotEmpty()
+                val isFormValid = selectedMotivo != null &&
+                    mensagem.trim().isNotEmpty() &&
+                    (email.trim().isEmpty() || EmailValidator.isValid(email.trim())) &&
+                    whatsapp.length == 11
                 Button(
                     onClick = {
                         // Validate
@@ -330,7 +334,7 @@ fun FeedbackScreen(
                             emailError = texts.emailError
                             return@Button
                         }
-                        if (whatsapp.isNotEmpty() && whatsapp.length < 11) {
+                        if (whatsapp.length != 11) {
                             whatsappError = texts.whatsappError
                             return@Button
                         }

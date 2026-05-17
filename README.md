@@ -22,6 +22,8 @@ Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizav
 12. [Componentes UI (Compose)](#12-componentes-ui-compose)
 13. [Telas Prontas](#13-telas-prontas)
 14. [Arquitetura MVI](#14-arquitetura-mvi)
+14a. [Network (ApiResult / Connectivity)](#14a-network-apiresult-handleapicall-connectivityobserver)
+14b. [Push Notifications](#14b-push-notifications)
 15. [Tema e Estilo](#15-tema-e-estilo)
 16. [Utilitarios](#16-utilitarios)
 17. [O que NAO esta na lib (fica no app)](#17-o-que-nao-esta-na-lib-fica-no-app)
@@ -395,6 +397,7 @@ PhoneValidator.isValid("11999999999")          // 11 digitos
 PasswordValidator.isValid("Senha@123")         // regras configuraveis
 NameValidator.isValid("Joao", minLength = 2)
 NameValidator.validate("", minLength = 2)      // "Nome e obrigatorio"
+CrefitoValidator.isValid("123456F")            // 6 digitos + F/T (apps medicos)
 ```
 
 ---
@@ -429,6 +432,53 @@ OutlinedTextField(
     onValueChange = { date = filterDateInput(it) },
     visualTransformation = DateVisualTransformation()
 )
+
+// CREFITO: 123456-F (fisio/TO)
+OutlinedTextField(
+    value = crefito,
+    onValueChange = { crefito = filterCrefitoInput(it) },
+    visualTransformation = CrefitoVisualTransformation()
+)
+```
+
+### Formatadores funcionais (`core.format`)
+
+Helpers sem Compose para uso em logs/exportacoes/PDF. Multi-locale para projetos
+fora do Brasil.
+
+```kotlin
+// Moeda
+formatCurrencyBRL(1234.56)   // "R$ 1.234,56"
+formatCurrencyUSD(1234.56)   // "$1,234.56"
+formatCurrencyEUR(1234.56)   // "1.234,56 €"
+formatCurrency(1234.56, thousandsSeparator = "'", decimalSeparator = ".", prefix = "CHF ")
+
+// Documentos
+formatCpf("12345678909")          // "123.456.789-09"
+formatCnpj("12345678000195")      // "12.345.678/0001-95"
+isValidCpf("12345678909")         // true
+isValidCnpj("12345678000195")     // true
+
+// Datas (ISO <-> locale)
+formatDateBr("2026-03-05")        // "05/03/2026" (pt-BR / es-ES)
+parseDateBrToIso("05/03/2026")    // "2026-03-05" ou null
+formatDateUS("2026-03-05")        // "03/05/2026" (en-US)
+parseDateUSToIso("03/05/2026")    // "2026-03-05" ou null
+
+// Texto
+initialsOf("Joao da Silva")       // "JS"
+formatMonthYear(3, 2026)          // "Marco 2026"
+
+// Telefone (uso fora de Compose: logs, PDFs)
+formatPhone("11999999999")        // "(11) 99999-9999"  (celular)
+formatPhone("1133333333")         // "(11) 3333-3333"   (fixo)
+
+// Datas a partir de millis
+formatDateBrFromMillis(1709596800000L)       // "05/03/2024"
+formatDateTimeBrFromMillis(1709596800000L)   // "05/03/2024 00:00"
+formatIsoDateFromMillis(1709596800000L)      // "2024-03-05"
+formatTime(9, 5)                              // "09:05"
+parseIsoDateToMillis("2026-03-05")           // Long (epoch UTC)
 ```
 
 ---
@@ -816,6 +866,92 @@ fun MyScreen(viewModel: MyViewModel = koinViewModel()) {
     // UI usando state...
 }
 ```
+
+### Aliases e variantes
+
+A `BaseViewModel` expoe aliases compativeis com bases MVI locais legadas:
+`setState`, `sendEffect`, `dispatch` (alem de `updateState`, `emitEffect`, `launch`,
+`onAction`).
+
+Apps que usam a ordem generica `<STATE, EFFECT, ACTION>` podem herdar de
+`SimpleMviViewModel` em vez de `BaseViewModel`:
+
+```kotlin
+class RestViewModel : SimpleMviViewModel<RestState, RestEffect, RestAction>(RestState()) {
+    override fun onAction(action: RestAction) { /* ... */ }
+}
+```
+
+---
+
+## 14a. Network (ApiResult, handleApiCall, ConnectivityObserver)
+
+Pacote `br.com.codecacto.kmplib.core.network` para apps que usam Ktor/HTTP.
+
+```kotlin
+sealed class ApiResult<out T> {
+    data class Success<T>(val data: T) : ApiResult<T>()
+    data class Error(val code: Int = -1, val message: String) : ApiResult<Nothing>()
+    data object Loading : ApiResult<Nothing>()
+}
+
+// Helpers
+result.map { it.toDomain() }
+result.onSuccess { /* ... */ }.onError { /* ... */ }
+result.getOrNull()
+result.errorOrNull()
+
+// Wrapper Ktor — converte ResponseException/timeout/serialization para ApiResult.Error
+val result: ApiResult<UserDto> = handleApiCall {
+    httpClient.get("/v1/me").body()
+}
+```
+
+### ConnectivityObserver (reativo)
+
+```kotlin
+class App {
+    val observer: ConnectivityObserver by koinInject()
+    LaunchedEffect(Unit) { observer.start() }
+    val online by observer.isOnline.collectAsState()
+}
+```
+
+Targets suportados: Android, iOS. Para JVM/WASM, manter `NetworkChecker` legado.
+
+---
+
+## 14b. Push Notifications
+
+Pacote `br.com.codecacto.kmplib.push`. Abstracao sobre KMPNotifier.
+
+```kotlin
+interface PushNotificationService {
+    suspend fun getToken(): String?
+    suspend fun deleteToken(): Result<Unit>
+    suspend fun subscribeToTopic(topic: String): Result<Unit>
+    suspend fun unsubscribeFromTopic(topic: String): Result<Unit>
+}
+
+interface PushNotificationListener {
+    fun onNewToken(token: String) = Unit
+    fun onPushNotification(title: String?, body: String?) = Unit
+    fun onPayloadData(data: Map<String, String>) = Unit
+    fun onNotificationClicked(data: Map<String, String>) = Unit
+}
+
+// Implementacao baseada em KMPNotifier
+val pushService = KmpPushNotificationService(
+    listener = myListener,
+    emitCurrentTokenOnStart = true
+)
+```
+
+Para testes, use `FakePushNotificationService` (em `commonTest`) que rastreia
+operacoes sem chamar Firebase real.
+
+Apps continuam responsaveis por: sync de token com backend, escrita em Firestore,
+deep links e topicos derivados de dominio (flavor/role/empresa/usuario).
 
 ---
 

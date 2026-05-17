@@ -10,6 +10,8 @@ coroutines = "1.10.2"
 doistNormalize = "1.2.0"
 kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.7.1"
+ktor = "3.1.1"
+kmpnotifier = "1.6.0"
 
 # Firebase (GitLive) - mantido em 2.1.0 pois 2.3.0 não suporta iosX64
 firebaseGitlive = "2.1.0"
@@ -40,12 +42,19 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 # Coroutines
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
 # Serialization
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 # DateTime
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+
+# Ktor
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+
+# Push Notifications
+kmpnotifier = { module = "io.github.mirzemehdi:kmpnotifier", version.ref = "kmpnotifier" }
 
 # Unicode Normalization
 doist-normalize = { module = "com.doist.x:normalize", version.ref = "doistNormalize" }

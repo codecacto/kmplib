@@ -2,9 +2,12 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
@@ -17,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,7 +28,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
+import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
+import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.platform.getUrlLauncher
+import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -43,7 +50,7 @@ private enum class ReviewStep {
  * Fluxo:
  * 1. Pergunta se o usuário está gostando da experiência
  * 2. Se "Sim" → Redireciona para a loja (Play Store / App Store)
- * 3. Se "Não" → Exibe campo de texto para feedback → Tela de agradecimento
+ * 3. Se "Não" → Exibe texto, e-mail opcional e WhatsApp obrigatório → Tela de agradecimento
  *
  * O feedback negativo é automaticamente persistido no Firestore centralizado
  * se [FeedbackService] estiver inicializado (via [persistFeedback] = true).
@@ -76,6 +83,12 @@ private enum class ReviewStep {
  * @param negativeTitle Título da tela de feedback negativo
  * @param negativeSubtitle Subtítulo da tela de feedback negativo
  * @param feedbackPlaceholder Placeholder do campo de feedback
+ * @param emailLabel Label do campo de e-mail opcional
+ * @param emailPlaceholder Placeholder do campo de e-mail opcional
+ * @param whatsappLabel Label do campo de WhatsApp obrigatório
+ * @param whatsappPlaceholder Placeholder do campo de WhatsApp obrigatório
+ * @param emailError Mensagem para e-mail inválido
+ * @param whatsappError Mensagem para WhatsApp inválido
  * @param feedbackButtonText Texto do botão de enviar feedback
  * @param thankYouTitle Título da tela de agradecimento
  * @param thankYouMessage Mensagem da tela de agradecimento
@@ -97,6 +110,12 @@ fun AppReviewDialog(
     negativeTitle: String = "Que pena! \uD83D\uDE14",
     negativeSubtitle: String = "Como podemos melhorar?",
     feedbackPlaceholder: String = "Conte-nos o que poderia ser melhor...",
+    emailLabel: String = "Seu e-mail (opcional)",
+    emailPlaceholder: String = "email@exemplo.com",
+    whatsappLabel: String = "Seu WhatsApp",
+    whatsappPlaceholder: String = "(00) 00000-0000",
+    emailError: String = "E-mail inválido",
+    whatsappError: String = "Informe um WhatsApp com 11 dígitos",
     feedbackButtonText: String = "Enviar Feedback",
     thankYouTitle: String = "Obrigado! \uD83C\uDF89",
     thankYouMessage: String = "Seu feedback é muito valioso para nós",
@@ -105,6 +124,8 @@ fun AppReviewDialog(
 ) {
     var currentStep by remember { mutableStateOf(ReviewStep.Initial) }
     var feedbackText by remember { mutableStateOf("") }
+    var feedbackEmail by remember { mutableStateOf("") }
+    var feedbackWhatsapp by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     // Reset state when dialog is shown/hidden
@@ -112,6 +133,8 @@ fun AppReviewDialog(
         if (!show) {
             currentStep = ReviewStep.Initial
             feedbackText = ""
+            feedbackEmail = ""
+            feedbackWhatsapp = ""
         }
     }
 
@@ -177,16 +200,28 @@ fun AppReviewDialog(
                             buttonText = feedbackButtonText,
                             primaryColor = primaryColor,
                             feedbackText = feedbackText,
+                            email = feedbackEmail,
+                            whatsapp = feedbackWhatsapp,
+                            emailLabel = emailLabel,
+                            emailPlaceholder = emailPlaceholder,
+                            whatsappLabel = whatsappLabel,
+                            whatsappPlaceholder = whatsappPlaceholder,
+                            emailError = emailError,
+                            whatsappError = whatsappError,
                             onFeedbackTextChange = { feedbackText = it },
+                            onEmailChange = { feedbackEmail = it },
+                            onWhatsappChange = { feedbackWhatsapp = filterPhoneInput(it) },
                             onSubmit = {
-                                onFeedbackSubmit(feedbackText)
+                                onFeedbackSubmit(feedbackText.trim())
 
                                 // Persistir no Firestore se habilitado
                                 if (persistFeedback && FeedbackService.config != null) {
                                     scope.launch {
                                         FeedbackService.sendFeedback(
                                             source = FeedbackSource.REVIEW_DIALOG,
-                                            mensagem = feedbackText
+                                            mensagem = feedbackText.trim(),
+                                            email = feedbackEmail.trim(),
+                                            whatsapp = feedbackWhatsapp.trim()
                                         )
                                     }
                                 }
@@ -321,12 +356,23 @@ private fun FeedbackStep(
     buttonText: String,
     primaryColor: Color,
     feedbackText: String,
+    email: String,
+    whatsapp: String,
+    emailLabel: String,
+    emailPlaceholder: String,
+    whatsappLabel: String,
+    whatsappPlaceholder: String,
+    emailError: String,
+    whatsappError: String,
     onFeedbackTextChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onWhatsappChange: (String) -> Unit,
     onSubmit: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -384,8 +430,55 @@ private fun FeedbackStep(
             )
         )
 
+        val showEmailError = email.trim().isNotEmpty() && !EmailValidator.isValid(email.trim())
+        OutlinedTextField(
+            value = email,
+            onValueChange = onEmailChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(emailLabel) },
+            placeholder = { Text(emailPlaceholder) },
+            singleLine = true,
+            isError = showEmailError,
+            supportingText = if (showEmailError) {
+                { Text(emailError, color = MaterialTheme.colorScheme.error) }
+            } else {
+                null
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = primaryColor,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+        )
+
+        val showWhatsappError = whatsapp.isNotEmpty() && whatsapp.length != 11
+        OutlinedTextField(
+            value = whatsapp,
+            onValueChange = onWhatsappChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(whatsappLabel) },
+            placeholder = { Text(whatsappPlaceholder) },
+            singleLine = true,
+            isError = showWhatsappError,
+            supportingText = if (showWhatsappError) {
+                { Text(whatsappError, color = MaterialTheme.colorScheme.error) }
+            } else {
+                null
+            },
+            visualTransformation = PhoneVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = primaryColor,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+        )
+
         // Submit button
-        val isEnabled = feedbackText.isNotBlank()
+        val isEnabled = feedbackText.isNotBlank() &&
+            whatsapp.length == 11 &&
+            (email.trim().isEmpty() || EmailValidator.isValid(email.trim()))
         Button(
             onClick = onSubmit,
             modifier = Modifier

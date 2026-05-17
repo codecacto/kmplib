@@ -19,7 +19,7 @@ data class FeedbackTexts(
     val mensagemPlaceholder: String = "Descreva sua sugestão, problema ou dúvida...",
     val emailLabel: String = "Seu e-mail (opcional)",
     val emailPlaceholder: String = "email@exemplo.com",
-    val whatsappLabel: String = "Seu WhatsApp (opcional)",
+    val whatsappLabel: String = "Seu WhatsApp",
     val whatsappPlaceholder: String = "(00) 00000-0000",
     val submitButton: String = "Enviar Feedback",
     val cancelButton: String = "Cancelar",
@@ -30,6 +30,6 @@ data class FeedbackTexts(
     val motivoError: String = "Selecione um motivo",
     val mensagemError: String = "Digite sua mensagem",
     val emailError: String = "E-mail inválido",
-    val whatsappError: String = "WhatsApp deve ter 11 dígitos",
+    val whatsappError: String = "Informe um WhatsApp com 11 dígitos",
     val backContentDescription: String = "Voltar"
 )

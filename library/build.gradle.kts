@@ -70,6 +70,12 @@ kotlin {
             // DateTime
             implementation(libs.kotlinx.datetime)
 
+            // Ktor
+            implementation(libs.ktor.client.core)
+
+            // Push Notifications
+            api(libs.kmpnotifier)
+
             // Lifecycle ViewModel
             implementation(libs.androidx.lifecycle.viewmodel)
 
@@ -95,6 +101,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         androidMain.dependencies {

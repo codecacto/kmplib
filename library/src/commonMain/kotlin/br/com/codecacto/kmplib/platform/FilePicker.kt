@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
+import androidx.compose.runtime.Composable
+
 /**
  * Dados de um arquivo selecionado
  */
@@ -45,7 +47,17 @@ data class FileData(
 
 /**
  * Seletor de arquivos multiplataforma
- *
- * Nota: FilePicker ainda esta em desenvolvimento.
- * As implementacoes Android e iOS serao adicionadas em breve.
  */
+@Composable
+fun rememberFilePicker(
+    onFilePicked: (FileData?) -> Unit
+): () -> Unit = rememberFilePicker(
+    mimeTypes = listOf("*/*"),
+    onFilePicked = onFilePicked
+)
+
+@Composable
+expect fun rememberFilePicker(
+    mimeTypes: List<String>,
+    onFilePicked: (FileData?) -> Unit
+): () -> Unit

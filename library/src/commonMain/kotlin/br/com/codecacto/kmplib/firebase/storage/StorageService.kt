@@ -28,6 +28,31 @@ class StorageService {
     }
 
     // ========================
+    // UPLOAD
+    // ========================
+
+    /**
+     * Envia bytes para um caminho no Storage e retorna a URL de download.
+     */
+    suspend fun uploadBytes(
+        path: String,
+        bytes: ByteArray,
+        mimeType: String? = null
+    ): Result<String> {
+        return try {
+            val reference = storage.reference.child(path)
+            reference.putData(bytes.toFirebaseData())
+            val downloadUrl = reference.getDownloadUrl()
+            val mimeSuffix = mimeType?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+            AppLogger.d(TAG, "Arquivo enviado: $path$mimeSuffix")
+            Result.success(downloadUrl)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao enviar: $path", e)
+            Result.failure(mapStorageException(e))
+        }
+    }
+
+    // ========================
     // DOWNLOAD URL
     // ========================
 

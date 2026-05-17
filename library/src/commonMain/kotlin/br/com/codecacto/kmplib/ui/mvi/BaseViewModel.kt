@@ -56,6 +56,13 @@ abstract class BaseViewModel<State, Action, Effect>(
     }
 
     /**
+     * Alias compatível com bases MVI locais que usam receiver no estado.
+     */
+    protected fun setState(reduce: State.() -> State) {
+        _state.value = currentState.reduce()
+    }
+
+    /**
      * Obtém o estado atual de forma síncrona
      */
     protected val currentState: State
@@ -73,6 +80,20 @@ abstract class BaseViewModel<State, Action, Effect>(
     }
 
     /**
+     * Alias compatível com bases MVI locais.
+     */
+    protected fun sendEffect(effect: Effect) {
+        emitEffect(effect)
+    }
+
+    /**
+     * Alias publico para telas que despacham acoes por `dispatch`.
+     */
+    fun dispatch(action: Action) {
+        onAction(action)
+    }
+
+    /**
      * Executa uma operação assíncrona no viewModelScope
      *
      * @param block Bloco de código suspendível
@@ -83,6 +104,13 @@ abstract class BaseViewModel<State, Action, Effect>(
         }
     }
 }
+
+/**
+ * Base MVI compatível com apps que usam a ordem generica STATE, EFFECT, ACTION.
+ */
+abstract class SimpleMviViewModel<STATE : UiState, EFFECT : UiEffect, ACTION : UiAction>(
+    initialState: STATE
+) : BaseViewModel<STATE, ACTION, EFFECT>(initialState)
 
 /**
  * Extension para facilitar collect de estado em Composables
