@@ -1138,15 +1138,25 @@ val color = colorForName("Maria")
 
 ### OfflineBanner — Banner reativo quando offline
 
+Dois overloads:
+
 ```kotlin
+// 1) Com ConnectivityObserver da lib (gerencia start/stop automático):
 val observer: ConnectivityObserver by koinInject()
 
 Column {
-    OfflineBanner(observer)          // gerencia start/stop automático
+    OfflineBanner(observer)
     // resto da UI
 }
 
-// Customizando
+// 2) Com isOnline direto — útil para testes ou para apps com seu próprio
+//    observador de conectividade:
+OfflineBanner(isOnline = state.isOnline, text = "Você está offline")
+```
+
+Customização:
+
+```kotlin
 OfflineBanner(
     observer = observer,
     text = "Você está offline",
@@ -1250,7 +1260,13 @@ A lib possui suite de testes em `library/src/commonTest/` rodando em Android + i
 # Relatório de cobertura (HTML em library/build/reports/kover/html/)
 ./gradlew :library:koverHtmlReport
 ./gradlew :library:koverXmlReport
+
+# Verifica cobertura mínima (falha se < 40%)
+./gradlew :library:koverVerify
 ```
+
+**Threshold atual:** 40% (conservador). Configurado em `library/build.gradle.kts`.
+Holders Android (lifecycle providers) e classes geradas são excluídos.
 
 ### CI
 
@@ -1284,12 +1300,26 @@ Para consumidores de testes que querem reutilizar:
 - `ui/` AuthMethods, Badge, LoginColors, LoginContract, LoginTexts, Navigation, NumberField, RegisterContract, RegisterFields, RegisterTexts, Toast, **ContractMarkersTest** (markers MVI)
 - `ui/mvi/` BaseViewModel, SimpleMviViewModel
 - `validation/` Cpf, Cnpj, Email, Phone, Password, Crefito (todos)
+- `ui/components/` **Avatar** (lógica `colorForName` em commonTest puro + render Compose UI via `runComposeUiTest`), **LoadingOverlay** (show/hide + alternância de estado), **OfflineBanner** (overload `isOnline: Boolean`)
+- `core/util/` **AppLogger** (Level enum + setMinLevel/getMinLevel — métodos `d/i/w/e` chamam APIs de plataforma e não são testados em unit)
 
-### O que ainda **não** é testado em commonTest
+### Compose UI tests
 
-- UI components Compose (Avatar, OfflineBanner, LoadingOverlay etc.) — exige `compose.uiTest` + setup; planejado em fase futura
-- `AppLogger` — é `expect object` (não mockável em commonTest); cobertura via testes de plataforma se necessário
-- `ConnectivityObserver`, `BiometricAuth`, `NotificationScheduler` — dependem de plataforma real; testar via instrumentation Android/iOS
+Os testes de componentes Compose (`AvatarUiTest`, `LoadingOverlayTest`, `OfflineBannerTest`) usam `runComposeUiTest` (`@OptIn(ExperimentalTestApi::class)`). Rodam em `:library:iosSimulatorArm64Test` no runner macOS do CI. Para rodar localmente:
+
+```bash
+./gradlew :library:iosSimulatorArm64Test
+```
+
+### O que ainda **não** é testado
+
+- `OfflineBanner` overload com `ConnectivityObserver` — testamos só o overload puro `isOnline: Boolean`. A versão com observer é wrapper trivial.
+- `ConnectivityObserver`, `BiometricAuth`, `NotificationScheduler`, `UrlLauncher`, `ShareHandler`, `NotificationReceiver`, `BitmapEncoder`, `FilePicker` actuals — dependem de plataforma real; precisariam instrumentation Android (Robolectric ou device) ou XCUITest iOS
+- `AppLogger.d/i/w/e` — chamam `android.util.Log` / `NSLog`
+- `AdManager`, `BannerAd`, `InterstitialAdController`, `AppOpenAdController` — exigem SDK Google Mobile Ads carregado
+- `PurchaseManager`, `RevenueCatPurchaseRepository` — exigem RevenueCat SDK
+- `AuthRepository`, `GoogleAuthProvider`, `AppleAuthProvider` — exigem Firebase Auth real ou emulador
+- `FirestoreService`, `StorageService` (operações reais) — exigem Firebase
 
 ---
 

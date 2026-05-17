@@ -26,6 +26,52 @@ import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.core.network.ConnectivityObserver
 
 /**
+ * Banner que aparece quando o app está offline.
+ *
+ * Overload "puro" — recebe diretamente o estado [isOnline]. Útil para:
+ * - testes (passar valores fixos)
+ * - apps que já têm seu próprio observador de conectividade
+ *
+ * Para uso com [ConnectivityObserver] da lib, use o overload que recebe
+ * o observer.
+ */
+@Composable
+fun OfflineBanner(
+    isOnline: Boolean,
+    modifier: Modifier = Modifier,
+    text: String = "Sem conexão",
+    backgroundColor: Color = MaterialTheme.colorScheme.errorContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
+) {
+    AnimatedVisibility(
+        visible = !isOnline,
+        enter = expandVertically(),
+        exit = shrinkVertically()
+    ) {
+        Surface(
+            color = backgroundColor,
+            contentColor = contentColor,
+            modifier = modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.WifiOff,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(text = text, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+/**
  * Banner que aparece automaticamente quando o app fica offline.
  *
  * Inicia o [ConnectivityObserver] no `LaunchedEffect` e libera no `DisposableEffect`.
@@ -57,30 +103,11 @@ fun OfflineBanner(
 
     val online by observer.isOnline.collectAsState()
 
-    AnimatedVisibility(
-        visible = !online,
-        enter = expandVertically(),
-        exit = shrinkVertically()
-    ) {
-        Surface(
-            color = backgroundColor,
-            contentColor = contentColor,
-            modifier = modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.WifiOff,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(text = text, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
+    OfflineBanner(
+        isOnline = online,
+        modifier = modifier,
+        text = text,
+        backgroundColor = backgroundColor,
+        contentColor = contentColor
+    )
 }

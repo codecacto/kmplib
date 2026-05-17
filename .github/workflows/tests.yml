@@ -43,6 +43,10 @@ jobs:
         if: always()
         run: ./gradlew :library:koverXmlReport
 
+      - name: Verify Kover coverage threshold
+        if: always()
+        run: ./gradlew :library:koverVerify
+
       - name: Upload Kover HTML
         if: always()
         uses: actions/upload-artifact@v4

@@ -19,6 +19,46 @@ compose.resources {
     generateResClass = always
 }
 
+// =============================================================================
+// Kover — cobertura de testes
+// =============================================================================
+//
+// Roda automaticamente com :library:koverHtmlReport e :library:koverXmlReport.
+// Threshold de 40% no `koverVerify` (não-bloqueante em CI por enquanto;
+// quando estabilizar, mover `koverVerify` para os jobs obrigatórios em
+// .github/workflows/tests.yml).
+//
+// Exclusões: classes geradas, telas Compose UI (testadas separadamente),
+// holders Android que dependem de Activity/Context, código iOS bridge.
+//
+kover {
+    reports {
+        filters {
+            excludes {
+                // Classes geradas pelo Compose
+                classes("*generated.resources*")
+                classes("*ComposableSingletons*")
+                // Holders são providers para Android lifecycle — não testáveis em unit test
+                classes("*Holder")
+                // Adapters Android internos (não API pública)
+                classes("br.com.codecacto.kmplib.firebase.ads.AdManagerHolder")
+                classes("br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder")
+                classes("br.com.codecacto.kmplib.firebase.crashlytics.CrashlyticsHolder")
+                classes("br.com.codecacto.kmplib.platform.BiometricAuthHolder")
+                classes("br.com.codecacto.kmplib.platform.NotificationSchedulerHolder")
+                classes("br.com.codecacto.kmplib.platform.ShareHandlerHolder")
+                classes("br.com.codecacto.kmplib.platform.UrlLauncherHolder")
+            }
+        }
+
+        verify {
+            rule {
+                minBound(40)  // bound conservador. Aumentar conforme cobertura crescer.
+            }
+        }
+    }
+}
+
 android {
     namespace = "br.com.codecacto.kmplib"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -106,6 +146,8 @@ kotlin {
             implementation(libs.ktor.client.mock)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
         }
 
         androidMain.dependencies {
