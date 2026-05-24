@@ -43,6 +43,10 @@ internal class RevenueCatPurchaseRepository(
     }
 
     override suspend fun purchase(productId: String): PurchaseResult {
+        if (cachedProducts.none { it.id == productId }) {
+            getProducts()
+        }
+
         val product = cachedProducts.find { it.id == productId }
             ?: return PurchaseResult.Error(
                 message = "Produto nao encontrado: $productId",

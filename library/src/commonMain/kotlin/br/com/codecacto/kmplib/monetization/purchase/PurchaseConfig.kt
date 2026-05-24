@@ -21,15 +21,16 @@ data class PurchaseConfig(
  * Configuracao de um produto individual.
  *
  * @param id ID do produto nas lojas (deve ser o mesmo no Google Play e App Store)
- * @param period Periodo da assinatura
+ * @param period Periodo da assinatura. Use null para produto avulso.
  */
 data class ProductConfig(
     val id: String,
-    val period: SubscriptionPeriod
+    val period: SubscriptionPeriod? = null
 )
 
 enum class SubscriptionPeriod {
     MONTHLY,
+    QUARTERLY,
     SEMI_ANNUAL,
     ANNUAL
 }

@@ -1,6 +1,6 @@
 package br.com.codecacto.kmplib.platform
 
-expect class ReviewPreferences {
+expect class ReviewPreferences() {
     fun hasReviewed(): Boolean
     fun markReviewed()
     fun getCompletionCount(): Int

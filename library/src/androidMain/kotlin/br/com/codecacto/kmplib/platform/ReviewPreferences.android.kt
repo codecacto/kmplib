@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 actual class ReviewPreferences {
     private val prefs: SharedPreferences
 
-    constructor() {
+    actual constructor() {
         val context = UrlLauncherHolder.getContext()
             ?: throw IllegalStateException("KmpLib não foi inicializado. Chame KmpLib.init(context) no Application.onCreate()")
         prefs = context.getSharedPreferences("review_prefs", Context.MODE_PRIVATE)
