@@ -65,7 +65,38 @@ interface NotificationScheduler {
     )
 
     /**
-     * Cancela uma notificação agendada.
+     * Agenda uma notificação local que se repete TODO dia no horário (hour:minute) local.
+     *
+     * Use para lembretes recorrentes (ex.: versículo diário, dose diária). O disparo ocorre
+     * todos os dias no mesmo horário local até ser cancelado com [cancelNotification] (mesmo [id]).
+     *
+     * @param id ID único da notificação/lembrete (use o mesmo para reagendar/cancelar)
+     * @param title Título da notificação
+     * @param body Corpo/descrição da notificação
+     * @param hour Hora do disparo (0..23, horário local)
+     * @param minute Minuto do disparo (0..59, horário local)
+     * @param data Dados extras para a notificação
+     * @param channelId ID do canal (Android) - usa padrão se não informado
+     * @param isCritical Se true, tenta bypassar modo não perturbe
+     *
+     * Limitações Android: o disparo usa `setExactAndAllowWhileIdle` com reagendamento do próximo
+     * dia dentro do receiver. A lib NÃO registra um `BOOT_COMPLETED` receiver, então após reiniciar
+     * o aparelho o lembrete só é restaurado se o app for aberto novamente (ou se o app consumidor
+     * reagendar no boot). Reagendar no `onCreate`/abertura do app garante a recorrência.
+     */
+    fun scheduleDailyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        hour: Int,
+        minute: Int,
+        data: Map<String, String> = emptyMap(),
+        channelId: String? = null,
+        isCritical: Boolean = false
+    )
+
+    /**
+     * Cancela uma notificação agendada (única ou diária recorrente).
      * @param id ID da notificação a cancelar
      */
     fun cancelNotification(id: Int)

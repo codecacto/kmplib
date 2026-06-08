@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.0.0"
+version = "2.19.0"
 
 compose.resources {
     publicResClass = true
@@ -48,6 +48,8 @@ kover {
                 classes("br.com.codecacto.kmplib.platform.NotificationSchedulerHolder")
                 classes("br.com.codecacto.kmplib.platform.ShareHandlerHolder")
                 classes("br.com.codecacto.kmplib.platform.UrlLauncherHolder")
+                classes("br.com.codecacto.kmplib.media.AudioPlayerHolder")
+                classes("br.com.codecacto.kmplib.platform.permission.PermissionHostHolder")
             }
         }
 
@@ -136,8 +138,14 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
+            // Compose @Preview support (multiplatform) — módulo do próprio Compose MP
+            implementation(compose.components.uiToolingPreview)
             @Suppress("DEPRECATION")
             implementation(compose.materialIconsExtended)
+
+            // Coil 3 — image loading for Custom Ads
+            api(libs.coil.compose)
+            implementation(libs.coil.network.ktor)
         }
 
         commonTest.dependencies {
@@ -181,6 +189,19 @@ kotlin {
             implementation(libs.androidx.credentials)
             implementation(libs.androidx.credentials.play.services)
             implementation(libs.google.googleid)
+
+            // Google Maps (GAP-02) — MapView/MapMarker via maps-compose
+            implementation(libs.maps.compose)
+            implementation(libs.play.services.maps)
+
+            // Location (GAP-04) — LocationProvider via Fused Location Provider
+            implementation(libs.play.services.location)
+
+            // Camera + OCR de placa (GAP-ME-01) — CameraView via CameraX + ML Kit
+            implementation(libs.androidx.camera.camera2)
+            implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.view)
+            implementation(libs.mlkit.text.recognition)
         }
 
         // Note: firebase-crashlytics GitLive não suporta iosX64.

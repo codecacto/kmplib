@@ -9,7 +9,10 @@ class FakeCrashlyticsService : CrashlyticsService {
     val messages = mutableListOf<String>()
     val customKeys = mutableMapOf<String, String>()
     val recordedExceptions = mutableListOf<Throwable>()
-    var userId: String? = null
+    // Renomeado de `userId` para evitar clash de assinatura JVM com
+    // `override fun setUserId(String)` (o setter sintético `setUserId(String?)`
+    // do `var userId` colidia, quebrando a compilação do testDebugUnitTest).
+    var capturedUserId: String? = null
     var collectionEnabled: Boolean = true
 
     override fun logMessage(message: String) {
@@ -21,7 +24,7 @@ class FakeCrashlyticsService : CrashlyticsService {
     }
 
     override fun setUserId(userId: String) {
-        this.userId = userId
+        this.capturedUserId = userId
     }
 
     override fun recordException(exception: Throwable) {

@@ -1,9 +1,11 @@
 package br.com.codecacto.kmplib.platform
 
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.app.PendingIntent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -61,6 +63,57 @@ class NotificationReceiver : BroadcastReceiver() {
             AppLogger.d(TAG, "Notificação exibida: id=$id")
         } catch (e: SecurityException) {
             AppLogger.e(TAG, "Sem permissão para exibir notificação", e)
+        }
+
+        // Lembrete diário recorrente: reagenda o próximo disparo (amanhã, mesmo horário).
+        if (intent.getBooleanExtra(AndroidNotificationScheduler.EXTRA_DAILY, false)) {
+            rescheduleDaily(context, intent, id, title, body, channelId, data)
+        }
+    }
+
+    private fun rescheduleDaily(
+        context: Context,
+        sourceIntent: Intent,
+        id: Int,
+        title: String,
+        body: String,
+        channelId: String,
+        data: Map<String, String>
+    ) {
+        val hour = sourceIntent.getIntExtra(AndroidNotificationScheduler.EXTRA_HOUR, 8)
+        val minute = sourceIntent.getIntExtra(AndroidNotificationScheduler.EXTRA_MINUTE, 0)
+        val isCritical = sourceIntent.getBooleanExtra(AndroidNotificationScheduler.EXTRA_CRITICAL, false)
+        val nextTrigger = AndroidNotificationScheduler.nextDailyTriggerMillis(hour, minute)
+
+        val nextIntent = Intent(context, NotificationReceiver::class.java).apply {
+            putExtra(AndroidNotificationScheduler.EXTRA_NOTIFICATION_ID, id)
+            putExtra(AndroidNotificationScheduler.EXTRA_TITLE, title)
+            putExtra(AndroidNotificationScheduler.EXTRA_BODY, body)
+            putExtra(AndroidNotificationScheduler.EXTRA_DATA, HashMap(data))
+            putExtra(AndroidNotificationScheduler.EXTRA_CHANNEL_ID, channelId)
+            putExtra(AndroidNotificationScheduler.EXTRA_DAILY, true)
+            putExtra(AndroidNotificationScheduler.EXTRA_HOUR, hour)
+            putExtra(AndroidNotificationScheduler.EXTRA_MINUTE, minute)
+            putExtra(AndroidNotificationScheduler.EXTRA_CRITICAL, isCritical)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            id,
+            nextIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger, pendingIntent)
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTrigger, pendingIntent)
+            }
+            AppLogger.d(TAG, "Lembrete diário reagendado: id=$id, proximo=$nextTrigger")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao reagendar lembrete diário", e)
         }
     }
 

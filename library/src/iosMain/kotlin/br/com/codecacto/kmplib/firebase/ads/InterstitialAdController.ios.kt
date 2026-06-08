@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.firebase.ads
 
+import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
+import br.com.codecacto.kmplib.ads.stats.AdProviderTag
+import br.com.codecacto.kmplib.ads.stats.AdStats
 import br.com.codecacto.kmplib.cinterop.googleads.GADFullScreenContentDelegateProtocol
 import br.com.codecacto.kmplib.cinterop.googleads.GADFullScreenPresentingAdProtocol
 import br.com.codecacto.kmplib.cinterop.googleads.GADInterstitialAd
@@ -61,6 +64,14 @@ actual class InterstitialAdController actual constructor() {
         }
 
         ad.fullScreenContentDelegate = object : NSObject(), GADFullScreenContentDelegateProtocol {
+            override fun adDidRecordImpression(ad: GADFullScreenPresentingAdProtocol) {
+                AdStats.recordImpression(AdProviderTag.ADMOB, StatAdFormat.INTERSTITIAL)
+            }
+
+            override fun adDidRecordClick(ad: GADFullScreenPresentingAdProtocol) {
+                AdStats.recordClick(AdProviderTag.ADMOB, StatAdFormat.INTERSTITIAL)
+            }
+
             override fun adDidDismissFullScreenContent(ad: GADFullScreenPresentingAdProtocol) {
                 interstitialAd = null
                 load()

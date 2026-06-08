@@ -34,7 +34,7 @@ import br.com.codecacto.kmplib.core.util.AppLogger
  * )
  * ```
  */
-class AuthRepository {
+class AuthRepository : IAuthRepository {
 
     private val auth: FirebaseAuth = Firebase.auth
 
@@ -45,25 +45,25 @@ class AuthRepository {
     /**
      * Flow do usuário atual (null se não autenticado).
      */
-    val currentUser: Flow<User?> = auth.authStateChanged.map { firebaseUser ->
+    override val currentUser: Flow<User?> = auth.authStateChanged.map { firebaseUser ->
         firebaseUser?.toUser()
     }
 
     /**
      * Flow indicando se há usuário autenticado.
      */
-    val isLoggedIn: Flow<Boolean> = auth.authStateChanged.map { it != null }
+    override val isLoggedIn: Flow<Boolean> = auth.authStateChanged.map { it != null }
 
     /**
      * Obtém o usuário atual de forma síncrona (pode ser null).
      */
-    val currentUserSync: User?
+    override val currentUserSync: User?
         get() = auth.currentUser?.toUser()
 
     /**
      * Verifica se há usuário autenticado de forma síncrona.
      */
-    val isLoggedInSync: Boolean
+    override val isLoggedInSync: Boolean
         get() = auth.currentUser != null
 
     // ========================
@@ -73,7 +73,7 @@ class AuthRepository {
     /**
      * Login com email e senha.
      */
-    suspend fun signInWithEmail(email: String, password: String): Result<User> {
+    override suspend fun signInWithEmail(email: String, password: String): Result<User> {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password)
             val user = result.user?.toUser()
@@ -89,7 +89,7 @@ class AuthRepository {
     /**
      * Login com Google (idToken obtido do Google Sign-In nativo).
      */
-    suspend fun signInWithGoogle(idToken: String, accessToken: String? = null): Result<User> {
+    override suspend fun signInWithGoogle(idToken: String, accessToken: String?): Result<User> {
         return try {
             val credential = GoogleAuthProvider.credential(idToken, accessToken)
             val result = auth.signInWithCredential(credential)
@@ -106,7 +106,7 @@ class AuthRepository {
     /**
      * Login com Apple (idToken e nonce obtidos do Apple Sign-In nativo).
      */
-    suspend fun signInWithApple(idToken: String, nonce: String): Result<User> {
+    override suspend fun signInWithApple(idToken: String, nonce: String): Result<User> {
         return try {
             val credential = OAuthProvider.credential(
                 providerId = "apple.com",
@@ -131,10 +131,10 @@ class AuthRepository {
     /**
      * Cadastro com email e senha.
      */
-    suspend fun signUpWithEmail(
+    override suspend fun signUpWithEmail(
         email: String,
         password: String,
-        displayName: String? = null
+        displayName: String?
     ): Result<User> {
         return try {
             val result = auth.createUserWithEmailAndPassword(email, password)
@@ -162,7 +162,7 @@ class AuthRepository {
     /**
      * Envia email de recuperação de senha.
      */
-    suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
+    override suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
         return try {
             auth.sendPasswordResetEmail(email)
             AppLogger.d(TAG, "Email de recuperação enviado")
@@ -180,7 +180,7 @@ class AuthRepository {
     /**
      * Atualiza o perfil do usuário.
      */
-    suspend fun updateProfile(displayName: String? = null, photoUrl: String? = null): Result<Unit> {
+    override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> {
         return try {
             val currentUser = auth.currentUser
                 ?: return Result.failure(AuthException.NotAuthenticated)
@@ -197,7 +197,7 @@ class AuthRepository {
     /**
      * Altera a senha do usuário (requer reautenticação recente).
      */
-    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
+    override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
         return try {
             val currentUser = auth.currentUser
                 ?: return Result.failure(AuthException.NotAuthenticated)
@@ -221,7 +221,7 @@ class AuthRepository {
     /**
      * Exclui a conta do usuário (requer reautenticação recente).
      */
-    suspend fun deleteAccount(password: String? = null): Result<Unit> {
+    override suspend fun deleteAccount(password: String?): Result<Unit> {
         return try {
             val currentUser = auth.currentUser
                 ?: return Result.failure(AuthException.NotAuthenticated)
@@ -244,7 +244,7 @@ class AuthRepository {
     /**
      * Logout.
      */
-    suspend fun signOut() {
+    override suspend fun signOut() {
         try {
             auth.signOut()
             AppLogger.d(TAG, "Logout realizado")
@@ -256,7 +256,7 @@ class AuthRepository {
     /**
      * Envia email de verificação.
      */
-    suspend fun sendEmailVerification(): Result<Unit> {
+    override suspend fun sendEmailVerification(): Result<Unit> {
         return try {
             val currentUser = auth.currentUser
                 ?: return Result.failure(AuthException.NotAuthenticated)
@@ -273,7 +273,7 @@ class AuthRepository {
     /**
      * Obtém o ID token do usuário atual (para uso em APIs backend).
      */
-    suspend fun getIdToken(forceRefresh: Boolean = false): Result<String> {
+    override suspend fun getIdToken(forceRefresh: Boolean): Result<String> {
         return try {
             val currentUser = auth.currentUser
                 ?: return Result.failure(AuthException.NotAuthenticated)

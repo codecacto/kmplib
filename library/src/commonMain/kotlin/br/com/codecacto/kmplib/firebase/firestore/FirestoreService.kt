@@ -5,6 +5,7 @@ import dev.gitlive.firebase.firestore.DocumentSnapshot
 import dev.gitlive.firebase.firestore.FieldValue
 import dev.gitlive.firebase.firestore.FirebaseFirestore
 import dev.gitlive.firebase.firestore.Query
+import dev.gitlive.firebase.firestore.Transaction
 import dev.gitlive.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -431,6 +432,49 @@ class FirestoreService {
             Result.failure(e)
         }
     }
+
+    /**
+     * Executa uma **transação atômica** (read-modify-write consistente).
+     *
+     * Diferente de [batch] (apenas escritas), uma transação permite **ler** documentos e decidir as
+     * escritas com base no estado lido — tudo de forma atômica: o Firestore reexecuta o bloco se
+     * algum documento lido mudar antes do commit, garantindo serialização. Use para contadores,
+     * reserva de número sequencial, gates de limite e qualquer invariante "leia e então escreva".
+     *
+     * Regras (impostas pelo Firestore): **toda leitura deve vir antes de qualquer escrita** dentro
+     * do bloco; o bloco pode ser reexecutado, então mantenha-o **puro** (sem efeitos colaterais
+     * fora das operações de transação). Não capture exceções genéricas dentro do bloco se quiser
+     * que o erro propague como falha da transação.
+     *
+     * Uso:
+     * ```kotlin
+     * val result = firestore.runTransaction { tx ->
+     *     val acc = tx.get("accounts", uid, Account.serializer())
+     *         ?: throw IllegalStateException("conta inexistente")
+     *     if (!acc.isPro && acc.usage >= limit) throw LimitReachedException()
+     *     val next = acc.sequence + 1
+     *     tx.update("accounts", uid, mapOf("sequence" to next))
+     *     next // valor de retorno da transação
+     * }
+     * ```
+     *
+     * @return [Result.success] com o valor retornado pelo bloco, ou [Result.failure] com a exceção
+     *   (inclusive a lançada dentro do bloco, p.ex. o gate de limite).
+     */
+    suspend fun <R> runTransaction(
+        block: suspend TransactionScope.(TransactionScope) -> R
+    ): Result<R> {
+        return try {
+            val value = firestore.runTransaction {
+                val scope = TransactionScope(this, firestore)
+                scope.block(scope)
+            }
+            Result.success(value)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao executar transação", e)
+            Result.failure(e)
+        }
+    }
 }
 
 /**
@@ -471,5 +515,76 @@ class BatchScope(
 
     fun delete(collection: String, documentId: String) {
         batch.delete(firestore.collection(collection).document(documentId))
+    }
+}
+
+/**
+ * Escopo para operações dentro de uma transação atômica ([FirestoreService.runTransaction]).
+ *
+ * Espelha o [BatchScope] (mesma assinatura `collection`/`documentId`), porém **adiciona leituras**:
+ * o método [get] permite ler um documento e decidir as escritas com base no estado lido.
+ *
+ * **Importante:** o Firestore exige que **todas as leituras ([get]/[exists]) venham antes** de
+ * qualquer escrita ([set]/[update]/[delete]) no mesmo bloco. O bloco pode ser reexecutado.
+ */
+class TransactionScope(
+    private val transaction: Transaction,
+    private val firestore: FirebaseFirestore
+) {
+    /**
+     * Lê um documento dentro da transação e o desserializa. Retorna `null` se não existir.
+     * DEVE ser chamado antes de qualquer escrita no bloco.
+     */
+    suspend fun <T : Any> get(
+        collection: String,
+        documentId: String,
+        deserializer: DeserializationStrategy<T>
+    ): T? {
+        val snapshot = transaction.get(firestore.collection(collection).document(documentId))
+        return if (snapshot.exists) snapshot.data(deserializer) else null
+    }
+
+    /**
+     * Verifica a existência de um documento dentro da transação (leitura).
+     * DEVE ser chamado antes de qualquer escrita no bloco.
+     */
+    suspend fun exists(collection: String, documentId: String): Boolean =
+        transaction.get(firestore.collection(collection).document(documentId)).exists
+
+    /** Cria/substitui um documento (tipado) dentro da transação. */
+    fun <T : Any> set(
+        collection: String,
+        documentId: String,
+        data: T,
+        serializer: SerializationStrategy<T>,
+        merge: Boolean = false
+    ) {
+        transaction.set(
+            firestore.collection(collection).document(documentId),
+            serializer,
+            data,
+            merge = merge
+        )
+    }
+
+    /** Cria/substitui um documento via Map dentro da transação. */
+    fun set(
+        collection: String,
+        documentId: String,
+        data: Map<String, Any?>,
+        merge: Boolean = false
+    ) {
+        transaction.set(firestore.collection(collection).document(documentId), data, merge = merge)
+    }
+
+    /** Atualiza campos específicos (aceita dotted-paths) dentro da transação. */
+    fun update(collection: String, documentId: String, updates: Map<String, Any?>) {
+        val pairs = updates.entries.map { it.key to it.value }.toTypedArray()
+        transaction.update(firestore.collection(collection).document(documentId), *pairs)
+    }
+
+    /** Exclui um documento dentro da transação. */
+    fun delete(collection: String, documentId: String) {
+        transaction.delete(firestore.collection(collection).document(documentId))
     }
 }

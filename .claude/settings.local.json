@@ -92,7 +92,16 @@
       "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/kmplib-iosarm64/**)",
       "Read(//c/Users/rapha/.m2/repository/br/com/codecacto/library-iosarm64/**)",
       "WebFetch(domain:nek12.dev)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(git push *)",
+      "Bash(git ls-tree *)",
+      "Bash(Select-String \"\\\\.gradle-user\")",
+      "Bash(git reset *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(Get-ChildItem -Path \"E:\\\\CodeCacto\\\\Lib\\\\kmplib\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

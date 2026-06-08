@@ -1,8 +1,8 @@
-# KmpLib v2.0.0 — Biblioteca KMP CodeCacto
+# KmpLib v2.2.0 — Biblioteca KMP CodeCacto
 
 Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizavel entre todos os apps da CodeCacto. Usar esta lib ao criar um novo app economiza semanas de desenvolvimento.
 
-**Coordenadas Maven:** `br.com.codecacto:kmplib:2.0.0`
+**Coordenadas Maven:** `br.com.codecacto:kmplib:2.2.0`
 
 ---
 
@@ -37,7 +37,7 @@ Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizav
 
 ```kotlin
 // No gradle/libs.versions.toml
-kmplib = "2.0.0"
+kmplib = "2.2.0"
 // Em [libraries]
 kmplib = { module = "br.com.codecacto:kmplib", version.ref = "kmplib" }
 
@@ -807,6 +807,23 @@ FeedbackScreen(
 )
 ```
 
+### DeveloperScreen
+
+Tela "Desenvolvido por CodeCacto" com contato (WhatsApp/e-mail/site) e uma grade
+de apps. Os dados vêm do projeto Firebase central `code-cacto` via REST
+(`DeveloperInfoService`) — **nenhuma configuração é necessária** no app. Apenas os
+apps marcados como `active` aparecem; o cadastro é feito no admin (monitoramento),
+coleção `developer_apps` + doc `developer_info/contact`. Em falha de rede, usa
+fallback (contato padrão + grade vazia), sem quebrar.
+
+```kotlin
+DeveloperScreen(
+    onBack = { navController.popBackStack() },
+    primaryColor = MaterialTheme.colorScheme.primary // opcional
+    // texts = DeveloperTexts(...) // opcional, defaults PT-BR
+)
+```
+
 ---
 
 ## 14. Arquitetura MVI
@@ -1402,7 +1419,7 @@ Ao criar um novo app KMP da CodeCacto, siga esta ordem:
 | Koin | 4.1.1 |
 | Navigation Compose | 2.9.1 |
 | Lifecycle | 2.9.6 |
-| kmplib | 2.0.0 |
+| kmplib | 2.2.0 |
 | compileSdk | 36 |
 | minSdk | 24 |
 | targetSdk | 36 |

@@ -135,6 +135,55 @@ class IosNotificationScheduler : NotificationScheduler {
         }
     }
 
+    @OptIn(ExperimentalForeignApi::class)
+    override fun scheduleDailyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        hour: Int,
+        minute: Int,
+        data: Map<String, String>,
+        channelId: String?,
+        isCritical: Boolean
+    ) {
+        val content = UNMutableNotificationContent().apply {
+            setTitle(title)
+            setBody(body)
+            setSound(
+                if (isCritical) UNNotificationSound.defaultCriticalSound()
+                else UNNotificationSound.defaultSound()
+            )
+            if (data.isNotEmpty()) {
+                setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
+            }
+        }
+
+        // Apenas hour/minute => dispara todo dia nesse horário local quando repeats=true.
+        val dateComponents = NSDateComponents().apply {
+            this.hour = hour.coerceIn(0, 23).toLong()
+            this.minute = minute.coerceIn(0, 59).toLong()
+        }
+
+        val trigger = UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(
+            dateComponents,
+            repeats = true
+        )
+
+        val request = UNNotificationRequest.requestWithIdentifier(
+            identifier = id.toString(),
+            content = content,
+            trigger = trigger
+        )
+
+        notificationCenter.addNotificationRequest(request) { error ->
+            if (error != null) {
+                AppLogger.e(TAG, "Erro ao agendar lembrete diário: ${error.localizedDescription}")
+            } else {
+                AppLogger.d(TAG, "Lembrete diário agendado: id=$id, horario=$hour:$minute")
+            }
+        }
+    }
+
     override fun cancelNotification(id: Int) {
         notificationCenter.removePendingNotificationRequestsWithIdentifiers(listOf(id.toString()))
         notificationCenter.removeDeliveredNotificationsWithIdentifiers(listOf(id.toString()))

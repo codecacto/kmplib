@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.firebase.ads
 
+import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
+import br.com.codecacto.kmplib.ads.stats.AdProviderTag
+import br.com.codecacto.kmplib.ads.stats.AdStats
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import com.google.android.gms.ads.AdRequest
@@ -61,6 +64,14 @@ actual class AppOpenAdController actual constructor() {
         }
 
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdImpression() {
+                AdStats.recordImpression(AdProviderTag.ADMOB, StatAdFormat.APP_OPEN)
+            }
+
+            override fun onAdClicked() {
+                AdStats.recordClick(AdProviderTag.ADMOB, StatAdFormat.APP_OPEN)
+            }
+
             override fun onAdDismissedFullScreenContent() {
                 appOpenAd = null
                 load()

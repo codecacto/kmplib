@@ -70,7 +70,31 @@ class AndroidNotificationScheduler : NotificationScheduler {
         const val EXTRA_BODY = "notification_body"
         const val EXTRA_DATA = "notification_data"
         const val EXTRA_CHANNEL_ID = "notification_channel_id"
+        const val EXTRA_DAILY = "notification_daily"
+        const val EXTRA_HOUR = "notification_hour"
+        const val EXTRA_MINUTE = "notification_minute"
+        const val EXTRA_CRITICAL = "notification_critical"
         const val PERMISSION_REQUEST_CODE = 9923
+
+        /**
+         * Calcula o próximo timestamp (epoch millis) para o horário local hour:minute.
+         * Se o horário de hoje já passou (com base em [now]), retorna o de amanhã.
+         */
+        fun nextDailyTriggerMillis(
+            hour: Int,
+            minute: Int,
+            now: java.util.Calendar = java.util.Calendar.getInstance()
+        ): Long {
+            val target = now.clone() as java.util.Calendar
+            target.set(java.util.Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
+            target.set(java.util.Calendar.MINUTE, minute.coerceIn(0, 59))
+            target.set(java.util.Calendar.SECOND, 0)
+            target.set(java.util.Calendar.MILLISECOND, 0)
+            if (target.timeInMillis <= now.timeInMillis) {
+                target.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+            return target.timeInMillis
+        }
     }
 
     private val context: Context?
@@ -206,6 +230,38 @@ class AndroidNotificationScheduler : NotificationScheduler {
         }
     }
 
+    override fun scheduleDailyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        hour: Int,
+        minute: Int,
+        data: Map<String, String>,
+        channelId: String?,
+        isCritical: Boolean
+    ) {
+        val ctx = context ?: return
+
+        val triggerTime = nextDailyTriggerMillis(hour, minute)
+        val resolvedChannel = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID
+
+        val intent = Intent(ctx, NotificationReceiver::class.java).apply {
+            putExtra(EXTRA_NOTIFICATION_ID, id)
+            putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_BODY, body)
+            putExtra(EXTRA_DATA, HashMap(data))
+            putExtra(EXTRA_CHANNEL_ID, resolvedChannel)
+            // Marcadores de recorrência para o receiver reagendar o próximo dia.
+            putExtra(EXTRA_DAILY, true)
+            putExtra(EXTRA_HOUR, hour)
+            putExtra(EXTRA_MINUTE, minute)
+            putExtra(EXTRA_CRITICAL, isCritical)
+        }
+
+        scheduleExactAlarm(ctx, id, intent, triggerTime)
+        AppLogger.d(TAG, "Lembrete diário agendado: id=$id, horario=$hour:$minute, proximo=$triggerTime")
+    }
+
     override fun cancelNotification(id: Int) {
         val ctx = context ?: return
 
@@ -259,6 +315,29 @@ class AndroidNotificationScheduler : NotificationScheduler {
             AppLogger.d(TAG, "Notificação exibida: id=$id")
         } catch (e: SecurityException) {
             AppLogger.e(TAG, "Sem permissão para exibir notificação", e)
+        }
+    }
+
+    private fun scheduleExactAlarm(ctx: Context, id: Int, intent: Intent, triggerTime: Long) {
+        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pendingIntent = PendingIntent.getBroadcast(
+            ctx,
+            id,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+                }
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao agendar alarme exato", e)
         }
     }
 
