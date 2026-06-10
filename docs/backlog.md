@@ -20,6 +20,17 @@
       **(GAP-06 / Exiba)** Necessário para Exiba Onda 2: composable que exibe progresso de upload
       Firebase Storage + preview de imagem + estado de erro/retry. Versão-alvo: 2.4.0 ou 2.5.0.
 
+### MinhaOS — Onda 4 (alvo: kmplib 2.21.0)
+- [x] **L4-1 — Template de relatório financeiro em PDF** — entregue na 2.21.0. Módulo `pdf/`: modelo
+      comum serializável `FinanceReportPdfData` (company name/phone/logoBytes, `periodLabel`,
+      `generatedAtLabel`, seção Recebimentos `receipts` + `totalReceived`, seção Contas a receber
+      `receivables` + `totalReceivable`; dinheiro = string decimal). API `FinanceReportPdfGenerator`,
+      `createFinanceReportPdfGenerator()`, `generateFinanceReportPdfBytes(data)`,
+      `generateAndShareFinanceReportPdf(...)` (reusa `ShareHandler`), `defaultFinanceReportPdfFileName(
+      periodLabel)`. **Shape espelhado pela weblib** (paridade — manter idêntico). Android: render nativo
+      `PdfDocument` (cabeçalho + 2 tabelas + totais + paginação). iOS: placeholder (`OsPdfNotSupportedException`).
+      Consumo dev-mobile: M4-4.
+
 ### Exiba — Onda 1 (alvo: kmplib 2.4.0)
 - [x] **GAP-02 — `MapView` / `MapMarker` (Google Maps wrapper expect/actual)** — entregue na 2.4.0.
       Módulo `map/`: `MapView`, `MapMarker`, `MapScope`, `LatLng`, `CameraPosition`,
@@ -89,8 +100,10 @@
       no Info.plist. **Pendência iOS:** klibs publicados de host macOS (herdam item de prioridade alta).
 - [ ] **GAP-CR-03 — `SwipeableListItem` (swipe-to-delete)** — Média. Item de lista com swipe para
       revelar ação destrutiva (excluir gravação). Candidato sobre `SwipeToDismissBox` do Material 3.
-- [ ] **GAP-CR-04 — `PaywallScreen` reutilizável** — Média. **Aguarda definição do modelo freemium**
-      do Call Recorder; provável reuso de `MonetizationManager`/`PurchaseManager` já na lib.
+- [x] **GAP-CR-04 — `PaywallScreen` reutilizável** — **entregue na 2.22.0** (módulo
+      `ui/screens/paywall` + `monetization/entitlement`, padrão freemium-com-limite do doc 03 §4). Reusa
+      `MonetizationManager`/`PurchaseManager`/RevenueCat. Ver entrada 2.22.0 em "Concluído". Atende também
+      ReciboFacil (Onda 4) e MinhaOS (A16).
 - [ ] **GAP-CR-05 — `SettingsRow`/`ListItem`** — Baixa → **2º+3º consumidores confirmados**. Linha de
       configuração padrão (título + subtítulo + trailing). Candidato a `ui/components`.
       Pedido por Call Recorder, Salmos (#10) e agora **Doses de Alegria (GAP-DA-03)** — tela Configurações
@@ -123,6 +136,19 @@
 > CnpjMask + validators, CurrencyMask, AppDatePicker, ShareHandler, BitmapEncoder, PurchaseManager/
 > MonetizationManager, ReaderView p/ termos).
 
+- [x] **GAP-RF-M-05 — `StorageService.deletePrefix(prefix)` (wipe recursivo LGPD)** — entregue na 2.20.0
+      (Onda 5 / direito ao esquecimento). Apaga **recursivamente** todos os itens sob um prefixo varrendo
+      via GitLive `listAll()` (desce em `prefixes`/subpastas), garantindo que nenhum órfão sobreviva ao
+      wipe (ex.: PNG de assinatura enviado sem doc Firestore associado). Antes, a lib só tinha
+      `deleteFiles(paths)` (paths conhecidos) → órfãos sobreviviam. **Semântica de erro intencionalmente
+      mais rígida que `deleteFiles`:** tolerante a `FileNotFound` (race entre listagem e delete), mas
+      **propaga falha real** (`Result.failure(StorageException.PartialDeletion)` com `DeletePrefixResult`
+      parcial + `causes`) para o caller de LGPD saber se sobrou dado — não engole silenciosamente. 100%
+      `commonMain` (GitLive 2.1.0 expõe `listAll` multiplataforma, sem expect/actual). Teste
+      `DeletePrefixResultTest` (4 casos). **Limitação do GitLive/Firebase:** `listAll()` só funciona com
+      **Firebase Storage Rules versão 2**; listagem eventualmente consistente. **Consumidor ReciboFacil:**
+      no fluxo de exclusão de conta, chamar `deletePrefix("users/$userId")` e só dar a conta como apagada
+      se `Result` for sucesso (tratar `PartialDeletion` como "restou dado, repetir/alertar").
 - [x] **GAP-RF-M-01 — `valorPorExtenso(centavos: Long): String`** — entregue na 2.15.0 em
       `core/format/ValorPorExtenso.kt` (commonMain puro). Implementa EXATAMENTE as 12 regras do contrato
       `ReciboFacil/docs/design/valor-por-extenso-casos.md`: real/reais + centavo/centavos, "cem"×"cento",
@@ -368,6 +394,45 @@
 - [ ] [item] — onde aparece — esforço estimado
 
 ## Concluído
+- [x] **2.22.0 — Padrao freemium-com-limite (doc 03 §4): `monetization/entitlement` + UsageMeter + PaywallScreen.**
+      Materializa o Pilar 3 de Monetizacao no mobile, **reusando** `PurchaseManager`/RevenueCat (compra) e
+      `core/network` (`ApiResult`/`handleApiCall`) — **NAO recriou billing**. Quota e **server-side** (fonte de
+      verdade = `admin-api`/`backlib-quota`); o cliente so EXIBE "X de Y" e abre paywall, nunca decide/incrementa.
+      Novo submodulo `monetization/entitlement` (commonMain puro):
+        - **Modelos serializaveis** espelhando o contrato do admin-api: `Entitlement` (`plano`/`features:
+          Set<String>`/`validoAte`/`fonte`; `hasFeature`/`isFree`/`FREE`), `UsageSnapshot` (`feature`/`contagem`/
+          `limite` [-1=ilimitado]/`restante?`/`janelaFim?`; derivados `remaining`/`isExhausted`/`fraction`/
+          `isUnlimited`), `Plan` (`plano`/`nome`/`preco: String?` decimal canonico — NUNCA Double/`moeda`/
+          `intervalo`/`storeProductId?`/`destaques`).
+        - **402 → Paywall:** `QuotaExceeded(feature, limite, contagem, upgradeUrl?)` +
+          `ResponseException.quotaExceededOrNull()` (extrai do 402/429 do Ktor) + `parseQuotaExceeded(body)` (corpo
+          bruto) + `toUsageSnapshot()`.
+        - **Leitura (fonte de verdade):** `interface EntitlementRepository` (`getEntitlement`/`getUsage`/`getPlans`
+          → `ApiResult`) + impl `AdminApiEntitlementRepository(httpClient, baseUrl, projectSlug, authToken)` (Ktor
+          core puro + kotlinx-json, **sem ContentNegotiation** — nao forca config no HttpClient do app; rotas
+          `/v1/{slug}/entitlement|usage/{feature}|plans`). So LE — cliente nunca se autopromove.
+        - **MVI:** `EntitlementState` (embute no State da tela: `entitlement`+`isPremium`+`usage`+`paywall`;
+          `hasFeature`=premium OU entitlement; `withUsage`/`showingPaywall`/`dismissingPaywall`) +
+          `EntitlementController(repository)` (reducer: `refresh`/`refreshUsage`/`plans(cache)`/`purchase(plan)` via
+          RevenueCat/`restore`).
+        - **Offline/UX:** `LocalUsageCounter(prefs, projectSlug)` (contagem local via `AppPreferences` — so UX
+          otimista, NUNCA gate de negocio).
+        - **UI:** `ui/components/UsageMeter(usage, label?, warnThreshold)` + `UsageBadge(usage)` (tema via
+          `MaterialTheme`/AppTheme, barra vira cor de erro perto do limite, sem hardcode) +
+          `ui/screens/paywall/PaywallScreen(state, onAction, texts)` stateless (padrao telas 2.0) com
+          `PaywallState`/`PaywallAction`(SelectPlan/Restore/Dismiss)/`PaywallTexts` — cards de plano (preco BRL,
+          destaques) + CTA `AppButton` que dispara compra. Sem cores hardcoded.
+      Testes `monetization/entitlement/*` (22 commonTest: `EntitlementModelTest` 12, `EntitlementStateTest` 5,
+      `EntitlementControllerTest` 5 com fake repository) — **todos verdes**.
+      `:kmplib:compileCommonMainKotlinMetadata` BUILD SUCCESSFUL; `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL;
+      `:kmplib:testDebugUnitTest --tests "...entitlement.*"` **22/22 verdes**; `:kmplib:publishToMavenLocal` BUILD
+      SUCCESSFUL → `br.com.codecacto:kmplib:2.22.0` (`kmplib` metadata + `kmplib-android`; targets iOS SKIPPED em
+      Windows — todo o codigo novo e **commonMain puro**, compila em iOS sem mudanca; klibs iOS pendentes de host
+      macOS, herdam item de prioridade alta). **Fecha GAP-CR-04 (`PaywallScreen`)** e atende os reusos previstos por
+      ReciboFacil (Onda 4) e MinhaOS (A16). **Consumo nos apps:** injetar `AdminApiEntitlementRepository` +
+      `EntitlementController` (Koin); ViewModel guarda `EntitlementState` no State; na rota consumivel, ao receber
+      `402` chamar `quotaExceededOrNull()` → `state.copy(ent = ent.showingPaywall(quota))`; renderizar `PaywallScreen`
+      quando `ent.isPaywallOpen`; `SelectPlan` → `controller.purchase(plan)` → apos webhook, `controller.refresh(ent)`.
 - [x] **2.19.0 — Onda 2 do MinhaOS: (L2-M1) `core/money/Money` + (L2-M2) `FirestoreService.runTransaction`.**
       - **L2-M1 — `Money` promovido para a kmplib** (novo módulo `core/money/Money.kt`, commonMain puro).
         Primitiva de **cálculo exato de dinheiro em centavos** (`Long`) com string decimal canônica
