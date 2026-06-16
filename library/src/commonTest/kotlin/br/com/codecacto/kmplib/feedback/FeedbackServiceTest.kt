@@ -74,20 +74,40 @@ class FeedbackServiceTest {
     }
 
     @Test
-    fun `motivo e contatos sao compostos na message`() = runTest {
+    fun `motivo prefixa a message e contatos viram campos estruturados`() = runTest {
         val cap = init()
         FeedbackService.sendFeedback(
             source = FeedbackSource.FEEDBACK_SCREEN,
             motivo = "sugestao",
             mensagem = "ideia legal",
+            nome = "Fulano",
             email = "x@y.com",
             whatsapp = "11999999999",
         )
-        val msg = bodyJson(cap)["message"]!!.jsonPrimitive.content
+        val body = bodyJson(cap)
+        val msg = body["message"]!!.jsonPrimitive.content
+        // message: só motivo + descrição (contatos NÃO mais concatenados)
         assertTrue(msg.contains("[sugestao]"))
         assertTrue(msg.contains("ideia legal"))
-        assertTrue(msg.contains("x@y.com"))
-        assertTrue(msg.contains("11999999999"))
+        assertTrue(!msg.contains("x@y.com"))
+        assertTrue(!msg.contains("11999999999"))
+        // campos estruturados dedicados
+        assertEquals("Fulano", body["name"]!!.jsonPrimitive.content)
+        assertEquals("x@y.com", body["email"]!!.jsonPrimitive.content)
+        assertEquals("11999999999", body["whatsapp"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `nome vazio nao serializa name e whatsapp vazio nao serializa whatsapp`() = runTest {
+        val cap = init()
+        FeedbackService.sendFeedback(
+            source = FeedbackSource.FEEDBACK_SCREEN,
+            motivo = "bug",
+            mensagem = "só descrição",
+        )
+        val body = bodyJson(cap)
+        assertNull(body["name"])
+        assertNull(body["whatsapp"])
     }
 
     @Test

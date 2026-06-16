@@ -81,13 +81,16 @@ object FeedbackService {
     /**
      * Envia um feedback completo (da FeedbackScreen).
      *
-     * O endpoint central tem apenas `message`/`rating` + opcionais; por isso o [source], [motivo],
-     * [email] e [whatsapp] são compostos em [FeedbackData.mensagem] para preservar a triagem.
+     * A partir da 2.25.0 o feedback é IDENTIFICADO: [nome], [email] e [whatsapp] vão como campos
+     * ESTRUTURADOS do [FeedbackRequest] (não mais concatenados em [FeedbackData.mensagem]). A
+     * [mensagem] carrega apenas a descrição; o [motivo] continua prefixado na `message` (sem coluna
+     * dedicada no central).
      */
     suspend fun sendFeedback(
         source: FeedbackSource,
         motivo: String = "",
         mensagem: String,
+        nome: String = "",
         email: String = "",
         whatsapp: String = "",
         rating: Int? = null,
@@ -101,6 +104,7 @@ object FeedbackService {
             source = source.valor,
             motivo = motivo,
             mensagem = mensagem,
+            nome = nome.trim(),
             email = email.trim(),
             whatsapp = whatsapp.trim(),
             usuarioId = cfg.userId,
@@ -121,6 +125,9 @@ object FeedbackService {
         val request = FeedbackRequest(
             projectSlug = data.appId.ifBlank { cfg.projectSlug },
             message = composeMessage(data),
+            name = data.nome.trim().ifBlank { null },
+            whatsapp = data.whatsapp.trim().ifBlank { null },
+            email = data.email.trim().ifBlank { cfg.userEmail.trim().ifBlank { null } },
             rating = rating?.takeIf { it in 1..5 },
             uid = data.usuarioId.ifBlank { null },
             appVersion = data.appVersion.ifBlank { null },
@@ -154,22 +161,13 @@ object FeedbackService {
     }
 
     /**
-     * Compõe a mensagem enviada ao endpoint central preservando motivo/origem e canais de retorno
-     * (email/WhatsApp), já que o contrato central tem apenas `message`.
+     * Compõe a `message` enviada ao endpoint central. A partir da 2.25.0 carrega apenas o [motivo]
+     * (prefixo, sem coluna dedicada) + a descrição — nome/email/WhatsApp viram campos ESTRUTURADOS
+     * do [FeedbackRequest], não mais concatenados aqui.
      */
     private fun composeMessage(data: FeedbackData): String = buildString {
         if (data.motivo.isNotBlank()) append("[").append(data.motivo).append("] ")
         append(data.mensagem.trim())
-        val contatos = buildList {
-            if (data.email.isNotBlank()) add("email: ${data.email}")
-            if (data.whatsapp.isNotBlank()) add("whatsapp: ${data.whatsapp}")
-            if (data.usuarioEmail.isNotBlank() && data.usuarioEmail != data.email) {
-                add("conta: ${data.usuarioEmail}")
-            }
-        }
-        if (contatos.isNotEmpty()) {
-            append("\n\n--\n").append(contatos.joinToString(" | "))
-        }
     }.trim()
 
     private fun failNotInitialized(): Result<Unit> {

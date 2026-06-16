@@ -4,6 +4,16 @@
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
 ## Entregue
+- [x] **Feedback IDENTIFICADO + campos estruturados** — entregue na **2.25.0**. `FeedbackRequest`
+      ganhou os campos ESTRUTURADOS `name?`/`whatsapp?`/`email?` (colunas dedicadas no banco central,
+      contrato já aceito pelo `apps-api`); o `FeedbackService` parou de concatenar email/whatsapp dentro
+      da `message` (que passa a ser só `[motivo] + descrição`) e os envia como campos próprios. `email`
+      cai no `userEmail` da config se não informado. `sendFeedback(...)` ganhou o parâmetro `nome`.
+      `FeedbackScreen` ganhou o campo **nome** (opcional) + params de prefill `defaultName`/
+      `defaultEmail`/`defaultWhatsapp`; **WhatsApp obrigatório**, **nome opcional**, e-mail opcional
+      (valida formato só se preenchido). 8 testes (`FeedbackServiceTest`). **Consumidores a adotar no
+      próximo build:** Super 8 (e demais que usam `FeedbackScreen`) — opcionalmente passar os defaults
+      do usuário logado; nenhum é obrigatório (params têm default nulo, mudança retrocompatível).
 - [x] **`FeedbackService` → apps-api central** — entregue na **2.24.0** (Fase 4; última peça de
       "Firestore-como-banco" do feedback). `FeedbackService` deixou de gravar no Firestore `code-cacto`
       via REST e passou a fazer `POST {appsApiBaseUrl}/feedback/v1` no backend central **apps-api**

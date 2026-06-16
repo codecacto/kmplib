@@ -17,6 +17,8 @@ data class FeedbackTexts(
     val motivoOutro: String = "Outro",
     val mensagemLabel: String = "Sua mensagem",
     val mensagemPlaceholder: String = "Descreva sua sugestão, problema ou dúvida...",
+    val nomeLabel: String = "Seu nome (opcional)",
+    val nomePlaceholder: String = "Como podemos te chamar?",
     val emailLabel: String = "Seu e-mail (opcional)",
     val emailPlaceholder: String = "email@exemplo.com",
     val whatsappLabel: String = "Seu WhatsApp",

@@ -16,6 +16,7 @@ data class FeedbackData(
     val source: String = "",
     val motivo: String = "",
     val mensagem: String = "",
+    val nome: String = "",
     val email: String = "",
     val whatsapp: String = "",
     val usuarioId: String = "",
@@ -28,13 +29,22 @@ data class FeedbackData(
  * Corpo (camelCase) de `POST {appsApiBaseUrl}/feedback/v1` — casa exatamente o contrato do
  * módulo `feedback` do apps-api.
  *
- * Obrigatórios: [projectSlug], [message]. Opcionais: [rating] (1..5), [uid], [appVersion],
- * [platform] (`android`|`ios`|`web`). Campos nulos NÃO são serializados (`encodeDefaults = false`).
+ * Obrigatórios: [projectSlug], [message]. Opcionais: [name], [whatsapp], [email] (campos
+ * ESTRUTURADOS — colunas dedicadas no banco central, a partir da 2.25.0), [rating] (1..5), [uid],
+ * [appVersion], [platform] (`android`|`ios`|`web`). Campos nulos NÃO são serializados
+ * (`encodeDefaults = false`).
+ *
+ * A partir da 2.25.0 o feedback é IDENTIFICADO: [name]/[email]/[whatsapp] vão como campos próprios
+ * (não mais concatenados dentro de [message]). [message] passa a carregar apenas a descrição
+ * (prefixada pelo `[motivo]`, que não tem coluna dedicada).
  */
 @Serializable
 data class FeedbackRequest(
     val projectSlug: String,
     val message: String,
+    val name: String? = null,
+    val whatsapp: String? = null,
+    val email: String? = null,
     val rating: Int? = null,
     val uid: String? = null,
     val appVersion: String? = null,

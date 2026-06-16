@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.24.0"
+version = "2.25.0"
 
 compose.resources {
     publicResClass = true

@@ -46,11 +46,18 @@ import kotlinx.coroutines.launch
  * )
  * ```
  *
+ * O feedback é IDENTIFICADO: nome (opcional), e-mail (opcional) e WhatsApp (OBRIGATÓRIO) podem ser
+ * pré-preenchidos via [defaultName]/[defaultEmail]/[defaultWhatsapp] quando o app já conhece o
+ * usuário. Se vazios, o usuário digita.
+ *
  * @param onBack Callback para voltar à tela anterior
  * @param primaryColor Cor primária (header, botões, radio buttons)
  * @param backgroundColor Cor de fundo do conteúdo
  * @param cardColor Cor de fundo dos cards
  * @param texts Textos customizáveis (suporta i18n)
+ * @param defaultName Nome pré-preenchido (opcional; ex.: nome do usuário logado)
+ * @param defaultEmail E-mail pré-preenchido (opcional; ex.: e-mail do usuário logado)
+ * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (opcional; ex.: telefone do perfil)
  * @param onFeedbackSent Callback opcional chamado após envio com sucesso
  */
 @Composable
@@ -60,12 +67,16 @@ fun FeedbackScreen(
     backgroundColor: Color = MaterialTheme.colorScheme.background,
     cardColor: Color = MaterialTheme.colorScheme.surface,
     texts: FeedbackTexts = FeedbackTexts(),
+    defaultName: String? = null,
+    defaultEmail: String? = null,
+    defaultWhatsapp: String? = null,
     onFeedbackSent: (() -> Unit)? = null
 ) {
     var selectedMotivo by remember { mutableStateOf<FeedbackMotivo?>(null) }
     var mensagem by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var whatsapp by remember { mutableStateOf("") }
+    var nome by remember { mutableStateOf(defaultName.orEmpty()) }
+    var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
+    var whatsapp by remember { mutableStateOf(filterPhoneInput(defaultWhatsapp.orEmpty())) }
     var isLoading by remember { mutableStateOf(false) }
     var isSent by remember { mutableStateOf(false) }
     var motivoError by remember { mutableStateOf<String?>(null) }
@@ -271,6 +282,19 @@ fun FeedbackScreen(
                     enabled = !isLoading && !isSent
                 )
 
+                // Nome field (opcional)
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text(texts.nomeLabel) },
+                    placeholder = { Text(texts.nomePlaceholder) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    enabled = !isLoading && !isSent
+                )
+
                 // Email field
                 OutlinedTextField(
                     value = email,
@@ -345,6 +369,7 @@ fun FeedbackScreen(
                                 source = FeedbackSource.FEEDBACK_SCREEN,
                                 motivo = selectedMotivo!!.valor,
                                 mensagem = mensagem.trim(),
+                                nome = nome.trim(),
                                 email = email.trim(),
                                 whatsapp = whatsapp.trim()
                             ).onSuccess {

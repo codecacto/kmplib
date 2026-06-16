@@ -18,7 +18,8 @@ import io.ktor.client.HttpClient
  * @param appsApiBaseUrl Base URL do apps-api (sem barra final). Default de produção.
  * @param appVersion Versão do app (ex.: "1.2.0"). Opcional; usado só para triagem.
  * @param userId UID do usuário autenticado (opcional). Capturado como NÃO confiável no servidor.
- * @param userEmail Email do usuário autenticado (opcional). Vai embutido na mensagem.
+ * @param userEmail Email do usuário autenticado (opcional). A partir da 2.25.0 é usado como
+ *   fallback do campo estruturado `email` do feedback quando o usuário não informa um e-mail.
  */
 data class FeedbackConfig(
     val projectSlug: String,
