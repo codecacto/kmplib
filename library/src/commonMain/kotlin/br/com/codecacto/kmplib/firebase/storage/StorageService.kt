@@ -135,6 +135,104 @@ class StorageService {
     }
 
     /**
+     * Exclui **recursivamente** todos os arquivos sob um prefixo (pasta lógica) no Storage.
+     *
+     * Diferente de [deleteFiles] (que apaga apenas paths já conhecidos), este método varre
+     * o prefixo via [listAll][dev.gitlive.firebase.storage.StorageReference.listAll],
+     * descendo em todas as subpastas (`prefixes`), e apaga cada item encontrado. Serve a
+     * cenários de **direito ao esquecimento (LGPD)** onde precisamos garantir que nenhum
+     * arquivo órfão (ex.: PNG de assinatura enviado sem documento associado) sobreviva ao wipe.
+     *
+     * Semântica de erro (intencionalmente mais rígida que [deleteFiles]):
+     * - **Best-effort tolerante a "não encontrado"**: se um item sumiu entre a listagem e a
+     *   exclusão (race), a falha [StorageException.FileNotFound] é ignorada — o objetivo
+     *   (ausência do dado) já foi atingido.
+     * - **Propaga falha real**: se a exclusão de um item existente falhar por permissão, rede
+     *   ou erro desconhecido, o método retorna [Result.failure] para que o caller de LGPD saiba
+     *   que **pode ter sobrado dado** (não engole o erro silenciosamente). Mesmo assim, tenta
+     *   apagar o máximo possível antes de reportar.
+     *
+     * Limitação do GitLive/Firebase: `listAll()` só está disponível para projetos usando
+     * **Firebase Storage Rules versão 2**. A listagem é eventualmente consistente — itens
+     * inseridos durante a varredura podem não ser vistos.
+     *
+     * @param prefix Caminho-prefixo (ex.: `"users/$userId"`). Barras à esquerda/direita são
+     *   normalizadas pelo GitLive. Prefixo vazio aponta para a raiz do bucket — use com cautela.
+     * @return [Result.success] com [DeletePrefixResult] (total varrido / apagado) quando todos os
+     *   itens existentes foram apagados (ou já não existiam); [Result.failure] se algum item
+     *   existente não pôde ser excluído.
+     */
+    suspend fun deletePrefix(prefix: String): Result<DeletePrefixResult> {
+        return try {
+            val items = mutableListOf<dev.gitlive.firebase.storage.StorageReference>()
+            collectItemsRecursively(storage.reference.child(prefix), items)
+
+            var deletedCount = 0
+            val failures = mutableListOf<StorageException>()
+
+            items.forEach { ref ->
+                try {
+                    ref.delete()
+                    deletedCount++
+                } catch (e: Exception) {
+                    val mapped = mapStorageException(e)
+                    if (mapped is StorageException.FileNotFound) {
+                        // Race: item já não existe. Objetivo atingido para este item.
+                        AppLogger.d(TAG, "Item já inexistente ao apagar prefixo: ${ref.path}")
+                    } else {
+                        AppLogger.e(TAG, "Falha ao apagar item do prefixo: ${ref.path}", e)
+                        failures.add(mapped)
+                    }
+                }
+            }
+
+            val result = DeletePrefixResult(
+                scannedCount = items.size,
+                deletedCount = deletedCount,
+                failedCount = failures.size
+            )
+
+            if (failures.isEmpty()) {
+                AppLogger.d(TAG, "Prefixo apagado: '$prefix' (${result.deletedCount} item(ns))")
+                Result.success(result)
+            } else {
+                AppLogger.e(
+                    TAG,
+                    "Prefixo '$prefix' apagado parcialmente: ${result.deletedCount} ok, " +
+                        "${result.failedCount} falha(s) — pode ter sobrado dado"
+                )
+                Result.failure(
+                    StorageException.PartialDeletion(
+                        "Falha ao excluir ${result.failedCount} de ${result.scannedCount} " +
+                            "item(ns) sob '$prefix'",
+                        result,
+                        failures.toList()
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            // Falha na própria listagem (listAll). Sem isso não há garantia de wipe completo.
+            AppLogger.e(TAG, "Erro ao listar prefixo para exclusão: $prefix", e)
+            Result.failure(mapStorageException(e))
+        }
+    }
+
+    /**
+     * Percorre recursivamente um [StorageReference], acumulando todos os itens (arquivos) sob ele,
+     * descendo em todas as subpastas reportadas em [ListResult.prefixes].
+     */
+    private suspend fun collectItemsRecursively(
+        reference: dev.gitlive.firebase.storage.StorageReference,
+        accumulator: MutableList<dev.gitlive.firebase.storage.StorageReference>
+    ) {
+        val listResult = reference.listAll()
+        accumulator.addAll(listResult.items)
+        listResult.prefixes.forEach { subFolder ->
+            collectItemsRecursively(subFolder, accumulator)
+        }
+    }
+
+    /**
      * Exclui múltiplos arquivos.
      * @param paths Lista de caminhos dos arquivos a serem excluídos
      * @return Result com DeleteFilesResult contendo contagem de sucessos e falhas
@@ -301,6 +399,22 @@ data class DeleteFilesResult(
 }
 
 /**
+ * Resultado da exclusão recursiva por prefixo ([StorageService.deletePrefix]).
+ *
+ * @property scannedCount total de itens (arquivos) encontrados na varredura recursiva.
+ * @property deletedCount itens efetivamente apagados (ou já inexistentes).
+ * @property failedCount itens existentes que **não** puderam ser apagados.
+ */
+data class DeletePrefixResult(
+    val scannedCount: Int,
+    val deletedCount: Int,
+    val failedCount: Int
+) {
+    /** `true` se todos os itens varridos foram removidos (nenhum dado sobrou). */
+    val isCompleteSuccess: Boolean get() = failedCount == 0
+}
+
+/**
  * Exceções de Storage.
  */
 sealed class StorageException(message: String) : Exception(message) {
@@ -310,4 +424,14 @@ sealed class StorageException(message: String) : Exception(message) {
     data class QuotaExceeded(override val message: String) : StorageException(message)
     data class NetworkError(override val message: String) : StorageException(message)
     data class Unknown(override val message: String) : StorageException(message)
+
+    /**
+     * Exclusão recursiva por prefixo concluída com falhas. O caller (ex.: LGPD) deve tratar
+     * como "pode ter sobrado dado". Carrega o [result] parcial e as [causes] de cada falha.
+     */
+    data class PartialDeletion(
+        override val message: String,
+        val result: DeletePrefixResult,
+        val causes: List<StorageException>
+    ) : StorageException(message)
 }
