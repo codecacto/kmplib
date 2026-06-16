@@ -19,6 +19,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlin.time.TimeSource
 
 /**
  * Implementacao canonica de [EntitlementRepository] que LE plano/entitlement/uso do `admin-api`
@@ -42,16 +43,24 @@ import kotlinx.serialization.json.decodeFromJsonElement
  *   `count`/`limit`/`remaining`/`unlimited`) sao mapeados para os modelos PT da lib aqui na camada
  *   de rede, evitando churn nos consumidores.
  *
+ * ### Cache curto em memoria (2.25.0 — reconciliado do origin/main)
+ * Um cache opcional de TTL curto (`cacheTtlMillis`, default 60s) evita refazer as leituras
+ * `getEntitlement`/`getUsage`/`getPlans` em navegacoes rapidas. **NUNCA concede cota offline:** o
+ * cache so guarda leituras bem-sucedidas; sem cache valido e com rede falhando, o erro propaga (o
+ * app trata como "sem informacao", nunca como "liberado"). Use [invalidateCache] apos compra/restore.
+ *
  * @param httpClient HttpClient ja configurado pelo app (base, timeouts).
  * @param baseUrl URL base do admin-api, ex.: "https://admin.codecacto.com.br".
  * @param projectSlug `slug` do projeto (== `admin_projects.slug`), escopo de monetizacao.
  * @param authToken Lambda que fornece o **Firebase ID token do usuario** por requisicao.
+ * @param cacheTtlMillis TTL do cache em memoria das leituras (default 60_000 ms; 0 = desabilitado).
  */
 class AdminApiEntitlementRepository(
     private val httpClient: HttpClient,
     private val baseUrl: String,
     private val projectSlug: String,
-    private val authToken: suspend () -> String? = { null }
+    private val authToken: suspend () -> String? = { null },
+    private val cacheTtlMillis: Long = DEFAULT_CACHE_TTL_MILLIS
 ) : EntitlementRepository {
 
     private val json = Json {
@@ -62,28 +71,58 @@ class AdminApiEntitlementRepository(
     private val root: String get() = baseUrl.trimEnd('/')
     private val project: String get() = projectSlug.encodeURLPathPart()
 
-    override suspend fun getEntitlement(): ApiResult<Entitlement> = handleApiCall {
-        val body = httpClient.get("$root/monet/$project/entitlement") {
-            authToken()?.let { header("Authorization", "Bearer $it") }
-        }.bodyAsText()
-        val dto = unwrap(body, EntitlementDto.serializer())
-        dto.toModel()
+    private val timeSource = TimeSource.Monotonic
+
+    private data class CacheEntry<T>(val value: T, val mark: TimeSource.Monotonic.ValueTimeMark)
+
+    private var entitlementCache: CacheEntry<Entitlement>? = null
+    private var plansCache: CacheEntry<List<Plan>>? = null
+    private val usageCache: MutableMap<String, CacheEntry<UsageSnapshot>> = mutableMapOf()
+
+    private fun <T> CacheEntry<T>?.takeFresh(): T? {
+        val entry = this ?: return null
+        if (cacheTtlMillis <= 0L) return null
+        return if (entry.mark.elapsedNow().inWholeMilliseconds <= cacheTtlMillis) entry.value else null
     }
 
-    override suspend fun getUsage(feature: String): ApiResult<UsageSnapshot> = handleApiCall {
-        val body = httpClient.get("$root/monet/$project/usage?feature=${feature.encodeURLPathPart()}") {
-            authToken()?.let { header("Authorization", "Bearer $it") }
-        }.bodyAsText()
-        val dto = unwrap(body, UsageDto.serializer())
-        dto.toModel(feature)
+    override suspend fun getEntitlement(): ApiResult<Entitlement> {
+        entitlementCache.takeFresh()?.let { return ApiResult.Success(it) }
+        return handleApiCall {
+            val body = httpClient.get("$root/monet/$project/entitlement") {
+                authToken()?.let { header("Authorization", "Bearer $it") }
+            }.bodyAsText()
+            val dto = unwrap(body, EntitlementDto.serializer())
+            dto.toModel()
+        }.also { if (it is ApiResult.Success) entitlementCache = CacheEntry(it.data, timeSource.markNow()) }
     }
 
-    override suspend fun getPlans(): ApiResult<List<Plan>> = handleApiCall {
-        val body = httpClient.get("$root/monet/$project/plans") {
-            authToken()?.let { header("Authorization", "Bearer $it") }
-        }.bodyAsText()
-        val dtos = unwrap(body, ListSerializer(PlanDto.serializer()))
-        dtos.map { it.toModel() }
+    override suspend fun getUsage(feature: String): ApiResult<UsageSnapshot> {
+        usageCache[feature].takeFresh()?.let { return ApiResult.Success(it) }
+        return handleApiCall {
+            val body = httpClient.get("$root/monet/$project/usage?feature=${feature.encodeURLPathPart()}") {
+                authToken()?.let { header("Authorization", "Bearer $it") }
+            }.bodyAsText()
+            val dto = unwrap(body, UsageDto.serializer())
+            dto.toModel(feature)
+        }.also { if (it is ApiResult.Success) usageCache[feature] = CacheEntry(it.data, timeSource.markNow()) }
+    }
+
+    override suspend fun getPlans(): ApiResult<List<Plan>> {
+        plansCache.takeFresh()?.let { return ApiResult.Success(it) }
+        return handleApiCall {
+            val body = httpClient.get("$root/monet/$project/plans") {
+                authToken()?.let { header("Authorization", "Bearer $it") }
+            }.bodyAsText()
+            val dtos = unwrap(body, ListSerializer(PlanDto.serializer()))
+            dtos.map { it.toModel() }
+        }.also { if (it is ApiResult.Success) plansCache = CacheEntry(it.data, timeSource.markNow()) }
+    }
+
+    /** Limpa o cache em memoria (ex.: apos compra/restore para forcar releitura do entitlement). */
+    fun invalidateCache() {
+        entitlementCache = null
+        plansCache = null
+        usageCache.clear()
     }
 
     /**
@@ -156,6 +195,10 @@ class AdminApiEntitlementRepository(
             val env = json.decodeFromString(Envelope.serializer(JsonElement.serializer()), body)
             env.error?.message
         }.getOrNull()
+    }
+
+    companion object {
+        const val DEFAULT_CACHE_TTL_MILLIS: Long = 60_000L
     }
 }
 

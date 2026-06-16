@@ -12,3 +12,6 @@ internal expect object PurchaseInitializer {
      */
     fun initialize(config: PurchaseConfig, userId: String? = null)
 }
+
+/** Identifica a loja da plataforma corrente: "play_store" (Android) ou "app_store" (iOS). */
+internal expect fun currentStore(): String

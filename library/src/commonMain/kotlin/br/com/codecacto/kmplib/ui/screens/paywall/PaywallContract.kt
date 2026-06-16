@@ -1,50 +1,50 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
-import androidx.compose.runtime.Composable
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
-import br.com.codecacto.kmplib.monetization.entitlement.QuotaExceeded
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
 
 /**
- * Estado stateless do Paywall (padrao telas 2.0 da kmplib). O ViewModel monta este estado a partir
- * do `EntitlementState`; a tela so renderiza e dispara `PaywallAction`.
+ * Estado da tela de paywall (MVI). Imutavel.
+ *
+ * @property plans Planos disponiveis para upgrade.
+ * @property selectedPlanId Id do plano selecionado/destacado (default = primeiro com storeProductId
+ *   ou primeiro da lista, resolvido pelo app).
+ * @property usage Snapshot de uso que motivou o paywall (opcional, alimenta o UsageMeter no topo).
+ * @property isLoading Carregando planos.
+ * @property isPurchasing Compra/restauracao em andamento (desabilita CTAs).
+ * @property error Mensagem de erro a exibir (opcional).
  */
 data class PaywallState(
-    /** Planos pagos a exibir (geralmente filtrando o free). */
     val plans: List<Plan> = emptyList(),
-    /** Contexto da cota estourada (mapeado do 402), para mostrar "voce usou X de Y". Opcional. */
-    val quota: QuotaExceeded? = null,
-    /** Medidor a exibir no topo (ex.: derivado de [quota] ou do uso atual). Opcional. */
+    val selectedPlanId: String? = null,
     val usage: UsageSnapshot? = null,
-    /** Plano em processo de compra (mostra loading no CTA). */
-    val purchasingPlan: String? = null,
-    /** Restauracao de compras em andamento. */
-    val isRestoring: Boolean = false,
-    /** Mensagem de erro a exibir (ex.: compra falhou). */
-    val errorMessage: String? = null,
-) {
-    val isPurchasing: Boolean get() = purchasingPlan != null
-}
+    val isLoading: Boolean = false,
+    val isPurchasing: Boolean = false,
+    val error: String? = null,
+)
 
-/** Acoes do Paywall. */
+/** Acoes do paywall disparadas pela UI stateless para o ViewModel do app. */
 sealed interface PaywallAction {
-    /** Usuario tocou o CTA de upgrade de um plano -> dispara compra via RevenueCat. */
+    /** Usuario tocou no CTA de um plano (dispara a compra). */
     data class SelectPlan(val plan: Plan) : PaywallAction
-    /** Restaurar compras anteriores. */
+
+    /** Usuario pediu para restaurar compras. */
     data object Restore : PaywallAction
-    /** Fechar o paywall. */
+
+    /** Usuario fechou o paywall ("Agora nao"). */
     data object Dismiss : PaywallAction
 }
 
-/** Textos configuraveis (i18n) do Paywall. */
+/**
+ * Textos do paywall (i18n / customizacao por app). Defaults em pt-BR.
+ */
 data class PaywallTexts(
-    val title: @Composable () -> String = { "Desbloqueie tudo" },
-    val subtitle: @Composable () -> String = { "Escolha um plano e continue sem limites." },
-    val limitReachedTitle: @Composable () -> String = { "Voce atingiu o limite" },
-    val perMonth: @Composable () -> String = { "/mes" },
-    val perYear: @Composable () -> String = { "/ano" },
-    val lifetime: @Composable () -> String = { "pagamento unico" },
-    val upgradeCta: @Composable () -> String = { "Assinar" },
-    val restore: @Composable () -> String = { "Restaurar compras" },
-    val close: @Composable () -> String = { "Agora nao" },
+    val title: String = "Desbloqueie tudo",
+    val subtitle: String = "Voce atingiu o limite do plano gratuito. Faca upgrade para continuar.",
+    val usageLabel: String = "Seu uso",
+    val ctaPrefix: String = "Assinar",
+    val restore: String = "Restaurar compras",
+    val dismiss: String = "Agora nao",
+    val emptyPlans: String = "Nenhum plano disponivel no momento.",
+    val freeLabel: String = "Gratis",
 )

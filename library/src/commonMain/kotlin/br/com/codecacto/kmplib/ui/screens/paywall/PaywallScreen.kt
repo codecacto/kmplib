@@ -1,20 +1,21 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,21 +24,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.core.money.Money
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.UsageMeter
 
 /**
- * Paywall stateless (padrao telas 2.0 da kmplib). Mostra planos pagos + CTA de upgrade.
+ * Paywall **stateless**: recebe [state] + [onAction] + [texts]. Sem `koinViewModel()`, sem rede,
+ * sem calculo de negocio — apenas renderiza. O ViewModel do app coleta planos/usage e aplica acoes.
  *
- * - Tema 100% via [MaterialTheme] (AppTheme) — sem cores hardcoded.
- * - Compra disparada por [PaywallAction.SelectPlan] (o ViewModel chama RevenueCat via
- *   `EntitlementController.purchase`). A tela NAO conhece billing.
- * - Quando vem de um 402, exibe o contexto da cota (UsageMeter "X de Y") no topo.
- *
- * @param state estado renderizado.
- * @param onAction callback unico de acoes.
- * @param texts textos (i18n).
+ * Estrutura: header (titulo/subtitulo) + [UsageMeter] (se `usage != null`) + cards de plano
+ * (destaques + preco via [Money.formatBRL] quando moeda BRL) + CTA "Assinar" por plano +
+ * "Restaurar compras" e "Agora nao". Responsivo via [BoxWithConstraints] (limita a largura do
+ * conteudo em telas largas). Sem cores hardcoded.
  */
 @Composable
 fun PaywallScreen(
@@ -46,79 +45,103 @@ fun PaywallScreen(
     modifier: Modifier = Modifier,
     texts: PaywallTexts = PaywallTexts(),
 ) {
-    val colors = MaterialTheme.colorScheme
-    Surface(modifier = modifier.fillMaxWidth(), color = colors.background) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val wide = maxWidth >= 600.dp
+        val contentModifier = if (wide) {
+            Modifier.fillMaxWidth().widthIn(max = 520.dp)
+        } else {
+            Modifier.fillMaxWidth()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(horizontal = if (wide) 32.dp else 16.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val limitReached = state.quota != null
-            Text(
-                text = if (limitReached) texts.limitReachedTitle() else texts.title(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = colors.onBackground,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = texts.subtitle(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+            Column(modifier = contentModifier) {
+                Text(
+                    text = texts.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = texts.subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
-            // Contexto da cota (vindo do 402): "X de Y usados"
-            state.usage?.let { usage ->
-                UsageMeter(usage = usage, modifier = Modifier.padding(vertical = 4.dp))
-            }
+                state.usage?.let { usage ->
+                    Spacer(Modifier.height(16.dp))
+                    UsageMeter(usage = usage, label = texts.usageLabel)
+                }
 
-            // Mensagem de erro (ex.: compra falhou)
-            state.errorMessage?.let { msg ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = colors.errorContainer
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
+                state.error?.let { err ->
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        text = msg,
-                        modifier = Modifier.padding(12.dp),
-                        color = colors.onErrorContainer,
-                        style = MaterialTheme.typography.bodySmall
+                        text = err,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
-            }
 
-            // Cards de planos
-            state.plans.forEach { plan ->
-                PlanCard(
-                    plan = plan,
-                    texts = texts,
-                    isPurchasing = state.purchasingPlan == plan.plano,
-                    enabled = !state.isPurchasing && !state.isRestoring,
-                    onSelect = { onAction(PaywallAction.SelectPlan(plan)) }
-                )
-            }
+                Spacer(Modifier.height(20.dp))
 
-            // Restaurar compras
-            TextButton(
-                onClick = { onAction(PaywallAction.Restore) },
-                enabled = !state.isPurchasing && !state.isRestoring
-            ) {
-                Text(text = texts.restore(), color = colors.primary)
-            }
+                when {
+                    state.isLoading -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
 
-            // Fechar
-            TextButton(
-                onClick = { onAction(PaywallAction.Dismiss) },
-                enabled = !state.isPurchasing && !state.isRestoring
-            ) {
-                Text(text = texts.close(), color = colors.onSurfaceVariant)
+                    state.plans.isEmpty() -> {
+                        Text(
+                            text = texts.emptyPlans,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+
+                    else -> {
+                        state.plans.forEach { plan ->
+                            PlanCard(
+                                plan = plan,
+                                selected = plan.plano == state.selectedPlanId,
+                                isPurchasing = state.isPurchasing,
+                                texts = texts,
+                                onSelect = { onAction(PaywallAction.SelectPlan(plan)) },
+                            )
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    TextButton(
+                        onClick = { onAction(PaywallAction.Restore) },
+                        enabled = !state.isPurchasing,
+                    ) {
+                        Text(texts.restore)
+                    }
+                    TextButton(
+                        onClick = { onAction(PaywallAction.Dismiss) },
+                        enabled = !state.isPurchasing,
+                    ) {
+                        Text(texts.dismiss)
+                    }
+                }
             }
         }
     }
@@ -127,89 +150,88 @@ fun PaywallScreen(
 @Composable
 private fun PlanCard(
     plan: Plan,
-    texts: PaywallTexts,
+    selected: Boolean,
     isPurchasing: Boolean,
-    enabled: Boolean,
+    texts: PaywallTexts,
     onSelect: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
-    val interval = when (plan.intervalo.lowercase()) {
-        "monthly" -> texts.perMonth()
-        "yearly" -> texts.perYear()
-        "lifetime" -> texts.lifetime()
-        else -> ""
+    val border = if (selected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = border,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = plan.nome,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = colors.onSurface
-            )
-
-            // Preco + intervalo
-            Row(verticalAlignment = Alignment.Bottom) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = priceLabel(plan),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary
+                    text = plan.nome,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (interval.isNotEmpty()) {
+                Text(
+                    text = priceLabel(plan, texts),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            if (plan.destaques.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                plan.destaques.forEach { destaque ->
                     Text(
-                        text = " $interval",
+                        text = "• $destaque",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 2.dp),
                     )
                 }
             }
 
-            // Destaques (beneficios)
-            plan.destaques.forEach { beneficio ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = colors.primary,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    Text(
-                        text = beneficio,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurface
-                    )
-                }
-            }
-
+            Spacer(Modifier.height(12.dp))
             AppButton(
-                text = texts.upgradeCta(),
+                text = "${texts.ctaPrefix} ${plan.nome}",
                 onClick = onSelect,
-                isLoading = isPurchasing,
-                enabled = enabled,
-                primaryColor = colors.primary,
-                contentColor = colors.onPrimary
+                enabled = !isPurchasing,
+                isLoading = isPurchasing && selected,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 }
 
-private fun priceLabel(plan: Plan): String {
-    val preco = plan.preco ?: return "Gratis"
-    // preco e decimal canonico "9.90" -> apresentacao BRL simples
-    val normalized = preco.replace('.', ',')
-    return if (plan.moeda.equals("BRL", ignoreCase = true)) "R$ $normalized" else "${plan.moeda} $normalized"
+private fun priceLabel(plan: Plan, texts: PaywallTexts): String {
+    val price = plan.preco
+    if (price.isNullOrBlank()) return texts.freeLabel
+    val formatted = if (plan.moeda.equals("BRL", ignoreCase = true)) {
+        Money.formatBRL(price)
+    } else {
+        "${plan.moeda} $price"
+    }
+    val interval = plan.intervalo?.let { intervalSuffix(it) }.orEmpty()
+    return formatted + interval
+}
+
+private fun intervalSuffix(interval: String): String = when (interval.lowercase()) {
+    "month", "mensal", "monthly" -> "/mes"
+    "year", "anual", "yearly", "annual" -> "/ano"
+    "week", "semanal", "weekly" -> "/semana"
+    "once", "unico", "lifetime" -> ""
+    else -> ""
 }

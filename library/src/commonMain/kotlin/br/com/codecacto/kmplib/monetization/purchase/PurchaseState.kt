@@ -35,6 +35,24 @@ sealed class PurchaseResult {
 }
 
 /**
+ * Resultado de uma compra CONSUMIVEL (pay-per-action; nao-assinatura).
+ *
+ * Diferente de [PurchaseResult], nao depende de entitlement: devolve a transacao da loja
+ * para o app enviar a admin-api validar e liberar AQUELA acao no Firestore.
+ */
+sealed class ConsumablePurchaseResult {
+    /** transactionId = id da transacao na loja (para validacao server-side / vinculo com a acao). */
+    data class Success(
+        val transactionId: String,
+        val productId: String,
+        val store: String, // "play_store" | "app_store"
+    ) : ConsumablePurchaseResult()
+
+    data class Error(val message: String, val code: PurchaseErrorCode) : ConsumablePurchaseResult()
+    data object Cancelled : ConsumablePurchaseResult()
+}
+
+/**
  * Resultado de uma restauracao de compras.
  */
 sealed class RestoreResult {

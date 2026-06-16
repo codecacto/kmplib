@@ -4,32 +4,30 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
+import br.com.codecacto.kmplib.ui.theme.AppColors
 
 /**
- * Medidor de uso "X de Y" para features com cota (freemium-com-limite).
+ * Medidor de uso "X de Y" com barra de progresso para uma quota consumivel.
  *
- * Exibe um rotulo ("X de Y usados") e uma barra de progresso. Cores vem do tema ([MaterialTheme])
- * — sem cores hardcoded. Quando perto/no limite, a barra usa a cor de erro do tema (sinaliza
- * upgrade). Cota ilimitada (limite < 0) mostra "Ilimitado" sem barra.
+ * So EXIBE o snapshot reportado pelo servidor — nao decide nem incrementa nada. A barra muda de cor
+ * conforme se aproxima do limite (warning) ou esgota (error); features ilimitadas exibem "Ilimitado"
+ * sem barra. Cores derivam de [AppColors]/[MaterialTheme] — nenhuma cor hardcoded.
  *
- * A autoridade do limite e o servidor; este componente apenas REFLETE o [UsageSnapshot]
- * (vindo do admin-api ou do contador local de UX).
- *
- * @param usage medidor da feature (contagem/limite/restante).
- * @param label rotulo da feature (ex.: "Recibos este mes"). Opcional.
- * @param warnThreshold fracao a partir da qual a barra fica em cor de alerta (default 0.8).
+ * @param usage Snapshot de uso vindo da fonte de verdade.
+ * @param modifier Modificador externo.
+ * @param label Rotulo opcional acima da barra (ex.: "Recibos este mes").
+ * @param warnThreshold Fracao a partir da qual a barra fica com cor de aviso (default 0.8).
  */
 @Composable
 fun UsageMeter(
@@ -38,33 +36,33 @@ fun UsageMeter(
     label: String? = null,
     warnThreshold: Float = 0.8f,
 ) {
-    val colors = MaterialTheme.colorScheme
+    val palette = AppColors.current
+
     val barColor: Color = when {
-        usage.isExhausted -> colors.error
-        usage.fraction >= warnThreshold -> colors.error.copy(alpha = 0.85f)
-        else -> colors.primary
+        usage.isUnlimited -> MaterialTheme.colorScheme.primary
+        usage.isExhausted -> palette.error
+        usage.fraction >= warnThreshold -> palette.warning
+        else -> MaterialTheme.colorScheme.primary
     }
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (label != null) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = colors.onSurface
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(
                 text = usageText(usage),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (usage.isExhausted) colors.error else colors.onSurfaceVariant
+                color = if (usage.isExhausted) palette.error else MaterialTheme.colorScheme.onSurface,
             )
         }
 
@@ -73,34 +71,49 @@ fun UsageMeter(
                 progress = { usage.fraction },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .padding(top = 6.dp),
                 color = barColor,
-                trackColor = colors.surfaceVariant
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
     }
 }
 
-/** Texto "X de Y usados" ou "Ilimitado". Exposto para reuso (ex.: badge compacto). */
-fun usageText(usage: UsageSnapshot): String =
-    if (usage.isUnlimited) "Ilimitado"
-    else "${usage.contagem} de ${usage.limite} usados"
-
 /**
- * Variante compacta (badge "X/Y") para barras de topo/listas. Reusa [StatusBadge].
+ * Versao compacta em pill (reusa [AppBadge]) — para barras de topo/cards. Cor de fundo reflete o
+ * estado da quota (normal/aviso/esgotado). Features ilimitadas exibem "Ilimitado".
+ *
+ * @param usage Snapshot de uso.
+ * @param modifier Modificador externo.
+ * @param warnThreshold Fracao a partir da qual usa cor de aviso (default 0.8).
  */
 @Composable
 fun UsageBadge(
     usage: UsageSnapshot,
     modifier: Modifier = Modifier,
+    warnThreshold: Float = 0.8f,
 ) {
-    val colors = MaterialTheme.colorScheme
-    val text = if (usage.isUnlimited) "∞" else "${usage.contagem}/${usage.limite}"
-    StatusBadge(
-        text = text,
-        textColor = if (usage.isExhausted) colors.onError else colors.onSecondaryContainer,
-        backgroundColor = if (usage.isExhausted) colors.error else colors.secondaryContainer,
-        modifier = modifier
+    val palette = AppColors.current
+    val background: Color = when {
+        usage.isUnlimited -> MaterialTheme.colorScheme.secondaryContainer
+        usage.isExhausted -> palette.error
+        usage.fraction >= warnThreshold -> palette.warning
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
+    val textColor: Color = when {
+        usage.isUnlimited -> MaterialTheme.colorScheme.onSecondaryContainer
+        usage.isExhausted || usage.fraction >= warnThreshold -> Color.White
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
+    AppBadge(
+        modifier = modifier,
+        text = usageText(usage),
+        style = BadgeStyle.PILL,
+        backgroundColor = background,
+        textColor = textColor,
     )
 }
+
+private fun usageText(usage: UsageSnapshot): String =
+    if (usage.isUnlimited) "Ilimitado" else "${usage.contagem} de ${usage.limite}"

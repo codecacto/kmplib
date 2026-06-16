@@ -19,3 +19,5 @@ internal actual object PurchaseInitializer {
         AppLogger.d(TAG, "RevenueCat inicializado (Android, debug=${config.debugMode})")
     }
 }
+
+internal actual fun currentStore(): String = "play_store"

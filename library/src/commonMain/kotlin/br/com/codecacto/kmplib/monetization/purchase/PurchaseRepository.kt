@@ -19,6 +19,13 @@ interface PurchaseRepository {
     /** Compra um produto pelo ID. */
     suspend fun purchase(productId: String): PurchaseResult
 
+    /**
+     * Compra um produto CONSUMIVEL (one-time / pay-per-action). Diferente de [purchase], nao depende
+     * de entitlement: devolve a transacao da loja (transactionId/productId) para o app enviar a
+     * admin-api, que valida e libera a acao. NAO altera [subscriptionState].
+     */
+    suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult
+
     /** Restaura compras anteriores. */
     suspend fun restorePurchases(): RestoreResult
 
