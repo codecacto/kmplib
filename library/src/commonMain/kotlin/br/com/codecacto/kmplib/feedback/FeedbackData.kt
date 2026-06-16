@@ -3,7 +3,11 @@ package br.com.codecacto.kmplib.feedback
 import kotlinx.serialization.Serializable
 
 /**
- * Dados de um feedback enviado ao Firestore.
+ * Dados internos de um feedback (modelo de domínio do app, agnóstico de transporte).
+ *
+ * Continua existindo para a [ui.screens.feedback.FeedbackScreen] e para chamadas via
+ * [FeedbackService.send]. O envio para o apps-api é feito mapeando esses campos para
+ * [FeedbackRequest] (o endpoint central tem apenas `message`/`rating` + opcionais).
  */
 @Serializable
 data class FeedbackData(
@@ -18,6 +22,31 @@ data class FeedbackData(
     val usuarioEmail: String = "",
     val platform: String = "",
     val criadoEm: Long = 0L
+)
+
+/**
+ * Corpo (camelCase) de `POST {appsApiBaseUrl}/feedback/v1` — casa exatamente o contrato do
+ * módulo `feedback` do apps-api.
+ *
+ * Obrigatórios: [projectSlug], [message]. Opcionais: [rating] (1..5), [uid], [appVersion],
+ * [platform] (`android`|`ios`|`web`). Campos nulos NÃO são serializados (`encodeDefaults = false`).
+ */
+@Serializable
+data class FeedbackRequest(
+    val projectSlug: String,
+    val message: String,
+    val rating: Int? = null,
+    val uid: String? = null,
+    val appVersion: String? = null,
+    val platform: String? = null,
+)
+
+/** Resposta 201 de `POST /feedback/v1`. */
+@Serializable
+data class FeedbackResponse(
+    val id: String = "",
+    val projectSlug: String = "",
+    val createdAt: Long = 0L,
 )
 
 /**

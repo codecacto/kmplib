@@ -44,6 +44,14 @@ object PurchaseManager {
         AppLogger.d(TAG, "PurchaseManager inicializado com ${config.products.size} produtos")
     }
 
+    /**
+     * Compra um produto CONSUMIVEL (one-time / pay-per-action). Delega ao repository.
+     * Nao altera o estado de assinatura.
+     */
+    internal suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
+        _repository?.purchaseConsumable(productId)
+            ?: ConsumablePurchaseResult.Error("purchase nao inicializado", PurchaseErrorCode.UNKNOWN)
+
     internal fun reset() {
         _repository = null
         _initialized.value = false

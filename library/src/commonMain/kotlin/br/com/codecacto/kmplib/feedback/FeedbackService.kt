@@ -1,25 +1,37 @@
 package br.com.codecacto.kmplib.feedback
 
+import br.com.codecacto.kmplib.core.network.ApiResult
+import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.core.util.currentTimeMillis
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
+import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.serialization.json.Json
 
 /**
- * Serviço de feedback centralizado via Firestore REST API.
+ * Serviço de feedback centralizado via backend **apps-api**.
  *
- * Envia feedbacks para o projeto Firebase "code-cacto", usando REST API
- * para evitar conflito com o Firebase principal do app.
+ * A partir da kmplib 2.24.0 o feedback NÃO é mais gravado no Firestore `code-cacto`. Ele é enviado
+ * para `POST {appsApiBaseUrl}/feedback/v1` — endpoint PÚBLICO (sem Firebase ID token), protegido por
+ * rate-limit no servidor. O feedback é online e compartilhado por todos os apps; cada app passa o
+ * seu `projectSlug`.
+ *
+ * **Robustez:** é best-effort e tolerante a falha. Nem `send`/`sendFeedback` nem a rede derrubam a
+ * UI — qualquer erro (rede, 400 de validação, 429 de rate-limit) é tratado silenciosamente (log leve)
+ * e devolvido como `Result.failure`, nunca propagado como exceção.
  *
  * ## Inicialização
  *
  * ```kotlin
- * // No Application.onCreate() ou ponto de entrada do app
+ * // No Application.onCreate() / ponto de entrada do app
  * FeedbackService.initialize(
  *     FeedbackConfig(
- *         appId = "br.com.codecacto.locadora",
- *         appVersion = "1.2.0"
+ *         projectSlug = "super-8",
+ *         httpClient = appHttpClient,     // Ktor core puro (sem ContentNegotiation obrigatório)
+ *         appVersion = BuildConfig.VERSION_NAME,
  *     )
  * )
  *
@@ -33,14 +45,20 @@ import kotlinx.serialization.json.putJsonObject
  * FeedbackService.sendFeedback(
  *     source = FeedbackSource.FEEDBACK_SCREEN,
  *     motivo = "bug",
- *     mensagem = "O app trava ao abrir..."
+ *     mensagem = "O app trava ao abrir...",
  * )
  * ```
  */
 object FeedbackService {
 
     private const val TAG = "FeedbackService"
-    private const val COLLECTION = "feedbacks"
+    private const val PATH = "/feedback/v1"
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = false // não serializa campos nulos (opcionais omitidos)
+    }
 
     private var _config: FeedbackConfig? = null
     val config: FeedbackConfig? get() = _config
@@ -50,7 +68,7 @@ object FeedbackService {
      */
     fun initialize(config: FeedbackConfig) {
         _config = config
-        AppLogger.d(TAG, "Inicializado para app: ${config.appId}")
+        AppLogger.d(TAG, "Inicializado para projectSlug='${config.projectSlug}' base='${config.appsApiBaseUrl}'")
     }
 
     /**
@@ -62,19 +80,23 @@ object FeedbackService {
 
     /**
      * Envia um feedback completo (da FeedbackScreen).
+     *
+     * O endpoint central tem apenas `message`/`rating` + opcionais; por isso o [source], [motivo],
+     * [email] e [whatsapp] são compostos em [FeedbackData.mensagem] para preservar a triagem.
      */
     suspend fun sendFeedback(
         source: FeedbackSource,
         motivo: String = "",
         mensagem: String,
         email: String = "",
-        whatsapp: String = ""
+        whatsapp: String = "",
+        rating: Int? = null,
     ): Result<Unit> {
         val cfg = _config
-            ?: return Result.failure(IllegalStateException("FeedbackService não inicializado. Chame FeedbackService.initialize() primeiro."))
+            ?: return failNotInitialized()
 
         val data = FeedbackData(
-            appId = cfg.appId,
+            appId = cfg.projectSlug,
             appVersion = cfg.appVersion,
             source = source.valor,
             motivo = motivo,
@@ -84,57 +106,81 @@ object FeedbackService {
             usuarioId = cfg.userId,
             usuarioEmail = cfg.userEmail.trim(),
             platform = currentPlatform,
-            criadoEm = currentTimeMillis()
         )
 
-        return send(data)
+        return send(data, rating)
     }
 
     /**
-     * Envia um FeedbackData diretamente.
+     * Envia um [FeedbackData] diretamente. Best-effort: não lança; loga e devolve `Result.failure`
+     * em qualquer falha (rede/400/429).
      */
-    suspend fun send(data: FeedbackData): Result<Unit> {
-        return try {
-            val cfg = _config
-                ?: return Result.failure(IllegalStateException("FeedbackService não inicializado."))
-            val json = buildFirestoreJson(data)
-            val url = "https://firestore.googleapis.com/v1/projects/${cfg.firebaseProjectId}/databases/(default)/documents/$COLLECTION?key=${cfg.firebaseApiKey}"
+    suspend fun send(data: FeedbackData, rating: Int? = null): Result<Unit> {
+        val cfg = _config ?: return failNotInitialized()
 
-            AppLogger.d(TAG, "Enviando feedback: source=${data.source}, app=${data.appId}")
-            val result = httpPost(url, json)
+        val request = FeedbackRequest(
+            projectSlug = data.appId.ifBlank { cfg.projectSlug },
+            message = composeMessage(data),
+            rating = rating?.takeIf { it in 1..5 },
+            uid = data.usuarioId.ifBlank { null },
+            appVersion = data.appVersion.ifBlank { null },
+            platform = data.platform.ifBlank { currentPlatform }.ifBlank { null },
+        )
 
-            result.onSuccess {
+        val url = cfg.appsApiBaseUrl.trimEnd('/') + PATH
+        AppLogger.d(TAG, "Enviando feedback: projectSlug=${request.projectSlug}, source=${data.source}")
+
+        val result: ApiResult<Unit> = handleApiCall {
+            cfg.httpClient.post(url) {
+                expectSuccess = true
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(FeedbackRequest.serializer(), request))
+            }.bodyAsText() // 201 — corpo ignorado (fire-and-forget)
+            Unit
+        }
+
+        return when (result) {
+            is ApiResult.Success -> {
                 AppLogger.d(TAG, "Feedback enviado com sucesso")
-            }.onFailure { e ->
-                AppLogger.e(TAG, "Erro ao enviar feedback", e)
+                Result.success(Unit)
             }
-
-            result
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao enviar feedback", e)
-            Result.failure(e)
+            is ApiResult.Error -> {
+                // 400 (validação) / 429 (rate-limit) / falha de rede: nunca derruba a UI.
+                AppLogger.w(TAG, "Feedback não enviado (code=${result.code}): ${result.message}")
+                Result.failure(FeedbackSendException(result.code, result.message))
+            }
+            ApiResult.Loading -> Result.failure(FeedbackSendException(-1, "estado inválido"))
         }
     }
 
-    private fun buildFirestoreJson(data: FeedbackData): String {
-        val doc = buildJsonObject {
-            putJsonObject("fields") {
-                putJsonObject("appId") { put("stringValue", data.appId) }
-                putJsonObject("appVersion") { put("stringValue", data.appVersion) }
-                putJsonObject("source") { put("stringValue", data.source) }
-                putJsonObject("motivo") { put("stringValue", data.motivo) }
-                putJsonObject("mensagem") { put("stringValue", data.mensagem) }
-                putJsonObject("email") { put("stringValue", data.email) }
-                putJsonObject("whatsapp") { put("stringValue", data.whatsapp) }
-                putJsonObject("usuarioId") { put("stringValue", data.usuarioId) }
-                putJsonObject("usuarioEmail") { put("stringValue", data.usuarioEmail) }
-                putJsonObject("platform") { put("stringValue", data.platform) }
-                putJsonObject("criadoEm") { put("integerValue", data.criadoEm.toString()) }
+    /**
+     * Compõe a mensagem enviada ao endpoint central preservando motivo/origem e canais de retorno
+     * (email/WhatsApp), já que o contrato central tem apenas `message`.
+     */
+    private fun composeMessage(data: FeedbackData): String = buildString {
+        if (data.motivo.isNotBlank()) append("[").append(data.motivo).append("] ")
+        append(data.mensagem.trim())
+        val contatos = buildList {
+            if (data.email.isNotBlank()) add("email: ${data.email}")
+            if (data.whatsapp.isNotBlank()) add("whatsapp: ${data.whatsapp}")
+            if (data.usuarioEmail.isNotBlank() && data.usuarioEmail != data.email) {
+                add("conta: ${data.usuarioEmail}")
             }
         }
-        return doc.toString()
+        if (contatos.isNotEmpty()) {
+            append("\n\n--\n").append(contatos.joinToString(" | "))
+        }
+    }.trim()
+
+    private fun failNotInitialized(): Result<Unit> {
+        AppLogger.w(TAG, "FeedbackService não inicializado — feedback ignorado.")
+        return Result.failure(
+            IllegalStateException("FeedbackService não inicializado. Chame FeedbackService.initialize() primeiro.")
+        )
     }
 }
 
+/** Falha não fatal de envio de feedback (best-effort). [code] = status HTTP ou -1 para rede. */
+class FeedbackSendException(val code: Int, message: String) : Exception(message)
+
 internal expect val currentPlatform: String
-internal expect suspend fun httpPost(url: String, body: String): Result<Unit>

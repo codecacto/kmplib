@@ -3,6 +3,28 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+## Entregue
+- [x] **`FeedbackService` → apps-api central** — entregue na **2.24.0** (Fase 4; última peça de
+      "Firestore-como-banco" do feedback). `FeedbackService` deixou de gravar no Firestore `code-cacto`
+      via REST e passou a fazer `POST {appsApiBaseUrl}/feedback/v1` no backend central **apps-api**
+      (endpoint PÚBLICO sem Firebase token, rate-limited no servidor). Reusa `core/network`
+      (`handleApiCall`/`ApiResult`) + Ktor `HttpClient` puro (sem ContentNegotiation); best-effort
+      (nunca lança/derruba a UI — 400/429/rede viram `FeedbackSendException` com log leve).
+      **BREAKING `FeedbackConfig`:** agora `(projectSlug, httpClient, appsApiBaseUrl?, appVersion?,
+      userId?, userEmail?)` — removidos `appId`/`firebaseProjectId`/`firebaseApiKey`; removido o
+      `expect/actual httpPost` (sobrou só `currentPlatform`). 7 testes (`FeedbackServiceTest`,
+      MockEngine). **Consumidores a migrar:** Super 8, LocAki, Meu Advogado, Influencer (passar
+      `projectSlug`+`httpClient`). Contrato casado com handoff `apps-api` 2026-06-14-fase-4-feedback.
+- [x] **Camada de dados REST genérica (`core/data`)** — entregue na **2.23.0** (Fase 1b FUNDAÇÃO da
+      centralização "sair do Firestore-como-banco"). Apps deixam de usar Firestore como BANCO e passam
+      a falar com o backend REST central (`apps-api`) via `Repository<T, ID>` (contrato) +
+      `RestRepository<T, ID>` (impl Ktor puro online-first, sem real-time/offline), `RestConfig`
+      (httpClient/baseUrl/tokenProvider Firebase ID token/onUnauthorized/cacheTtl) e
+      `RestRepositoryFactory` (cria repo por entidade, Koin-friendly). Reusa `ApiResult`/`handleApiCall`/
+      `PaginatedResponse` de `core/network` (não duplicou). `FirestoreService` e `FeedbackService`
+      mantidos intactos (legado). 17 testes (`RestRepositoryTest`, MockEngine). **Próximo:** Fase 2 —
+      Meu Advogado consumir `RestRepository` para a entidade `Request`.
+
 ## Prioridade alta
 - [ ] **Publicar artefatos iOS da kmplib a partir de host macOS** — o naming dos artefatos por-target
       iOS (`kmplib-iosarm64` / `kmplib-iossimulatorarm64` / `kmplib-iosx64`) foi corrigido na 2.3.1
@@ -89,8 +111,10 @@
       no Info.plist. **Pendência iOS:** klibs publicados de host macOS (herdam item de prioridade alta).
 - [ ] **GAP-CR-03 — `SwipeableListItem` (swipe-to-delete)** — Média. Item de lista com swipe para
       revelar ação destrutiva (excluir gravação). Candidato sobre `SwipeToDismissBox` do Material 3.
-- [ ] **GAP-CR-04 — `PaywallScreen` reutilizável** — Média. **Aguarda definição do modelo freemium**
-      do Call Recorder; provável reuso de `MonetizationManager`/`PurchaseManager` já na lib.
+- [x] **GAP-CR-04 — `PaywallScreen` reutilizável** — **entregue na 2.20.0** como parte do módulo
+      `monetization/entitlement` (padrão freemium-com-limite). `PaywallScreen` stateless + `PaywallState`/
+      `PaywallAction`/`PaywallTexts` (ui/screens/paywall) reusam `PurchaseManager`/RevenueCat via
+      `EntitlementController.purchase(plan)`. Ver entrada na seção "Concluído".
 - [ ] **GAP-CR-05 — `SettingsRow`/`ListItem`** — Baixa → **2º+3º consumidores confirmados**. Linha de
       configuração padrão (título + subtítulo + trailing). Candidato a `ui/components`.
       Pedido por Call Recorder, Salmos (#10) e agora **Doses de Alegria (GAP-DA-03)** — tela Configurações
@@ -368,6 +392,82 @@
 - [ ] [item] — onde aparece — esforço estimado
 
 ## Concluído
+- [x] **2.22.0 — `AdminApiEntitlementRepository`: modo user-auth (`/me`) com Firebase ID token**
+      (Migração assinatura Fase 1, origem Super 8 + LocAki). Até a 2.21.0 o repositório só montava o
+      prefixo fixo `{base}/v1/{slug}` (rotas service-token). Apps que leem o **próprio** entitlement
+      precisam da árvore Firebase-authed `{base}/v1/projects/{slug}/me/...`. Mudança **aditiva,
+      retrocompatível**:
+      - Novo parâmetro `pathPrefix: String? = null` no construtor. `null` → prefixo legado
+        `"$base/v1/$projectSlug"` (service-token, inalterado). Informado → `"$base$pathPrefix"`
+        (ex.: `"/v1/projects/super8/me"`).
+      - Factory `AdminApiEntitlementRepository.forUserAuth(httpClient, baseUrl, projectSlug,
+        tokenProvider, cacheTtlMillis)` que já monta `pathPrefix = "/v1/projects/$projectSlug/me"`;
+        `tokenProvider` deve devolver o **Firebase ID token** do usuário logado.
+      - As 3 leituras (`/entitlement`, `/usage/{feature}`, `/plans`), desserialização, cache 60s e a
+        regra "nunca conceder offline" são idênticas nos dois modos. `EntitlementController` inalterado.
+      - Testes em `commonTest` cobrindo `pathPrefix` e o factory `/me` + envio do Bearer.
+      - **Próximo (Fase 2):** migrar Super 8 e LocAki para instanciar via `forUserAuth(...)`.
+- [x] **2.21.0 — Compra CONSUMÍVEL / pay-per-action no módulo de purchase** (Onda 4c, origem Meu Advogado).
+      Até a 2.20.0 o módulo `monetization/purchase` só suportava assinatura/entitlement (`purchase()` lê
+      `entitlements.active`). Meu Advogado cobra **por AÇÃO** via loja (IAP não-renovável,
+      `NON_RENEWING_PURCHASE`): após a compra precisa do **transactionId/productId** da transação da loja
+      para enviar à admin-api, que libera AQUELA solicitação no Firestore — `entitlements.active` NÃO
+      contém o produto. APIs novas (aditivas, **não quebram** `purchase()`/`subscriptionState`/`isPremium`):
+      - **`ConsumablePurchaseResult`** (sealed, `monetization/purchase/PurchaseState.kt`):
+        `Success(transactionId: String, productId: String, store: String)` (store="play_store"|"app_store"),
+        `Error(message: String, code: PurchaseErrorCode)`, `Cancelled`.
+      - **`PurchaseRepository.purchaseConsumable(productId): ConsumablePurchaseResult`** (interface) + impl
+        `RevenueCatPurchaseRepository`: reusa o padrão de `purchase()` (resolve `cachedProducts`,
+        `suspendCancellableCoroutine`, `mapErrorCode`, trata `userCancelled`); no `onSuccess = {
+        storeTransaction, _ -> }` lê `storeTransaction.transactionId` (nullable) e
+        `storeTransaction.productIds.firstOrNull()` (nomes reais confirmados no jar `purchases-kmp-models
+        2.2.13+17.23.0`). NÃO altera `_subscriptionState`. transactionId nulo/branco →
+        `Error("transacao sem id", UNKNOWN)`.
+      - **`expect/actual fun currentStore(): String`** (novo, em `PurchaseInitializer.kt`/.android/.ios):
+        Android="play_store", iOS="app_store" (a `StoreTransaction` do SDK não expõe a store; segue o
+        padrão android/ios do `PurchaseInitializer`).
+      - **`PurchaseManager.purchaseConsumable(productId)`** (internal, delega ao repository; null →
+        `Error("purchase nao inicializado", UNKNOWN)`).
+      - **`MonetizationManager.purchaseConsumable(productId): ConsumablePurchaseResult`** (público — ponto
+        de entrada do app, mesmo estilo dos métodos existentes).
+      - Testes: `monetization/purchase/ConsumablePurchaseResultTest` (4 casos de shape, commonTest). O
+        `RevenueCatPurchaseRepository` é `internal` e depende do SDK RevenueCat (não testável em commonTest
+        sem fake do SDK).
+      - **NÃO publicado pelo agente** (sandbox não builda KMP); o loop principal roda `:kmplib:
+        publishToMavenLocal`. iOS: criado o `actual currentStore()` no `.ios.kt` (sem `expect` órfão);
+        klibs iOS pendentes de host macOS. **Fase 2 (dev-mobile):** consumir no Meu Advogado — chamar
+        `MonetizationManager.purchaseConsumable(productId)` no fluxo de cobrança por solicitação e enviar
+        `Success.transactionId`/`productId`/`store` à admin-api para validação e liberação.
+- [x] **2.20.0 — `monetization/entitlement`: padrão freemium-com-limite (paywall + UsageMeter).**
+      Implementa o doc `03-monetizacao-spec.md` §4. Quota é **server-side** (admin-api/backlib-quota é a
+      fonte de verdade); o cliente só LÊ/EXIBE "X de Y" e abre paywall — NUNCA decide/incrementa limite.
+      **Reusa** `PurchaseManager`/RevenueCat (compra) e `core/network` (`ApiResult`/`handleApiCall`);
+      não recria billing. APIs novas (todas em `monetization/entitlement/`, exceto UI):
+      - Modelos `@Serializable`: `Entitlement` (`hasFeature`/`isFree`/`FREE`), `UsageSnapshot`
+        (`remaining`/`isExhausted`/`fraction`/`isUnlimited`, limite -1 = ilimitado), `Plan` (preço como
+        string decimal canônica, nunca Double).
+      - 402/429 → Paywall: `QuotaExceeded` + `ResponseException.quotaExceededOrNull()` +
+        `parseQuotaExceeded(body)` (tolerante) + `toUsageSnapshot()`.
+      - Leitura: `interface EntitlementRepository`, impl `AdminApiEntitlementRepository(httpClient,
+        baseUrl, projectSlug, authToken?=null, tokenProvider?, cacheTtlMillis=60_000)` — Ktor core puro
+        (`bodyAsText` + kotlinx-json, sem exigir ContentNegotiation no consumidor; `expectSuccess=true`
+        por request para que 4xx/5xx virem `ApiResult.Error` com o status correto). Cache curto em
+        memória só p/ leitura degradada — **nunca concede cota offline** (erro não é cacheado).
+        Rotas: `GET {baseUrl}/v1/{slug}/entitlement|usage/{feature}|plans`; header `Bearer` quando token.
+      - MVI: `EntitlementState` (embute no State da tela) + `EntitlementController(repository)` (reducer
+        não-ViewModel: `refresh`/`refreshUsage`/`plans(cache)`/`purchase(plan)` via
+        `PurchaseManager.repository?.purchase(storeProductId)`/`restore`; usa `MonetizationManager.isPremium`).
+      - Offline/UX: `LocalUsageCounter(prefs, projectSlug)` via `AppPreferences` — só UX otimista.
+      - UI: `ui/components/UsageMeter` + `UsageBadge` (cor warning/error perto do limite via `AppColors`,
+        "Ilimitado" quando isUnlimited; sem cor hardcoded) e `ui/screens/paywall/PaywallScreen` stateless
+        (`PaywallState`/`PaywallAction`/`PaywallTexts` pt-BR; cards com preço via `Money.formatBRL` p/ BRL;
+        responsivo via `BoxWithConstraints`).
+      - Testes (commonTest, **verdes** em Android — 28 casos): `QuotaExceededTest`, `UsageSnapshotTest`,
+        `EntitlementStateTest`, `AdminApiEntitlementRepositoryTest` (MockEngine 200/402/500 + rota + header).
+      - **Limitação de build:** publicado em mavenLocal apenas como `kmplib` (metadata) + `kmplib-android`.
+        Targets iOS estão desabilitados no servidor Linux (`kotlin.native.ignoreDisabledTargets`); como o
+        módulo é 100% commonMain (sem expect/actual), basta republicar de um host macOS p/ completar iOS.
+      - 2º consumidor do `PaywallScreen` (GAP-CR-04): destrava Call Recorder + ReciboFacil + MinhaOS.
 - [x] **2.19.0 — Onda 2 do MinhaOS: (L2-M1) `core/money/Money` + (L2-M2) `FirestoreService.runTransaction`.**
       - **L2-M1 — `Money` promovido para a kmplib** (novo módulo `core/money/Money.kt`, commonMain puro).
         Primitiva de **cálculo exato de dinheiro em centavos** (`Long`) com string decimal canônica

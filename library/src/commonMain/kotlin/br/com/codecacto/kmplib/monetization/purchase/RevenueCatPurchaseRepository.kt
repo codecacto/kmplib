@@ -77,6 +77,58 @@ internal class RevenueCatPurchaseRepository(
         }
     }
 
+    override suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult {
+        if (cachedProducts.none { it.id == productId }) {
+            getProducts()
+        }
+
+        val product = cachedProducts.find { it.id == productId }
+            ?: return ConsumablePurchaseResult.Error(
+                message = "Produto nao encontrado: $productId",
+                code = PurchaseErrorCode.PRODUCT_NOT_FOUND
+            )
+
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.purchase(
+                storeProduct = product,
+                onError = { error, userCancelled ->
+                    if (userCancelled) {
+                        continuation.resume(ConsumablePurchaseResult.Cancelled)
+                    } else {
+                        continuation.resume(
+                            ConsumablePurchaseResult.Error(
+                                message = error.message,
+                                code = mapErrorCode(error.message)
+                            )
+                        )
+                    }
+                },
+                onSuccess = { storeTransaction, _ ->
+                    val transactionId = storeTransaction.transactionId
+                    val resolvedProductId =
+                        storeTransaction.productIds.firstOrNull() ?: productId
+
+                    if (transactionId.isNullOrBlank()) {
+                        continuation.resume(
+                            ConsumablePurchaseResult.Error(
+                                message = "transacao sem id",
+                                code = PurchaseErrorCode.UNKNOWN
+                            )
+                        )
+                    } else {
+                        continuation.resume(
+                            ConsumablePurchaseResult.Success(
+                                transactionId = transactionId,
+                                productId = resolvedProductId,
+                                store = currentStore()
+                            )
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     override suspend fun restorePurchases(): RestoreResult {
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.restorePurchases(

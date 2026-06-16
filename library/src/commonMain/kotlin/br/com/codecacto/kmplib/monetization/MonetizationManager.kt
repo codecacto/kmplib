@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.monetization
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.ads.AdManager
+import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +121,16 @@ object MonetizationManager {
 
         _initialized.value = true
     }
+
+    /**
+     * Compra um produto CONSUMIVEL (one-time / pay-per-action).
+     *
+     * Para cobranca POR ACAO via loja (IAP nao-renovavel): devolve a transacao da loja
+     * (transactionId/productId/store) para o app enviar a admin-api validar e liberar a acao.
+     * NAO depende de entitlement e NAO altera [isPremium].
+     */
+    suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
+        PurchaseManager.purchaseConsumable(productId)
 
     /** Reseta o estado (util para testes). */
     fun reset() {
