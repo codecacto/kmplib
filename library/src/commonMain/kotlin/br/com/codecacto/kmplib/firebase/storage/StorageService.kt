@@ -4,6 +4,9 @@ import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.storage.FirebaseStorage
 import dev.gitlive.firebase.storage.storage
 import br.com.codecacto.kmplib.core.util.AppLogger
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsBytes
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -27,6 +30,9 @@ class StorageService {
 
     companion object {
         private const val TAG = "StorageService"
+
+        /** Limite default de tamanho para [downloadBytes] (25 MB). */
+        const val DEFAULT_MAX_DOWNLOAD_BYTES: Long = 25L * 1024 * 1024
     }
 
     // ========================
@@ -112,6 +118,50 @@ class StorageService {
             Result.success(url)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Erro ao obter URL: $path", e)
+            Result.failure(mapStorageException(e))
+        }
+    }
+
+    /**
+     * Baixa o **conteúdo binário** de um arquivo do Storage e retorna os bytes.
+     *
+     * Necessidade genérica e recorrente (ex.: rasterizar um comprovante em PDF antes de
+     * embarcá-lo num relatório, decodificar uma imagem para gerar PDF, exportar dados). A versão
+     * atual do GitLive 2.1.0 não expõe download de bytes em `commonMain` (só [getDownloadUrl]);
+     * por isso este método resolve a URL de download e busca os bytes via [HttpClient] (Ktor),
+     * mantendo a operação multiplataforma e sem acoplar a engine — o app injeta o cliente que já
+     * possui (mesma estratégia do `AdminApiEntitlementRepository`).
+     *
+     * @param path caminho do arquivo no Storage (ex.: `"users/$uid/comprovante.pdf"`).
+     * @param httpClient cliente Ktor usado para o GET da URL de download (o app injeta o seu).
+     * @param maxSizeBytes guarda de segurança: aborta com [StorageException.QuotaExceeded] se o
+     *   conteúdo baixado exceder este limite (default 25 MB). Use `Long.MAX_VALUE` para desabilitar.
+     * @return [Result.success] com os bytes; [Result.failure] com [StorageException] mapeada em
+     *   caso de erro (não encontrado, sem permissão, rede, etc.).
+     */
+    suspend fun downloadBytes(
+        path: String,
+        httpClient: HttpClient,
+        maxSizeBytes: Long = DEFAULT_MAX_DOWNLOAD_BYTES,
+    ): Result<ByteArray> {
+        return try {
+            val url = storage.reference.child(path).getDownloadUrl()
+            val bytes = httpClient.get(url).bodyAsBytes()
+            if (bytes.size > maxSizeBytes) {
+                AppLogger.e(
+                    TAG,
+                    "Download excedeu o limite: $path (${bytes.size} > $maxSizeBytes bytes)",
+                )
+                return Result.failure(
+                    StorageException.QuotaExceeded(
+                        "Arquivo excede o tamanho máximo de download ($maxSizeBytes bytes)",
+                    ),
+                )
+            }
+            AppLogger.d(TAG, "Arquivo baixado: $path (${bytes.size} bytes)")
+            Result.success(bytes)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao baixar: $path", e)
             Result.failure(mapStorageException(e))
         }
     }

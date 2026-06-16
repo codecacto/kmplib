@@ -9,6 +9,7 @@ import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
 
 /**
  * Inicializa a KmpLib no Android.
@@ -31,6 +32,15 @@ fun KmpLib.init(context: Context) {
     AdManagerHolder.init(context)
     GoogleAuthHolder.init(context)
     CrashlyticsHolder.init(context)
+    SyncDatabaseHolder.init(context)
+}
+
+/**
+ * Inicializa apenas o banco de sync (offline-first). Atalho para apps que querem
+ * registrar só o Context do SQLDelight sem o resto do [init]. Já é chamado por [init].
+ */
+fun KmpLib.initSync(context: Context) {
+    SyncDatabaseHolder.init(context)
 }
 
 /**

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Caminhos expostos pelo FileProvider da kmplib (ShareHandler.shareFile).
+  Expõe APENAS o subdiretório shared_files dentro do cacheDir do app, que é onde
+  o AndroidShareHandler grava o arquivo temporário antes de compartilhar.
+  Mantenha mínimo: não expor outras pastas reduz a superfície de ataque.
+-->
+<paths>
+    <cache-path name="shared_files" path="shared_files/" />
+</paths>

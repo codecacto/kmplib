@@ -16,12 +16,18 @@ package br.com.codecacto.kmplib.platform
  * // Compartilhar arquivo
  * shareHandler.shareFile(fileBytes, "documento.pdf", "application/pdf", "Título")
  * ```
+ *
+ * **Contrato de erro (desde 2.31.0):** se o compartilhamento falhar (ex.: no
+ * Android o FileProvider não conseguir resolver a URI, ou nenhum app puder abrir
+ * o chooser), a exceção é **propagada** ao chamador — não mais engolida com log.
+ * Envolva a chamada em try/catch (ou propague) para refletir `Falha` na UI.
  */
 interface ShareHandler {
     /**
      * Compartilha texto.
      * @param text Texto a ser compartilhado
      * @param title Título do compartilhamento (usado no chooser)
+     * @throws Exception se o compartilhamento não puder ser iniciado.
      */
     fun shareText(text: String, title: String = "")
 
@@ -30,6 +36,7 @@ interface ShareHandler {
      * @param imageBytes Bytes da imagem
      * @param fileName Nome do arquivo
      * @param title Título do compartilhamento
+     * @throws Exception se o compartilhamento não puder ser iniciado.
      */
     fun shareImage(imageBytes: ByteArray, fileName: String, title: String = "")
 
@@ -39,6 +46,9 @@ interface ShareHandler {
      * @param fileName Nome do arquivo
      * @param mimeType Tipo MIME do arquivo
      * @param title Título do compartilhamento
+     * @throws Exception se o compartilhamento não puder ser iniciado (ex.:
+     *   FileProvider indisponível). Antes da 2.31.0 essa falha era engolida e o
+     *   chamador recebia sucesso indevidamente.
      */
     fun shareFile(fileBytes: ByteArray, fileName: String, mimeType: String, title: String = "")
 }

@@ -8,10 +8,31 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kover)
+    alias(libs.plugins.sqldelight)
 }
 
 group = "br.com.codecacto"
-version = "2.22.0"
+version = "2.33.0"
+
+// =============================================================================
+// SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
+// =============================================================================
+//
+// Schema agnóstico de domínio (synced_entity + sync_cursor) em
+// src/commonMain/sqldelight. Gera a classe `SyncDatabase` em
+// `br.com.codecacto.kmplib.sync.db`. Drivers por plataforma:
+//  - Android: AndroidSqliteDriver (androidMain)
+//  - iOS: NativeSqliteDriver (iosMain — só valida em host macOS, dívida conhecida)
+//
+sqldelight {
+    databases {
+        create("SyncDatabase") {
+            packageName.set("br.com.codecacto.kmplib.sync.db")
+            // SQLite 3.38 → habilita UPSERT (ON CONFLICT DO UPDATE) usado no espelho.
+            dialect(libs.sqldelight.dialect.sqlite)
+        }
+    }
+}
 
 compose.resources {
     publicResClass = true
@@ -146,6 +167,10 @@ kotlin {
             // Coil 3 — image loading for Custom Ads
             api(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+
+            // SQLDelight — sync offline-first (T1a). runtime + coroutines (Flow das queries).
+            api(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
         }
 
         commonTest.dependencies {
@@ -160,6 +185,12 @@ kotlin {
 
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
+
+            // AndroidX Core — FileProvider (ShareHandler.shareFile). Declarado
+            // explicitamente para garantir a classe androidx.core.content.FileProvider
+            // referenciada pelo <provider> do AndroidManifest da lib em runtime,
+            // independente de quais outras deps AndroidX o app mantiver.
+            implementation(libs.androidx.core)
 
             // Firebase Android (required by GitLive) - exposed as api() for consumer projects
             api(libs.firebase.auth.android)
@@ -202,6 +233,14 @@ kotlin {
             implementation(libs.androidx.camera.lifecycle)
             implementation(libs.androidx.camera.view)
             implementation(libs.mlkit.text.recognition)
+
+            // SQLDelight driver Android (sync — T1a)
+            implementation(libs.sqldelight.driver.android)
+        }
+
+        iosMain.dependencies {
+            // SQLDelight driver nativo iOS (sync — T1a). Só valida em host macOS.
+            implementation(libs.sqldelight.driver.native)
         }
 
         // Note: firebase-crashlytics GitLive não suporta iosX64.

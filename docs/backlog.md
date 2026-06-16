@@ -3,6 +3,387 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### MinhasVacinas — Onda 3/4 (origem: ux-designer 2026-06-14, `MinhasVacinas/docs/design/wireframes.md`)
+> Gaps ALTA (componente-coração + template PDF) entregues na 2.32.0; **GAP-MV-M-06 (multi-seleção em
+> massa, pré-requisito da "aplicação em lote" do Rebanho, Onda 4) entregue na 2.33.0.** App KMP de
+> controle de vacinas, 4 flavors (infantil/adulto/pet/rebanho). Demais gaps (M-01..M-04) seguem abertos
+> no design (não promovidos nesta entrega).
+>
+> **Dívida pré-existente rastreada (NÃO resolvida nesta entrega):** **MV-3-S-02** — `AndroidShareHandler`
+> não limpa `cacheDir/shared_files` → PDFs sensíveis (carteira/comprovante) acumulam no cache. Avaliar
+> uma rotina de limpeza (TTL / limpar no `shareFile` antes de gravar, ou `cleanSharedCache()` exposto) no
+> `ShareHandler` da kmplib — serve todo app que compartilha arquivo. Origem: triagem CTO
+> `2026-06-14-design-minhasvacinas.md`.
+
+- [x] **GAP-MV-M-05 — Timeline / Calendário vacinal (componente genérico)** — **ENTREGUE na 2.32.0**.
+      `ui/components/TimelineList.kt` (commonMain puro, sem expect/actual). Componente GENÉRICO (não
+      acoplado a vacinas) de linha do tempo/cronograma vertical — serve o calendário vacinal dos 4
+      flavors + qualquer timeline do ecossistema (status de cobrança, etapas, marcos).
+      - **API:** `TimelineList(items: List<TimelineItem>, modifier, onItemClick: ((String)->Unit)?,
+        scrollable=true|false, contentPadding, trailingContent)`; `TimelineItem(id, title, dateLabel?,
+        subtitle?, status: TimelineStatus, badgeLabel?, badgeColor?, indicatorColor?, muted, enabled)`;
+        `enum TimelineStatus(None|Done|Pending|Late|Scheduled)`.
+      - **Reúso (não duplicou):** badge de status compõe o `StatusBadge` existente; cores via tokens do
+        tema (`AppColors.current.success/info`, `colorScheme.primary/error/onSurfaceVariant`) — **sem
+        hardcode**; responsividade via `LocalIsCompact`. App mapeia dose TOMADA/PENDENTE/ATRASADA/
+        AGENDADA → `TimelineStatus`. `muted=true` = linha "legado/não-agendável" (Aftosa no Rebanho).
+      - `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:publishToMavenLocal` →
+        `br.com.codecacto:kmplib:2.32.0`. **Consumo dev-mobile:** telas Detalhe/Carteira (6) e
+        Calendário (7).
+- [x] **GAP-MV-M-06 — Lista multi-seleção com seleção em massa (componente genérico)** — **ENTREGUE
+      na 2.33.0**. `ui/components/MultiSelectList.kt` (commonMain puro, sem expect/actual). Componente
+      GENÉRICO (não acoplado a "animal/vacina") de lista selecionável com seleção em massa para a
+      "aplicação em lote" do flavor Rebanho (uma vacinação aplicada a N animais) — e qualquer fluxo de
+      ação em lote do ecossistema. `AppMultiSelect` é dropdown e NÃO cobre lista grande com checkbox por
+      linha + seleção em massa.
+      - **API:** `fun <T> MultiSelectList(items: List<T>, key: (T)->String, selectedIds: Set<String>,
+        onToggleItem: (String)->Unit, itemContent: @Composable (T)->Unit, modifier, onToggleAll:
+        (()->Unit)?, enabled: (T)->Boolean = { true }, showHeader=true, selectedLabel: (Int)->String,
+        selectAllLabel, clearLabel, header: (@Composable (MultiSelectSummary)->Unit)?, contentPadding)`.
+        Estado de selecionados **controlado/hoisted** (`Set<String>` no chamador — a lib não guarda
+        seleção). Slot de conteúdo por item genérico (consumidor renderiza a linha). Header/topbar de
+        seleção opcional (contagem "N selecionados" + ação **selecionar todos / limpar**); checkbox por
+        linha com alvo de toque = linha inteira (acessível, `toggleable`+`Role.Checkbox`); slot `header`
+        para `FilterChipRow` (faixa etária/lote).
+      - **Helpers puros (sem Compose, testáveis):** `data class MultiSelectSummary(selectedCount,
+        totalCount)` (`allSelected`/`noneSelected`); `multiSelectSummary(selectedIds, enabledIds)`
+        (ignora ids "fantasma" fora da lista selecionável); `toggleSelection(current, id)`;
+        `toggleAllSelection(current, enabledIds)` (todos selecionados → limpa; senão → seleciona todos,
+        preservando ids alheios).
+      - **Reúso (não duplicou):** `Checkbox` do Material 3 (mesmo do `AppCheckbox`), `TextButton`
+        temático; cores via `MaterialTheme.colorScheme` (linha selecionada = `primary` a 8% alpha; header
+        = `surfaceVariant`) — **sem hardcode**; responsividade via `LocalIsCompact` (padding de linha
+        maior no expandido); item `enabled=false` aparece esmaecido (alpha) e fora da contagem/seleção em
+        massa. `enabled` predicado por item (animais já vacinados não selecionáveis).
+      - Testes: `ui/components/MultiSelectListTest` (commonTest, 14 casos verdes: summary none/all/partial/
+        ghost-id/empty, toggle add/remove/round-trip, toggleAll select-all/clear/preserva-alheios).
+      - `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:testDebugUnitTest --tests
+        *MultiSelectListTest*` 14/0/0; `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL →
+        `br.com.codecacto:kmplib:2.33.0` (`kmplib` metadata + `kmplib-android.aar`; klibs iOS pendentes
+        de host macOS — commonMain puro, compila em iOS sem mudança). **Consumo dev-mobile:** tela
+        Aplicação em lote (8c) do Rebanho — `MultiSelectList` da lista de animais com "Selecionar todos",
+        `FilterChipRow` no slot `header`, contador no header de seleção, e `Revisar e confirmar (N)`
+        usando `MultiSelectSummary.selectedCount`. **Próximo passo: dev-mobile integra na Onda 4.**
+- [x] **GAP-MV-M-07 — Template PDF "Carteira de Vacinação" + base p/ comprovante Rebanho** —
+      **ENTREGUE na 2.32.0**. Módulo `pdf` estendido (reusa a infra dos demais geradores).
+      - `pdf/VaccinationCardPdfData.kt` (commonMain) — `VaccinationCardPdfData(holder, title, subtitle?,
+        logoBytes?, columns[], items[], emptyText, generatedAtLabel, notice?, footer?, watermark,
+        watermarkText?)`; `VaccinationHolder(name, lines[])` + `VaccinationHolderLine(label, value)`;
+        `VaccinationColumn(label, align, weight)`; `VaccinationItem(cells[], statusColorArgb?, muted)`.
+        GENÉRICO: serve carteira humana/pet E **comprovante do Rebanho** via `notice` ("documento
+        organizacional, não-oficial") — sem hardcode de domínio.
+      - `pdf/VaccinationCardPdfGenerator.kt` (commonMain `expect` + helpers `generateVaccinationCardPdfBytes`,
+        `generateAndShareVaccinationCardPdf`, `defaultVaccinationCardPdfFileName`). **Android:**
+        `PdfDocument` nativo (cabeçalho, bloco do titular, caixa de aviso, tabela paginada com colunas
+        ponderadas + ponto de status, marca d'água).
+      - **iOS — DIFERENCIAL (não placeholder):** `VaccinationCardPdfGenerator.ios.kt` implementado com
+        **`UIGraphicsPDFRenderer`/UIKit** (modelado no `ReciboPdf.ios.kt`), paridade de layout com o
+        Android. **RISCO/pendência conhecida:** validação VISUAL no iOS só em host macOS — neste ambiente
+        Windows os targets iOS são desabilitados (`compileKotlinIos* = SKIPPED`) e não há klib iOS no
+        mavenLocal (item de prioridade alta "Publicar artefatos iOS a partir de host macOS"). Código
+        escrito por construção; **NÃO foi validado visualmente** — pende de macOS/CI.
+      - Testes: `VaccinationCardPdfDataTest` (commonTest, 8 casos verdes).
+      - `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:testDebugUnitTest --tests
+        *VaccinationCardPdfDataTest*` 8/0/0; `:kmplib:publishToMavenLocal` →
+        `br.com.codecacto:kmplib:2.32.0` (`kmplib` metadata + `kmplib-android`). **Consumo dev-mobile:**
+        tela Exportar/Compartilhar PDF (9); carteira humana/pet (sem `notice`) e comprovante Rebanho
+        (com `notice` + `footer` de lote/lab/validade). iOS usa fallback de texto até validar em macOS.
+
+### sync — fix de corretude: resolução de FKs por-clientId (origem: code-review MeuFrete Onda 3, 2026-06-14)
+
+- [x] **BUG-SYNC-01 — `SyncOp.refs` sempre `null`; FK clientId→serverId nunca remapeada** —
+      **CORRIGIDO na 2.31.1**.
+      - **Causa:** `DefaultSyncEngine.toSyncOp()` enviava o payload como está e fixava `refs = null`
+        (apesar do comentário "remapeia refs clientId→serverId"). No offline-first real, uma filha
+        criada offline (ex.: frete) referencia o **clientId local** de um pai também criado offline
+        (ex.: cliente); no push o servidor gera um `id` novo para o pai → a FK (clientId local) não
+        resolvia no servidor → filho rejeitado (`not_found`). O backend já sabe resolver via
+        `SyncOp.refs` em ordem topológica, mas o cliente nunca populava `refs`.
+      - **Fix (desenho):** (1) **`SyncableEntity<T>.refsOf(model): Map<String,String> = emptyMap()`**
+        (novo, default não-quebra implementadores) — declara `{campoFkNoWire → clientIdLocal do pai}`.
+        (2) `SyncRefResolver` (novo, `internal`, puro/sem I/O) decide por FK: **backfill** no payload
+        quando o pai já tem `serverId` no espelho (substitui clientId→serverId direto no payload) OU
+        **`SyncOp.refs`** quando o pai ainda está pendente no mesmo lote (servidor resolve em ordem
+        topológica). O engine injeta o resolvedor de serverId via `store.getByClientId(...)`. Valor que
+        já seja serverId no payload é preservado. (3) **Ordem de push** já respeita dependência (ordem de
+        `register` → `sortedBy registryIndex`) — confirmado.
+      - **Refactor de apoio:** `SyncStore` virou **interface** (impl `SqlDelightSyncStore`); `SyncStore(db)`
+        preservado via `operator invoke` no companion (call-site dos apps inalterado). Permite `FakeSyncStore`
+        em teste e exercitar o engine pelo caminho REAL.
+      - **Testes:** `SyncRefResolverTest` (7, lógica pura) + `DefaultSyncEngineRefsTest` (4, caminho real do
+        engine via `FakeSyncStore` + `SyncPort` que captura o `SyncPushRequest`): (a) pai pendente no lote →
+        `refs` do filho = `{clientRef→clientId do pai}`; (b) pai já com serverId → payload do filho sai com a
+        FK = serverId (backfill), `refs=null`; + entidade sem refs e pai órfão. **Pacote `sync.*` verde:**
+        `testDebugUnitTest --tests "...sync.*"` → DefaultSyncEngineRefsTest 4/4, SyncRefResolverTest 7/7,
+        SyncWireTest 4/4, SyncModelsTest 6/6, 0 falhas.
+      - **Build/publish:** `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL → `br.com.codecacto:kmplib:2.31.1`
+        (`kmplib` metadata + `kmplib-android`). iOS klibs validam só em host macOS (commonMain puro compila).
+      - **Migração (dev-mobile, MeuFrete):** implementar `refsOf` nas entidades — freight →
+        `{"clientRef" to clientRef, "truckId" to truckId}`; expense → `{"freightId" to freightId}`;
+        revenue → `{"freightId" to freightId}`; truck/client → sem refs (default). Bump kmplib → 2.31.1.
+
+### ShareHandler — fix de segurança/infra (origem: security-review, 2026-06-14)
+
+- [x] **BUG-SHARE-AND-01 — `ShareHandler.shareFile` quebrado no Android (FileProvider ausente) +
+      exceção engolida** — **CORRIGIDO na 2.31.0**.
+      - **Causa:** `ShareHandler.android.kt` grava em `cacheDir/shared_files` e chama
+        `FileProvider.getUriForFile(context, "${packageName}.fileprovider", file)`, mas **nenhum
+        `<provider>` FileProvider estava declarado** (nem na kmplib nem nos apps) → runtime lançava
+        `IllegalArgumentException` ("Couldn't find meta-data for provider"). Pior: o `catch (e:
+        Exception)` **engolia** a exceção e só logava → chamador (ex.: ExportService) recebia "sucesso"
+        sem nada compartilhado. Quebrava TODO compartilhamento de arquivo no Android.
+      - **Fix:** (1) `library/src/androidMain/AndroidManifest.xml` (novo) declara o `<provider>`
+        `androidx.core.content.FileProvider` com authority `${applicationId}.fileprovider` (placeholder
+        substituído no merge do app) + `library/src/androidMain/res/xml/kmplib_file_paths.xml`
+        (`<cache-path name="shared_files" path="shared_files/"/>` — só o necessário, prefixo
+        `kmplib_` p/ evitar colisão). (2) `androidx.core:core` declarado explicitamente no androidMain
+        (garante a classe FileProvider em runtime). (3) `shareText`/`shareImage`/`shareFile` (Android +
+        iOS) agora **logam E RELANÇAM** a exceção — não reportam mais sucesso silencioso. KDoc do
+        contrato comum atualizado (`@throws`).
+      - **Contrato:** assinatura pública INALTERADA (segue `Unit`), mas agora **pode lançar** —
+        chamadores devem envolver em try/catch. Consumidores internos (`generateAndShare*`,
+        `shareCard*`) propagam naturalmente (não tinham try/catch).
+      - **Colisão conhecida:** app que já declare seu próprio FileProvider com a MESMA authority
+        (`${applicationId}.fileprovider`) terá conflito de provider duplicado no merge → remover o
+        provider próprio (passa a vir da kmplib) ou `tools:replace`.
+      - **Build/publish:** `:kmplib:compileDebugKotlinAndroid` + `:kmplib:processDebugManifest` BUILD
+        SUCCESSFUL; merged manifest confirma o provider c/ `${applicationId}`; AAR publicado
+        (`kmplib-android-2.31.0.aar`) contém manifest + `res/xml/kmplib_file_paths.xml`;
+        `publishToMavenLocal` → `br.com.codecacto:kmplib:2.31.0`. **Suíte `testDebugUnitTest` tem 51
+        falhas PRÉ-EXISTENTES e alheias** (PasswordValidator/ads router+stats/HandleApiCall/AppPrefs/UI
+        components Avatar/LoadingOverlay/OfflineBanner) — nenhuma toca ShareHandler. iOS klibs validam
+        só em host macOS (commonMain/iosMain puros compilam).
+
+### MinhasHoras — Onda 2 (origem: 2026-06-14)
+
+- [x] **GAP-MH-M-02 — Template de PDF "Relatório de horas extras" + suporte** — **ENTREGUE na 2.29.0**.
+      Dossiê de cobrança: tabela de lançamentos + totais (destaque do pendente) + **comprovantes
+      embarcados como imagens**. Reusa EXATAMENTE o padrão do `WorkReportPdfGenerator` (cabeçalho,
+      grade de imagens, marca d'água, helpers de escala/decode).
+      - `pdf/HoursReportPdfData.kt` (commonMain) — shape **CONGELADO** com paridade exata com a weblib:
+        `HoursReportPdfData(company, periodLabel, companyLabel, generatedAtLabel, entries[],
+        totalHoursLabel, totalPendingLabel?, totalPaidLabel?, totalContestedLabel?, attachments[],
+        watermark, watermarkText?)`; `HoursReportPdfCompany(name, phone?, logoBytes?)`;
+        `HoursReportEntry(date, start, end, durationLabel, valueLabel?, statusLabel)`;
+        `HoursReportAttachment(imageBytes, caption?)` (anexo SEMPRE imagem).
+      - `pdf/HoursReportPdfGenerator.kt` (commonMain `expect` + helpers `generateHoursReportPdfBytes`,
+        `generateAndShareHoursReportPdf`, `defaultHoursReportPdfFileName`). **Android:** `PdfDocument`
+        nativo (paginação, tabela, totais com caixa de destaque do pendente, grade de comprovantes).
+        **iOS:** placeholder (`OsPdfNotSupportedException` — dívida conhecida, host macOS).
+      - `pdf/PdfRasterizer.kt` — `expect fun renderPdfPagesToImages(pdfBytes): List<ByteArray>`;
+        **Android** via `android.graphics.pdf.PdfRenderer` (DPI 150, PNG, sem dep externa); **iOS**
+        placeholder. Habilita anexar comprovante em PDF como páginas-imagem.
+      - `firebase/storage/StorageService.downloadBytes(path, httpClient, maxSizeBytes = 25 MB):
+        Result<ByteArray>` — download de bytes genérico (GitLive 2.1.0 não expõe em commonMain → GET
+        via Ktor HttpClient injetado pelo app).
+      - Testes: `HoursReportPdfDataTest` (commonTest, 7 casos verdes: fileName/sanitização/edge,
+        equals+hashCode de company/attachment, defaults do shape congelado, value opcional).
+      - `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:testDebugUnitTest` (filtro
+        `*HoursReport*`) verde; `:kmplib:publishToMavenLocal` → `br.com.codecacto:kmplib:2.29.0`
+        (klibs iOS pendentes de host macOS — commonMain puro). **Nota:** a suíte completa
+        `testDebugUnitTest` tem falhas **pré-existentes e alheias** (PasswordValidator/ads/network/
+        prefs/UI components — não tocadas neste PR). Consumo dev-mobile: gerar o dossiê na tela de
+        cobrança do MinhasHoras; iOS usa fallback de texto até o render macOS.
+
+### Pendências de testabilidade / API de prefs (origem: code-review ChamadaFacil T0.3, 2026-06-14)
+
+- [ ] **GAP-PREFS-TEST-01 — promover `FakeAppPreferences` a source set publicável** — Média · serve
+      todo app que persiste via `AppPreferences` (ChamadaFacil, Doses, Salmos, Call Recorder...).
+      Hoje o `FakeAppPreferences` in-memory mora em `library/src/commonTest` e **não vem no artefato
+      publicado** → cada app consumidor recria o fake no próprio `commonTest` (duplicação). Sugestão:
+      expor um artefato de testes (`kmplib-test`) ou mover o fake para um `commonMain` de um módulo
+      `core/prefs-testing` consumível com `testImplementation`. Origem concreta: ChamadaFacil teve de
+      recriar `FakeAppPreferences` local para testar os repositórios de persistência.
+- [ ] **GAP-PREFS-KEYS-01 — enumeração de chaves em `AppPreferences`** — Média · habilita saneamento
+      de órfãos em storage local. A interface só tem `has/remove/clear`, sem `keys()`/`keysWithPrefix()`.
+      Sem isso, apps que persistem coleções por chave-composta (ex.: `chamada_<turmaId>_<data>`) não
+      conseguem varrer e descartar chaves órfãs após uma cascata de exclusão não-atômica (ficou como
+      DÍVIDA Onda 0 no ChamadaFacil `TurmaPrefsRepository`). Sugestão: `suspend fun keys(): Set<String>`
+      e/ou `keysWithPrefix(prefix): Set<String>` (Android: `SharedPreferences.all.keys`; iOS:
+      `dictionaryRepresentation()`).
+
+### Números da Sorte — design MVP (origem: ux-designer 2026-06-14, `NumerosDaSorte/docs/design/lib-gaps.md`)
+> App KMP standalone (Arq. A, offline) de geração de jogos de loteria por "temas" (aleatório/horóscopo/
+> sorte/numerologia), freemium, persona 55+. 5 gaps mobile + 1 web. Reusa amplamente a kmplib
+> (AppTopBar/BackTopBar/AppButton/AppTextField/AppDatePicker/AppTimePicker/AppCheckbox/AppSwitch/
+> ThemeChipGrid/SegmentedControl/FilterChipRow/Card/FormContainer/EmptyState/SkeletonBox/LoadingOverlay/
+> ErrorModal/Toast/ConfirmationDialog/AppBottomSheet/StatusBadge/UsageMeter/UsageBadge/**PaywallScreen**+
+> entitlement/ShareHandler/NotificationScheduler/UrlLauncher/LocalIsCompact/gridColumns).
+
+- [x] **GAP-NS-M-05 — Esferas de dezenas + animação de revelar** — **ENTREGUE na 2.27.0** (coração do
+      app, bloqueador da Onda 1/Resultado). `ui/components/LotteryBallRow.kt` (commonMain puro, sem
+      expect/actual). `LotteryBallRow(numbers, columns=3, variant=Normal|Compact, tone: BallTone |
+      accentColor, numberColor?, animateReveal=true, revealKey, revealTotalMillis=600, ballSize?,
+      spacing?, contentDescriptionOverride?)`. Grid Column-de-Rows; esferas circulares grandes
+      (Normal 56dp ≥ 48dp a11y persona 55+) ou compactas (36dp, Histórico). Animação de revelar em
+      **stagger** scale+fade distribuído em `revealTotalMillis` (helper puro `ballRevealDelayMillis`);
+      re-dispara ao mudar `revealKey`; `animateReveal=false` = movimento reduzido (instantâneo).
+      Acento SEM hardcode (token via `BallTone` / `accentColor` derivado do `AppTheme`). A11y:
+      `clearAndSetSemantics` com descrição agregada. Lógica pura testada em `LotteryBallRowTest`
+      (10 casos, verdes). **Genérico** (qualquer app de loteria — Quina/Lotofácil futuros).
+      `:kmplib:compileDebugKotlinAndroid` + `testDebugUnitTest` + `:kmplib:publishToMavenLocal` BUILD
+      SUCCESSFUL → `br.com.codecacto:kmplib:2.27.0` (klibs iOS pendentes de host macOS — commonMain
+      puro, deve compilar em iOS sem mudança; validar render visual em macOS). Consumo dev-mobile:
+      tela de Resultado (Onda 1) + reuso compacto no Histórico (Onda 2) + base do card compartilhável
+      (GAP-NS-M-06).
+- [x] **GAP-NS-M-06 — Card de jogo compartilhável + render-to-PNG temático** — **ENTREGUE na 2.29.0**
+      (Onda 2 / compartilhar jogo). Módulo `ui/share` estendido (não recriou o motor de captura), em
+      `ui/share/GameShareCard.kt` + `ui/share/GameShareCardRender.kt` (commonMain puro, sem expect/actual).
+      **Spec:** `GameShareCardSpec(numbers: List<Int>, columns=3, label="", icon="", narrative="",
+      brand="", disclaimer="", format=ShareCardFormat.SQUARE)` — genérico p/ qualquer app de loteria;
+      **nenhum texto de domínio hardcoded** (rótulo/narrativa/marca/**disclaimer** vêm do chamador →
+      compliance "Apenas diversão / +18 / sem vínculo" é passada pelo app). **Estilo:**
+      `GameShareCardStyle(background, accentColor, onAccentColor, titleColor, narrativeColor, brandColor,
+      disclaimerColor)` + `GameShareCardStyle.fromColorScheme(scheme, accent=scheme.primary,
+      onAccent=scheme.onPrimary)` — **acento (identidade do tema) SEM hardcode**, derivado do `AppTheme`/
+      token pelo chamador (reaproveita `ShareCardBackground`/`ShareCardFormat` do card devocional).
+      **Composable preview** `GameShareCard(spec, style, modifier, textFontFamily=SansSerif)` — **reusa
+      `LotteryBallRow`** (2.27.0, `animateReveal=false`) nas esferas, fiel ao PNG. **Render off-screen:**
+      `renderGameShareCardToPng(spec, style, textMeasurer, targetWidthPx=1080, textFontFamily): ByteArray`
+      — desenha ícone/rótulo/esferas (círculos via Canvas)/narrativa/marca/disclaimer off-screen via
+      `CanvasDrawScope` + `TextMeasurer` e codifica com `encodeBitmapToPng` (`platform/BitmapEncoder`),
+      **sem host de UI** (Android + iOS). Atalhos `shareGameCardImage(...)` (render → `ShareHandler.shareImage`)
+      e `shareGameCardText(...)` (fallback texto: rótulo + dezenas + marca + disclaimer). **Reusa (não
+      recriou):** `renderShareCardToPng`/`encodeBitmapToPng`/`ShareHandler` (mesmo motor de viralização do
+      Salmos GAP-SAL-03, novo skin) + `LotteryBallRow` (GAP-NS-M-05). Lógica/contrato do spec testados em
+      `ui/share/GameShareCardTest` (8 casos commonTest, verdes). `:kmplib:compileDebugKotlinAndroid` +
+      `:kmplib:compileKotlinIosSimulatorArm64` + `testDebugUnitTest` (GameShareCardTest 8/0/0) +
+      `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL → `br.com.codecacto:kmplib:2.29.0` (`kmplib` metadata +
+      `kmplib-android`; klibs iOS pendentes de host macOS — commonMain puro, deve compilar em iOS sem
+      mudança; validar render visual em macOS). Consumo dev-mobile: tela Resultado + Histórico (Onda 2,
+      botão "Compartilhar" → `shareGameCardImage` / `shareGameCardText`).
+- [ ] **GAP-NS-M-02 — Card de seleção de tema (ícone+título+badge premium/cadeado)** — Média · Onda 0/1.
+      Card grande clicável com estado bloqueado (cadeado/"Pro") e selecionável. `ThemeChipGrid` é chip
+      pequeno (inadequado p/ 55+). Sugestão `FeatureCard`/`SelectableFeatureCard` + slot `StatusBadge`.
+      Contorno: `Card` + `gridColumns` local. Candidato a reuso (grade de modos em apps lúdicos).
+- [ ] **GAP-NS-M-03 — Bottom sheet "limite atingido" → Paywall** — Média · Onda 3. Sheet padrão
+      "atingiu o limite" + CTA "Ver o Pro"/"Agora não", consumindo `QuotaExceeded`/`UsageSnapshot` e
+      abrindo `PaywallScreen`. Complementa `monetization/entitlement`. Sugestão
+      `LimitReachedSheet(usage, onUpgrade, onDismiss, texts)`. Contorno: `AppBottomSheet` local.
+      Todo app freemium repete — promover.
+- [ ] **GAP-NS-M-04 — NotificationScheduler: reboot + filtro de dias** — Média · Onda 3. (1) Sem
+      `BOOT_COMPLETED` receiver no Android (limitação já documentada) → lembrete diário se perde após
+      reboot; (2) `scheduleDailyNotification` agenda todo dia, mas o app precisa de dias específicos
+      (ter/qui/sáb). Sugestão: `daysOfWeek: Set<DayOfWeek>` + receiver opcional de boot na lib.
+      Mitigável (reagendar na abertura + filtrar no app) → não bloqueia.
+
+> **Reuso confirmado (NÃO recriar) — citado no design do Números da Sorte:**
+> `PaywallScreen`+entitlement (Paywall, só copy de loteria), `UsageMeter`/`UsageBadge` (cota na Home),
+> `ShareHandler` (envio do compartilhamento), `ThemeChipGrid`+`ChipItem` selecionável (seleção de signo),
+> `AppDatePicker`/`AppTimePicker`/`AppTextField`/`AppSwitch`/`AppCheckbox` (Perfil/Pessoais/Ajustes).
+> **GAP-NS-W-01 (Footer landing)** → weblib, baixa, montar local.
+
+### MeuFrete — design MVP (origem: ux-designer 2026-06-14, `RotaCerta/docs/04-design.md`)
+> Gaps de UI do design das telas mobile do MeuFrete (gestão de fretes + financeiro; Arq. D full-stack,
+> offline-first crítico). App reusa MUITO da kmplib: `LoginScreen`/`RegisterScreen` 2.0, `map/`
+> (`MapView`/`MapMarker`/`LatLng`/`CameraPositionState`) + `location/` (`LocationProvider`), `mask`
+> (`PlateVisualTransformation`/`CurrencyMask`/`CpfMask`/`CnpjMask`/`PhoneMask`), `core/money` (`Money`),
+> `core/network` (`ConnectivityObserver`), `AppFab`/`AppBottomNavBar`/`AppTopBar`/`FilterChipRow`/
+> `ThemeChipGrid`/`SegmentedControl`/`AppBottomSheet`/`AppDatePicker`, `ImagePicker` + `UploadQueue`/
+> `UploadQueueView` (2.26.0), `monetization/entitlement` + `PaywallScreen`/`UsageMeter` (2.24.0),
+> `FinanceReportPdfGenerator` (2.21.0, pós-MVP), `LocalIsCompact` (2.23.0).
+> Bloqueadores reais são da **Onda 3** (G-MF-M-01, G-MF-M-02) — destravar antes dela (alinhado a R1/R2).
+- [x] **G-MF-M-01 — Seletor de origem/destino (place picker)** — **ENTREGUE na 2.30.0** (T1c). Módulo
+      `map/route`: `@Composable PlacePicker(geocoding, initial?, locationProvider?, onPicked, onDismiss, ...)`
+      reusa `MapView`/`MapMarker`/`rememberCameraPositionState`/`LocationProvider` — busca com autocomplete
+      (≥3 chars) + long-press p/ soltar pino + reverse geocode, retornando `GeocodeResult{label, position,
+      secondaryLabel?}`. Provedores genéricos `RouteProvider`/`GeocodingProvider` + impl ORS
+      (`OrsRouteProvider`/`OrsGeocodingProvider`) sobre `HttpClient` injetado, `apiKey` por construtor.
+      **Offline degrada** p/ pino + rótulo manual (cobre G-MF-M-05). Testes `RouteModelsTest` (3, verdes).
+      commonMain puro (iOS compila sem mudança; validar render/Map em macOS).
+- [x] **G-MF-M-02 — `SyncQueueView` (visão da fila de sync offline)** — **ENTREGUE na 2.30.0** (T1b). Par
+      do `UploadQueueView`: `ui/components/SyncQueueView(state, items, onRetry, onRetryAll, onDiscard)` +
+      `SyncQueueItemRow` + `SyncStatusBadge` (pendente/sincronizando/conflito/erro via tokens do tema) e
+      `SyncBanner(state)` ("Sincronizando N itens…"/offline/erro, par do `OfflineBanner`). Consome
+      `SyncState`/`SyncQueueItem` do módulo `sync/`. Genérico p/ qualquer app offline-first com backend
+      próprio.
+- [ ] **G-MF-M-03 — Card/indicador financeiro de lucro** — Receita − Despesa = Lucro + margem % + R$/km,
+      cor por sinal via tokens success/error. Recorrente: Detalhe frete, Detalhe caminhão, Relatório.
+      Distinto de `UsageMeter` (cota). **Média · Onda 2.** Fallback: `Card` + `Text` tokenizados + `Money`.
+- [ ] **G-MF-M-04 — Chart simples (barras/área) para Compose MP** — lucro por caminhão / receita por mês.
+      **DUPLICA G-M1 do Locador** (weblib já tem `SimpleBarChart`/`SimpleAreaChart`) → **2º consumidor,
+      reforça promoção**; espelhar a API da weblib p/ paridade. **Média · Onda 2.** Fallback: barras
+      proporcionais com `Box`/`Row` local.
+- [x] **G-MF-M-05 — Estado "rota indisponível offline" no `MapView`** — **ENTREGUE na 2.30.0** (T1c, junto
+      do `PlacePicker`). Quando a busca/reverse do `GeocodingProvider` falha (sem rede), o `PlacePicker`
+      exibe o aviso "Busca de rota indisponível offline. Solte o pino no mapa e informe o local." + campo de
+      rótulo manual, mantendo o pino do mapa (cache). Cobre o cenário sem precisar de componente extra.
+
+> **Reuso de gaps já no backlog (NÃO recriar) — citados no design do MeuFrete:**
+> **GAP-CR-05 (`SettingsRow`/`ListItem`)** → Conta/Perfil — +1 consumidor (≥4 apps, reforça promoção);
+> **GAP-SAL-05 / GAP-RF-M-04 (`OnboardingPager`)** → onboarding inicial (se virar carrossel);
+> **GAP-CR-03 (`SwipeableListItem`)** → swipe p/ excluir despesa/frete (opcional).
+
+### Locador — design MVP (origem: ux-designer 2026-06-13, `Locador/docs/design/wireframes.md`)
+> Gaps de UI detectados no design das telas mobile do Locador. Complementam G5/G6 do roadmap do projeto.
+> Vários servem a ≥2 apps (paridade com a weblib) — priorizar esses.
+- [ ] **G-M1 — Chart simples (área/linha) p/ Compose MP** — Dashboard mobile (receita 6 meses). A
+      weblib já tem `SimpleAreaChart`/`SimpleBarChart` (`/charts`); o mobile não tem equivalente.
+      **Espelhar a API da weblib** para paridade. Serve a qualquer app com dashboard financeiro. Média.
+- [ ] **G-M3 — Banner persistente (info/warning) no topo de tela** — hoje só há `OfflineBanner`/`Toast`.
+      Usado no banner de trial, aviso de template de régua fora do aprovado e aviso "conecte sua conta".
+      Espelhar o `Banner` (info/success/warning/error) da weblib. Média.
+- [ ] **G-M5 — Timeline/Steps de status (vertical, themable)** — Detalhe da cobrança
+      (gerada → enviada → paga). Par do gap web G-W4 (paridade mobile/web). Média.
+- [ ] **G-M2 — Onboarding pager + indicador de páginas (dots)** — composable `OnboardingPager` reutilizável
+      (todo app novo da Casca tem onboarding de 3 telas). Baixa.
+- [ ] **G-M4 — Card de cobrança** (valor + encargos + status + ação rápida) e **G-M6 — Card de imóvel**
+      (apelido + status alugado/vago + inquilino) — padrões recorrentes; refinam o G6 do roadmap.
+      Confirmar duplicação via `/lib-audit` antes de promover. Baixa.
+
+### Chamada Fácil — design MVP (origem: ux-designer 2026-06-14, `ChamadaFacil/docs/design/wireframes.md`)
+> Gaps de UI do design do app de chamada (professor solo). Nenhum é bloqueante — todos têm fallback
+> local com componentes existentes; o app pode nascer sem eles. Avaliar promoção via `/lib-audit`.
+- [x] **GAP-CF-M-06 — Template de PDF de TABELA genérico (relatório não-financeiro)** — **ENTREGUE na
+      2.30.0**. Os geradores de PDF da lib eram todos de domínio financeiro (`OsPdfData`/`OsPdfGenerator`
+      imprime SEMPRE caixa "TOTAL R$"; `FinanceReportPdfData`; etc.) → forçar o `OsPdfData` para um
+      relatório de frequência produzia uma caixa "TOTAL R$ 0,00" residual (layout de fatura enganoso).
+      Novo template de **tabela puro** (cabeçalho + N colunas + M linhas, **SEM dinheiro/total**), genérico
+      p/ qualquer relatório tabular do ecossistema. **Reusa EXATAMENTE** a infra existente (mesmo
+      `expect/actual`, mesmo `PdfDocument` Android, mesmos helpers de paginação/decode/wrap/truncate do
+      `WorkReportPdfGenerator`, mesma `OsPdfNotSupportedException` no iOS) — não criou pipeline paralelo.
+      - `pdf/TableReportPdfData.kt` (commonMain) — `TableReportPdfData(company, title, subtitle?, columns[],
+        rows[], emptyText, summary?, footer?, watermark, watermarkText)`; `TableReportPdfCompany(name,
+        phone?, email?, address?, logoBytes?)` (mesmo mecanismo de logo do `OsPdfData`);
+        `TableReportColumn(label, align: TableReportAlign = START|CENTER|END, weight: Float = 1f)`;
+        `TableReportRow(cells: List<String>)` (células posicionais, texto já formatado pelo app — a lib não
+        soma nada). `summary` é texto livre, **NUNCA "TOTAL R$"**.
+      - `pdf/TableReportPdfGenerator.kt` (commonMain `expect` + helpers `generateTablePdfBytes`,
+        `generateAndShareTablePdf` [integra `ShareHandler`], `defaultTablePdfFileName`). **Android**
+        (`TableReportPdfGenerator.android.kt`): `PdfDocument` nativo — cabeçalho logo+empresa+título/
+        subtítulo, linha de cabeçalho da tabela em **negrito** com fundo neutro, linhas com **zebra**/
+        strokes leves usando **tokens neutros** (sem cor financeira), colunas ponderadas + alinhamento por
+        coluna, **paginação automática** (repete o cabeçalho da tabela no topo de cada página), resumo +
+        rodapé, marca d'água -45°. **Sem nenhum bloco monetário.** **iOS**
+        (`TableReportPdfGenerator.ios.kt`): placeholder (`OsPdfNotSupportedException` — dívida conhecida,
+        host macOS), igual aos demais geradores.
+      - Testes: `TableReportPdfDataTest` (commonTest, 8 casos verdes: fileName/sanitização/extensão,
+        equals+hashCode de company com/sem logoBytes, defaults seguros sem dinheiro, alinhamento/peso
+        default da coluna, shape de relatório de frequência).
+      - `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:compileDebugUnitTestKotlinAndroid`
+        BUILD SUCCESSFUL; `:kmplib:testDebugUnitTest --tests *TableReportPdfDataTest*` → 8/0/0 (verde);
+        `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL → `br.com.codecacto:kmplib:2.30.0` (`kmplib` metadata
+        + `kmplib-android.aar`; klibs iOS pendentes de host macOS — commonMain puro, deve compilar em iOS
+        sem mudança). **Nota de ambiente:** a build sofreu contenção com a entrega concorrente do
+        offline-first (Onda 5/sync) — diretório renomeado mid-build, daemon morto e cache incremental
+        corrompido; resolvido com `--no-configuration-cache` + `--gradlew --stop` + limpeza de
+        `library/build/kotlin/compile*`. A suíte `testDebugUnitTest` completa tem falhas **pré-existentes
+        e alheias** (não tocadas neste PR). **Consumo dev-mobile (ChamadaFacil):** substituir o
+        `toOsPdfData()` por um `toTablePdfData()` no export do relatório de frequência (ver handoff).
+- [ ] **GAP-CF-M-01 — `OnboardingPager` + indicador de páginas (dots) reutilizável** — Onboarding de
+      1ª vez (proposta + aviso LGPD). **DUPLICA o gap G-M2 do Locador → 2 consumidores, promover.**
+      Todo app novo da Casca tem onboarding de ~3 telas. Fallback: `HorizontalPager` + Row de dots local.
+      Baixa (mas alta por reuso).
+- [ ] **GAP-CF-M-02 — Header sticky de contagem (presentes/faltas), tokenizado** — tela Chamada
+      (crítica): contador fixo no topo sempre visível, cor por estado (success/error via tokens).
+      Fallback: Row fixada com `StatusBadge`/texto tokenizado. Média — avaliar se vira `CounterHeader`
+      genérico ou fica local ao app.
+- [ ] **GAP-CF-M-03 — `AttendanceRow` (linha de presença com toggle)** — tela Chamada: linha de aluno
+      de alvo grande (≥56dp), toggle Presente↔Falta em 1 toque, estado distinto por **cor+ícone+texto**
+      (acessível a daltônicos; falta = `errorContainer` + ✕ + "FALTOU"). Específico do padrão "chamada
+      por inversão de default". Fallback: `Card`/Row clicável + `Avatar` + ícone + fundo por estado.
+      Média. Sugestão: nascer LOCAL no app (Onda 1) e promover só se um 2º app pedir.
+
 ## Prioridade alta
 - [ ] **Publicar artefatos iOS da kmplib a partir de host macOS** — o naming dos artefatos por-target
       iOS (`kmplib-iosarm64` / `kmplib-iossimulatorarm64` / `kmplib-iosx64`) foi corrigido na 2.3.1
@@ -13,12 +394,38 @@
       `kmplib` (metadata) + `kmplib-android`. **Ação:** rodar `./gradlew :kmplib:publishToMavenLocal`
       (ou publish para Central) de um Mac/CI macOS para a versão 2.3.1+, completando os artefatos iOS.
       Até lá, apps KMP só resolvem a kmplib no target Android.
-- [ ] **SQLDelight / offline-first sync** — abstração de persistência local + sync com Firestore
-      (hoje cada app sincroniza manualmente). Serve a apps offline (Meu Fisio, Prospecta) e marketplace.
-- [ ] **UI de upload com progresso** — componente reutilizável sobre `rememberFilePicker` +
-      `StorageService.uploadBytes` (Residencial e outros refazem).
-      **(GAP-06 / Exiba)** Necessário para Exiba Onda 2: composable que exibe progresso de upload
-      Firebase Storage + preview de imagem + estado de erro/retry. Versão-alvo: 2.4.0 ou 2.5.0.
+- [x] **SQLDelight / offline-first sync** — **ENTREGUE na 2.30.0** (T1a — MeuFrete Onda 3). Novo módulo
+      **GENÉRICO** `br.com.codecacto.kmplib.sync` sobre SQLDelight 2.0.2 (dialeto SQLite 3.38 c/ UPSERT;
+      driver Android `AndroidSqliteDriver` + iOS `NativeSqliteDriver`). Agnóstico de domínio (não acopla
+      Firestore nem MeuFrete): o app registra `SyncableEntity<T>` e implementa `SyncPort` sobre o ApiClient
+      dele.
+      - Schema (`commonMain/sqldelight/.../SyncEntity.sq`): espelho único `synced_entity(entity, local_id,
+        server_id?, client_id, payload_json, updated_at?, dirty, pending_op?, deleted, base_updated_at?,
+        last_error?, PK(entity, local_id))` + `sync_cursor(entity PK, cursor)` → gera `SyncDatabase`.
+      - API: `SyncableEntity<T>`, `SyncPort`, `SyncEngine`(+`DefaultSyncEngine`), `SyncableRepository<T>`,
+        `SyncStore`, `createSyncDatabase(name)` (expect/actual; `SyncDatabaseHolder` p/ Context Android,
+        ligado no `KmpLib.init`/`initSync`). Estados `SyncState`/`SyncOpType`/`SyncItemStatus`/
+        `SyncQueueItem`/`SyncResultSummary`.
+      - **Reconciliador:** `startAutoSync(connectivity)` observa `ConnectivityObserver.isOnline` → dispara
+        `syncNow` no offline→online com **backoff exponencial**; `syncNow` = push (drena outbox na ordem de
+        registro/dependência) → pull (deltas/tombstones + cursor paginado). **LWW server-side** (cliente
+        aplica `applied|conflict|rejected`, nunca decide vencedor); remapeia clientId→serverId.
+      - **DTOs de fio (`SyncWire.kt`) — paridade EXATA com o backend** (compartilhar com backlib):
+        `SyncPullRequest/SyncDelta/SyncPullResponse/SyncOp/SyncPushRequest/SyncResult/SyncPushResponse`
+        (`payload = JsonElement` p/ reusar DTOs por-papel sem união de tipos); `SyncOpStatus`.
+      - UI (T1b): `ui/components/SyncQueueView` + `SyncBanner` (G-MF-M-02, abaixo).
+      - Testes: `SyncWireTest` (4) + `SyncModelsTest` (6) commonTest, verdes.
+      - `:kmplib:compileDebugKotlinAndroid` + `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL →
+        `br.com.codecacto:kmplib:2.30.0` (`kmplib` metadata + `kmplib-android`; klibs iOS pendentes de host
+        macOS — driver nativo iOS escrito, valida em Mac). **Dívida conhecida (iOS):** validar o
+        `NativeSqliteDriver` em host macOS. Serve a apps offline-first (MeuFrete, Meu Fisio, Prospecta) e
+        marketplace.
+- [x] **UI de upload com progresso** — **ATENDIDO na 2.26.0** (via GAP-MO-M-06/07 do MinhaObra; 3º
+      consumidor). Componente reutilizável sobre `StorageService.uploadBytesWithProgress`:
+      `firebase/storage/UploadQueue` (fila sequencial + retry, `items: StateFlow<List<UploadItem>>`) +
+      `ui/components/UploadProgressItem`/`UploadQueueView` (barra + % / check / erro+retry). **(GAP-06 /
+      Exiba)** — Exiba pode consumir o mesmo componente para o upload da Onda 2. Preview de imagem do item:
+      compor com `ImageGallery`/`AsyncImage`.
 
 ### MinhaOS — Onda 4 (alvo: kmplib 2.21.0)
 - [x] **L4-1 — Template de relatório financeiro em PDF** — entregue na 2.21.0. Módulo `pdf/`: modelo
@@ -274,11 +681,14 @@
 - [ ] **GAP-SAL-05 — `OnboardingPager` / `OnboardingSlide` (carrossel de onboarding)** — Baixa. Carrossel com
       dots de página, botão Pular/Próximo e slide final de opt-in. Tela #2. Reuso provável ≥2 apps. Contorno no
       MVP: `HorizontalPager` local. Candidato a `ui/components` (ou `ui/onboarding`).
-- [ ] **GAP-SAL-07 — Expor `LocalIsCompact` (CompositionLocal de breakpoint)** — Baixa. A skill `compose-mvi`
-      já referencia `LocalIsCompact` como padrão de responsividade, mas **ele não existe** na kmplib (grep sem
-      resultados). Expor um `CompositionLocal<Boolean>` (compact vs expanded) calculado por `WindowSizeClass`/
-      `BoxWithConstraints`, evitando que cada tela chame `calculateWindowSizeClass()` direto. Todas as telas.
-      Contorno no MVP: calcular por `BoxWithConstraints` local. Candidato a `ui/theme`.
+- [x] **GAP-SAL-07 — Expor `LocalIsCompact` (CompositionLocal de breakpoint)** — **entregue na 2.23.0.**
+      `ui/theme/Responsive.kt`: `LocalIsCompact` (`compositionLocalOf`, default `true`/compacto),
+      `ProvideIsCompact(threshold = CompactWidthThreshold, content)` (mede largura via `BoxWithConstraints`
+      puro de foundation — sem dependência `material3-window-size-class`, funciona em Android/iOS/Desktop),
+      `CompactWidthThreshold = 600.dp` e helper puro `gridColumns(isCompact, compact, expanded)`. Promove os
+      contornos locais de Salmos (`core/ui/Responsive.kt`), Emprestei e StatusHub (`core/util/ScreenSize.kt`).
+      **3+ consumidores confirmados.** Migração: trocar imports locais por `br.com.codecacto.kmplib.ui.theme.*`
+      e remover o arquivo local (próxima passada, com dev-mobile).
 
 > **Reuso de gaps já no backlog (NÃO recriar) — citados no design de Salmos:**
 > **GAP-CR-05 (`SettingsRow`/`ListItem`)** → linhas de Ajustes (#10); **GAP-CR-03 (`SwipeableListItem`)** →
@@ -327,10 +737,12 @@
           tolerante → BRL). Testes `OsPdfTest` (11 casos commonTest, verdes). Paridade visual com o PDF
           da weblib (GAP-MOS-W-04). **Pendência iOS:** render nativo em host macOS (herda item de
           prioridade alta). Telas: A9 (Detalhe), A10 (Pré-visualização/Compartilhar).
-- [ ] **GAP-MOS-M-01 — `AppFab` (FloatingActionButton themável)** — Baixa. FAB padronizado pelo tema
-      (cores via `MaterialTheme.colorScheme`, ícone + `contentDescription`) para a ação "Nova OS" na Home
-      e atalhos. A kmplib não expõe um FAB no catálogo. Contorno no MVP: `FloatingActionButton` Material 3
-      local. Candidato a `ui/components`. Telas: A5 (Home), A6 (Criar OS).
+- [x] **GAP-MOS-M-01 / GAP-EMP-M-01 — `AppFab` (FloatingActionButton themável)** — **entregue na 2.23.0.**
+      `ui/components/AppFab.kt`: FAB padronizado pelo tema (cores default `primary`/`onPrimary`, overrideáveis),
+      `icon` + `contentDescription` (a11y), `label`/`extended` para a variante estendida (ícone+texto) e
+      `enabled` (esmaece + suprime clique). Promove os contornos locais do Emprestei (`core/ui/AppFab.kt`) e do
+      MinhaOS/MOS. **2+ consumidores confirmados.** Migração: trocar o `AppFab` local por
+      `br.com.codecacto.kmplib.ui.components.AppFab` (próxima passada, com dev-mobile). Telas: A5 (Home), A6.
 
 > **Reuso de gaps já no backlog (NÃO recriar) — citados no design do MinhaOS:**
 > **GAP-CR-04 (`PaywallScreen`)** → A16 Paywall — modelo freemium **definido** (5 OS/mês + marca d'água;
@@ -340,6 +752,124 @@
 > **GAP-09 (single-select em `AppMultiSelect`)** → A14 unidade do serviço (contorno: `SegmentedControl`);
 > **GAP-11 (`ClipboardHandler`)** → A9 copiar link público (contorno: `ShareHandler`);
 > **UI de upload com progresso** (prioridade alta/média) → A4/A6 upload do logo/fotos (contorno: `LoadingOverlay`).
+
+### QuemMeDeve — gaps reportados no fechamento da Onda 3 (product-owner, 2026-06-13)
+
+> Origem: `QuemMeDeve/docs/roadmap.md` (dívidas da Onda 3 — compartilhar resumo amigável + PDF).
+> App KMP Android/iOS offline-first (Arq. B) sobre Firestore. A Onda 3 reusou o `FinanceReportPdfGenerator`
+> da kmplib (2.21.0) via mapper para `FinanceReportPdfData` e o `ShareHandler`/`UrlLauncher` p/ compartilhar.
+> Dois gaps detectados — ambos **Baixa**, contornados no app hoje.
+
+- [ ] **GAP-QMD-M-04 — Template de PDF "resumo de cobrança / extrato do devedor" + render iOS do
+      `FinanceReport`** — Baixa. (a) Hoje o QuemMeDeve **mapeia** o resumo do devedor para
+      `FinanceReportPdfData` (relatório financeiro) por falta de um template dedicado de **"extrato do
+      devedor / resumo de cobrança"** (devedor + parcelas em aberto + total a receber, tom não
+      intimidatório). Candidato a template próprio de PDF na kmplib (par mobile/web). (b) O
+      `FinanceReportPdfGenerator` **só tem render nativo no Android** (iOS = placeholder/fallback de texto,
+      herda o item de prioridade alta "publicar artefatos iOS / render PDF iOS em host macOS") — por isso o
+      app **cai em fallback de texto no iOS** ao gerar PDF. **Contorno atual no app:** mapear para
+      `FinanceReportPdfData` + fallback iOS → compartilhar texto. Confirmar 2º consumidor antes de promover
+      o template dedicado.
+- [ ] **GAP-QMD-M-05 — `PhoneFormatters` normalizar p/ DDI/WhatsApp (E.164)** — Baixa. Hoje a kmplib formata
+      telefone BR (`PhoneMask`/`PhoneFormatters`) mas **não normaliza para E.164** (DDI + DDD, sem
+      separadores) exigido pelo deep link do WhatsApp. O QuemMeDeve implementou `normalizeBrPhone` **no app**
+      (`ShareSummaryViewModel`) como contorno. Candidato a item de lib: helper puro
+      `normalizeToE164(raw, defaultCountryCode = "55"): String?` em `core/format`. Serve a qualquer app que
+      compartilhe via WhatsApp (≥2 apps prováveis). **Contorno atual:** função local no app.
+
+### MinhaObra — gaps reportados pelo ux-designer (2026-06-13)
+
+> Origem: `MinhaObra/docs/design/wireframes.md` (§ Gaps de lib) + `flows.md`. App KMP Android/iOS + web
+> (paridade) sobre Firebase (Auth+Firestore+Storage), Arq. A standalone (sem backend Ktor no MVP).
+> 2 papéis: GESTOR (cria/edita) × CLIENTE (read-only). 4 módulos: obras→etapas (% progresso), registro
+> fotográfico datado, diário de obra, relatório PDF + link/portal do cliente. Freemium: Free 1 obra ativa
+> + PDF com marca d'água; Pro destrava (entitlement server-side via admin-api). **Foco de canteiro:** toques
+> grandes, alto contraste, upload resiliente a rede ruim. Reusa AMPLAMENTE a kmplib: `LoginScreen`/
+> `RegisterScreen` 2.0, `AuthRepository`(+`IAuthRepository`), `FirestoreService` (+`runTransaction`),
+> `StorageService` (+`deletePrefix` LGPD), `AppTopBar`/`BackTopBar`/`AppBottomNavBar`, `AppTextField`/
+> `AppTextArea`/`FormContainer`/`NumberField`, `Card`/`Avatar`/`StatusBadge`/`EmptyState`/`SkeletonBox`/
+> `LoadingOverlay`/`OfflineBanner`/`ConfirmationDialog`/`ErrorModal`/`Toast`, `ImagePicker`/`FilePicker`/
+> `FullScreenImageViewer`/`ZoomableBox`, `AppDatePicker`/`SegmentedControl`/`FilterChipRow`/`AppMultiSelect`/
+> `AppCheckbox`/`AppSwitch`/`AppBottomSheet`/`ThemeChipGrid`, `EmailValidator`/`PhoneMask`,
+> `BrazilianStates`/`BrazilianCities`, `ShareHandler`/`UrlLauncher`/`BitmapEncoder`, `ReaderView` (termos),
+> **`monetization/entitlement` + `PaywallScreen` + `UsageMeter`/`UsageBadge` (2.22.0 — Onda 5 SEM gaps)**.
+
+- [x] **GAP-MO-M-09 — Template de PDF de ACOMPANHAMENTO DE OBRA (marca d'água Free condicional)** —
+      **ENTREGUE (preparação adiantada Onda 2) na 2.26.0 (Android render; iOS placeholder).** Novo par no
+      módulo `pdf/`: modelo comum serializável **`WorkReportPdfData`** (`pdf/WorkReportPdfData.kt`) +
+      `interface WorkReportPdfGenerator`, `createWorkReportPdfGenerator()` (expect/actual),
+      `generateWorkReportPdfBytes(data)`, `generateAndShareWorkReportPdf(...)` (reusa `ShareHandler`),
+      `defaultWorkReportPdfFileName(workName)` (`pdf/WorkReportPdfGenerator.kt`). **Shape do C-5 (espelhar na
+      weblib GAP-MO-W-09 — manter IDÊNTICO):** `company: WorkReportPdfCompany(name, phone?, logoBytes?)` (logo
+      só Pro); `workName`; `address?`; `periodLabel?`; `generatedAtLabel`; `overallProgress: Float (0..1)`;
+      `stages: List<WorkReportStage(name, statusLabel, progress: Float)>`; `photos: List<WorkReportPhoto(
+      imageBytes: ByteArray, caption?, takenAtLabel?)>` (**bytes, não URL** — a lib não baixa; carimbo DP-7
+      resolvido no app e passado como `takenAtLabel`); `diaryEntries: List<WorkReportDiary(dateLabel,
+      weatherLabel?, crewLabel?, notes)>`; `watermark: Boolean` + `watermarkText?` (regra de plano decidida no
+      app). **Android:** render nativo `PdfDocument` (A4, cabeçalho marca+período, bloco da obra com barra de
+      progresso geral, seção Etapas com barra/%, grade 2-col de fotos com center-crop + legenda + carimbo,
+      blocos de diário com wrap, paginação automática, marca d'água -45° por página quando `watermark=true`).
+      **iOS:** placeholder (`OsPdfNotSupportedException`; TODO `UIGraphicsPDFRenderer` em host macOS). Testes
+      `WorkReportPdfDataTest` (5 casos commonTest, verdes). **Decisão DP-1: PDF client-side no MVP.**
+      **PENDENTE p/ Onda 4:** (1) fechar/validar o shape com o lib-web (C-5) — `WorkReportPhoto` usa
+      `imageBytes`; se a weblib preferir URL, alinhar; (2) render iOS em host macOS; (3) o app monta o
+      `WorkReportPdfData` a partir do domínio MinhaObra.
+- [x] **GAP-MO-M-02 — `AppProgressBar` (barra de progresso linear themável)** — **ATENDIDO em 2.25.0.**
+      `ui/components/AppProgressBar.kt` (commonMain). API: `AppProgressBar(progress: Float /* 0f..1f */, ...)`
+      + overload `AppProgressBar(percent: Int /* 0..100 */, ...)`; `tone: ProgressTone`
+      (Primary/Success/Warning/Error/Info → tokens do tema), `height: Dp = 8.dp`, `showLabel`, `label`,
+      overrides `color`/`trackColor`. Cores via `MaterialTheme.colorScheme` + `AppColors.current` (sem
+      hardcode); a11y via `ProgressBarRangeInfo`. Clamp defensivo (`normalizeProgress`/`percentToFraction`,
+      testados em `AppProgressBarTest`). Usado no progresso geral da obra (dashboard 2.1), por etapa (2.2)
+      e nas listas de obras (1.1/1.2).
+- [x] **GAP-MO-M-05 — `ImageGallery` (grid de imagens com lazy load + estado por item)** —
+      **ENTREGUE (preparação adiantada Onda 2) na 2.26.0.** `ui/components/ImageGallery.kt` (commonMain):
+      `ImageGallery(items: List<GalleryItem>, onItemClick: (id) -> Unit, multiSelect: Boolean = false,
+      selectedIds: Set<String> = emptySet(), columns: Int = 3, spacing, contentPadding)` — `LazyVerticalGrid`
+      + `AsyncImage` (Coil, já dependência da lib) com center-crop. Tipo `GalleryItem(id, model: Any?, status)`
+      e enum `GalleryItemStatus` (NONE/UPLOADING/FAILED/UPLOADED) → overlay por item (spinner / ícone de erro /
+      check de sucesso). **Modo navegação** (default) dispara `onItemClick`; **modo seleção** (`multiSelect`)
+      alterna seleção com overlay de acento + check (o app mantém o `Set` e atualiza no callback) — atende o
+      seletor de fotos do relatório (3.2/5.1, fecha GAP-MO-M-08). Cores 100% via tema. **PENDENTE p/ Onda 3:**
+      agrupamento por data (o app passa seções ou a lib ganha overload futuro); render visual iOS (commonMain
+      puro + Coil, deve compilar sem mudança).
+- [x] **GAP-MO-M-06/07 — UI de upload com progresso/fila + compressão de imagem no cliente** —
+      **ENTREGUE (preparação adiantada Onda 2) na 2.26.0.** (a) **Fila de upload com progresso/retry:**
+      `firebase/storage/UploadQueue.kt` (commonMain) — classe `UploadQueue(storageService)` que reusa
+      `StorageService.uploadBytesWithProgress`, processa **sequencialmente** (resiliente a rede de canteiro,
+      NFR do PRD), expõe `items: StateFlow<List<UploadItem>>` e oferece `enqueue`/`enqueueAll`/`process()`/
+      `retry(id)`/`remove(id)`. Modelo `UploadItem(id, fileName, fraction, status, downloadUrl?, errorMessage?)`
+      (derivados `percent`/`isTerminal`/`isFailed`/`isUploading`), enum `UploadStatus`
+      (PENDING/UPLOADING/COMPLETED/FAILED) e `UploadRequest(id, fileName, path, bytes, mimeType?)`. UI:
+      `ui/components/UploadProgressItem.kt` — `UploadProgressItem(item, onRetry?)` (barra + % / check verde /
+      erro+retry) e `UploadQueueView(items, onRetry?)` (lista vertical). (b) **Compressão de imagem:**
+      `platform/ImageCompressor.kt` (expect/actual) — `ImageCompressor.compress(bytes, maxDimension=1600,
+      quality=80, format=JPEG): ByteArray` + `createImageCompressor()`, enum `ImageCompressFormat` (JPEG/PNG).
+      **Android:** `Bitmap`/`BitmapFactory` (scale-down + recompress). **iOS:** **implementado de fato** via
+      Skia (`org.jetbrains.skia`, mesmo motor do `BitmapEncoder` — decode → resize linear → encode), validar
+      qualidade em host macOS. Best-effort: entrada indecodificável volta como veio (nunca lança). Testes
+      `UploadItemTest` (4 casos commonTest, verdes). Fecha também a lacuna geral **"UI de upload com progresso"
+      / GAP-06** (3º consumidor — promoção confirmada). **PENDENTE p/ Onda 3:** depende do contrato C-4
+      (Storage/paths) para o app cablar `path`/`bytes`; cancelamento de upload em curso não exposto (limitação
+      do GitLive 2.1.0 — `uploadBytesWithProgress` sem progresso intermediário real até GitLive evoluir).
+- [ ] **GAP-MO-M-10 — `QRCode` no app (mostrar QR do portal do cliente)** — Baixa · Onda 4. A weblib já tem
+      `QRCode`; a kmplib não. Útil para o gestor mostrar o QR do link do portal (5.3). Sugestão:
+      `QRCode(content: String, size: Dp, logo: ImageBitmap? = null)` (commonMain via lib QR multiplataforma
+      ou render próprio). Candidato a `ui/components`. Contorno no MVP: compartilhar só o link via `ShareHandler`.
+- [ ] **GAP-MO-M-03 — Lista reordenável (drag-to-reorder) para etapas** — Média · Onda 2.
+      **= GAP-10 (Exiba)** já no backlog (Prioridade baixa) — 2º consumidor confirmado (reordenar etapas
+      da obra, tela 2.2). Reforça promoção. Contorno no MVP: campo "ordem" (`NumberField`) + reordenar lógico.
+- [ ] **GAP-MO-M-04 — `AppSlider` (0–100%) para % de progresso da etapa** — Baixa · Onda 2.
+      Slider themável para a tela 2.3. Sugestão: `AppSlider(value, valueRange, onValueChange, steps?)` sobre
+      o `Slider` do Material 3. Contorno no MVP: `NumberField` 0–100 (não trava a onda).
+
+> **Reuso de gaps já no backlog (NÃO recriar) — citados no design do MinhaObra:**
+> **Deep-link router** (Prioridade média) → GAP-MO-M-01: abrir convite `/convite/[token]` no app (telas 0.6/2.4);
+> **UI de upload com progresso** (Prioridade alta / GAP-06) → GAP-MO-M-06: +1 consumidor;
+> **GAP-10 (lista reordenável)** → GAP-MO-M-03: +1 consumidor;
+> **GAP-CR-05 (`SettingsRow`/`ListItem`)** → Configurações (7.3) — +1 consumidor.
+> **Onda 5 (monetização) SEM gaps:** `monetization/entitlement` + `PaywallScreen` + `UsageMeter`/`UsageBadge`
+> (2.22.0) cobrem Paywall (6.1)/Status (6.3); `PurchaseManager`/RevenueCat cobre o checkout (6.2).
 
 ## Prioridade média
 - [ ] **GAP-RF-M-05 — `RemoteConfigService` (wrapper genérico de Firebase Remote Config)** — reportado por
@@ -394,6 +924,60 @@
 - [ ] [item] — onde aparece — esforço estimado
 
 ## Concluído
+- [x] **2.26.0 — Preparação adiantada das Ondas 3/4 do MinhaObra (galeria/upload/compressão + PDF de obra).**
+      Entregue durante a Onda 2 (sem bloquear) para reduzir risco de cronograma. **(a) Par PDF de obra
+      (GAP-MO-M-09, prioridade máxima):** novo template no módulo `pdf/` — `WorkReportPdfData` (shape do C-5,
+      espelhado na weblib GAP-MO-W-09) + `WorkReportPdfGenerator` (expect/actual; Android render `PdfDocument`
+      com barra de progresso/etapas/grade de fotos/diário/marca d'água; iOS placeholder), atalhos
+      `generateWorkReportPdfBytes`/`generateAndShareWorkReportPdf`/`defaultWorkReportPdfFileName`. **(b)
+      Galeria (GAP-MO-M-05):** `ui/components/ImageGallery` (`GalleryItem`/`GalleryItemStatus`, multiSelect,
+      Coil). **(c) Upload (GAP-MO-M-06):** `firebase/storage/UploadQueue` (fila sequencial + retry,
+      `UploadItem`/`UploadStatus`/`UploadRequest`) + `ui/components/UploadProgressItem`/`UploadQueueView` —
+      fecha também GAP-06/Exiba "UI de upload". **(d) Compressão (GAP-MO-M-07):** `platform/ImageCompressor`
+      (expect/actual; Android Bitmap, iOS Skia real). Tudo **aditivo** (não quebra API). Testes
+      `WorkReportPdfDataTest` (5) + `UploadItemTest` (4) verdes; `:kmplib:compileDebugKotlinAndroid` e
+      `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL → `br.com.codecacto:kmplib:2.26.0` (`kmplib` metadata +
+      `kmplib-android`; klibs iOS pendentes de host macOS). **Pendências p/ Ondas 3/4:** fechar shape C-5
+      (imageBytes vs URL) com lib-web; contrato C-4 Storage; render iOS dos PDFs; app monta os modelos.
+- [x] **2.24.1 — Fix de seguranca: `EntitlementDto.toModel()` ignorava `active`/`status` (autopromocao).**
+      Achado na verificacao cross-component da Onda 2R (Emprestei). O `toModel` derivava `planCode` so do
+      `plan?.code`; como o admin-api devolve `plan` mesmo para entitlement EXPIRED/CANCELED, um direito
+      inativo com `plan.code = premium_*` era mapeado como premium (`isFree=false`) => acesso ilimitado sem
+      direito vigente. Correcao: o plano pago so vale quando `active || status == "ACTIVE"`; caso contrario
+      rebaixa para `free` sem features (espelha a weblib `premium = active && !isFreePlan`). Modelo
+      `Entitlement` ganhou `isPremium` (= nao-free) e `isFree` passou a tratar `plano` vazio como free.
+      Testes novos em `EntitlementModelTest` cobrem activePremium→premium, inativo(EXPIRED/CANCELED)→Free,
+      statusACTIVE→premium, sem plano→Free. Suite do modulo verde; Android compila; publicado em mavenLocal.
+- [x] **2.24.0 — `monetization/entitlement` alinhado ao contrato canonico `/monet` do admin-api + `assertUsage`
+      (GAP-EMP-M-02).** Correcao reportada pelo code-review do Emprestei: o modulo falava rotas `/v1/{slug}/...`
+      e esperava payload direto em PT — quebrado contra o admin-api real. Agora fala o **contrato de fio
+      canonico** (`AdminUnificado/admin-api/docs/03-monetizacao-contrato.md`):
+        - **Rotas:** `AdminApiEntitlementRepository` migrou de `/v1/{slug}/entitlement|usage/{feature}|plans`
+          para **`GET /monet/{slug}/{entitlement,usage?feature=,plans}`** + **`POST /monet/{slug}/assert`**.
+        - **Envelope `{ ok, data }`:** desembrulha `data` antes de mapear (helper `unwrap`).
+        - **Mapeamento EN→PT na camada de rede** (decisao: modelos PT mantidos, sem churn nos consumidores):
+          DTOs de fio internos `EntitlementDto`/`UsageDto`/`PlanDto` (`active`/`plan`/`status`/`source`/
+          `validUntil`; `count`/`limit`/`remaining`/`unlimited`; `code`/`name`/`price`/`limits`) mapeados para
+          `Entitlement`/`UsageSnapshot`/`Plan`.
+        - **Auth:** envia o **Firebase ID token do usuario** em `Authorization: Bearer <idToken>` (passar
+          `authToken = { auth.getIdToken().getOrNull() }` — `IAuthRepository.getIdToken` ja existe). **Removido
+          o `?tenant=`** (servidor deriva o tenant do uid; divergente → 403).
+        - **`assertUsage(feature, currentCount, amount=1): AssertResult` (novo, GAP-EMP-M-02):** `POST .../assert`
+          body `{feature, currentCount, amount}` → `AssertResult.Allowed` (200) | `Denied(QuotaExceeded)` (402, de
+          `error.details`) | `Failed(code, message)` (rede/HTTP). Classifica por **status** (robusto a
+          `expectSuccess` on/off). No `EntitlementController`: `assertUsage(...)` (cru) e
+          `assertUsageInto(state, ...): Pair<EntitlementState, Boolean>` (abre paywall no Denied / seta error no
+          Failed). **Centraliza o `QuotaAssertClient` que cada app freemium recriava.**
+        - **`parseQuotaExceeded`/`quotaExceededOrNull` corrigidos:** leem de `error.details` do envelope e
+          convertem `limite`/`contagem` **string→int** (BigDecimal serializado); mantem retrocompat com payload
+          direto. Modelos `QuotaExceeded`/`Entitlement`/`UsageSnapshot`/`Plan` **inalterados** (compativel).
+      Testes `monetization/entitlement/*`: +6 casos (`assertUsage`/`assertUsageInto` Allowed/Denied/Failed,
+      envelope canonico com strings + numerico) — **verdes**. `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL;
+      `:kmplib:testDebugUnitTest --tests "...entitlement.*"` SUCCESSFUL; `:kmplib:publishToMavenLocal` BUILD
+      SUCCESSFUL → `br.com.codecacto:kmplib:2.24.0` (`kmplib` metadata + `kmplib-android`; targets iOS pendentes de
+      host macOS — codigo e commonMain puro). **Migracao Emprestei:** remover o `QuotaAssertClient` local e usar
+      `EntitlementRepository.assertUsage`/`EntitlementController.assertUsageInto`; conferir que o `authToken`
+      injeta o Firebase ID token e que nao envia `tenantId`.
 - [x] **2.22.0 — Padrao freemium-com-limite (doc 03 §4): `monetization/entitlement` + UsageMeter + PaywallScreen.**
       Materializa o Pilar 3 de Monetizacao no mobile, **reusando** `PurchaseManager`/RevenueCat (compra) e
       `core/network` (`ApiResult`/`handleApiCall`) — **NAO recriou billing**. Quota e **server-side** (fonte de

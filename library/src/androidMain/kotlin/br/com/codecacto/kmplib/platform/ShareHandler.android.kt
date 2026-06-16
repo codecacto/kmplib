@@ -40,7 +40,10 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
             }
             context.startActivity(chooser)
         } catch (e: Exception) {
+            // Loga E RELANÇA: engolir a exceção fazia o chamador (ex.: ExportService)
+            // registrar "sucesso" sem nada ter sido compartilhado.
             AppLogger.e(TAG, "Erro ao compartilhar texto", e)
+            throw e
         }
     }
 
@@ -74,7 +77,12 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
             }
             context.startActivity(chooser)
         } catch (e: Exception) {
+            // Loga E RELANÇA. Antes, o catch engolia a IllegalArgumentException do
+            // FileProvider.getUriForFile (provider não declarado) e o chamador recebia
+            // "sucesso" sem nada compartilhado — quebrava todo compartilhamento de
+            // arquivo no Android. Agora a falha propaga para o caller refletir erro.
             AppLogger.e(TAG, "Erro ao compartilhar arquivo: $fileName", e)
+            throw e
         }
     }
 

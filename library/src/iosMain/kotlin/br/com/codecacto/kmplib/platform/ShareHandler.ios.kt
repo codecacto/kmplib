@@ -28,7 +28,10 @@ class IosShareHandler : ShareHandler {
             )
             presentActivityController(activityController)
         } catch (e: Exception) {
+            // Loga E RELANÇA (paridade com Android): falha de share deve propagar
+            // para o chamador refletir erro, não reportar sucesso silencioso.
             AppLogger.e(TAG, "Erro ao compartilhar texto", e)
+            throw e
         }
     }
 
@@ -48,7 +51,9 @@ class IosShareHandler : ShareHandler {
                 presentActivityController(activityController)
             }
         } catch (e: Exception) {
+            // Loga E RELANÇA (paridade com Android).
             AppLogger.e(TAG, "Erro ao compartilhar imagem", e)
+            throw e
         }
     }
 
@@ -70,7 +75,9 @@ class IosShareHandler : ShareHandler {
             )
             presentActivityController(activityController)
         } catch (e: Exception) {
+            // Loga E RELANÇA (paridade com Android).
             AppLogger.e(TAG, "Erro ao compartilhar arquivo: $fileName", e)
+            throw e
         }
     }
 

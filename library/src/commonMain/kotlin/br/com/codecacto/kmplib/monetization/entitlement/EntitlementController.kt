@@ -96,4 +96,34 @@ class EntitlementController(
 
     /** Restaura compras anteriores (loja). Apos sucesso, chame [refresh]. */
     suspend fun restore() = PurchaseManager.repository?.restorePurchases()
+
+    /**
+     * Verifica server-side (abordagem B) se o consumo de [feature] pode prosseguir, ANTES de
+     * efetiva-lo. Delega ao admin-api (`POST /monet/{slug}/assert`) via [EntitlementRepository].
+     *
+     * Retorna o [AssertResult] cru (Allowed/Denied/Failed). Para ja refletir o paywall no estado,
+     * use [assertUsageInto], que devolve o proximo [EntitlementState].
+     */
+    suspend fun assertUsage(feature: String, currentCount: Int, amount: Int = 1): AssertResult =
+        repository.assertUsage(feature, currentCount, amount)
+
+    /**
+     * Igual a [assertUsage], mas ja embute o resultado no [EntitlementState]:
+     * - [AssertResult.Denied] -> `current.showingPaywall(quota)` (a tela abre o Paywall).
+     * - [AssertResult.Failed] -> `current.copy(error = ...)` (estado degradado).
+     * - [AssertResult.Allowed] -> `current` inalterado.
+     *
+     * Devolve um par `(proximoEstado, permitido)`; o app so prossegue com o consumo se `permitido`.
+     */
+    suspend fun assertUsageInto(
+        current: EntitlementState,
+        feature: String,
+        currentCount: Int,
+        amount: Int = 1
+    ): Pair<EntitlementState, Boolean> =
+        when (val res = repository.assertUsage(feature, currentCount, amount)) {
+            AssertResult.Allowed -> current to true
+            is AssertResult.Denied -> current.showingPaywall(res.quota) to false
+            is AssertResult.Failed -> current.copy(error = res.message) to false
+        }
 }

@@ -20,8 +20,21 @@ data class Entitlement(
     @SerialName("fonte") val fonte: String = "manual",
     @SerialName("atualizadoEm") val atualizadoEm: String? = null
 ) {
-    /** Plano gratuito padrao quando ainda nao se sabe o entitlement (estado degradado). */
-    val isFree: Boolean get() = plano.equals("free", ignoreCase = true)
+    /**
+     * Plano gratuito (estado degradado/inicial OU entitlement sem direito pago vigente).
+     *
+     * O mapeamento na camada de rede ([AdminApiEntitlementRepository]) ja rebaixa para "free"
+     * qualquer entitlement inativo (EXPIRED/CANCELED), entao `plano == "free"` aqui significa
+     * "sem direito pago vigente". Comparacao com `equals` insensivel a maiusculas; trata `plano`
+     * vazio como free.
+     */
+    val isFree: Boolean get() = plano.isBlank() || plano.equals("free", ignoreCase = true)
+
+    /**
+     * Tem um plano pago vigente. Espelha a semantica da weblib (`premium = active && !isFreePlan`):
+     * como o entitlement inativo ja foi rebaixado para "free" no mapeamento, premium <=> nao-free.
+     */
+    val isPremium: Boolean get() = !isFree
 
     /** Verifica se a feature esta liberada pelo plano atual. */
     fun hasFeature(feature: String): Boolean = features.contains(feature)

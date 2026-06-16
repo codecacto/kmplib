@@ -11,13 +11,19 @@ private class FakeEntitlementRepository(
     var entitlement: ApiResult<Entitlement> = ApiResult.Success(Entitlement.FREE),
     var usage: ApiResult<UsageSnapshot> = ApiResult.Success(UsageSnapshot("recibos", 0, 5)),
     var plans: ApiResult<List<Plan>> = ApiResult.Success(emptyList()),
+    var assertResult: AssertResult = AssertResult.Allowed,
 ) : EntitlementRepository {
     var plansCalls = 0
+    var lastAssert: Triple<String, Int, Int>? = null
     override suspend fun getEntitlement() = entitlement
     override suspend fun getUsage(feature: String) = usage
     override suspend fun getPlans(): ApiResult<List<Plan>> {
         plansCalls++
         return plans
+    }
+    override suspend fun assertUsage(feature: String, currentCount: Int, amount: Int): AssertResult {
+        lastAssert = Triple(feature, currentCount, amount)
+        return assertResult
     }
 }
 
@@ -76,5 +82,43 @@ class EntitlementControllerTest {
         val repo = FakeEntitlementRepository(plans = ApiResult.Error(message = "x"))
         val controller = EntitlementController(repo)
         assertTrue(controller.plans().isEmpty())
+    }
+
+    @Test
+    fun assertUsage_allowed_passesArgs() = runTest {
+        val repo = FakeEntitlementRepository(assertResult = AssertResult.Allowed)
+        val controller = EntitlementController(repo)
+        val res = controller.assertUsage("active_loans", currentCount = 2, amount = 1)
+        assertTrue(res.isAllowed)
+        assertEquals(Triple("active_loans", 2, 1), repo.lastAssert)
+    }
+
+    @Test
+    fun assertUsageInto_allowed_keepsState_returnsTrue() = runTest {
+        val repo = FakeEntitlementRepository(assertResult = AssertResult.Allowed)
+        val controller = EntitlementController(repo)
+        val (state, allowed) = controller.assertUsageInto(EntitlementState(), "f", 0)
+        assertTrue(allowed)
+        assertNull(state.paywall)
+    }
+
+    @Test
+    fun assertUsageInto_denied_opensPaywall_returnsFalse() = runTest {
+        val quota = QuotaExceeded(feature = "active_loans", limite = 5, contagem = 5, upgradeUrl = "u")
+        val repo = FakeEntitlementRepository(assertResult = AssertResult.Denied(quota))
+        val controller = EntitlementController(repo)
+        val (state, allowed) = controller.assertUsageInto(EntitlementState(), "active_loans", 5)
+        assertEquals(false, allowed)
+        assertEquals(quota, state.paywall)
+        assertTrue(state.isPaywallOpen)
+    }
+
+    @Test
+    fun assertUsageInto_failed_setsError_returnsFalse() = runTest {
+        val repo = FakeEntitlementRepository(assertResult = AssertResult.Failed(code = 500, message = "boom"))
+        val controller = EntitlementController(repo)
+        val (state, allowed) = controller.assertUsageInto(EntitlementState(), "f", 0)
+        assertEquals(false, allowed)
+        assertEquals("boom", state.error)
     }
 }

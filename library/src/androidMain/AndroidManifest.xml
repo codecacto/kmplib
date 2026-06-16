@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      FileProvider da kmplib (correção de bug — ShareHandler.shareFile).
+
+      O AndroidShareHandler grava o arquivo em context.cacheDir/shared_files e
+      resolve a URI via FileProvider.getUriForFile(context,
+      "${context.packageName}.fileprovider", file). Sem este <provider>
+      declarado, getUriForFile lança IllegalArgumentException em runtime e TODO
+      compartilhamento de arquivo no Android falha silenciosamente.
+
+      A authority usa o placeholder ${applicationId} para que, ao ser mesclado
+      no manifesto de cada app consumidor, bata exatamente com
+      "${context.packageName}.fileprovider" (packageName == applicationId).
+
+      O recurso é prefixado (kmplib_file_paths) para evitar colisão de nome com
+      um file_paths.xml que o app por acaso já tenha.
+
+      AVISO de colisão: se um app consumidor já declarar seu PRÓPRIO FileProvider
+      com a authority "${applicationId}.fileprovider", o manifest merger acusará
+      conflito de provider duplicado. Nesse caso o app deve remover o provider
+      próprio (passou a ser provido pela kmplib) ou usar tools:replace. Esta é a
+      authority que o ShareHandler já usava — não é introdução nova.
+    -->
+    <application>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/kmplib_file_paths" />
+        </provider>
+    </application>
+
+</manifest>
