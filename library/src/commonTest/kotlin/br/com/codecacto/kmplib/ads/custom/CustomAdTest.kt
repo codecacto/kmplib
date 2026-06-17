@@ -109,6 +109,33 @@ class CustomAdTest {
     }
 
     @Test
+    fun `appIds default vazio quando doc antigo nao traz o campo`() {
+        // Docs gravados antes do N:N nao tem appIds — precisa cair em lista vazia.
+        val raw = """{ "appId": "meu-app", "imageUrl": "x", "targetUrl": "y" }"""
+        val ad = json.decodeFromString(CustomAd.serializer(), raw)
+        assertEquals(emptyList(), ad.appIds)
+        assertEquals("meu-app", ad.appId)
+    }
+
+    @Test
+    fun `desserializa appIds N a N do painel`() {
+        // O painel grava appIds (N:N) + appId legado preenchido.
+        val raw = """
+            {
+              "appId": "dono",
+              "appIds": ["dono", "app-b", "app-c"],
+              "imageUrl": "https://x/y.png",
+              "targetUrl": "https://x/z",
+              "format": "banner",
+              "active": true
+            }
+        """.trimIndent()
+        val ad = json.decodeFromString(CustomAd.serializer(), raw)
+        assertEquals(listOf("dono", "app-b", "app-c"), ad.appIds)
+        assertEquals("dono", ad.appId)
+    }
+
+    @Test
     fun `constantes de formato batem com os literais esperados`() {
         // Esses literais ficam no Firestore. Mudar quebra dados em producao.
         assertEquals("banner", CustomAd.FORMAT_BANNER)

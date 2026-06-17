@@ -46,6 +46,34 @@ class CustomAdFiltersTest {
         assertFalse(matchesAppId(ad, appId = "outro-app"))
     }
 
+    @Test
+    fun `matchesAppId casa via appIds N a N`() {
+        val ad = CustomAd(appId = "dono", appIds = listOf("dono", "app-b", "app-c"))
+        assertTrue(matchesAppId(ad, appId = "app-b"))
+        assertTrue(matchesAppId(ad, appId = "app-c"))
+        assertTrue(matchesAppId(ad, appId = "dono"))
+    }
+
+    @Test
+    fun `matchesAppId rejeita app fora do appId e do appIds`() {
+        val ad = CustomAd(appId = "dono", appIds = listOf("app-b"))
+        assertFalse(matchesAppId(ad, appId = "app-z"))
+    }
+
+    @Test
+    fun `matchesAppId doc antigo sem appIds casa pelo appId legado`() {
+        val ad = CustomAd(appId = "meu-app", appIds = emptyList())
+        assertTrue(matchesAppId(ad, appId = "meu-app"))
+        assertFalse(matchesAppId(ad, appId = "outro-app"))
+    }
+
+    @Test
+    fun `matchesAppId casa por appIds mesmo com appId legado vazio`() {
+        val ad = CustomAd(appId = "", appIds = listOf("app-b"))
+        assertTrue(matchesAppId(ad, appId = "app-b"))
+        assertFalse(matchesAppId(ad, appId = "app-z"))
+    }
+
     // ====== isInTimeWindow ======
 
     @Test

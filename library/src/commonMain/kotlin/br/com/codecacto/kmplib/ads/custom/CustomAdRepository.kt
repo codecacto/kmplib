@@ -102,8 +102,16 @@ class CustomAdRepository(
 internal fun matchesPlacement(ad: CustomAd, placementId: String?): Boolean =
     placementId == null || ad.placementId == placementId
 
+/**
+ * Casa o anuncio com o app do filtro.
+ *
+ * - `appId == null` (filtro): nao filtra por app (comportamento atual — todos casam).
+ * - Senao: casa se `appId == ad.appId` (LEGADO, 1 app) OU `ad.appIds.contains(appId)` (N:N).
+ *
+ * Docs antigos sem `appIds` (lista vazia) seguem casando pelo `appId` legado.
+ */
 internal fun matchesAppId(ad: CustomAd, appId: String?): Boolean =
-    appId == null || ad.appId == appId
+    appId == null || ad.appId == appId || ad.appIds.contains(appId)
 
 internal fun isInTimeWindow(ad: CustomAd, nowMillis: Long): Boolean {
     val afterStart = ad.startsAt?.let { nowMillis >= it } ?: true

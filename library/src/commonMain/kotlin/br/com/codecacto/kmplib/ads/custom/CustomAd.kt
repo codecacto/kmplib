@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
  * ```json
  * {
  *   "appId": "meu-app",
+ *   "appIds": ["meu-app", "outro-app"],
  *   "imageUrl": "https://.../banner.png",
  *   "targetUrl": "https://meusite.com/produto",
  *   "format": "banner",
@@ -22,8 +23,11 @@ import kotlinx.serialization.Serializable
  * }
  * ```
  *
- * @property appId identificador do app dono do anuncio. Quando o consumidor
- *   passa `CustomAdConfig.appId`, so anuncios com este `appId` aparecem.
+ * @property appId identificador do app dono do anuncio (LEGADO, 1 app). Quando o consumidor
+ *   passa `CustomAdConfig.appId`, anuncios com este `appId` aparecem. Mantido por retrocompat.
+ * @property appIds lista de apps que o anuncio serve (segmentacao N:N). Um anuncio casa com o app
+ *   se `appId == filtro` (legado) OU `appIds.contains(filtro)`. Default vazio (docs antigos sem o
+ *   campo continuam funcionando via `appId`). O painel grava `appIds` + `appId` legado preenchido.
  * @property format "banner" para [CustomBannerAd] retangular, "interstitial" para [CustomInterstitialAd].
  * @property placementId agrupa anuncios por slot (ex: "home_top", "settings_bottom").
  * @property priority maior = exibido primeiro quando ha varios ativos.
@@ -37,6 +41,11 @@ import kotlinx.serialization.Serializable
 data class CustomAd(
     val id: String = "",
     val appId: String = "",
+    /**
+     * Segmentacao N:N: apps que este anuncio serve. Default vazio (tolerante a docs
+     * antigos que so tem `appId`). Mapeado direto do Firestore quando presente.
+     */
+    val appIds: List<String> = emptyList(),
     val imageUrl: String = "",
     val targetUrl: String = "",
     val format: String = FORMAT_BANNER,

@@ -3,6 +3,25 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+- [x] **Force Update (atualização obrigatória) — módulo `appupdate`** — **ENTREGUE na 2.34.0**.
+      Lado mobile do Force Update, consumindo o endpoint PÚBLICO do admin-api
+      `GET /public/app-version?project=&platform=&versionCode=`. Serve todo app do ecossistema (a
+      capacidade de forçar atualização é transversal de plataforma). Modelado no padrão do `feedback`
+      (config com `httpClient`+`baseUrl`+`projectSlug`, best-effort tolerante a falha).
+      - **API:** `AppUpdateConfig(projectSlug, httpClient, currentVersionCode, adminApiBaseUrl=
+        "https://admin-api.codecacto.com.br", platform=currentPlatform)`; `AppUpdateService(config)
+        .check(): AppUpdateStatus`; `sealed AppUpdateStatus { None | Soft(storeUrl?, message?,
+        latestVersionName?) | Hard(storeUrl?, message?) }`; `AppVersionCheckResponse` (DTO do fio);
+        UI `AppUpdateGate(config, texts, content)` + `HardUpdateScreen`/`SoftUpdateDialog` +
+        `AppUpdateTexts` (defaults pt-BR).
+      - **Robustez:** `check()` NUNCA lança/bloqueia — rede/timeout/4xx/5xx/corpo inválido/`action`
+        desconhecida → `None` (só `action=="hard"` legítimo bloqueia). Hard = tela full-screen sem
+        fechar/voltar; Soft = diálogo dispensável; None/checando = passa o `content`.
+      - **Reúso (não duplicou):** `handleApiCall`/`ApiResult` (core/network), `getUrlLauncher()`
+        (platform, abre a loja), `currentPlatform` (expect/actual), tema via `MaterialTheme.colorScheme`.
+      - Testes `AppUpdateServiceTest` (8 — GET/query params, mapeamento none/soft/hard, action
+        desconhecida/maiúscula, corpo inválido, 500 best-effort). Origem: transversal (≥2 apps).
+
 ### MinhasVacinas — Onda 3/4 (origem: ux-designer 2026-06-14, `MinhasVacinas/docs/design/wireframes.md`)
 > Gaps ALTA (componente-coração + template PDF) entregues na 2.32.0; **GAP-MV-M-06 (multi-seleção em
 > massa, pré-requisito da "aplicação em lote" do Rebanho, Onda 4) entregue na 2.33.0.** App KMP de
