@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ads.stats
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,9 +21,12 @@ import kotlinx.datetime.toLocalDateTime
  * Gravacao e fire-and-forget num coroutine scope interno — nao bloqueia UI.
  * Erros sao logados via [AppLogger] e ignorados.
  *
+ * A partir da kmplib 2.37.0 o backend de gravacao padrao e o **apps-api** (REST,
+ * [RestAdStatsRecorder]) — nao mais o Firestore. Basta passar o `httpClient`.
+ *
  * Uso:
  * ```kotlin
- * AdStats.initialize(appId = "meu-app")
+ * AdStats.initialize(appId = "meu-app", httpClient = appHttpClient)
  * // a partir daqui, ManagedBannerAd / BannerAd / CustomBannerAd ja registram.
  * ```
  */
@@ -44,17 +48,29 @@ object AdStats {
      * Inicializa o coletor.
      *
      * @param appId mesmo valor passado ao [AdRouter] e ao `CustomAdManager`.
-     * @param recorder backend de gravacao. Default usa [FirestoreAdStatsRecorder].
+     * @param httpClient `HttpClient` (Ktor) do app, usado pelo recorder REST padrao. Quando `null`
+     *   e sem `recorder` explicito, a gravacao vira no-op (best-effort, sem stats).
+     * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
+     * @param recorder backend de gravacao. Quando `null` (default), usa [RestAdStatsRecorder]
+     *   (apps-api) se houver `httpClient`. Passe um recorder explicito para testes (fake) ou para
+     *   usar o legado [FirestoreAdStatsRecorder].
      * @param scope coroutine scope. Default usa Dispatchers.Default.
      */
     fun initialize(
         appId: String,
-        recorder: AdStatsRecorder = FirestoreAdStatsRecorder(),
+        httpClient: HttpClient? = null,
+        appsApiBaseUrl: String = RestAdStatsRecorder.DEFAULT_APPS_API_BASE_URL,
+        recorder: AdStatsRecorder? = null,
         scope: CoroutineScope? = null,
     ) {
         scope?.let { this.scope = it }
         _appId = appId
-        _recorder = recorder
+        _recorder = recorder ?: if (httpClient != null) {
+            RestAdStatsRecorder(httpClient = httpClient, appsApiBaseUrl = appsApiBaseUrl)
+        } else {
+            AppLogger.w(TAG, "AdStats sem httpClient e sem recorder — stats viram no-op.")
+            NoopAdStatsRecorder
+        }
         _enabled = true
         AppLogger.d(TAG, "AdStats inicializado para appId=$appId")
     }

@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ads.router
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,10 +21,14 @@ import kotlinx.coroutines.flow.onEach
  * [ManagedBannerAd] / [ManagedInterstitialAd] consomem [routing] e decidem
  * sozinhos qual implementacao chamar.
  *
+ * A partir da kmplib 2.37.0 a config vem do backend central **apps-api** (REST,
+ * [RestAdRoutingSource]) — nao mais do Firestore. Passe o `httpClient` no [initialize] e o router
+ * constroi a fonte REST sozinho.
+ *
  * Uso:
  * ```kotlin
  * // Boot do app:
- * AdRouter.initialize("meu-app", defaults = AdRouting.ALL_CUSTOM)
+ * AdRouter.initialize("meu-app", httpClient = appHttpClient, defaults = AdRouting.ALL_CUSTOM)
  *
  * // Numa tela:
  * ManagedBannerAd(placementId = "home_top")
@@ -54,27 +59,41 @@ object AdRouter {
      * Inicializa o router. Pode ser chamado de novo pra trocar appId — o
      * observer anterior e cancelado.
      *
-     * @param appId identificador do app (mesmo valor que vai no doc do Firestore)
-     * @param defaults routing usado quando o doc `app_ad_configs/{appId}` nao existe
-     *   ou nao pode ser desserializado. Default: [AdRouting.OFF] (nada aparece
-     *   ate o admin habilitar).
-     * @param source fonte de dados — default usa Firestore.
+     * @param appId identificador do app (slug no catalogo central; vai no path
+     *   `/public/ad-config/{appId}`)
+     * @param httpClient `HttpClient` (Ktor) do app, usado pela fonte REST padrao. Quando `null` e
+     *   sem `source` explicito, cai num source vazio que sempre devolve [defaults] (best-effort).
+     * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
+     * @param defaults routing usado quando o servidor nao publicou config ou ha erro/corpo
+     *   invalido. Default: [AdRouting.OFF] (nada aparece ate o admin habilitar).
+     * @param source fonte de dados. Quando `null` (default), o router constroi um
+     *   [RestAdRoutingSource] a partir do `httpClient` (apps-api). Passe um source explicito para
+     *   testes (fake) ou para usar o legado [AdRoutingRepository] (Firestore).
      * @param scope coroutine scope para o observer — default `Dispatchers.Default`.
      *   Tests passam o scope do `runTest`.
      */
     fun initialize(
         appId: String,
+        httpClient: HttpClient? = null,
+        appsApiBaseUrl: String = RestAdRoutingSource.DEFAULT_APPS_API_BASE_URL,
         defaults: AdRouting = AdRouting.OFF,
-        source: AdRoutingSource = AdRoutingRepository(),
+        source: AdRoutingSource? = null,
         scope: CoroutineScope? = null,
     ) {
         observerJob?.cancel()
         scope?.let { this.scope = it }
         _appId = appId
-        _source = source
+
+        val resolvedSource = source ?: if (httpClient != null) {
+            RestAdRoutingSource(httpClient = httpClient, appsApiBaseUrl = appsApiBaseUrl)
+        } else {
+            AppLogger.w(TAG, "AdRouter sem httpClient e sem source — usando apenas defaults.")
+            EmptyAdRoutingSource
+        }
+        _source = resolvedSource
         _routing.value = defaults
 
-        observerJob = source.observeRouting(appId, defaults)
+        observerJob = resolvedSource.observeRouting(appId, defaults)
             .onEach { _routing.value = it }
             .launchIn(this.scope)
 

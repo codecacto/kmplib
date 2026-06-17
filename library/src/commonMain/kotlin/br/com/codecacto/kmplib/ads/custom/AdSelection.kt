@@ -24,7 +24,11 @@ internal fun selectAd(
     random: Random = Random.Default,
 ): CustomAd? {
     val eligible = candidates.filter { ad ->
-        ad.format == format &&
+        // Anuncio com `format` em branco casa com qualquer formato pedido. O backend REST
+        // (apps-api, 2.37.0) entrega house ads sem `format` no payload, deixando o slot
+        // (placementId) decidir onde aparece — banner vs interstitial. Anuncios do Firestore
+        // sempre tem `format` preenchido, entao o comportamento legado e preservado.
+        (ad.format.isBlank() || ad.format == format) &&
             (placementId == null || ad.placementId == placementId) &&
             ad.imageUrl.isNotBlank()
     }

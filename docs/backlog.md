@@ -3,6 +3,25 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+- [x] **Ads (house ads + routing + stats) → apps-api central (REST)** — **ENTREGUE na 2.37.0**.
+      Épico "Monitoramento → banco central": os 3 caminhos de ads do kmplib saíram do Firestore
+      (`custom_ads`, `app_ad_configs`, `ad_stats`) e passaram a usar os endpoints públicos do apps-api
+      — mesma migração do `DeveloperInfoService`/`FeedbackService`. Interfaces preservadas
+      (`CustomAdSource`/`AdRoutingSource`/`AdStatsRecorder`); só a fonte mudou (API pública dos
+      composables intacta). Padrão Ktor core puro + `handleApiCall`/`ApiResult` + kotlinx-json; tudo
+      best-effort.
+      - **Novas sources REST (default):** `RestCustomAdSource` (`GET /public/ads/app/{appId}?placement=`),
+        `RestAdRoutingSource` (`GET /public/ad-config/{appId}`), `RestAdStatsRecorder`
+        (`POST /public/ad-stats`). `CustomAdConfig` ganhou `httpClient`/`appsApiBaseUrl`;
+        `AdRouter.initialize`/`AdStats.initialize` ganharam `httpClient`/`appsApiBaseUrl`. Fallbacks
+        `EmptyCustomAdSource`/`EmptyAdRoutingSource`/`NoopAdStatsRecorder` quando falta `httpClient`.
+      - **`selectAd`:** ad com `format` em branco (caso REST) casa com banner E interstitial (placement
+        decide o slot); ads Firestore (format preenchido) seguem o filtro estrito.
+      - **Legado Firestore mantido como opt-in** (`CustomAdRepository`/`AdRoutingRepository`/
+        `FirestoreAdStatsRecorder`) — não é mais default, mas continua injetável via `source`/`recorder`.
+      - Testes: `RestCustomAdSourceTest` (8), `RestAdRoutingSourceTest` (6), `RestAdStatsRecorderTest`
+        (3) — Ktor MockEngine. Origem: transversal (todo app monetizado).
+
 - [x] **Force Update (atualização obrigatória) — módulo `appupdate`** — **ENTREGUE na 2.34.0**.
       Lado mobile do Force Update, consumindo o endpoint PÚBLICO do admin-api
       `GET /public/app-version?project=&platform=&versionCode=`. Serve todo app do ecossistema (a
