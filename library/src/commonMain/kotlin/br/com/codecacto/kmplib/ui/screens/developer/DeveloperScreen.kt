@@ -62,8 +62,11 @@ private val WhatsAppGreen = Color(0xFF25D366)
  *
  * Mostra a identidade do desenvolvedor (CodeCacto), botões de contato
  * (WhatsApp, e-mail e, opcionalmente, site) e uma grade vertical com os apps
- * publicados. Contato e apps são carregados do Firestore central via
- * [DeveloperInfoService] (com fallback offline — nunca quebra a tela).
+ * publicados. Contato e apps são carregados do backend central **apps-api** via
+ * [DeveloperInfoService] (`GET /public/developer`, com fallback offline — nunca quebra a tela).
+ *
+ * Requer `DeveloperInfoService.initialize(DeveloperConfig(httpClient = ...))` no bootstrap do app
+ * (mesmo ponto do `FeedbackService`). Sem inicializar, a tela renderiza com o fallback padrão.
  *
  * ```kotlin
  * DeveloperScreen(

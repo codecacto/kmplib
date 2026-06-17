@@ -434,6 +434,23 @@
       `PaginatedResponse` de `core/network` (não duplicou). `FirestoreService` e `FeedbackService`
       mantidos intactos (legado). 17 testes (`RestRepositoryTest`, MockEngine). **Próximo:** Fase 2 —
       Meu Advogado consumir `RestRepository` para a entidade `Request`.
+- [x] **`DeveloperInfoService` → apps-api central** — entregue na **2.36.0** (última peça
+      "Firestore-como-banco" da tela "Sobre o desenvolvedor"). O `DeveloperInfoService` deixou de ler
+      do Firestore REST do projeto `code-cacto` (coleção `developer_apps` + doc `developer_info/contact`,
+      **API key web hardcoded REMOVIDA**) e passou a fazer um **único GET PÚBLICO**
+      `GET {appsApiBaseUrl}/public/developer` → `{ contact:{whatsapp,email,site},
+      apps:[{id,name,description,logoUrl,storeUrl,order}] }` no backend central **apps-api**. Reusa
+      `core/network` (`handleApiCall`/`ApiResult`) + Ktor `HttpClient` puro (sem ContentNegotiation),
+      mesmo padrão de `FeedbackService`/`AppUpdateService`; resposta cacheada em memória (1 request por
+      sessão da tela). Best-effort: rede/4xx/5xx/corpo inválido/não-inicializado → fallback (contato
+      padrão + lista vazia), nunca lança/quebra a `DeveloperScreen`. **Mudança de config:** novo
+      `DeveloperConfig(httpClient, appsApiBaseUrl?)` + `DeveloperInfoService.initialize(config)` no
+      bootstrap, substituindo o antigo `configure(projectId, apiKey)`; **removido** o `expect/actual
+      httpGet` (actuals Android/iOS deletados). API pública da tela inalterada (`fetchContact()`/
+      `fetchApps()`, modelos `DeveloperContact`/`DeveloperApp`). 8 testes (`DeveloperInfoServiceTest`,
+      MockEngine). **Consumidores a adotar no próximo build:** todo app que usa `DeveloperScreen`
+      (Super 8, LocAki, Meu Advogado, Influencer, ...) — chamar `DeveloperInfoService.initialize(...)`
+      no mesmo ponto do `FeedbackService.initialize(...)`. Sem inicializar, a tela cai no fallback.
 
 ## Prioridade alta
 - [ ] **Publicar artefatos iOS da kmplib a partir de host macOS** — o naming dos artefatos por-target
