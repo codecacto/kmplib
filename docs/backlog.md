@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Influencer — Fase 4 Fatia A / Dashboard (origem: 2026-06-19)
+- [ ] **GAP-INF-M-CHART-01 — componente `BarChart`/`StackedBarChart` Compose nativo (Android/iOS)** —
+      Média (alta por reuso). O dashboard mobile do Influencer (gráfico "Faturamento últimos 6 meses",
+      barras empilhadas recebido + a receber + legenda) precisa de um gráfico de barras Compose MP; hoje
+      a kmplib **não tem** gráfico nativo. Componente local foi montado no app nesta entrega (contorno).
+      **DUPLICA G-MF-M-04 do MeuFrete e G-M1 do Locador** (ambos pedem chart simples Compose, espelhando
+      `SimpleBarChart`/`SimpleAreaChart` da weblib) → **3º consumidor, promover**. **Espelhar a API da
+      weblib** para paridade; cobrir 1 série (barras/área) e ≥2 séries (empilhado/agrupado) + legenda —
+      par do gap weblib "Chart temporal com 2 séries" (`StackedRevenueChart`). Esforço: M.
+      Contorno atual: barras proporcionais com `Box`/`Row` local no app.
+
 - [x] **Ads simplificados: remover AdMob/Firebase Ads + custom por projeto+superfície** —
       **ENTREGUE na 2.38.0**. A publicidade da kmplib passa a ser **APENAS house ads** (anúncios
       próprios via apps-api). **AdMob/Firebase Ads removidos por completo:** pacote `firebase/ads`
