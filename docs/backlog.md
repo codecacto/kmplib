@@ -3,6 +3,71 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Influencer — Paridade web↔mobile: Mapa OSM + PDF estruturado (origem: 2026-06-19)
+- [x] **GAP-INF-M-MAP-01 — mapa OSM/Leaflet multiplataforma (Android + iOS, sem chave paga)** —
+      **ENTREGUE na 2.40.0**. Novo subpacote `map/osm` (distinto do `map/MapView` Google Maps/GAP-02, que
+      exige API key faturável e tem iOS placeholder). **Decisão técnica:** WebView + Leaflet + tiles
+      `tile.openstreetmap.org` — espelha exatamente o stack da web do Influencer
+      (`web/src/components/map/MapInner.tsx`: `react-leaflet` + OSM), **sem nenhuma chave de API**, e
+      **iOS funcional desde já** (`WKWebView`, não placeholder). WebView via expect/actual
+      (`OsmMapWebView`): Android `android.webkit.WebView`, iOS `WKWebView` (Compose `UIKitView`).
+      - **API pública (`br.com.codecacto.kmplib.map.osm`):**
+        `OsmMap(markers: List<OsmMarker>, modifier, center: OsmLatLng = OsmDefaults.BRAZIL_CENTER, zoom =
+        12f, height = 360.dp, onMarkerClick: (markerId: String) -> Unit = {})` (N pins — espelha
+        `ClientsMap`); `OsmSinglePinMap(point: OsmLatLng, modifier, label?, zoom = 15f, height = 220.dp,
+        scrollEnabled = false)` (1 pin só-leitura — espelha `SinglePinMap`); `OsmPickerMap(value:
+        OsmLatLng?, onPick: (OsmLatLng) -> Unit, modifier, height = 220.dp, zoomWithValue = 15f, zoomEmpty
+        = 12f)` (escolher localização por clique — espelha `PickerMap`). Modelos `OsmLatLng(latitude,
+        longitude)`, `OsmMarker(id, position, title = "")`; defaults `OsmDefaults.BRAZIL_CENTER` (São
+        Paulo, igual ao web) / `CITY_ZOOM` / `STREET_ZOOM`.
+      - **Bridge JS→Kotlin:** template Leaflet único em `OsmLeafletHtml` (commonMain puro, testável);
+        clique em pin/mapa volta por `window.kmpBridge.postMessage(json)` (Android `@JavascriptInterface`;
+        iOS `WKScriptMessageHandler` + shim webkit). Parser de mensagem leniente sem kotlinx-json.
+      - **Testes:** `map/osm/OsmLeafletHtmlTest` (commonTest, 10 casos: Leaflet+OSM sem key, centro/zoom,
+        pins id/título, picker on/off, gestos interactive on/off, shim só-iOS, escape JSON, parse
+        marker/map/inválido). `:kmplib:compileDebugKotlinAndroid` + `compileCommonMainKotlinMetadata` BUILD
+        SUCCESSFUL; testes 10/0/0. **klibs/framework iOS pendentes de host macOS** (P-IOS); o `actual` iOS
+        está completo (WKWebView), validar render visual em macOS.
+      - **Consumo no Influencer mobile:** tela "Mapa de clientes" → `OsmMap` (mapear `ClientDto` com
+        lat/lng → `OsmMarker(id, OsmLatLng(lat,lng), name)`, `onMarkerClick` navega p/ ficha); ficha do
+        cliente → `OsmSinglePinMap`; form de cliente → `OsmPickerMap` (clique define lat/lng). Sem chave,
+        sem dependência nova no app. Bump kmplib → 2.40.0.
+
+- [x] **GAP-INF-M-PDF-01 — gerador de PDF de documento estruturado (Android + iOS funcional)** —
+      **ENTREGUE na 2.40.0**. Novo template `pdf/DocumentPdf*` para espelhar os PDFs `@react-pdf` da web
+      do Influencer (contrato de parceria, relatório mensal do cliente) — documento **multi-seção**
+      genérico, distinto do `OsPdfData` (financeiro fixo "TOTAL R$") e do `TableReportPdfData` (tabela
+      pura). **iOS NÃO é placeholder** (ao contrário do `TableReportPdfGenerator.ios`, que ainda lança):
+      render real via `UIGraphicsPDFRenderer`/Core Graphics, espelhando o layout do Android.
+      - **Modelo (`DocumentPdfData`):** `company: DocumentPdfCompany(name, phone?, email?, address?,
+        logoBytes?)`, `title`, `subtitle?`, `headerInfo: List<DocumentInfoRow>` (chave→valor),
+        `sections: List<DocumentSection>`, `footer?`, `watermark`/`watermarkText`. `DocumentSection`
+        (sealed): `Info(title?, rows, emptyText)` / `Table(title?, columns: List<DocumentColumn>, rows:
+        List<DocumentRow>, emptyText)` / `Cards(title?, cards: List<DocumentCard>, emptyText)` /
+        `Paragraph(title?, text)` / `Total(title?, label, value)`. Tudo **texto já formatado** pelo app
+        (dinheiro como string "R$ ..."; a lib não conhece moeda).
+      - **API:** `interface DocumentPdfGenerator { fun generate(data): ByteArray }`,
+        `expect fun createDocumentPdfGenerator()`, `generateDocumentPdfBytes(data)`,
+        `generateAndShareDocumentPdf(data, shareHandler = getShareHandler(), fileName, shareTitle)`
+        (reusa `ShareHandler`), `defaultDocumentPdfFileName(title)`. Android `PdfDocument`; iOS
+        `UIGraphicsPDFRenderer` — ambos com paginação, zebra, marca d'água -45°.
+      - **Viabilidade do PDF KMP fiel:** CONFIRMADA — gerador KMP nativo (não server-side). Reaproveita o
+        padrão já validado de Android `PdfDocument` + iOS `UIGraphicsPDFRenderer` (mesma técnica do
+        `ReciboPdf.ios.kt`, que o fundador já valida em macOS). Layout legível com as MESMAS informações
+        da web (não pixel-a-pixel).
+      - **Testes:** `pdf/DocumentPdfDataTest` (commonTest, 6 casos: filename sanitiza/.pdf/fallback,
+        `equals` com logoBytes, composição da shape de contrato, defaults de seção). Testes 6/0/0;
+        `:kmplib:publishAndroidReleasePublicationToMavenLocal` + `publishKotlinMultiplatformPublication...`
+        BUILD SUCCESSFUL → `br.com.codecacto:kmplib:2.40.0`. **klib iOS pendente de host macOS** (P-IOS);
+        actual iOS completo.
+      - **Consumo no Influencer mobile:** PDF do contrato → `DocumentPdfData(title="Contrato de Parceria",
+        headerInfo=[org/cliente], sections=[Table("Termos", plano/vigência/qtds), Total("Valor mensal")])`;
+        PDF do relatório mensal → `sections=[Cards("Entregas"), Table("Conteúdos postados"),
+        Info("Financeiro"), Total]`. Chamar `generateAndShareDocumentPdf(data)`.
+
+- [G10] **Removidos os `.bak` órfãos do FilePicker** — `FilePicker.android.kt.bak` e
+      `FilePicker.ios.kt.bak` (gap G10 da auditoria) deletados na rodada da 2.40.0.
+
 ### Influencer — Fase 4 Fatia A / Dashboard (origem: 2026-06-19)
 - [x] **GAP-INF-M-CHART-01 — componente `BarChart`/`StackedBarChart` Compose nativo (Android/iOS)** —
       **ENTREGUE na 2.39.0**. `ui/components/BarChart.kt` (commonMain puro, sem expect/actual, sem lib de
