@@ -25,7 +25,7 @@ class AdRouterTest {
     }
 
     @Test
-    fun `initialize sem doc no Firestore aplica defaults`() = runTest {
+    fun `initialize sem config publicada aplica defaults`() = runTest {
         val source = FakeAdRoutingSource(initialRouting = null)
         AdRouter.initialize("meu-app", defaults = AdRouting.ALL_CUSTOM, source = source, scope = backgroundScope)
         runCurrent()
@@ -36,8 +36,8 @@ class AdRouterTest {
     }
 
     @Test
-    fun `initialize com doc existente usa valor do Firestore`() = runTest {
-        val stored = AdRouting(banner = AdProvider.ADMOB, interstitial = AdProvider.CUSTOM, version = 7)
+    fun `initialize com config existente usa valor do servidor`() = runTest {
+        val stored = AdRouting(banner = AdProvider.CUSTOM, interstitial = AdProvider.OFF, version = 7)
         val source = FakeAdRoutingSource(initialRouting = stored)
         AdRouter.initialize("meu-app", defaults = AdRouting.OFF, source = source, scope = backgroundScope)
         runCurrent()
@@ -52,20 +52,20 @@ class AdRouterTest {
         runCurrent()
         assertEquals(AdRouting.ALL_CUSTOM, AdRouter.routing.value)
 
-        // Admin trocou pra AdMob no portal
-        source.set(AdRouting.ALL_ADMOB)
-        runCurrent()
-        assertEquals(AdRouting.ALL_ADMOB, AdRouter.routing.value)
-
-        // Admin desligou
+        // Admin desligou no portal
         source.set(AdRouting.OFF)
         runCurrent()
         assertEquals(AdRouting.OFF, AdRouter.routing.value)
+
+        // Admin religou
+        source.set(AdRouting.ALL_CUSTOM)
+        runCurrent()
+        assertEquals(AdRouting.ALL_CUSTOM, AdRouter.routing.value)
     }
 
     @Test
     fun `reset limpa estado`() = runTest {
-        AdRouter.initialize("x", source = FakeAdRoutingSource(AdRouting.ALL_ADMOB), scope = backgroundScope)
+        AdRouter.initialize("x", source = FakeAdRoutingSource(AdRouting.ALL_CUSTOM), scope = backgroundScope)
         runCurrent()
         assertTrue(AdRouter.initialized.value)
 
@@ -78,10 +78,10 @@ class AdRouterTest {
 
     @Test
     fun `initialize trocando appId substitui o observer`() = runTest {
-        val src1 = FakeAdRoutingSource(AdRouting.ALL_ADMOB)
+        val src1 = FakeAdRoutingSource(AdRouting.OFF)
         AdRouter.initialize("app-a", source = src1, scope = backgroundScope)
         runCurrent()
-        assertEquals(AdRouting.ALL_ADMOB, AdRouter.routing.value)
+        assertEquals(AdRouting.OFF, AdRouter.routing.value)
 
         val src2 = FakeAdRoutingSource(AdRouting.ALL_CUSTOM)
         AdRouter.initialize("app-b", source = src2, scope = backgroundScope)

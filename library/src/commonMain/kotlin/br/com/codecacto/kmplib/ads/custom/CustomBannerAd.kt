@@ -21,12 +21,11 @@ import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
 
 /**
- * Banner customizado retangular vindo do Firestore.
+ * Banner customizado retangular (house ad) vindo do backend central (apps-api).
  *
  * - Respeita [MonetizationManager.shouldShowAds] (oculta quando usuario e premium
- *   ou Remote Config desliga ads).
- * - Filtra anuncios por [placementId] (se nao-nulo) e formato `"banner"`.
- * - Exibe o de maior prioridade.
+ *   ou a monetizacao desliga ads).
+ * - Filtra anuncios por formato `"banner"` e escolhe um por rotacao simples.
  * - No clique abre [CustomAd.targetUrl] no navegador via [getUrlLauncher].
  *
  * Pre-requisito: chamar `CustomAdManager.initialize(...)` no boot do app.
@@ -34,7 +33,6 @@ import coil3.compose.AsyncImage
 @Composable
 fun CustomBannerAd(
     modifier: Modifier = Modifier,
-    placementId: String? = null,
     height: Dp = 60.dp,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
@@ -46,8 +44,8 @@ fun CustomBannerAd(
         return
     }
 
-    val ad = remember(ads, placementId) {
-        selectAd(ads, format = CustomAd.FORMAT_BANNER, placementId = placementId)
+    val ad = remember(ads) {
+        selectAd(ads, format = CustomAd.FORMAT_BANNER)
     }
 
     if (ad == null) {

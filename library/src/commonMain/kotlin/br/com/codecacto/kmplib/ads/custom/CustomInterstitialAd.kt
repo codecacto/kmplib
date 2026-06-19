@@ -37,12 +37,12 @@ import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
 
 /**
- * Anuncio interstitial customizado (tela cheia) vindo do Firestore.
+ * Anuncio interstitial customizado (tela cheia, house ad) vindo do backend central (apps-api).
  *
  * - Renderizado como [Dialog] full-screen quando [show] e `true`.
  * - Respeita [MonetizationManager.shouldShowAds] (chama [onDismiss] imediatamente
  *   se ads estao desligados).
- * - Filtra por [placementId] (se nao-nulo) e formato `"interstitial"`.
+ * - Filtra por formato `"interstitial"` e escolhe um por rotacao simples.
  * - Botao "X" no canto superior direito dispara [onDismiss].
  * - Clique na imagem ou no botao CTA abre [CustomAd.targetUrl] e dispara [onDismiss].
  *
@@ -54,7 +54,6 @@ import coil3.compose.AsyncImage
  *
  * CustomInterstitialAd(
  *     show = showAd,
- *     placementId = "after_level_finish",
  *     onDismiss = { showAd = false }
  * )
  * ```
@@ -62,7 +61,6 @@ import coil3.compose.AsyncImage
 @Composable
 fun CustomInterstitialAd(
     show: Boolean,
-    placementId: String? = null,
     onDismiss: () -> Unit,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
@@ -76,8 +74,8 @@ fun CustomInterstitialAd(
         return
     }
 
-    val ad = remember(ads, placementId) {
-        selectAd(ads, format = CustomAd.FORMAT_INTERSTITIAL, placementId = placementId)
+    val ad = remember(ads) {
+        selectAd(ads, format = CustomAd.FORMAT_INTERSTITIAL)
     }
 
     if (ad == null) {

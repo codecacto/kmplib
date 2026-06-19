@@ -55,14 +55,14 @@ class RestAdStatsRecorderTest {
     fun `click envia clicks 1 e impressions 0`() = runTest {
         val cap = Captured()
         recorder(captured = cap).record(
-            provider = AdProviderTag.ADMOB,
+            provider = AdProviderTag.CUSTOM,
             appId = "meu-app",
             format = AdFormat.INTERSTITIAL,
             adId = null,
             type = AdEventType.CLICK,
         )
         val body = cap.body!!
-        assertTrue(body.contains("\"provider\":\"admob\""), body)
+        assertTrue(body.contains("\"provider\":\"custom\""), body)
         assertTrue(body.contains("\"format\":\"interstitial\""), body)
         // adId nulo vira "all" (agregado)
         assertTrue(body.contains("\"adId\":\"all\""), body)

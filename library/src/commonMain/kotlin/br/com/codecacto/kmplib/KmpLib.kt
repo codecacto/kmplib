@@ -34,30 +34,28 @@ package br.com.codecacto.kmplib
  * - `FirestoreService` - Operações CRUD no Firestore
  * - `StorageService` - Upload/download de arquivos
  *
- * ### Custom Ads (anúncios próprios via Firestore)
- * - `CustomAdManager` - Inicialização e observação dos anúncios
+ * ### House Ads (anúncios próprios via apps-api)
+ * - `CustomAdManager` - Inicialização e observação dos anúncios (por projeto + superfície)
  * - `CustomBannerAd` - Banner retangular com URL de destino
  * - `CustomInterstitialAd` - Anúncio full-screen com botão fechar
  *
- * Funcionalidade independente do AdMob (pacote `firebase/ads`). Os anúncios
- * são documentos da coleção `custom_ads` (configurável) no Firestore — cada
- * doc traz uma imagem e a URL que abre ao clicar.
+ * Sem AdMob: a publicidade é apenas house ads servidos pelo backend central
+ * (`GET /public/ads?project={slug}&surface=app`). Cada anúncio traz uma imagem e a URL que abre ao
+ * clicar.
  *
- * ### Ad Router (alterna AdMob ↔ Custom remotamente)
- * - `AdRouter` - Singleton que observa `app_ad_configs/{appId}` no Firestore
- * - `ManagedBannerAd` - Banner dispatcher (despacha pra AdMob, Custom ou nada)
+ * ### Ad Router (liga/desliga house ads remotamente)
+ * - `AdRouter` - Singleton que lê a config (`GET /public/ad-config/{appId}`) no apps-api
+ * - `ManagedBannerAd` - Banner dispatcher (despacha pra Custom ou nada)
  * - `ManagedInterstitialAd` - Interstitial dispatcher
  *
- * O app chama `Managed*` sem saber qual provider está ativo; o admin no portal
- * (`/anuncios` tab Configuração) alterna sem precisar de release.
+ * O app chama `Managed*` sem saber se o formato está ligado; o admin no portal alterna sem precisar
+ * de release.
  *
  * ### Ad Stats (impressões / cliques)
- * - `AdStats.initialize(appId)` - Liga a coleta no boot
+ * - `AdStats.initialize(appId, httpClient)` - Liga a coleta no boot
  *
- * Depois disso, BannerAd / InterstitialAd / AppOpenAd (AdMob) e
- * CustomBannerAd / CustomInterstitialAd registram automaticamente em
- * `ad_stats/{provider}__{appId}__{format}__{adId|all}__{YYYY-MM-DD}` via
- * `FieldValue.increment(1)`. O admin lê em `/anuncios` tab Estatísticas.
+ * Depois disso, CustomBannerAd / CustomInterstitialAd registram automaticamente via
+ * `POST /public/ad-stats` no apps-api. O admin lê no portal.
  *
  * ### Feedback
  * - `FeedbackService` - Envio centralizado de feedbacks via Firestore REST API

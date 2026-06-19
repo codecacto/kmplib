@@ -3,50 +3,31 @@ package br.com.codecacto.kmplib.ads.custom
 import kotlin.random.Random
 
 /**
- * Sorteio ponderado entre [CustomAd]s candidatos.
+ * Escolhe um [CustomAd] entre os candidatos para um [format].
+ *
+ * O backend (apps-api) ja entrega apenas anuncios ativos e segmentados por projeto/superficie — entao
+ * aqui nao ha mais filtro por placement/janela/app nem ordenacao por priority/weight. A escolha entre
+ * os ativos e uma **rotacao simples** (sorteio uniforme), deixando o app decidir onde/quando exibir.
  *
  * Regras:
- *  - Filtra `candidates` por [format], [placementId] (se nao-null) e `imageUrl`
- *    nao vazia.
+ *  - Filtra por [format] (anuncio com `format` em branco casa com qualquer formato pedido) e
+ *    `imageUrl` nao vazia.
  *  - Se nenhum sobra, retorna null.
- *  - Se a maior `priority` tem so um anuncio, retorna ele (priority manda).
- *  - Se a maior `priority` empata entre N anuncios, sorteia ponderado pelo
- *    `weight`. Anuncios com weight <= 0 sao excluidos do sorteio (mas se
- *    todos tiverem weight <= 0, retorna o primeiro pra nao mostrar Spacer
- *    quando ha conteudo disponivel).
+ *  - Caso contrario, sorteia um uniformemente entre os elegiveis.
  *
  * Determinismo de testes via [random].
  */
 internal fun selectAd(
     candidates: List<CustomAd>,
     format: String,
-    placementId: String?,
     random: Random = Random.Default,
 ): CustomAd? {
     val eligible = candidates.filter { ad ->
-        // Anuncio com `format` em branco casa com qualquer formato pedido. O backend REST
-        // (apps-api, 2.37.0) entrega house ads sem `format` no payload, deixando o slot
-        // (placementId) decidir onde aparece — banner vs interstitial. Anuncios do Firestore
-        // sempre tem `format` preenchido, entao o comportamento legado e preservado.
-        (ad.format.isBlank() || ad.format == format) &&
-            (placementId == null || ad.placementId == placementId) &&
-            ad.imageUrl.isNotBlank()
+        // Anuncio com `format` em branco casa com qualquer formato pedido. O backend REST entrega
+        // house ads possivelmente sem `format`, deixando a superficie decidir onde aparece.
+        (ad.format.isBlank() || ad.format == format) && ad.imageUrl.isNotBlank()
     }
     if (eligible.isEmpty()) return null
-
-    val maxPriority = eligible.maxOf { it.priority }
-    val topTier = eligible.filter { it.priority == maxPriority }
-    if (topTier.size == 1) return topTier.first()
-
-    // Sorteio ponderado no topo do priority tier
-    val totalWeight = topTier.sumOf { it.weight.coerceAtLeast(0) }
-    if (totalWeight <= 0) return topTier.first()
-
-    var pick = random.nextInt(totalWeight)
-    for (ad in topTier) {
-        val w = ad.weight.coerceAtLeast(0)
-        if (pick < w) return ad
-        pick -= w
-    }
-    return topTier.last() // fallback teorico
+    if (eligible.size == 1) return eligible.first()
+    return eligible[random.nextInt(eligible.size)]
 }

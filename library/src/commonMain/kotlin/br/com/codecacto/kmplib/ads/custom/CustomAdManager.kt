@@ -13,27 +13,24 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
- * Orquestrador singleton dos Custom Ads (anuncios proprios via Firestore).
+ * Orquestrador singleton dos house ads (anuncios proprios do app).
  *
- * Funcionalidade NOVA e independente do AdMob/Firebase Ads (ver
- * [br.com.codecacto.kmplib.firebase.ads.AdManager]). Os dois podem coexistir.
- *
- * A partir da kmplib 2.37.0 a fonte padrao e o backend central **apps-api** (REST,
- * [RestCustomAdSource]) — nao mais o Firestore. Basta passar `httpClient` + `appId` no
- * [CustomAdConfig]; o manager constroi o source REST sozinho.
+ * A fonte e o backend central **apps-api** (REST, [RestCustomAdSource]), por **projeto + superficie**.
+ * Basta passar `projectSlug` (+ `surface`, default "app") + `httpClient` no [CustomAdConfig]; o manager
+ * constroi o source REST sozinho.
  *
  * Uso:
  * ```kotlin
  * CustomAdManager.initialize(
  *     CustomAdConfig(
- *         appId = "meu-app",
+ *         projectSlug = "meu-app",
+ *         surface = "app",
  *         httpClient = appHttpClient,   // o mesmo de feedback/developer
- *         placementId = "home_top",
  *     )
  * )
  *
  * // Em qualquer Composable:
- * CustomBannerAd(placementId = "home_top")
+ * CustomBannerAd()
  * ```
  */
 object CustomAdManager {
@@ -51,7 +48,7 @@ object CustomAdManager {
     /** Configuracao atual (null se nao inicializado). */
     val config: CustomAdConfig? get() = _config
 
-    /** Anuncios ativos atualmente disponiveis (atualizado em tempo real). */
+    /** Anuncios ativos atualmente disponiveis. */
     val ads: StateFlow<List<CustomAd>> = _ads.asStateFlow()
 
     /** Se o manager ja foi inicializado. */
@@ -63,10 +60,10 @@ object CustomAdManager {
      * Pode ser chamado mais de uma vez para trocar [CustomAdConfig] — o observer
      * anterior e cancelado e um novo e iniciado.
      *
-     * @param config configuracao. Para a fonte REST padrao, traga `httpClient` + `appId`.
+     * @param config configuracao. Para a fonte REST padrao, traga `projectSlug` + `httpClient`.
      * @param source fonte de dados. Quando `null` (default), o manager constroi um
      *   [RestCustomAdSource] a partir do `config` (apps-api). Passe um source explicito para
-     *   testes (fake) ou para usar o legado [CustomAdRepository] (Firestore).
+     *   testes (fake).
      * @param scope coroutine scope do observer.
      */
     fun initialize(
@@ -81,30 +78,31 @@ object CustomAdManager {
         val resolvedSource = source ?: resolveDefaultSource(config)
         _source = resolvedSource
 
-        observerJob = resolvedSource.observeAds(config.placementId, config.appId)
+        observerJob = resolvedSource.observeAds()
             .onEach { _ads.value = it }
             .launchIn(this.scope)
 
         _initialized.value = true
-        AppLogger.d(TAG, "CustomAdManager inicializado (source=REST, app=${config.appId}, placement=${config.placementId})")
+        AppLogger.d(TAG, "CustomAdManager inicializado (project=${config.projectSlug}, surface=${config.surface})")
     }
 
     /**
-     * Resolve a fonte padrao a partir do [config]: REST (apps-api) quando ha `httpClient` + `appId`.
-     * Sem `httpClient`/`appId` e sem `source` explicito, cai num source vazio (best-effort, sem
+     * Resolve a fonte padrao a partir do [config]: REST (apps-api) quando ha `httpClient` +
+     * `projectSlug`. Sem eles e sem `source` explicito, cai num source vazio (best-effort, sem
      * anuncios) em vez de lancar — mantem a regra de ouro de nunca derrubar o app por causa de ads.
      */
     private fun resolveDefaultSource(config: CustomAdConfig): CustomAdSource {
         val client = config.httpClient
-        val appId = config.appId
-        return if (client != null && !appId.isNullOrBlank()) {
+        val slug = config.projectSlug
+        return if (client != null && !slug.isNullOrBlank()) {
             RestCustomAdSource(
                 httpClient = client,
-                appId = appId,
+                projectSlug = slug,
+                surface = config.surface,
                 appsApiBaseUrl = config.appsApiBaseUrl,
             )
         } else {
-            AppLogger.w(TAG, "CustomAdConfig sem httpClient/appId e sem source — nenhum anuncio sera carregado.")
+            AppLogger.w(TAG, "CustomAdConfig sem httpClient/projectSlug e sem source — nenhum anuncio sera carregado.")
             EmptyCustomAdSource
         }
     }
@@ -117,9 +115,8 @@ object CustomAdManager {
             AppLogger.w(TAG, "refresh() chamado antes de initialize()")
             return
         }
-        val config = _config ?: return
         scope.launch {
-            source.fetchAds(config.placementId, config.appId).onSuccess { _ads.value = it }
+            source.fetchAds().onSuccess { _ads.value = it }
         }
     }
 

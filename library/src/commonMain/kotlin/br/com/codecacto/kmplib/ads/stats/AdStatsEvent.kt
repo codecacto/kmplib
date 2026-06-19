@@ -10,26 +10,20 @@ enum class AdEventType {
 enum class AdFormat {
     BANNER,
     INTERSTITIAL,
-    APP_OPEN,
 }
 
-/** Qual backend exibiu o anuncio. */
+/** Qual backend exibiu o anuncio. Hoje so existem house ads (CUSTOM). */
 enum class AdProviderTag {
-    ADMOB,
     CUSTOM,
 }
 
 /**
- * Identifica unicamente um "stat bucket" no Firestore.
+ * Identifica unicamente um "stat bucket" no agregado por dia.
  *
- * Custom ads sao agregados por `adId` (cada anuncio tem suas proprias metricas).
- * AdMob nao tem adId individual visivel pro app — agregamos por
- * `provider+appId+format` (todos os impressions de banner do app X virao
- * num bucket so).
+ * House ads (CUSTOM) sao agregados por `adId` (cada anuncio tem suas proprias metricas).
  *
  * Doc ID resultante:
  *   `custom__<appId>__banner__<adId>__<YYYY-MM-DD>`
- *   `admob__<appId>__banner__all__<YYYY-MM-DD>`
  */
 internal fun buildStatKey(
     provider: AdProviderTag,

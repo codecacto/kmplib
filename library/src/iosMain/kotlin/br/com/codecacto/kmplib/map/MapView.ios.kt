@@ -21,8 +21,7 @@ import androidx.compose.ui.unit.dp
  * TODO(GAP-02/iOS): substituir o placeholder por `UIViewControllerRepresentable`
  * wrappando `GMSMapView` do **Google Maps SDK for iOS**. Requer:
  *  1. Adicionar o pod/SPM `GoogleMaps` ao Xcode do app consumidor.
- *  2. Configurar um cinterop `def` para `GoogleMaps` (como já existe para
- *     `GoogleMobileAds` em `src/nativeInterop/cinterop/`).
+ *  2. Configurar um cinterop `def` para `GoogleMaps` em `src/nativeInterop/cinterop/`.
  *  3. Inicializar a API key via `GMSServices.provideAPIKey(...)` no boot iOS.
  *
  * O SDK iOS não está disponível neste ambiente Windows; o build final iOS

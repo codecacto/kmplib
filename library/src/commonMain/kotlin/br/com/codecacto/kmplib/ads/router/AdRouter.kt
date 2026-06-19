@@ -13,17 +13,12 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
 /**
- * Decide em runtime qual provider de publicidade usar pra cada formato,
- * baseado em config remota no Firestore (`app_ad_configs/{appId}`).
+ * Decide em runtime qual provider de publicidade usar pra cada formato, baseado em config remota do
+ * backend central **apps-api** (REST, [RestAdRoutingSource]).
  *
- * O app inicializa uma vez no boot, passando o [appId] e um [defaults] caso
- * o admin nao tenha publicado nenhuma config ainda. Depois, os composables
- * [ManagedBannerAd] / [ManagedInterstitialAd] consomem [routing] e decidem
- * sozinhos qual implementacao chamar.
- *
- * A partir da kmplib 2.37.0 a config vem do backend central **apps-api** (REST,
- * [RestAdRoutingSource]) — nao mais do Firestore. Passe o `httpClient` no [initialize] e o router
- * constroi a fonte REST sozinho.
+ * O app inicializa uma vez no boot, passando o [appId], o `httpClient` e um [defaults] caso o admin
+ * nao tenha publicado nenhuma config ainda. Depois, os composables [ManagedBannerAd] /
+ * [ManagedInterstitialAd] consomem [routing] e decidem sozinhos qual implementacao chamar.
  *
  * Uso:
  * ```kotlin
@@ -31,7 +26,7 @@ import kotlinx.coroutines.flow.onEach
  * AdRouter.initialize("meu-app", httpClient = appHttpClient, defaults = AdRouting.ALL_CUSTOM)
  *
  * // Numa tela:
- * ManagedBannerAd(placementId = "home_top")
+ * ManagedBannerAd()
  * ```
  */
 object AdRouter {
@@ -68,7 +63,7 @@ object AdRouter {
      *   invalido. Default: [AdRouting.OFF] (nada aparece ate o admin habilitar).
      * @param source fonte de dados. Quando `null` (default), o router constroi um
      *   [RestAdRoutingSource] a partir do `httpClient` (apps-api). Passe um source explicito para
-     *   testes (fake) ou para usar o legado [AdRoutingRepository] (Firestore).
+     *   testes (fake).
      * @param scope coroutine scope para o observer — default `Dispatchers.Default`.
      *   Tests passam o scope do `runTest`.
      */

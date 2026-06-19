@@ -6,9 +6,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 
 /**
- * Fake [AdRoutingSource] in-memory para testes — sem Firebase.
+ * Fake [AdRoutingSource] in-memory para testes — sem rede.
  *
- * `null` no estado simula doc inexistente no Firestore — o observer devolve
+ * `null` no estado simula config nao publicada no servidor — o observer devolve
  * o `default` que [AdRouter] passou no observe.
  */
 class FakeAdRoutingSource(

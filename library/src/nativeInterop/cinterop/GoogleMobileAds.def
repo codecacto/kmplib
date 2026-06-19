@@ -1,4 +1,0 @@
-language = Objective-C
-package = br.com.codecacto.kmplib.cinterop.googleads
-
-modules = GoogleMobileAds

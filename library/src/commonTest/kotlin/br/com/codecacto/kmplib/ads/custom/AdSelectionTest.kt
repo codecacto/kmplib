@@ -11,7 +11,7 @@ class AdSelectionTest {
 
     @Test
     fun `retorna null quando nao ha candidatos`() {
-        assertNull(selectAd(emptyList(), CustomAd.FORMAT_BANNER, placementId = null))
+        assertNull(selectAd(emptyList(), CustomAd.FORMAT_BANNER))
     }
 
     @Test
@@ -20,18 +20,15 @@ class AdSelectionTest {
             CustomAd(id = "1", imageUrl = "x", format = CustomAd.FORMAT_INTERSTITIAL),
             CustomAd(id = "2", imageUrl = "x", format = CustomAd.FORMAT_BANNER),
         )
-        val picked = selectAd(ads, CustomAd.FORMAT_BANNER, placementId = null)
+        val picked = selectAd(ads, CustomAd.FORMAT_BANNER)
         assertEquals("2", picked?.id)
     }
 
     @Test
-    fun `filtra por placementId quando informado`() {
-        val ads = listOf(
-            CustomAd(id = "1", imageUrl = "x", placementId = "home"),
-            CustomAd(id = "2", imageUrl = "x", placementId = "settings"),
-        )
-        val picked = selectAd(ads, CustomAd.FORMAT_BANNER, placementId = "settings")
-        assertEquals("2", picked?.id)
+    fun `anuncio com format em branco casa com qualquer formato`() {
+        val ads = listOf(CustomAd(id = "1", imageUrl = "x", format = ""))
+        assertNotNull(selectAd(ads, CustomAd.FORMAT_BANNER))
+        assertNotNull(selectAd(ads, CustomAd.FORMAT_INTERSTITIAL))
     }
 
     @Test
@@ -40,48 +37,33 @@ class AdSelectionTest {
             CustomAd(id = "1", imageUrl = ""),
             CustomAd(id = "2", imageUrl = "x"),
         )
-        val picked = selectAd(ads, CustomAd.FORMAT_BANNER, placementId = null)
+        val picked = selectAd(ads, CustomAd.FORMAT_BANNER)
         assertEquals("2", picked?.id)
     }
 
     @Test
-    fun `priority manda quando ha so um vencedor`() {
-        val ads = listOf(
-            CustomAd(id = "low", imageUrl = "x", priority = 1, weight = 1000),
-            CustomAd(id = "high", imageUrl = "x", priority = 10, weight = 1),
-        )
-        // Apesar do weight enorme do "low", "high" tem maior priority e vence.
-        repeat(20) {
-            assertEquals("high", selectAd(ads, CustomAd.FORMAT_BANNER, null)?.id)
+    fun `retorna o unico elegivel`() {
+        val ads = listOf(CustomAd(id = "so-eu", imageUrl = "x"))
+        repeat(10) {
+            assertEquals("so-eu", selectAd(ads, CustomAd.FORMAT_BANNER)?.id)
         }
     }
 
     @Test
-    fun `sorteio ponderado distribui aproximadamente conforme weight`() {
+    fun `rotacao uniforme distribui entre os elegiveis`() {
         val ads = listOf(
-            CustomAd(id = "a", imageUrl = "x", priority = 5, weight = 1),
-            CustomAd(id = "b", imageUrl = "x", priority = 5, weight = 9),
+            CustomAd(id = "a", imageUrl = "x"),
+            CustomAd(id = "b", imageUrl = "x"),
         )
-        // Random fixo + 1000 iteracoes: esperamos ~10% "a", ~90% "b".
-        // Margem larga pra evitar flakiness: 5%-15% pra "a".
         val random = Random(seed = 42)
         val counts = mutableMapOf("a" to 0, "b" to 0)
         repeat(1000) {
-            val picked = selectAd(ads, CustomAd.FORMAT_BANNER, null, random)
+            val picked = selectAd(ads, CustomAd.FORMAT_BANNER, random)
             assertNotNull(picked)
             counts[picked.id] = counts.getValue(picked.id) + 1
         }
-        val pctA = counts.getValue("a") / 10.0 // sobre 1000 → percent
-        assertTrue(pctA in 5.0..15.0, "Esperava ~10% pra 'a', veio $pctA%")
-    }
-
-    @Test
-    fun `quando todos weights sao zero retorna o primeiro do topo`() {
-        val ads = listOf(
-            CustomAd(id = "1", imageUrl = "x", priority = 5, weight = 0),
-            CustomAd(id = "2", imageUrl = "x", priority = 5, weight = 0),
-        )
-        val picked = selectAd(ads, CustomAd.FORMAT_BANNER, null)
-        assertEquals("1", picked?.id)
+        // Distribuicao ~50/50 — margem larga pra evitar flakiness.
+        val pctA = counts.getValue("a") / 10.0
+        assertTrue(pctA in 35.0..65.0, "Esperava ~50% pra 'a', veio $pctA%")
     }
 }

@@ -2,7 +2,6 @@ package br.com.codecacto.kmplib
 
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
-import br.com.codecacto.kmplib.firebase.ads.AdManagerHolder
 import br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder
 import br.com.codecacto.kmplib.firebase.crashlytics.CrashlyticsHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
@@ -29,7 +28,6 @@ fun KmpLib.init(context: Context) {
     UrlLauncherHolder.init(context)
     ShareHandlerHolder.init(context)
     NotificationSchedulerHolder.init(context)
-    AdManagerHolder.init(context)
     GoogleAuthHolder.init(context)
     CrashlyticsHolder.init(context)
     SyncDatabaseHolder.init(context)
@@ -63,7 +61,6 @@ fun KmpLib.initSync(context: Context) {
 fun KmpLib.setActivity(activity: FragmentActivity) {
     BiometricAuthHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
-    AdManagerHolder.setActivity(activity)
     GoogleAuthHolder.setActivity(activity)
 }
 
@@ -74,6 +71,5 @@ fun KmpLib.setActivity(activity: FragmentActivity) {
 fun KmpLib.clearActivity() {
     BiometricAuthHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
-    AdManagerHolder.clearActivity()
     GoogleAuthHolder.clearActivity()
 }

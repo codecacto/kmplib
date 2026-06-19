@@ -21,7 +21,7 @@ class RestAdRoutingSourceTest {
     private fun source(
         captured: Captured = Captured(),
         status: HttpStatusCode = HttpStatusCode.OK,
-        body: String = """{ "banner": "custom", "interstitial": "admob", "appOpen": "off" }""",
+        body: String = """{ "banner": "custom", "interstitial": "off", "appOpen": "off" }""",
     ): RestAdRoutingSource {
         val engine = MockEngine { request ->
             captured.url = request.url.toString()
@@ -43,7 +43,7 @@ class RestAdRoutingSourceTest {
     fun `desserializa providers do payload`() = runTest {
         val routing = source().fetchRouting("meu-app", AdRouting.OFF).getOrThrow()
         assertEquals(AdProvider.CUSTOM, routing.banner)
-        assertEquals(AdProvider.ADMOB, routing.interstitial)
+        assertEquals(AdProvider.OFF, routing.interstitial)
         assertEquals(AdProvider.OFF, routing.appOpen)
     }
 
@@ -71,7 +71,7 @@ class RestAdRoutingSourceTest {
 
     @Test
     fun `corpo invalido cai no default best-effort`() = runTest {
-        val routing = source(body = "nao e json").fetchRouting("x", AdRouting.ALL_ADMOB).getOrThrow()
-        assertEquals(AdRouting.ALL_ADMOB, routing)
+        val routing = source(body = "nao e json").fetchRouting("x", AdRouting.ALL_CUSTOM).getOrThrow()
+        assertEquals(AdRouting.ALL_CUSTOM, routing)
     }
 }

@@ -3,6 +3,40 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+- [x] **Ads simplificados: remover AdMob/Firebase Ads + custom por projeto+superfície** —
+      **ENTREGUE na 2.38.0**. A publicidade da kmplib passa a ser **APENAS house ads** (anúncios
+      próprios via apps-api). **AdMob/Firebase Ads removidos por completo:** pacote `firebase/ads`
+      (`AdManager`/`AdConfig`/`AdRemoteConfig`/`BannerAd`/`InterstitialAdController`/`AppOpenAdController`
+      + holders Android/iOS + `IosAdUtils`), dep `play-services-ads`, cinterop/framework iOS
+      `GoogleMobileAds` (`linkerOpts -weak_framework` + `cinterops.create` + `.def`), e a linha de
+      cobertura `firebase.ads.AdManagerHolder`. Fontes Firestore legadas de ads também removidas
+      (`CustomAdRepository`/`AdRoutingRepository`/`FirestoreAdStatsRecorder`) — REST é a única fonte.
+      - **`ads/custom` repontado para projeto + superfície:** `CustomAdConfig` trocou `appId`/
+        `placementId`/`collection` por **`projectSlug`** + **`surface`** (default "app").
+        `RestCustomAdSource` agora chama `GET /public/ads?project={slug}&surface={surface}` (era
+        `/public/ads/app/{appId}`). `CustomAd` SIMPLIFICADO (só `id`/`imageUrl`/`targetUrl`/`format`/
+        `title`/`ctaLabel`; removidos `placementId`/`active`/`priority`/`weight`/`startsAt`/`endsAt`/
+        `appId`/`appIds`). `selectAd` simplificado (rotação simples/sorteio uniforme — sem priority/
+        weight/placement/janela). `CustomBannerAd`/`CustomInterstitialAd` perderam `placementId`.
+      - **`ads/router`:** `AdProvider` agora só `CUSTOM`/`OFF` (ADMOB removido); `AdRouting.ALL_ADMOB`
+        removido. `ManagedBannerAd`/`ManagedInterstitialAd` viraram 2 branches (CUSTOM/OFF) — API pública
+        mantida (sem `placementId`).
+      - **`ads/stats`:** `AdProviderTag` só `CUSTOM` (ADMOB removido); `AdFormat` sem `APP_OPEN`;
+        `RestAdStatsRecorder`/`POST /public/ad-stats` mantidos.
+      - **`monetization` repontado:** `MonetizationConfig` não carrega mais `AdConfig` (`AdsOnly` virou
+        `data object`; `Freemium(purchase)`); `MonetizationManager` não usa mais `AdManager`/Remote
+        Config — `shouldShowAds` = !premium (gate dos house ads). `KmpLib.init/setActivity/clearActivity`
+        não chamam mais `AdManagerHolder`.
+      - Testes atualizados (custom/router/stats); `CustomAdFiltersTest` removido (helpers de filtro
+        client-side deixaram de existir). **BREAKING — migração nos apps:** trocar
+        `CustomAdConfig(appId=..., placementId=...)` por `CustomAdConfig(projectSlug=..., surface="app")`;
+        remover `placementId` dos composables `Custom*`/`Managed*`; trocar `MonetizationConfig.AdsOnly(ads)`/
+        `Freemium(ads, purchase)` por `AdsOnly`/`Freemium(purchase)`; remover qualquer uso de
+        `firebase/ads`, `AdConfig`, `AdProvider.ADMOB`, `AdRouting.ALL_ADMOB`. **iOS: republicar de host
+        macOS (P-IOS)** — commonMain puro compila; remoção do cinterop GoogleMobileAds simplifica o build
+        iOS. Pendência (fora do escopo): a dep `firebase-config` ficou órfã (só `AdRemoteConfig` a usava) —
+        candidata a remover. Origem: simplificação de plataforma (só anúncios internos).
+
 - [x] **Ads (house ads + routing + stats) → apps-api central (REST)** — **ENTREGUE na 2.37.0**.
       Épico "Monitoramento → banco central": os 3 caminhos de ads do kmplib saíram do Firestore
       (`custom_ads`, `app_ad_configs`, `ad_stats`) e passaram a usar os endpoints públicos do apps-api

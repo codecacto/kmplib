@@ -34,48 +34,29 @@ class CustomAdManagerTest {
     @Test
     fun `initialize marca como inicializado e propaga ads do source`() = runTest {
         val ads = listOf(
-            CustomAd(id = "a", imageUrl = "https://x/1.png", placementId = "home"),
-            CustomAd(id = "b", imageUrl = "https://x/2.png", placementId = "home"),
+            CustomAd(id = "a", imageUrl = "https://x/1.png"),
+            CustomAd(id = "b", imageUrl = "https://x/2.png"),
         )
         val source = FakeCustomAdSource(initialAds = ads)
 
-        CustomAdManager.initialize(CustomAdConfig(placementId = "home"), source, backgroundScope)
+        CustomAdManager.initialize(CustomAdConfig(projectSlug = "meu-app"), source, backgroundScope)
         runCurrent()
 
         assertTrue(CustomAdManager.initialized.value)
         assertEquals(ads, CustomAdManager.ads.value)
-        assertEquals("home", CustomAdManager.config?.placementId)
+        assertEquals("meu-app", CustomAdManager.config?.projectSlug)
+        assertEquals("app", CustomAdManager.config?.surface)
     }
 
     @Test
-    fun `initialize aplica filtro de placement do source`() = runTest {
-        val source = FakeCustomAdSource(
-            initialAds = listOf(
-                CustomAd(id = "1", placementId = "home"),
-                CustomAd(id = "2", placementId = "settings"),
-            )
+    fun `surface customizada e preservada na config`() = runTest {
+        CustomAdManager.initialize(
+            CustomAdConfig(projectSlug = "meu-app", surface = "home"),
+            FakeCustomAdSource(),
+            backgroundScope,
         )
-
-        CustomAdManager.initialize(CustomAdConfig(placementId = "settings"), source, backgroundScope)
         runCurrent()
-
-        assertEquals(listOf("2"), CustomAdManager.ads.value.map { it.id })
-    }
-
-    @Test
-    fun `initialize aplica filtro de appId do source`() = runTest {
-        val source = FakeCustomAdSource(
-            initialAds = listOf(
-                CustomAd(id = "1", appId = "app-a"),
-                CustomAd(id = "2", appId = "app-b"),
-                CustomAd(id = "3", appId = "app-a"),
-            )
-        )
-
-        CustomAdManager.initialize(CustomAdConfig(appId = "app-a"), source, backgroundScope)
-        runCurrent()
-
-        assertEquals(listOf("1", "3"), CustomAdManager.ads.value.map { it.id })
+        assertEquals("home", CustomAdManager.config?.surface)
     }
 
     @Test

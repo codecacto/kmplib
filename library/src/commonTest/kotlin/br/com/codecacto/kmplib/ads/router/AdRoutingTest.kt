@@ -19,23 +19,19 @@ class AdRoutingTest {
     }
 
     @Test
-    fun `atalhos ALL_CUSTOM e ALL_ADMOB`() {
+    fun `atalho ALL_CUSTOM`() {
         assertEquals(AdProvider.CUSTOM, AdRouting.ALL_CUSTOM.banner)
         assertEquals(AdProvider.CUSTOM, AdRouting.ALL_CUSTOM.interstitial)
-        // Custom Ads nao tem variante app_open — fica off.
+        // House ads nao tem variante app_open — fica off.
         assertEquals(AdProvider.OFF, AdRouting.ALL_CUSTOM.appOpen)
-
-        assertEquals(AdProvider.ADMOB, AdRouting.ALL_ADMOB.banner)
-        assertEquals(AdProvider.ADMOB, AdRouting.ALL_ADMOB.interstitial)
-        assertEquals(AdProvider.ADMOB, AdRouting.ALL_ADMOB.appOpen)
     }
 
     @Test
     fun `serializa e desserializa preservando campos`() {
         val original = AdRouting(
             banner = AdProvider.CUSTOM,
-            interstitial = AdProvider.ADMOB,
-            appOpen = AdProvider.ADMOB,
+            interstitial = AdProvider.OFF,
+            appOpen = AdProvider.OFF,
             version = 42L,
             updatedAt = 1_700_000_000_000L,
         )
@@ -46,38 +42,34 @@ class AdRoutingTest {
 
     @Test
     fun `desserializa doc legado sem campo appOpen com default OFF`() {
-        // Doc gravado antes de adicionar appOpen — desserializacao precisa
-        // continuar funcionando, com appOpen caindo no default OFF.
         val legacyDoc = """
             {
-              "banner": "admob",
-              "interstitial": "admob",
+              "banner": "custom",
+              "interstitial": "custom",
               "version": 1,
               "updatedAt": 1700000000000
             }
         """.trimIndent()
 
         val routing = json.decodeFromString(AdRouting.serializer(), legacyDoc)
-        assertEquals(AdProvider.ADMOB, routing.banner)
-        assertEquals(AdProvider.ADMOB, routing.interstitial)
+        assertEquals(AdProvider.CUSTOM, routing.banner)
+        assertEquals(AdProvider.CUSTOM, routing.interstitial)
         assertEquals(AdProvider.OFF, routing.appOpen)
     }
 
     @Test
-    fun `enum serializa em lowercase para bater com o que o admin grava`() {
-        // O painel web grava "admob"/"custom"/"off". Se o @SerialName mudar
-        // pra uppercase por engano, a desserializacao silenciosamente cai no
-        // default e nada aparece pro usuario.
-        val routing = AdRouting(banner = AdProvider.ADMOB, interstitial = AdProvider.CUSTOM)
+    fun `enum serializa em lowercase para bater com o que o servidor grava`() {
+        // O servidor grava "custom"/"off". Se o @SerialName mudar pra uppercase por engano, a
+        // desserializacao silenciosamente cai no default e nada aparece pro usuario.
+        val routing = AdRouting(banner = AdProvider.CUSTOM, interstitial = AdProvider.OFF)
         val encoded = json.encodeToString(AdRouting.serializer(), routing)
-        assertTrue(encoded.contains("\"banner\":\"admob\""), "Esperava banner=admob, veio: $encoded")
-        assertTrue(encoded.contains("\"interstitial\":\"custom\""), "Esperava interstitial=custom, veio: $encoded")
+        assertTrue(encoded.contains("\"banner\":\"custom\""), "Esperava banner=custom, veio: $encoded")
+        assertTrue(encoded.contains("\"interstitial\":\"off\""), "Esperava interstitial=off, veio: $encoded")
     }
 
     @Test
-    fun `desserializa doc do admin (case lowercase, campos extras)`() {
-        // Simula exatamente o que o painel web grava em app_ad_configs/{appId}
-        val rawFromAdmin = """
+    fun `desserializa config do servidor (case lowercase, campos extras)`() {
+        val rawFromServer = """
             {
               "banner": "custom",
               "interstitial": "off",
@@ -86,7 +78,7 @@ class AdRoutingTest {
             }
         """.trimIndent()
 
-        val routing = json.decodeFromString(AdRouting.serializer(), rawFromAdmin)
+        val routing = json.decodeFromString(AdRouting.serializer(), rawFromServer)
         assertEquals(AdProvider.CUSTOM, routing.banner)
         assertEquals(AdProvider.OFF, routing.interstitial)
         assertEquals(3L, routing.version)
@@ -95,9 +87,8 @@ class AdRoutingTest {
 
     @Test
     fun `AdProvider fromString tolera case e espacos`() {
-        assertEquals(AdProvider.ADMOB, AdProvider.fromString("admob"))
-        assertEquals(AdProvider.ADMOB, AdProvider.fromString(" ADMOB "))
-        assertEquals(AdProvider.CUSTOM, AdProvider.fromString("Custom"))
+        assertEquals(AdProvider.CUSTOM, AdProvider.fromString("custom"))
+        assertEquals(AdProvider.CUSTOM, AdProvider.fromString(" Custom "))
         assertEquals(AdProvider.OFF, AdProvider.fromString("off"))
     }
 
@@ -106,5 +97,7 @@ class AdRoutingTest {
         assertEquals(AdProvider.OFF, AdProvider.fromString(null))
         assertEquals(AdProvider.OFF, AdProvider.fromString(""))
         assertEquals(AdProvider.OFF, AdProvider.fromString("xpto"))
+        // "admob" agora e desconhecido -> OFF (provider removido).
+        assertEquals(AdProvider.OFF, AdProvider.fromString("admob"))
     }
 }

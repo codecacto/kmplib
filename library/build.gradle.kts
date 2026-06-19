@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.37.0"
+version = "2.38.0"
 
 // =============================================================================
 // SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
@@ -62,7 +62,6 @@ kover {
                 // Holders são providers para Android lifecycle — não testáveis em unit test
                 classes("*Holder")
                 // Adapters Android internos (não API pública)
-                classes("br.com.codecacto.kmplib.firebase.ads.AdManagerHolder")
                 classes("br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder")
                 classes("br.com.codecacto.kmplib.firebase.crashlytics.CrashlyticsHolder")
                 classes("br.com.codecacto.kmplib.platform.BiometricAuthHolder")
@@ -98,10 +97,6 @@ kotlin {
 
     jvmToolchain(17)
 
-    val xcframeworkPath = rootProject.file(".build/artifacts/swift-package-manager-google-mobile-ads/GoogleMobileAds/GoogleMobileAds.xcframework")
-    val iosDeviceFrameworkPath = xcframeworkPath.resolve("ios-arm64/GoogleMobileAds.framework")
-    val iosSimulatorFrameworkPath = xcframeworkPath.resolve("ios-arm64_x86_64-simulator/GoogleMobileAds.framework")
-
     listOf(
         iosX64(),
         iosArm64(),
@@ -110,19 +105,6 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "KmpLib"
             isStatic = true
-            linkerOpts("-weak_framework", "GoogleMobileAds")
-        }
-
-        val frameworkPath = when (iosTarget.name) {
-            "iosArm64" -> iosDeviceFrameworkPath
-            else -> iosSimulatorFrameworkPath
-        }
-
-        iosTarget.compilations["main"].cinterops {
-            create("GoogleMobileAds") {
-                defFile(project.file("src/nativeInterop/cinterop/GoogleMobileAds.def"))
-                compilerOpts("-F${frameworkPath.parentFile.absolutePath}")
-            }
         }
     }
 
@@ -206,9 +188,6 @@ kotlin {
 
             // Firebase Crashlytics GitLive (KMP)
             implementation(libs.firebase.crashlytics)
-
-            // AdMob
-            implementation(libs.play.services.ads)
 
             // AndroidX Activity Compose (for ImagePicker camera/gallery launchers)
             implementation(libs.androidx.activity.compose)

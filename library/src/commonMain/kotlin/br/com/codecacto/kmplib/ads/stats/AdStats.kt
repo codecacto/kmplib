@@ -12,22 +12,22 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * Singleton de coleta de metricas (impressions/clicks) pra Custom Ads e AdMob.
+ * Singleton de coleta de metricas (impressions/clicks) dos house ads (CUSTOM).
  *
- * Inicializado uma vez no boot do app (depois de [AdRouter.initialize], pois
- * usa o mesmo `appId`). A partir dai, todo composable de ad — Custom ou
- * AdMob — vai disparar `recordImpression`/`recordClick` automaticamente.
+ * Inicializado uma vez no boot do app. A partir dai, todo composable de house ad
+ * (`CustomBannerAd`/`CustomInterstitialAd`) dispara `recordImpression`/`recordClick`
+ * automaticamente.
  *
  * Gravacao e fire-and-forget num coroutine scope interno — nao bloqueia UI.
  * Erros sao logados via [AppLogger] e ignorados.
  *
- * A partir da kmplib 2.37.0 o backend de gravacao padrao e o **apps-api** (REST,
- * [RestAdStatsRecorder]) — nao mais o Firestore. Basta passar o `httpClient`.
+ * O backend de gravacao padrao e o **apps-api** (REST, [RestAdStatsRecorder]). Basta passar o
+ * `httpClient`.
  *
  * Uso:
  * ```kotlin
  * AdStats.initialize(appId = "meu-app", httpClient = appHttpClient)
- * // a partir daqui, ManagedBannerAd / BannerAd / CustomBannerAd ja registram.
+ * // a partir daqui, ManagedBannerAd / CustomBannerAd / CustomInterstitialAd ja registram.
  * ```
  */
 object AdStats {
@@ -52,8 +52,7 @@ object AdStats {
      *   e sem `recorder` explicito, a gravacao vira no-op (best-effort, sem stats).
      * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
      * @param recorder backend de gravacao. Quando `null` (default), usa [RestAdStatsRecorder]
-     *   (apps-api) se houver `httpClient`. Passe um recorder explicito para testes (fake) ou para
-     *   usar o legado [FirestoreAdStatsRecorder].
+     *   (apps-api) se houver `httpClient`. Passe um recorder explicito para testes (fake).
      * @param scope coroutine scope. Default usa Dispatchers.Default.
      */
     fun initialize(

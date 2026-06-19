@@ -53,7 +53,7 @@ class AdStatsTest {
     fun `quando nao inicializado tudo vira no-op`() {
         // Nao deve lancar nem gravar nada
         AdStats.recordImpression(AdProviderTag.CUSTOM, AdFormat.BANNER, "ad1")
-        AdStats.recordClick(AdProviderTag.ADMOB, AdFormat.INTERSTITIAL)
+        AdStats.recordClick(AdProviderTag.CUSTOM, AdFormat.INTERSTITIAL)
         assertFalse(AdStats.enabled)
     }
 
@@ -65,7 +65,7 @@ class AdStatsTest {
         assertEquals("meu-app", AdStats.appId)
 
         AdStats.recordImpression(AdProviderTag.CUSTOM, AdFormat.BANNER, "ad1")
-        AdStats.recordClick(AdProviderTag.ADMOB, AdFormat.INTERSTITIAL)
+        AdStats.recordClick(AdProviderTag.CUSTOM, AdFormat.INTERSTITIAL)
         runCurrent()
 
         assertEquals(2, fake.events.size)
@@ -80,7 +80,7 @@ class AdStatsTest {
             fake.events[0],
         )
         assertEquals(AdEventType.CLICK, fake.events[1].type)
-        assertEquals(AdProviderTag.ADMOB, fake.events[1].provider)
+        assertEquals(AdProviderTag.CUSTOM, fake.events[1].provider)
     }
 
     @Test
@@ -132,13 +132,13 @@ class AdStatsTest {
             buildStatKey(AdProviderTag.CUSTOM, "meu-app", AdFormat.BANNER, "ad1", "2026-05-25"),
         )
         assertEquals(
-            "admob__meu-app__interstitial__all__2026-05-25",
-            buildStatKey(AdProviderTag.ADMOB, "meu-app", AdFormat.INTERSTITIAL, null, "2026-05-25"),
+            "custom__meu-app__interstitial__all__2026-05-25",
+            buildStatKey(AdProviderTag.CUSTOM, "meu-app", AdFormat.INTERSTITIAL, null, "2026-05-25"),
         )
         // appId vazio vira "unknown"
         assertEquals(
-            "admob__unknown__banner__all__2026-05-25",
-            buildStatKey(AdProviderTag.ADMOB, "", AdFormat.BANNER, "", "2026-05-25"),
+            "custom__unknown__banner__all__2026-05-25",
+            buildStatKey(AdProviderTag.CUSTOM, "", AdFormat.BANNER, "", "2026-05-25"),
         )
     }
 }

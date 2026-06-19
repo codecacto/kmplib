@@ -13,14 +13,13 @@ import kotlinx.serialization.json.Json
 
 /**
  * Implementacao de [AdRoutingSource] que le a config de roteamento de ads do backend central
- * **apps-api** via REST — substitui o [AdRoutingRepository] (Firestore) como fonte padrao.
+ * **apps-api** via REST.
  *
- * A partir da kmplib 2.37.0 a decisao de qual provider mostrar por formato NAO vem mais do
- * Firestore `app_ad_configs/{appId}`. Ela vem de um GET PUBLICO:
+ * A decisao de qual provider mostrar por formato vem de um GET PUBLICO:
  *
  * ```
  * GET {appsApiBaseUrl}/public/ad-config/{appId}
- *   -> { "banner": "admob"|"custom"|"off", "interstitial": "...", "appOpen": "..." }
+ *   -> { "banner": "custom"|"off", "interstitial": "...", "appOpen": "..." }
  * ```
  *
  * Os valores casam com os `@SerialName` de [AdProvider] (lowercase), entao o proprio

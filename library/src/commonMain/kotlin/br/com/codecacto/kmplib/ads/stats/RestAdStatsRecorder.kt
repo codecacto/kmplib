@@ -14,15 +14,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Recorder que envia metricas de publicidade ao backend central **apps-api** via REST —
- * substitui o [FirestoreAdStatsRecorder] como default a partir da kmplib 2.37.0.
+ * Recorder que envia metricas de publicidade ao backend central **apps-api** via REST.
  *
  * Cada evento vira um POST que incrementa o contador no servidor (atomico/best-effort no banco
- * central, sem o write direto no Firestore `ad_stats`):
+ * central):
  *
  * ```
  * POST {appsApiBaseUrl}/public/ad-stats
- *   { "provider": "custom"|"admob", "appId": "...", "format": "banner"|"interstitial"|"app_open",
+ *   { "provider": "custom", "appId": "...", "format": "banner"|"interstitial",
  *     "adId": "...", "impressions": 0|1, "clicks": 0|1 }
  * ```
  *

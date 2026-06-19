@@ -1,7 +1,6 @@
 package br.com.codecacto.kmplib.monetization
 
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.firebase.ads.AdManager
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import kotlinx.coroutines.CoroutineScope
@@ -24,11 +23,13 @@ import kotlinx.coroutines.flow.onEach
  * ```kotlin
  * MonetizationManager.initialize(
  *     MonetizationConfig.Freemium(
- *         ads = AdConfig(...),
  *         purchase = PurchaseConfig(...)
  *     )
  * )
  * ```
+ *
+ * A publicidade em si (house ads) e governada por `AdRouter`/`CustomAdManager`; aqui so se decide se
+ * o usuario e premium. [shouldShowAds] = "deve exibir qualquer anuncio" (true quando NAO premium).
  */
 object MonetizationManager {
     private const val TAG = "MonetizationManager"
@@ -60,10 +61,10 @@ object MonetizationManager {
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
 
     /**
-     * Se ads devem ser exibidos.
-     * - AdsOnly: segue Remote Config
+     * Se ads (house ads) devem ser exibidos.
+     * - AdsOnly: sempre true (gratuito)
      * - PremiumOnly: sempre false
-     * - Freemium: Remote Config && !isPremium
+     * - Freemium: !isPremium
      */
     val shouldShowAds: StateFlow<Boolean> = _shouldShowAds.asStateFlow()
 
@@ -83,12 +84,9 @@ object MonetizationManager {
 
         when (config) {
             is MonetizationConfig.AdsOnly -> {
-                AdManager.initialize(config.ads)
                 _isPremium.value = false
-                // shouldShowAds segue o Remote Config
-                AdManager.adsEnabled.onEach { enabled ->
-                    _shouldShowAds.value = enabled
-                }.launchIn(scope)
+                // App gratuito: house ads sempre podem aparecer (on/off por formato fica no AdRouter).
+                _shouldShowAds.value = true
                 AppLogger.d(TAG, "Modo: ADS_ONLY")
             }
             is MonetizationConfig.PremiumOnly -> {
@@ -101,19 +99,13 @@ object MonetizationManager {
                 AppLogger.d(TAG, "Modo: PREMIUM_ONLY")
             }
             is MonetizationConfig.Freemium -> {
-                AdManager.initialize(config.ads)
                 PurchaseManager.initialize(config.purchase, userId)
-                // isPremium segue o estado da assinatura
+                // isPremium segue o estado da assinatura; ads aparecem quando NAO premium.
                 PurchaseManager.subscriptionState.onEach { info ->
                     _isPremium.value = info.isActive
-                    // Recalcula shouldShowAds
-                    _shouldShowAds.value = AdManager.adsEnabled.value && !info.isActive
+                    _shouldShowAds.value = !info.isActive
                 }.launchIn(scope)
-                // shouldShowAds tambem reage ao Remote Config
-                AdManager.adsEnabled.onEach { enabled ->
-                    _shouldShowAds.value = enabled && !_isPremium.value
-                }.launchIn(scope)
-                // Valor inicial
+                // Valor inicial (antes do primeiro estado de assinatura chegar).
                 _shouldShowAds.value = true
                 AppLogger.d(TAG, "Modo: FREEMIUM")
             }
@@ -138,7 +130,6 @@ object MonetizationManager {
         _initialized.value = false
         _isPremium.value = false
         _shouldShowAds.value = false
-        AdManager.reset()
         PurchaseManager.reset()
     }
 }

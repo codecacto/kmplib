@@ -3,17 +3,15 @@ package br.com.codecacto.kmplib.ads.custom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 
 /**
- * Fake [CustomAdSource] in-memory para testes — sem Firebase.
+ * Fake [CustomAdSource] in-memory para testes — sem rede.
  *
- * Aplica os mesmos filtros (`appId` + `placementId` + janela de tempo) que
- * [CustomAdRepository] pra fielmente representar o que o manager receberia.
+ * O servidor (apps-api) ja entrega os anuncios segmentados por projeto/superficie, entao o fake
+ * apenas devolve os anuncios fornecidos, sem filtro client-side.
  */
 class FakeCustomAdSource(
     initialAds: List<CustomAd> = emptyList(),
-    private val nowProvider: () -> Long = { 0L }
 ) : CustomAdSource {
     private val _state = MutableStateFlow(initialAds)
 
@@ -21,18 +19,7 @@ class FakeCustomAdSource(
         _state.value = ads
     }
 
-    override fun observeAds(placementId: String?, appId: String?): Flow<List<CustomAd>> =
-        _state.asStateFlow().map { ads -> ads.filterFor(placementId, appId) }
+    override fun observeAds(): Flow<List<CustomAd>> = _state.asStateFlow()
 
-    override suspend fun fetchAds(placementId: String?, appId: String?): Result<List<CustomAd>> =
-        Result.success(_state.value.filterFor(placementId, appId))
-
-    private fun List<CustomAd>.filterFor(placementId: String?, appId: String?): List<CustomAd> {
-        val now = nowProvider()
-        return filter {
-            matchesAppId(it, appId) &&
-                matchesPlacement(it, placementId) &&
-                isInTimeWindow(it, now)
-        }
-    }
+    override suspend fun fetchAds(): Result<List<CustomAd>> = Result.success(_state.value)
 }
