@@ -4,15 +4,45 @@
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
 ### Influencer — Fase 4 Fatia A / Dashboard (origem: 2026-06-19)
-- [ ] **GAP-INF-M-CHART-01 — componente `BarChart`/`StackedBarChart` Compose nativo (Android/iOS)** —
-      Média (alta por reuso). O dashboard mobile do Influencer (gráfico "Faturamento últimos 6 meses",
-      barras empilhadas recebido + a receber + legenda) precisa de um gráfico de barras Compose MP; hoje
-      a kmplib **não tem** gráfico nativo. Componente local foi montado no app nesta entrega (contorno).
-      **DUPLICA G-MF-M-04 do MeuFrete e G-M1 do Locador** (ambos pedem chart simples Compose, espelhando
-      `SimpleBarChart`/`SimpleAreaChart` da weblib) → **3º consumidor, promover**. **Espelhar a API da
-      weblib** para paridade; cobrir 1 série (barras/área) e ≥2 séries (empilhado/agrupado) + legenda —
-      par do gap weblib "Chart temporal com 2 séries" (`StackedRevenueChart`). Esforço: M.
-      Contorno atual: barras proporcionais com `Box`/`Row` local no app.
+- [x] **GAP-INF-M-CHART-01 — componente `BarChart`/`StackedBarChart` Compose nativo (Android/iOS)** —
+      **ENTREGUE na 2.39.0**. `ui/components/BarChart.kt` (commonMain puro, sem expect/actual, sem lib de
+      gráfico externa). Promovido do contorno local `RevenueBarChart` do Influencer (Fase 4 Fatia A) — 3º
+      consumidor do padrão (Influencer + MeuFrete G-MF-M-04 + Locador G-M1). Espelha a API
+      "data + cor + altura + emptyMessage" do `SimpleBarChart` da weblib, em **barras verticais** (layout
+      de dashboard mobile "últimos N meses"); cobre **1 série** e **≥2 séries empilhadas** + legenda.
+      - **API (série única):** `BarChart(data: List<BarChartEntry>, modifier, barColor =
+        colorScheme.primary, chartHeight = 128.dp, valueFormatter: ((Double)->String)? = null,
+        emptyMessage = "Sem dados para exibir.")`; `data class BarChartEntry(label: String, value:
+        Double)` (negativo → 0).
+      - **API (empilhado, ≥2 séries):** `StackedBarChart(data: List<StackedBarEntry>, modifier,
+        seriesColors = [primary, secondary, tertiary], chartHeight = 128.dp, valueFormatter?,
+        emptyMessage)` — cobre "recebido + a receber" do dashboard. `data class StackedBarEntry(label,
+        segments: List<BarSegment>)` + `data class BarSegment(value: Double, color: Color? = null)`
+        (segmentos de baixo p/ cima na ordem da lista; cor própria ou de `seriesColors` por posição;
+        `valueFormatter` recebe o TOTAL da barra).
+      - **Legenda:** `ChartLegend(items: List<ChartLegendItem>, modifier)` + `data class
+        ChartLegendItem(label, color)`.
+      - **Padrões de plataforma:** estado vazio (sem dados / tudo zero) → `emptyMessage` centralizado;
+        cores via tokens do tema (`MaterialTheme.colorScheme` — **sem hardcode**); responsivo via
+        `LocalIsCompact` (compacto reduz altura ~25%, barras mais finas, oculta o valor no topo); valor
+        formatado por **callback do chamador** (a lib NÃO conhece moeda/domínio — `valueFormatter`).
+      - **Testes:** `ui/components/BarChartTest` (commonTest, 8 casos verdes: `barChartMax`/
+        `stackedBarChartMax` — maior valor, lista vazia → 0, negativo tratado como 0, soma de segmentos,
+        todos zero → 0). `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:testDebugUnitTest
+        --tests *BarChartTest*` 8/0/0; `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL →
+        `br.com.codecacto:kmplib:2.39.0` (`kmplib` metadata + `kmplib-android`; **klibs iOS pendentes de
+        host macOS — P-IOS**; commonMain puro, deve compilar em iOS sem mudança; validar render visual em
+        macOS).
+      - **Migração (NÃO feita nesta entrega — coordenar com CTO/dev-mobile):** **Influencer** — substituir
+        `RevenueBarChart`/`RevenueChartLegend`/`RevenueBar`/`toBars`/`maxStacked`/`compactMoney` locais
+        (`mobile/composeApp/.../presentation/main/tabs/HomeDashboard.kt`) por `StackedBarChart` +
+        `ChartLegend` da kmplib: mapear `RevenueSeriesPointDto` → `StackedBarEntry(monthLabel,
+        listOf(BarSegment(received), BarSegment(toReceive)))` (mantém `monthLabelOf`/`toBar` no app, que é
+        específico de domínio), `valueFormatter = { compactMoney(it) }` (mover o helper de moeda compacta
+        para o app), e `ChartLegend(listOf(ChartLegendItem(recebido, colorScheme.primary),
+        ChartLegendItem(aReceber, colorScheme.secondary)))`. **MeuFrete (G-MF-M-04)** e **Locador (G-M1)**
+        — usar `BarChart` (série única: lucro por caminhão / receita por mês). Bump kmplib → 2.39.0 nos
+        consumidores.
 
 - [x] **Ads simplificados: remover AdMob/Firebase Ads + custom por projeto+superfície** —
       **ENTREGUE na 2.38.0**. A publicidade da kmplib passa a ser **APENAS house ads** (anúncios
@@ -383,10 +413,10 @@
 - [ ] **G-MF-M-03 — Card/indicador financeiro de lucro** — Receita − Despesa = Lucro + margem % + R$/km,
       cor por sinal via tokens success/error. Recorrente: Detalhe frete, Detalhe caminhão, Relatório.
       Distinto de `UsageMeter` (cota). **Média · Onda 2.** Fallback: `Card` + `Text` tokenizados + `Money`.
-- [ ] **G-MF-M-04 — Chart simples (barras/área) para Compose MP** — lucro por caminhão / receita por mês.
-      **DUPLICA G-M1 do Locador** (weblib já tem `SimpleBarChart`/`SimpleAreaChart`) → **2º consumidor,
-      reforça promoção**; espelhar a API da weblib p/ paridade. **Média · Onda 2.** Fallback: barras
-      proporcionais com `Box`/`Row` local.
+- [x] **G-MF-M-04 — Chart simples (barras) para Compose MP** — lucro por caminhão / receita por mês.
+      **COMPONENTE ENTREGUE na 2.39.0** via `GAP-INF-M-CHART-01` (`ui/components/BarChart` — use `BarChart`
+      para série única). **Falta só integrar no MeuFrete** (Onda 2) — não recriar; mapear os dados para
+      `List<BarChartEntry>` e bumpar kmplib → 2.39.0.
 - [x] **G-MF-M-05 — Estado "rota indisponível offline" no `MapView`** — **ENTREGUE na 2.30.0** (T1c, junto
       do `PlacePicker`). Quando a busca/reverse do `GeocodingProvider` falha (sem rede), o `PlacePicker`
       exibe o aviso "Busca de rota indisponível offline. Solte o pino no mapa e informe o local." + campo de
@@ -400,9 +430,10 @@
 ### Locador — design MVP (origem: ux-designer 2026-06-13, `Locador/docs/design/wireframes.md`)
 > Gaps de UI detectados no design das telas mobile do Locador. Complementam G5/G6 do roadmap do projeto.
 > Vários servem a ≥2 apps (paridade com a weblib) — priorizar esses.
-- [ ] **G-M1 — Chart simples (área/linha) p/ Compose MP** — Dashboard mobile (receita 6 meses). A
-      weblib já tem `SimpleAreaChart`/`SimpleBarChart` (`/charts`); o mobile não tem equivalente.
-      **Espelhar a API da weblib** para paridade. Serve a qualquer app com dashboard financeiro. Média.
+- [~] **G-M1 — Chart simples p/ Compose MP** — Dashboard mobile (receita 6 meses). **Barras
+      ENTREGUES na 2.39.0** (`ui/components/BarChart`/`StackedBarChart`, via `GAP-INF-M-CHART-01`) — usar
+      no dashboard do Locador (não recriar). **Falta a variante ÁREA/LINHA** (`SimpleAreaChart` da weblib),
+      ainda não promovida — abrir item próprio se o Locador precisar de área e não bastar barras. Média.
 - [ ] **G-M3 — Banner persistente (info/warning) no topo de tela** — hoje só há `OfflineBanner`/`Toast`.
       Usado no banner de trial, aviso de template de régua fora do aprovado e aviso "conecte sua conta".
       Espelhar o `Banner` (info/success/warning/error) da weblib. Média.
