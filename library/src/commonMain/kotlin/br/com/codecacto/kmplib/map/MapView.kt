@@ -84,6 +84,7 @@ expect fun MapView(
     modifier: Modifier = Modifier,
     cameraPosition: CameraPosition,
     onMapLoaded: () -> Unit = {},
+    onMapClick: ((LatLng) -> Unit)? = null,
     onMapLongClick: ((LatLng) -> Unit)? = null,
     content: @Composable MapScope.() -> Unit = {}
 )
@@ -100,6 +101,21 @@ expect fun MapView(
 expect fun MapScope.MapMarker(
     position: LatLng,
     status: MapMarkerStatus,
+    title: String = "",
+    onClick: () -> Unit = {}
+)
+
+/**
+ * Marcador (pin) genérico — cor padrão do SDK (vermelho), sem semântica de status.
+ * Para mapas comuns (ex.: clientes de uma agência) onde não há ciclo de disponibilidade.
+ *
+ * @param position coordenada do pin.
+ * @param title título exibido no info window ao tocar.
+ * @param onClick chamado ao tocar no pin.
+ */
+@Composable
+expect fun MapScope.MapMarker(
+    position: LatLng,
     title: String = "",
     onClick: () -> Unit = {}
 )

@@ -31,6 +31,7 @@ actual fun MapView(
     modifier: Modifier,
     cameraPosition: CameraPosition,
     onMapLoaded: () -> Unit,
+    onMapClick: ((LatLng) -> Unit)?,
     onMapLongClick: ((LatLng) -> Unit)?,
     content: @Composable MapScope.() -> Unit
 ) {
@@ -48,6 +49,7 @@ actual fun MapView(
         cameraPositionState = gmsCameraState,
         properties = remember { MapProperties(mapType = MapType.NORMAL) },
         onMapLoaded = onMapLoaded,
+        onMapClick = onMapClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
         onMapLongClick = onMapLongClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
         content = { scope.content() }
     )
@@ -68,6 +70,23 @@ actual fun MapScope.MapMarker(
         onClick = {
             onClick()
             false // false = comportamento padrão (abre info window)
+        }
+    )
+}
+
+@Composable
+actual fun MapScope.MapMarker(
+    position: LatLng,
+    title: String,
+    onClick: () -> Unit
+) {
+    val markerState = remember(position) { MarkerState(position = position.toGms()) }
+    Marker(
+        state = markerState,
+        title = title.ifBlank { null },
+        onClick = {
+            onClick()
+            false
         }
     )
 }
