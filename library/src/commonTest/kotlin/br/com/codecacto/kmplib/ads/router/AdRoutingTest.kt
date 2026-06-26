@@ -62,7 +62,10 @@ class AdRoutingTest {
         // O servidor grava "custom"/"off". Se o @SerialName mudar pra uppercase por engano, a
         // desserializacao silenciosamente cai no default e nada aparece pro usuario.
         val routing = AdRouting(banner = AdProvider.CUSTOM, interstitial = AdProvider.OFF)
-        val encoded = json.encodeToString(AdRouting.serializer(), routing)
+        // encodeDefaults=true para que o valor default (OFF) também seja emitido e
+        // possamos validar o @SerialName lowercase de ambos os campos.
+        val encoder = Json { encodeDefaults = true }
+        val encoded = encoder.encodeToString(AdRouting.serializer(), routing)
         assertTrue(encoded.contains("\"banner\":\"custom\""), "Esperava banner=custom, veio: $encoded")
         assertTrue(encoded.contains("\"interstitial\":\"off\""), "Esperava interstitial=off, veio: $encoded")
     }

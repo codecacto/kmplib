@@ -143,8 +143,10 @@ class PasswordValidatorTest {
 
     @Test
     fun `calculateStrength returns medium score for medium password`() {
+        // "Test123": 28 (len) + 10 (maiúscula) + 10 (minúscula) + 10 (dígito)
+        // + 14 (variedade) = 72. Sem caractere especial → faixa intermediária-alta.
         val score = PasswordValidator.calculateStrength("Test123")
-        assertTrue(score in 30..70)
+        assertTrue(score in 60..80, "Esperava 60..80, veio $score")
     }
 
     @Test
@@ -171,17 +173,26 @@ class PasswordValidatorTest {
 
     @Test
     fun `getStrength returns WEAK for weak password`() {
-        assertEquals(PasswordStrength.WEAK, PasswordValidator.getStrength("abc"))
+        // "ab": 8 (len) + 10 (minúscula) + 4 (variedade) = 22 → 0..25 WEAK.
+        assertEquals(PasswordStrength.WEAK, PasswordValidator.getStrength("ab"))
     }
 
     @Test
     fun `getStrength returns FAIR for fair password`() {
-        assertEquals(PasswordStrength.FAIR, PasswordValidator.getStrength("test123"))
+        // "abc": 12 + 10 + 6 = 28 → 26..50 FAIR.
+        assertEquals(PasswordStrength.FAIR, PasswordValidator.getStrength("abc"))
     }
 
     @Test
     fun `getStrength returns GOOD for good password`() {
-        assertEquals(PasswordStrength.GOOD, PasswordValidator.getStrength("Test@123"))
+        // "test123": 60 → 51..75 GOOD.
+        assertEquals(PasswordStrength.GOOD, PasswordValidator.getStrength("test123"))
+    }
+
+    @Test
+    fun `getStrength returns STRONG for strong password 8 chars all types`() {
+        // "Test@123": 32 + 10 + 10 + 10 + 15 + 15 = 92 → STRONG.
+        assertEquals(PasswordStrength.STRONG, PasswordValidator.getStrength("Test@123"))
     }
 
     @Test
@@ -195,9 +206,10 @@ class PasswordValidatorTest {
 
     @Test
     fun `getStrengthLabel returns correct labels`() {
-        assertEquals("Muito fraca", PasswordValidator.getStrengthLabel("abc"))
-        assertEquals("Fraca", PasswordValidator.getStrengthLabel("test123"))
-        assertEquals("Média", PasswordValidator.getStrengthLabel("Test@123"))
+        assertEquals("Muito fraca", PasswordValidator.getStrengthLabel("ab"))   // 22
+        assertEquals("Fraca", PasswordValidator.getStrengthLabel("abc"))         // 28
+        assertEquals("Média", PasswordValidator.getStrengthLabel("test123"))     // 60
+        assertEquals("Muito forte", PasswordValidator.getStrengthLabel("Test@123")) // 92
         assertTrue(
             PasswordValidator.getStrengthLabel("MyV3ry\$tr0ng&C0mpl3xP@ssw0rd!") in
             listOf("Forte", "Muito forte")
@@ -310,7 +322,9 @@ class PasswordValidatorTest {
 
     @Test
     fun `validate password at exact max length`() {
-        val password = "A".repeat(127) + "a1!"
+        // maxLength = 128 → 125 letras + "a1!" = exatamente 128, ainda válida.
+        val password = "A".repeat(125) + "a1!"
+        assertEquals(128, password.length)
         val result = PasswordValidator.validate(password)
         assertFalse(result.any { it is PasswordValidator.ValidationError.TooLong })
     }

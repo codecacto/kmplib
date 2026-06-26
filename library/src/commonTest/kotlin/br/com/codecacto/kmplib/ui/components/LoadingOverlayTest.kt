@@ -10,8 +10,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
+import kotlin.test.Ignore
 import kotlin.test.Test
 
+// KMP só unit/fluxo por ora — teste de UI automatizado desativado (decisão fundador, jun/2026).
+@Ignore
 @OptIn(ExperimentalTestApi::class)
 class LoadingOverlayTest {
 

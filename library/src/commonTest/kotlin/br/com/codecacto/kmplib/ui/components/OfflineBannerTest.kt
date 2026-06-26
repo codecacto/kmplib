@@ -10,12 +10,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
+import kotlin.test.Ignore
 import kotlin.test.Test
 
 /**
  * Testa o overload `OfflineBanner(isOnline: Boolean, ...)`. A versão com
  * `ConnectivityObserver` é wrapper trivial: confiamos no overload puro.
  */
+// KMP só unit/fluxo por ora — teste de UI automatizado desativado (decisão fundador, jun/2026).
+@Ignore
 @OptIn(ExperimentalTestApi::class)
 class OfflineBannerTest {
 

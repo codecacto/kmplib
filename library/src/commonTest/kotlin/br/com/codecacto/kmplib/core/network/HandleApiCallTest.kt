@@ -1,21 +1,14 @@
 package br.com.codecacto.kmplib.core.network
 
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.HttpRequestTimeoutException
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -29,6 +22,12 @@ private data class FakeDto(val name: String, val age: Int)
 
 class HandleApiCallTest {
 
+    private val json = Json { ignoreUnknownKeys = true }
+
+    // `handleApiCall` é desenhado para Ktor CORE PURO (sem ContentNegotiation):
+    // o consumidor desserializa manualmente (kotlinx) e `expectSuccess = true`
+    // faz o cliente lançar `ResponseException` em 4xx/5xx — o caminho que a
+    // produção realmente trata. O helper reproduz exatamente esse uso.
     private fun clientReturning(
         status: HttpStatusCode,
         body: String,
@@ -40,9 +39,7 @@ class HandleApiCallTest {
             headers = headersOf("Content-Type", contentType)
         )
     }) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
+        expectSuccess = true
     }
 
     // ====== Success ======
@@ -51,7 +48,7 @@ class HandleApiCallTest {
     fun `Success quando bloco retorna valor`() = runTest {
         val client = clientReturning(HttpStatusCode.OK, """{"name":"Joao","age":30}""")
         val result = handleApiCall<FakeDto> {
-            client.get("/me").body()
+            json.decodeFromString<FakeDto>(client.get("/me").bodyAsText())
         }
         assertIs<ApiResult.Success<FakeDto>>(result)
         assertEquals("Joao", result.data.name)
@@ -77,7 +74,7 @@ class HandleApiCallTest {
             """{"someOther":"field"}"""
         )
         val result = handleApiCall<FakeDto> {
-            client.get("/me").body()
+            json.decodeFromString<FakeDto>(client.get("/me").bodyAsText())
         }
         assertIs<ApiResult.Error>(result)
         assertEquals(401, result.code)
@@ -87,7 +84,7 @@ class HandleApiCallTest {
     @Test
     fun `Error 403 com mensagem padrao do mapper`() = runTest {
         val client = clientReturning(HttpStatusCode.Forbidden, "{}")
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(403, result.code)
         assertEquals("Você não tem permissão para esta ação.", result.message)
@@ -96,7 +93,7 @@ class HandleApiCallTest {
     @Test
     fun `Error 404 com mensagem padrao`() = runTest {
         val client = clientReturning(HttpStatusCode.NotFound, "{}")
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(404, result.code)
         assertEquals("Recurso não encontrado.", result.message)
@@ -105,7 +102,7 @@ class HandleApiCallTest {
     @Test
     fun `Error 429 com mensagem padrao`() = runTest {
         val client = clientReturning(HttpStatusCode.TooManyRequests, "{}")
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(429, result.code)
         assertEquals("Muitas requisições. Aguarde um momento.", result.message)
@@ -114,7 +111,7 @@ class HandleApiCallTest {
     @Test
     fun `Error 500 mapeia para mensagem de servidor`() = runTest {
         val client = clientReturning(HttpStatusCode.InternalServerError, "{}")
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(500, result.code)
         assertEquals("Servidor temporariamente indisponível. Tente novamente.", result.message)
@@ -126,7 +123,7 @@ class HandleApiCallTest {
             HttpStatusCode.BadRequest,
             """{"message":"Campo X é obrigatório"}"""
         )
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(400, result.code)
         assertEquals("Campo X é obrigatório", result.message)
@@ -138,7 +135,7 @@ class HandleApiCallTest {
             HttpStatusCode.BadRequest,
             """{"error":"Bad input"}"""
         )
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals("Bad input", result.message)
     }
@@ -146,7 +143,7 @@ class HandleApiCallTest {
     @Test
     fun `Error 400 sem message nem error usa mensagem do throwable como fallback`() = runTest {
         val client = clientReturning(HttpStatusCode.BadRequest, "{}")
-        val result = handleApiCall<FakeDto> { client.get("/x").body() }
+        val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(400, result.code)
         // Mensagem do ResponseException ou string default
@@ -159,7 +156,7 @@ class HandleApiCallTest {
     fun `Error de serializacao quando JSON malformado`() = runTest {
         val client = clientReturning(HttpStatusCode.OK, "not even json")
         val result = handleApiCall<FakeDto> {
-            client.get("/bad").body()
+            json.decodeFromString<FakeDto>(client.get("/bad").bodyAsText())
         }
         assertIs<ApiResult.Error>(result)
         assertEquals(-1, result.code)
@@ -171,7 +168,7 @@ class HandleApiCallTest {
         // FakeDto exige name e age — só name causa SerializationException
         val client = clientReturning(HttpStatusCode.OK, """{"name":"Joao"}""")
         val result = handleApiCall<FakeDto> {
-            client.get("/partial").body()
+            json.decodeFromString<FakeDto>(client.get("/partial").bodyAsText())
         }
         assertIs<ApiResult.Error>(result)
         assertEquals(-1, result.code)

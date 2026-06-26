@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import kotlin.test.Ignore
 import kotlin.test.Test
 
 /**
@@ -19,6 +20,8 @@ import kotlin.test.Test
  *
  * Para lógica pura (colorForName), ver [AvatarLogicTest].
  */
+// KMP só unit/fluxo por ora — teste de UI automatizado desativado (decisão fundador, jun/2026).
+@Ignore
 @OptIn(ExperimentalTestApi::class)
 class AvatarUiTest {
 

@@ -33,19 +33,19 @@ jobs:
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Run Android unit tests
-        run: ./gradlew :library:testDebugUnitTest
+        run: ./gradlew :kmplib:testDebugUnitTest
 
       - name: Generate Kover HTML report
         if: always()
-        run: ./gradlew :library:koverHtmlReport
+        run: ./gradlew :kmplib:koverHtmlReport
 
       - name: Generate Kover XML report
         if: always()
-        run: ./gradlew :library:koverXmlReport
+        run: ./gradlew :kmplib:koverXmlReport
 
       - name: Verify Kover coverage threshold
         if: always()
-        run: ./gradlew :library:koverVerify
+        run: ./gradlew :kmplib:koverVerify
 
       - name: Upload Kover HTML
         if: always()
@@ -93,7 +93,7 @@ jobs:
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Run iOS Simulator tests
-        run: ./gradlew :library:iosSimulatorArm64Test
+        run: ./gradlew :kmplib:iosSimulatorArm64Test
 
       - name: Upload iOS test results
         if: always()

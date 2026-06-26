@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -122,9 +123,14 @@ class AppPreferencesTest {
             flow.take(3).toList(collected)
         }
 
-        // Pequena espera não-determinística trocada por emit + collect explicito
+        // O collector precisa ASSINAR o SharedFlow antes das mutações (sem replay,
+        // emissões sem assinante são perdidas). runCurrent() deixa o coletor subir
+        // e capturar o valor inicial; depois cada mudança é processada em ordem.
+        runCurrent()
         prefs.setString("k", "v2")
+        runCurrent()
         prefs.setString("k", "v3")
+        runCurrent()
 
         job.join()
         // observeString emite atual + cada mudança; com distinctUntilChanged
@@ -138,7 +144,9 @@ class AppPreferencesTest {
         val collected = mutableListOf<Boolean>()
         val job = launch { flow.take(2).toList(collected) }
 
+        runCurrent()
         prefs.setBoolean("flag", true)
+        runCurrent()
         job.join()
         assertEquals(listOf(false, true), collected)
     }
@@ -156,7 +164,9 @@ class AppPreferencesTest {
         val collected = mutableListOf<Long>()
         val job = launch { flow.take(2).toList(collected) }
 
+        runCurrent()
         prefs.remove("k")
+        runCurrent()
         job.join()
         assertEquals(listOf(100L, 0L), collected)
     }
@@ -168,7 +178,9 @@ class AppPreferencesTest {
         val collected = mutableListOf<String>()
         val job = launch { flow.take(2).toList(collected) }
 
+        runCurrent()
         prefs.clear()
+        runCurrent()
         job.join()
         assertEquals(listOf("v", "default"), collected)
     }
@@ -182,8 +194,11 @@ class AppPreferencesTest {
         val collected = mutableListOf<String>()
         val job = launch { flow.take(2).toList(collected) }
 
+        runCurrent()
         prefs.setString("k", "same")  // valor idêntico — não deve re-emitir
+        runCurrent()
         prefs.setString("k", "different")  // diferente — emite
+        runCurrent()
         job.join()
         assertEquals(listOf("same", "different"), collected)
     }
