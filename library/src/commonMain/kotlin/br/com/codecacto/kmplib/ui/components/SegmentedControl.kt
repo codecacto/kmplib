@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -51,6 +52,13 @@ fun SegmentedControl(
                 shape = SegmentedButtonDefaults.itemShape(
                     index = index,
                     count = options.size
+                ),
+                // Selecionado preenchido com a cor primária (alto contraste em tema claro e escuro).
+                // O default do Material (secondaryContainer) some em temas com container muito claro.
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primary,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                    activeBorderColor = MaterialTheme.colorScheme.primary,
                 ),
                 modifier = Modifier.semantics {
                     contentDescription =
