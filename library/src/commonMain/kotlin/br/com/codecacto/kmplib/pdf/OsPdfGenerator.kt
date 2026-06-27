@@ -8,8 +8,8 @@ import br.com.codecacto.kmplib.platform.getShareHandler
  *
  * Implementação por plataforma (expect/actual):
  *  - **Android:** render nativo via `android.graphics.pdf.PdfDocument`.
- *  - **iOS:** placeholder (TODO `UIGraphicsPDFRenderer` em host macOS) — ver
- *    [createOsPdfGenerator] e o backlog da kmplib.
+ *  - **iOS:** render nativo via `UIGraphicsPDFRenderer` (UIKit), com o MESMO layout lógico do
+ *    Android — **funcional** (não é placeholder). Validação visual em host macOS/CI.
  *
  * Uso típico (em ViewModel/repository, fora da UI):
  * ```kotlin

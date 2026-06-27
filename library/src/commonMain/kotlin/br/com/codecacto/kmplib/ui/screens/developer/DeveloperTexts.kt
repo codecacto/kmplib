@@ -11,6 +11,7 @@ data class DeveloperTexts(
     val brandName: String = "CodeCacto",
     val brandSlogan: String = "Apps que facilitam o seu dia a dia.",
     val contactSectionTitle: String = "Fale com a gente",
+    val contactButton: String = "Entrar em contato",
     val whatsappButton: String = "Conversar no WhatsApp",
     val emailButton: String = "Enviar e-mail",
     val siteButton: String = "Visitar site",
@@ -19,4 +20,6 @@ data class DeveloperTexts(
     val appsSectionTitle: String = "Nossos apps",
     val appsEmpty: String = "Em breve novos apps por aqui.",
     val backContentDescription: String = "Voltar",
+    /** Textos do formulário "Entrar em contato" ([ContactScreen]). */
+    val contact: ContactTexts = ContactTexts(),
 )

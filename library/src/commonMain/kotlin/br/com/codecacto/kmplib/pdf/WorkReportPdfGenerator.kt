@@ -8,8 +8,8 @@ import br.com.codecacto.kmplib.platform.getShareHandler
  *
  * Segue o MESMO padrão de API do [FinanceReportPdfGenerator]/[OsPdfGenerator]:
  *  - **Android:** render nativo via `android.graphics.pdf.PdfDocument`.
- *  - **iOS:** placeholder (lança [OsPdfNotSupportedException]; TODO `UIGraphicsPDFRenderer`
- *    em host macOS — herda o item de backlog da kmplib).
+ *  - **iOS:** render nativo via `UIGraphicsPDFRenderer` (UIKit), com o MESMO layout lógico do
+ *    Android — **funcional** (não é placeholder). Validação visual em host macOS/CI.
  *
  * Contrato C-5 da Onda 4 do MinhaObra (par com a weblib GAP-MO-W-09). Uso típico
  * (em ViewModel/repository, fora da UI):

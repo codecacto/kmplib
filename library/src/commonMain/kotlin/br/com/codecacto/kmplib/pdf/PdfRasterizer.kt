@@ -11,8 +11,8 @@ package br.com.codecacto.kmplib.pdf
  * Implementação por plataforma:
  *  - **Android:** nativo via `android.graphics.pdf.PdfRenderer` (sem dependência externa),
  *    rasterizando cada página em bitmap a DPI moderado e codificando em PNG.
- *  - **iOS:** placeholder (lança [OsPdfNotSupportedException]; TODO `CGPDFDocument` +
- *    `UIGraphicsImageRenderer` em host macOS — herda o item de backlog da kmplib).
+ *  - **iOS:** render nativo via `CGPDFDocument` + `UIGraphicsImageRenderer` (CoreGraphics/UIKit),
+ *    espelhando o `PdfRenderer` do Android — **funcional** (não é placeholder). Validação em macOS/CI.
  *
  * @param pdfBytes bytes de um arquivo PDF válido.
  * @return lista de imagens (PNG bytes), uma por página, na ordem do documento. Pode ser vazia

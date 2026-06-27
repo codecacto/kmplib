@@ -10,8 +10,8 @@ import br.com.codecacto.kmplib.platform.getShareHandler
  * Segue o MESMO padrão de API do [WorkReportPdfGenerator] / [FinanceReportPdfGenerator] /
  * [OsPdfGenerator]:
  *  - **Android:** render nativo via `android.graphics.pdf.PdfDocument`.
- *  - **iOS:** placeholder (lança [OsPdfNotSupportedException]; TODO `UIGraphicsPDFRenderer`
- *    em host macOS — herda o item de backlog da kmplib).
+ *  - **iOS:** render nativo via `UIGraphicsPDFRenderer` (UIKit), com o MESMO layout lógico do
+ *    Android — **funcional** (não é placeholder). Validação visual em host macOS/CI.
  *
  * GAP-MH-M-02 da Onda 2 do MinhasHoras (par com a weblib). Uso típico (em ViewModel/repository,
  * fora da UI):

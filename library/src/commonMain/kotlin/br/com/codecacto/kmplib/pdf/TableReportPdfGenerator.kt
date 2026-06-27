@@ -12,8 +12,8 @@ import br.com.codecacto.kmplib.platform.getShareHandler
  *    documento + linha de cabeçalho da tabela + linhas com zebra/strokes neutros +
  *    paginação automática quando as linhas estouram a página). **Sem nenhum bloco
  *    monetário** ("TOTAL R$").
- *  - **iOS:** placeholder (lança [OsPdfNotSupportedException]; TODO `UIGraphicsPDFRenderer`
- *    em host macOS — herda o item de backlog da kmplib, igual aos demais geradores).
+ *  - **iOS:** render nativo via `UIGraphicsPDFRenderer` (UIKit), com o MESMO layout lógico do
+ *    Android — **funcional** (não é placeholder). Validação visual em host macOS/CI.
  *
  * Distinto do [OsPdfGenerator] (documento financeiro com colunas de dinheiro e caixa
  * "TOTAL R$"). Use este para relatórios tabulares puros: frequência/presença, listas,

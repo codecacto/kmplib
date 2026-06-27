@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Language
@@ -80,6 +81,9 @@ private val WhatsAppGreen = Color(0xFF25D366)
  * @param backgroundColor Cor de fundo do conteúdo
  * @param cardColor Cor de fundo dos cards de app
  * @param texts Textos customizáveis (suporta i18n)
+ * @param defaultName Nome pré-preenchido no formulário de contato (ex.: usuário logado)
+ * @param defaultEmail E-mail pré-preenchido no formulário de contato (ex.: usuário logado)
+ * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (ex.: telefone do perfil)
  */
 @Composable
 fun DeveloperScreen(
@@ -88,15 +92,33 @@ fun DeveloperScreen(
     backgroundColor: Color = MaterialTheme.colorScheme.background,
     cardColor: Color = MaterialTheme.colorScheme.surface,
     texts: DeveloperTexts = DeveloperTexts(),
+    defaultName: String? = null,
+    defaultEmail: String? = null,
+    defaultWhatsapp: String? = null,
 ) {
     var contact by remember { mutableStateOf(DeveloperContact()) }
     var apps by remember { mutableStateOf<List<DeveloperApp>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var showContact by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         contact = DeveloperInfoService.fetchContact().getOrDefault(DeveloperContact())
         apps = DeveloperInfoService.fetchApps().getOrDefault(emptyList())
         isLoading = false
+    }
+
+    // "Entrar em contato" abre o formulário (ContactScreen) sem exigir navegação do app.
+    if (showContact) {
+        ContactScreen(
+            onBack = { showContact = false },
+            primaryColor = primaryColor,
+            backgroundColor = backgroundColor,
+            texts = texts.contact,
+            defaultName = defaultName,
+            defaultEmail = defaultEmail,
+            defaultWhatsapp = defaultWhatsapp,
+        )
+        return
     }
 
     Scaffold { paddingValues ->
@@ -181,6 +203,30 @@ fun DeveloperScreen(
 
                 // Contato
                 SectionTitle(texts.contactSectionTitle)
+
+                // Ação primária: abre o formulário "Entrar em contato" (mesmo lead do site).
+                Button(
+                    onClick = { showContact = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = texts.contactButton,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
 
                 Button(
                     onClick = {

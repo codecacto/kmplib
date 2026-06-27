@@ -3,6 +3,29 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Hardening docs/09 M2 — Paridade iOS dos geradores de PDF (origem: 2026-06-26)
+- [x] **GAP-PDF-IOS-PARITY — portar todos os renderers iOS de PDF que eram placeholder para
+      `UIGraphicsPDFRenderer` real** — fecha a divergência com "paridade web=Android=iOS" e o padrão-ouro
+      (API nativa, nunca "não suportado"). Antes, vários `*.ios.kt` lançavam `OsPdfNotSupportedException`.
+      Agora **funcionais** (não placeholder), espelhando o layout lógico do Android e reusando as
+      primitivas já comprovadas em produção (`ReciboPdf.ios.kt`/`DocumentPdfGenerator.ios.kt`/
+      `VaccinationCardPdfGenerator.ios.kt`: `NSString.drawAtPoint` com conversão baseline→topo via
+      `ascender`, `CGContext*`, `UIImage.imageWithData`/`drawInRect`, marca d'água via `CGAffineTransform`):
+      - `OsPdfGenerator.ios.kt` — gerador BASE de OS/orçamento/recibo (página única, igual ao Android).
+      - `FinanceReportPdfGenerator.ios.kt` — relatório financeiro (2 tabelas + totais, paginação).
+      - `TableReportPdfGenerator.ios.kt` — tabela genérica (colunas ponderadas, zebra, paginação, marca d'água).
+      - `HoursReportPdfGenerator.ios.kt` — horas extras (tabela + totais com destaque + grade de comprovantes
+        com center-crop via `CGContextClipToRect`).
+      - `WorkReportPdfGenerator.ios.kt` — obra (barras de progresso, grade de fotos, diário).
+      - `PdfRasterizer.ios.kt` — `renderPdfPagesToImages` via `CGPDFDocument` + contexto de imagem UIKit
+        (`UIGraphicsBeginImageContextWithOptions`), espelhando o `PdfRenderer` do Android (150 DPI, fundo branco).
+      - KDoc do commonMain atualizado (não dizem mais "iOS: placeholder").
+      - **Compilação iOS:** NÃO validável neste servidor (Linux → `compileKotlinIosSimulatorArm64` SKIPPED;
+        Kotlin/Native Apple só compila em macOS). commonMain compila (`compileCommonMainKotlinMetadata`
+        SUCCESSFUL). **P-IOS:** validar build do klib/framework + render visual em host macOS/CI.
+        Maior risco a checar primeiro = `PdfRasterizer.ios.kt` (único sem arquivo iOS de referência;
+        usa `CGPDF*`/contexto de imagem UIKit). Sem bump de versão (mesma 2.41.0 até validar em macOS).
+
 ### Influencer — Paridade web↔mobile: Mapa OSM + PDF estruturado (origem: 2026-06-19)
 - [x] **GAP-INF-M-MAP-01 — mapa OSM/Leaflet multiplataforma (Android + iOS, sem chave paga)** —
       **ENTREGUE na 2.40.0**. Novo subpacote `map/osm` (distinto do `map/MapView` Google Maps/GAP-02, que
