@@ -27,6 +27,9 @@ class FakeSyncStore : SyncStore {
     override fun observeAllDirty(): Flow<List<Synced_entity>> =
         visibleFlow.map { rows.values.filter { it.dirty.toDbBoolean() } }
 
+    override fun getVisible(entity: String): List<Synced_entity> =
+        rows.values.filter { it.entity == entity && !it.deleted.toDbBoolean() }
+
     override fun getByLocalId(entity: String, localId: String): Synced_entity? =
         rows[key(entity, localId)]
 

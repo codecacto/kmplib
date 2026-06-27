@@ -27,6 +27,8 @@ interface SyncStore {
     fun observeAllDirty(): Flow<List<Synced_entity>>
 
     // -- Leitura pontual ----------------------------------------------------
+    /** Lista (síncrona) todos os registros visíveis (não-deletados) de uma entidade. */
+    fun getVisible(entity: String): List<Synced_entity>
     fun getByLocalId(entity: String, localId: String): Synced_entity?
     fun getByServerId(entity: String, serverId: String): Synced_entity?
     fun getByClientId(entity: String, clientId: String): Synced_entity?
@@ -77,6 +79,9 @@ class SqlDelightSyncStore(
 
     override fun observeAllDirty(): Flow<List<Synced_entity>> =
         q.selectAllDirty().asFlow().mapToList(ioDispatcher)
+
+    override fun getVisible(entity: String): List<Synced_entity> =
+        q.selectAllVisible(entity).executeAsList()
 
     override fun getByLocalId(entity: String, localId: String): Synced_entity? =
         q.selectByLocalId(entity, localId).executeAsOneOrNull()

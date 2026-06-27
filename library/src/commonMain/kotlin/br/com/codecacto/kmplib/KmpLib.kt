@@ -31,8 +31,10 @@ package br.com.codecacto.kmplib
  *
  * ### Firebase
  * - `AuthRepository` - Autenticação (email, Google, Apple)
- * - `FirestoreService` - Operações CRUD no Firestore
  * - `StorageService` - Upload/download de arquivos
+ *
+ * Dados de domínio NÃO usam Firestore: a camada é REST contra o `apps-api` (`core/data`,
+ * `core/network`). Firebase fica restrito a Auth e Crashlytics.
  *
  * ### House Ads (anúncios próprios via apps-api)
  * - `CustomAdManager` - Inicialização e observação dos anúncios (por projeto + superfície)

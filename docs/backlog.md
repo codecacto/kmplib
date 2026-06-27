@@ -3,6 +3,52 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Item 5 — Camada offline-first / persistência local (origem: decisão do fundador 2026-06-27 → 2.42.0)
+- [x] **DB local = SQLDelight (decisão registrada)** — avaliado SQLDelight vs Room KMP. **Escolha:
+      SQLDelight 2.0.2** (já era a tecnologia do módulo `sync`; mantida). Justificativa: KMP-native e
+      maduro (drivers oficiais 1ª-classe Android `AndroidSqliteDriver` + iOS `NativeSqliteDriver`),
+      SQL type-safe verificado em compile-time, `Flow` reativo via `coroutines-extensions` (integra com
+      Compose), zero dependência de runtime AndroidX. Room-KMP ainda arrasta o toolchain KSP/AndroidX e
+      tem suporte iOS/native mais novo e menos provado no ecossistema Compose MP. **Não reintroduzir
+      nada de Firestore** (removido na mesma versão).
+- [x] **`sync/LocalRepository<T>` — persistência LOCAL pura (arquétipo A)** — gap real: o
+      `SyncableRepository` existente exige `SyncEngine`+outbox (faz sentido só p/ arquétipo B). Apps 100%
+      locais (Super 8, Calculadora BTU) não tinham um caminho limpo. `LocalRepository` reusa o MESMO
+      SQLDelight (`SyncStore`/`createSyncDatabase`/`synced_entity`) gravando sempre **limpo** (`dirty=0`,
+      delete físico) — sem fila de push inútil. API DAO: `observeAll`/`observeById` (Flow), `getAll`/`get`,
+      `put`/`putAll`/`delete`/`clear`. Adicionado `SyncStore.getVisible(entity)` (leitura síncrona, reusa
+      `selectAllVisible`) — `FakeSyncStore` atualizado. Testes `LocalRepositoryTest` (6 casos).
+- [x] **`sync/RestSyncPort` — transporte REST genérico de sync sobre Ktor (arquétipo B)** — o "helper
+      opcional de sync com a API central reusando o Ktor client" pedido. Impl de `SyncPort` (`pull`/`push`
+      em `POST {base}{pathPrefix}/pull|push` com os DTOs de `SyncWire`), padrão Ktor core puro + kotlinx-json
+      (sem ContentNegotiation), Bearer Firebase ID token. **Propaga erro** (lança) — o `DefaultSyncEngine`
+      já o envolve em try/catch → `SyncResultSummary.failure` e preserva a outbox p/ retry. Remove o
+      boilerplate de cada app reimplementar o transporte. Testes `RestSyncPortTest` (4 casos, MockEngine).
+- **Sem bump** (acumula na **2.42.0** não publicada). `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL;
+  `:kmplib:testDebugUnitTest *LocalRepositoryTest*/*RestSyncPortTest*` 10/0/0. **iOS:** nada novo de
+  `actual` — `LocalRepository`/`RestSyncPort` são commonMain puro sobre os drivers SQLDelight iOS que já
+  existem (`NativeSqliteDriver`); klib iOS pende de host macOS (P-IOS). **Pendência backend:** o
+  contrato de fio `/sync/v1/{slug}/pull|push` precisa ser implementado no backlib/apps-api (item p/
+  lib-backend) para o arquétipo B fechar ponta-a-ponta; o RestSyncPort já fala o shape esperado.
+
+### Remoção do Firestore morto + auditoria de gaps (origem: decisão do fundador 2026-06-27 → 2.42.0)
+- [x] **Firestore removido da kmplib** — decisão DEFINITIVA: SEM Firestore como armazenamento em nenhum
+      projeto; Firebase fica só em **Auth** e **Crashlytics**. `firebase/firestore/FirestoreService.kt`
+      (`save/get/delete/observeDocument`, `batch`, `runTransaction`) era **código morto** — nenhum
+      consumidor real (grep nos 4 apps + na própria lib: Meu Advogado só o citava num comentário; nada no
+      Koin; `AppReviewDialog` já usa `FeedbackService`/REST). **Removido:** o arquivo + as deps GitLive
+      `firebase-firestore` (commonMain) e `firebase-firestore-android` (api androidMain) do
+      `library/build.gradle.kts` + os aliases órfãos no `gradle/libs.versions.toml`. Comentários obsoletos
+      corrigidos em `KmpLib.kt` e `core/data/Repository.kt`. CRUD agora é só `core/data` (REST/apps-api).
+      `:kmplib:compileDebugKotlinAndroid` **BUILD SUCCESSFUL**. Bump **2.41.0 → 2.42.0** (remoção de API
+      pública legada não usada; sem impacto em consumidor). Catálogo `kmplib-catalog` atualizado.
+      **Pendências:** publicar (`publishToMavenLocal`/Central — fundador) e, nos apps, remover a dep órfã
+      `gitlive.firebase.firestore` dos `build.gradle.kts` de Meu Advogado e LocAki (não usada; opcional,
+      com dev-mobile).
+- [~] **Auditoria dos gaps i18n + deep-link router** — concluída: NENHUM justifica implementação agora
+      (ver detalhe na seção "Prioridade média"). i18n = já coberto pelo Compose Resources oficial (Super 8
+      em produção); deep-link router = sem consumidor real. Ambos mantidos como backlog/registro.
+
 ### Hardening docs/09 M2 — Paridade iOS dos geradores de PDF (origem: 2026-06-26)
 - [x] **GAP-PDF-IOS-PARITY — portar todos os renderers iOS de PDF que eram placeholder para
       `UIGraphicsPDFRenderer` real** — fecha a divergência com "paridade web=Android=iOS" e o padrão-ouro
@@ -1127,8 +1173,23 @@
       `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` e registrar `NotificationReceiver` no manifest.
       `:kmplib:compileDebugKotlinAndroid` BUILD SUCCESSFUL; `:kmplib:publishToMavenLocal` BUILD SUCCESSFUL →
       `br.com.codecacto:kmplib:2.17.0` (`kmplib` metadata + `kmplib-android`; klibs iOS pendentes de host macOS).
-- [ ] **i18n** — suporte a múltiplos idiomas (hoje strings pt-BR/parametrizadas).
-- [ ] **Deep-link router** — parsing centralizado de payloads de push/deep links (apps fazem manual).
+- [~] **i18n (strings parametrizadas)** — **NÃO É GAP DE LIB (auditoria 2026-06-27).** O mecanismo
+      OFICIAL **Compose Multiplatform Resources** (`org.jetbrains.compose.resources` →
+      `stringResource(Res.string.x, arg1, arg2)` + `composeResources/values-*/strings.xml`) já cobre i18n
+      **com parametrização** e está EM PRODUÇÃO no Super 8 (pt/en/es: `values-en`, `values-es`,
+      `LocalizedEnums.kt`, `ValidationError.kt` usa `stringResource(..., name)`). As telas da própria lib
+      já recebem os textos via `*Texts` injetados pelo app (`PaywallTexts`/`FeedbackTexts`/`DeveloperTexts`/
+      `ContactTexts`). Construir um módulo i18n próprio na kmplib **reinventaria o framework oficial** e
+      violaria o padrão-ouro (além de não conseguir compartilhar o `Res` gerado por-módulo). Recomendação
+      para apps multi-idioma: usar Compose Resources direto. Item mantido só p/ registro; **nada a
+      implementar na lib**.
+- [~] **Deep-link router** — **SEM CONSUMIDOR REAL (auditoria 2026-06-27); especulativo.** Grep nos 4
+      apps ativos (Super 8 / Meu Advogado / LocAki / Influencer): nenhum tem handling de deep link — só os
+      intent-filters padrão `MAIN`/`LAUNCHER` no manifest; o `ACTION_VIEW` do LocAki é apenas abrir URL no
+      browser (equivalente a `UrlLauncher`). A demanda só aparece **antecipada** no design do MinhaObra
+      (GAP-MO-M-01: abrir convite `/convite/[token]`), que não é app ativo. Pela regra "não inventar feature
+      sem consumidor", NÃO implementar agora. Reabrir quando ≥1 app real precisar (aí projetar
+      `DeepLinkRouter` parser commonMain + `onNewIntent`/`UIApplicationDelegate` expect/actual).
 - [ ] **UI de upload com progresso (frontend visual)** — `UploadProgressBar`/`UploadCard` sobre o
       `UiResource` agora disponível; complementa o item de upload da prioridade alta (ver GAP-06).
 

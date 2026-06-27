@@ -10,8 +10,8 @@ import br.com.codecacto.kmplib.core.network.PaginatedResponse
  * (`apps-api`), no modelo decidido pelo fundador: o app **sempre busca do servidor** e faz refetch
  * quando precisa de dados frescos — não há observação de snapshots nem cache persistente offline.
  *
- * Substitui o uso do Firestore-como-banco. O `FirestoreService` legado permanece intacto; esta é
- * uma camada alternativa, não destrutiva.
+ * É a camada de dados oficial dos apps: substitui de vez o Firestore-como-banco (removido da lib).
+ * Firebase fica restrito a Auth e Crashlytics.
  *
  * Todas as operações devolvem [ApiResult] (Success/Error/Loading) — erros de rede/HTTP já vêm
  * normalizados (status code + mensagem) por `handleApiCall`, então o consumidor nunca trata

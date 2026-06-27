@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.41.0"
+version = "2.42.0"
 
 // =============================================================================
 // SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
@@ -128,9 +128,9 @@ kotlin {
             // Lifecycle ViewModel
             implementation(libs.androidx.lifecycle.viewmodel)
 
-            // Firebase GitLive
+            // Firebase GitLive (Auth + Storage + Remote Config; SEM Firestore — decisão de arquitetura:
+            // dados via REST/apps-api, Firebase só para Auth e Crashlytics)
             implementation(libs.firebase.auth)
-            implementation(libs.firebase.firestore)
             implementation(libs.firebase.storage)
             implementation(libs.firebase.config)
 
@@ -179,7 +179,6 @@ kotlin {
 
             // Firebase Android (required by GitLive) - exposed as api() for consumer projects
             api(libs.firebase.auth.android)
-            api(libs.firebase.firestore.android)
             api(libs.firebase.storage.android)
             api(libs.firebase.common.android)
             api(libs.firebase.crashlytics.android)

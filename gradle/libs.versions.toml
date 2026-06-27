@@ -78,13 +78,11 @@ doist-normalize = { module = "com.doist.x:normalize", version.ref = "doistNormal
 
 # Firebase GitLive
 firebase-auth = { module = "dev.gitlive:firebase-auth", version.ref = "firebaseGitlive" }
-firebase-firestore = { module = "dev.gitlive:firebase-firestore", version.ref = "firebaseGitlive" }
 firebase-storage = { module = "dev.gitlive:firebase-storage", version.ref = "firebaseGitlive" }
 firebase-crashlytics = { module = "dev.gitlive:firebase-crashlytics", version.ref = "firebaseGitlive" }
 
 # Firebase Android (explicit versions for GitLive 2.1.0 compatibility)
 firebase-auth-android = { module = "com.google.firebase:firebase-auth-ktx", version = "23.1.0" }
-firebase-firestore-android = { module = "com.google.firebase:firebase-firestore", version = "25.1.1" }
 firebase-storage-android = { module = "com.google.firebase:firebase-storage", version = "21.0.1" }
 firebase-common-android = { module = "com.google.firebase:firebase-common-ktx", version = "21.0.0" }
 firebase-config = { module = "dev.gitlive:firebase-config", version.ref = "firebaseGitlive" }
