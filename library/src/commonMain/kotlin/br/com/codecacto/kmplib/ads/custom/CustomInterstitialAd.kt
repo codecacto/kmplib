@@ -3,16 +3,12 @@ package br.com.codecacto.kmplib.ads.custom
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,9 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
@@ -120,32 +114,8 @@ fun CustomInterstitialAd(
                     .clickable(onClick = handleClick)
             )
 
-            // Título + CTA sobrepostos na base, com scrim para legibilidade.
-            if (ad.title.isNotBlank() || ad.ctaLabel.isNotBlank()) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (ad.title.isNotBlank()) {
-                        Text(
-                            text = ad.title,
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-                    }
-                    if (ad.ctaLabel.isNotBlank()) {
-                        Button(onClick = handleClick) {
-                            Text(ad.ctaLabel)
-                        }
-                    }
-                }
-            }
+            // Sem título/CTA: a arte já traz o botão. Clicar em qualquer ponto abre a URL
+            // (igual ao banner). Só o "X" para fechar.
 
             IconButton(
                 onClick = onDismiss,
