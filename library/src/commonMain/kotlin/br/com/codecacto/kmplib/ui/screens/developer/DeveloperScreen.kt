@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.developer.DeveloperApp
 import br.com.codecacto.kmplib.developer.DeveloperContact
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
+import br.com.codecacto.kmplib.developer.resolveStoreUrl
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
 
@@ -336,8 +337,9 @@ private fun AppCard(app: DeveloperApp, cardColor: Color) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                if (app.storeUrl.isNotBlank()) {
-                    getUrlLauncher().openUrl(app.storeUrl)
+                val url = app.resolveStoreUrl()
+                if (url.isNotBlank()) {
+                    getUrlLauncher().openUrl(url)
                 }
             },
         shape = RoundedCornerShape(16.dp),

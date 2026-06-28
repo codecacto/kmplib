@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.developer
 
+import br.com.codecacto.kmplib.appupdate.currentPlatform
 import kotlinx.serialization.Serializable
 
 /**
@@ -14,7 +15,9 @@ import kotlinx.serialization.Serializable
  * @param name Nome do app
  * @param description Descrição curta exibida no card
  * @param logoUrl URL pública do logo
- * @param storeUrl Link da loja aberto ao tocar no card
+ * @param storeUrl LEGADO: link único de loja (fallback quando Play/App Store vierem vazios)
+ * @param playStoreUrl Link da Play Store (Android)
+ * @param appStoreUrl Link da App Store (iOS)
  * @param active Se `false`, o app não aparece na grade (servidor já filtra)
  * @param order Ordem de exibição (crescente)
  */
@@ -25,9 +28,23 @@ data class DeveloperApp(
     val description: String = "",
     val logoUrl: String = "",
     val storeUrl: String = "",
+    val playStoreUrl: String = "",
+    val appStoreUrl: String = "",
     val active: Boolean = true,
     val order: Int = 0,
 )
+
+/**
+ * Loja a abrir ao tocar no card, conforme a plataforma do dispositivo: iOS abre a
+ * App Store, Android abre a Play Store. Se o link da loja da plataforma estiver
+ * vazio, cai no link da outra loja e, por fim, no [DeveloperApp.storeUrl] legado.
+ */
+fun DeveloperApp.resolveStoreUrl(): String {
+    val isIos = currentPlatform == "ios"
+    val primary = if (isIos) appStoreUrl else playStoreUrl
+    val secondary = if (isIos) playStoreUrl else appStoreUrl
+    return primary.ifBlank { secondary }.ifBlank { storeUrl }
+}
 
 /**
  * Informações de contato do desenvolvedor (CodeCacto).
@@ -75,5 +92,7 @@ internal data class DeveloperAppDto(
     val description: String = "",
     val logoUrl: String = "",
     val storeUrl: String = "",
+    val playStoreUrl: String = "",
+    val appStoreUrl: String = "",
     val order: Int = 0,
 )

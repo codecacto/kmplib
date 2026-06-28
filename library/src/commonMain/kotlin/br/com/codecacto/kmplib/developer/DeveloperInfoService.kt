@@ -84,6 +84,8 @@ object DeveloperInfoService {
                     description = dto.description,
                     logoUrl = dto.logoUrl,
                     storeUrl = dto.storeUrl,
+                    playStoreUrl = dto.playStoreUrl,
+                    appStoreUrl = dto.appStoreUrl,
                     active = true,
                     order = dto.order,
                 )
