@@ -2,10 +2,8 @@ package br.com.codecacto.kmplib.ads.custom
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -109,41 +107,42 @@ fun CustomInterstitialAd(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.92f))
+                .background(Color.Black)
         ) {
-            Column(
+            // Imagem em TELA CHEIA (padrão 9:16 retrato no app). Crop preenche a tela
+            // toda; o criativo deve ser gerado em 1080×1920 (ver specs no painel de Anúncios).
+            AsyncImage(
+                model = ad.imageUrl,
+                contentDescription = ad.title.ifBlank { "Anuncio" },
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                if (ad.title.isNotBlank()) {
-                    Text(
-                        text = ad.title,
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                }
+                    .clickable(onClick = handleClick)
+            )
 
-                AsyncImage(
-                    model = ad.imageUrl,
-                    contentDescription = ad.title.ifBlank { "Anuncio" },
-                    contentScale = ContentScale.Fit,
+            // Título + CTA sobrepostos na base, com scrim para legibilidade.
+            if (ad.title.isNotBlank() || ad.ctaLabel.isNotBlank()) {
+                Column(
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clickable(onClick = handleClick)
-                )
-
-                if (ad.ctaLabel.isNotBlank()) {
-                    Button(
-                        onClick = handleClick,
-                        modifier = Modifier.padding(top = 24.dp)
-                    ) {
-                        Text(ad.ctaLabel)
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (ad.title.isNotBlank()) {
+                        Text(
+                            text = ad.title,
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
+                    if (ad.ctaLabel.isNotBlank()) {
+                        Button(onClick = handleClick) {
+                            Text(ad.ctaLabel)
+                        }
                     }
                 }
             }
