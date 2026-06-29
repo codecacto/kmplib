@@ -19,7 +19,8 @@ import kotlinx.serialization.Serializable
  *   "targetUrl": "https://meusite.com/produto",
  *   "title": "",
  *   "ctaLabel": "Saiba mais",
- *   "format": "banner"
+ *   "format": "banner",
+ *   "durationSeconds": 5
  * }
  * ```
  *
@@ -31,6 +32,10 @@ import kotlinx.serialization.Serializable
  *   composable (banner vs interstitial) decide onde aparece.
  * @property title titulo opcional exibido no interstitial.
  * @property ctaLabel rotulo opcional do botao de acao no interstitial.
+ * @property durationSeconds duracao (em segundos) da contagem regressiva do interstitial no modo
+ *   [InterstitialCloseMode.TIMED] — a barra de progresso no topo enche nesse tempo e so entao o "X"
+ *   aparece. Configurado no cadastro do anuncio (painel de Anuncios); default [DEFAULT_DURATION_SECONDS]
+ *   (5s) quando o servidor nao envia. Ignorado no modo [InterstitialCloseMode.IMMEDIATE].
  */
 @Serializable
 data class CustomAd(
@@ -40,9 +45,13 @@ data class CustomAd(
     val format: String = FORMAT_BANNER,
     val title: String = "",
     val ctaLabel: String = "",
+    val durationSeconds: Int = DEFAULT_DURATION_SECONDS,
 ) {
     companion object {
         const val FORMAT_BANNER = "banner"
         const val FORMAT_INTERSTITIAL = "interstitial"
+
+        /** Default da contagem regressiva do interstitial TIMED quando nao configurado. */
+        const val DEFAULT_DURATION_SECONDS = 5
     }
 }

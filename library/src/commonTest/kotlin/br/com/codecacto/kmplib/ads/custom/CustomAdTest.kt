@@ -17,6 +17,35 @@ class CustomAdTest {
         assertEquals(CustomAd.FORMAT_BANNER, ad.format)
         assertEquals("", ad.title)
         assertEquals("", ad.ctaLabel)
+        assertEquals(CustomAd.DEFAULT_DURATION_SECONDS, ad.durationSeconds)
+    }
+
+    @Test
+    fun `durationSeconds default e 5 quando ausente no payload`() {
+        val raw = """
+            {
+              "id": "ad1",
+              "imageUrl": "https://x/y.png",
+              "format": "interstitial"
+            }
+        """.trimIndent()
+        val ad = json.decodeFromString(CustomAd.serializer(), raw)
+        assertEquals(5, ad.durationSeconds)
+        assertEquals(CustomAd.DEFAULT_DURATION_SECONDS, ad.durationSeconds)
+    }
+
+    @Test
+    fun `durationSeconds e lido do payload quando presente`() {
+        val raw = """
+            {
+              "id": "ad1",
+              "imageUrl": "https://x/y.png",
+              "format": "interstitial",
+              "durationSeconds": 8
+            }
+        """.trimIndent()
+        val ad = json.decodeFromString(CustomAd.serializer(), raw)
+        assertEquals(8, ad.durationSeconds)
     }
 
     @Test
