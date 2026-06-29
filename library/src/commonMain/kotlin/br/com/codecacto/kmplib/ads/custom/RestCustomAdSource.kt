@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ads.custom
 
+import br.com.codecacto.kmplib.appupdate.currentPlatform
 import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -68,6 +69,9 @@ class RestCustomAdSource(
                 expectSuccess = true
                 parameter("project", projectSlug)
                 parameter("surface", surface)
+                // Plataforma p/ o servidor resolver o destino (app -> Play/App Store)
+                // quando o anúncio não tem URL própria.
+                parameter("platform", currentPlatform)
             }.bodyAsText()
             json.decodeFromString(CustomAdsResponse.serializer(), raw)
                 .ads
