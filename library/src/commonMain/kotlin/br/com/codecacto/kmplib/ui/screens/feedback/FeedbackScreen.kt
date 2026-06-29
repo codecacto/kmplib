@@ -93,16 +93,17 @@ fun FeedbackScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(bottom = paddingValues.calculateBottomPadding())
                 .background(backgroundColor)
         ) {
-            // Header
+            // Header — vai até o topo (atrás da status bar); o inset entra como padding interno,
+            // uma única vez (antes havia padding duplo: paddingValues no Column + top fixo de 48dp).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(primaryColor)
                     .padding(horizontal = 16.dp)
-                    .padding(top = 48.dp, bottom = 24.dp)
+                    .padding(top = paddingValues.calculateTopPadding() + 12.dp, bottom = 24.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

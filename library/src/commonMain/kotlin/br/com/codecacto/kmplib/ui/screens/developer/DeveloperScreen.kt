@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -54,8 +54,11 @@ import br.com.codecacto.kmplib.developer.DeveloperApp
 import br.com.codecacto.kmplib.developer.DeveloperContact
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.developer.resolveStoreUrl
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.codecacto_logo
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
+import org.jetbrains.compose.resources.painterResource
 
 private val WhatsAppGreen = Color(0xFF25D366)
 
@@ -126,16 +129,16 @@ fun DeveloperScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(backgroundColor)
         ) {
-            // Header
+            // Header — vai até o topo (atrás da status bar); o inset entra como padding interno,
+            // uma única vez (antes havia padding duplo: paddingValues no Column + top fixo de 48dp).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(primaryColor)
                     .padding(horizontal = 16.dp)
-                    .padding(top = 48.dp, bottom = 24.dp)
+                    .padding(top = paddingValues.calculateTopPadding() + 12.dp, bottom = 24.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -168,26 +171,18 @@ fun DeveloperScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .padding(bottom = paddingValues.calculateBottomPadding()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Branding
                 Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(primaryColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "CC",
-                        color = Color.White,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Image(
+                    painter = painterResource(Res.drawable.codecacto_logo),
+                    contentDescription = texts.brandName,
+                    modifier = Modifier.size(96.dp)
+                )
                 Text(
                     text = texts.brandName,
                     fontSize = 22.sp,
