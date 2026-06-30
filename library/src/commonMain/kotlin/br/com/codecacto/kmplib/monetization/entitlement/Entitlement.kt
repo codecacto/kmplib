@@ -98,6 +98,17 @@ data class Plan(
      * via PurchaseManager. Nulo no plano free.
      */
     @SerialName("storeProductId") val storeProductId: String? = null,
+    /**
+     * Tipo de periodicidade do plano (oferta padronizada do admin-api): "MENSAL" | "SEMESTRAL" |
+     * "ANUAL". Campo ADITIVO (2.50.0) — nulo em payloads antigos ou no plano free. NUNCA existe
+     * "TRIMESTRAL" no ecossistema.
+     */
+    @SerialName("tipo") val tipo: String? = null,
+    /**
+     * Duracao do plano em meses: 1 (MENSAL) | 6 (SEMESTRAL) | 12 (ANUAL). Campo ADITIVO (2.50.0) —
+     * nulo em payloads antigos ou no plano free. Chave de ORDENACAO da oferta (ASC: mensal -> anual).
+     */
+    @SerialName("durationMonths") val durationMonths: Int? = null,
     /** Beneficios/features destacados na UI do paywall (texto livre). */
     @SerialName("destaques") val destaques: List<String> = emptyList()
 ) {

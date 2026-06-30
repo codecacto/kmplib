@@ -3,6 +3,51 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Padronização de planos de assinatura — oferta do admin-api → paywall (origem: fundador 2026-06-30 → 2.50.0)
+- [x] **`Plan` ganhou `tipo`/`durationMonths` + `PaywallPlanMapper` (oferta padronizada → `PaywallPlan`)** —
+      Fase 2 (mobile) da padronização de planos. O backend (Fase 1, já commitada) faz
+      `EntitlementController.plans()` devolver a OFERTA do projeto (só planos ativos, ordenada) com campos
+      ADITIVOS por plano: `tipo` ("MENSAL"|"SEMESTRAL"|"ANUAL"), `durationMonths` (1|6|12) e
+      `storeProductId`. Esta fase consome isso na lib, **sem tocar backend/web**.
+      - **`monetization/entitlement/Entitlement.kt` — modelo `Plan`:** campos novos **ADITIVOS, NULLABLE,
+        `@Serializable` com defaults** (retrocompatíveis — não quebram consumidores nem payloads antigos):
+        `@SerialName("tipo") val tipo: String? = null` e `@SerialName("durationMonths") val durationMonths:
+        Int? = null` (`storeProductId` já existia). Regra do ecossistema: **só 3 tipos — MENSAL(1)/
+        SEMESTRAL(6)/ANUAL(12), SEM "TRIMESTRAL"** em nenhum lugar do código novo. `durationMonths` é a
+        chave de ordenação da oferta.
+      - **Novo `ui/screens/paywall/PaywallPlanMapper.kt`** — extensão
+        `List<Plan>.toPaywallPlans(priceLabelProvider: (storeProductId)->String?, recommendedStoreProductId:
+        String? = null, durationLabel: (Int)->String? = ::defaultDurationLabel): List<PaywallPlan>`.
+        Compartilhado porque ≥2 apps (Super 8, LocAki) fazem este mapeamento (skill `lib-evolution`).
+        Regras INEGOCIÁVEIS implementadas:
+        - **Ordem FIXA Mensal → Semestral → Anual** — `sortedBy(durationMonths)` ASC explícito.
+        - **Preço SEMPRE da loja (gold-standard)** — a lib NUNCA calcula preço. `priceLabelProvider`
+          resolve o preço já formatado por `storeProductId` (host lê de RevenueCat/StoreKit/Play Billing)
+          e vira o `PaywallPlan.priceLabel`. Plano sem preço resolvido (`null`) é **OMITIDO** (nada de "—"
+          persistente).
+        - **`PaywallPlan.id = storeProductId`** (chave de seleção/compra).
+        - **Recomendado = maior `durationMonths` exibido** (default; catálogo NÃO tem flag `isRecommended`).
+          App pode forçar via `recommendedStoreProductId`.
+        - **Filtra/omite** planos inativos, free, sem `storeProductId` ou sem `durationMonths`.
+        - `defaultDurationLabel(1)="1 mes"`, `(6)="6 meses"`, `(12)="1 ano"` (pt-BR, sem "trimestral").
+      - **`PaywallScreen`/`PaywallContract` (2.48.0/2.49.0) NÃO mudaram** — o `PaywallPlan` produzido pelo
+        mapper já casa com a tela canônica theme-driven (`headerIcon` opcional).
+      - **Testes:** `ui/screens/paywall/PaywallPlanMapperTest` (commonTest, 9 casos: ordem ASC, recomendado
+        default/forçado, omissão sem-preço/inativo/free/sem-FK/sem-duração, priceLabel da loja +
+        highlights/durationLabel propagados, entrada vazia, durationLabel nulo). `:kmplib:testDebugUnitTest
+        --tests *PaywallPlanMapperTest*` 9/0/0; `:kmplib:compileCommonMainKotlinMetadata` BUILD SUCCESSFUL.
+      - **Build/publish:** bump **2.49.0 → 2.50.0** (aditivo, retrocompatível); `:kmplib:publishToMavenLocal`
+        → `br.com.codecacto:kmplib:2.50.0`. **klibs iOS** pendentes de host macOS (P-IOS) — tudo commonMain
+        puro, compila em iOS sem mudança.
+      - **Migração (dev-mobile, com CTO):** **Super 8** e **LocAki** trocam o mapeamento local
+        `Plan → PaywallPlan` por `plans.toPaywallPlans(priceLabelProvider = { id ->
+        state.getStorePrice(id) })`; remover ordenação/escolha de recomendado caseiras. Bump kmplib → 2.50.0.
+      - **Follow-up (NÃO implementado — backend, fora do escopo desta fase):** se o produto quiser um plano
+        recomendado que NÃO seja o de maior duração, adicionar uma flag `isRecommended` (ou `destaque`) por
+        plano na tabela `plans` do admin-api + expor em `EntitlementController.plans()`; o mapper já aceita
+        `recommendedStoreProductId` para honrar essa escolha sem nova mudança de API mobile. Reportar a
+        lib-backend.
+
 ### Paywall canônico — repaginação visual / polish (origem: fundador 2026-06-30 → 2.49.0)
 - [x] **PaywallScreen repaginada (tela de pagamento PADRÃO do ecossistema)** — ajuste só de **casca
       visual**, sem tocar lógica/contrato de negócio. Resolve o feedback do fundador, mantendo o
