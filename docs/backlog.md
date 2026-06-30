@@ -3,6 +3,43 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Paywall canônico rico — convergência da PremiumScreen do Super 8 (origem: tech-lead 2026-06-30 → 2.48.0)
+- [x] **Paywall fino → tela canônica RICA, stateless, parametrizável** — **ENTREGUE na 2.48.0**. A
+      `PaywallScreen` da kmplib era fina/genérica e **sem consumidor** (confirmado por grep). Reescrita
+      como a tela canônica de assinatura, absorvendo a riqueza da `PremiumScreen` local do Super 8
+      (preço localizado da loja, disclosure legal de auto-renovação Apple/Google, restore, bloco de
+      assinatura ativa, e seção "Precisa de ajuda?"). Padrão de telas de lib (`DeveloperScreen`/
+      `FeedbackScreen`/`LoginScreen`): stateless, `*Texts` com defaults pt-BR, tema 100% por tokens
+      (`MaterialTheme` — ZERO `Color(...)`/gradiente hardcoded), callbacks; estado fica no app.
+      - **Contrato reescrito** (`ui/screens/paywall/PaywallContract.kt`; breaking interno coberto pelo
+        bump, sem consumidor antes): `PaywallPlan(id, name, description?, priceLabel, pricePerMonthLabel?,
+        durationLabel?, badgeLabel?, highlights, isRecommended)` — **`priceLabel` = preço JÁ FORMATADO da
+        loja (gold-standard; a lib NUNCA calcula preço de Double)**. `PaywallState(plans, selectedPlanId?,
+        usage: UsageSnapshot?, isPremium, subscription: SubscriptionInfo?, isLoadingPlans, isPurchasing,
+        purchasingPlanId?, error?)` — reúsa `UsageSnapshot` (entitlement) e `SubscriptionInfo`
+        (monetization.purchase). `PaywallAction`: `SelectPlan(planId)`/`Restore`/`Privacy`/`Terms`/
+        `OpenDeveloper`/`ManageSubscription`/`Back`/`DismissError`. `PaywallTexts` i18n completo.
+      - **Dois composables** (`PaywallScreen.kt`): `PaywallContent(state, onAction, texts, modifier)`
+        (só conteúdo, embutível — ex.: bottom sheet de limite de uso) e `PaywallScreen(state, onAction,
+        texts, snackbarHostState? = null, modifier)` (wrapper `Scaffold` + top bar voltar + slot de
+        snackbar). Render: header → `UsageMeter` (se usage) → `isPremium`? bloco "assinatura ativa"
+        (data dd/MM/yyyy via `formatDateBrFromMillis` + gerenciar) : cards de plano → **disclosure legal
+        de auto-renovação** → restaurar → `NeedHelpSection` → card de erro.
+      - **Novo componente** `ui/components/NeedHelpSection.kt` (`NeedHelpSection(title, description,
+        buttonText, onOpenDeveloper, modifier)`) — card "Precisa de ajuda?" + `OutlinedButton`; serve
+        qualquer tela de pagamento/assinatura; usado no rodapé do paywall.
+      - **NÃO tocou** `PurchaseManager`/`EntitlementController`/repositórios de compra (só UI/contrato).
+      - `:kmplib:compileCommonMainKotlinMetadata` BUILD SUCCESSFUL; `:kmplib:publishToMavenLocal` →
+        `br.com.codecacto:kmplib:2.48.0` (`kmplib` metadata + `kmplib-android.aar`). **klibs iOS
+        pendentes de host macOS** (P-IOS) — tudo commonMain puro, compila em iOS sem mudança.
+      - **Migração (dev-mobile, Super 8):** apontar o consumo para a `PaywallScreen` da kmplib e
+        descontinuar a `PremiumScreen` local. O ViewModel mapeia `PremiumPlan` → `PaywallPlan` (preço
+        via `state.getStorePrice(plan)` → `priceLabel`), `SubscriptionInfo` → `state.subscription`,
+        `isPremium` → `state.isPremium`; ações `SelectPlan`→`onPurchase`, `Restore`→`onRestorePurchases`,
+        `Privacy`/`Terms`→abrir links legais, `OpenDeveloper`→`DeveloperScreen`/contato,
+        `ManageSubscription`→`onManageSubscription`, `Back`→nav, `DismissError`→`clearError`. Textos via
+        `stringResource` nos `PaywallTexts`.
+
 ### Item 5 — Camada offline-first / persistência local (origem: decisão do fundador 2026-06-27 → 2.42.0)
 - [x] **DB local = SQLDelight (decisão registrada)** — avaliado SQLDelight vs Room KMP. **Escolha:
       SQLDelight 2.0.2** (já era a tecnologia do módulo `sync`; mantida). Justificativa: KMP-native e

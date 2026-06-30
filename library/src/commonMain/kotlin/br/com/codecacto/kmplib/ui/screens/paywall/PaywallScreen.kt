@@ -1,54 +1,137 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import br.com.codecacto.kmplib.core.money.Money
-import br.com.codecacto.kmplib.monetization.entitlement.Plan
+import br.com.codecacto.kmplib.core.format.formatDateBrFromMillis
+import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import br.com.codecacto.kmplib.ui.components.AppButton
+import br.com.codecacto.kmplib.ui.components.NeedHelpSection
 import br.com.codecacto.kmplib.ui.components.UsageMeter
 
 /**
- * Paywall **stateless**: recebe [state] + [onAction] + [texts]. Sem `koinViewModel()`, sem rede,
- * sem calculo de negocio — apenas renderiza. O ViewModel do app coleta planos/usage e aplica acoes.
+ * Paywall **canonico** da kmplib — stateless, parametrizavel por [PaywallTexts] e tematizado 100%
+ * por tokens ([MaterialTheme]). Sem `koinViewModel()`, sem rede, sem calculo de negocio: o ViewModel
+ * do app coleta planos/usage/assinatura e aplica as [PaywallAction].
  *
- * Estrutura: header (titulo/subtitulo) + [UsageMeter] (se `usage != null`) + cards de plano
- * (destaques + preco via [Money.formatBRL] quando moeda BRL) + CTA "Assinar" por plano +
- * "Restaurar compras" e "Agora nao". Responsivo via [BoxWithConstraints] (limita a largura do
- * conteudo em telas largas). Sem cores hardcoded.
+ * Wrapper completo de tela: [Scaffold] + top bar (voltar dispara [PaywallAction.Back]) + slot de
+ * snackbar opcional. O conteudo em si vive em [PaywallContent] (embutivel, ex.: bottom sheet de
+ * limite de uso).
+ *
+ * @param state Estado da tela.
+ * @param onAction Despacha acoes para o ViewModel do app.
+ * @param texts Textos (i18n); defaults em pt-BR.
+ * @param snackbarHostState Host de snackbar opcional (o app coleta effects e mostra mensagens).
+ * @param modifier Modificador externo.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaywallScreen(
     state: PaywallState,
     onAction: (PaywallAction) -> Unit,
-    modifier: Modifier = Modifier,
     texts: PaywallTexts = PaywallTexts(),
+    snackbarHostState: SnackbarHostState? = null,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(text = texts.screenTitle, fontWeight = FontWeight.SemiBold)
+                },
+                navigationIcon = {
+                    IconButton(onClick = { onAction(PaywallAction.Back) }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = texts.backContentDescription,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        },
+        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
+    ) { paddingValues ->
+        PaywallContent(
+            state = state,
+            onAction = onAction,
+            texts = texts,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+        )
+    }
+}
+
+/**
+ * Conteudo do paywall **sem chrome de tela** — embutivel em qualquer container (tela cheia, bottom
+ * sheet de limite de uso, dialog). Renderiza, de cima para baixo:
+ *
+ * header → [UsageMeter] (se `usage != null`) → bloco "assinatura ativa" (se `isPremium`) OU cards de
+ * plano + disclosure legal de auto-renovacao + botao restaurar → [NeedHelpSection] → card de erro.
+ *
+ * Tema 100% via [MaterialTheme]; preco SEMPRE [PaywallPlan.priceLabel] (string da loja). Responsivo
+ * via [BoxWithConstraints] (limita a largura do conteudo em telas largas).
+ */
+@Composable
+fun PaywallContent(
+    state: PaywallState,
+    onAction: (PaywallAction) -> Unit,
+    texts: PaywallTexts = PaywallTexts(),
+    modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val wide = maxWidth >= 600.dp
         val contentModifier = if (wide) {
-            Modifier.fillMaxWidth().widthIn(max = 520.dp)
+            Modifier.fillMaxWidth().widthIn(max = 560.dp)
         } else {
             Modifier.fillMaxWidth()
         }
@@ -60,87 +143,133 @@ fun PaywallScreen(
                 .padding(horizontal = if (wide) 32.dp else 16.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(modifier = contentModifier) {
-                Text(
-                    text = texts.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = texts.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Column(
+                modifier = contentModifier,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                PaywallHeader(texts = texts)
 
                 state.usage?.let { usage ->
-                    Spacer(Modifier.height(16.dp))
                     UsageMeter(usage = usage, label = texts.usageLabel)
                 }
 
-                state.error?.let { err ->
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = err,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                if (state.isPremium) {
+                    ActiveSubscriptionCard(
+                        subscription = state.subscription,
+                        texts = texts,
+                        isPurchasing = state.isPurchasing,
+                        onManage = { onAction(PaywallAction.ManageSubscription) },
+                    )
+                } else {
+                    PlansSection(state = state, onAction = onAction, texts = texts)
+                    LegalDisclosureSection(texts = texts, onAction = onAction)
+                    RestoreButton(
+                        isRestoring = state.isPurchasing && state.purchasingPlanId == null,
+                        enabled = !state.isPurchasing,
+                        texts = texts,
+                        onRestore = { onAction(PaywallAction.Restore) },
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                NeedHelpSection(
+                    title = texts.needHelpTitle,
+                    description = texts.needHelpDescription,
+                    buttonText = texts.needHelpButton,
+                    onOpenDeveloper = { onAction(PaywallAction.OpenDeveloper) },
+                )
 
-                when {
-                    state.isLoading -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    }
-
-                    state.plans.isEmpty() -> {
-                        Text(
-                            text = texts.emptyPlans,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-
-                    else -> {
-                        state.plans.forEach { plan ->
-                            PlanCard(
-                                plan = plan,
-                                selected = plan.plano == state.selectedPlanId,
-                                isPurchasing = state.isPurchasing,
-                                texts = texts,
-                                onSelect = { onAction(PaywallAction.SelectPlan(plan)) },
-                            )
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
+                state.error?.let { err ->
+                    ErrorCard(
+                        message = err,
+                        dismissLabel = texts.errorDismiss,
+                        onDismiss = { onAction(PaywallAction.DismissError) },
+                    )
                 }
+            }
+        }
+    }
+}
 
-                Spacer(Modifier.height(8.dp))
+@Composable
+private fun PaywallHeader(texts: PaywallTexts) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = texts.headerTitle,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = texts.headerSubtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun PlansSection(
+    state: PaywallState,
+    onAction: (PaywallAction) -> Unit,
+    texts: PaywallTexts,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = texts.choosePlanLabel,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        when {
+            state.isLoadingPlans -> {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    TextButton(
-                        onClick = { onAction(PaywallAction.Restore) },
-                        enabled = !state.isPurchasing,
-                    ) {
-                        Text(texts.restore)
-                    }
-                    TextButton(
-                        onClick = { onAction(PaywallAction.Dismiss) },
-                        enabled = !state.isPurchasing,
-                    ) {
-                        Text(texts.dismiss)
-                    }
+                    CircularProgressIndicator()
+                }
+            }
+
+            state.plans.isEmpty() -> {
+                Text(
+                    text = texts.emptyPlans,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            else -> {
+                state.plans.forEach { plan ->
+                    PlanCard(
+                        plan = plan,
+                        selected = plan.id == state.selectedPlanId,
+                        isPurchasing = state.isPurchasing,
+                        isThisPurchasing = state.isPurchasing && state.purchasingPlanId == plan.id,
+                        texts = texts,
+                        onSelect = { onAction(PaywallAction.SelectPlan(plan.id)) },
+                    )
                 }
             }
         }
@@ -149,89 +278,311 @@ fun PaywallScreen(
 
 @Composable
 private fun PlanCard(
-    plan: Plan,
+    plan: PaywallPlan,
     selected: Boolean,
     isPurchasing: Boolean,
+    isThisPurchasing: Boolean,
     texts: PaywallTexts,
     onSelect: () -> Unit,
 ) {
-    val border = if (selected) {
+    val highlighted = plan.isRecommended || selected
+    val border = if (highlighted) {
         BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
     } else {
         BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isPurchasing) { onSelect() },
+        shape = RoundedCornerShape(16.dp),
         border = border,
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
+            containerColor = if (highlighted) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
                 MaterialTheme.colorScheme.surface
             },
         ),
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+            if (plan.isRecommended) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = plan.badgeLabel ?: texts.recommendedBadge,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
-                Text(
-                    text = plan.nome,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = priceLabel(plan, texts),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            if (plan.destaques.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                plan.destaques.forEach { destaque ->
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "• $destaque",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 2.dp),
+                        text = plan.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
+                    plan.description?.let { desc ->
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = plan.priceLabel,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (highlighted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                    plan.pricePerMonthLabel?.let { perMonth ->
+                        Text(
+                            text = perMonth,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            plan.durationLabel?.let { duration ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = duration,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (plan.highlights.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                plan.highlights.forEach { highlight ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = highlight,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
             AppButton(
-                text = "${texts.ctaPrefix} ${plan.nome}",
+                text = texts.ctaSubscribe,
                 onClick = onSelect,
                 enabled = !isPurchasing,
-                isLoading = isPurchasing && selected,
+                isLoading = isThisPurchasing,
+                primaryColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
     }
 }
 
-private fun priceLabel(plan: Plan, texts: PaywallTexts): String {
-    val price = plan.preco
-    if (price.isNullOrBlank()) return texts.freeLabel
-    val formatted = if (plan.moeda.equals("BRL", ignoreCase = true)) {
-        Money.formatBRL(price)
-    } else {
-        "${plan.moeda} $price"
+@Composable
+private fun ActiveSubscriptionCard(
+    subscription: SubscriptionInfo?,
+    texts: PaywallTexts,
+    isPurchasing: Boolean,
+    onManage: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(48.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = texts.activeTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = texts.activeDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                textAlign = TextAlign.Center,
+            )
+
+            subscription?.expirationDate?.let { expiration ->
+                // Data formatada dd/MM/yyyy (padrao BR) dentro da lib.
+                val formatted = formatDateBrFromMillis(expiration.toEpochMilliseconds())
+                val label = if (subscription.willRenew) texts.renewsAtLabel else texts.expiresAtLabel
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "$label $formatted",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onManage,
+                enabled = !isPurchasing,
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(texts.manageSubscription)
+            }
+        }
     }
-    val interval = plan.intervalo?.let { intervalSuffix(it) }.orEmpty()
-    return formatted + interval
 }
 
-private fun intervalSuffix(interval: String): String = when (interval.lowercase()) {
-    "month", "mensal", "monthly" -> "/mes"
-    "year", "anual", "yearly", "annual" -> "/ano"
-    "week", "semanal", "weekly" -> "/semana"
-    "once", "unico", "lifetime" -> ""
-    else -> ""
+@Composable
+private fun LegalDisclosureSection(
+    texts: PaywallTexts,
+    onAction: (PaywallAction) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = texts.legalInfoTitle,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = texts.autoRenewalNotice,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = texts.subscriptionDisclosure,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                TextButton(onClick = { onAction(PaywallAction.Privacy) }) {
+                    Text(
+                        text = texts.privacyPolicy,
+                        style = MaterialTheme.typography.bodySmall,
+                        textDecoration = TextDecoration.Underline,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                TextButton(onClick = { onAction(PaywallAction.Terms) }) {
+                    Text(
+                        text = texts.termsOfUse,
+                        style = MaterialTheme.typography.bodySmall,
+                        textDecoration = TextDecoration.Underline,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestoreButton(
+    isRestoring: Boolean,
+    enabled: Boolean,
+    texts: PaywallTexts,
+    onRestore: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        TextButton(onClick = onRestore, enabled = enabled) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (isRestoring) texts.restoring else texts.restore,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    message: String,
+    dismissLabel: String,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onDismiss) {
+                Text(dismissLabel, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
+    }
 }
