@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -44,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -68,6 +71,8 @@ import br.com.codecacto.kmplib.ui.components.UsageMeter
  * @param texts Textos (i18n); defaults em pt-BR.
  * @param snackbarHostState Host de snackbar opcional (o app coleta effects e mostra mensagens).
  * @param modifier Modificador externo.
+ * @param headerIcon Icone premium opcional do topo (ex.: logo/icone do app). `null` usa um default
+ *   tasteful ([Icons.Filled.WorkspacePremium]). Tematizado pelo `colorScheme.primary`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +82,7 @@ fun PaywallScreen(
     texts: PaywallTexts = PaywallTexts(),
     snackbarHostState: SnackbarHostState? = null,
     modifier: Modifier = Modifier,
+    headerIcon: ImageVector? = null,
 ) {
     Scaffold(
         modifier = modifier,
@@ -107,6 +113,7 @@ fun PaywallScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
+            headerIcon = headerIcon,
         )
     }
 }
@@ -118,8 +125,10 @@ fun PaywallScreen(
  * header → [UsageMeter] (se `usage != null`) → bloco "assinatura ativa" (se `isPremium`) OU cards de
  * plano + disclosure legal de auto-renovacao + botao restaurar → [NeedHelpSection] → card de erro.
  *
- * Tema 100% via [MaterialTheme]; preco SEMPRE [PaywallPlan.priceLabel] (string da loja). Responsivo
- * via [BoxWithConstraints] (limita a largura do conteudo em telas largas).
+ * Tema 100% via [MaterialTheme] (zero cor hardcoded); preco SEMPRE [PaywallPlan.priceLabel] (string
+ * da loja). Responsivo via [BoxWithConstraints] (limita a largura do conteudo em telas largas).
+ *
+ * @param headerIcon Icone premium opcional do topo; `null` usa o default ([Icons.Filled.WorkspacePremium]).
  */
 @Composable
 fun PaywallContent(
@@ -127,6 +136,7 @@ fun PaywallContent(
     onAction: (PaywallAction) -> Unit,
     texts: PaywallTexts = PaywallTexts(),
     modifier: Modifier = Modifier,
+    headerIcon: ImageVector? = null,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val wide = maxWidth >= 600.dp
@@ -147,7 +157,7 @@ fun PaywallContent(
                 modifier = contentModifier,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                PaywallHeader(texts = texts)
+                PaywallHeader(texts = texts, headerIcon = headerIcon)
 
                 state.usage?.let { usage ->
                     UsageMeter(usage = usage, label = texts.usageLabel)
@@ -191,20 +201,24 @@ fun PaywallContent(
 }
 
 @Composable
-private fun PaywallHeader(texts: PaywallTexts) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun PaywallHeader(texts: PaywallTexts, headerIcon: ImageVector?) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Disco de fundo discreto (acento, NUNCA preenchido forte): primaria a 12% sobre o circulo.
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(84.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Default.Star,
+                imageVector = headerIcon ?: Icons.Filled.WorkspacePremium,
                 contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(44.dp),
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -276,6 +290,11 @@ private fun PlansSection(
     }
 }
 
+/**
+ * Card de plano. **Fundo SEMPRE `surface`** (recomendado e nao-recomendado) para legibilidade — o
+ * destaque do recomendado/selecionado vem de ACENTOS: borda primaria 2dp, leve elevacao e o badge
+ * proeminente. A cor primaria nunca preenche grandes areas (so badge, borda, checks, preco e CTA).
+ */
 @Composable
 private fun PlanCard(
     plan: PaywallPlan,
@@ -296,32 +315,18 @@ private fun PlanCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = !isPurchasing) { onSelect() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         border = border,
-        colors = CardDefaults.cardColors(
-            containerColor = if (highlighted) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            },
+        // Fundo branco/surface SEMPRE — sem area preenchida de primaria.
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (highlighted) 6.dp else 0.dp,
         ),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
             if (plan.isRecommended) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = plan.badgeLabel ?: texts.recommendedBadge,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
+                RecommendedBadge(label = plan.badgeLabel ?: texts.recommendedBadge)
+                Spacer(Modifier.height(14.dp))
             }
 
             Row(
@@ -376,37 +381,105 @@ private fun PlanCard(
             }
 
             if (plan.highlights.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 plan.highlights.forEach { highlight ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.width(8.dp))
+                        // Check num disco discreto de primaria a 12% (acento, nao area cheia).
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             text = highlight,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
-            AppButton(
-                text = texts.ctaSubscribe,
-                onClick = onSelect,
-                enabled = !isPurchasing,
-                isLoading = isThisPurchasing,
-                primaryColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.fillMaxWidth(),
+            // CTA: recomendado/selecionado em primaria cheia (chamada principal); demais em outlined
+            // (acento), preservando "primaria so como acento" no resto do card.
+            if (highlighted) {
+                AppButton(
+                    text = texts.ctaSubscribe,
+                    onClick = onSelect,
+                    enabled = !isPurchasing,
+                    isLoading = isThisPurchasing,
+                    primaryColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                OutlinedButton(
+                    onClick = onSelect,
+                    enabled = !isPurchasing,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                ) {
+                    if (isThisPurchasing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(
+                            text = texts.ctaSubscribe,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Selo "Recomendado" proeminente: pill de cor primaria, leve sombra, icone de estrela e tipografia
+ * em bold. Tematizado por `colorScheme.primary`/`onPrimary` (zero cor hardcoded).
+ */
+@Composable
+private fun RecommendedBadge(label: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
@@ -481,7 +554,7 @@ private fun LegalDisclosureSection(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),

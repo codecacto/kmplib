@@ -3,6 +3,36 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Paywall canônico — repaginação visual / polish (origem: fundador 2026-06-30 → 2.49.0)
+- [x] **PaywallScreen repaginada (tela de pagamento PADRÃO do ecossistema)** — ajuste só de **casca
+      visual**, sem tocar lógica/contrato de negócio. Resolve o feedback do fundador, mantendo o
+      gold-standard: stateless, parametrizável e **100% `MaterialTheme.colorScheme`** (ZERO `Color(...)`/
+      gradiente com cor fixa) — adapta à primária de cada app (ex.: teal do Super 8).
+      - **Card do plano = fundo `surface` SEMPRE** (recomendado e não): removido o `primaryContainer`
+        cheio que deixava o card recomendado "tudo verde". Destaque do recomendado agora vem de
+        **acentos**: borda primária 2dp + **elevação 6dp** + badge proeminente. Primária só como acento
+        (badge, borda, preço, ícones de check, CTA). CTA: recomendado/selecionado em `AppButton` primária
+        cheia (chamada principal); demais em `OutlinedButton` de borda primária.
+      - **Badge "Recomendado" proeminente** (`RecommendedBadge`): pill `Surface` cor primária com
+        `shadowElevation = 4dp`, ícone `Icons.Filled.Star` + label em **bold** (`onPrimary`).
+      - **Header centralizado**: `Column(Modifier.fillMaxWidth(), horizontalAlignment = CenterHorizontally)`
+        (antes faltava `fillMaxWidth()`, colava à esquerda).
+      - **Ícone do topo premium**: default `Icons.Filled.WorkspacePremium` (coroa) num disco discreto
+        `primary.copy(alpha = 0.12f)` (não mais disco `primaryContainer` cheio com `Star`). Checks dos
+        highlights também ganharam disco discreto 12%.
+      - **Param novo OPCIONAL `headerIcon: ImageVector? = null`** em `PaywallScreen` **e** `PaywallContent`
+        (último parâmetro, após `modifier`) — o app pode passar seu próprio ícone/logo no topo; `null`
+        usa o default. **Compatível** com o host atual do Super 8 (chama por args nomeados, sem `headerIcon`).
+      - **Contrato `PaywallContract.kt` inalterado** (mesmos `PaywallPlan`/`PaywallState`/`PaywallAction`/
+        `PaywallTexts`); `NeedHelpSection` preservada. `LegalDisclosureSection` ganhou leve fundo
+        `surfaceVariant@40%` (era `surface`) para separar do card de plano.
+      - `:kmplib:compileCommonMainKotlinMetadata` BUILD SUCCESSFUL; `:kmplib:publishToMavenLocal` →
+        `br.com.codecacto:kmplib:2.49.0`. Tudo commonMain puro (`material-icons-extended` já no classpath
+        — `WorkspacePremium`/`Star` confirmados). **klibs iOS** seguem pendentes de host macOS (P-IOS),
+        sem mudança de código necessária.
+      - **Migração:** NENHUMA obrigatória — Super 8 (único consumidor) continua compilando como está. Para
+        usar o ícone próprio, passar `headerIcon = ...` no `PaywallScreen` do host (opcional).
+
 ### Paywall canônico rico — convergência da PremiumScreen do Super 8 (origem: tech-lead 2026-06-30 → 2.48.0)
 - [x] **Paywall fino → tela canônica RICA, stateless, parametrizável** — **ENTREGUE na 2.48.0**. A
       `PaywallScreen` da kmplib era fina/genérica e **sem consumidor** (confirmado por grep). Reescrita
