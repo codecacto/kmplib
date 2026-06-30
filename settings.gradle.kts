@@ -17,7 +17,13 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "kmplib"
+// O nome do BUILD precisa ser DIFERENTE do nome do subprojeto `:kmplib` abaixo.
+// Se ambos se chamarem "kmplib", um consumidor que use este projeto via `includeBuild`
+// COM acessores tipados (`enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")`) quebra na
+// geração do `RootProjectAccessor` com "method getKmplib() is already defined" — o build
+// e o subprojeto colidem no mesmo acessor. Manter o build como "kmplib-build" elimina a
+// colisão sem afetar artefatos (que derivam do NOME DO SUBPROJETO `:kmplib`, não do build).
+rootProject.name = "kmplib-build"
 
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
