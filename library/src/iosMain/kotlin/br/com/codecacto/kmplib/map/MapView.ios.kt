@@ -77,7 +77,12 @@ actual fun MapView(
         nativeMap.setCamera(cameraPosition.target.latitude, cameraPosition.target.longitude, cameraPosition.zoom)
     }
     LaunchedEffect(onMapClick) {
-        nativeMap.setOnMapClick(onMapClick?.let { cb -> { lat, lng -> cb(LatLng(lat, lng)) } })
+        val cb = onMapClick
+        if (cb != null) {
+            nativeMap.setOnMapClick { lat, lng -> cb(LatLng(lat, lng)) }
+        } else {
+            nativeMap.clearOnMapClick()
+        }
     }
     // Reconcilia os pins sempre que a lista (preenchida pelos MapMarker filhos) muda.
     SideEffect { nativeMap.setMarkers(markers.toList()) }

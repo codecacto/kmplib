@@ -1,8 +1,12 @@
+@file:OptIn(kotlin.experimental.ExperimentalObjCName::class)
+
 package br.com.codecacto.kmplib.map
 
 import platform.UIKit.UIView
+import kotlin.native.ObjCName
 
 /** Marcador entregue ao mapa nativo iOS (lado Swift / GMSMarker). */
+@ObjCName("IosMapMarkerData")
 data class IosMapMarkerData(
     val id: String,
     val lat: Double,
@@ -20,6 +24,7 @@ data class IosMapMarkerData(
  * via `UIKitView`. Assim o mapa iOS é Google Maps NATIVO — paridade com o Android (`maps-compose`),
  * sem cinterop na lib.
  */
+@ObjCName("IosNativeMap")
 interface IosNativeMap {
     /** A `GMSMapView` (como `UIView`) a ser embutida no Compose via `UIKitView`. */
     val view: UIView
@@ -36,8 +41,11 @@ interface IosNativeMap {
     /** Callback de toque num pin (recebe o id do [IosMapMarkerData]). */
     fun setOnMarkerClick(onClick: (String) -> Unit)
 
-    /** Callback de toque no mapa (lat, lng) — usado no modo picker. `null` desliga. */
-    fun setOnMapClick(onClick: ((Double, Double) -> Unit)?)
+    /** Callback de toque no mapa (lat, lng) — usado no modo picker. */
+    fun setOnMapClick(onClick: (Double, Double) -> Unit)
+
+    /** Desabilita o callback de toque no mapa. */
+    fun clearOnMapClick()
 }
 
 /**

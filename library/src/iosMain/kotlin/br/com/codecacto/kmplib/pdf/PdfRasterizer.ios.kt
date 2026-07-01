@@ -3,8 +3,6 @@
 package br.com.codecacto.kmplib.pdf
 
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.allocArray
-import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import platform.CoreGraphics.CGContextDrawPDFPage
@@ -14,7 +12,6 @@ import platform.CoreGraphics.CGContextSetFillColorWithColor
 import platform.CoreGraphics.CGContextTranslateCTM
 import platform.CoreGraphics.CGDataProviderCreateWithData
 import platform.CoreGraphics.CGDataProviderRelease
-import platform.CoreGraphics.CGPDFBox
 import platform.CoreGraphics.CGPDFDocumentCreateWithProvider
 import platform.CoreGraphics.CGPDFDocumentGetNumberOfPages
 import platform.CoreGraphics.CGPDFDocumentGetPage
@@ -79,7 +76,8 @@ actual fun renderPdfPagesToImages(pdfBytes: ByteArray): List<ByteArray> {
             for (pageNumber in 1..pageCount) {
                 // CGPDFDocumentGetPage é 1-indexado.
                 val page = CGPDFDocumentGetPage(document, pageNumber.toULong()) ?: continue
-                val box = CGPDFPageGetBoxRect(page, CGPDFBox.kCGPDFMediaBox)
+                // CGPDFBox values: 0=MediaBox, 1=CropBox, 2=BleedBox, 3=TrimBox, 4=ArtBox
+                val box = CGPDFPageGetBoxRect(page, 0) // kCGPDFMediaBox = 0
                 val (pw, ph) = box.useContents { size.width to size.height }
                 if (pw <= 0.0 || ph <= 0.0) continue
 
@@ -115,12 +113,12 @@ actual fun renderPdfPagesToImages(pdfBytes: ByteArray): List<ByteArray> {
 
 private fun NSData.toByteArray(): ByteArray {
     val length = this.length.toInt()
+    if (length == 0) return ByteArray(0)
     val out = ByteArray(length)
-    if (length == 0) return out
-    memScoped {
-        val buffer = allocArray<kotlinx.cinterop.ByteVar>(length)
-        platform.posix.memcpy(buffer, this@toByteArray.bytes, this@toByteArray.length)
-        for (i in 0 until length) out[i] = buffer[i]
+    this.bytes?.let { bytes ->
+        out.usePinned { pinned ->
+            platform.posix.memcpy(pinned.addressOf(0), bytes, length.toULong())
+        }
     }
     return out
 }
