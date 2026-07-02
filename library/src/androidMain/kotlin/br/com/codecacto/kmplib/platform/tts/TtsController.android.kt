@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform.tts
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -124,8 +125,17 @@ class AndroidTtsController : TtsController {
             }
             engine.language = locale
             engine.setSpeechRate(effectiveRate)
+            // Roteia a fala pelo stream de MÍDIA (mais alto/previsível) em vez do stream padrão.
+            engine.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
             val params = Bundle().apply {
                 putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID)
+                // Volume máximo relativo ao stream (app de acessibilidade — fala precisa ser audível).
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
             }
             engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, UTTERANCE_ID)
         } catch (e: Exception) {

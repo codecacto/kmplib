@@ -5,6 +5,8 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import platform.AVFAudio.AVAudioSession
+import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVSpeechBoundaryImmediate
 import platform.AVFAudio.AVSpeechSynthesisVoice
 import platform.AVFAudio.AVSpeechSynthesizer
@@ -64,6 +66,15 @@ class IosTtsController : TtsController {
 
     init {
         synthesizer.delegate = delegate
+        // Sessão de áudio em .playback: fala sai no volume de mídia e IGNORA o botão de silencioso
+        // (essencial num app de acessibilidade). Best-effort — nunca lança.
+        try {
+            val session = AVAudioSession.sharedInstance()
+            session.setCategory(AVAudioSessionCategoryPlayback, null)
+            session.setActive(true, null)
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao configurar AVAudioSession: ${e.message}")
+        }
     }
 
     override suspend fun speak(text: String, langTag: String, rate: Float) {
@@ -84,6 +95,7 @@ class IosTtsController : TtsController {
             val utterance = AVSpeechUtterance(string = text)
             utterance.voice = voice
             utterance.rate = iosRate(effectiveRate)
+            utterance.volume = 1.0f  // volume máximo do utterance
             synthesizer.speakUtterance(utterance)
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao falar: ${e.message}")

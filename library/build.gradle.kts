@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.52.0"
+version = "2.53.0"
 
 // =============================================================================
 // SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
