@@ -13,9 +13,20 @@ import androidx.compose.ui.text.font.FontFamily
  * Fornece cores, tipografia e shapes para todos os componentes.
  * Suporta Light e Dark mode automaticamente baseado nas configurações do sistema.
  *
+ * Os parâmetros de **acessibilidade** [fontScale] e [highContrast] são **aditivos e
+ * retrocompatíveis**: os defaults (`1f` / `false`) preservam exatamente o comportamento anterior —
+ * nenhum consumidor existente quebra.
+ *
  * @param darkTheme Se true, usa o tema escuro. Padrão: isSystemInDarkTheme()
  * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default
  * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default
+ * @param fontScale Escala de fonte global de acessibilidade (multiplica toda a [AppTypography] e é
+ *   exposta em [LocalFontScale]). Clampada em [MIN_FONT_SCALE]..[MAX_FONT_SCALE]. Use os degraus de
+ *   [AppFontScale] (`Small`/`Medium`/`Large`/`ExtraLarge`) → `fontScale = AppFontScale.Large.scale`.
+ *   Padrão: `1f` (sem escala).
+ * @param highContrast Quando `true`, seleciona um par de [ColorScheme] de **alto contraste** derivado
+ *   da [colorPalette] — superfícies em contraste máximo (acima do AAA); os acentos preservam a paleta
+ *   da marca. Ideal para baixa visão. Padrão: `false`.
  * @param content Conteúdo da aplicação
  */
 @Composable
@@ -23,19 +34,24 @@ fun AppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorPalette: AppColorPalette = AppColorPalettes.Default,
     fontFamily: FontFamily = FontFamily.Default,
+    fontScale: Float = 1f,
+    highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) {
-        createDarkColorScheme(colorPalette)
-    } else {
-        createLightColorScheme(colorPalette)
+    val colorScheme = when {
+        highContrast && darkTheme -> createHighContrastDarkColorScheme(colorPalette)
+        highContrast -> createHighContrastLightColorScheme(colorPalette)
+        darkTheme -> createDarkColorScheme(colorPalette)
+        else -> createLightColorScheme(colorPalette)
     }
 
-    val typography = createAppTypography(fontFamily)
+    val effectiveScale = clampFontScale(fontScale)
+    val typography = scaleTypography(createAppTypography(fontFamily), effectiveScale)
 
-    // Fornecer a paleta customizada via CompositionLocal
+    // Fornecer a paleta customizada e a escala de fonte via CompositionLocal
     CompositionLocalProvider(
-        LocalAppColorPalette provides colorPalette
+        LocalAppColorPalette provides colorPalette,
+        LocalFontScale provides effectiveScale
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

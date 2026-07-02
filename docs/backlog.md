@@ -3,6 +3,152 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Minha Voz (CAA) — TTS + grade acessível de densidade + acessibilidade de tema (origem: ux-designer 2026-07-02, `Minha Voz/docs/design/{flows,wireframes}.md`)
+> App de CAA (prancha de comunicação) para quem lê/entende mas não fala (idosos/pós-AVC/afasia).
+> **Acessibilidade é requisito de 1ª classe** e o app nasce da Casca (kmplib). 3 gaps de plataforma
+> transversais (servem além do Minha Voz) + 1 gap menor. **NENHUM implementado ainda** — abertos para
+> o lib-mobile. Ordem de prioridade: **a (TTS) → b (grade de densidade) → c (fonte/contraste) → d (idioma)**.
+>
+> **Status (2026-07-02 → 2.51.0):** gaps **a (TTS), b (grade de densidade) e c (fonte/contraste)
+> ENTREGUES** pelo lib-mobile. Falta apenas o gap **d (GAP-MV-M-LOCALE-01, BAIXA)**, mantido em
+> avaliação (regra do backlog: só com ≥2 consumidores).
+
+- [x] **GAP-MV-M-TTS-01 (ALTA — coração do app) — `TtsController` (síntese de voz nativa, expect/actual)**
+      — **ENTREGUE na 2.51.0.** Novo módulo `platform/tts/`. `interface TtsController` (`state:
+      StateFlow<TtsState>`, `suspend speak(text, langTag, rate=1f)`, `stop()`, `suspend
+      isLanguageAvailable(langTag): TtsVoiceAvailability`, `setRate(rate)`, `release()`), enums
+      `TtsState { Idle, Speaking, Error }` / `TtsVoiceAvailability { Available, MissingData,
+      NotSupported }`, factory `createTtsController()` + helper Compose `rememberTtsController()`
+      (release em `onDispose`). **Android:** `android.speech.tts.TextToSpeech` + `UtteranceProgressListener`
+      (state), `isLanguageAvailable` mapeado por `ttsAvailabilityFromAndroidCode` (`LANG_MISSING_DATA`→
+      MissingData, `LANG_NOT_SUPPORTED`→NotSupported); `TtsControllerHolder.init` no `KmpLib.init`.
+      **iOS:** `AVSpeechSynthesizer` + `AVSpeechSynthesisVoice(language:)` (nil→indisponível), rate
+      ancorado no `AVSpeechUtteranceDefaultSpeechRate` e clampado no intervalo do sistema. **Best-effort:
+      NADA lança**; voz ausente nunca bloqueia (só reporta). Helpers puros `normalizeTtsLangTag`
+      (BCP-47), `clampTtsRate` (0.5f..2f). NÃO abre tela de instalação de voz (host via
+      `getUrlLauncher()`). **`speak` sem `rate` (default sentinela `Float.NaN`) usa a velocidade corrente
+      de `setRate`** (helper puro `resolveTtsSpeakRate`; `rate` explícito sobrepõe só naquela fala — fix de
+      code-review). Testes `platform/tts/TtsControllerTest` (14 — normalização/clamp/mapeamento/rate
+      corrente vs explícita).
+      `:kmplib:compileDebugKotlinAndroid`+`compileCommonMainKotlinMetadata` BUILD SUCCESSFUL; testes
+      10/0/0. **actual iOS completo; klib/framework iOS pendente de host macOS (P-IOS).**
+
+  <details><summary>Especificação original (entregue na 2.51.0)</summary>
+
+  **GAP-MV-M-TTS-01 (ALTA — coração do app) — `TtsController` (síntese de voz nativa, expect/actual)**
+      — o app precisa **falar qualquer frase** em qualquer dos 4 idiomas (pt-BR/pt-PT/en/es), sem gravar
+      áudio. Padrão-ouro = API nativa do SO: **Android `TextToSpeech`**, **iOS `AVSpeechSynthesizer`**,
+      via `expect/actual` (mesmo modelo dos demais `platform/*` da lib). **Transversal:** serve qualquer
+      app do ecossistema que precise ler texto em voz alta (acessibilidade, leitura assistida).
+      - **API commonMain sugerida** (`platform/tts/` ou `media/`): `interface TtsController {
+        val state: StateFlow<TtsState>; suspend fun speak(text: String, langTag: String, rate: Float =
+        1f); fun stop(); suspend fun isLanguageAvailable(langTag: String): TtsVoiceAvailability;
+        fun setRate(rate: Float); fun release() }`. `enum TtsState { Idle, Speaking, Error }`.
+        `enum TtsVoiceAvailability { Available, MissingData, NotSupported }`. Factory
+        `createTtsController()` + helper Compose `rememberTtsController()` (release em `onDispose`).
+        `langTag` BCP-47 (`pt-BR`,`pt-PT`,`en-US`,`es-ES`).
+      - **Detecção de voz ausente (requisito, R-01):** `isLanguageAvailable` mapeia
+        `TextToSpeech.isLanguageAvailable` (Android → `LANG_MISSING_DATA` = `MissingData`) e a
+        disponibilidade de `AVSpeechSynthesisVoice(language:)` no iOS. **Best-effort:** nada lança;
+        voz ausente NUNCA bloqueia (o Destaque exibe o texto de qualquer forma — fala é complemento).
+        Expor também um caminho para abrir a instalação de voz do sistema no Android (Intent
+        `ACTION_INSTALL_TTS_DATA`) — pode ser via `getUrlLauncher()`/callback do host, não dentro do controller.
+      - **Reúso:** `AppLogger`, `StateFlow`/coroutines; NÃO recriar player (é síntese, não `AudioPlayer`).
+      - **Consumo Minha Voz:** Destaque (`speak` ao abrir se "Falar em voz alta" ON, botão Repetir),
+        Configurações (velocidade + "Testar voz" + status de voz), troca de idioma (revalida voz).
+      - **Testes:** lógica pura de mapeamento de disponibilidade/normalização de `langTag`/clamp de rate
+        (commonTest). Android/iOS actuals validados manualmente (fala) — iOS pende host macOS (P-IOS).
+
+  </details>
+
+- [x] **GAP-MV-M-GRID-01 (ALTA) — grade acessível de densidade variável 1/2/3 col + tile pictograma+texto**
+      — **ENTREGUE na 2.51.0.** `ui/components/DensityGrid.kt` + `ui/components/CommunicationTile.kt`
+      (commonMain puro). `enum GridDensity(val columns: Int) { One(1), Two(2), Three(3) }` +
+      `fun <T> DensityGrid(items, density, key: (T)->Any, modifier, contentPadding=16dp,
+      header: (@Composable ()->Unit)?, itemContent)` sobre `LazyVerticalGrid(GridCells.Fixed(
+      density.columns))` — colunas = escolha do usuário (hoisted), NÃO do breakpoint; `header` ocupa
+      todas as colunas (`GridItemSpan(maxLineSpan)`). `enum TileTone { Normal, Quick, Alert }` +
+      `CommunicationTile(label, icon: ImageVector, onClick, modifier, tone=Normal, enabled=true)`:
+      alvo = tile inteiro (`Modifier.clickable` + `Role.Button`), `contentDescription=label`
+      (`clearAndSetSemantics`), **haptic** (`LocalHapticFeedback.performHapticFeedback(LongPress)`),
+      pictograma **+** texto sempre visíveis, altura mínima generosa (≥96dp; +passo no compacto via
+      `LocalIsCompact`). Tons por token (pares coesos — fix de code-review): `Alert`→`colorScheme.error`+`onError`;
+      `Quick`→`secondaryContainer`+`onSecondaryContainer`; `Normal`→`surface`+`onSurface`+borda
+      `outline`. **Zero cor hardcoded.** Testes `ui/components/DensityGridTest` (3 —
+      `GridDensity`→colunas). Consumo Minha Voz: Home (grade + faixa urgente) e Categoria.
+
+  <details><summary>Especificação original (entregue na 2.51.0)</summary>
+
+  **GAP-MV-M-GRID-01 (ALTA) — grade acessível de densidade variável 1/2/3 col + tile pictograma+texto**
+      — a prancha (Home/Categoria) é uma grade de **alvos enormes** (≥64dp, muito maiores no modo 1 col)
+      com **pictograma + texto** e densidade **escolhida pelo usuário** (1 = um botão enorme por vez;
+      2/3 = grade), **persistida**. Hoje a lib só tem `LazyVerticalGrid` cru + `gridColumns()` por
+      breakpoint — **não cobre**: (1) densidade como *escolha explícita do usuário* (não só do
+      `LocalIsCompact`), (2) tile acessível de comunicação com alvo garantido + haptic + rótulo p/ leitor
+      de tela. **Candidato a preset acessível reutilizável** (qualquer app "board/launcher" acessível).
+      - **API sugerida** (`ui/components/`): `enum GridDensity(val columns: Int) { One(1), Two(2),
+        Three(3) }`; `fun <T> DensityGrid(items: List<T>, density: GridDensity, key: (T)->String,
+        itemContent: @Composable (T)->Unit, modifier, contentPadding, header: @Composable (()->Unit)? )`
+        — colunas = `density.columns` (independe do breakpoint; alvo mínimo grande garantido, aumenta no
+        1 col). `CommunicationTile(label: String, icon: <pictograma>, onClick, modifier, tone:
+        TileTone = Normal, enabled = true)` com `enum TileTone { Normal, Quick, Alert }` — `Alert` usa
+        `AppColors.current.error` (faixa urgente); alvo de toque = tile inteiro (`Role.Button`),
+        `contentDescription` = label (leitor de tela), **haptic** no toque, pictograma **+** texto
+        sempre visíveis. Cores 100% por tokens (`MaterialTheme.colorScheme`/`AppColors.current`), zero
+        hardcode. Toggle de densidade fora do componente (top bar/`SegmentedControl`), estado hoisted.
+      - **Reúso:** `LazyVerticalGrid`/`LazyColumn` de foundation, `LocalIsCompact` (ajuste fino de padding/
+        alvo), `AppColors`; espelha a filosofia data+slot dos componentes de lista existentes
+        (`MultiSelectList`/`TimelineList`).
+      - **Consumo Minha Voz:** Home (grade + faixa urgente + respostas rápidas), Categoria (subtemas).
+      - **Testes:** `gridColumns`/mapeamento de `GridDensity` (pura, commonTest).
+
+  </details>
+
+- [x] **GAP-MV-M-A11Y-01 (MÉDIA) — escala de fonte global + tema de alto contraste no `AppTheme`**
+      — **ENTREGUE na 2.51.0** (aditiva, retrocompatível). `AppTheme` ganhou `fontScale: Float = 1f`
+      e `highContrast: Boolean = false` (últimos params antes do `content`; defaults = comportamento
+      atual, nada quebra). `fontScale` multiplica toda a `AppTypography` via `scaleTypography(
+      typography, fontScale)` (helper puro em `AppTypography.kt`, clampado) e é exposto em
+      `LocalFontScale`. Novo `enum AppFontScale(val scale) { Small(0.9f), Medium(1f), Large(1.3f),
+      ExtraLarge(1.6f) }` (+ `next/previous/fromScale`) + `clampFontScale` (0.8f..2f) em
+      `ui/theme/AppFontScale.kt`. `highContrast=true` seleciona `createHighContrastLightColorScheme`/
+      `createHighContrastDarkColorScheme` (AAA ≥7:1: superfícies branco/preto puro razão ~21:1,
+      bordas fortes, primária da marca preservada como acento) em `AppColorScheme.kt`. Testes
+      `ui/theme/AppFontScaleTest` (9 — degraus/next/previous/fromScale, clamp, `scaleTypography`
+      multiplica/identidade em 1f/aplica clamp). Consumo Minha Voz: Configurações (fonte P/M/G/GG +
+      Alto contraste on/off) → `AppTheme(fontScale=, highContrast=)` no root.
+
+  <details><summary>Especificação original (entregue na 2.51.0)</summary>
+
+  **GAP-MV-M-A11Y-01 (MÉDIA) — escala de fonte global + tema de alto contraste no `AppTheme`**
+      — acessibilidade pede **tamanho de fonte ajustável (global)** e **alto contraste** como
+      preferências, aplicáveis à árvore inteira. Hoje `AppTheme(darkTheme, colorPalette, fontFamily,
+      content)` **não** tem `fontScale` nem paleta de alto contraste (existe só o precedente
+      `ReaderFontSize` S/M/L/XL 0.85–1.6× no `ui/reader`, restrito ao leitor). **Padrão da casa**
+      (útil além do Minha Voz — qualquer app com público de baixa visão).
+      - **API sugerida (aditiva, retrocompatível):** `AppTheme(..., fontScale: Float = 1f,
+        highContrast: Boolean = false, content)`. `fontScale` multiplica a `AppTypography`
+        (reaproveitar a escala `ReaderFontSize` como base — ex.: `enum AppFontScale(val scale: Float) {
+        Small(0.9f), Medium(1f), Large(1.3f), ExtraLarge(1.6f) }`) e/ou provê um `LocalFontScale`.
+        `highContrast=true` seleciona um par de `ColorScheme` de **contraste máximo** (WCAG AAA:
+        onSurface/surface com razão ≥7:1, bordas fortes) derivado da paleta — não uma cor nova hardcoded.
+        Defaults preservam o comportamento atual (nenhum consumidor quebra).
+      - **Reúso:** `createAppTypography`, `AppColorPalette`/`create*ColorScheme`, `ReaderFontSize` como
+        referência de degraus. Persistência fica no app (prefs).
+      - **Consumo Minha Voz:** Configurações (Tamanho da fonte P/M/G/GG + Alto contraste on/off) →
+        alimentam `AppTheme(fontScale=, highContrast=)` no root; reflete em todas as telas na hora.
+      - **Testes:** clamp/mapeamento de `AppFontScale` → typography (pura).
+
+  </details>
+
+- [ ] **GAP-MV-M-LOCALE-01 (BAIXA/menor) — seletor de idioma mobile com bandeira (paridade do `LocaleSwitcher` web)**
+      — a weblib tem `LocaleSwitcher` (bandeira SVG), a kmplib **não** tem equivalente mobile. Minha Voz
+      (e futuros apps i18n) precisa de um seletor de idioma com bandeira em Configurações/Menu.
+      **Avaliar antes de implementar:** pode ser um componente enxuto (`LanguageSelector(current,
+      options: List<AppLocale(tag, label, flag)>, onSelect)` sobre `AppBottomSheet`) **ou** ficar no app
+      até ≥2 consumidores (regra do backlog — não implementar especulativamente). i18n em si segue o
+      padrão-ouro Compose Resources (não é gap). Registrar como candidato; decisão lib-mobile/CTO.
+
 ### Padronização de planos de assinatura — oferta do admin-api → paywall (origem: fundador 2026-06-30 → 2.50.0)
 - [x] **`Plan` ganhou `tipo`/`durationMonths` + `PaywallPlanMapper` (oferta padronizada → `PaywallPlan`)** —
       Fase 2 (mobile) da padronização de planos. O backend (Fase 1, já commitada) faz

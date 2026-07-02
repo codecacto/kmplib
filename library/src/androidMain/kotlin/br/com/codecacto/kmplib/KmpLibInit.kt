@@ -8,6 +8,7 @@ import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
 
 /**
@@ -31,6 +32,7 @@ fun KmpLib.init(context: Context) {
     GoogleAuthHolder.init(context)
     CrashlyticsHolder.init(context)
     SyncDatabaseHolder.init(context)
+    TtsControllerHolder.init(context)
 }
 
 /**

@@ -4,6 +4,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 
 /**
@@ -143,3 +145,40 @@ fun createAppTypography(
  * Typography padrão para a biblioteca
  */
 val AppTypography = createAppTypography()
+
+/**
+ * Multiplica `fontSize` e `lineHeight` de todos os estilos de uma [Typography] pelo fator
+ * [fontScale] (escala de fonte global de acessibilidade), preservando famílias/pesos/espaçamentos.
+ *
+ * O fator é **clampado** ([clampFontScale]); `1f` devolve a mesma typography (retrocompatível —
+ * comportamento atual do [AppTheme]). Regra pura, testável (commonTest).
+ */
+fun scaleTypography(typography: Typography, fontScale: Float): Typography {
+    val scale = clampFontScale(fontScale)
+    if (scale == 1f) return typography
+    return typography.copy(
+        displayLarge = typography.displayLarge.scaled(scale),
+        displayMedium = typography.displayMedium.scaled(scale),
+        displaySmall = typography.displaySmall.scaled(scale),
+        headlineLarge = typography.headlineLarge.scaled(scale),
+        headlineMedium = typography.headlineMedium.scaled(scale),
+        headlineSmall = typography.headlineSmall.scaled(scale),
+        titleLarge = typography.titleLarge.scaled(scale),
+        titleMedium = typography.titleMedium.scaled(scale),
+        titleSmall = typography.titleSmall.scaled(scale),
+        bodyLarge = typography.bodyLarge.scaled(scale),
+        bodyMedium = typography.bodyMedium.scaled(scale),
+        bodySmall = typography.bodySmall.scaled(scale),
+        labelLarge = typography.labelLarge.scaled(scale),
+        labelMedium = typography.labelMedium.scaled(scale),
+        labelSmall = typography.labelSmall.scaled(scale),
+    )
+}
+
+private fun TextStyle.scaled(scale: Float): TextStyle = copy(
+    fontSize = fontSize.scaledUnit(scale),
+    lineHeight = lineHeight.scaledUnit(scale),
+)
+
+private fun TextUnit.scaledUnit(scale: Float): TextUnit =
+    if (isSpecified) this * scale else this

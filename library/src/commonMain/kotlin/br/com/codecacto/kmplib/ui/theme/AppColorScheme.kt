@@ -129,6 +129,116 @@ fun createDarkColorScheme(
 }
 
 /**
+ * Cria um ColorScheme Light de **alto contraste** (acessibilidade / baixa visão) derivado da paleta.
+ *
+ * As **superfícies** ficam em contraste máximo (branco com texto preto puro, razão ~21:1 — bem acima
+ * do AAA de 7:1) e com **bordas fortes** (contorno preto) para separar elementos sem depender só de
+ * cor. Os **acentos preservam a paleta da marca** (primária/secundária/terciária/erro como
+ * destaques), com `on*` branco — logo o contraste de um acento específico depende da cor da marca, não
+ * é garantido AAA universalmente. Este é o **par de contraste** selecionado por
+ * `AppTheme(highContrast = true)`.
+ */
+fun createHighContrastLightColorScheme(
+    palette: AppColorPalette
+): ColorScheme {
+    val ink = Color(0xFF000000)
+    val paper = Color(0xFFFFFFFF)
+    return lightColorScheme(
+        primary = palette.primary,
+        onPrimary = paper,
+        primaryContainer = paper,
+        onPrimaryContainer = ink,
+
+        secondary = palette.secondary,
+        onSecondary = paper,
+        secondaryContainer = paper,
+        onSecondaryContainer = ink,
+
+        tertiary = palette.tertiary,
+        onTertiary = paper,
+        tertiaryContainer = paper,
+        onTertiaryContainer = ink,
+
+        error = palette.error,
+        onError = paper,
+        errorContainer = paper,
+        onErrorContainer = palette.error,
+
+        background = paper,
+        onBackground = ink,
+
+        surface = paper,
+        onSurface = ink,
+        surfaceVariant = Color(0xFFF2F2F2),
+        onSurfaceVariant = ink,
+
+        outline = ink,
+        outlineVariant = Color(0xFF3A3A3A),
+
+        scrim = ink,
+
+        inverseSurface = ink,
+        inverseOnSurface = paper,
+        inversePrimary = palette.primary,
+
+        surfaceTint = palette.primary
+    )
+}
+
+/**
+ * Cria um ColorScheme Dark de **alto contraste** derivado da paleta. **Superfícies** pretas puras
+ * com texto branco puro (razão ~21:1, acima do AAA) e contornos brancos fortes; os **acentos
+ * preservam a paleta da marca** (primária como destaque, `onPrimary` preto) — o contraste do acento
+ * depende da cor da marca. Selecionado por `AppTheme(highContrast = true, darkTheme = true)`.
+ */
+fun createHighContrastDarkColorScheme(
+    palette: AppColorPalette
+): ColorScheme {
+    val ink = Color(0xFF000000)
+    val paper = Color(0xFFFFFFFF)
+    return darkColorScheme(
+        primary = palette.primary,
+        onPrimary = ink,
+        primaryContainer = ink,
+        onPrimaryContainer = paper,
+
+        secondary = palette.secondary,
+        onSecondary = ink,
+        secondaryContainer = ink,
+        onSecondaryContainer = paper,
+
+        tertiary = palette.tertiary,
+        onTertiary = ink,
+        tertiaryContainer = ink,
+        onTertiaryContainer = paper,
+
+        error = palette.error,
+        onError = ink,
+        errorContainer = ink,
+        onErrorContainer = paper,
+
+        background = ink,
+        onBackground = paper,
+
+        surface = ink,
+        onSurface = paper,
+        surfaceVariant = Color(0xFF1A1A1A),
+        onSurfaceVariant = paper,
+
+        outline = paper,
+        outlineVariant = Color(0xFFCFCFCF),
+
+        scrim = ink,
+
+        inverseSurface = paper,
+        inverseOnSurface = ink,
+        inversePrimary = palette.primary,
+
+        surfaceTint = palette.primary
+    )
+}
+
+/**
  * Paletas de cores prontas
  */
 object AppColorPalettes {
