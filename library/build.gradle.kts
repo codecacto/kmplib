@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.51.0"
+version = "2.52.0"
 
 // =============================================================================
 // SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
@@ -137,7 +137,11 @@ kotlin {
             // RevenueCat
             implementation(libs.purchases.kmp.core)
             implementation(libs.purchases.kmp.result)
-            implementation(libs.purchases.kmp.datetime)
+            // NOTA: purchases-kmp-datetime NÃO é incluído de propósito. Ele referencia o antigo
+            // `kotlinx.datetime.Instant` (classe real removida no kotlinx-datetime 0.7.x, hoje typealias
+            // de kotlin.time.Instant), o que faz o R8 falhar no release ("Missing class kotlinx.datetime.Instant").
+            // Nenhuma extensão datetime do RevenueCat é usada aqui (toSubscriptionInfo não lê expiration
+            // via essas helpers), então o módulo é código morto e fica de fora.
 
             // Compose (for VisualTransformation and UI Components)
             implementation(libs.compose.ui)

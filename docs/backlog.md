@@ -12,6 +12,31 @@
 > **Status (2026-07-02 → 2.51.0):** gaps **a (TTS), b (grade de densidade) e c (fonte/contraste)
 > ENTREGUES** pelo lib-mobile. Falta apenas o gap **d (GAP-MV-M-LOCALE-01, BAIXA)**, mantido em
 > avaliação (regra do backlog: só com ≥2 consumidores).
+>
+> **Refino visual/acessibilidade (2026-07-02 → 2.52.0):** feedback do fundador sobre o Minha Voz —
+> ENTREGUE pelo lib-mobile (ver item abaixo).
+
+- [x] **REFINO-MV-2.52.0 — `CommunicationTile` colorido + alto contraste perceptível + paleta `Teal`**
+      — **ENTREGUE na 2.52.0.** Dois problemas reportados pelo fundador:
+      (1) tiles `Normal` usavam `surface`/`onSurface` → viravam uma "parede" branca (claro)/preta
+      (escuro), sem cor. **Correção:** tons agora **PREENCHIDOS** — `Normal`→`primary`/`onPrimary`
+      (sólido colorido, mudança-chave), `Quick`→`secondaryContainer`/`onSecondaryContainer` (tonal
+      harmônico), `Alert`→`error`/`onError` (mantido). Extraídos helpers puros testáveis
+      `enum TileColorRole`, `communicationTileRoles(tone)` e `communicationTileBorderWidth(highContrast)`.
+      (2) alto contraste era imperceptível (tema claro já é quase branco/preto; HC só trocava por
+      branco/preto puro). **Correção:** `AppTheme` agora provê **`LocalHighContrast`**
+      (`ProvidableCompositionLocal<Boolean>`, default false); o `CommunicationTile` lê e, no HC, desenha
+      **borda grossa 3.dp** (`outline`, preto no HC) em todos os tons. E o `createHighContrastLightColorScheme`
+      ficou **dramático/legítimo (WCAG AAA)**: `primary` = quase-preto `#0A0A0A` (não a marca) + `onPrimary`
+      branco → tile `Normal` vai de "teal" para "quase-preto + texto branco + borda preta grossa"; `outline`
+      preto; `error` `#8A0000`; Quick = container cinza claro `#E6E6E6` + texto preto. HC dark coerente
+      (`primary` branco). **Paleta nova `AppColorPalettes.Teal`** (CAA/Minha Voz): `primary` `#0F766E`
+      (teal-700, texto branco AAA-large), `secondary` `#0D9488` (teal-600 p/ Quick), `error` `#DC2626`.
+      Testes: `DensityGridTest` ampliado (11 — tom→token + borda HC) + novo `HighContrastColorSchemeTest`
+      (7 — primary escuro/outline ink/Quick não some/Teal). `:kmplib:compileDebugKotlinAndroid` +
+      `:kmplib:testDebugUnitTest` BUILD SUCCESSFUL; publicado em mavenLocal. commonMain (Android+iOS
+      compartilham). **Consumidor a migrar:** app Minha Voz → `AppTheme(colorPalette =
+      AppColorPalettes.Teal, darkTheme = false, highContrast = <pref>)`.
 
 - [x] **GAP-MV-M-TTS-01 (ALTA — coração do app) — `TtsController` (síntese de voz nativa, expect/actual)**
       — **ENTREGUE na 2.51.0.** Novo módulo `platform/tts/`. `interface TtsController` (`state:

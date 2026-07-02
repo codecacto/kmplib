@@ -25,8 +25,11 @@ import androidx.compose.ui.text.font.FontFamily
  *   [AppFontScale] (`Small`/`Medium`/`Large`/`ExtraLarge`) → `fontScale = AppFontScale.Large.scale`.
  *   Padrão: `1f` (sem escala).
  * @param highContrast Quando `true`, seleciona um par de [ColorScheme] de **alto contraste** derivado
- *   da [colorPalette] — superfícies em contraste máximo (acima do AAA); os acentos preservam a paleta
- *   da marca. Ideal para baixa visão. Padrão: `false`.
+ *   da [colorPalette] — superfícies em contraste máximo (acima do AAA) e uma **primária quase-preta**
+ *   (light) / **quase-branca** (dark) para elementos preenchidos, tornando a mudança inconfundível
+ *   (ex.: `CommunicationTile` `Normal` sai de colorido para quase-preto+texto branco). Também expõe
+ *   [LocalHighContrast] para componentes reforçarem a UI (bordas grossas). Ideal para baixa visão.
+ *   Padrão: `false`.
  * @param content Conteúdo da aplicação
  */
 @Composable
@@ -48,10 +51,11 @@ fun AppTheme(
     val effectiveScale = clampFontScale(fontScale)
     val typography = scaleTypography(createAppTypography(fontFamily), effectiveScale)
 
-    // Fornecer a paleta customizada e a escala de fonte via CompositionLocal
+    // Fornecer a paleta customizada, a escala de fonte e o alto contraste via CompositionLocal
     CompositionLocalProvider(
         LocalAppColorPalette provides colorPalette,
-        LocalFontScale provides effectiveScale
+        LocalFontScale provides effectiveScale,
+        LocalHighContrast provides highContrast
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
@@ -68,6 +72,14 @@ fun AppTheme(
 val LocalAppColorPalette = staticCompositionLocalOf {
     AppColorPalettes.Default
 }
+
+/**
+ * CompositionLocal que expõe se o tema atual está em **alto contraste** (setado por
+ * `AppTheme(highContrast = ...)`; default `false`). Componentes acessíveis (ex.: `CommunicationTile`)
+ * leem este valor para reforçar a UI — por exemplo, desenhar bordas grossas de separação. Segue o
+ * mesmo padrão de [LocalFontScale].
+ */
+val LocalHighContrast = staticCompositionLocalOf { false }
 
 /**
  * Acesso fácil às cores customizadas

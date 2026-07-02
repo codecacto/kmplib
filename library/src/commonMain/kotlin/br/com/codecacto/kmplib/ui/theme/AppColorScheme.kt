@@ -131,12 +131,18 @@ fun createDarkColorScheme(
 /**
  * Cria um ColorScheme Light de **alto contraste** (acessibilidade / baixa visão) derivado da paleta.
  *
- * As **superfícies** ficam em contraste máximo (branco com texto preto puro, razão ~21:1 — bem acima
- * do AAA de 7:1) e com **bordas fortes** (contorno preto) para separar elementos sem depender só de
- * cor. Os **acentos preservam a paleta da marca** (primária/secundária/terciária/erro como
- * destaques), com `on*` branco — logo o contraste de um acento específico depende da cor da marca, não
- * é garantido AAA universalmente. Este é o **par de contraste** selecionado por
- * `AppTheme(highContrast = true)`.
+ * Diferente do tema claro normal (que já é quase branco/preto — logo trocar por branco/preto puro é
+ * imperceptível), este esquema torna a diferença **dramática e legítima** (WCAG AAA nas superfícies):
+ * - `background`/`surface` = `paper` (branco), texto `ink` (preto), razão ~21:1;
+ * - **`primary` = quase-preto** ([HC_PRIMARY], **não** a cor da marca): superfícies/elementos
+ *   preenchidos com `primary` (ex.: `CommunicationTile` no tom `Normal`) passam de "colorido" (tema
+ *   normal) para "quase-preto com texto branco" — diferença **inconfundível** ao ligar o alto contraste;
+ * - `error` = vermelho escuro forte ([HC_ERROR]) com `onError` branco;
+ * - tom Quick (`secondaryContainer`/`onSecondaryContainer`) = container cinza claro
+ *   ([HC_TONAL_CONTAINER]) + texto `ink` (~16:1), não some no fundo branco;
+ * - **bordas fortes** (`outline` = `ink`, preto) para separar elementos sem depender só de cor.
+ *
+ * Este é o **par de contraste** selecionado por `AppTheme(highContrast = true)`.
  */
 fun createHighContrastLightColorScheme(
     palette: AppColorPalette
@@ -144,25 +150,25 @@ fun createHighContrastLightColorScheme(
     val ink = Color(0xFF000000)
     val paper = Color(0xFFFFFFFF)
     return lightColorScheme(
-        primary = palette.primary,
+        primary = HC_PRIMARY,
         onPrimary = paper,
         primaryContainer = paper,
         onPrimaryContainer = ink,
 
-        secondary = palette.secondary,
+        secondary = ink,
         onSecondary = paper,
-        secondaryContainer = paper,
+        secondaryContainer = HC_TONAL_CONTAINER,
         onSecondaryContainer = ink,
 
-        tertiary = palette.tertiary,
+        tertiary = ink,
         onTertiary = paper,
-        tertiaryContainer = paper,
+        tertiaryContainer = HC_TONAL_CONTAINER,
         onTertiaryContainer = ink,
 
-        error = palette.error,
+        error = HC_ERROR,
         onError = paper,
         errorContainer = paper,
-        onErrorContainer = palette.error,
+        onErrorContainer = HC_ERROR,
 
         background = paper,
         onBackground = ink,
@@ -179,17 +185,29 @@ fun createHighContrastLightColorScheme(
 
         inverseSurface = ink,
         inverseOnSurface = paper,
-        inversePrimary = palette.primary,
+        inversePrimary = paper,
 
-        surfaceTint = palette.primary
+        surfaceTint = HC_PRIMARY
     )
 }
 
+/** Primária de alto contraste (light): quase-preto — máximo peso com texto branco (WCAG AAA). */
+private val HC_PRIMARY = Color(0xFF0A0A0A)
+
+/** Vermelho escuro forte de alto contraste (urgência), com texto branco (WCAG AAA). */
+private val HC_ERROR = Color(0xFF8A0000)
+
+/** Container tonal do tom Quick no alto contraste (light): cinza claro distinto do fundo branco. */
+private val HC_TONAL_CONTAINER = Color(0xFFE6E6E6)
+
 /**
- * Cria um ColorScheme Dark de **alto contraste** derivado da paleta. **Superfícies** pretas puras
- * com texto branco puro (razão ~21:1, acima do AAA) e contornos brancos fortes; os **acentos
- * preservam a paleta da marca** (primária como destaque, `onPrimary` preto) — o contraste do acento
- * depende da cor da marca. Selecionado por `AppTheme(highContrast = true, darkTheme = true)`.
+ * Cria um ColorScheme Dark de **alto contraste** derivado da paleta, coerente com o par light:
+ * superfícies pretas puras com texto branco (razão ~21:1, acima do AAA) e contornos brancos fortes;
+ * **`primary` = branco** ([HC_PRIMARY_DARK]) com `onPrimary` preto — elementos preenchidos com
+ * `primary` (ex.: `CommunicationTile` `Normal`) viram "branco com texto preto", máximo peso; `error`
+ * = vermelho claro forte ([HC_ERROR_DARK]); tom Quick = container cinza escuro
+ * ([HC_TONAL_CONTAINER_DARK]) + texto branco. Selecionado por
+ * `AppTheme(highContrast = true, darkTheme = true)`.
  */
 fun createHighContrastDarkColorScheme(
     palette: AppColorPalette
@@ -197,25 +215,25 @@ fun createHighContrastDarkColorScheme(
     val ink = Color(0xFF000000)
     val paper = Color(0xFFFFFFFF)
     return darkColorScheme(
-        primary = palette.primary,
+        primary = HC_PRIMARY_DARK,
         onPrimary = ink,
         primaryContainer = ink,
         onPrimaryContainer = paper,
 
-        secondary = palette.secondary,
+        secondary = paper,
         onSecondary = ink,
-        secondaryContainer = ink,
+        secondaryContainer = HC_TONAL_CONTAINER_DARK,
         onSecondaryContainer = paper,
 
-        tertiary = palette.tertiary,
+        tertiary = paper,
         onTertiary = ink,
-        tertiaryContainer = ink,
+        tertiaryContainer = HC_TONAL_CONTAINER_DARK,
         onTertiaryContainer = paper,
 
-        error = palette.error,
+        error = HC_ERROR_DARK,
         onError = ink,
         errorContainer = ink,
-        onErrorContainer = paper,
+        onErrorContainer = HC_ERROR_DARK,
 
         background = ink,
         onBackground = paper,
@@ -232,11 +250,20 @@ fun createHighContrastDarkColorScheme(
 
         inverseSurface = paper,
         inverseOnSurface = ink,
-        inversePrimary = palette.primary,
+        inversePrimary = HC_PRIMARY_DARK,
 
-        surfaceTint = palette.primary
+        surfaceTint = HC_PRIMARY_DARK
     )
 }
+
+/** Primária de alto contraste (dark): branco — máximo peso com texto preto (WCAG AAA). */
+private val HC_PRIMARY_DARK = Color(0xFFFFFFFF)
+
+/** Vermelho claro forte de alto contraste (dark), com texto preto (WCAG AAA sobre fundo preto). */
+private val HC_ERROR_DARK = Color(0xFFFF5A5A)
+
+/** Container tonal do tom Quick no alto contraste (dark): cinza escuro distinto do fundo preto. */
+private val HC_TONAL_CONTAINER_DARK = Color(0xFF2A2A2A)
 
 /**
  * Paletas de cores prontas
@@ -282,5 +309,20 @@ object AppColorPalettes {
      */
     val Red = AppColorPalette(
         primary = Color(0xFFDC3545)
+    )
+
+    /**
+     * Paleta **Teal acessível** (CAA / apps de acessibilidade — ex.: Minha Voz).
+     *
+     * - `primary` teal médio-escuro (`#0F766E`, teal-700): preenchimento sólido com **texto branco
+     *   legível** (contraste ~5:1) — serve ao `CommunicationTile` no tom `Normal`.
+     * - `secondary` teal um passo mais claro (`#0D9488`, teal-600): tom harmônico e distinto usado
+     *   como `secondaryContainer`/`onSecondaryContainer` do tom `Quick` (respostas rápidas).
+     * - `error` vermelho forte (`#DC2626`) com texto branco, para o tom `Alert` (urgentes).
+     */
+    val Teal = AppColorPalette(
+        primary = Color(0xFF0F766E),
+        secondary = Color(0xFF0D9488),
+        error = Color(0xFFDC2626)
     )
 }

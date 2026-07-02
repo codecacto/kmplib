@@ -93,7 +93,8 @@ firebase-analytics-android = { module = "com.google.firebase:firebase-analytics-
 # RevenueCat
 purchases-kmp-core = { module = "com.revenuecat.purchases:purchases-kmp-core", version.ref = "revenuecatKmp" }
 purchases-kmp-result = { module = "com.revenuecat.purchases:purchases-kmp-result", version.ref = "revenuecatKmp" }
-purchases-kmp-datetime = { module = "com.revenuecat.purchases:purchases-kmp-datetime", version.ref = "revenuecatKmp" }
+# purchases-kmp-datetime removido: referencia o kotlinx.datetime.Instant antigo (removido no 0.7.x)
+# e quebra o R8 no release; não é usado pela lib. Ver library/build.gradle.kts.
 
 # Compose Runtime (for VisualTransformation and UI Components)
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
