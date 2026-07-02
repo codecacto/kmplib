@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.platform.tts
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -113,6 +114,8 @@ class AndroidTtsController : TtsController {
         val engine = engine() ?: return
         val effectiveRate = resolveTtsSpeakRate(rate, currentRate)
         currentRate = effectiveRate
+        // App de acessibilidade: garante o volume de MÍDIA no máximo ao falar (sem UI).
+        maximizeMediaVolume()
         try {
             val locale = localeOf(langTag)
             val availability = ttsAvailabilityFromAndroidCode(engine.isLanguageAvailable(locale))
@@ -185,6 +188,24 @@ class AndroidTtsController : TtsController {
 
     private fun localeOf(langTag: String): Locale =
         Locale.forLanguageTag(normalizeTtsLangTag(langTag))
+
+    /**
+     * Sobe o volume do stream de MÍDIA para o máximo (best-effort, sem UI). Num app de
+     * comunicação assistiva a fala precisa ser ouvida; o `KEY_PARAM_VOLUME` sozinho só chega ao
+     * máximo RELATIVO ao volume atual do aparelho. Não faz nada se já estiver no máximo.
+     */
+    private fun maximizeMediaVolume() {
+        try {
+            val context = TtsControllerHolder.getContext() ?: return
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            if (am.getStreamVolume(AudioManager.STREAM_MUSIC) < max) {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0)
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao maximizar volume de mídia: ${e.message}")
+        }
+    }
 }
 
 actual fun createTtsController(): TtsController = AndroidTtsController()
