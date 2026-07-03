@@ -1,11 +1,15 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
+import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
+import br.com.codecacto.kmplib.monetization.purchase.PurchasePackageType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+// O overload por `priceLabelProvider` (legado) esta @Deprecated; ainda testado para regressao.
+@Suppress("DEPRECATION")
 class PaywallPlanMapperTest {
 
     private fun plan(
@@ -160,5 +164,141 @@ class PaywallPlanMapperTest {
             recommendedStoreProductId = "premium_semestral", // inexistente na lista exibida
         )
         assertTrue(result.none { it.isRecommended })
+    }
+
+    // ===== Overload gold-standard: correlacao Plan x PurchasePackage (Offerings/Packages) =====
+
+    private fun pkg(
+        packageId: String,
+        durationMonths: Int?,
+        priceLabel: String,
+        type: PurchasePackageType = PurchasePackageType.OTHER,
+        storeProductId: String = "store_$packageId",
+    ) = PurchasePackage(
+        packageId = packageId,
+        packageType = type,
+        storeProductId = storeProductId,
+        priceLabel = priceLabel,
+        priceAmountMicros = 0L,
+        currencyCode = "BRL",
+        durationMonths = durationMonths,
+    )
+
+    @Test
+    fun packages_correlacionaPorDuracao_idEhPackageId_ePrecoDoPacote() {
+        val plans = listOf(
+            plan("premium_mensal", "Mensal", "prod_mensal", 1),
+            plan("premium_semestral", "Semestral", "prod_semestral", 6, destaques = listOf("Sem anuncios")),
+        )
+        val packages = listOf(
+            pkg("rc_monthly", 1, "R$ 9,90", PurchasePackageType.MONTHLY),
+            pkg("rc_six_month", 6, "R$ 49,90", PurchasePackageType.SIX_MONTH),
+        )
+        val result = plans.toPaywallPlans(packages)
+        assertEquals(listOf("rc_monthly", "rc_six_month"), result.map { it.id })
+        val semestral = result.single { it.id == "rc_six_month" }
+        assertEquals("R$ 49,90", semestral.priceLabel)
+        assertEquals("Semestral", semestral.name)
+        assertEquals("6 meses", semestral.durationLabel)
+        assertEquals(listOf("Sem anuncios"), semestral.highlights)
+    }
+
+    @Test
+    fun packages_ordenaMensalSemestralAnual_independenteDaOrdemDeEntrada() {
+        val plans = listOf(
+            plan("premium_anual", "Anual", "prod_anual", 12),
+            plan("premium_mensal", "Mensal", "prod_mensal", 1),
+            plan("premium_semestral", "Semestral", "prod_semestral", 6),
+        )
+        val packages = listOf(
+            pkg("pkg_anual", 12, "R$ 89,90"),
+            pkg("pkg_mensal", 1, "R$ 9,90"),
+            pkg("pkg_semestral", 6, "R$ 49,90"),
+        )
+        val result = plans.toPaywallPlans(packages)
+        assertEquals(listOf("pkg_mensal", "pkg_semestral", "pkg_anual"), result.map { it.id })
+    }
+
+    @Test
+    fun packages_destaqueEhMaiorDuracaoPorDefault() {
+        val plans = listOf(
+            plan("premium_mensal", "Mensal", "prod_mensal", 1),
+            plan("premium_semestral", "Semestral", "prod_semestral", 6),
+            plan("premium_anual", "Anual", "prod_anual", 12),
+        )
+        val packages = listOf(
+            pkg("pkg_mensal", 1, "R$ 9,90"),
+            pkg("pkg_semestral", 6, "R$ 49,90"),
+            pkg("pkg_anual", 12, "R$ 89,90"),
+        )
+        val result = plans.toPaywallPlans(packages)
+        assertEquals("pkg_anual", result.single { it.isRecommended }.id)
+    }
+
+    @Test
+    fun packages_destaquePodeSerForcadoPorDuracao() {
+        val plans = listOf(
+            plan("premium_mensal", "Mensal", "prod_mensal", 1),
+            plan("premium_anual", "Anual", "prod_anual", 12),
+        )
+        val packages = listOf(
+            pkg("pkg_mensal", 1, "R$ 9,90"),
+            pkg("pkg_anual", 12, "R$ 89,90"),
+        )
+        val result = plans.toPaywallPlans(packages, recommendedDurationMonths = 1)
+        assertEquals("pkg_mensal", result.single { it.isRecommended }.id)
+    }
+
+    @Test
+    fun packages_omitePlanoSemPackageCorrespondente() {
+        // Semestral do catalogo sem Package de 6 meses -> omitido (regra "sem preco = omite").
+        val plans = listOf(
+            plan("premium_mensal", "Mensal", "prod_mensal", 1),
+            plan("premium_semestral", "Semestral", "prod_semestral", 6),
+        )
+        val packages = listOf(pkg("pkg_mensal", 1, "R$ 9,90"))
+        val result = plans.toPaywallPlans(packages)
+        assertEquals(listOf("pkg_mensal"), result.map { it.id })
+    }
+
+    @Test
+    fun packages_omiteInativoFreeESemDuracao() {
+        val plans = listOf(
+            plan("free", "Gratis", "prod_free", null),                         // free
+            plan("premium_mensal", "Mensal", "prod_mensal", 1, ativo = false), // inativo
+            plan("premium_x", "X", "prod_x", null),                            // sem durationMonths
+            plan("premium_anual", "Anual", "prod_anual", 12),                  // valido
+        )
+        val packages = listOf(
+            pkg("pkg_mensal", 1, "R$ 9,90"),
+            pkg("pkg_anual", 12, "R$ 89,90"),
+        )
+        val result = plans.toPaywallPlans(packages)
+        assertEquals(listOf("pkg_anual"), result.map { it.id })
+    }
+
+    @Test
+    fun packages_periodoCustom_casaPorDurationMonthsDerivada() {
+        // Package CUSTOM/OTHER cuja durationMonths foi derivada do periodo (ex.: 6) casa com o plano.
+        val plans = listOf(plan("premium_semestral", "Semestral", "prod_semestral", 6))
+        val packages = listOf(pkg("pkg_custom_6m", 6, "R$ 49,90", PurchasePackageType.OTHER))
+        val result = plans.toPaywallPlans(packages)
+        assertEquals(listOf("pkg_custom_6m"), result.map { it.id })
+        assertEquals("R$ 49,90", result.single().priceLabel)
+    }
+
+    @Test
+    fun packages_durationLabelPodeSerNulo() {
+        val plans = listOf(plan("premium_mensal", "Mensal", "prod_mensal", 1))
+        val packages = listOf(pkg("pkg_mensal", 1, "R$ 9,90"))
+        val result = plans.toPaywallPlans(packages, durationLabel = { null })
+        assertNull(result.single().durationLabel)
+    }
+
+    @Test
+    fun packages_entradaVaziaResultaVazio() {
+        assertTrue(emptyList<Plan>().toPaywallPlans(emptyList()).isEmpty())
+        val plans = listOf(plan("premium_mensal", "Mensal", "prod_mensal", 1))
+        assertTrue(plans.toPaywallPlans(emptyList()).isEmpty())
     }
 }

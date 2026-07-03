@@ -26,6 +26,40 @@ data class PurchaseProduct(
 )
 
 /**
+ * Pacote de assinatura da camada uniforme do RevenueCat (**Offering -> Package**), gold-standard.
+ *
+ * O app compra por [packageId] ([PurchaseRepository.purchasePackage]) — nunca pelo ID cru de produto
+ * da loja (que fica absorvido no `Package`). [durationMonths] e a chave de correlacao com o `Plan` do
+ * catalogo (admin-api) e de ordenacao Mensal(1) -> Semestral(6) -> Anual(12).
+ *
+ * @param packageId identificador do `Package` no offering (chave de compra/selecao).
+ * @param packageType tipo padronizado do pacote (ver [PurchasePackageType]).
+ * @param storeProductId ID do produto na loja subjacente (informativo/telemetria; NAO usar p/ compra).
+ * @param priceLabel preco JA FORMATADO pela loja (ex.: "R$ 9,90") — a lib NUNCA calcula preco.
+ * @param priceAmountMicros preco em micros (1_000_000 = 1 unidade da moeda).
+ * @param currencyCode codigo ISO da moeda (ex.: "BRL").
+ * @param durationMonths duracao em meses (1/6/12) quando derivavel; `null` p/ vitalicio/indeterminado.
+ */
+data class PurchasePackage(
+    val packageId: String,
+    val packageType: PurchasePackageType,
+    val storeProductId: String,
+    val priceLabel: String,
+    val priceAmountMicros: Long,
+    val currencyCode: String,
+    val durationMonths: Int? = null
+)
+
+/** Tipo padronizado de um [PurchasePackage] (subconjunto estavel do `PackageType` do RevenueCat). */
+enum class PurchasePackageType {
+    MONTHLY,
+    SIX_MONTH,
+    ANNUAL,
+    LIFETIME,
+    OTHER
+}
+
+/**
  * Resultado de uma operacao de compra.
  */
 sealed class PurchaseResult {

@@ -3,6 +3,35 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Monetização — migração para Offerings/Packages do RevenueCat (2.56.0)
+- [x] **2.56.0 — assinatura via Offerings/Packages (gold-standard RevenueCat), substitui compra por ID
+      cru.** `PurchaseConfig.offeringId` (default `"default"`); `PurchaseRepository.getOfferings()` +
+      `purchasePackage(packageId)`; DTO `PurchasePackage` + `enum PurchasePackageType`; `getProducts()`/
+      `purchase(productId)` `@Deprecated` (mantidos p/ consumíveis); `SubscriptionPeriod` sem `QUARTERLY`.
+      `PaywallPlanMapper` ganhou overload `toPaywallPlans(packages: List<PurchasePackage>, ...)` (correlação
+      por `durationMonths`); overload legado por `storeProductId` `@Deprecated`. Fix no wire `PlanDto` do
+      `AdminApiEntitlementRepository`: decodifica `tipo`/`durationMonths`. Android compila; testes verdes
+      (novos: mapper por packages + decode tipo/durationMonths). **Consumidores a migrar (Super 8, LocAki,
+      Influencer): próxima etapa, com dev-mobile.**
+- [x] **2.57.0 — RESOLVIDO: reconciliação do `AdminApiEntitlementRepository` ao contrato ATUAL do
+      admin-api (drift que quebrava leitura de plano/uso/entitlement via central em Super 8/LocAki/
+      Influencer).** A kmplib agora bate nas rotas apps-facing `GET /v1/projects/{slug}/me/{entitlement,
+      usage/{feature},plans}` (Firebase ID token Bearer; `tenant` derivado do `firebaseUid` no servidor —
+      NUNCA no path/body/query), desserializa **DTO puro SEM envelope** com campos **pt**
+      (`plano/features/validoAte/fonte/atualizadoEm/ativo`; `contagem/limite/restante/janelaFim`;
+      `nome/preco/moeda/intervalo/ativo/tipo/durationMonths/storeProductId`). `feature` virou **segmento
+      de path** (era query). Default free (200, `ativo=false`) tratado como não-premium sem erro; regra de
+      SEGURANÇA "nunca autopromover" agora ancorada em `ativo` (inativo → Free). **Assinatura do construtor
+      inalterada** (`httpClient/baseUrl/projectSlug/authToken/cacheTtlMillis`) → DI dos apps NÃO muda.
+      **GAP de backend registrado:** não existe `POST /me/assert` (Firebase-authed); o único `assert`
+      (`/v1/{slug}/{tenant}/assert`) exige service token, inviável no device. `assertUsage` NÃO inventa
+      rota — degrada seguro para `AssertResult.Failed(501)` (nunca `Allowed`); o gate real de enforcement
+      é o **402 na ação de domínio** (`ResponseException.quotaExceededOrNull()` → Paywall) e a UX "X de Y"
+      usa `getUsage`. Testes reescritos (Ktor MockEngine): novo contrato de URLs, ausência de envelope,
+      campos pt, free-default, tipo/durationMonths, degradação segura do assert. **→ dev-backend:** avaliar
+      expor `POST /v1/projects/{slug}/me/assert` (Firebase-authed) se algum app precisar de pré-check de
+      cota client-side; hoje não é bloqueante (enforcement server-side na ação cobre).
+
 ### Minha Voz (CAA) — TTS + grade acessível de densidade + acessibilidade de tema (origem: ux-designer 2026-07-02, `Minha Voz/docs/design/{flows,wireframes}.md`)
 > App de CAA (prancha de comunicação) para quem lê/entende mas não fala (idosos/pós-AVC/afasia).
 > **Acessibilidade é requisito de 1ª classe** e o app nasce da Casca (kmplib). 3 gaps de plataforma

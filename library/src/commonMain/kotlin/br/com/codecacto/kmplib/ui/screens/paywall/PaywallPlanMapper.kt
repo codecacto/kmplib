@@ -1,6 +1,61 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
+import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
+
+/**
+ * Converte a oferta de [Plan]s do catalogo do `admin-api` correlacionada com os [PurchasePackage]s da
+ * camada de Offerings/Packages do RevenueCat (gold-standard) na lista de [PaywallPlan] do paywall
+ * canonico. **Este e o overload preferencial** (compra por `packageId`, nunca por ID cru de produto).
+ *
+ * Regras (inegociaveis):
+ * - **Correlacao por duracao:** cada [Plan] com `durationMonths` casa com o primeiro [PurchasePackage]
+ *   de mesma `durationMonths`. Sem Package correspondente, o plano e **OMITIDO** (mesma regra do
+ *   "sem preco = omite" — nada de "—" persistente).
+ * - **Ordem fixa** Mensal(1) -> Semestral(6) -> Anual(12): ordena por `durationMonths` ASC.
+ * - **Preco SEMPRE da loja** (gold-standard): `priceLabel` vem de [PurchasePackage.priceLabel] (ja
+ *   formatado pela loja). A lib NUNCA calcula preco.
+ * - **`id` do PaywallPlan = [PurchasePackage.packageId]** (chave de selecao/compra via `purchasePackage`).
+ * - **Recomendado:** por default a MAIOR duracao entre os EXIBIDOS; o app pode forcar via
+ *   [recommendedDurationMonths].
+ * - **Seguranca:** planos inativos, free ou sem `durationMonths` sao OMITIDOS.
+ * - **`durationLabel`** derivado de `durationMonths` via [durationLabel] (default pt-BR).
+ *
+ * @param packages pacotes lidos do RevenueCat (`getOfferings()`), com preco ja formatado.
+ * @param recommendedDurationMonths forca o plano recomendado por duracao; `null` => maior duracao exibida.
+ * @param durationLabel deriva o rotulo de duracao a partir de `durationMonths`; `null` => sem rotulo.
+ */
+fun List<Plan>.toPaywallPlans(
+    packages: List<PurchasePackage>,
+    recommendedDurationMonths: Int? = null,
+    durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
+): List<PaywallPlan> {
+    val resolved = this
+        .asSequence()
+        .filter { it.ativo && !it.isFree }
+        .mapNotNull { plan ->
+            val months = plan.durationMonths ?: return@mapNotNull null
+            val pkg = packages.firstOrNull { it.durationMonths == months } ?: return@mapNotNull null
+            months to PaywallPlan(
+                id = pkg.packageId,
+                name = plan.nome,
+                priceLabel = pkg.priceLabel,
+                durationLabel = durationLabel(months),
+                highlights = plan.destaques,
+                isRecommended = false,
+            )
+        }
+        // Ordem fixa: Mensal -> Semestral -> Anual (durationMonths ASC). Estavel p/ empates.
+        .sortedBy { it.first }
+        .toList()
+
+    // Default: a MAIOR duracao exibida (ultimo apos ordenar ASC) e a recomendada.
+    val recommendedMonths = recommendedDurationMonths ?: resolved.lastOrNull()?.first
+
+    return resolved.map { (months, plan) ->
+        plan.copy(isRecommended = months == recommendedMonths)
+    }
+}
 
 /**
  * Converte a oferta de [Plan]s do catalogo do `admin-api` (`EntitlementController.plans()`) na lista
@@ -18,10 +73,16 @@ import br.com.codecacto.kmplib.monetization.entitlement.Plan
  * - **Seguranca:** planos inativos, sem `storeProductId` ou sem `durationMonths` sao OMITIDOS.
  * - **`durationLabel`** derivado de `durationMonths` via [durationLabel] (default pt-BR).
  *
+ * @deprecated Preferir o overload que recebe `List<PurchasePackage>` (camada Offerings/Packages do
+ *   RevenueCat; compra por `packageId`, preco no proprio Package). Mantido para migracao incremental
+ *   dos apps que ainda resolvem preco por `storeProductId`.
  * @param priceLabelProvider resolve o preco formatado da loja por `storeProductId`; `null` => omite o plano.
  * @param recommendedStoreProductId forca o plano recomendado; `null` => maior duracao exibida.
  * @param durationLabel deriva o rotulo de duracao a partir de `durationMonths`; `null` => sem rotulo.
  */
+@Deprecated(
+    "Preferir toPaywallPlans(packages: List<PurchasePackage>) — Offerings/Packages do RevenueCat.",
+)
 fun List<Plan>.toPaywallPlans(
     priceLabelProvider: (storeProductId: String) -> String?,
     recommendedStoreProductId: String? = null,

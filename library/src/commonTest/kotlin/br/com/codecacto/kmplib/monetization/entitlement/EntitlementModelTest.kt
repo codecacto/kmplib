@@ -127,37 +127,34 @@ class EntitlementModelTest {
         assertTrue(snap.isExhausted)
     }
 
-    // --- Mapeamento DTO -> Entitlement: a autoridade do direito e active/status, NAO o plan. ---
+    // --- Mapeamento DTO (contrato pt do admin-api /me) -> Entitlement.
+    //     A autoridade do direito vigente e `ativo`, NUNCA a mera presenca de um plano pago. ---
 
     @Test
     fun toModel_activePremium_mapsToPremium() {
         val dto = EntitlementDto(
-            active = true,
-            status = "ACTIVE",
-            plan = PlanDto(
-                code = "premium_monthly",
-                name = "Premium",
-                limits = listOf(PlanLimitDto(feature = "active_loans", limit = -1))
-            )
+            plano = "premium_monthly",
+            features = listOf("active_loans", "export_pdf"),
+            validoAte = "2026-12-31T23:59:59Z",
+            fonte = "REVENUECAT",
+            atualizadoEm = "2026-07-01T00:00:00Z",
+            ativo = true
         )
         val ent = dto.toModel()
         assertEquals("premium_monthly", ent.plano)
         assertFalse(ent.isFree)
         assertTrue(ent.isPremium)
         assertTrue(ent.hasFeature("active_loans"))
+        assertEquals("revenuecat", ent.fonte)
     }
 
     @Test
     fun toModel_inactivePremium_isDowngradedToFree() {
-        // Servidor devolve `plan` premium mesmo para entitlement EXPIRED/CANCELED — NAO autopromover.
+        // Servidor devolve `plano` premium mesmo para entitlement EXPIRED/CANCELED (ativo=false) — NAO autopromover.
         val dto = EntitlementDto(
-            active = false,
-            status = "EXPIRED",
-            plan = PlanDto(
-                code = "premium_monthly",
-                name = "Premium",
-                limits = listOf(PlanLimitDto(feature = "active_loans", limit = -1))
-            )
+            plano = "premium_monthly",
+            features = listOf("active_loans"),
+            ativo = false
         )
         val ent = dto.toModel()
         assertEquals("free", ent.plano)
@@ -167,43 +164,19 @@ class EntitlementModelTest {
     }
 
     @Test
-    fun toModel_canceledPremium_isDowngradedToFree() {
+    fun toModel_freeDefault_isFree() {
+        // Usuario sem grant: admin-api responde 200 com o default free (plano="free", ativo=false, fonte="NONE").
         val dto = EntitlementDto(
-            active = false,
-            status = "CANCELED",
-            plan = PlanDto(code = "premium_yearly", name = "Premium Anual")
+            plano = "free",
+            features = emptyList(),
+            validoAte = null,
+            fonte = "NONE",
+            atualizadoEm = "",
+            ativo = false
         )
-        val ent = dto.toModel()
-        assertTrue(ent.isFree)
-        assertFalse(ent.isPremium)
-    }
-
-    @Test
-    fun toModel_statusActive_butActiveFlagFalse_mapsToPremium() {
-        // active/status sao a autoridade: status=ACTIVE honra o plano pago mesmo se a flag vier false.
-        val dto = EntitlementDto(
-            active = false,
-            status = "ACTIVE",
-            plan = PlanDto(code = "pro", name = "Pro")
-        )
-        val ent = dto.toModel()
-        assertEquals("pro", ent.plano)
-        assertTrue(ent.isPremium)
-    }
-
-    @Test
-    fun toModel_noPlan_isFree() {
-        val dto = EntitlementDto(active = true, status = "ACTIVE", plan = null)
         val ent = dto.toModel()
         assertEquals("free", ent.plano)
         assertTrue(ent.isFree)
         assertFalse(ent.isPremium)
-    }
-
-    @Test
-    fun toModel_inactiveNoPlan_isFree() {
-        val dto = EntitlementDto(active = false, status = null, plan = null)
-        val ent = dto.toModel()
-        assertTrue(ent.isFree)
     }
 }

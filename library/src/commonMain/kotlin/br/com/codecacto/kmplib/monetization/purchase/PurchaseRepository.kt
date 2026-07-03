@@ -13,10 +13,45 @@ interface PurchaseRepository {
     /** Verifica se o usuario tem assinatura premium ativa. */
     suspend fun isPremium(): Boolean
 
-    /** Retorna os produtos disponiveis para compra. */
+    /**
+     * Retorna os pacotes de assinatura da camada uniforme do RevenueCat (Offering -> Packages),
+     * gold-standard. Le o offering [PurchaseConfig.offeringId] (fallback: offering `current`) e
+     * mapeia cada `Package` disponivel para [PurchasePackage] (preco JA formatado pela loja). O app
+     * compra por [purchasePackage] — nunca pelo ID cru de produto. Falha de rede/loja -> [Result.failure].
+     */
+    suspend fun getOfferings(): Result<List<PurchasePackage>>
+
+    /**
+     * Compra um pacote de assinatura pelo [PurchasePackage.packageId] (camada Offering/Package do
+     * RevenueCat). Atualiza [subscriptionState] a partir do `customerInfo` retornado. Chame
+     * [getOfferings] antes (para popular o cache de pacotes); se o pacote nao estiver em cache, o
+     * repositorio tenta recarregar os offerings automaticamente.
+     */
+    suspend fun purchasePackage(packageId: String): PurchaseResult
+
+    /**
+     * Retorna os produtos disponiveis para compra.
+     *
+     * @deprecated Assinaturas agora usam [getOfferings] (Offerings/Packages do RevenueCat). Permanece
+     *   funcional apenas para consumiveis/pay-per-action ([purchaseConsumable]).
+     */
+    @Deprecated(
+        "Assinaturas usam getOfferings() (Offerings/Packages). getProducts() so p/ consumiveis.",
+        ReplaceWith("getOfferings()")
+    )
     suspend fun getProducts(): Result<List<PurchaseProduct>>
 
-    /** Compra um produto pelo ID. */
+    /**
+     * Compra um produto pelo ID cru.
+     *
+     * @deprecated Assinaturas agora usam [purchasePackage] (Offerings/Packages do RevenueCat).
+     *   Permanece funcional apenas para fluxos consumiveis legados.
+     */
+    // Sem ReplaceWith: productId (id cru da loja) != packageId (identifier do Package);
+    // um quick-fix automatico geraria chamada incorreta. Migrar manualmente para getOfferings()+purchasePackage.
+    @Deprecated(
+        "Assinaturas usam purchasePackage(packageId) via getOfferings() (Offerings/Packages)."
+    )
     suspend fun purchase(productId: String): PurchaseResult
 
     /**
