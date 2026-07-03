@@ -20,6 +20,32 @@ class DensityGridTest {
     }
 
     @Test
+    fun `colunas efetivas em celular = densidade base`() {
+        // ~400dp (largura de referência de celular): respeita a densidade escolhida.
+        assertEquals(1, effectiveGridColumns(GridDensity.One, availableWidthDp = 400))
+        assertEquals(2, effectiveGridColumns(GridDensity.Two, availableWidthDp = 400))
+        assertEquals(3, effectiveGridColumns(GridDensity.Three, availableWidthDp = 400))
+    }
+
+    @Test
+    fun `colunas efetivas ganham em tablet`() {
+        // ~800dp (tablet): a grade ganha colunas proporcionalmente.
+        assertEquals(2, effectiveGridColumns(GridDensity.One, availableWidthDp = 800))
+        assertEquals(4, effectiveGridColumns(GridDensity.Two, availableWidthDp = 800))
+        assertEquals(6, effectiveGridColumns(GridDensity.Three, availableWidthDp = 800))
+    }
+
+    @Test
+    fun `colunas efetivas nunca abaixo da densidade base nem acima do maximo`() {
+        // Tela estreita não colapsa a escolha do usuário.
+        assertEquals(3, effectiveGridColumns(GridDensity.Three, availableWidthDp = 200))
+        // Largura inválida cai na base.
+        assertEquals(2, effectiveGridColumns(GridDensity.Two, availableWidthDp = 0))
+        // Clamp no máximo em telas enormes.
+        assertEquals(8, effectiveGridColumns(GridDensity.Three, availableWidthDp = 5000))
+    }
+
+    @Test
     fun `todas as densidades tem pelo menos uma coluna`() {
         GridDensity.entries.forEach { density ->
             assert(density.columns >= 1) { "$density deve ter >= 1 coluna" }
