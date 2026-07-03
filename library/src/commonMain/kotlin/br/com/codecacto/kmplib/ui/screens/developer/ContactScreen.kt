@@ -102,16 +102,16 @@ fun ContactScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(backgroundColor)
         ) {
-            // Header
+            // Header — o inset da status bar é aplicado UMA única vez aqui (antes havia padding
+            // duplo: paddingValues no Column + top fixo de 48dp, gerando uma faixa vazia no topo).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(primaryColor)
                     .padding(horizontal = 16.dp)
-                    .padding(top = 48.dp, bottom = 24.dp)
+                    .padding(top = paddingValues.calculateTopPadding() + 12.dp, bottom = 24.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -188,7 +188,12 @@ fun ContactScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 16.dp + paddingValues.calculateBottomPadding(),
+                        ),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Nome (obrigatório)
