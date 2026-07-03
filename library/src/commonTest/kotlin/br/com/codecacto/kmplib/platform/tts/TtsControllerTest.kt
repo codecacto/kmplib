@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.platform.tts
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Testes da lógica PURA do TTS (sem motor nativo): normalização de langTag BCP-47, clamp de rate
@@ -121,5 +122,93 @@ class TtsControllerTest {
     @Test
     fun `codigo negativo desconhecido vira not supported`() {
         assertEquals(TtsVoiceAvailability.NotSupported, ttsAvailabilityFromAndroidCode(-99))
+    }
+
+    // --- ttsVoiceGenderHint (heurística de gênero pelo nome da voz) ---
+
+    @Test
+    fun `hint detecta female e male por palavra`() {
+        assertEquals(TtsVoiceGender.Female, ttsVoiceGenderHint("pt-br-x-afs#female_1-local"))
+        assertEquals(TtsVoiceGender.Male, ttsVoiceGenderHint("en-us-x-sfg#male_2-network"))
+    }
+
+    @Test
+    fun `hint e case-insensitive`() {
+        assertEquals(TtsVoiceGender.Female, ttsVoiceGenderHint("PT-BR-X-AFS#FEMALE"))
+        assertEquals(TtsVoiceGender.Male, ttsVoiceGenderHint("EN-US-X-SFG#MALE"))
+    }
+
+    @Test
+    fun `female tem prioridade sobre a substring male`() {
+        // "female" contém "male": não pode ser classificado como masculino.
+        assertEquals(TtsVoiceGender.Female, ttsVoiceGenderHint("voz-female-1"))
+    }
+
+    @Test
+    fun `hint por codigos curtos apos as palavras`() {
+        assertEquals(TtsVoiceGender.Female, ttsVoiceGenderHint("pt-br-voz#f"))
+        assertEquals(TtsVoiceGender.Male, ttsVoiceGenderHint("pt-br-voz#m"))
+    }
+
+    @Test
+    fun `hint nulo quando nao ha dica de genero`() {
+        assertNull(ttsVoiceGenderHint("pt-br-x-network"))
+        assertNull(ttsVoiceGenderHint(""))
+    }
+
+    // --- pickVoiceName (escolha da voz pelo gênero + idioma) ---
+
+    private val vozes = listOf(
+        "pt-br-x-afs#female_1-local",
+        "pt-br-x-sfg#male_1-local",
+        "pt-pt-x-pfl#female-local",
+        "en-us-x-iom#male-network",
+        "es-es-x-eec-local" // sem dica de gênero
+    )
+
+    @Test
+    fun `pickVoiceName escolhe voz feminina do locale exato`() {
+        assertEquals(
+            "pt-br-x-afs#female_1-local",
+            pickVoiceName(vozes, TtsVoiceGender.Female, "pt-BR")
+        )
+    }
+
+    @Test
+    fun `pickVoiceName escolhe voz masculina do locale exato`() {
+        assertEquals(
+            "pt-br-x-sfg#male_1-local",
+            pickVoiceName(vozes, TtsVoiceGender.Male, "pt-BR")
+        )
+    }
+
+    @Test
+    fun `pickVoiceName cai para mesmo idioma quando nao ha locale exato`() {
+        // Pede es-MX feminina; não há es-MX, mas há es-ES (sem gênero) → sem match → null.
+        assertNull(pickVoiceName(vozes, TtsVoiceGender.Female, "es-MX"))
+        // Pede pt-AO feminina: não há pt-AO, mas há pt-BR/pt-PT femininas (mesmo idioma).
+        assertEquals(
+            "pt-br-x-afs#female_1-local",
+            pickVoiceName(vozes, TtsVoiceGender.Female, "pt-AO")
+        )
+    }
+
+    @Test
+    fun `pickVoiceName retorna null quando nao ha voz do genero para o idioma`() {
+        // en-US só tem voz masculina; pedir feminina → mantém voz padrão (null).
+        assertNull(pickVoiceName(vozes, TtsVoiceGender.Female, "en-US"))
+    }
+
+    @Test
+    fun `pickVoiceName com lista vazia retorna null`() {
+        assertNull(pickVoiceName(emptyList(), TtsVoiceGender.Female, "pt-BR"))
+    }
+
+    @Test
+    fun `pickVoiceName com idioma vazio escolhe a primeira do genero`() {
+        assertEquals(
+            "pt-br-x-sfg#male_1-local",
+            pickVoiceName(vozes, TtsVoiceGender.Male, "")
+        )
     }
 }

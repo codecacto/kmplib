@@ -19,6 +19,21 @@ enum class TtsState {
 }
 
 /**
+ * Gênero preferido da voz de síntese ([TtsController.setVoiceGender]).
+ *
+ * - [Female]: voz feminina (padrão do ecossistema).
+ * - [Male]: voz masculina.
+ *
+ * A aplicação é **best-effort**: depende das vozes instaladas no dispositivo/motor (Android) ou
+ * disponíveis no sistema (iOS). Se não houver voz do gênero pedido para o idioma, a voz padrão é
+ * mantida — nunca bloqueia nem lança.
+ */
+enum class TtsVoiceGender {
+    Female,
+    Male
+}
+
+/**
  * Disponibilidade da voz para um idioma (BCP-47).
  *
  * - [Available]: há voz instalada para o idioma (fala funciona).
@@ -92,6 +107,18 @@ interface TtsController {
      * [MIN_TTS_RATE]..[MAX_TTS_RATE]). Não afeta a fala já em andamento.
      */
     fun setRate(rate: Float)
+
+    /**
+     * Define o gênero preferido da voz ([TtsVoiceGender.Female] por padrão). Guarda o estado e o
+     * aplica nas **próximas** falas (não afeta a fala já em andamento). Segue o mesmo padrão de
+     * [setRate].
+     *
+     * **Best-effort:** a seleção depende das vozes instaladas — no Android das `Voice`s de
+     * `TextToSpeech.getVoices()` para o locale; no iOS das `AVSpeechSynthesisVoice.speechVoices()`.
+     * Se não houver voz do gênero pedido para o idioma, a voz padrão é mantida (nunca lança nem
+     * silencia a fala).
+     */
+    fun setVoiceGender(gender: TtsVoiceGender)
 
     /**
      * Libera os recursos nativos do motor de TTS. Após chamar, crie outro via [createTtsController].
@@ -168,6 +195,58 @@ fun ttsAvailabilityFromAndroidCode(code: Int): TtsVoiceAvailability = when (code
     AndroidTtsLangResult.LANG_COUNTRY_AVAILABLE,
     AndroidTtsLangResult.LANG_COUNTRY_VAR_AVAILABLE -> TtsVoiceAvailability.Available
     else -> if (code < 0) TtsVoiceAvailability.NotSupported else TtsVoiceAvailability.Available
+}
+
+/**
+ * Deduz o gênero sugerido por um **nome de voz** do motor (heurística pura, case-insensitive).
+ *
+ * Nomes de `Voice` do Android costumam embutir dicas de gênero, ex.: `pt-br-x-afs#female_1-local`,
+ * `en-us-x-sfg#male_2-network`, `pt-br-x-pfm-local`. A ordem de checagem evita a armadilha de
+ * `"female"` conter a substring `"male"`: a palavra `female` é testada **antes** de `male`, e os
+ * códigos curtos (`#f`/`-f`/`_f` e `#m`/`-m`/`_m`) só depois das palavras completas.
+ *
+ * @return [TtsVoiceGender] sugerido, ou `null` se o nome não carrega dica de gênero.
+ */
+fun ttsVoiceGenderHint(name: String): TtsVoiceGender? {
+    val n = name.lowercase()
+    return when {
+        n.contains("female") -> TtsVoiceGender.Female
+        n.contains("male") -> TtsVoiceGender.Male
+        n.contains("#f") || n.contains("-f") || n.contains("_f") -> TtsVoiceGender.Female
+        n.contains("#m") || n.contains("-m") || n.contains("_m") -> TtsVoiceGender.Male
+        else -> null
+    }
+}
+
+/**
+ * Escolhe, entre os [names] de vozes disponíveis, o nome da voz do [gender] pedido para o idioma
+ * [langTag] (BCP-47). Função **pura e testável** — a impl Android converte o nome escolhido de volta
+ * na `Voice` correspondente e faz `engine.voice = ...`.
+ *
+ * Preferência: (1) voz do gênero cujo nome casa com o **locale exato** (`pt-BR`); (2) voz do gênero
+ * do **mesmo idioma** (`pt-*`, ex.: `pt-PT` quando se pediu `pt-BR`). Se nenhuma voz do gênero for
+ * encontrada para o idioma, retorna `null` — o chamador deve **manter a voz padrão** (best-effort,
+ * nunca quebra). Idioma vazio → escolhe a primeira voz do gênero em [names].
+ *
+ * @return nome da voz escolhida, ou `null` para manter a voz padrão.
+ */
+fun pickVoiceName(names: List<String>, gender: TtsVoiceGender, langTag: String): String? {
+    if (names.isEmpty()) return null
+    val lang = normalizeTtsLangTag(langTag).lowercase()
+    if (lang.isEmpty()) {
+        return names.firstOrNull { ttsVoiceGenderHint(it) == gender }
+    }
+    val languageOnly = lang.substringBefore('-')
+    // 1) locale exato do gênero pedido.
+    names.firstOrNull { it.lowercase().startsWith(lang) && ttsVoiceGenderHint(it) == gender }
+        ?.let { return it }
+    // 2) mesmo idioma (qualquer região) do gênero pedido.
+    names.firstOrNull {
+        val n = it.lowercase()
+        (n.startsWith("$languageOnly-") || n == languageOnly) && ttsVoiceGenderHint(it) == gender
+    }?.let { return it }
+    // Nenhuma voz do gênero para o idioma → mantém a voz padrão.
+    return null
 }
 
 /**

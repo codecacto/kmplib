@@ -9,6 +9,8 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVSpeechBoundaryImmediate
 import platform.AVFAudio.AVSpeechSynthesisVoice
+import platform.AVFAudio.AVSpeechSynthesisVoiceGenderFemale
+import platform.AVFAudio.AVSpeechSynthesisVoiceGenderMale
 import platform.AVFAudio.AVSpeechSynthesizer
 import platform.AVFAudio.AVSpeechSynthesizerDelegateProtocol
 import platform.AVFAudio.AVSpeechUtterance
@@ -37,6 +39,7 @@ class IosTtsController : TtsController {
     override val state: StateFlow<TtsState> = _state.asStateFlow()
 
     private var currentRate: Float = 1f
+    private var voiceGender: TtsVoiceGender = TtsVoiceGender.Female
     private var released = false
 
     private val synthesizer = AVSpeechSynthesizer()
@@ -83,7 +86,10 @@ class IosTtsController : TtsController {
         currentRate = effectiveRate
         try {
             val normalized = normalizeTtsLangTag(langTag)
-            val voice = AVSpeechSynthesisVoice.voiceWithLanguage(normalized)
+            // Seleção por gênero (best-effort): tenta uma voz do idioma + gênero pedido; se não
+            // houver, faz fallback para a voz padrão do idioma (comportamento anterior).
+            val voice = pickIosVoice(normalized, voiceGender)
+                ?: AVSpeechSynthesisVoice.voiceWithLanguage(normalized)
             if (voice == null) {
                 // Voz indisponível NUNCA bloqueia: apenas não fala.
                 if (_state.value == TtsState.Speaking) _state.value = TtsState.Idle
@@ -131,6 +137,35 @@ class IosTtsController : TtsController {
 
     override fun setRate(rate: Float) {
         currentRate = clampTtsRate(rate)
+    }
+
+    override fun setVoiceGender(gender: TtsVoiceGender) {
+        voiceGender = gender
+    }
+
+    /**
+     * Best-effort: procura em `AVSpeechSynthesisVoice.speechVoices()` uma voz do idioma [langTag]
+     * (prefixo do `language`, ex.: `pt` casa `pt-BR`/`pt-PT`) **e** do [gender] pedido
+     * (`AVSpeechSynthesisVoiceGenderMale`/`Female`, iOS 13+). Prefere o match de idioma exato ao de
+     * prefixo. Retorna `null` se nada casar (o chamador cai no `voiceWithLanguage`). Nunca lança.
+     */
+    private fun pickIosVoice(langTag: String, gender: TtsVoiceGender): AVSpeechSynthesisVoice? {
+        return try {
+            val target = when (gender) {
+                TtsVoiceGender.Female -> AVSpeechSynthesisVoiceGenderFemale
+                TtsVoiceGender.Male -> AVSpeechSynthesisVoiceGenderMale
+            }
+            val exact = langTag.lowercase()
+            val languageOnly = exact.substringBefore('-')
+            val voices = AVSpeechSynthesisVoice.speechVoices()
+                .filterIsInstance<AVSpeechSynthesisVoice>()
+                .filter { it.gender == target }
+            voices.firstOrNull { it.language.lowercase() == exact }
+                ?: voices.firstOrNull { it.language.lowercase().startsWith(languageOnly) }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao selecionar voz por gênero: ${e.message}")
+            null
+        }
     }
 
     override fun release() {

@@ -68,6 +68,7 @@ class AndroidTtsController : TtsController {
     override val state: StateFlow<TtsState> = _state.asStateFlow()
 
     private var currentRate: Float = 1f
+    private var voiceGender: TtsVoiceGender = TtsVoiceGender.Female
     private var released = false
 
     private val ready = CompletableDeferred<Boolean>()
@@ -160,6 +161,10 @@ class AndroidTtsController : TtsController {
                 return
             }
             engine.language = locale
+            // Seleção de voz por gênero (best-effort): antes de sintetizar, tenta trocar a Voice
+            // para uma do gênero pedido no locale atual. Vale para os dois caminhos abaixo
+            // (amplificado via synthesizeToFile e direto via speak).
+            applyVoiceGender(engine, langTag)
             engine.setSpeechRate(effectiveRate)
             // Roteia a fala pelo stream de MÍDIA (mais alto/previsível) em vez do stream padrão.
             engine.setAudioAttributes(mediaAudioAttributes())
@@ -274,6 +279,25 @@ class AndroidTtsController : TtsController {
             tts?.setSpeechRate(currentRate)
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao ajustar velocidade: ${e.message}")
+        }
+    }
+
+    override fun setVoiceGender(gender: TtsVoiceGender) {
+        voiceGender = gender
+    }
+
+    /**
+     * Best-effort: seleciona uma [android.speech.tts.Voice] de `engine.voices` para [langTag] cujo
+     * nome sugira [voiceGender] (via [pickVoiceName]/[ttsVoiceGenderHint]) e faz `engine.voice = ...`.
+     * Se não houver voz do gênero pedido, **mantém a voz padrão** (não altera). Nunca lança.
+     */
+    private fun applyVoiceGender(engine: TextToSpeech, langTag: String) {
+        try {
+            val voices = engine.voices ?: return
+            val chosenName = pickVoiceName(voices.map { it.name }, voiceGender, langTag) ?: return
+            voices.firstOrNull { it.name == chosenName }?.let { engine.voice = it }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao selecionar voz por gênero: ${e.message}")
         }
     }
 

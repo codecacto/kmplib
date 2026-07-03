@@ -86,6 +86,15 @@
       corrente vs explícita).
       `:kmplib:compileDebugKotlinAndroid`+`compileCommonMainKotlinMetadata` BUILD SUCCESSFUL; testes
       10/0/0. **actual iOS completo; klib/framework iOS pendente de host macOS (P-IOS).**
+      **Seleção de voz por gênero — ENTREGUE na 2.59.0** (motivada pelo Minha Voz): `enum TtsVoiceGender
+      { Female, Male }` + `fun setVoiceGender(gender)` no contrato (default `Female`; guarda estado, aplica
+      nas próximas falas — mesmo padrão de `setRate`). **Best-effort:** depende das vozes instaladas; sem
+      voz do gênero pedido mantém a voz padrão (não regride volume/amplificação/rate). **Android:** antes de
+      sintetizar (amplificado + direto) escolhe `Voice` de `engine.voices` do locale via heurística pura
+      `pickVoiceName(names, gender, langTag)`/`ttsVoiceGenderHint(name)` e faz `engine.voice = ...`.
+      **iOS:** filtra `AVSpeechSynthesisVoice.speechVoices()` por idioma+`gender` (iOS 13+), senão fallback
+      `voiceWithLanguage`. Testes `TtsControllerTest` 26/0/0 (12 novos p/ gênero). `:kmplib:
+      compileDebugKotlinAndroid`+`testDebugUnitTest` BUILD SUCCESSFUL.
 
   <details><summary>Especificação original (entregue na 2.51.0)</summary>
 
