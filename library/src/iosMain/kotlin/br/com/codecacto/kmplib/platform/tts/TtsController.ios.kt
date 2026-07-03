@@ -7,15 +7,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
-import platform.AVFAudio.AVSpeechBoundaryImmediate
+import platform.AVFAudio.AVSpeechBoundary
 import platform.AVFAudio.AVSpeechSynthesisVoice
-import platform.AVFAudio.AVSpeechSynthesisVoiceGenderFemale
-import platform.AVFAudio.AVSpeechSynthesisVoiceGenderMale
+import platform.AVFAudio.AVSpeechSynthesisVoiceGender
 import platform.AVFAudio.AVSpeechSynthesizer
 import platform.AVFAudio.AVSpeechSynthesizerDelegateProtocol
 import platform.AVFAudio.AVSpeechUtterance
 import platform.AVFAudio.AVSpeechUtteranceDefaultSpeechRate
 import platform.darwin.NSObject
+import kotlinx.cinterop.ObjCSignatureOverride
 
 /**
  * Implementação iOS do [TtsController] usando `AVSpeechSynthesizer` (AVFoundation).
@@ -45,6 +45,7 @@ class IosTtsController : TtsController {
     private val synthesizer = AVSpeechSynthesizer()
 
     private val delegate = object : NSObject(), AVSpeechSynthesizerDelegateProtocol {
+        @ObjCSignatureOverride
         override fun speechSynthesizer(
             synthesizer: AVSpeechSynthesizer,
             didStartSpeechUtterance: AVSpeechUtterance
@@ -52,6 +53,7 @@ class IosTtsController : TtsController {
             _state.value = TtsState.Speaking
         }
 
+        @ObjCSignatureOverride
         override fun speechSynthesizer(
             synthesizer: AVSpeechSynthesizer,
             didFinishSpeechUtterance: AVSpeechUtterance
@@ -59,6 +61,7 @@ class IosTtsController : TtsController {
             if (_state.value != TtsState.Error) _state.value = TtsState.Idle
         }
 
+        @ObjCSignatureOverride
         override fun speechSynthesizer(
             synthesizer: AVSpeechSynthesizer,
             didCancelSpeechUtterance: AVSpeechUtterance
@@ -73,8 +76,7 @@ class IosTtsController : TtsController {
         // (essencial num app de acessibilidade). Best-effort — nunca lança.
         try {
             val session = AVAudioSession.sharedInstance()
-            session.setCategory(AVAudioSessionCategoryPlayback, null)
-            session.setActive(true, null)
+            session.setCategory(AVAudioSessionCategoryPlayback, error = null)
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao configurar AVAudioSession: ${e.message}")
         }
@@ -96,7 +98,7 @@ class IosTtsController : TtsController {
                 return
             }
             if (synthesizer.speaking) {
-                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundaryImmediate)
+                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
             }
             val utterance = AVSpeechUtterance(string = text)
             utterance.voice = voice
@@ -112,7 +114,7 @@ class IosTtsController : TtsController {
     override fun stop() {
         try {
             if (synthesizer.speaking) {
-                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundaryImmediate)
+                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
             }
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao parar TTS: ${e.message}")
@@ -146,14 +148,14 @@ class IosTtsController : TtsController {
     /**
      * Best-effort: procura em `AVSpeechSynthesisVoice.speechVoices()` uma voz do idioma [langTag]
      * (prefixo do `language`, ex.: `pt` casa `pt-BR`/`pt-PT`) **e** do [gender] pedido
-     * (`AVSpeechSynthesisVoiceGenderMale`/`Female`, iOS 13+). Prefere o match de idioma exato ao de
+     * (`AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderMale`/`Female`, iOS 13+). Prefere o match de idioma exato ao de
      * prefixo. Retorna `null` se nada casar (o chamador cai no `voiceWithLanguage`). Nunca lança.
      */
     private fun pickIosVoice(langTag: String, gender: TtsVoiceGender): AVSpeechSynthesisVoice? {
         return try {
             val target = when (gender) {
-                TtsVoiceGender.Female -> AVSpeechSynthesisVoiceGenderFemale
-                TtsVoiceGender.Male -> AVSpeechSynthesisVoiceGenderMale
+                TtsVoiceGender.Female -> AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderFemale
+                TtsVoiceGender.Male -> AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderMale
             }
             val exact = langTag.lowercase()
             val languageOnly = exact.substringBefore('-')
@@ -172,7 +174,7 @@ class IosTtsController : TtsController {
         released = true
         try {
             if (synthesizer.speaking) {
-                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundaryImmediate)
+                synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
             }
             synthesizer.delegate = null
         } catch (e: Exception) {
