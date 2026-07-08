@@ -89,20 +89,30 @@ _ = onSuccess(value)
 
 ## Geradores de PDF (iOS)
 
-Os geradores de PDF em `iosMain/kotlin/.../pdf/` estão como **stubs** que lançam exceção:
+Os **9** geradores de PDF em `iosMain/kotlin/.../pdf/` estão como **stubs** que lançam exceção:
 
 - `ReciboPdf.ios.kt`
 - `DocumentPdfGenerator.ios.kt`
 - `FinanceReportPdfGenerator.ios.kt`
 - `HoursReportPdfGenerator.ios.kt`
+- `InspectionPdfGenerator.ios.kt`
 - `OsPdfGenerator.ios.kt`
 - `TableReportPdfGenerator.ios.kt`
 - `VaccinationCardPdfGenerator.ios.kt`
 - `WorkReportPdfGenerator.ios.kt`
 
-**Motivo**: APIs de desenho de texto UIKit (`NSString.sizeWithAttributes`, `drawAtPoint`) não estão disponíveis no Kotlin/Native 2.x.
+(`PdfRasterizer.ios.kt` — `renderPdfPagesToImages` — é real e funciona.)
 
-**TODO**: Implementar quando APIs estiverem disponíveis ou usar biblioteca de terceiros.
+**Motivo**: as categorias de desenho de texto do UIKit (`NSString.sizeWithAttributes`, `drawAtPoint`) não
+são exportadas no Kotlin/Native 2.x.
+
+**Caminho gold-standard do fix** (requer host macOS): desenhar com **CoreText**
+(`CTFramesetterCreateWithAttributedString`, `CTFrameDraw`/`CTLineDraw`, exportados no K/N) dentro de
+`UIGraphicsPDFRenderer`/`CGContext`. O layout lógico já é compartilhado (`pdf/ReciboPdfLayout.kt`).
+
+**Enquanto isso**: o app **não deve vender/exibir** export de PDF no iOS — consulte
+`platform/PlatformCapabilities.pdfGeneration` (mesma coisa para `cameraCapture`, cujo `CameraView.ios`
+também é placeholder).
 
 ## Compatibilidade
 

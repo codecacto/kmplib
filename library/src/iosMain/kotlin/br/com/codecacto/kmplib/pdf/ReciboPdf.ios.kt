@@ -12,6 +12,7 @@ package br.com.codecacto.kmplib.pdf
 actual fun generateReciboPdf(data: ReciboPdfData, watermark: Boolean): ByteArray {
     throw ReciboPdfNotSupportedException(
         "Geração de PDF de recibo ainda não suportada no iOS. " +
-        "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x."
+        "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x. " +
+            "Cheque PlatformCapabilities.pdfGeneration antes de oferecer a feature."
     )
 }

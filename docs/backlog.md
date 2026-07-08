@@ -3,6 +3,75 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.68.0 — Baseline de resiliência/UX + gate de cota offline + fronteira de tempo (08/jul)
+> Origem: auditoria dos 28 apps do Onboarding. Todos os itens abaixo estavam duplicados em ≥2 apps.
+
+- [x] **`ui/components/ErrorState` (rolável, com retry).** A lib só tinha `ErrorModal` (bloqueante, p/
+      falha de **ação**) e `EmptyState` (sucesso com zero itens) — resultado: **falha de rede virava lista
+      vazia silenciosa** em ~8 apps da onda (MinhaAgenda, Meu Plantão, MinhasVacinas, MinhaOS, QuemMeDeve,
+      ChecklistVeicular, Esquecido, AmigoSecreto). Promovido de MinhaFrota (`ListStateComponents.kt`) +
+      MeuFrete (`core/ui/ErrorState.kt`). **Rolável** (`ScrollableFillBox` — o gesto de pull-to-refresh só
+      chega ao `PullToRefreshBox` se o filho rolar; e o conteúdo continua alcançável com teclado aberto).
+      Também `OfflineErrorState` (atalho p/ falha de rede). Tokens do tema, `AppButton` reusado,
+      `ErrorStateTexts` i18n.
+- [x] **`ui/components/SearchTopBar` + `FilterIconButton`.** Padrão inegociável ([[search-topbar-android]],
+      [[filters-topbar-icon]]): busca = **lupa no top bar** que revela o campo; filtros = **funil com badge**.
+      Ninguém tinha — todos improvisavam `AppTextField` inline abaixo da barra (MinhaAgenda
+      `ClientesListaContent.kt:73`, Exiba `OutdoorListContent.kt:64`, NúmerosDaSorte, MinhaDespensa
+      `PantryScreen.kt:94`). `SearchTopBarState` hoisted (fechar limpa a query), foco automático,
+      `filterBadgeLabel` cap "9+". Testes `SearchTopBarStateTest` (6).
+- [x] **`ui/components/RefreshableBox` + `SyncRefreshBox` (pull-to-refresh).** Zero apps tinham wrapper;
+      alguns usavam `PullToRefreshBox` cru. `RefreshableBox` = wrapper fino sobre o componente **oficial**
+      do Material 3 (padrão-ouro; a lib não reimplementa gesto/indicador). `SyncRefreshBox` é a variante
+      **offline-first**: o gesto dispara `RestCrudSyncEngine.syncNow()` (drena a outbox → depois reconcilia),
+      não um mero refetch; sem rede, encerra o indicador na hora e chama `onOffline()` (a outbox fica
+      intacta e o engine sincroniza sozinho ao reconectar). Decisão pura `resolveRefreshAction` testada
+      (`RefreshableBoxTest`, 4).
+- [x] **`monetization/quota/OfflineQuotaGate` + `DailyQuotaStore` + `QuotaRules` + `PremiumSource`.**
+      O MESMO gate estava em 4 apps offline (Esquecido, ChamadaFacil, MundoBandeiras, NúmerosDaSorte
+      `CotaDiariaLocal`). Promovido o denominador comum, cobrindo os **dois formatos** de limite:
+      consumível diário (`tryConsume` + espelho dia-aware) e estrutural/lifetime (`assertStructural`,
+      contagem do domínio). ADR-001 ponto a ponto: premium curto-circuita · servidor é a verdade quando
+      existe (`assertUsage`; 402 sobrepõe o espelho e abre paywall) · **fail-open LIMITADO** (falha de rede
+      libera só até o teto Free, depois bloqueia — nunca libera infinito, nunca autopromove) · `reconcile()`
+      ao reconectar · app sem backend usa o espelho como gate.
+      **Bug real corrigido de saída** (MundoBandeiras `core/di/AppModule.kt:90`): o gate lia `state.value`
+      (snapshot do `StateFlow`) **antes** do 1º `refresh()` do RevenueCat → no cold start um assinante **Pro
+      era tratado como Free e tinha a cota consumida**. Agora o sinal premium vem de `PremiumSource`;
+      `EntitlementPremiumSource` **aguarda o primeiro refresh** (uma vez por processo, sob mutex) antes de
+      ler o flow ([[premium-gate-revenuecat-direct]]). Testes `OfflineQuotaGateTest` (12).
+- [x] **`core/time/BoundaryTime` + `EpochMillisSerializer`/`EpochMillisOrNullSerializer`.** O contrato da
+      onda fixa **epoch millis (Long)**, mas backends emitem ISO-string e cada app remendou sozinho
+      (`isoToMillis` no MinhasHoras, `DomainMappers.isoToEpoch` no MinhaOS, e o **pior**: PapelStudio
+      `IaResultViewModel.kt:79` recarimbando com `currentTimeMillis()` — inventa instante). Conversão única:
+      lê número/string-numérica/ISO (com e sem offset ⇒ UTC), escreve SEMPRE número. **Nunca inventa
+      instante** (ausente/ilegível ⇒ `null`/`0`, jamais "agora"). Documenta e **impõe** a fronteira:
+      `"2026-07-08"` (data de calendário — aniversário/vencimento) é **rejeitada**; use `LocalDate` com o
+      serializer oficial do kotlinx-datetime. Testes `BoundaryTimeTest` (10).
+- [x] **`platform/PlatformCapabilities` (dívidas iOS declaradas, não silenciosas).** `cameraCapture` e
+      `pdfGeneration` = `false` no iOS. Motivo: `CameraView.ios` é placeholder (MeuEstacionamento herdou
+      "foto de veículo não funciona no iPhone") e **os 9 geradores de PDF iOS lançam exceção** — o
+      ChamadaFacil **vende export PDF como feature Pro** e ela não existe no iOS. Agora o app consulta o
+      flag e **esconde/não vende** a feature enquanto a dívida não é paga. Mensagens dos stubs apontam para
+      o flag.
+
+#### Dívidas iOS — diagnóstico (NÃO implementável sem host macOS)
+- **Correção de drift do catálogo:** a skill afirmava que `DocumentPdfGenerator` e
+  `VaccinationCardPdfGenerator` eram "iOS FUNCIONAL". **São stubs.** Verificado: os 9 arquivos
+  `pdf/*.ios.kt` lançam `OsPdfNotSupportedException`/`ReciboPdfNotSupportedException`. Apenas
+  `PdfRasterizer.ios.kt` (renderPdfPagesToImages) é real. Catálogo corrigido.
+- **Caminho gold-standard do PDF iOS:** o motivo registrado ("APIs de desenho de texto do UIKit não
+  exportadas no K/N 2.x" — as categorias `NSString.drawAtPoint:withAttributes:`/`sizeWithAttributes:`)
+  é real, mas **existe caminho oficial**: desenhar com **CoreText** (`CTFramesetterCreateWithAttributedString`,
+  `CTFrameDraw`/`CTLineDraw`), que É exportado no Kotlin/Native, dentro de `UIGraphicsPDFRenderer` /
+  `CGContext`. Layout lógico já está compartilhado (`pdf/ReciboPdfLayout.kt`, baselines em pt).
+  **Não implementado aqui** porque Kotlin/Native iOS **não compila em Linux** — escrever ~9 renderers
+  sem conseguir compilar nem ver o PDF seria código cego (pior que a dívida declarada). Requer host macOS.
+- **`CameraView`/`rememberCameraPermission` iOS:** idem — `AVCaptureSession` + `AVCaptureVideoDataOutput`
+  (OCR ao vivo via `VNRecognizeTextRequest`/Apple Vision) + `AVCapturePhotoOutput`
+  (`fileDataRepresentation()` → JPEG). Núcleo de parsing (`extractPlate`) já é commonMain testado; falta só
+  o pipeline nativo. Requer host macOS.
+
 ### 2.67.0 — Aviso global de "sem internet" + 2 promoções ≥2 (07/jul)
 - [x] **PRIORIDADE FUNDADOR — `ui/components/ConnectivityGate` (aviso "sem internet").** App agora é
       **online-por-padrão** ([[default-online-not-offline-first]]) → todo app precisa avisar quando offline.

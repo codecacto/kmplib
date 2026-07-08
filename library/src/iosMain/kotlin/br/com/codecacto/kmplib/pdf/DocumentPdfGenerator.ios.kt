@@ -10,7 +10,8 @@ private class IosDocumentPdfGenerator : DocumentPdfGenerator {
     override fun generate(data: DocumentPdfData): ByteArray {
         throw OsPdfNotSupportedException(
             "Geração de PDF de documento ainda não suportada no iOS. " +
-            "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x."
+            "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x. " +
+            "Cheque PlatformCapabilities.pdfGeneration antes de oferecer a feature."
         )
     }
 }

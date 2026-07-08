@@ -13,7 +13,8 @@ private class IosInspectionPdfGenerator : InspectionPdfGenerator {
     override fun generate(data: InspectionPdfData): ByteArray {
         throw OsPdfNotSupportedException(
             "Geração de PDF de vistoria ainda não suportada no iOS. " +
-                "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x."
+                "As APIs de desenho de texto do UIKit não estão disponíveis no Kotlin/Native 2.x. " +
+            "Cheque PlatformCapabilities.pdfGeneration antes de oferecer a feature."
         )
     }
 }
