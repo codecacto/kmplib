@@ -1,7 +1,75 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
+import br.com.codecacto.kmplib.monetization.entitlement.PlanInterval
+import br.com.codecacto.kmplib.monetization.entitlement.isPaidPlan
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
+
+/**
+ * Um plano pode receber o selo de **"Recomendado"/"Melhor valor"**?
+ *
+ * Elegibilidade (2.69.0 — espelha o `isHighlightEligible` da weblib 0.58.0):
+ * 1. **pago** (`!isFree`) — o Grátis nunca leva selo, nem empatando em duração com o mensal;
+ * 2. **preço da loja resolvido** (`priceLabel` não-branco) — nada de destacar card sem preço;
+ * 3. **intervalo canônico** (1/6/12 — ver [PlanInterval]) — trimestral, `lifetime` residual
+ *    (`durationMonths = 1200`) ou duração desconhecida (`null`) **não concorrem**.
+ *
+ * Inelegível **não** significa escondido: o plano continua visível e assinável, só não ganha selo e
+ * ordena por último.
+ */
+val PaywallPlan.isHighlightEligible: Boolean
+    get() = !isFree && priceLabel.isNotBlank() && PlanInterval.isCanonical(durationMonths)
+
+/**
+ * **Fonte única da ordem e do selo do paywall.** Ordena Mensal → Semestral → Anual e deriva o
+ * "Recomendado"; qualquer `isRecommended` que venha na entrada (do backend, do app, de um literal
+ * hardcoded) é **descartado** antes de recalcular.
+ *
+ * Regras (inegociáveis):
+ * - **Ordem:** canônicos por `durationMonths` ASC (1 → 6 → 12); **não-canônicos por último**, em
+ *   ordem estável. A duração desconhecida é `null`, **não** um número grande — nunca deixe um
+ *   `Int.MAX_VALUE` sintético concorrer ao selo (foi o bug da weblib).
+ * - **Selo = maior duração entre os ELEGÍVEIS** ([isHighlightEligible]). Desligar o anual no admin
+ *   migra o selo para o semestral **sozinho** — o selo é derivado, nunca configurado.
+ * - **Nenhum elegível ⇒ nenhum selo.** Melhor nenhum selo que o selo errado.
+ * - [forcedPlanId] só é honrado se aquele plano for elegível; caso contrário, cai no default (um app
+ *   não "rouba" o selo para um plano grátis/desconhecido).
+ *
+ * Use direto quando o app monta os `PaywallPlan` à mão:
+ * ```kotlin
+ * val plans = withDerivedHighlight(
+ *     listOf(
+ *         PaywallPlan(id = "mensal", name = "Mensal", priceLabel = mensalPrice, durationMonths = 1),
+ *         PaywallPlan(id = "anual",  name = "Anual",  priceLabel = anualPrice,  durationMonths = 12),
+ *     )
+ * ) // -> anual.isRecommended == true, sem hardcode
+ * ```
+ */
+fun withDerivedHighlight(
+    plans: List<PaywallPlan>,
+    forcedPlanId: String? = null,
+): List<PaywallPlan> {
+    // O selo que veio de fora NUNCA é confiável: é sempre recalculado aqui.
+    val cleared = plans.map { it.copy(isRecommended = false) }
+
+    val (canonical, nonCanonical) = cleared.partition { PlanInterval.isCanonical(it.durationMonths) }
+    // `!!` seguro: o particionamento garante durationMonths canônico (1/6/12).
+    val ordered = canonical.sortedBy { it.durationMonths!! } + nonCanonical
+
+    val forcedIndex = forcedPlanId
+        ?.let { id -> ordered.indexOfFirst { it.id == id && it.isHighlightEligible } }
+        ?.takeIf { it >= 0 }
+
+    // Como os canônicos vêm ordenados ASC e os não-canônicos (inelegíveis) depois, o ÚLTIMO
+    // elegível é o de maior duração. Nenhum elegível => indexOfLast == -1 => nenhum selo.
+    val winnerIndex = forcedIndex ?: ordered.indexOfLast { it.isHighlightEligible }
+
+    if (winnerIndex < 0) return ordered
+
+    return ordered.mapIndexed { index, plan ->
+        if (index == winnerIndex) plan.copy(isRecommended = true) else plan
+    }
+}
 
 /**
  * Converte a oferta de [Plan]s do catalogo do `admin-api` correlacionada com os [PurchasePackage]s da
@@ -9,20 +77,27 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
  * canonico. **Este e o overload preferencial** (compra por `packageId`, nunca por ID cru de produto).
  *
  * Regras (inegociaveis):
- * - **Correlacao por duracao:** cada [Plan] com `durationMonths` casa com o primeiro [PurchasePackage]
- *   de mesma `durationMonths`. Sem Package correspondente, o plano e **OMITIDO** (mesma regra do
- *   "sem preco = omite" — nada de "—" persistente).
- * - **Ordem fixa** Mensal(1) -> Semestral(6) -> Anual(12): ordena por `durationMonths` ASC.
+ * - **Correlacao:** primeiro por **duracao canonica** (`Plan.durationMonths` == `PurchasePackage
+ *   .durationMonths`); se nao casar, por **`storeProductId`**. Sem Package correspondente o plano e
+ *   **OMITIDO** (regra "sem preco = omite" — nada de "—" persistente); nao ha como vender sem preco.
+ * - **A loja manda na duracao:** `durationMonths` do [PurchasePackage] tem prioridade sobre o do
+ *   catalogo (a loja e a fonte de verdade do que esta sendo vendido). Um `lifetime` (Package sem
+ *   duracao) que traga `durationMonths = 1200` no catalogo vira **duracao desconhecida** — o plano
+ *   aparece, ordena por ultimo e **nao rouba o selo do anual**.
+ * - **Ordem fixa e selo derivado:** delegados a [withDerivedHighlight] (fonte unica).
  * - **Preco SEMPRE da loja** (gold-standard): `priceLabel` vem de [PurchasePackage.priceLabel] (ja
  *   formatado pela loja). A lib NUNCA calcula preco.
  * - **`id` do PaywallPlan = [PurchasePackage.packageId]** (chave de selecao/compra via `purchasePackage`).
- * - **Recomendado:** por default a MAIOR duracao entre os EXIBIDOS; o app pode forcar via
- *   [recommendedDurationMonths].
- * - **Seguranca:** planos inativos, free ou sem `durationMonths` sao OMITIDOS.
- * - **`durationLabel`** derivado de `durationMonths` via [durationLabel] (default pt-BR).
+ * - **Seguranca:** planos inativos ou nao-pagos (free / preco zero) sao OMITIDOS.
+ * - **`durationLabel`** derivado da duracao resolvida via [durationLabel]; duracao desconhecida => sem rotulo.
+ *
+ * `Plan.intervalo` (string do backend) e **ignorado** de proposito: ordem, rotulo e selo saem de
+ * `durationMonths`. Assim um intervalo nao-canonico jamais e "rebaixado" para mensal (o que faria o
+ * paywall mentir o preco, como acontecia na weblib).
  *
  * @param packages pacotes lidos do RevenueCat (`getOfferings()`), com preco ja formatado.
- * @param recommendedDurationMonths forca o plano recomendado por duracao; `null` => maior duracao exibida.
+ * @param recommendedDurationMonths forca o plano recomendado por duracao; `null` => maior duracao
+ *   elegivel. So e honrado se o plano daquela duracao for elegivel ao selo.
  * @param durationLabel deriva o rotulo de duracao a partir de `durationMonths`; `null` => sem rotulo.
  */
 fun List<Plan>.toPaywallPlans(
@@ -31,30 +106,38 @@ fun List<Plan>.toPaywallPlans(
     durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
 ): List<PaywallPlan> {
     val resolved = this
-        .asSequence()
-        .filter { it.ativo && !it.isFree }
+        .filter { it.ativo && it.isPaidPlan }
         .mapNotNull { plan ->
-            val months = plan.durationMonths ?: return@mapNotNull null
-            val pkg = packages.firstOrNull { it.durationMonths == months } ?: return@mapNotNull null
-            months to PaywallPlan(
+            val pkg = plan.matchPackage(packages) ?: return@mapNotNull null
+            // Loja > catalogo. Do catalogo so aceitamos duracao CANONICA (bloqueia o 1200 do lifetime).
+            val months = pkg.durationMonths
+                ?: plan.durationMonths?.takeIf { PlanInterval.isCanonical(it) }
+            PaywallPlan(
                 id = pkg.packageId,
                 name = plan.nome,
                 priceLabel = pkg.priceLabel,
-                durationLabel = durationLabel(months),
+                durationLabel = months?.let(durationLabel),
                 highlights = plan.destaques,
-                isRecommended = false,
+                durationMonths = months,
+                isFree = false,
             )
         }
-        // Ordem fixa: Mensal -> Semestral -> Anual (durationMonths ASC). Estavel p/ empates.
-        .sortedBy { it.first }
-        .toList()
 
-    // Default: a MAIOR duracao exibida (ultimo apos ordenar ASC) e a recomendada.
-    val recommendedMonths = recommendedDurationMonths ?: resolved.lastOrNull()?.first
+    val forcedPlanId = recommendedDurationMonths
+        ?.let { months -> resolved.firstOrNull { it.durationMonths == months }?.id }
 
-    return resolved.map { (months, plan) ->
-        plan.copy(isRecommended = months == recommendedMonths)
-    }
+    return withDerivedHighlight(resolved, forcedPlanId)
+}
+
+/** Correlacao Plan x Package: duracao canonica primeiro, `storeProductId` como fallback. */
+private fun Plan.matchPackage(packages: List<PurchasePackage>): PurchasePackage? {
+    val byDuration = durationMonths
+        ?.takeIf { PlanInterval.isCanonical(it) }
+        ?.let { months -> packages.firstOrNull { it.durationMonths == months } }
+    if (byDuration != null) return byDuration
+
+    val productId = storeProductId?.takeIf { it.isNotBlank() } ?: return null
+    return packages.firstOrNull { it.storeProductId == productId }
 }
 
 /**
@@ -62,22 +145,19 @@ fun List<Plan>.toPaywallPlans(
  * de [PaywallPlan] consumida pelo paywall canonico. Compartilhado porque >=2 apps (Super 8, LocAki)
  * fazem exatamente este mapeamento (skill `lib-evolution`).
  *
- * Regras (inegociaveis):
- * - **Ordem fixa** Mensal -> Semestral -> Anual: ordena por [Plan.durationMonths] ASC.
- * - **Preco SEMPRE da loja** (gold-standard): a lib NUNCA calcula preco. O [priceLabelProvider]
- *   resolve o preco ja formatado por `storeProductId` (o app le da RevenueCat/StoreKit/Play Billing).
- *   Plano sem preco resolvido (`null`) e **OMITIDO** — nada de "—" persistente no paywall.
+ * Mesmas regras de ordem/selo do overload preferencial (delegadas a [withDerivedHighlight]); muda so
+ * a origem do preco e do `id`:
+ * - **Preco SEMPRE da loja** (gold-standard): o [priceLabelProvider] resolve o preco ja formatado por
+ *   `storeProductId`. Plano sem preco resolvido (`null`) e **OMITIDO** — nada de "—" persistente.
  * - **`id` do PaywallPlan = `storeProductId`** (chave de selecao/compra).
- * - **Recomendado:** por default o plano de MAIOR duracao entre os EXIBIDOS (nao ha flag
- *   `isRecommended` no catalogo); o app pode forcar via [recommendedStoreProductId].
- * - **Seguranca:** planos inativos, sem `storeProductId` ou sem `durationMonths` sao OMITIDOS.
- * - **`durationLabel`** derivado de `durationMonths` via [durationLabel] (default pt-BR).
+ * - **Seguranca:** planos inativos, nao-pagos (free/zero) ou sem `storeProductId` sao OMITIDOS. Plano
+ *   com `durationMonths` desconhecido/nao-canonico **NAO** e omitido: aparece por ultimo, sem selo.
  *
  * @deprecated Preferir o overload que recebe `List<PurchasePackage>` (camada Offerings/Packages do
  *   RevenueCat; compra por `packageId`, preco no proprio Package). Mantido para migracao incremental
  *   dos apps que ainda resolvem preco por `storeProductId`.
  * @param priceLabelProvider resolve o preco formatado da loja por `storeProductId`; `null` => omite o plano.
- * @param recommendedStoreProductId forca o plano recomendado; `null` => maior duracao exibida.
+ * @param recommendedStoreProductId forca o plano recomendado; so honrado se ele for elegivel ao selo.
  * @param durationLabel deriva o rotulo de duracao a partir de `durationMonths`; `null` => sem rotulo.
  */
 @Deprecated(
@@ -89,36 +169,30 @@ fun List<Plan>.toPaywallPlans(
     durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
 ): List<PaywallPlan> {
     val resolved = this
-        .asSequence()
-        .filter { it.ativo && !it.isFree }
+        .filter { it.ativo && it.isPaidPlan }
         .mapNotNull { plan ->
             val storeProductId = plan.storeProductId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val months = plan.durationMonths ?: return@mapNotNull null
             val price = priceLabelProvider(storeProductId) ?: return@mapNotNull null
-            Triple(months, storeProductId, PaywallPlan(
+            // Sem Package aqui: a duracao vem do catalogo. Nao-canonica => desconhecida p/ o selo,
+            // mas o rotulo ainda diz a verdade ("3 meses"), nunca "mensal".
+            val months = plan.durationMonths
+            PaywallPlan(
                 id = storeProductId,
                 name = plan.nome,
                 priceLabel = price,
-                durationLabel = durationLabel(months),
+                durationLabel = months?.let(durationLabel),
                 highlights = plan.destaques,
-                isRecommended = false,
-            ))
+                durationMonths = months,
+                isFree = false,
+            )
         }
-        // Ordem fixa: Mensal -> Semestral -> Anual (durationMonths ASC). Estavel p/ empates.
-        .sortedBy { it.first }
-        .toList()
 
-    // Default: o de MAIOR duracao exibido (ultimo apos ordenar ASC) e o recomendado.
-    val recommendedId = recommendedStoreProductId ?: resolved.lastOrNull()?.second
-
-    return resolved.map { (_, storeProductId, plan) ->
-        plan.copy(isRecommended = storeProductId == recommendedId)
-    }
+    return withDerivedHighlight(resolved, recommendedStoreProductId)
 }
 
 /**
  * Rotulo de duracao default (pt-BR) derivado de `durationMonths`. Cobre os 3 tipos do ecossistema
- * (1/6/12) com fallback generico; SEM "trimestral".
+ * (1/6/12) com fallback generico e honesto; SEM "trimestral".
  */
 fun defaultDurationLabel(durationMonths: Int): String = when (durationMonths) {
     1 -> "1 mes"

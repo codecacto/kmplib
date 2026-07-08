@@ -38,6 +38,33 @@
       tem — ChamadaFacil anuncia "Exportar PDF" como destaque do plano **Pro** e no iOS o gerador lança.
       Agora o destaque/menu se atrela à capacidade (`"Exportar PDF" requiring PdfGeneration`) e
       `availableValues()` o remove no alvo onde a feature não existe. Testes `PlatformCapabilityTest` (6).
+- [x] **[BUG] Selo de plano do paywall era roubável — `toPaywallPlans`.** Auditoria disparada pela
+      lib-web (weblib 0.58.0 achou 5 falhas na mesma família). Confirmadas no mobile, com nuances:
+      1. **duração desconhecida** não virava `Int.MAX_VALUE` (a lib nunca teve `planDurationMonths`), mas
+         era pior: o plano **sumia do paywall** (`durationMonths == null ⇒ omitido`) — o usuário não
+         conseguia comprar. Agora: `null` ⇒ visível/assinável, **último**, **inelegível ao selo**.
+      2. **Lógica duplicada** nos dois overloads de `toPaywallPlans` (e hardcoded em MinhaOS
+         `features/paywall/PaywallScreen.kt:99`, `highlighted=false/true` literais). Extraída para a fonte
+         única **`withDerivedHighlight(plans, forcedPlanId?)`**, pública — o app monta os `PaywallPlan` e
+         a lib deriva ordem+selo. O `isRecommended` de entrada é **descartado**.
+      3. **Rebaixar intervalo não-canônico para mensal** (mentira de preço "R$ 53,90/mês"): não existia,
+         porque a lib ignora `Plan.intervalo` e usa `durationMonths`. Documentado para não regredir; o
+         `durationLabel` de um trimestral diz "3 meses", nunca "mensal".
+      4. **Selo indo para o Grátis** em empate de duração: `PaywallPlan.isFree` (novo) + `Plan.isPaidPlan`
+         (free **ou preço zero**) ⇒ o grátis nunca é elegível. `preco` nulo/branco **não** é grátis (no
+         gold-standard o preço vem da loja).
+      5. **`lifetime` com `durationMonths = 1200` vencendo o anual**: real (dado cru do admin-api). Agora a
+         **loja manda na duração** (`PurchasePackage.durationMonths`; `LIFETIME ⇒ null`) e do catálogo só
+         se aceita duração **canônica**. Novo `enum PlanInterval { Monthly(1), SemiAnnual(6), Yearly(12) }`
+         (`monetization/entitlement`) = whitelist da constituição; `isHighlightEligible` = ativo + pago +
+         canônico. **Nenhum elegível ⇒ nenhum selo.** `forcedPlanId` só é honrado se elegível (senão cai no
+         default — hardcode obsoleto não deixa o paywall sem selo). Correlação Plan×Package ganhou fallback
+         por `storeProductId`, para o não-canônico ainda achar seu preço e aparecer.
+      `PaywallPlan` ganhou `durationMonths: Int?` e `isFree: Boolean` (aditivos, com default).
+      Testes `PaywallPlanMapperTest` (36 — as 4 combinações válidas, trimestral, lifetime residual,
+      grátis empatado, preço branco, forçado inelegível, ordem estável dos não-canônicos).
+      **Migrar:** MinhaOS (`PaywallScreen.kt:99` → `withDerivedHighlight`); Super 8 / LocAki podem largar
+      o `recommendedStoreProductId` (o default já dá o selo à maior duração).
 - [x] **Dívida iOS auditada e honesta:** os **9** geradores de PDF `iosMain/.../pdf/*.ios.kt` lançam
       `OsPdfNotSupportedException`/`ReciboPdfNotSupportedException` (verificado); `PdfRasterizer.ios` é real;
       as 2 sobrecargas de `CameraView.ios` desenham placeholder e **nunca** chamam o callback (não lançam,

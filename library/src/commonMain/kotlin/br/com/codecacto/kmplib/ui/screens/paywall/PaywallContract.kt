@@ -18,7 +18,15 @@ import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
  * @property durationLabel Rotulo de duracao opcional (ex.: "6 meses").
  * @property badgeLabel Selo opcional (ex.: "Recomendado" / "Economize 30%").
  * @property highlights Beneficios/destaques listados no card.
- * @property isRecommended Destaca visualmente o plano (borda + cor de tema + selo).
+ * @property isRecommended Destaca visualmente o plano (borda + cor de tema + selo). **Nunca preencha
+ *   isto na mao:** derive com [withDerivedHighlight] — o selo e SEMPRE calculado (maior duracao
+ *   elegivel), nunca configurado. Desligar o anual no admin migra o selo sozinho.
+ * @property durationMonths Duracao do plano em meses. Canonicos: 1 (Mensal), 6 (Semestral), 12
+ *   (Anual). Qualquer outra coisa (`3`, `1200` de um `lifetime` residual, `null` = desconhecido) e
+ *   **nao-canonica**: o plano continua visivel/assinavel, mas ordena por ULTIMO e e **inelegivel ao
+ *   selo**. Nunca substitua desconhecido por um numero grande para "mandar pro fim".
+ * @property isFree Plano gratuito — exibivel, mas **jamais** recebe o selo (nem empatando em duracao
+ *   com o mensal).
  */
 data class PaywallPlan(
     val id: String,
@@ -30,6 +38,8 @@ data class PaywallPlan(
     val badgeLabel: String? = null,
     val highlights: List<String> = emptyList(),
     val isRecommended: Boolean = false,
+    val durationMonths: Int? = null,
+    val isFree: Boolean = false,
 )
 
 /**
