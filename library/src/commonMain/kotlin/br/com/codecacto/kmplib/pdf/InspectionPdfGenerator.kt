@@ -87,7 +87,7 @@ fun defaultInspectionPdfFileName(vehicle: InspectionPdfVehicle): String {
     val label = listOf(vehicle.nickname, vehicle.plate)
         .filter { it.isNotBlank() }
         .joinToString("-")
-    val rawBase = "vistoria-$label"
+    val rawBase = if (label.isEmpty()) "vistoria" else "vistoria-$label"
     val safe = rawBase
         .replace(Regex("[^A-Za-z0-9._-]+"), "_")
         .trim('_')

@@ -3,6 +3,47 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### sync.rest — B1: perda de dados no `refresh()` sem paginação (2.66.0)
+- [x] **2.66.0 — B1 (BLOQUEANTE, perda de dados) — `OfflineFirstRestRepository.refresh()` paginado.**
+      **Achado:** code-review da migração do **QuemMeDeve** (Onda 3). `refresh()` fazia **1 único GET**
+      (`GET {collection}`, sem `?page=&size=`) e tratava a resposta como o conjunto AUTORITATIVO:
+      `descriptor.decodeList` desembrulhava só o `.data` da **página 1** (size padrão do servidor = 20) e
+      `RestEntityMirror.reconcile()` fazia `deleteHard` de toda linha local **limpa** cujo `server_id` não
+      viesse na resposta. **Consequência:** domínio com total de registros > size da página (ex.: devedores,
+      ilimitados no plano Free) tinha **todo registro além dos 20 primeiros fisicamente apagado do espelho
+      a cada `refresh()`** (chamado por list/observe/count); device novo nunca via além da página 1.
+      **Correção (padrão-ouro offline-first — o espelho DEVE conter o dataset completo):**
+      - `refresh()` agora **pagina o envelope `PageResponse{data,page,size,total}` até esgotar** (itera
+        `page` com `?size=100` = teto do contrato, acumula TODOS os itens num mapa por id) e só então chama
+        `reconcile()` sobre o **conjunto COMPLETO** — aí o `deleteHard` volta a ser seguro. Parada: página
+        vazia/incompleta (`items.size<size`), `total` alcançado, ou nenhum id novo (anti-loop); `MAX_REFRESH_PAGES`.
+        Erro em qualquer página **aborta sem reconciliar** (nunca deleta sobre conjunto parcial).
+      - Contrato do descriptor estendido **de forma retrocompatível**: novo `fun decodePage(body):
+        RestPage<T>` (itens + `page`/`size`/`total`) com **default derivado de `decodeList`** (metadados
+        `null`) → descritores existentes (só `decodeList`) **compilam sem mudança** e já paginam pela parada
+        por página incompleta; quem expõe o envelope sobrescreve `decodePage` p/ parada precisa por `total`.
+        `data class RestPage<T>(items, page?, size?, total?)` com `hasNextPage`. Novo param de ctor
+        `refreshPageSize=100` (aditivo).
+      - **NÃO** adotado o paliativo "size grande num único GET" (teto 100 não resolve o caso geral e mantém
+        o `deleteHard` inseguro) — a paginação real é a correção.
+      - **Variante upsert-only** (candidato **C-02** ReciboFácil `refreshFirstPage(putClean)`): novo
+        `refreshPage(page,size): DomainResult<RestPage<T>>` recarrega UMA página via `RestEntityMirror.mergeClean`
+        (upsert, **sem** reconcile-delete) — para domínios de paginação/busca **server-side pura** (espelho =
+        cache parcial). `mergeClean` = metade aditiva da `reconcile`, preserva linhas dirty.
+      - **Testes** (`OfflineFirstRestRepositoryTest` 7→12, `:kmplib:testDebugUnitTest --tests "...sync.rest.*"`
+        → 27/27 verdes): pagina N>size (25 itens/size 10/3 páginas) preservando TODOS; refresh só apaga o
+        item genuinamente removido no servidor (não a página 2+); regressão total≤size (1 página); preserva
+        dirty na reconciliação paginada; `refreshPage` upsert-only não apaga outras páginas.
+      - **Publicado:** `br.com.codecacto:kmplib:2.66.0` em mavenLocal.
+      - **Consumidores a revalidar (14 apps sync.rest da Onda 3):** foco **QuemMeDeve** (motivou o achado —
+        re-bumpar p/ 2.66.0 e revalidar list/sync de devedores > 20). ReciboFácil pode adotar `refreshPage`
+        (C-02) para as telas com paginação server-side. Demais apps: bump quando tocados (sem mudança de
+        código — a correção é interna ao `refresh()` e o contrato do descriptor é retrocompatível).
+- [ ] **PENDÊNCIA fora de escopo (não-B1):** `pdf.InspectionPdfDataTest` está VERMELHO no working tree
+      (`defaultInspectionPdfFileName` gera `vistoria-.pdf` quando a placa é vazia; esperado `vistoria.pdf`).
+      É da feature InspectionPdf (câmera 2.65, ainda não commitada), **não do fix B1** — bloqueia
+      `:kmplib:koverVerify`/`test` agregado até ser corrigido pelo dono dessa feature.
+
 ### Câmera — captura de foto no OCR de placa (2.65.0)
 - [x] **2.65.0 — GAP-ME-04 — `CameraView` com captura de FOTO (JPEG) no reconhecimento (motivado pelo
       MeuEstacionamento RF-15).** A `CameraView` só devolvia a placa (`onPlateCaptured`), então o app
