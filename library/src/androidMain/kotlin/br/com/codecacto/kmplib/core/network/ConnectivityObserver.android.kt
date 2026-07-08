@@ -18,9 +18,7 @@ actual class ConnectivityObserver {
         val context = UrlLauncherHolder.getContext() ?: return
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-        val activeNetwork = connectivityManager.activeNetwork
-        val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
-        _isOnline.value = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        _isOnline.value = queryOnline(connectivityManager)
 
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
@@ -48,5 +46,17 @@ actual class ConnectivityObserver {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         callback?.let { connectivityManager.unregisterNetworkCallback(it) }
         callback = null
+    }
+
+    actual fun refresh() {
+        val context = UrlLauncherHolder.getContext() ?: return
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        _isOnline.value = queryOnline(connectivityManager)
+    }
+
+    private fun queryOnline(connectivityManager: ConnectivityManager): Boolean {
+        val activeNetwork = connectivityManager.activeNetwork
+        val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 }

@@ -3,6 +3,33 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.67.0 — Aviso global de "sem internet" + 2 promoções ≥2 (07/jul)
+- [x] **PRIORIDADE FUNDADOR — `ui/components/ConnectivityGate` (aviso "sem internet").** App agora é
+      **online-por-padrão** ([[default-online-not-offline-first]]) → todo app precisa avisar quando offline.
+      Camada de UI sobre o `ConnectivityObserver` já existente (reusado, não duplicado). `ConnectivityGate`
+      observa a conectividade e mostra/esconde **automaticamente** o aviso (some sozinho quando volta a
+      rede). **Plugue de 1 linha** no root (dentro do `AppTheme`): `ConnectivityGate { AppNavHost() }`.
+      Dois estilos: **`Modal`** (default, bloqueante — `NoInternetModal` com "Tentar novamente") e
+      **`Banner`** (não-bloqueante, offline-first). Também `rememberIsOnline(observer): State<Boolean>`
+      (estado p/ lógica) e `ConnectivityObserver.refresh()` novo (reavalia a rede na hora — Android
+      re-consulta, iOS no-op). Textos i18n (`ConnectivityTexts`, defaults pt-BR); tokens do tema, sem
+      hardcode; `AppButton` reusado. **Cablado no root da `casca-mobile` + `MinhaAgenda`** (ambos
+      compilam Android). Testes `ConnectivityGateTest` (3). Catálogo atualizado.
+- [x] **`monetization/entitlement/EntitlementProvider` (fachada de assinatura offline).** Idêntico em
+      ChamadaFacil + CallRecorder (≥2). Promovido parametrizando `PurchaseConfig` (removida a dependência
+      do `RevenueCatConfig` de cada app). `interface EntitlementProvider` + `RevenueCatEntitlementProvider`
+      + `StubEntitlementProvider` (fail-closed) + `createEntitlementProvider(purchaseConfig?)`. Testes
+      `EntitlementProviderTest` (4). **Migrar:** ChamadaFacil + CallRecorder (deletar cópia local, importar
+      da lib — passar `if (RevenueCatConfig.temChave) purchaseConfig else null`).
+- [x] **`account/AccountDeletionService` (LGPD — wipe + export + delete conta).** Idêntico em ≥3 apps
+      (MinhaAgenda/MinhaOS/QuemMeDeve/Meu Plantão/MinhasHoras). Wipe atômico `DELETE /v1/me/data`, export
+      `GET /v1/me/export`, delete Firebase por ÚLTIMO; `AccountDeletionResult { Completed,
+      DataWipedAccountPending }`; reusa `DomainApiClient` + `IAuthRepository`; paths + textos configuráveis.
+      Testes `AccountDeletionServiceTest` (5, MockEngine + fake auth). **Migrar:** os apps citados (deletar
+      cópia local; MinhaAgenda usa `ContaRepository`/`me/data` próprio — adotar o serviço da lib).
+- **Publicado:** `br.com.codecacto:kmplib:2.67.0` em mavenLocal (Android + metadata; iOS linka no Mac —
+  expect/actual Darwin do `ConnectivityObserver.refresh()` corretos, no-op documentado).
+
 ### sync.rest — B1: perda de dados no `refresh()` sem paginação (2.66.0)
 - [x] **2.66.0 — B1 (BLOQUEANTE, perda de dados) — `OfflineFirstRestRepository.refresh()` paginado.**
       **Achado:** code-review da migração do **QuemMeDeve** (Onda 3). `refresh()` fazia **1 único GET**

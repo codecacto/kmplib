@@ -36,4 +36,12 @@ actual class ConnectivityObserver actual constructor() {
         monitor?.let { nw_path_monitor_cancel(it) }
         monitor = null
     }
+
+    /**
+     * No-op no iOS: o `NWPathMonitor` empurra atualizações continuamente enquanto ativo,
+     * então [isOnline] já reflete o estado corrente da rede sem releitura manual.
+     */
+    actual fun refresh() {
+        // NWPathMonitor mantém isOnline sempre atualizado; nada a fazer.
+    }
 }
