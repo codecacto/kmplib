@@ -118,4 +118,26 @@ class PlateMaskTest {
         assertFalse(isValidPlate("1234567"))
         assertFalse(isValidPlate("ABCDEFG"))
     }
+
+    // ---------------------------------------------------------------------
+    // formatPlateForDisplay
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun formataMercosulSemSeparador() {
+        assertEquals("ABC1D23", formatPlateForDisplay("abc1d23"))
+        assertEquals("ABC1D23", formatPlateForDisplay("ABC-1D23"))
+    }
+
+    @Test
+    fun formataAntigaComHifen() {
+        assertEquals("ABC-1234", formatPlateForDisplay("abc1234"))
+        assertEquals("ABC-1234", formatPlateForDisplay("ABC1234"))
+    }
+
+    @Test
+    fun formataIncompletaApenasNormaliza() {
+        assertEquals("ABC12", formatPlateForDisplay("abc 12"))
+        assertEquals("", formatPlateForDisplay("---"))
+    }
 }

@@ -62,6 +62,28 @@ fun isValidPlate(plate: String): Boolean {
 }
 
 /**
+ * Formata uma placa para **exibição** (BR), no padrão detectado pelo 5º caractere (índice 4):
+ * - **Mercosul** (`AAA0A00`) exibida **sem separador** (`ABC1D23`);
+ * - **antiga** (`AAA0000`) exibida com hífen após o 3º caractere (`ABC-1234`).
+ *
+ * Entrada tolerante: normaliza antes ([normalizePlate]). Placas incompletas/não-canônicas
+ * (≠ 7 caracteres após normalizar) são devolvidas apenas normalizadas, sem separador. É **só
+ * apresentação** — a persistência/comparação usa sempre a forma normalizada.
+ *
+ * ```kotlin
+ * formatPlateForDisplay("abc1d23")  // "ABC1D23"  (Mercosul, sem hífen)
+ * formatPlateForDisplay("abc1234")  // "ABC-1234" (antiga, com hífen)
+ * formatPlateForDisplay("abc12")    // "ABC12"    (incompleta, só normaliza)
+ * ```
+ */
+fun formatPlateForDisplay(raw: String): String {
+    val plate = normalizePlate(raw)
+    if (plate.length != PLATE_MAX_LENGTH) return plate
+    // Mercosul: 5ª posição (índice 4) é LETRA (AAA0A00). Antiga: é dígito (AAA0000).
+    return if (plate[4].isLetter()) plate else "${plate.substring(0, 3)}-${plate.substring(3)}"
+}
+
+/**
  * [VisualTransformation] do Compose para placas brasileiras.
  *
  * Formata a entrada conforme o padrão detectado pelo 5º caractere (índice 4):

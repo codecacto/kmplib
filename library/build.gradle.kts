@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.60.0"
+version = "2.66.0"
 
 // =============================================================================
 // SQLDelight — banco local do módulo sync/ (offline-first genérico — T1a)
@@ -121,6 +121,11 @@ kotlin {
 
             // Ktor
             implementation(libs.ktor.client.core)
+            // HttpClientFactory (createHttpClient) — plugins opcionais do factory padrão:
+            // logging (opt-in) e ContentNegotiation JSON (opt-in p/ apps que fazem REST de domínio).
+            implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
 
             // Push Notifications
             api(libs.kmpnotifier)
@@ -221,11 +226,17 @@ kotlin {
 
             // SQLDelight driver Android (sync — T1a)
             implementation(libs.sqldelight.driver.android)
+
+            // Ktor engine Android (createHttpClient) — OkHttp (engine oficial recomendado no Android).
+            implementation(libs.ktor.client.okhttp)
         }
 
         iosMain.dependencies {
             // SQLDelight driver nativo iOS (sync — T1a). Só valida em host macOS.
             implementation(libs.sqldelight.driver.native)
+
+            // Ktor engine iOS (createHttpClient) — Darwin (engine oficial recomendado no iOS/K/N).
+            implementation(libs.ktor.client.darwin)
         }
 
         // Note: firebase-crashlytics GitLive não suporta iosX64.

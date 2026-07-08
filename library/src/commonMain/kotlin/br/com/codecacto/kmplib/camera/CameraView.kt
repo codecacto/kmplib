@@ -35,3 +35,44 @@ expect fun CameraView(
     onPlateCaptured: (String) -> Unit,
     modifier: Modifier = Modifier
 )
+
+/**
+ * Variante da [CameraView] que, ao reconhecer a placa, também entrega o
+ * **JPEG do frame** capturado (foto do veículo) — via [onCapture].
+ *
+ * É o **mesmo preview + OCR** da sobrecarga só-placa; a diferença é que, no
+ * momento do reconhecimento, um still é capturado e codificado em **JPEG**
+ * (compatível com `firebase/storage`/`StorageProvider`, que espera
+ * `image/jpeg`) e devolvido junto da placa já **normalizada**. Assim o app
+ * consegue guardar a placa E a foto de forma atômica (ex.: comprovante de
+ * entrada de veículo — MeuEstacionamento RF-15), sem precisar de um segundo
+ * fluxo de foto.
+ *
+ * Sobrecarga **aditiva** (não quebra quem usa a [CameraView] só-placa): a
+ * assinatura antiga continua existindo. A resolução por arity do lambda
+ * evita ambiguidade (`(String) -> Unit` vs `(String, ByteArray) -> Unit`).
+ *
+ * - **Android:** **CameraX** — `Preview` + `ImageAnalysis` (OCR ML Kit) +
+ *   `ImageCapture`; ao detectar a placa, dispara `ImageCapture.takePicture`
+ *   para obter um JPEG nítido do veículo, aplica a rotação e devolve os bytes.
+ * - **iOS:** placeholder estático (não chama [onCapture]) — a captura nativa
+ *   (AVFoundation + Apple Vision) entra quando construída em host macOS.
+ *
+ * @param onCapture chamado com a placa normalizada (ex.: `"ABC1D23"`) e os
+ *   **bytes JPEG** do frame reconhecido.
+ * @param modifier modificador Compose.
+ *
+ * ```kotlin
+ * CameraView(
+ *     onCapture = { plate, jpegBytes ->
+ *         viewModel.onPlateRead(plate, foto = jpegBytes)
+ *     },
+ *     modifier = Modifier.fillMaxSize()
+ * )
+ * ```
+ */
+@Composable
+expect fun CameraView(
+    onCapture: (placa: String, jpegBytes: ByteArray) -> Unit,
+    modifier: Modifier = Modifier
+)

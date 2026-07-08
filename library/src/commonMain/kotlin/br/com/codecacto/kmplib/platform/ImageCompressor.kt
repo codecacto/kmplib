@@ -45,3 +45,35 @@ interface ImageCompressor {
 
 /** Fábrica do [ImageCompressor] da plataforma atual. */
 expect fun createImageCompressor(): ImageCompressor
+
+/**
+ * Par comprimido de uma foto: [full] (variante grande, p/ PDF/tela cheia) e [thumb] (miniatura,
+ * p/ listas/tiras de evidência). Padrão recorrente em captura de foto-prova (vistoria, registro de
+ * obra, visita de campo): guarda-se/exibe-se a miniatura barata e usa-se a full só quando precisa.
+ */
+class CompressedImagePair(val full: ByteArray, val thumb: ByteArray)
+
+/**
+ * Comprime [rawBytes] em **duas variantes JPEG** de uma vez, usando este [ImageCompressor] (não
+ * reimplementa compressão): [CompressedImagePair.full] (`fullMaxDimension`, alta qualidade) e
+ * [CompressedImagePair.thumb] (`thumbMaxDimension`, qualidade menor). Best-effort — herda o
+ * comportamento tolerante do [compress] (entrada indecodificável devolve os bytes originais).
+ *
+ * Defaults calibrados para foto-prova de vistoria (full ~1024px q82, thumb ~256px q75); o app pode
+ * ajustar conforme sua política de upload.
+ *
+ * ```kotlin
+ * val pair = createImageCompressor().compressToPair(rawJpegBytes)
+ * // pair.thumb → lista/tira; pair.full → PDF/tela cheia/upload
+ * ```
+ */
+fun ImageCompressor.compressToPair(
+    rawBytes: ByteArray,
+    fullMaxDimension: Int = 1024,
+    fullQuality: Int = 82,
+    thumbMaxDimension: Int = 256,
+    thumbQuality: Int = 75,
+): CompressedImagePair = CompressedImagePair(
+    full = compress(rawBytes, maxDimension = fullMaxDimension, quality = fullQuality, format = ImageCompressFormat.JPEG),
+    thumb = compress(rawBytes, maxDimension = thumbMaxDimension, quality = thumbQuality, format = ImageCompressFormat.JPEG),
+)

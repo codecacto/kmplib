@@ -31,6 +31,32 @@ actual fun CameraView(
     onPlateCaptured: (String) -> Unit,
     modifier: Modifier
 ) {
+    CameraPlaceholder(modifier)
+}
+
+/**
+ * Implementação iOS (placeholder) da [CameraView] com captura de foto.
+ *
+ * TODO(GAP-ME-01/iOS): substituir por `UIViewControllerRepresentable`
+ * wrappando `AVCaptureSession` (com `AVCaptureVideoDataOutput` p/ OCR ao vivo
+ * via `VNRecognizeTextRequest`/Apple Vision e `AVCapturePhotoOutput` p/ o
+ * still), delegando a extração a [extractPlate] e devolvendo o JPEG
+ * (`AVCapturePhoto.fileDataRepresentation()`) via [onCapture]. Requer host
+ * macOS.
+ *
+ * Não chama [onCapture] e nunca lança: exibe apenas UI estática (degradação
+ * honesta — assinatura preservada para paridade com o Android).
+ */
+@Composable
+actual fun CameraView(
+    onCapture: (placa: String, jpegBytes: ByteArray) -> Unit,
+    modifier: Modifier
+) {
+    CameraPlaceholder(modifier)
+}
+
+@Composable
+private fun CameraPlaceholder(modifier: Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()

@@ -3,6 +3,158 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Câmera — captura de foto no OCR de placa (2.65.0)
+- [x] **2.65.0 — GAP-ME-04 — `CameraView` com captura de FOTO (JPEG) no reconhecimento (motivado pelo
+      MeuEstacionamento RF-15).** A `CameraView` só devolvia a placa (`onPlateCaptured`), então o app
+      salvava `fotoBytes = null` e nunca guardava a foto do veículo. Padrão transversal (todo app que faz
+      OCR de câmera também quer a foto do que leu). **Sobrecarga ADITIVA/retrocompatível**
+      `@Composable CameraView(onCapture: (placa, jpegBytes) -> Unit, modifier)` — entrega placa
+      normalizada + **JPEG** do frame (compat `image/jpeg` do Storage) de forma atômica; a antiga
+      `onPlateCaptured` continua igual (sem ambiguidade — arity do lambda). **Android padrão-ouro
+      CameraX:** `Preview`+`ImageAnalysis`(ML Kit)+`ImageCapture`; ao detectar a placa, `takePicture`
+      (in-memory) → `imageProxyToUprightJpeg` (rotação aplicada aos pixels, q=85) → `onCapture`.
+      **iOS:** placeholder honesto nas 2 sobrecargas (dívida `AVCaptureSession`+`AVCapturePhotoOutput`+
+      Vision em host macOS, junto do `PlateOcrAnalyzer.ios`). Arquivos: `camera/CameraView.kt`,
+      `camera/CameraView.android.kt` (refat. `CameraViewImpl`), `camera/JpegCapture.android.kt` (novo),
+      `camera/CameraView.ios.kt`. Build Android + common + iOS SimulatorArm64 SUCCESSFUL; publicado
+      `br.com.codecacto:kmplib:2.65.0`. Consumidor a migrar: MeuEstacionamento (`onPlateCaptured`→`onCapture`).
+
+### Onboarding de legados — offline-first REST-CRUD (2.63.0 → multipart multi-parte 2.64.0)
+- [x] **2.64.0 — GAP-CV-M-MULTIPART-01 — upload multipart de múltiplas partes nomeadas (motivado pela
+      migração do ChecklistVeicular).** O endpoint de foto-prova de vistoria exige `full`+`thumb` num ÚNICO
+      request multipart de partes nomeadas — o `postMultipart` (parte única, campo `file`) não atendia.
+      Aditivo/não-breaking:
+      - **`DomainApiClient.postMultipartParts(path, parts: List<MultipartPart>)`** + **`MultipartPart(fieldName,
+        fileName, bytes, mimeType)`**. Padrão Ktor oficial (`MultiPartFormDataContent` + `formData{append}` →
+        `Content-Disposition: form-data; name=<campo>; filename=<arquivo>` por parte — a forma documentada do
+        Ktor, sem atalho). `postMultipart` (parte única) passou a **delegar** a `postMultipartParts` (mantém a
+        assinatura antiga). Mesma resiliência do resto do cliente: host-scoped (não vaza Bearer), 401→refresh+
+        retry (os bytes ficam em memória → o retry reconstrói o `MultiPartFormDataContent`, sem "stream
+        consumido"), 402→Quota, 429/rede → Error.
+      - **`RestUploadQueue.enqueueParts(MultipartUploadRequest)`** + **`MultipartUploadRequest(id, fileName,
+        path, parts)`** — enfileira o upload multi-parte reusando a mesma fila/UI (`UploadItem`/`UploadStatus`/
+        `UploadProgressItem`/`UploadQueueView`), processado por `process()`/`retry()`.
+      - **Revisão (padrão-ouro):** o dev NÃO deixou atalho — a montagem multipart já era a documentada do
+        Ktor e a delegação preserva compat. Nada a corrigir na implementação de rede.
+      - **Testes:** `DomainApiClientTest` (7→9 — parte-única + multi-parte, ambos lendo o corpo real do
+        request e conferindo que `name=full` **e** `name=thumb` viajam no mesmo request), `RestUploadQueueTest`
+        (2→4 — `enqueueParts` sucesso + falha/retry). Rodado `:kmplib:testDebugUnitTest --tests
+        "...sync.rest.*"` → 0 falhas. `compileKotlinMetadata` + `publishToMavenLocal` (2.64.0) OK.
+      - **Consumidor:** `Onboarding/ChecklistVeicular/mobile` — re-bumpar para **2.64.0** e trocar o envio de
+        foto-prova (2 partes) por `postMultipartParts`/`enqueueParts` (com dev-mobile).
+
+- [ ] **GAP-KL-M-UPLOAD-PERSIST — upload resiliente/persistente (fila sobrevive à morte do processo).**
+      **Reportado na revisão do 2.64.0.** Hoje TANTO `firebase/storage/UploadQueue` QUANTO
+      `sync/rest/RestUploadQueue` guardam requests+bytes SÓ em memória (`mutableMapOf` + `StateFlow`): se o
+      app é morto no meio do upload, a fila é perdida (o usuário precisa reanexar). Decisão desta revisão:
+      **NÃO é saneamento direto** desta demanda — (a) o comportamento é consistente com a irmã do Firebase
+      (mudar só o REST criaria divergência), e (b) o padrão-ouro de upload resiliente NÃO é serializar bytes
+      grandes numa linha do SQLite, e sim **persistir uma referência de arquivo (content URI / caminho de
+      cache) + agendar upload em background com a API oficial de cada SO** (WorkManager no Android /
+      `URLSession` background no iOS). Isso é uma feature transversal (expect/actual + integração com o ciclo
+      de background dos apps), serve ≥2 filas/apps, e deve ser projetada como unidade — por isso backlog, não
+      remendo. Escopo do item: fila de upload persistente única (Firebase Storage + REST-CRUD), retomada na
+      abertura do app, e opcionalmente upload em background. Prioridade: **média** (nenhum app hoje faz upload
+      de lote crítico em background; ChecklistVeicular fecha o fluxo em foreground). Registrar consumidores
+      quando ≥1 app exigir retomada pós-kill.
+
+### Onboarding de legados — offline-first REST-CRUD (2.63.0)
+- [x] **2.63.0 — GAP-MH-M-SYNC-01 — bloco offline-first REST-CRUD promovido (piloto MinhasHoras da Onda 3;
+      maior multiplicador do programa: repete em ~14 apps que migram Firestore→backend REST-CRUD central).**
+      A `SyncEngine` `/pull`+`/push` baseada em cursor (módulo `sync`) **não encaixa** num backend REST-CRUD
+      comum (`GET/POST/PUT/PATCH/DELETE` por recurso); o piloto tinha que reescrever à mão a camada
+      offline-first. Promovido ao pacote **`br.com.codecacto.kmplib.sync.rest`** (coexiste com o engine
+      `/pull`+`/push` — não o substitui). Itens:
+      - **`DomainApiClient`** (+ `DomainResult`/`DomainTokenProvider`/`DomainApiTexts`) — cliente REST de
+        domínio, Ktor core puro + Bearer Firebase, **401→refresh+retry**, **402→Quota (paywall)**, **429→
+        Error** rate-limit, offline→`Error(OFFLINE_CODE)`. **Host-scoped** (lição MeuFrete: nunca vaza token
+        p/ outro host). Multipart + getBytes p/ anexos.
+      - **`RestEntityMirror<T>`** — espelho SQLDelight com semântica REST-CRUD (reconcile por GET, não cursor).
+      - **`OfflineFirstRestRepository<T>`** (+ `RestCrudEntity<T>`) — repositório genérico offline-first:
+        leitura do cache, escrita otimista online-first, outbox offline, reconcile por GET, **remap de FK**
+        (id temporário local → serverId). Usado por composição.
+      - **`RestCrudSyncEngine`** (+ `RestCrudSyncParticipant`) — coordenador REST-CRUD: push na ordem de
+        dependência (pais→filhos com remap acumulado) + pull; auto-sync por conectividade + `syncNow()`.
+      - **`RestUploadQueue`** — fila de upload multipart autenticado (reusa `UploadItem`/`UploadStatus`/UI).
+      - **Decisão de design (padrão-ouro):** manter os DTOs de fio no app (o descritor `RestCrudEntity` faz
+        o mapeamento domínio↔fio); Ktor core puro sem ContentNegotiation (igual aos demais serviços da lib);
+        composição (não herança) nos repos de domínio p/ evitar clash de assinatura com as interfaces do app
+        e permitir endpoints custom via `repo.mirror`+`api`. `RestCrudEntity.remapRefs` genérico resolve a FK
+        de qualquer relação pai→filho (não acopla a empresa/lançamento).
+      - **Testes:** `DomainApiClientTest` (7), `OfflineFirstRestRepositoryTest` (7), `RestCrudSyncEngineTest`
+        (2), `RestUploadQueueTest` (2) = 18, todos verdes (MockEngine + `FakeSyncStore`). Suíte da lib: 1055
+        testes, 0 falhas. `:kmplib:compileDebugKotlinAndroid` + `publishToMavenLocal` OK.
+      - **Consumidor migrado (prova):** `Onboarding/MinhasHoras/mobile` — `EmpresaCrud`/`LancamentoCrud`
+        (`RestCrudEntity`) + `HttpEmpresaRepository`/`HttpLancamentoRepository` por composição do
+        `OfflineFirstRestRepository` + `HttpAnexoRepository` via `RestEntityMirror`+`postMultipart`; DI usa
+        `RestCrudSyncEngine(listOf(empresa, lancamento), connectivity)`. Pontes locais `EntityMirror`/
+        `SyncCoordinator`/`core.network.DomainApiClient` removidas (arquivos esvaziados — o fundador remove do
+        git). `:composeApp:compileDebugKotlinAndroid` BUILD SUCCESSFUL.
+      - **A migrar (mesmo padrão, na adequação de cada app com dev-mobile):** os ~14 apps 🔥 Firestore→central
+        da Onda 3 (ChecklistVeicular, Exiba, MeuEstacionamento, Meu Plantão, MinhaAgenda, MinhaDespensa,
+        MinhaObra, MinhaOS, MinhasVacinas, PapelStudio, QuemMeDeve, ReciboFacil, Emprestei, Salmos…): trocar a
+        camada offline-first artesanal por `OfflineFirstRestRepository`/`RestCrudSyncEngine`/`DomainApiClient`.
+        **Integrar ao AppConfig/DI da Casca** p/ app novo do arquétipo B/D já nascer com o bloco.
+      - **Fica como ponte local (não é gap de lib):** os DTOs de fio (`*Response`/`Upsert*Request`) e os
+        endpoints **custom** de cada app (ex.: `PATCH /arquivada`, `PATCH /status`, `GET /count`) — são
+        contrato de domínio; a lib fornece as primitivas (`mirror`+`api`) para implementá-los sem duplicar a
+        mecânica de sync.
+
+### Onboarding de legados — gaps transversais do arquétipo A (2.62.0)
+- [x] **2.62.0 — GAP-CF-M-05 — `DataLayer` canônico em `core/config` (confirmado em ≥4 apps da Onda 1:
+      NumerosDaSorte, ChamadaFacil, Esquecido, DosesDeAlegria).** Cada app redefinia um `sealed interface
+      DataLayer` local com variantes divergentes (`LocalOnly`/`None`/`KtorOnly(baseUrl)`/`Hybrid(baseUrl)`/
+      `FirestoreOnly`) herdadas do clone da Casca. Promovido à kmplib como **`enum class DataLayer { None,
+      LocalOnly, Central, @Deprecated Firestore }`** (`br.com.codecacto.kmplib.core.config`).
+      - **Decisão de design (padrão-ouro):** enum (não sealed com `baseUrl`). No ecossistema atual a URL de
+        dados NÃO é por-DataLayer — os endpoints centrais (apps-api/admin-api) são constantes padronizadas já
+        no `AppConfig`. As variantes `KtorOnly(baseUrl)`/`Hybrid(baseUrl)` eram resíduo de casca e colapsam em
+        **`Central`** (dados via backend central: `core/data`/`sync`). `None` = 100% local sem persistência de
+        domínio (assets+prefs); `LocalOnly` = domínio no dispositivo (DataStore/SQLDelight). `Firestore` =
+        `@Deprecated` (banido jun/2026), mantido só p/ classificar legado não migrado. Helpers `isLocal`/
+        `usesCentralData`.
+      - **Testes:** `DataLayerTest` (4 — isLocal/usesCentralData por valor + entries esperadas). `:kmplib:
+        compileDebugKotlinAndroid` BUILD SUCCESSFUL; `testDebugUnitTest --tests *DataLayerTest*` verde.
+      - **Consumidor migrado (prova):** NumerosDaSorte — removido o `sealed interface DataLayer` local do
+        `AppConfig.kt`, importado o enum da kmplib; `val dataLayer = DataLayer.LocalOnly` inalterado.
+        `:composeApp:compileDebugKotlinAndroid` BUILD SUCCESSFUL.
+      - **A migrar (mesmo enum local → kmplib `core/config/DataLayer`):** ChamadaFacil, Esquecido,
+        DosesDeAlegria (e demais apps do arquétipo A no onboarding). Atenção: DosesDeAlegria usa `None`;
+        os que têm `KtorOnly(baseUrl)`/`Hybrid`/`FirestoreOnly` locais mapeiam p/ `Central` (ou `LocalOnly`).
+        Fazer com dev-mobile na adequação de cada app. **Integrar ao AppConfig da Casca** (mobile) para novo
+        app já nascer apontando ao enum da lib.
+- [x] **2.62.0 — GAP-DA-M-08 (decisão: NÃO promover — a lib JÁ tem).** DosesDeAlegria reimplementou um
+      `NotificacaoScheduler` local (expect/actual + BootReceiver) para lembrete diário recorrente, com
+      comentário desatualizado ("a kmplib agenda apenas eventos únicos"). **Falso:** `platform/
+      NotificationScheduler.scheduleDailyNotification(id, title, body, hour, minute, data, channelId,
+      isCritical)` existe **desde a 2.17.0** (Android `AlarmManager` + reagendamento no receiver; iOS
+      `UNCalendarNotificationTrigger repeats=true`). **Padrão = consumir `getNotificationScheduler()
+      .scheduleDailyNotification(...)` da lib**, não reimplementar. Migração dos apps (DosesDeAlegria e
+      afins) é feita na adequação de cada um, com dev-mobile — a lib não muda. Nenhum item novo de lib.
+
+### Onboarding de legados — gaps transversais do arquétipo A (2.61.0)
+- [x] **2.61.0 — GAP-NS-M-03 + GAP-NS-M-04 (piloto NumerosDaSorte, confirmados ≥2 apps offline do
+      arquétipo A).** Padrão-ouro: engines oficiais (OkHttp/Darwin) + plugin oficial `Logging` do Ktor.
+      - **GAP-NS-M-03 — `core/network/createHttpClient`**: factory multiplataforma de `HttpClient` Ktor
+        (`expect/actual createPlatformHttpClientEngine()` — OkHttp no Android, Darwin no iOS). `HttpClientOptions`
+        (timeouts 30/15/30s, `enableLogging`, `logLevel`, `installJsonContentNegotiation`, `json`) +
+        `enum HttpLogLevel` + `val DefaultHttpClientJson`. ContentNegotiation OPT-IN (default OFF — serviços
+        centrais usam Ktor core puro); logging opt-in delegando ao `AppLogger`. `expectSuccess=false`.
+      - **GAP-NS-M-04 — `core/central/CentralServices.initialize`**: amarração única, idempotente e
+        best-effort dos 3 toques públicos do apps-api (Feedback/Contact/Developer). `CentralServicesConfig`
+        (projectSlug, httpClient, appVersion, appsApiBaseUrl, contactSource, userId/userEmail, gates por
+        serviço) + `updateUser`.
+      - **Deps novas:** `ktor-client-okhttp` (androidMain), `ktor-client-darwin` (iosMain),
+        `ktor-client-logging` + `ktor-client-content-negotiation` + `ktor-serialization-kotlinx-json`
+        (commonMain — negociação era só commonTest antes).
+      - **Testes:** `HttpClientFactoryTest` (3) + `CentralServicesTest` (4). `:kmplib:compileDebugKotlinAndroid`
+        BUILD SUCCESSFUL; `testDebugUnitTest` (novos) verde.
+      - **Consumidor migrado (prova):** NumerosDaSorte — removidos `HttpClientFactory.{kt,android,ios}` e
+        `NetworkBootstrap.kt` locais; `AppModule` usa `kmplib…createHttpClient`, `App.kt` usa
+        `CentralServices.initialize`. App compila (`:composeApp:compileDebugKotlinAndroid` BUILD SUCCESSFUL).
+      - **A migrar (mesma amarração local → CentralServices/createHttpClient):** demais apps do arquétipo A
+        conforme forem onboardados (Super 8 e próximos legados offline). Fazer com dev-mobile no onboarding.
+
 ### Monetização — migração para Offerings/Packages do RevenueCat (2.56.0)
 - [x] **2.56.0 — assinatura via Offerings/Packages (gold-standard RevenueCat), substitui compra por ID
       cru.** `PurchaseConfig.offeringId` (default `"default"`); `PurchaseRepository.getOfferings()` +
@@ -1075,6 +1227,32 @@
           (7 casos). **Pendência iOS:** implementar com Apple Vision em host macOS.
         - **Config do app consumidor (Android):** declarar `android.permission.CAMERA` no manifest e
           solicitar a permissão em runtime antes de exibir o `CameraView`.
+- [x] **GAP-ME-04 — `CameraView` com captura de FOTO (JPEG)** — entregue na 2.65.0 (Android; iOS
+      placeholder honesto). Motivação: MeuEstacionamento RF-15 — o app precisava salvar a **foto do
+      veículo** junto da placa lida, mas a `CameraView` só devolvia a placa (`onPlateCaptured`), então
+      `fotoBytes` ficava sempre `null`. Padrão transversal (todo app que faz OCR de câmera também quer a
+      foto do que leu). **Evolução ADITIVA/retrocompatível** (sobrecarga, não quebra `onPlateCaptured`):
+        - Nova sobrecarga `@Composable expect fun CameraView(onCapture: (placa: String, jpegBytes:
+          ByteArray) -> Unit, modifier = Modifier)` — no reconhecimento entrega placa **normalizada** +
+          **JPEG** do frame (compat `image/jpeg` do `firebase/storage`/StorageProvider), de forma atômica.
+          Sem ambiguidade com a antiga (resolução por arity do lambda: `(String)->Unit` vs
+          `(String,ByteArray)->Unit`).
+        - **Android (padrão-ouro CameraX):** pipeline compartilhado `Preview` + `ImageAnalysis` (OCR ML
+          Kit, throttle 2s) + **`ImageCapture`**; ao detectar a placa, dispara
+          `ImageCapture.takePicture` (CAPTURE_MODE_MINIMIZE_LATENCY, em memória), converte para **JPEG
+          upright** (`imageProxyToUprightJpeg`: decode + `Matrix.postRotate(rotationDegrees)` + recompress
+          q=85) e devolve via `onCapture`. A sobrecarga só-placa segue SEM bind de `ImageCapture` (nada
+          muda). Best-effort: falha de captura → nenhuma foto, sem crash.
+        - **iOS:** placeholder honesto para AMBAS as sobrecargas (Box + ícone, nunca chama o callback,
+          nunca lança). **Pendência iOS:** `UIViewControllerRepresentable` com `AVCaptureSession`
+          (`AVCaptureVideoDataOutput` p/ Vision + `AVCapturePhotoOutput` p/ o still →
+          `fileDataRepresentation()`) em host macOS — mesma dívida do `PlateOcrAnalyzer.ios`.
+        - **Arquivos:** `camera/CameraView.kt` (+overload), `camera/CameraView.android.kt` (refatorado
+          p/ `CameraViewImpl` compartilhado), `camera/JpegCapture.android.kt` (novo helper),
+          `camera/CameraView.ios.kt` (+overload placeholder).
+        - **Migração do consumidor:** MeuEstacionamento troca `CameraView(onPlateCaptured = { placa ->
+          FotoCapturada(placa, null) })` por `CameraView(onCapture = { placa, bytes ->
+          FotoCapturada(placa, bytes) })`.
 - [x] **GAP-ME-02 — `PlateMask` (placa BR Mercosul + antiga)** — entregue na 2.5.0. Módulo `mask`:
       `PlateVisualTransformation` (formata `AAA-0000` para antiga e `AAA0A00` para Mercosul, detectando
       o padrão pelo 5º caractere), `normalizePlate(raw)` (uppercase + remove separadores + máx. 7 chars),
