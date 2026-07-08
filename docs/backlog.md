@@ -3,6 +3,52 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.69.0 — ConnectivityObserver idempotente + guarda de host + capacidades vendáveis (08/jul)
+> Origem: uso real da 2.68.0 nos 5 apps que a consumiram no mesmo dia.
+
+- [x] **[BUG] `ConnectivityObserver.start()`/`stop()` não eram idempotentes.** Achado pelo QuemMeDeve ao
+      cablar o `ConnectivityGate` sobre o observer que o `RestCrudSyncEngine` já iniciara: o 2º `start()`
+      **registrava um segundo `NetworkCallback`** (vazamento; no limite, `TooManyRequestsException` do
+      Android) e o `onDispose` do gate chamava `stop()`, **matando o observer do auto-sync**. A API convidava
+      ao erro — o app só escapava usando o overload sem observer (que cria o seu próprio, duplicando o
+      monitor). **Desenho novo:** contagem de referência (`ActivationRefCounter`, commonMain puro) —
+      `start()` liga o monitor nativo só na transição 0→1, `stop()` desliga só na 1→0, `stop()`
+      desemparelhado é no-op. Política em commonMain; plataforma isolada no `internal expect class
+      PlatformConnectivityMonitor` (Android `NetworkCallback`, iOS `NWPathMonitor`), cada `actual`
+      idempotente por construção (defesa em profundidade). `refresh()` agora **preserva** o valor corrente
+      quando a plataforma não sabe informar (nunca inventa "offline"); no iOS devolve o último estado
+      empurrado pelo `NWPathMonitor` em vez de no-op. API pública inalterada (+ `isObserving`).
+      Testes `ConnectivityObserverTest` (7).
+- [x] **[BUILD] `publishToMavenLocal` produzia módulo Gradle incoerente no Linux.** Os alvos
+      `iosX64/iosArm64/iosSimulatorArm64` eram declarados sempre; fora do macOS o KGP os desabilitava
+      (`kotlin.native.ignoreDisabledTargets=true`), mas o `kmplib-<v>.module` ainda anunciava as variantes
+      `iosArm64ApiElements-published` etc. com `available-at` para artefatos `kmplib-iosarm64`/`-iosx64`/
+      `-iossimulatorarm64` **que nunca eram publicados** — o fallback `mavenLocal` de um clone isolado
+      quebrava (reportado pelo MinhasVacinas). **Fix (padrão-ouro):** guarda de host com
+      `HostManager.hostIsMac` (a mesma checagem do KGP) — alvos Apple **condicionais ao host**, nunca
+      desativados; escape hatch `-Pkmplib.forceAppleTargets=true`. Fora do macOS o publish sai com
+      `commonMain` + Android, módulo coerente (5 variantes, zero `available-at` órfão).
+      - ⚠️ **Consequência conhecida:** com **um único alvo** o KGP não gera klib de metadata → o jar raiz
+        publicado no Linux sai vazio (só `kotlin-project-structure-metadata.json`). Sem impacto prático
+        (num host Linux o app consumidor também só tem Android habilitado, e resolve `kmplib-android`),
+        mas **release oficial tem que sair de um Mac**: adicionada guarda que **falha** qualquer tarefa
+        `*MavenCentral*` em host não-macOS.
+- [x] **`platform/PlatformCapability` + `CapabilityFeature` + `ui/components/CapabilityGate`.** O
+      `PlatformCapabilities` (2.68.0) já declarava a dívida iOS, mas o app ainda podia **vender** o que não
+      tem — ChamadaFacil anuncia "Exportar PDF" como destaque do plano **Pro** e no iOS o gerador lança.
+      Agora o destaque/menu se atrela à capacidade (`"Exportar PDF" requiring PdfGeneration`) e
+      `availableValues()` o remove no alvo onde a feature não existe. Testes `PlatformCapabilityTest` (6).
+- [x] **Dívida iOS auditada e honesta:** os **9** geradores de PDF `iosMain/.../pdf/*.ios.kt` lançam
+      `OsPdfNotSupportedException`/`ReciboPdfNotSupportedException` (verificado); `PdfRasterizer.ios` é real;
+      as 2 sobrecargas de `CameraView.ios` desenham placeholder e **nunca** chamam o callback (não lançam,
+      não silenciam — a UI diz que só existe em iOS nativo). Catálogo já marca ambos como stub.
+      Permissão de câmera no iOS é real (`PermissionManager`), não stub.
+
+**Aberto (precisa de host macOS):** implementar os 9 geradores de PDF iOS com **CoreText**
+(`CTFramesetter`/`CTLine`) dentro de `UIGraphicsPDFRenderer`; implementar `CameraView.ios`
+(`AVCaptureSession` + `AVCapturePhotoOutput` + Apple Vision). Ao pagar cada dívida, virar o flag
+correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
+
 ### 2.68.0 — Baseline de resiliência/UX + gate de cota offline + fronteira de tempo (08/jul)
 > Origem: auditoria dos 28 apps do Onboarding. Todos os itens abaixo estavam duplicados em ≥2 apps.
 

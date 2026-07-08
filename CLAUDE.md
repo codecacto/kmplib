@@ -27,18 +27,37 @@ kmplib/
 ## Comandos de Build
 
 ```bash
-# Build completo
-./gradlew build
+# Testes (roda em qualquer host — é o gate obrigatório antes de commitar)
+./gradlew :kmplib:testDebugUnitTest
 
-# Build apenas Android
-./gradlew :library:compileKotlinAndroid
+# Publicação local (funciona em Linux desde a 2.69.0)
+./gradlew publishToMavenLocal
 
 # Build apenas iOS (requer macOS)
-./gradlew :library:linkDebugFrameworkIosSimulatorArm64
-
-# Testes
-./gradlew :library:allTests
+./gradlew :kmplib:linkDebugFrameworkIosSimulatorArm64
 ```
+
+### Guarda de host (2.69.0) — alvos Apple só em macOS
+
+`library/build.gradle.kts` declara `iosX64/iosArm64/iosSimulatorArm64` **apenas quando
+`HostManager.hostIsMac`**. iOS não está desativado: é **condicional ao host**.
+
+| Host | O que sai do `publishToMavenLocal` |
+|------|-----------------------------------|
+| Linux/Windows | `commonMain` + **Android** (AAR). Módulo Gradle coerente. |
+| macOS | Tudo, incluindo `kmplib-iosarm64`/`-iosx64`/`-iossimulatorarm64` e o klib de metadata completo. |
+
+Antes disso, os alvos iOS eram sempre declarados e o KGP os desabilitava fora do Mac
+(`kotlin.native.ignoreDisabledTargets=true`) — mas o `kmplib-<v>.module` publicado **ainda anunciava**
+variantes `iosArm64ApiElements-published` etc. apontando (`available-at`) para artefatos que nunca
+eram publicados. Isso quebrava o fallback `mavenLocal` de um clone isolado.
+
+Consequências a respeitar:
+- Com **um único alvo**, o KGP não gera klib de metadata → o jar raiz publicado no Linux vem vazio.
+  Não afeta o dia a dia (num host Linux o app consumidor também só tem Android habilitado), mas
+- **Release para Maven Central exige macOS.** Qualquer tarefa `*MavenCentral*` **falha de propósito**
+  em host não-macOS. Para forçar a tentativa de declarar iOS fora do Mac (diagnóstico):
+  `./gradlew publishToMavenLocal -Pkmplib.forceAppleTargets=true`.
 
 ## Padrões Importantes
 
@@ -112,7 +131,14 @@ são exportadas no Kotlin/Native 2.x.
 
 **Enquanto isso**: o app **não deve vender/exibir** export de PDF no iOS — consulte
 `platform/PlatformCapabilities.pdfGeneration` (mesma coisa para `cameraCapture`, cujo `CameraView.ios`
-também é placeholder).
+também é placeholder). Desde a 2.69.0 há como impedir a **venda** da feature inexistente:
+`"Exportar PDF" requiring PlatformCapability.PdfGeneration` + `List<CapabilityFeature<T>>.availableValues()`
+ao montar `PaywallPlan.highlights`/menus, e `CapabilityGate(PlatformCapability.PdfGeneration) { ... }`
+para UI pontual.
+
+Os stubs **falham alto** (exceção com mensagem apontando o flag), nunca em silêncio. `CameraView.ios`
+é `@Composable`: não lança, mas desenha um placeholder explícito e **nunca chama o callback**.
+Ao pagar cada dívida, virar o flag em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
 
 ## Compatibilidade
 

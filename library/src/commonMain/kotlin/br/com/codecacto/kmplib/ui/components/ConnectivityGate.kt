@@ -145,6 +145,9 @@ fun NoInternetModal(
  * `start()`/`stop()` do [observer]. Útil para **lógica** (habilitar/desabilitar ações,
  * decidir refetch) sem depender da UI do [ConnectivityGate].
  *
+ * Seguro com um observer **compartilhado** (Koin): `start()`/`stop()` são contados por
+ * referência, então sair de composição não derruba o observer usado pelo auto-sync.
+ *
  * ```kotlin
  * val online by rememberIsOnline(observer)
  * Button(enabled = online) { ... }
@@ -207,9 +210,14 @@ fun ConnectivityGate(
 }
 
 /**
- * Overload do [ConnectivityGate] com [ConnectivityObserver] **explícito** — use quando o
- * observer é injetado (Koin) e compartilhado com a lógica do app (`rememberIsOnline`,
- * auto-sync do módulo `sync`, etc.).
+ * Overload do [ConnectivityGate] com [ConnectivityObserver] **explícito** — **este é o overload
+ * preferido** quando o app já tem um observer no Koin (compartilhado com `rememberIsOnline`, com o
+ * auto-sync do módulo `sync`/`sync.rest`, etc.).
+ *
+ * É seguro passar o **mesmo** observer usado pelo `RestCrudSyncEngine`: desde a 2.69.0 o
+ * `start()`/`stop()` do [ConnectivityObserver] é **contado por referência** — este gate registra
+ * um consumidor ao entrar em composição e o libera no `onDispose`, sem registrar um segundo
+ * `NetworkCallback` nem desligar o observer dos outros consumidores.
  */
 @Composable
 fun ConnectivityGate(
