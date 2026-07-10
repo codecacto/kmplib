@@ -3,6 +3,31 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.72.0 — Eventos órfãos no `AppTimeGridScheduler` (não sumir calado) (`ui/calendar`, 10/jul/2026)
+> Bug achado pelo QA do Meu Barbeiro no `TimeGridScheduler` da weblib; o `lib-web` confirmou o MESMO
+> defeito no `AppTimeGridScheduler` da kmplib e reportou. Paridade com weblib 0.64.0.
+
+- [x] **[BUG] Evento com recurso sem coluna era descartado em silêncio.** `AppTimeGridScheduler`
+      distribuía eventos com `(if (key != null) map[key] else null)?.add(e)` — um `resourceId` sem coluna
+      **sumia da agenda** sem log/aviso. Cenário real: profissional desativada (sai da lista de recursos),
+      mas o agendamento dela persiste → o compromisso desaparece, ninguém avisa o cliente. **Errar aqui =
+      compromisso invisível.**
+- [x] **API (espelha weblib 0.64.0, adapta à plataforma):** `onOrphanEvents: ((List<ScheduleEvent>)->Unit)?`
+      (consumidor decide a política — só ele tem o recurso removido), `showOrphanColumn: Boolean=false` +
+      `orphanColumnLabel="Sem recurso"` (coluna de fallback visível/clicável), **aviso em debug** via
+      `AppLogger.w` quando há órfãos e nem callback nem coluna tratam (release = silêncio). Aditivos/retrocompat.
+- [x] **Órfão × fora-da-janela** via `getColumnId: ((ScheduleEvent)->String?)?`: `null` (modo recurso,
+      colunas = profissionais) → `resourceId` concreto sem coluna = **órfão**; custom (modo dia, Semana) →
+      chave concreta sem coluna = **fora-da-janela** (silêncio); `getColumnId` retornando `null` = silêncio.
+      Órfãos detectados contra TODAS as colunas de recurso (subconjunto compacto não gera falso órfão).
+      Núcleo puro `distributeEvents(events, columnIds, isSingle, singleColumnId, getColumnId):
+      EventDistribution(byColumn, orphans)` em `CalendarLayout`.
+- [x] **Testes** `CalendarLayoutTest` (5 novos): resourceId inexistente → órfão; resourceId nulo → não
+      órfão; modo dia + evento fora do intervalo → NÃO dispara órfão; getColumnId→null silencioso; coluna
+      única absorve tudo. `:kmplib:compileDebugKotlinAndroid` + `:kmplib:testDebugUnitTest` verdes.
+- [ ] **Migração dos consumidores** (Meu Barbeiro + Influencer) — coordenada em passo único pelo CTO
+      (há agentes ativos nos dois repos). Não migrado nesta entrega de propósito.
+
 ### 2.71.0 — Superfícies customizáveis do tema (preto de verdade) + contraste WCAG (`ui/theme`, 10/jul/2026)
 > Origem: `Meu Barbeiro/docs/design/design-system.md` §2 (D-09, preto predominante). O `devops` reportou,
 > ao bootstrapar o app, que o `AppTheme` não conseguia ser preto de verdade: `AppColorPalette` só abria as

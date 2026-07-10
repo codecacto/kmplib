@@ -227,6 +227,61 @@ fun nowLineColumnIds(
     return columnIds.filter { it == nowColumnId }
 }
 
+/**
+ * Resultado da distribuição de eventos por coluna do [AppTimeGridScheduler]: os eventos já agrupados por
+ * id de coluna ([byColumn]) e os **órfãos** ([orphans]) — eventos cujo recurso não casa com nenhuma
+ * coluna e que, sem tratamento, **sumiriam da agenda em silêncio**.
+ */
+data class EventDistribution(
+    val byColumn: Map<String, List<ScheduleEvent>>,
+    val orphans: List<ScheduleEvent>,
+)
+
+/**
+ * Distribui [events] entre as colunas [columnIds], separando os **órfãos** — regra PURA e testável que
+ * distingue **anomalia** de **fora-da-janela** (a confusão que transforma aviso legítimo em ruído):
+ *
+ * - **Coluna única** ([isSingle]): tudo vai para [singleColumnId]; nunca há órfão.
+ * - **Modo recurso** ([getColumnId] `null` → colunas = profissionais, a chave é `event.resourceId`):
+ *   um `resourceId` **concreto** (não-nulo) que **não casa** com nenhuma coluna é **anomalia → órfão**
+ *   (ex.: a profissional foi desativada, mas o agendamento dela continua existindo). `resourceId` nulo
+ *   é "não atribuído" → silencioso, nunca órfão.
+ * - **Modo `getColumnId` custom** (colunas = **dias**, visão Semana): a chave vem de `getColumnId(event)`.
+ *   `null` = "não pertence a esta visão" → silêncio. Chave concreta sem coluna = **fora-da-janela**
+ *   (evento de outro dia) → silêncio, **nunca órfão**. Aqui evento sem coluna é esperado, não anomalia.
+ *
+ * Não notifica nem loga — só separa; a política (avisar/logar/coluna de fallback) é do
+ * [AppTimeGridScheduler], que só ele tem o dado do recurso removido.
+ */
+fun distributeEvents(
+    events: List<ScheduleEvent>,
+    columnIds: List<String>,
+    isSingle: Boolean,
+    singleColumnId: String,
+    getColumnId: ((ScheduleEvent) -> String?)?,
+): EventDistribution {
+    val idSet = columnIds.toSet()
+    val byColumn = LinkedHashMap<String, MutableList<ScheduleEvent>>()
+    for (id in columnIds) byColumn[id] = ArrayList()
+    val orphans = ArrayList<ScheduleEvent>()
+
+    for (e in events) {
+        if (isSingle) {
+            byColumn[singleColumnId]?.add(e)
+            continue
+        }
+        val custom = getColumnId != null
+        val key = if (custom) getColumnId!!(e) else e.resourceId
+        when {
+            key == null -> Unit // não atribuído / não pertence a esta visão → silêncio.
+            idSet.contains(key) -> byColumn[key]?.add(e)
+            custom -> Unit // chave concreta sem coluna, em modo dia → fora-da-janela → silêncio.
+            else -> orphans.add(e) // recurso concreto sem coluna → anomalia → órfão.
+        }
+    }
+    return EventDistribution(byColumn, orphans)
+}
+
 /** Marcas de hora (rótulos do eixo à esquerda) da janela, no passo dado. */
 fun hourTicks(window: BusinessWindow, stepMin: Int = 60): List<Int> {
     val step = if (stepMin > 0) stepMin else 60

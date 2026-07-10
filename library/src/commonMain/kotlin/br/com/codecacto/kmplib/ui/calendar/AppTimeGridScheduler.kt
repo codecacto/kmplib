@@ -23,9 +23,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,6 +41,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
 
 /* ─────────────────────────── AppTimeGridScheduler (G-02a-M) ───────────────────────────
@@ -92,6 +95,9 @@ internal fun defaultEventColors(): ScheduleEventColors = ScheduleEventColors(
 
 private val SINGLE_COLUMN = ScheduleResource(id = "__single__", label = "")
 
+/** Id da coluna de fallback dos eventos órfãos (recurso removido) quando `showOrphanColumn = true`. */
+private const val ORPHAN_COLUMN_ID = "__orphan__"
+
 /**
  * @param resources Colunas/recursos (um profissional por coluna). Vazio ⇒ **coluna única** (todos os
  *   eventos numa timeline, ex.: agenda pessoal do Influencer).
@@ -119,6 +125,19 @@ private val SINGLE_COLUMN = ScheduleResource(id = "__single__", label = "")
  * @param selectedResourceId (compacto) recurso visível; `null` = estado interno (1º recurso).
  * @param onResourceSelected (compacto) troca de recurso pelos chips.
  * @param minColumnWidth Largura mínima de coluna; abaixo dela vira scroll-x. Default 150dp.
+ * @param getColumnId Resolve a coluna de cada evento. **Distingue órfão de fora-da-janela** (ver
+ *   [onOrphanEvents]): `null` (default) = **modo recurso** (colunas = profissionais), a chave é
+ *   `event.resourceId` e um `resourceId` concreto sem coluna vira **órfão**; custom = **modo dia**
+ *   (visão Semana, colunas = dias), a chave vem daqui e evento sem coluna é **fora-da-janela** (esperado,
+ *   silencioso). Retornar `null` marca explicitamente "não pertence a esta visão" (silêncio).
+ * @param onOrphanEvents Chamado (fora da composição) com os eventos **órfãos** — aqueles cujo recurso
+ *   não existe mais entre as colunas (ex.: profissional desativada, agendamento dela continua). Sem
+ *   este callback **e** sem [showOrphanColumn], o compromisso **sumiria da agenda em silêncio** — o
+ *   default deixou de ser "sumir calado". Só o consumidor tem o dado do recurso removido: ele decide a
+ *   política (avisar o cliente, logar, reatribuir).
+ * @param showOrphanColumn Se `true` e houver órfãos, adiciona uma **coluna de fallback** ([orphanColumnLabel])
+ *   com os eventos órfãos visíveis e clicáveis, em vez de escondê-los.
+ * @param orphanColumnLabel Rótulo da coluna de fallback dos órfãos. Default "Sem recurso".
  * @param emptyState Nó exibido quando não há NENHUM evento (grade segue visível).
  */
 @Composable
@@ -142,14 +161,55 @@ fun AppTimeGridScheduler(
     selectedResourceId: String? = null,
     onResourceSelected: ((String) -> Unit)? = null,
     minColumnWidth: Dp = 150.dp,
+    getColumnId: ((ScheduleEvent) -> String?)? = null,
+    onOrphanEvents: ((List<ScheduleEvent>) -> Unit)? = null,
+    showOrphanColumn: Boolean = false,
+    orphanColumnLabel: String = "Sem recurso",
     texts: AppTimeGridTexts = AppTimeGridTexts(),
     emptyState: (@Composable () -> Unit)? = null,
 ) {
     val isCompact = LocalIsCompact.current
     val fallbackColors = defaultEventColors()
     val resolveColors: (ScheduleEvent) -> ScheduleEventColors = eventColors ?: { fallbackColors }
-    val allColumns = if (resources.isNotEmpty()) resources else listOf(SINGLE_COLUMN)
-    val isSingle = allColumns.size == 1 && allColumns[0].id == SINGLE_COLUMN.id
+    val baseColumns = if (resources.isNotEmpty()) resources else listOf(SINGLE_COLUMN)
+    val isSingle = baseColumns.size == 1 && baseColumns[0].id == SINGLE_COLUMN.id
+
+    // Distribui os eventos e SEPARA os órfãos contra TODAS as colunas de recurso (não o subconjunto
+    // compacto — um evento de profissional oculto no modo compacto NÃO é órfão, só está fora de vista).
+    val distribution = distributeEvents(
+        events = events,
+        columnIds = baseColumns.map { it.id },
+        isSingle = isSingle,
+        singleColumnId = SINGLE_COLUMN.id,
+        getColumnId = getColumnId,
+    )
+    val orphanEvents = distribution.orphans
+
+    // Política de órfãos (fora da composição): notifica o consumidor e, se ninguém tratar, avisa em
+    // debug — o default deixou de ser "sumir calado". Keyed só pelos IDs órfãos (estável entre frames).
+    val currentOnOrphan by rememberUpdatedState(onOrphanEvents)
+    val currentShowOrphan by rememberUpdatedState(showOrphanColumn)
+    val orphanKey = orphanEvents.joinToString(",") { it.id }
+    LaunchedEffect(orphanKey) {
+        if (orphanEvents.isNotEmpty()) {
+            currentOnOrphan?.invoke(orphanEvents)
+            if (currentOnOrphan == null && !currentShowOrphan) {
+                AppLogger.w(
+                    "AppTimeGridScheduler",
+                    "${orphanEvents.size} evento(s) órfão(s) sem coluna descartado(s) da agenda " +
+                        "(resourceId sem recurso). Trate com onOrphanEvents ou showOrphanColumn.",
+                )
+            }
+        }
+    }
+
+    // Coluna de fallback dos órfãos (quando pedida e houver órfãos), à direita das colunas de recurso.
+    val orphanColumn = if (showOrphanColumn && orphanEvents.isNotEmpty()) {
+        ScheduleResource(id = ORPHAN_COLUMN_ID, label = orphanColumnLabel)
+    } else {
+        null
+    }
+    val allColumns = if (orphanColumn != null) baseColumns + orphanColumn else baseColumns
 
     val effectiveWindow = remember(window, businessRanges, events, blocks) {
         window ?: computeTimeWindow(
@@ -180,15 +240,10 @@ fun AppTimeGridScheduler(
         nowLineColumnIds(columns.map { it.id }, nowColumnId, nowMin != null).toSet()
     }
 
-    // Distribui eventos e bloqueios por coluna.
-    val eventsByColumn = remember(columns, events, isSingle) {
-        val map = LinkedHashMap<String, MutableList<ScheduleEvent>>()
-        for (c in columns) map[c.id] = ArrayList()
-        for (e in events) {
-            val key = if (isSingle) SINGLE_COLUMN.id else e.resourceId
-            (if (key != null) map[key] else null)?.add(e)
-        }
-        map
+    // Eventos por coluna = distribuição (recursos) + eventos órfãos na coluna de fallback (se pedida).
+    val eventsByColumn: Map<String, List<ScheduleEvent>> = buildMap {
+        putAll(distribution.byColumn)
+        if (orphanColumn != null) put(ORPHAN_COLUMN_ID, orphanEvents)
     }
     val blocksByColumn = remember(columns, blocks, isSingle) {
         val map = LinkedHashMap<String, MutableList<ScheduleBlock>>()

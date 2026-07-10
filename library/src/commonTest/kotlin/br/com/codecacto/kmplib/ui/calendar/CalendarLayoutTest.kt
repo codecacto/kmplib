@@ -189,4 +189,76 @@ class CalendarLayoutTest {
         assertEquals(emptyList(), nowLineColumnIds(cols, nowColumnId = null, hasNow = false))
         assertEquals(emptyList(), nowLineColumnIds(cols, nowColumnId = "prof-a", hasNow = false))
     }
+
+    // --- distributeEvents (órfão × fora-da-janela) ---
+
+    @Test
+    fun `modo recurso - resourceId inexistente vira orfao (nao some calado)`() {
+        // Ana foi desativada; o agendamento dela continua com resourceId=ana, mas não há coluna.
+        val evAna = ev("corte-ana", 10, 0, 11, 0, resourceId = "ana")
+        val evBob = ev("corte-bob", 14, 0, 15, 0, resourceId = "bob")
+        val d = distributeEvents(
+            events = listOf(evAna, evBob),
+            columnIds = listOf("bob"),
+            isSingle = false,
+            singleColumnId = "__single__",
+            getColumnId = null,
+        )
+        assertEquals(listOf(evAna), d.orphans)
+        assertEquals(listOf(evBob), d.byColumn["bob"])
+    }
+
+    @Test
+    fun `modo recurso - resourceId nulo nao e orfao (nao atribuido, silencioso)`() {
+        val d = distributeEvents(
+            events = listOf(ev("x", 10, 0, 11, 0, resourceId = null)),
+            columnIds = listOf("bob"),
+            isSingle = false,
+            singleColumnId = "__single__",
+            getColumnId = null,
+        )
+        assertTrue(d.orphans.isEmpty())
+        assertTrue(d.byColumn["bob"]!!.isEmpty())
+    }
+
+    @Test
+    fun `modo dia (getColumnId custom) - evento fora do intervalo NAO dispara orfao`() {
+        // Visão Semana: colunas = dias; evento de outro dia é fora-da-janela, não anomalia.
+        val fora = ev("x", 10, 0, 11, 0, resourceId = "2026-07-20")
+        val dentro = ev("y", 12, 0, 13, 0, resourceId = "2026-07-09")
+        val d = distributeEvents(
+            events = listOf(fora, dentro),
+            columnIds = listOf("2026-07-08", "2026-07-09", "2026-07-10"),
+            isSingle = false,
+            singleColumnId = "__single__",
+            getColumnId = { it.resourceId }, // custom = modo dia
+        )
+        assertTrue(d.orphans.isEmpty()) // fora-da-janela, nunca órfão
+        assertEquals(listOf(dentro), d.byColumn["2026-07-09"])
+    }
+
+    @Test
+    fun `getColumnId retornando null e silencioso, nunca orfao`() {
+        val d = distributeEvents(
+            events = listOf(ev("x", 10, 0, 11, 0, resourceId = "ana")),
+            columnIds = listOf("2026-07-09"),
+            isSingle = false,
+            singleColumnId = "__single__",
+            getColumnId = { null },
+        )
+        assertTrue(d.orphans.isEmpty())
+    }
+
+    @Test
+    fun `coluna unica absorve tudo, sem orfaos mesmo com resourceId estranho`() {
+        val d = distributeEvents(
+            events = listOf(ev("x", 10, 0, 11, 0, resourceId = "qualquer")),
+            columnIds = listOf("__single__"),
+            isSingle = true,
+            singleColumnId = "__single__",
+            getColumnId = null,
+        )
+        assertTrue(d.orphans.isEmpty())
+        assertEquals(1, d.byColumn["__single__"]!!.size)
+    }
 }
