@@ -3,6 +3,37 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.71.0 — Superfícies customizáveis do tema (preto de verdade) + contraste WCAG (`ui/theme`, 10/jul/2026)
+> Origem: `Meu Barbeiro/docs/design/design-system.md` §2 (D-09, preto predominante). O `devops` reportou,
+> ao bootstrapar o app, que o `AppTheme` não conseguia ser preto de verdade: `AppColorPalette` só abria as
+> cores de **marca** (primary…info); TODAS as superfícies eram **hardcoded** em `createDarkColorScheme`/
+> `createLightColorScheme` (dark preso em `#121212`/`#1E1E1E`), e os roles `surfaceContainer*`/`surfaceDim`/
+> `surfaceBright` nem eram setados (ficavam no baseline roxo-acinzentado do Material). Serve ≥2 (Meu Barbeiro
+> agora; qualquer app dark/branded no futuro).
+
+- [x] **`AppSurfaceColors`** (`ui/theme/AppColorScheme.kt`): conjunto **completo** de superfícies do
+      Material 3 — `background`/`surface`/`surfaceVariant`, escala de elevação (`surfaceContainerLowest..
+      Highest`, `surfaceDim`/`surfaceBright`), `outline`/`outlineVariant` e as cores `on*`. Só `background`
+      é obrigatório; o resto tem **derivação coesa**: a escala de elevação é interpolada (`lerpTo`) entre o
+      fundo e a superfície mais alta — mantém a família de tons (um preto que sobe em degraus quase-pretos,
+      nunca o cinza-roxo do Material que apareceria se esses roles ficassem sem setar).
+- [x] **`AppColorPalette` abriu `darkSurfaces`/`lightSurfaces`** (nullable, default `null`, **aditivos**).
+      `null` = superfícies neutras padrão do Material (retrocompat **byte-idêntico** — nenhum app existente
+      muda; testes `dark/light sem superficies mantem o esquema neutro anterior`). Informado = superfícies
+      aplicadas via `ColorScheme.copy(...)` sobre o esquema base de marca (marca intacta).
+- [x] **Contraste é responsabilidade da lib** (`ui/theme/ColorContrast.kt`): matemática WCAG 2.x pura
+      espelhando o par web (`status-contrast.ts`) — `relativeLuminance`/`contrastRatio`/`compositeOver`
+      (composição de alpha) + `pickOnColor`. As cores `on*` **não informadas** são **derivadas por
+      contraste** (`pickOnColor` escolhe claro/escuro pela maior legibilidade sobre CADA superfície) — um
+      `background` claro nunca resulta em texto claro ilegível. **Validação em debug:** `surfaceContrastWarnings`
+      checa os `on*` passados à mão e o `AppTheme` loga (`AppLogger.w`, uma vez por paleta via `remember`)
+      quem cair < 4.5:1; contornos/divisórias NÃO são checados (decorativos — WCAG 1.4.11 não se aplica).
+- [x] **Testes:** `ColorContrastTest` (6) + `AppSurfaceColorsTest` (10) — retrocompat, tokens exatos do
+      Meu Barbeiro (`#0A0A0A`/`#141414`/`#1F1F1F`), escala de elevação na família preta, derivação com
+      contraste garantido, validação de contraste. `:kmplib:testDebugUnitTest` verde; `compileDebugKotlinAndroid` ok.
+- [x] **Consumidor migrado:** `Meu Barbeiro/mobile` (`AppConfig.colorPalette.darkSurfaces` com os tokens do
+      design-system; comentário do gap removido). App agora preto de verdade. Bump do ref `kmplib=2.71.0`.
+
 ### 2.70.0 — Calendário/agenda do Meu Barbeiro (`ui/calendar`, O0-1b, 10/jul/2026)
 > Origem: `Meu Barbeiro/docs/design/wireframes.md` (§0) + `docs/arquitetura/plano-tecnico.md` §6 + G-02.
 > **Par mobile de `@codecacto/weblib/calendar` (weblib 0.59.0)** — nomes/semântica espelhados

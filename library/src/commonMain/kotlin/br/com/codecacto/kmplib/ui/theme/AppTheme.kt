@@ -4,8 +4,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
+import br.com.codecacto.kmplib.core.util.AppLogger
 
 /**
  * Tema principal da aplicação
@@ -41,11 +43,25 @@ fun AppTheme(
     highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        highContrast && darkTheme -> createHighContrastDarkColorScheme(colorPalette)
-        highContrast -> createHighContrastLightColorScheme(colorPalette)
-        darkTheme -> createDarkColorScheme(colorPalette)
-        else -> createLightColorScheme(colorPalette)
+    // Memoiza o esquema por (palette, darkTheme, highContrast): evita recomputar as derivações de
+    // superfície/contraste a cada recomposição e garante que a validação de contraste seja logada
+    // apenas UMA vez por combinação (não a cada frame).
+    val colorScheme = remember(colorPalette, darkTheme, highContrast) {
+        val scheme = when {
+            highContrast && darkTheme -> createHighContrastDarkColorScheme(colorPalette)
+            highContrast -> createHighContrastLightColorScheme(colorPalette)
+            darkTheme -> createDarkColorScheme(colorPalette)
+            else -> createLightColorScheme(colorPalette)
+        }
+        // Contraste é responsabilidade da lib: as cores `on*` derivadas já saem com contraste
+        // garantido; aqui só alertamos (nunca bloqueamos) sobre superfícies passadas À MÃO que
+        // ficaram abaixo do alvo WCAG — para o desenvolvedor corrigir a paleta.
+        if (!highContrast) {
+            val surfaces = if (darkTheme) colorPalette.darkSurfaces else colorPalette.lightSurfaces
+            surfaces?.let { surfaceContrastWarnings(it) }
+                ?.forEach { AppLogger.w("AppTheme", "Contraste de superfície abaixo do alvo — $it") }
+        }
+        scheme
     }
 
     val effectiveScale = clampFontScale(fontScale)

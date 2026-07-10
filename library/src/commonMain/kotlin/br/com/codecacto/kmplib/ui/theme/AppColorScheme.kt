@@ -14,6 +14,13 @@ import androidx.compose.ui.graphics.Color
 /**
  * Paleta de cores personalizável
  *
+ * As cores de **marca/semântica** (primary…info) são a base histórica. As **superfícies** ([darkSurfaces]
+ * / [lightSurfaces]) são **aditivas e opcionais** (2.71.0): quando `null` (default), o esquema usa as
+ * superfícies neutras padrão do Material (comportamento anterior, byte-idêntico — nenhum app existente
+ * muda de aparência); quando informadas, o app controla o conjunto COMPLETO de superfícies do Material 3
+ * (fundo, cartões, containers, contornos e as cores `on*`), permitindo, por exemplo, um tema **preto de
+ * verdade** (`#0A0A0A`/`#141414`) em vez do cinza-escuro fixo `#121212`/`#1E1E1E`.
+ *
  * @param primary Cor primária (botões, destaques principais)
  * @param secondary Cor secundária (destaques complementares)
  * @param tertiary Cor terciária (elementos adicionais)
@@ -21,6 +28,9 @@ import androidx.compose.ui.graphics.Color
  * @param success Cor de sucesso (feedback positivo)
  * @param warning Cor de aviso (alertas)
  * @param info Cor informativa (informações neutras)
+ * @param darkSurfaces Superfícies do esquema **escuro** (ver [AppSurfaceColors]). `null` = superfícies
+ *   padrão do Material (retrocompatível).
+ * @param lightSurfaces Superfícies do esquema **claro**. `null` = superfícies padrão do Material.
  */
 data class AppColorPalette(
     val primary: Color,
@@ -29,16 +39,193 @@ data class AppColorPalette(
     val error: Color = Color(0xFFDC3545),
     val success: Color = Color(0xFF10B981),
     val warning: Color = Color(0xFFF59E0B),
-    val info: Color = Color(0xFF3B82F6)
+    val info: Color = Color(0xFF3B82F6),
+    val darkSurfaces: AppSurfaceColors? = null,
+    val lightSurfaces: AppSurfaceColors? = null
 )
 
 /**
- * Cria um ColorScheme Light baseado na paleta customizada
+ * Conjunto **completo** de superfícies do Material 3, para o app abrir/customizar o fundo e os cartões
+ * do tema — cobrindo os tokens de verdade, não só `background`/`surface`, para o próximo projeto não
+ * reabrir o mesmo gap. Só [background] é obrigatório; todo o resto tem derivação coesa e **contraste
+ * garantido**:
+ *
+ * - **Escala de elevação** (`surfaceContainer*`, `surfaceDim`/`surfaceBright`): quando `null`, é
+ *   derivada por interpolação entre [background] (degrau mais baixo) e a superfície mais alta,
+ *   mantendo a **mesma família de tons** — um preto que sobe em degraus quase-pretos, nunca o
+ *   cinza-roxo do baseline Material que apareceria se esses roles ficassem sem setar.
+ * - **Cores de conteúdo** (`onBackground`/`onSurface`/`onSurfaceVariant`): quando `null`, são
+ *   **derivadas por contraste WCAG** ([ColorContrast.pickOnColor]) — escolhendo entre [onColorLight] e
+ *   [onColorDark] a que dá maior legibilidade sobre CADA superfície. Assim, um `background` claro nunca
+ *   resulta em texto claro ilegível: o `on*` acompanha automaticamente.
+ * - **Contornos** (`outline`/`outlineVariant`): derivados a partir da superfície quando `null`.
+ *
+ * O app pode sobrescrever QUALQUER token explicitamente (ex.: o texto secundário “apagado”
+ * `onSurfaceVariant` num cinza de marca), e a lib **valida em debug** o contraste dos que forem
+ * passados à mão (ver [surfaceContrastWarnings]).
+ *
+ * @param background Superfície raiz (fundo da tela). Obrigatório.
+ * @param surface Cartões, top bar, folhas. Default = [background].
+ * @param surfaceVariant Faixas/linhas/chips (um degrau acima da superfície). `null` = derivado.
+ * @param outline Divisórias e contornos. `null` = derivado.
+ * @param outlineVariant Contorno forte (seleção). `null` = igual ao [outline] resolvido.
+ * @param surfaceContainerLowest .. [surfaceContainerHighest] Escala de elevação. `null` = derivada.
+ * @param surfaceDim Superfície “rebaixada”. `null` = [background].
+ * @param surfaceBright Superfície “realçada”. `null` = derivada.
+ * @param onBackground Conteúdo sobre [background]. `null` = derivado por contraste.
+ * @param onSurface Conteúdo sobre [surface]. `null` = derivado por contraste.
+ * @param onSurfaceVariant Conteúdo sobre [surfaceVariant] (texto secundário). `null` = derivado.
+ * @param onColorLight Candidato **claro** para derivação dos `on*` (default quase-branco `#FAFAFA`).
+ * @param onColorDark Candidato **escuro** para derivação dos `on*` (default quase-preto `#0A0A0A`).
+ */
+data class AppSurfaceColors(
+    val background: Color,
+    val surface: Color = background,
+    val surfaceVariant: Color? = null,
+    val outline: Color? = null,
+    val outlineVariant: Color? = null,
+    val surfaceContainerLowest: Color? = null,
+    val surfaceContainerLow: Color? = null,
+    val surfaceContainer: Color? = null,
+    val surfaceContainerHigh: Color? = null,
+    val surfaceContainerHighest: Color? = null,
+    val surfaceDim: Color? = null,
+    val surfaceBright: Color? = null,
+    val onBackground: Color? = null,
+    val onSurface: Color? = null,
+    val onSurfaceVariant: Color? = null,
+    val onColorLight: Color = Color(0xFFFAFAFA),
+    val onColorDark: Color = Color(0xFF0A0A0A)
+)
+
+/**
+ * Superfícies com TODOS os tokens já resolvidos (derivações e cores `on*` computadas). Resultado de
+ * [AppSurfaceColors.resolve]; consumido internamente para preencher o [ColorScheme].
+ */
+internal data class ResolvedSurfaces(
+    val background: Color,
+    val onBackground: Color,
+    val surface: Color,
+    val onSurface: Color,
+    val surfaceVariant: Color,
+    val onSurfaceVariant: Color,
+    val surfaceContainerLowest: Color,
+    val surfaceContainerLow: Color,
+    val surfaceContainer: Color,
+    val surfaceContainerHigh: Color,
+    val surfaceContainerHighest: Color,
+    val surfaceDim: Color,
+    val surfaceBright: Color,
+    val outline: Color,
+    val outlineVariant: Color
+)
+
+/**
+ * Resolve as derivações e as cores `on*` (por contraste WCAG) de [AppSurfaceColors], produzindo o
+ * conjunto completo aplicado ao [ColorScheme]. A direção da derivação (superfície escura sobe para o
+ * claro; superfície clara desce para o escuro) é inferida pela luminância do [AppSurfaceColors.background].
+ */
+internal fun AppSurfaceColors.resolve(): ResolvedSurfaces {
+    val isDarkSurface = ColorContrast.relativeLuminance(background) < 0.5
+    val toward = if (isDarkSurface) onColorLight else onColorDark
+
+    val resolvedSurfaceVariant = surfaceVariant ?: surface.lerpTo(toward, 0.06f)
+    val resolvedOutline = outline ?: surface.lerpTo(toward, 0.22f)
+    val resolvedOutlineVariant = outlineVariant ?: resolvedOutline
+
+    fun onColor(bg: Color): Color = ColorContrast.pickOnColor(bg, onColorLight, onColorDark)
+
+    return ResolvedSurfaces(
+        background = background,
+        onBackground = onBackground ?: onColor(background),
+        surface = surface,
+        onSurface = onSurface ?: onColor(surface),
+        surfaceVariant = resolvedSurfaceVariant,
+        onSurfaceVariant = onSurfaceVariant ?: onColor(resolvedSurfaceVariant),
+        // Escala de elevação coesa: background (dim) → surfaceVariant (mais alta).
+        surfaceContainerLowest = surfaceContainerLowest ?: background,
+        surfaceContainerLow = surfaceContainerLow ?: background.lerpTo(resolvedSurfaceVariant, 0.25f),
+        surfaceContainer = surfaceContainer ?: surface,
+        surfaceContainerHigh = surfaceContainerHigh ?: background.lerpTo(resolvedSurfaceVariant, 0.75f),
+        surfaceContainerHighest = surfaceContainerHighest ?: resolvedSurfaceVariant,
+        surfaceDim = surfaceDim ?: background,
+        surfaceBright = surfaceBright ?: resolvedSurfaceVariant.lerpTo(toward, 0.05f),
+        outline = resolvedOutline,
+        outlineVariant = resolvedOutlineVariant
+    )
+}
+
+/**
+ * Aplica as superfícies resolvidas sobre um [ColorScheme] base (que já traz as cores de marca). Mantém
+ * `surfaceTint`/`scrim` do base; recalcula `inverseSurface`/`inverseOnSurface` a partir das novas
+ * superfícies para o par invertido continuar coerente.
+ */
+internal fun ColorScheme.withSurfaces(s: ResolvedSurfaces): ColorScheme = copy(
+    background = s.background,
+    onBackground = s.onBackground,
+    surface = s.surface,
+    onSurface = s.onSurface,
+    surfaceVariant = s.surfaceVariant,
+    onSurfaceVariant = s.onSurfaceVariant,
+    surfaceContainerLowest = s.surfaceContainerLowest,
+    surfaceContainerLow = s.surfaceContainerLow,
+    surfaceContainer = s.surfaceContainer,
+    surfaceContainerHigh = s.surfaceContainerHigh,
+    surfaceContainerHighest = s.surfaceContainerHighest,
+    surfaceDim = s.surfaceDim,
+    surfaceBright = s.surfaceBright,
+    outline = s.outline,
+    outlineVariant = s.outlineVariant,
+    inverseSurface = s.onSurface,
+    inverseOnSurface = s.surface
+)
+
+/**
+ * Verifica o contraste WCAG do **texto** (`on*`) sobre cada superfície e devolve avisos legíveis para os
+ * pares que o app informou **à mão** e que ficaram abaixo de [ColorContrast.AA_TEXT] (4.5:1). Só reporta
+ * cores `on*` passadas explicitamente — as **derivadas** já saem com contraste garantido por
+ * [ColorContrast.pickOnColor], então não são reavaliadas. É o guarda contra o cenário descrito no gap:
+ * um `background` claro com um `onBackground` claro (texto ilegível).
+ *
+ * **Não** valida `outline`/`outlineVariant`: divisórias/contornos são elementos **decorativos** (uma
+ * hairline `#2E2E2E` sobre um cartão `#141414` é intencional e correta no design preto), fora do escopo
+ * do requisito de contraste de texto — cobrá-los geraria falso-positivo. Puro/testável; usado pelo
+ * [AppTheme] para logar em debug (nunca lança, nunca bloqueia render).
+ */
+fun surfaceContrastWarnings(surfaces: AppSurfaceColors): List<String> {
+    val r = surfaces.resolve()
+    val warnings = mutableListOf<String>()
+
+    fun checkText(label: String, provided: Color?, fg: Color, bg: Color) {
+        if (provided != null && !ColorContrast.meetsTextContrast(fg, bg)) {
+            val ratio = ColorContrast.contrastRatio(fg, bg)
+            warnings += "$label: razão ${ratio.format2()}:1 < ${ColorContrast.AA_TEXT}:1 (WCAG AA texto)"
+        }
+    }
+
+    checkText("onBackground/background", surfaces.onBackground, r.onBackground, r.background)
+    checkText("onSurface/surface", surfaces.onSurface, r.onSurface, r.surface)
+    checkText("onSurfaceVariant/surfaceVariant", surfaces.onSurfaceVariant, r.onSurfaceVariant, r.surfaceVariant)
+    return warnings
+}
+
+/** Formata um Double com 2 casas (sem depender de locale/String.format do JVM). */
+private fun Double.format2(): String {
+    val scaled = (this * 100).toLong()
+    return "${scaled / 100}.${(scaled % 100).toString().padStart(2, '0')}"
+}
+
+/**
+ * Cria um ColorScheme Light baseado na paleta customizada.
+ *
+ * Quando [AppColorPalette.lightSurfaces] é informado, o conjunto completo de superfícies do app é
+ * aplicado sobre o esquema (fundo/cartões/containers/contornos + cores `on*` derivadas por contraste);
+ * quando `null`, mantém as superfícies neutras padrão (retrocompatível).
  */
 fun createLightColorScheme(
     palette: AppColorPalette
 ): ColorScheme {
-    return lightColorScheme(
+    val base = lightColorScheme(
         primary = palette.primary,
         onPrimary = Color.White,
         primaryContainer = palette.primary.copy(alpha = 0.1f),
@@ -78,15 +265,20 @@ fun createLightColorScheme(
 
         surfaceTint = palette.primary
     )
+    return palette.lightSurfaces?.let { base.withSurfaces(it.resolve()) } ?: base
 }
 
 /**
- * Cria um ColorScheme Dark baseado na paleta customizada
+ * Cria um ColorScheme Dark baseado na paleta customizada.
+ *
+ * Quando [AppColorPalette.darkSurfaces] é informado, o conjunto completo de superfícies do app é
+ * aplicado sobre o esquema (permitindo um preto de verdade `#0A0A0A`/`#141414` em vez do cinza fixo);
+ * quando `null`, mantém `background = #121212` / `surface = #1E1E1E` etc. (retrocompatível).
  */
 fun createDarkColorScheme(
     palette: AppColorPalette
 ): ColorScheme {
-    return darkColorScheme(
+    val base = darkColorScheme(
         primary = palette.primary.copy(alpha = 0.9f),
         onPrimary = Color(0xFF1C1C1C),
         primaryContainer = palette.primary.copy(alpha = 0.2f),
@@ -126,6 +318,7 @@ fun createDarkColorScheme(
 
         surfaceTint = palette.primary.copy(alpha = 0.9f)
     )
+    return palette.darkSurfaces?.let { base.withSurfaces(it.resolve()) } ?: base
 }
 
 /**
