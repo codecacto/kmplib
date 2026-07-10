@@ -84,7 +84,7 @@ data class AppTimeGridTexts(
 
 /** Cores default de evento derivadas do tema (o app sobrepõe por status). */
 @Composable
-private fun defaultEventColors(): ScheduleEventColors = ScheduleEventColors(
+internal fun defaultEventColors(): ScheduleEventColors = ScheduleEventColors(
     container = MaterialTheme.colorScheme.secondaryContainer,
     content = MaterialTheme.colorScheme.onSecondaryContainer,
     accent = MaterialTheme.colorScheme.primary,
@@ -103,6 +103,14 @@ private val SINGLE_COLUMN = ScheduleResource(id = "__single__", label = "")
  * @param slotStepMin Passo das linhas-guia / arredondamento do clique em área livre. Default 30.
  * @param minEventHeight Altura mínima de um bloco (alvo de toque). Default 44dp.
  * @param now "Agora" p/ desenhar a linha. `null` = sem linha (só desenha se dentro da janela).
+ * @param nowColumnId Coluna em que a linha do "agora" deve aparecer. **Distinção recurso×dia (a origem
+ *   do bug, não-óbvia):** quando as colunas são **recursos do MESMO dia** (vários profissionais), o
+ *   horário "agora" vale para todos → deixe `null` e a linha **cruza todas** as colunas (comportamento
+ *   histórico). Quando as colunas são **dias** (visão Semana), "agora" só faz sentido na coluna de
+ *   **hoje** → passe o `id` da coluna de hoje e a linha aparece **só nela**. Sem isso, com colunas=dias
+ *   a linha se repetiria falsamente nos 7 dias — foi exatamente o que levou o Influencer a esconder a
+ *   linha na semana (`now = null`). Coluna não encontrada ⇒ nenhuma linha (mas o rótulo de hora no eixo
+ *   continua). Paridade com `nowColumnId` da weblib (0.61.0).
  * @param eventColors Mapeia evento→cores (o app resolve status→cor AA). Default = tema.
  * @param renderEvent Conteúdo custom do bloco. `null` = rótulo + horário + descrição.
  * @param onEventClick Clique num evento.
@@ -125,6 +133,7 @@ fun AppTimeGridScheduler(
     slotStepMin: Int = 30,
     minEventHeight: Dp = 44.dp,
     now: kotlinx.datetime.LocalDateTime? = null,
+    nowColumnId: String? = null,
     eventColors: ((ScheduleEvent) -> ScheduleEventColors)? = null,
     renderEvent: (@Composable (ScheduleEventScope) -> Unit)? = null,
     onEventClick: ((ScheduleEvent) -> Unit)? = null,
@@ -165,6 +174,11 @@ fun AppTimeGridScheduler(
 
     val nowMin = now?.let { minutesOfDay(it) }
         ?.takeIf { it in effectiveWindow.startMin..effectiveWindow.endMin }
+
+    // Colunas que recebem a linha do "agora" (regra recurso×dia, pura/testável).
+    val nowLineColumns = remember(columns, nowColumnId, nowMin) {
+        nowLineColumnIds(columns.map { it.id }, nowColumnId, nowMin != null).toSet()
+    }
 
     // Distribui eventos e bloqueios por coluna.
     val eventsByColumn = remember(columns, events, isSingle) {
@@ -277,6 +291,9 @@ fun AppTimeGridScheduler(
 
                     // Colunas de recurso.
                     columns.forEach { col ->
+                        // Distinção recurso×dia (via `nowLineColumnIds`): sem `nowColumnId` a linha
+                        // cruza todas as colunas (recursos do mesmo dia); com ele, só a coluna de hoje.
+                        val columnNowMin = nowMin?.takeIf { col.id in nowLineColumns }
                         ResourceColumn(
                             column = col,
                             width = columnWidth,
@@ -287,7 +304,7 @@ fun AppTimeGridScheduler(
                             minEventHeight = minEventHeight,
                             events = eventsByColumn[col.id].orEmpty(),
                             blocks = blocksByColumn[col.id].orEmpty(),
-                            nowMin = nowMin,
+                            nowMin = columnNowMin,
                             isSingle = isSingle,
                             eventColors = resolveColors,
                             renderEvent = renderEvent,

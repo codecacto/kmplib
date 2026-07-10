@@ -160,4 +160,33 @@ class CalendarLayoutTest {
     fun `hourTicks - marcas de hora dentro da janela`() {
         assertEquals(listOf(480, 540, 600, 660), hourTicks(BusinessWindow(480, 660), 60))
     }
+
+    // --- nowLineColumnIds (regra recurso×dia da linha do "agora") ---
+
+    @Test
+    fun `sem nowColumnId a linha do agora cruza todas as colunas (recursos do mesmo dia)`() {
+        val cols = listOf("prof-a", "prof-b", "prof-c")
+        assertEquals(cols, nowLineColumnIds(cols, nowColumnId = null, hasNow = true))
+    }
+
+    @Test
+    fun `com nowColumnId a linha do agora fica em exatamente uma coluna (colunas=dias)`() {
+        val dias = listOf("2026-07-08", "2026-07-09", "2026-07-10")
+        val marcadas = nowLineColumnIds(dias, nowColumnId = "2026-07-09", hasNow = true)
+        assertEquals(listOf("2026-07-09"), marcadas)
+        assertEquals(1, marcadas.size)
+    }
+
+    @Test
+    fun `nowColumnId inexistente nao marca nenhuma coluna`() {
+        val dias = listOf("2026-07-08", "2026-07-09")
+        assertEquals(emptyList(), nowLineColumnIds(dias, nowColumnId = "2026-07-20", hasNow = true))
+    }
+
+    @Test
+    fun `sem agora na janela nenhuma coluna recebe a linha`() {
+        val cols = listOf("prof-a", "prof-b")
+        assertEquals(emptyList(), nowLineColumnIds(cols, nowColumnId = null, hasNow = false))
+        assertEquals(emptyList(), nowLineColumnIds(cols, nowColumnId = "prof-a", hasNow = false))
+    }
 }

@@ -34,6 +34,25 @@
 - [x] **Consumidor migrado:** `Meu Barbeiro/mobile` (`AppConfig.colorPalette.darkSurfaces` com os tokens do
       design-system; comentário do gap removido). App agora preto de verdade. Bump do ref `kmplib=2.71.0`.
 
+### 2.71.0 — Visão MÊS + `nowColumnId` na agenda (`ui/calendar`, dev-mobile + lib-mobile, 10/jul/2026)
+> Migração da agenda do Influencer para o `ui/calendar` da lib trouxe 2 gaps. Empacotado junto do tema
+> na 2.71.0 (sem entrelaçar o trabalho: arquivos por caminho explícito).
+
+- [x] **`AppMonthGrid` + núcleo puro `CalendarMonth`** (dev-mobile): visão MÊS (par de `MonthGrid.tsx` da
+      weblib) — `monthGridCells(cursor)` (42 células domingo→sábado, `inMonth` spill) + `groupEventsByDay`.
+      Testes `CalendarMonthTest` (3). `defaultEventColors` passou `private`→`internal` (reuso). Consumido
+      pelo Influencer (`AgendaTab` visão Mês).
+- [x] **`nowColumnId: String? = null` no `AppTimeGridScheduler`** (lib-mobile — GAP achado na migração):
+      distinção **recurso×dia** da linha do "agora". `null` (colunas = recursos do mesmo dia) → linha em
+      todas as colunas (comportamento histórico); presente (colunas = dias, visão Semana) → só na coluna de
+      hoje. Sem isso, a Semana pintava a linha nos 7 dias — o Influencer contornava com `now=null` (perdia a
+      linha na semana). Aditivo/retrocompatível. Regra pura `nowLineColumnIds(columnIds, nowColumnId, hasNow)`
+      em `CalendarLayout`; teste (4 casos em `CalendarLayoutTest`: todas/uma/inexistente/sem-agora). Paridade
+      weblib 0.61.0. KDoc documenta a distinção recurso×dia (origem do bug).
+- [x] **Consumidor restaurado:** `Influencer/mobile` (`AgendaTab.kt` visão Semana) — `now = nowDateTime()`
+      + `nowColumnId = today().toString()`; linha do "agora" de volta, só na coluna de hoje.
+      `:composeApp:compileDebugKotlinAndroid` verde.
+
 ### 2.70.0 — Calendário/agenda do Meu Barbeiro (`ui/calendar`, O0-1b, 10/jul/2026)
 > Origem: `Meu Barbeiro/docs/design/wireframes.md` (§0) + `docs/arquitetura/plano-tecnico.md` §6 + G-02.
 > **Par mobile de `@codecacto/weblib/calendar` (weblib 0.59.0)** — nomes/semântica espelhados

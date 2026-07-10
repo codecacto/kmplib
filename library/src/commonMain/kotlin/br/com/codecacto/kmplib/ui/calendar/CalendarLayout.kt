@@ -207,6 +207,26 @@ fun offHoursRanges(
     return out
 }
 
+/**
+ * Colunas que recebem a **linha do "agora"** — regra pura **recurso×dia** do [AppTimeGridScheduler]:
+ * - [hasNow] `false` (sem "agora" dentro da janela visível) ⇒ **nenhuma** coluna;
+ * - [nowColumnId] `null` (colunas = **recursos do mesmo dia**, vários profissionais) ⇒ **todas** as
+ *   colunas (o horário "agora" vale para todos);
+ * - [nowColumnId] presente (colunas = **dias**, visão Semana) ⇒ **só** a coluna cujo id casa (a de
+ *   hoje). Id inexistente ⇒ lista vazia (evita a linha se repetir falsamente nos 7 dias).
+ *
+ * Determinístico e sem Compose — base testável do desenho da linha.
+ */
+fun nowLineColumnIds(
+    columnIds: List<String>,
+    nowColumnId: String?,
+    hasNow: Boolean,
+): List<String> {
+    if (!hasNow) return emptyList()
+    if (nowColumnId == null) return columnIds
+    return columnIds.filter { it == nowColumnId }
+}
+
 /** Marcas de hora (rótulos do eixo à esquerda) da janela, no passo dado. */
 fun hourTicks(window: BusinessWindow, stepMin: Int = 60): List<Int> {
     val step = if (stepMin > 0) stepMin else 60
