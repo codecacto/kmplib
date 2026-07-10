@@ -3,6 +3,35 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.70.0 — Calendário/agenda do Meu Barbeiro (`ui/calendar`, O0-1b, 10/jul/2026)
+> Origem: `Meu Barbeiro/docs/design/wireframes.md` (§0) + `docs/arquitetura/plano-tecnico.md` §6 + G-02.
+> **Par mobile de `@codecacto/weblib/calendar` (weblib 0.59.0)** — nomes/semântica espelhados
+> (`ScheduleEvent`/`ScheduleResource`/`ScheduleBlock`/`BusinessWindow`/`CalendarViewMode`/`TimeSlot`/
+> `WorkRange`/`MinuteRange`). Diferença de plataforma documentada: o mobile recebe `LocalDateTime`
+> (parede local por construção, sem `Instant` — evita o incidente R8) em vez de `Date | ISO string`.
+
+- [x] **G-02a-M — `AppTimeGridScheduler`** (`ui/calendar/AppTimeGridScheduler.kt`): grade com N colunas de
+      recurso OU coluna única, blocos por **minuto real** (`top`/`height` ∝ duração — NÃO balde-de-hora do
+      Influencer), **lanes** de sobreposição, off-hours (sombra), bloqueios (hachura via Canvas), buffer
+      (rabo esmaecido), linha do "agora", **janela derivada** dos dados. Responsivo (`LocalIsCompact`):
+      telefone = 1 recurso por vez (chips) / timeline única; tablet = colunas lado a lado + scroll-x com o
+      eixo de hora rolando junto. Domínio-agnóstico (cor por `eventColors`/`renderEvent`), a11y
+      (`contentDescription`, alvo ≥44dp), tema por tokens.
+- [x] **G-02b-M — `AppSlotPicker`** (`ui/calendar/AppSlotPicker.kt`): grade de chips de horário livre/ocupado
+      via `FlowRow`, mobile-first (alvo ≥48dp), a11y com motivo do indisponível. Renderiza `TimeSlot` do
+      motor §8 OU de `generateTimeSlots` — não decide disponibilidade.
+- [x] **Lógica pura testável (sem Compose)** em `commonMain`: `CalendarTime` (parede local,
+      `toMinuteRange`/`durationMinutes`/`parseCalendarDateTime`), `CalendarLayout`
+      (`computeTimeWindow`/`positionInWindow`/`packLanes`/`packEventLanes`/`offHoursRanges`/`hourTicks`),
+      `CalendarSlots` (`generateTimeSlots`/`availableSlots`), `CalendarRange`
+      (`addDays`/`startOfWeek`/`calendarRange`/`navigateCursor`). **35 testes** (`Calendar*Test`, JVM):
+      posição por minuto, lanes, slots, janela derivada, navegação de datas.
+- [ ] **Pendente (não bloqueia a Onda 2):** migrar o Influencer (`AgendaTab.kt`) para consumir o
+      `AppTimeGridScheduler` em modo recurso-único (prova de genericidade, D-10) — depende do dev-mobile;
+      deletar `AgendaMode`/`DayModeView`/`gridHourOf`. Visões Semana/Mês e o `MonthGrid` mobile ficaram
+      **fora do escopo desta entrega** (a agenda Dia é o coração); avaliar port do `AgendaTab` quando o app
+      do Meu Barbeiro pedir Semana/Mês.
+
 ### 2.69.0 — ConnectivityObserver idempotente + guarda de host + capacidades vendáveis (08/jul)
 > Origem: uso real da 2.68.0 nos 5 apps que a consumiram no mesmo dia.
 
