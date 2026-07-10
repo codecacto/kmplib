@@ -3,6 +3,42 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.73.0 — Fim de dia "24:00" no time picker + `AppWeeklyScheduleEditor` (`ui/calendar`, 10/jul/2026)
+> Dois gaps achados ao construir a paridade do Meu Barbeiro (expediente/jornada). O `AppTimePicker`
+> (relógio Material 3, 0..23h) NÃO expressa "24:00", então a correção do produto (salão que fecha à
+> meia-noite = minuto-do-dia 1440) não chegava à UI; o dev-mobile improvisou um `TimeOptionField` local.
+> E não havia par mobile do `WeeklyScheduleEditor` da weblib (`@codecacto/weblib/calendar`). Promovidos.
+
+- [x] **[ITEM 1] Fim de dia "24:00" — `DayBoundaryTime.kt` (lógica pura) + `AppDayTimePicker` (UI).**
+      `kotlinx.datetime.LocalTime` NÃO representa 24:00 (só 00:00..23:59); usá-lo apagava o fim de dia e o
+      slot das 23:30 nunca era oferecido (bug real, D-20). A fronteira do dia trafega como **minuto-do-dia**
+      (`Int`, 0..1440, `1440`=fim de dia) ou **"HH:mm" String** com "24:00" válido — NUNCA `LocalTime`.
+- [x] **"24:00 só como FIM" é da API, não do consumidor.** `enum DayTimeRole { Start, End }`;
+      `parseDayMinute(value, role)` devolve 1440 só para `End` e `null` para `"24:00"` com `Start`;
+      `dayTimeOptions(role, stepMin)` oferta "24:00" só em `End` (Start para em 23:xx); `formatDayMinute(1440)`
+      = **"24:00"** (não espelha para "00:00"). `const END_OF_DAY_MINUTE = 1440`. Distinto de
+      `parseTimeOfDay`/`formatTimeOfDay` (`CalendarTime.kt`), que espelham a weblib e rejeitam 24:00.
+- [x] **`AppDayTimePicker` (UI, `ui/calendar`)** — irmão do `AppTimePicker`: campo clicável + dropdown de
+      "HH:mm" por passo, `role: DayTimeRole` decide se "24:00" aparece; alvos ≥48dp, `contentDescription`,
+      tema por tokens. O `AppTimePicker` (relógio, instante 0..23h p/ lembrete diário) fica **intacto** —
+      só ganhou nota de doc apontando o irmão. Nenhum app quebra (API do `AppTimePicker` inalterada).
+- [x] **[ITEM 2] `AppWeeklyScheduleEditor` (`ui/calendar`)** — par mobile do `WeeklyScheduleEditor` da
+      weblib (nomes/semântica espelhados: `WeekdaySchedule`/`TimeRange`/`RangeIssue{Empty,Inverted,Overlap}`/
+      `validateDayRanges`/`applyRangesToWeekdays`/`normalizeSchedule`/`ALL_WEEKDAYS`/`BUSINESS_WEEKDAYS`/
+      `WEEKEND_WEEKDAYS`/`WeekdayCopyTarget`/`WeeklyScheduleEditorLabels`). Domínio-agnóstico (expediente do
+      salão OU jornada do profissional). Múltiplas faixas/dia (almoço), toggle por dia, "copiar dia" com
+      presets, validação (sobreposição fronteira **aberta** 09–12/12–19 não colide, fim ≤ início, vazia).
+      Usa o `AppDayTimePicker` do item 1 (fim aceita 24:00). Constante renomeada p/
+      `DEFAULT_SCHEDULE_WEEKDAY_LABELS` (evita clash com a curta do `AppMonthGrid`).
+- [x] **Testes** `DayBoundaryTimeTest` (8) + `WeeklyScheduleTest` (10): minuto-do-dia ↔ "HH:mm" com 24:00,
+      "24:00 só como fim", opções por papel, roundtrip; sobreposição/fronteira aberta/invertida/vazia,
+      copiar dia (dias úteis / vazio fecha), normalize. `:kmplib:compileDebugKotlinAndroid` +
+      `:kmplib:testDebugUnitTest` verdes (1231 testes, 0 falhas). `publishToMavenLocal` 2.73.0 ok.
+- [ ] **Migração do consumidor** (Meu Barbeiro `mobile/`): trocar `WeeklyScheduleField.kt` +
+      `TimeOptionField` locais pelo `AppWeeklyScheduleEditor`/`AppDayTimePicker` da lib e **deletar** a
+      cópia. NÃO migrado nesta entrega (há agente ativo em `mobile/`) — plano no handoff. Mapear
+      `ScheduleDayDto`/`TimeRangeDto` ↔ `WeekdaySchedule`/`TimeRange` no boundary.
+
 ### 2.72.0 — Eventos órfãos no `AppTimeGridScheduler` (não sumir calado) (`ui/calendar`, 10/jul/2026)
 > Bug achado pelo QA do Meu Barbeiro no `TimeGridScheduler` da weblib; o `lib-web` confirmou o MESMO
 > defeito no `AppTimeGridScheduler` da kmplib e reportou. Paridade com weblib 0.64.0.

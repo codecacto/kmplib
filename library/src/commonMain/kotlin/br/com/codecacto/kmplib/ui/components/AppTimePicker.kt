@@ -26,7 +26,12 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * [onTimeSelected]. O dialog é controlado pelo chamador — exiba-o
  * condicionalmente (ex.: `if (showDialog) AppTimePicker(...)`).
  *
- * Uso típico: escolher o horário do lembrete diário.
+ * Uso típico: escolher o horário do lembrete diário — um **instante** 00:00..23:59.
+ *
+ * **Não serve para expediente/faixa que fecha à meia-noite:** este componente (relógio do Material 3)
+ * é fixo em 0..23h e **não expressa "24:00"** (fim do dia). Para editar faixas de horário onde o fim
+ * pode ser a meia-noite, use `ui/calendar/AppDayTimePicker` (papel [DayTimeRole.End]) ou o
+ * `AppWeeklyScheduleEditor`, que trabalham em minuto-do-dia 0..1440 e sabem "24:00".
  *
  * ```kotlin
  * if (showTimePicker) {
