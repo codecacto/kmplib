@@ -3,6 +3,31 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.74.0 — Cliente de autenticação PRÓPRIA (own-auth, e-mail+senha REST) — módulo `auth` (10/jul/2026)
+> A peça que faz os próximos apps CodeCacto nascerem **sem Firebase** (piloto Meu Barbeiro staff). ADITIVO
+> e retrocompatível: um `IAuthRepository` a mais ao lado do `AuthRepository` (Firebase). O default e todos
+> os apps existentes continuam Firebase — `IAuthRepository`/`User`/`AuthException` (`firebase.auth`) NÃO
+> mudaram. Contrato do backend = `backlib-auth-local` (`/v1/staff/auth`, `authBasePath` configurável).
+
+- [x] **`EmailPasswordAuthRepository : IAuthRepository, OwnAuthService`** (pacote `auth`) — 6 endpoints
+      (register/login/refresh/logout/password.forgot/password.reset), Ktor core puro + kotlinx-json manual.
+      `currentUser` remontado do `sub` do JWT + email/nome capturados (backend não tem `GET /me`; não inventa
+      endpoint). Operações sem endpoint (Google/Apple/updateProfile/changePassword/deleteAccount/
+      sendEmailVerification/signUpWithEmail) falham **explícito**, nunca em silêncio.
+- [x] **`OwnAuthTokenManager` — cofre seguro + refresh proativo single-flight.** Renova antes de expirar
+      (skew 60s), `Mutex` + detecção por refresh token rotacionado (nunca 2 refresh concorrentes). Rede =
+      transitório (preserva sessão); 4xx no refresh = fail-closed (derruba sessão).
+- [x] **`SecureTokenStorage` (expect/actual, padrão-ouro):** Android `EncryptedSharedPreferences`
+      (Keystore/AES-256-GCM, nova dep `androidx.security:security-crypto`), iOS Keychain.
+- [x] **Seleção via AppConfig/DI:** `enum AuthProvider { FIREBASE, OWN }` + fábrica `ownAuth(config)` (bundle
+      Koin: repository→`IAuthRepository`, service→`OwnAuthService`; `restore()` no bootstrap). Token vai ao
+      Ktor via `getIdToken()`/`asDomainTokenProvider()` já existentes.
+- [x] **`OwnAuthService`** (registro c/ `acceptedTerms` + `requestPasswordReset`/`confirmPasswordReset` do
+      convite). Testes: 28 (`OwnAuthApiTest` 8, `OwnAuthTokenManagerTest` 9, `EmailPasswordAuthRepositoryTest`
+      7, `JwtDecoderTest` 4). iosMain (Keychain) escrito, não compilado em Linux (host Mac).
+- [ ] **Migrar consumidor piloto:** Meu Barbeiro trocar `AuthRepository()` (Firebase) por `ownAuth(...)` no
+      `AppModule`/`DataModule` quando o fundador liberar (plano no handoff). Demais apps: sem ação.
+
 ### 2.73.0 — Fim de dia "24:00" no time picker + `AppWeeklyScheduleEditor` (`ui/calendar`, 10/jul/2026)
 > Dois gaps achados ao construir a paridade do Meu Barbeiro (expediente/jornada). O `AppTimePicker`
 > (relógio Material 3, 0..23h) NÃO expressa "24:00", então a correção do produto (salão que fecha à

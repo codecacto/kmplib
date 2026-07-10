@@ -1,0 +1,91 @@
+package br.com.codecacto.kmplib.auth
+
+import br.com.codecacto.kmplib.core.util.AppLogger
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+
+/**
+ * Cliente REST **puro/sem estado** dos 6 endpoints da autenticação própria. Ktor core puro (SEM
+ * `ContentNegotiation`) + kotlinx-json manual, mesmo padrão de `DomainApiClient`/`RestSyncPort`.
+ *
+ * Traduz status HTTP em [OwnAuthException] tipada (para o [OwnAuthTokenManager] distinguir 4xx de
+ * rede); erro de transporte **nunca lança tipo cru** — vira [OwnAuthException.Network]. Este cliente
+ * NÃO guarda tokens nem decide refresh; isso é do [OwnAuthTokenManager].
+ */
+class OwnAuthApi(private val config: OwnAuthConfig) {
+
+    private val client get() = config.httpClient
+    private val json get() = config.json
+    private val texts get() = config.texts
+
+    suspend fun register(name: String, email: String, password: String, acceptedTerms: Boolean): Result<OwnAuthTokens> =
+        postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms)))
+
+    suspend fun login(email: String, password: String): Result<OwnAuthTokens> =
+        postForTokens("login", json.encodeToString(LoginBody(email, password)))
+
+    suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
+        postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
+
+    /** `logout` revoga a família do refresh. Best-effort e idempotente (204). */
+    suspend fun logout(refreshToken: String): Result<Unit> =
+        postForUnit("logout", json.encodeToString(LogoutBody(refreshToken)))
+
+    /** `password/forgot` — SEMPRE 200 genérico (não revela se o e-mail existe). */
+    suspend fun requestPasswordReset(email: String): Result<Unit> =
+        postForUnit("password/forgot", json.encodeToString(PasswordForgotBody(email)))
+
+    /** `password/reset` — consome o token (uso único) e grava a nova senha (204). */
+    suspend fun confirmPasswordReset(token: String, newPassword: String): Result<Unit> =
+        postForUnit("password/reset", json.encodeToString(PasswordResetBody(token, newPassword)))
+
+    // ---- núcleo ----------------------------------------------------------
+
+    private suspend fun postForTokens(suffix: String, body: String): Result<OwnAuthTokens> =
+        execute(suffix, body).mapCatching { response ->
+            val text = response.bodyAsText()
+            json.decodeFromString(OwnAuthTokens.serializer(), text)
+        }
+
+    private suspend fun postForUnit(suffix: String, body: String): Result<Unit> =
+        execute(suffix, body).map { }
+
+    private suspend fun execute(suffix: String, body: String): Result<HttpResponse> {
+        val response = try {
+            client.post(config.url(suffix)) {
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha de transporte em $suffix: ${e.message}")
+            return Result.failure(OwnAuthException.Network(texts.network))
+        }
+        val status = response.status.value
+        return if (status in 200..299) {
+            Result.success(response)
+        } else {
+            Result.failure(mapStatus(suffix, status))
+        }
+    }
+
+    private fun mapStatus(suffix: String, status: Int): OwnAuthException = when (status) {
+        401, 403 -> OwnAuthException.InvalidCredentials(texts.invalidCredentials)
+        409 -> OwnAuthException.EmailAlreadyInUse(texts.emailAlreadyInUse)
+        422 -> if (suffix.startsWith("register") || suffix.startsWith("password"))
+            OwnAuthException.WeakPassword(texts.weakPassword)
+        else OwnAuthException.Server(texts.server(status), status)
+        400 -> if (suffix.startsWith("password/reset"))
+            OwnAuthException.InvalidResetToken(texts.invalidResetToken)
+        else OwnAuthException.Server(texts.server(status), status)
+        429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
+        else -> OwnAuthException.Server(texts.server(status), status)
+    }
+
+    companion object {
+        private const val TAG = "OwnAuthApi"
+    }
+}

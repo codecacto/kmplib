@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.73.0"
+version = "2.74.0"
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)
@@ -218,6 +218,10 @@ kotlin {
             // referenciada pelo <provider> do AndroidManifest da lib em runtime,
             // independente de quais outras deps AndroidX o app mantiver.
             implementation(libs.androidx.core)
+
+            // EncryptedSharedPreferences (Jetpack Security) — cofre cifrado ancorado no Android
+            // Keystore para o refresh token da autenticação própria (auth/SecureTokenStorage).
+            implementation(libs.androidx.security.crypto)
 
             // Firebase Android (required by GitLive) - exposed as api() for consumer projects
             api(libs.firebase.auth.android)
