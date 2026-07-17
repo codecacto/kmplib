@@ -140,6 +140,26 @@ Os stubs **falham alto** (exceção com mensagem apontando o flag), nunca em sil
 é `@Composable`: não lança, mas desenha um placeholder explícito e **nunca chama o callback**.
 Ao pagar cada dívida, virar o flag em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
 
+## Push own-stack (2.76.0 — sem cerimônia Firebase por app)
+
+O módulo `push/` ganhou o caminho **own-stack** (piloto Meu Barbeiro), ADITIVO e reversível — os apps
+legados (`influencer`/`locadora`/`meu-advogado`/`super8`) seguem no fluxo antigo sem mudança. Objetivo:
+eliminar `google-services.json`/`GoogleService-Info.plist`/plugin google-services/`processDebugGoogleServices`,
+**mantendo o projeto central `code-cacto`**.
+
+- **Android = FCM com init MANUAL do FirebaseApp.** `initFirebaseForPush(context, AndroidFcmAppId)`
+  (`FirebaseApp.initializeApp` + `FirebaseOptions.Builder`, idempotente) **antes** de
+  `NotifierManager.initialize(...)`. `AndroidFcmAppId.PerApp` (DEFAULT, App ID próprio no console
+  `code-cacto`, sem json) ou `.Shared` (atalho opt-in com App ID compartilhado). KMPNotifier-android já
+  traz `firebase-messaging` transitivo — **sem plugin google-services**.
+- **iOS = APNs-direto** (sem FCM/plist): `@ObjCName("ApplePushBridge") object ApplePushBridge` alimentado
+  pelo `AppDelegate` Swift (`onApnsToken`/`onApnsRegistrationFailed`/`onRemoteNotification(userInfo,
+  wasTapped)`/`currentToken`) → mesmo `PushNotificationListener`. Passo a passo Swift no KDoc de
+  `ApplePushBridge`. Bridge + `UNUserNotificationCenter` **validados por inspeção** (link real no Mac).
+- **Comum:** `createPushNotificationService(listener)` (Android⇒KMPNotifier, iOS⇒bridge) e
+  `createLocalPushNotifier()` (foreground local: Android⇒KMPNotifier, iOS⇒`UNUserNotificationCenter`).
+  Roteamento puro `PushEventRouter`/`PushPayload` (commonMain, testado). Detalhe na skill `kmplib-catalog`.
+
 ## Compatibilidade
 
 ### Kotlin/Native 2.x

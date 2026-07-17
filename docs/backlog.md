@@ -3,6 +3,57 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.75.0 — Observabilidade de crashes com Sentry KMP + remoção do Crashlytics — módulo `observability` (17/jul/2026)
+> Destrava o piloto Meu Barbeiro e os próximos apps: crashes reais em Android E iOS via
+> `sentry-kotlin-multiplatform` 0.13.0 (padrão-ouro), reportando ao Sentry/GlitchTip self-host. Removido
+> o antigo `firebase/crashlytics` (impl iOS era stub NSLog, zero consumidores por grep). Interface NEUTRA
+> ao fornecedor; DSN injetado pelo app (lib agnóstica).
+
+- [x] **`interface CrashReporter`** (pacote `observability`) — `init`/`captureException(tags)`/
+      `captureMessage(level)`/`addBreadcrumb`/`setUser(id opaco)`/`clearUser`/`setTag`. Thin wrapper: delega
+      direto à API oficial do Sentry KMP; única lógica própria = mapear config + travar LGPD/compat GlitchTip.
+- [x] **`CrashReporterConfig`** (dsn/environment/release/`sendDefaultPii=false`/`tracesSampleRate=0.0`/
+      `enabled=true`) + `enum CrashLevel`. `sendDefaultPii` NUNCA true; tracing OFF; sem session/replay/
+      screenshot/anexos (GlitchTip só entende erro/msg/breadcrumb/tag/user/release/environment).
+      `enabled=false`/DSN em branco ⇒ `init` no-op (debug local sem DSN).
+- [x] **API 100% commonMain** (o artefato KMP embute Sentry Android + Sentry Cocoa via cinterop — SEM
+      expect/actual). `createCrashReporter()` + `crashReporterModule` (Koin). Nova dep `koin-core` 4.1.1 `api()`
+      (retrocompat — todo app já traz Koin).
+- [x] **Removido** `CrashlyticsService`(+android/ios)/`CrashlyticsHolder`/`CrashlyticsExtensions`/
+      `FakeCrashlyticsService`/`CrashlyticsExtensionsTest` e deps `firebase-crashlytics`(GitLive)+
+      `firebase-crashlytics-android`. `KmpLib.init` não chama mais `CrashlyticsHolder`.
+- [x] **Testes:** `CrashReporterTest` (8) via `FakeCrashReporter` (não inicializa Sentry real). Compilação
+      Android + `testDebugUnitTest` + `publishToMavenLocal` (2.75.0) OK em Linux.
+- [ ] **Consumo (dev-mobile):** apps incluem `crashReporterModule` e chamam `init(CrashReporterConfig(dsn=
+      SENTRY_DSN,...))` no bootstrap; iOS adiciona Sentry Cocoa via SPM. iOS: linkagem final no host macOS.
+
+### 2.76.0 — Push own-stack sem cerimônia Firebase por app — módulo `push` (17/jul/2026)
+> SPIKE own-stack T2 (piloto Meu Barbeiro). Elimina `google-services.json`/`GoogleService-Info.plist`/
+> plugin google-services/`processDebugGoogleServices`, MANTENDO o projeto central `code-cacto`. ADITIVO e
+> reversível: `PushNotificationService`/`PushNotificationListener`/`KmpPushNotificationService` (KMPNotifier)
+> INTACTOS; os 4 apps legados (influencer/locadora/meu-advogado/super8) NÃO mudam. Android = FCM com init
+> MANUAL do FirebaseApp; iOS = APNs-direto (sem FCM/plist), onde o KMPNotifier sai do caminho.
+
+- [x] **Ponto de extensão comum (commonMain, expect/actual):** `createPushNotificationService(listener)`
+      (Android⇒`KmpPushNotificationService`/KMPNotifier; iOS⇒`ApplePushNotificationService`/bridge APNs) +
+      `createLocalPushNotifier()` (foreground local: Android⇒`LocalNotifier` do KMPNotifier; iOS⇒
+      `UNUserNotificationCenter`). Substitui o `NotifierManager.getLocalNotifier()` chamado direto (ausente no iOS).
+- [x] **Android — init MANUAL (androidMain):** `initFirebaseForPush(context, AndroidFcmAppId)`
+      (`FirebaseApp.initializeApp`+`FirebaseOptions`, idempotente) antes de `NotifierManager.initialize`.
+      `AndroidFcmAppId.PerApp` (DEFAULT, App ID próprio no console `code-cacto` sem json) / `.Shared`
+      (`projectId="code-cacto"`, `gcmSenderId="234743070333"`; atalho opt-in). `firebase-messaging` já é
+      transitivo do KMPNotifier-android — sem plugin google-services.
+- [x] **iOS — bridge APNs (iosMain, `@ObjCName("ApplePushBridge")`):** `onApnsToken`/`onApnsRegistrationFailed`/
+      `onRemoteNotification(userInfo,wasTapped)`/`currentToken` alimentados pelo `AppDelegate` → mesmo
+      `PushNotificationListener`. 3 casos cobertos (foreground/background-tap/cold-start-tap; deep link
+      preservado). `subscribeToTopic`/`unsubscribeFromTopic` = no-op-sucede (tópico é do backend).
+- [x] **Lógica pura testável (commonMain):** `PushEventRouter.dispatch` + `PushPayload.title/body`. Testes
+      `PushEventRouterTest` (4) + `PushPayloadTest` (5) = 9 (`:kmplib:testDebugUnitTest` verde). iosMain
+      (bridge + `UNUserNotificationCenter`) validado por inspeção (link real no Mac).
+- [ ] **Migrar consumidor piloto:** Meu Barbeiro — Android: `initFirebaseForPush(...)`+`NotifierManager.initialize`
+      no `Application`, remover plugin google-services/json; iOS: cablar o `AppDelegate` ao `ApplePushBridge`.
+      Com o dev-mobile, quando o fundador liberar (plano no handoff). Demais apps: sem ação.
+
 ### 2.74.0 — Cliente de autenticação PRÓPRIA (own-auth, e-mail+senha REST) — módulo `auth` (10/jul/2026)
 > A peça que faz os próximos apps CodeCacto nascerem **sem Firebase** (piloto Meu Barbeiro staff). ADITIVO
 > e retrocompatível: um `IAuthRepository` a mais ao lado do `AuthRepository` (Firebase). O default e todos
