@@ -11,7 +11,7 @@ import br.com.codecacto.kmplib.core.network.PaginatedResponse
  * quando precisa de dados frescos — não há observação de snapshots nem cache persistente offline.
  *
  * É a camada de dados oficial dos apps: substitui de vez o Firestore-como-banco (removido da lib).
- * Firebase fica restrito a Auth e Crashlytics.
+ * Firebase fica restrito a Auth (crashes via observability/Sentry).
  *
  * Todas as operações devolvem [ApiResult] (Success/Error/Loading) — erros de rede/HTTP já vêm
  * normalizados (status code + mensagem) por `handleApiCall`, então o consumidor nunca trata

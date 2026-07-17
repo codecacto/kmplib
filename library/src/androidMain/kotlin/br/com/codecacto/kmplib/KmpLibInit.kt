@@ -3,7 +3,6 @@ package br.com.codecacto.kmplib
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder
-import br.com.codecacto.kmplib.firebase.crashlytics.CrashlyticsHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
@@ -30,7 +29,6 @@ fun KmpLib.init(context: Context) {
     ShareHandlerHolder.init(context)
     NotificationSchedulerHolder.init(context)
     GoogleAuthHolder.init(context)
-    CrashlyticsHolder.init(context)
     SyncDatabaseHolder.init(context)
     TtsControllerHolder.init(context)
 }

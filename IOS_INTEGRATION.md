@@ -57,7 +57,8 @@ Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências 
 
 | Package | URL | Uso |
 |---------|-----|-----|
-| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` | Auth, Crashlytics, Analytics |
+| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` | Auth, Analytics |
+| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | Observabilidade de crashes (módulo `observability`, via `sentry-kotlin-multiplatform`) |
 | RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | Compras in-app (se usar monetização) |
 | Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | Login Google (se usar) |
 
@@ -72,9 +73,12 @@ Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências 
 #### Produtos Firebase recomendados:
 - `FirebaseAuth`
 - `FirebaseAnalytics`
-- `FirebaseCrashlytics`
 - `FirebaseRemoteConfig` (se usar)
 - `FirebaseMessaging` (se usar push notifications)
+
+> **Crashes**: a observabilidade de crashes migrou do Firebase Crashlytics para **Sentry** (módulo
+> `observability`/`CrashReporter`). Adicione o package **Sentry Cocoa** (`Sentry`) ao target `iosApp`;
+> o `sentry-kotlin-multiplatform` faz o cinterop. O DSN é injetado pelo app via `CrashReporterConfig`.
 
 ---
 
@@ -385,7 +389,8 @@ api(libs.kmplib)  // NÃO implementation()
 **Causa**: Dependências nativas faltando (Firebase, RevenueCat, etc).
 
 **Solução**: Adicionar os packages SPM necessários no Xcode:
-- `FirebaseAuth`, `FirebaseCrashlytics`, `FirebaseRemoteConfig`
+- `FirebaseAuth`, `FirebaseRemoteConfig`
+- `Sentry` (Sentry Cocoa — observabilidade de crashes)
 - `RevenueCat` (se usar monetização)
 - `PurchasesHybridCommon` (se usar RevenueCat via KMP)
 

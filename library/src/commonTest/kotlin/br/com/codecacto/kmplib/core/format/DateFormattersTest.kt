@@ -69,4 +69,59 @@ class DateFormattersTest {
         val millis = parseIsoDateToMillis("2026-03-05")
         assertEquals("2026-03-05", formatIsoDateFromMillis(millis!!))
     }
+
+    @Test
+    fun weekdayNameBr_returns_capitalized_ptbr_name() {
+        assertEquals("Sexta-Feira", weekdayNameBr("2026-07-17")) // sexta
+        assertEquals("Sábado", weekdayNameBr("2026-07-18"))
+        assertEquals("Domingo", weekdayNameBr("2026-07-19"))
+        assertEquals("Segunda-Feira", weekdayNameBr("2026-07-20"))
+        assertEquals("Terça-Feira", weekdayNameBr("2026-07-21"))
+    }
+
+    @Test
+    fun weekdayNameBr_accepts_iso_datetime() {
+        assertEquals("Sexta-Feira", weekdayNameBr("2026-07-17T08:29:00"))
+    }
+
+    @Test
+    fun weekdayNameBr_null_for_invalid() {
+        assertNull(weekdayNameBr("not-a-date"))
+        assertNull(weekdayNameBr(""))
+    }
+
+    @Test
+    fun formatDateWeekdayBr_weekday_plus_day_month() {
+        assertEquals("Sexta-Feira, 17/07", formatDateWeekdayBr("2026-07-17"))
+        assertEquals("Domingo, 01/03", formatDateWeekdayBr("2026-03-01"))
+    }
+
+    @Test
+    fun formatDateWeekdayBr_accepts_iso_datetime() {
+        assertEquals("Sexta-Feira, 17/07", formatDateWeekdayBr("2026-07-17T08:29:00"))
+    }
+
+    @Test
+    fun formatDateWeekdayBr_returns_input_when_invalid() {
+        assertEquals("not-a-date", formatDateWeekdayBr("not-a-date"))
+    }
+
+    @Test
+    fun formatTimeFromIso_extracts_hh_mm_from_local_datetime() {
+        assertEquals("08:29", formatTimeFromIso("2026-07-17T08:29:00"))
+        assertEquals("08:29", formatTimeFromIso("2026-07-17T08:29"))
+        assertEquals("00:05", formatTimeFromIso("2026-07-17T00:05:00"))
+        assertEquals("23:59", formatTimeFromIso("2026-07-17T23:59:59"))
+    }
+
+    @Test
+    fun formatTimeFromIso_handles_instant_with_offset() {
+        // 08:29Z convertido para UTC deve continuar 08:29
+        assertEquals("08:29", formatTimeFromIso("2026-07-17T08:29:00Z", timeZone = kotlinx.datetime.TimeZone.UTC))
+    }
+
+    @Test
+    fun formatTimeFromIso_returns_input_when_invalid() {
+        assertEquals("not-a-time", formatTimeFromIso("not-a-time"))
+    }
 }

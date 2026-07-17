@@ -52,7 +52,7 @@ enum class DataLayer {
     /**
      * **Legado — Firestore como banco.** Mantido apenas para classificar apps herdados ainda não
      * migrados; **PROIBIDO em projeto novo** (decisão de arquitetura jun/2026: SEM Firestore como
-     * armazenamento; Firebase só Auth + Crashlytics). Migre para [LocalOnly] (offline) ou [Central].
+     * armazenamento; Firebase só Auth). Migre para [LocalOnly] (offline) ou [Central].
      */
     @Deprecated(
         message = "Firestore como banco foi banido do ecossistema (jun/2026). Use LocalOnly (offline) " +

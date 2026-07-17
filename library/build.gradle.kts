@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.74.0"
+version = "2.75.0"
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)
@@ -87,7 +87,6 @@ kover {
                 classes("*Holder")
                 // Adapters Android internos (não API pública)
                 classes("br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder")
-                classes("br.com.codecacto.kmplib.firebase.crashlytics.CrashlyticsHolder")
                 classes("br.com.codecacto.kmplib.platform.BiometricAuthHolder")
                 classes("br.com.codecacto.kmplib.platform.NotificationSchedulerHolder")
                 classes("br.com.codecacto.kmplib.platform.ShareHandlerHolder")
@@ -198,6 +197,16 @@ kotlin {
             // SQLDelight — sync offline-first (T1a). runtime + coroutines (Flow das queries).
             api(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)
+
+            // Observabilidade de crashes — sentry-kotlin-multiplatform (padrão-ouro; reporta para
+            // Sentry/GlitchTip). O artefato KMP já expõe Android + iOS reais (Sentry Android + Sentry
+            // Cocoa via cinterop); a API é 100% commonMain, sem expect/actual. Ver module `observability`.
+            implementation(libs.sentry.kmp)
+
+            // Koin (DI padrão do ecossistema) — api() porque a lib expõe módulos Koin prontos
+            // (crashReporterModule) cujo tipo `org.koin.core.module.Module` é público. Todo app
+            // consumidor já traz Koin, então é retrocompatível.
+            api(libs.koin.core)
         }
 
         commonTest.dependencies {
@@ -223,16 +232,14 @@ kotlin {
             // Keystore para o refresh token da autenticação própria (auth/SecureTokenStorage).
             implementation(libs.androidx.security.crypto)
 
-            // Firebase Android (required by GitLive) - exposed as api() for consumer projects
+            // Firebase Android (required by GitLive) - exposed as api() for consumer projects.
+            // Crashlytics saiu (2.75.0): observabilidade de crashes migrou para sentry-kotlin-multiplatform
+            // (módulo `observability`). Firebase Analytics mantido (base para Auth/Config).
             api(libs.firebase.auth.android)
             api(libs.firebase.storage.android)
             api(libs.firebase.common.android)
-            api(libs.firebase.crashlytics.android)
             api(libs.firebase.analytics.android)
             api(libs.firebase.config.android)
-
-            // Firebase Crashlytics GitLive (KMP)
-            implementation(libs.firebase.crashlytics)
 
             // AndroidX Activity Compose (for ImagePicker camera/gallery launchers)
             implementation(libs.androidx.activity.compose)
@@ -279,9 +286,9 @@ kotlin {
             }
         }
 
-        // Note: firebase-crashlytics GitLive não suporta iosX64.
-        // A impl iOS do CrashlyticsService usa NSLog como fallback.
-        // O Crashlytics real no iOS funciona via SDK nativo no Xcode.
+        // Observabilidade de crashes no iOS: o artefato sentry-kotlin-multiplatform publica
+        // iosArm64/iosSimulatorArm64/iosX64 com cinterop para o Sentry Cocoa SDK. A linkagem final
+        // acontece no host macOS (fora deste build Linux). Ver módulo `observability`.
     }
 }
 

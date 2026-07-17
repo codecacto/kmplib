@@ -1,7 +1,9 @@
 package br.com.codecacto.kmplib.core.format
 
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
@@ -101,3 +103,65 @@ fun formatTime(hour: Int, minute: Int): String =
 fun parseIsoDateToMillis(value: String, timeZone: TimeZone = TimeZone.UTC): Long? = runCatching {
     LocalDate.parse(value.trim()).atStartOfDayIn(timeZone).toEpochMilliseconds()
 }.getOrNull()
+
+/**
+ * Nomes completos dos dias da semana em pt-BR, capitalizados e com hifen ("Segunda-Feira" ...
+ * "Sabado" -> "Sábado", "Domingo"). Fonte canonica para exibicao pt-BR na lib e nos apps-espelho.
+ */
+private val WEEKDAY_NAMES_BR: Map<DayOfWeek, String> = mapOf(
+    DayOfWeek.MONDAY to "Segunda-Feira",
+    DayOfWeek.TUESDAY to "Terça-Feira",
+    DayOfWeek.WEDNESDAY to "Quarta-Feira",
+    DayOfWeek.THURSDAY to "Quinta-Feira",
+    DayOfWeek.FRIDAY to "Sexta-Feira",
+    DayOfWeek.SATURDAY to "Sábado",
+    DayOfWeek.SUNDAY to "Domingo",
+)
+
+/** Aceita "yyyy-MM-dd" ou um ISO datetime "yyyy-MM-ddTHH:mm[:ss]" (usa a parte de data). null se invalido. */
+private fun parseIsoLocalDate(iso: String): LocalDate? {
+    val trimmed = iso.trim()
+    runCatching { LocalDate.parse(trimmed) }.getOrNull()?.let { return it }
+    runCatching { LocalDateTime.parse(trimmed) }.getOrNull()?.let { return it.date }
+    return null
+}
+
+/**
+ * Nome completo do dia da semana em pt-BR, capitalizado ("Sexta-Feira", "Sábado", "Domingo"),
+ * a partir de um ISO "yyyy-MM-dd" (ou ISO datetime). Retorna null se a data for invalida.
+ */
+fun weekdayNameBr(isoDate: String): String? =
+    parseIsoLocalDate(isoDate)?.let { WEEKDAY_NAMES_BR.getValue(it.dayOfWeek) }
+
+/**
+ * Data com dia da semana para listas (ex.: cartao de ponto): "Sexta-Feira, 17/07"
+ * (dia da semana pt-BR capitalizado + "dd/MM", sem ano). A partir de ISO "yyyy-MM-dd"
+ * (ou ISO datetime). Retorna a entrada original se nao for uma data valida.
+ */
+fun formatDateWeekdayBr(isoDate: String): String {
+    val date = parseIsoLocalDate(isoDate) ?: return isoDate
+    val name = WEEKDAY_NAMES_BR.getValue(date.dayOfWeek)
+    val dd = date.dayOfMonth.toString().padStart(2, '0')
+    val mm = date.monthNumber.toString().padStart(2, '0')
+    return "$name, $dd/$mm"
+}
+
+/**
+ * Extrai "HH:mm" (24h, zero-padded) de um timestamp ISO. Aceita datetime local sem offset
+ * ("2026-07-17T08:29:00" / "2026-07-17T08:29") e tambem instantes com offset/"Z"
+ * ("2026-07-17T08:29:00Z", "...-03:00"), convertidos para [timeZone] (default: fuso do sistema).
+ * Retorna a entrada original se nao for parseavel.
+ */
+fun formatTimeFromIso(
+    iso: String,
+    timeZone: TimeZone = TimeZone.currentSystemDefault(),
+): String {
+    val trimmed = iso.trim()
+    runCatching { LocalDateTime.parse(trimmed) }.getOrNull()?.let {
+        return formatTime(it.hour, it.minute)
+    }
+    runCatching { Instant.parse(trimmed).toLocalDateTime(timeZone) }.getOrNull()?.let {
+        return formatTime(it.hour, it.minute)
+    }
+    return iso
+}
