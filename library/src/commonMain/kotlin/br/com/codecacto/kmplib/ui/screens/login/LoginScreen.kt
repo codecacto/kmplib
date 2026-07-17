@@ -285,7 +285,10 @@ fun LoginScreen(
                             textAlign = TextAlign.Center
                         )
                         Row(
-                            horizontalArrangement = Arrangement.Center
+                            horizontalArrangement = Arrangement.Center,
+                            // Sem isto, o " e " (Text simples) alinhava no topo e os links (dentro de
+                            // TextButton, altura mínima 48dp, texto centralizado) ficavam mais abaixo.
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (termsUrl != null) {
                                 TextButton(
