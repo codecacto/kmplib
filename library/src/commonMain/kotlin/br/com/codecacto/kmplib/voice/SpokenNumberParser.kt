@@ -42,7 +42,6 @@ object SpokenNumberParser {
         "novecentas" to 900,
     )
 
-    private const val HALF = "meia"
     private val halfWords = setOf("meia", "meio")
 
     /**
