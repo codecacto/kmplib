@@ -3,6 +3,137 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPS — design do produto "Arroba Certa" (ux-designer, 18/jul/2026, `/design`)
+> Levantados no design de telas (`Arroba Certa/docs/design/wireframes.md` §Gaps de lib), a partir do
+> PRD/roadmap do projeto (arquétipo D, app de pesagem/compra-venda de gado). Os dois primeiros JÁ eram
+> dependências conhecidas do projeto (Onda 0 do roadmap) — aqui só reforçam o requisito de UI/UX. Os
+> dois últimos são novos, levantados neste design.
+
+- [x] **GAP-AC-M-01 — STT/ditado por voz + composable de UI (`voice`).** ENTREGUE na **2.77.0**.
+      Módulo `voice` (padrão-ouro on-device): `SpeechRecognizer` expect/actual (Android
+      `android.speech.SpeechRecognizer`/`RecognitionListener`; iOS framework `Speech` `SFSpeechRecognizer`
+      + `SFSpeechAudioBufferRecognitionRequest` + `AVAudioEngine`), `preferOffline` (curral sem sinal),
+      `state`/`partialText`/`events`, best-effort (nada lança). UI empacotada: `VoiceCaptureButton`
+      (mic ao lado do campo) + `DictationOverlay` (mic animado + parcial ao vivo + **confirmação
+      obrigatória de 1 toque** + fallback ao teclado). Núcleo puro testável `SpokenNumberParser`
+      (pt-BR: "quatrocentos e vinte"/"420 quilos"/"391,3"). 13 testes.
+- [~] **GAP-AC-M-02 — PDF real no iOS (dívida `kmplib-ios-pdf-stub-debt`).** GATE ENTREGUE na **2.77.0**
+      (ADR-0003 §Sequenciamento — recibo primeiro): geradores de recibo `OsPdfGenerator.ios`
+      (`OsPdfData` — o do Arroba Certa) e `ReciboPdf.ios` implementados de verdade via
+      `UIGraphicsPDFRenderer` + **CoreText** (helper compartilhado `IosPdfCanvas`), paridade Android=iOS.
+      **Onda 1 do Arroba Certa destravada.** Os outros **7** geradores multi-página (relatórios) seguem
+      stub — não bloqueiam a Onda 1 (ver item de dívida remanescente na seção 2.77.0). Validação visual
+      em host macOS.
+- [x] **GAP-AC-M-CHART-LINE — Gráfico de linha/área (peso × tempo), Compose MP.** ENTREGUE na **2.77.0**:
+      `ui/components/LineChart`/`AreaChart` (Canvas puro, sem lib externa; espelha `BarChart`/
+      `SimpleAreaChart`), 1..N séries, área com degradê, eixo X dd/MM/yyyy, tokens do tema,
+      `LocalIsCompact`. Lógica pura testável (bounds/normalize/rótulos X). 11 testes.
+- [ ] ~~**GAP-AC-M-CHART-LINE**~~ (linha original abaixo — mantida p/ histórico). A kmplib só tem
+      `ui/components/BarChart`/`StackedBarChart` (barras verticais, "últimos N meses") — não serve a
+      série temporal contínua de evolução (tela "GMD/Evolução do rebanho": peso × tempo por animal/
+      lote/fazenda). A weblib já tem o equivalente (`SimpleAreaChart`, `@codecacto/weblib/charts`, via
+      `recharts`); falta o par mobile. Sugestão: `ui/components/LineChart`/`AreaChart` puro (sem lib de
+      gráfico externa, mesma filosofia do `BarChart` — "data + cor + altura + emptyMessage", tokens do
+      tema, responsivo via `LocalIsCompact`), espelhando a API do `SimpleAreaChart`. Candidato de alto
+      reuso (qualquer app com "evolução ao longo do tempo": financeiro, saúde, estoque).
+- [ ] **GAP-AC-M-CHAT — `ChatMessageList`/`ChatBubble` (mobile), gap leve/não bloqueante.** A tela "IA
+      do histórico" (perguntas em linguagem natural sobre o histórico do usuário) usa layout de
+      conversa (bolhas usuário/resposta). Sem componente dedicado hoje — o MVP compõe com `Card`
+      (Material3 nativo) + `LazyColumn` + `AppTextField`, sem bloqueio. Promover **só se** um 2º app do
+      portfólio precisar do mesmo padrão (regra "reuso em ≥2 apps").
+
+### GAPS — design do produto "Meus Links" (ux-designer, 18/jul/2026, Fluxo A `/novo-projeto`)
+> Levantados no design de telas (`Meus Links/docs/design/wireframes.md` §Gaps), ANTES da
+> implementação (Ondas 1-4 do roadmap do projeto). Nenhum bloqueia o MVP — o dev-mobile pode compor
+> localmente com primitivos existentes enquanto o item não sobe pra lib; registrados aqui por
+> potencial de reuso em ≥2 apps do estúdio (padrão "categoria→itens"/"favoritos"/menu lateral).
+
+- [ ] **GAP-ML-01 — `ListSummaryCard`/`FolderCard`** (card de categoria: ícone + cor + nome +
+      contagem de itens). Usado na Home de listas do Meus Links; padrão genérico de "organizar por
+      categoria" (pastas/álbuns/coleções) reaproveitável por outros apps com hierarquia de 1 nível.
+      Par com o **GAP-ML-01 da weblib** (mesmo nome/forma, ver `Lib/weblib/docs/backlog.md`).
+- [ ] **GAP-ML-02 — `LinkCard`/`BookmarkCard`** (favicon/imagem + título + URL truncada + nota +
+      ações editar/excluir, alça de reordenar). É o card central do Meus Links, mas o padrão "card
+      de referência externa com favicon" serve qualquer app de favoritos/links/referências. Par com
+      o mesmo GAP na weblib.
+- [ ] **GAP-ML-03 — Seletor single-select de item genérico (mobile)**, equivalente ao `RadioGroup`
+      (variant `card`) que a weblib já tem em `/menu` — a kmplib não tem nada parecido; hoje o
+      dev-mobile monta radio buttons nativos na mão, sem o padrão visual/a11y da lib. Usado no
+      fluxo "compartilhar-para-salvar" do Meus Links (escolher lista de destino), mas serve
+      qualquer escolha única entre N itens (forma de pagamento, endereço, etc.).
+- [ ] **GAP-ML-04 — Ícone/cor picker com preview de contraste (mobile).** A kmplib já tem
+      `ThemeChipGrid`/`ChipItem` para selecionar ÍCONE (cobre bem), mas **não tem equivalente ao
+      `AccentColorField` da weblib** (0.63.0 — cor com contraste medido/WCAG) para escolher COR.
+      A matemática de contraste (`ColorContrast.kt`, `ui/theme`) já existe na kmplib — falta só o
+      componente visual de picker que a reusa. Usado em "Nova/Editar lista" (ícone+cor da lista).
+- [ ] **GAP-ML-06 — Drag-to-reorder genérico (lista arrastável, mobile).** Nem `LazyColumn` nativo
+      nem nenhum componente da kmplib oferecem hoje um wrapper padronizado de "lista reordenável
+      por arrastar" (drag handle + swap + persistência de ordem). Usado para reordenar listas
+      (Home) e links (dentro de uma lista) no Meus Links; provável candidato de alto reuso (todo
+      app com listas ordenáveis pelo usuário precisa disso). Espelha a pendência já conhecida
+      `SortableList` no backlog da weblib (`/menu`) — reforça a prioridade dos dois lados.
+- [ ] **GAP-ML-07 — `AppSideMenu`/`DrawerScaffold` (mobile).** Wrapper padronizado sobre o
+      `ModalNavigationDrawer` do Material3 (itens de menu + ação "Sair" já cabendo em
+      `ConfirmationDialog`), análogo ao que `AppBottomNavBar` já faz para navegação inferior. Usado
+      no "Menu lateral" do Meus Links (app com poucas seções, sem bottom nav). Prioridade moderada —
+      funciona hoje compondo Compose nativo, não bloqueia o MVP.
+
+### 2.77.0 — Onda 0 do Arroba Certa: STT/voz + LineChart + PDF iOS (recibo) (18/jul/2026)
+> Fundação (Onda 0) do projeto **Arroba Certa** (arquétipo D, pesagem/compra-venda de gado). Três
+> itens, effort max. Todo o trabalho commonMain/androidMain compila e testa em Linux; os `actual` iOS
+> são escritos por inspeção (alvos Apple SKIPPED em Linux — validação visual em host macOS).
+
+- [x] **[O0-1] Módulo novo `voice` — STT/ditado por voz (padrão-ouro on-device).**
+      `SpeechRecognizer` (expect/actual): **Android** `android.speech.SpeechRecognizer` +
+      `RecognitionListener`; **iOS** framework `Speech` (`SFSpeechRecognizer` +
+      `SFSpeechAudioBufferRecognitionRequest` + `AVAudioEngine`). Sem WebView, sem terceiros.
+      `SpeechRecognitionConfig(languageTag="pt-BR", partialResults, preferOffline=true)` — on-device
+      por padrão (curral sem sinal). `state: StateFlow<SpeechRecognitionState{Idle,Listening,Processing,
+      Error}>`, `partialText`, `lastError`, `events: Flow<SpeechEvent{ReadyForSpeech,EndOfSpeech,Partial,
+      Result,Failed}>`; `startListening`/`stopListening`/`cancel`/`release`/`isRecognitionAvailable`/
+      `hasMicrophonePermission`. Best-effort — **nada lança** (permissão/rede/idioma → `Failed`).
+      `SpeechRecognizerHolder.init(context)` no `KmpLib.init` (Android).
+- [x] **[O0-1] UI empacotada com o serviço (pedido do design GAP-AC-M-01):** `VoiceCaptureButton`
+      (mic ao lado do campo numérico, alvo ≥48dp p/ luvas) + `DictationOverlay` (mic **animado** +
+      texto parcial ao vivo + estados ouvindo/processando/reconhecido/erro). **Confirmação obrigatória
+      de 1 toque** antes de aceitar (erro de reconhecimento tem custo financeiro → nunca auto-aceita) +
+      **fallback imediato ao teclado numérico** + "Repetir". Pede a permissão de microfone via
+      `PermissionManager`. Tokens do tema, i18n `DictationTexts`. `rememberSpeechRecognizer()` libera no
+      `onDispose`.
+- [x] **[O0-1] Núcleo puro testável `SpokenNumberParser`** (commonMain): extrai número pt-BR do texto
+      reconhecido — dígitos (`"420"`, `"391,3"`, `"420 vírgula 5"`) e por extenso
+      (`"quatrocentos e vinte"`, `"cento e vinte e três"`, "mil", "meia"), ignora unidades faladas
+      ("quilos"/"arrobas"). `parse`/`parseToDisplay`. **13 testes** `SpokenNumberParserTest`.
+- [x] **[O0-1c] `ui/components/LineChart`/`AreaChart` (Canvas puro, sem lib externa) — GAP-AC-M-CHART-LINE.**
+      Par mobile do `SimpleAreaChart` da weblib; espelha a filosofia do `BarChart` ("data + cor + altura
+      + emptyMessage", tokens, `LocalIsCompact`). 1..N séries (`LineSeries`), linha + **área** com
+      degradê, pontos, grade tracejada, eixo Y (min/meio/max via `valueFormatter`) e **eixo X em
+      dd/MM/yyyy** (rótulos distribuídos, `maxXLabels`). Lógica pura testável
+      (`lineChartValueBounds`/`normalizeToFraction`/`xAxisLabelIndices`). **11 testes** `LineChartTest`.
+- [x] **[O0-2] PDF real no iOS — GATE do recibo (ADR-0003, `kmplib-ios-pdf-stub-debt`).** Helper
+      compartilhado **`IosPdfCanvas`** (`IosPdfRenderer.ios.kt`): desenha **texto via CoreText**
+      (`CTLine` + `NSAttributedString` com `"NSFont"`/`"CTForegroundColor"`, receita de flip da baseline)
+      e primitivas (linha/retângulo/round-rect/imagem) dentro de `UIGraphicsPDFRenderer` — abordagem
+      **nativa/oficial** exportada no K/N, nunca workaround. `renderIosPdf(w,h){ }` + `PdfColor.argb(ARGB)`
+      (paridade de cor com Android). **Geradores de recibo migrados de stub → real:** `OsPdfGenerator.ios`
+      (`OsPdfData` — o do Arroba Certa: fazenda/comprador/discriminação) e `ReciboPdf.ios` (layout
+      congelado + negrito inline via `reciboBodyWords`), com o MESMO layout/coordenadas/cores do Android.
+- [ ] **[O0-2] Dívida remanescente (não bloqueia a Onda 1): os 7 geradores de PDF iOS multi-página.**
+      `DocumentPdfGenerator`, `FinanceReportPdfGenerator`, `HoursReportPdfGenerator`, `InspectionPdfGenerator`,
+      `TableReportPdfGenerator`, `VaccinationCardPdfGenerator`, `WorkReportPdfGenerator` seguem stub no
+      iOS. **Justificativa técnica (ADR-0003 §exceção — registrada):** são renderers **multi-página**
+      (o `IosPdfCanvas`/`renderIosPdf` atual é página única) e nenhum é consumido pela Onda 1 do Arroba
+      Certa; portá-los **sem compilar/validar em iOS** (Linux) seria código cego. Template provado
+      (helper + os 2 geradores de recibo) pronto para a migração num host macOS: estender
+      `renderIosPdf` p/ N páginas e traduzir cada layout Android. `PlatformCapabilities.pdfGeneration`
+      permanece `false` (coarse) até os 9 saírem.
+- [x] **Build:** `:kmplib:compileDebugKotlinAndroid` + `:kmplib:testDebugUnitTest` (suíte completa)
+      verdes; `publishToMavenLocal` **2.77.0** OK (Android + metadata, Linux). iOS linka/valida em macOS.
+- [ ] **Consumo (dev-mobile, Arroba Certa):** telas #7 (calculadora — `VoiceCaptureButton`+
+      `DictationOverlay` no campo de peso), #20 (GMD/Evolução — `LineChart`/`AreaChart`), #13 (recibo —
+      `OsPdfData`→`generateAndShareOsPdf`, já funciona iOS). Android: declarar `RECORD_AUDIO` +
+      `KmpLib.init`. iOS: `NSMicrophoneUsageDescription` + `NSSpeechRecognitionUsageDescription`.
+
 ### 2.75.0 — Observabilidade de crashes com Sentry KMP + remoção do Crashlytics — módulo `observability` (17/jul/2026)
 > Destrava o piloto Meu Barbeiro e os próximos apps: crashes reais em Android E iOS via
 > `sentry-kotlin-multiplatform` 0.13.0 (padrão-ouro), reportando ao Sentry/GlitchTip self-host. Removido

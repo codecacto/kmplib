@@ -108,19 +108,21 @@ _ = onSuccess(value)
 
 ## Geradores de PDF (iOS)
 
-Os **9** geradores de PDF em `iosMain/kotlin/.../pdf/` estão como **stubs** que lançam exceção:
+**2.77.0 — recibo iOS quitado** (ADR-0003 Arroba Certa). `OsPdfGenerator.ios.kt` e `ReciboPdf.ios.kt`
+são **REAIS** via `UIGraphicsPDFRenderer` + **CoreText** (helper compartilhado `IosPdfRenderer.ios.kt`
+= `IosPdfCanvas`/`renderIosPdf`/`PdfColor`). Restam **7** geradores multi-página como **stubs** que
+lançam exceção (dívida remanescente — o `renderIosPdf` atual é página única):
 
-- `ReciboPdf.ios.kt`
 - `DocumentPdfGenerator.ios.kt`
 - `FinanceReportPdfGenerator.ios.kt`
 - `HoursReportPdfGenerator.ios.kt`
 - `InspectionPdfGenerator.ios.kt`
-- `OsPdfGenerator.ios.kt`
 - `TableReportPdfGenerator.ios.kt`
 - `VaccinationCardPdfGenerator.ios.kt`
 - `WorkReportPdfGenerator.ios.kt`
 
-(`PdfRasterizer.ios.kt` — `renderPdfPagesToImages` — é real e funciona.)
+(`PdfRasterizer.ios.kt` — `renderPdfPagesToImages` — é real e funciona. `OsPdf`/`ReciboPdf` iOS são
+o **template** para migrar os 7: estender `renderIosPdf` p/ N páginas + traduzir o layout Android.)
 
 **Motivo**: as categorias de desenho de texto do UIKit (`NSString.sizeWithAttributes`, `drawAtPoint`) não
 são exportadas no Kotlin/Native 2.x.

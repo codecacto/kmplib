@@ -9,6 +9,7 @@ import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import br.com.codecacto.kmplib.platform.UrlLauncherHolder
 import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
+import br.com.codecacto.kmplib.voice.SpeechRecognizerHolder
 
 /**
  * Inicializa a KmpLib no Android.
@@ -31,6 +32,7 @@ fun KmpLib.init(context: Context) {
     GoogleAuthHolder.init(context)
     SyncDatabaseHolder.init(context)
     TtsControllerHolder.init(context)
+    SpeechRecognizerHolder.init(context)
 }
 
 /**
