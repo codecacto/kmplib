@@ -15,8 +15,11 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGAffineTransformMake
 import platform.CoreGraphics.CGColorRef
 import platform.CoreGraphics.CGContextAddLineToPoint
+import platform.CoreGraphics.CGContextClipToRect
+import platform.CoreGraphics.CGContextFillEllipseInRect
 import platform.CoreGraphics.CGContextFillRect
 import platform.CoreGraphics.CGContextMoveToPoint
+import platform.CoreGraphics.CGContextStrokeRect
 import platform.CoreGraphics.CGContextRef
 import platform.CoreGraphics.CGContextRestoreGState
 import platform.CoreGraphics.CGContextRotateCTM
@@ -189,6 +192,73 @@ internal class IosPdfCanvas(
         path.fill()
     }
 
+    /** Contorno (stroke) de retângulo com [width] pt. */
+    fun strokeRect(x: Double, y: Double, w: Double, h: Double, color: PdfColor, width: Double) {
+        color.cgColor()?.let { CGContextSetStrokeColorWithColor(cg, it) }
+        CGContextSetLineWidth(cg, width)
+        CGContextStrokeRect(cg, CGRectMake(x, y, w, h))
+    }
+
+    /** Contorno (stroke) de retângulo arredondado. */
+    fun strokeRoundRect(x: Double, y: Double, w: Double, h: Double, radius: Double, color: PdfColor, width: Double) {
+        val path = UIBezierPath.bezierPathWithRoundedRect(
+            rect = CGRectMake(x, y, w, h),
+            cornerRadius = radius,
+        )
+        path.lineWidth = width
+        color.uiColor().setStroke()
+        path.stroke()
+    }
+
+    /** Disco preenchido de centro ([cx],[cy]) e raio [radius] (ponto de status). */
+    fun fillCircle(cx: Double, cy: Double, radius: Double, color: PdfColor) {
+        color.cgColor()?.let { CGContextSetFillColorWithColor(cg, it) }
+        CGContextFillEllipseInRect(cg, CGRectMake(cx - radius, cy - radius, radius * 2, radius * 2))
+    }
+
+    /**
+     * Desenha [bytes] em **center-crop** dentro da caixa ([x],[y],[boxW],[boxH]) — a imagem preenche a
+     * caixa (escala pelo maior fator) e o excedente é recortado (`clip`). Espelha o `clipRect` +
+     * `drawBitmap(dst)` do Android nas grades de comprovantes/fotos. No-op se os bytes forem inválidos.
+     */
+    fun imageCrop(bytes: ByteArray, x: Double, y: Double, boxW: Double, boxH: Double) {
+        val image = decodeImage(bytes) ?: return
+        val (iw, ih) = image.size.useContents { width to height }
+        if (iw <= 0.0 || ih <= 0.0) return
+        val scale = maxOf(boxW / iw, boxH / ih)
+        val dw = iw * scale
+        val dh = ih * scale
+        val dx = x + (boxW - dw) / 2.0
+        val dy = y + (boxH - dh) / 2.0
+        CGContextSaveGState(cg)
+        CGContextClipToRect(cg, CGRectMake(x, y, boxW, boxH))
+        image.drawInRect(CGRectMake(dx, dy, dw, dh))
+        CGContextRestoreGState(cg)
+    }
+
+    /**
+     * Mede a altura (pt) que [text] ocupará com quebra por palavra em [maxWidth], sem desenhar —
+     * mesma conta do `measureWrappedHeight` do Android (usada para dimensionar caixas de aviso).
+     */
+    fun measureWrappedHeight(text: String, maxWidth: Double, size: Double, bold: Boolean, lineHeight: Double): Double {
+        if (maxWidth <= 0.0) return lineHeight
+        var lines = 0
+        val current = StringBuilder()
+        for (word in text.split(' ')) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (measure(candidate, size, bold) > maxWidth && current.isNotEmpty()) {
+                lines++
+                current.clear()
+                current.append(word)
+            } else {
+                current.clear()
+                current.append(candidate)
+            }
+        }
+        if (current.isNotEmpty()) lines++
+        return lines.coerceAtLeast(1) * lineHeight
+    }
+
     /**
      * Desenha a imagem [bytes] (PNG/JPEG) *contain* na caixa ([x],[y],[boxW],[boxH]), ancorada no
      * topo-esquerda (igual ao `drawBitmap` do Android). No-op se os bytes forem inválidos.
@@ -291,6 +361,88 @@ internal fun renderIosPdf(
         val cg = UIGraphicsGetCurrentContext()
         if (cg != null) {
             IosPdfCanvas(cg, pageWidth, pageHeight).draw()
+        }
+    }
+    return data.toByteArray()
+}
+
+/**
+ * Fluxo de renderização **multi-página** para os geradores de PDF que paginam (relatórios/tabelas).
+ * Espelha o padrão `RenderCtx` dos geradores Android (`PdfDocument.startPage`/`finishPage`): cada
+ * chamada a [newPage] **comita** a página atual (desenhando a marca d'água, se houver) e abre outra.
+ *
+ * Uso dentro de [renderIosPdfPaged]:
+ * ```kotlin
+ * renderIosPdfPaged(W, H, watermark = data.watermarkText.takeIf { data.watermark }) {
+ *     var y = MARGIN
+ *     y = drawHeader(canvas, ...)          // 'canvas' é sempre o da página corrente
+ *     if (y > H - MARGIN - needed) newPage()
+ *     // ...
+ * }
+ * ```
+ * A marca d'água (−45°, 54pt, ~12% preto — paridade com os geradores Android) é desenhada
+ * automaticamente ao fim de CADA página quando [watermarkText] não é branco.
+ */
+internal class IosPageFlow(
+    private val context: platform.UIKit.UIGraphicsPDFRendererContext,
+    val pageWidth: Double,
+    val pageHeight: Double,
+    private val watermarkText: String?,
+) {
+    /** Canvas da página corrente. Reatribuído a cada [newPage]. */
+    lateinit var canvas: IosPdfCanvas
+        private set
+
+    internal fun startFirstPage() = beginNewPage()
+
+    /** Comita a página atual (com marca d'água) e abre uma nova. */
+    fun newPage() {
+        drawWatermarkIfNeeded()
+        beginNewPage()
+    }
+
+    internal fun finish() = drawWatermarkIfNeeded()
+
+    private fun beginNewPage() {
+        context.beginPage()
+        val cg = UIGraphicsGetCurrentContext()
+        if (cg != null) canvas = IosPdfCanvas(cg, pageWidth, pageHeight)
+    }
+
+    private fun drawWatermarkIfNeeded() {
+        val text = watermarkText?.takeIf { it.isNotBlank() } ?: return
+        if (!::canvas.isInitialized) return
+        val cx = pageWidth / 2.0
+        val cy = pageHeight / 2.0
+        canvas.save()
+        canvas.translate(cx, cy)
+        canvas.rotate(-45.0 * kotlin.math.PI / 180.0)
+        canvas.translate(-cx, -cy)
+        canvas.text(text, cx, cy, 54.0, bold = true, color = PdfColor.argb(0x1F1A1A1A), align = PdfTextAlign.Center)
+        canvas.restore()
+    }
+}
+
+/**
+ * Renderiza um PDF **multi-página** de [pageWidth]×[pageHeight] pt. O [body] controla a paginação via
+ * [IosPageFlow.newPage] e desenha no [IosPageFlow.canvas] corrente. [watermark] (texto) é desenhado
+ * em cada página quando não branco. Retorna os bytes do PDF.
+ */
+internal fun renderIosPdfPaged(
+    pageWidth: Double,
+    pageHeight: Double,
+    watermark: String? = null,
+    body: IosPageFlow.() -> Unit,
+): ByteArray {
+    val bounds = CGRectMake(0.0, 0.0, pageWidth, pageHeight)
+    val format = UIGraphicsPDFRendererFormat()
+    val renderer = UIGraphicsPDFRenderer(bounds = bounds, format = format)
+    val data: NSData = renderer.PDFDataWithActions { context ->
+        if (context != null) {
+            val flow = IosPageFlow(context, pageWidth, pageHeight, watermark)
+            flow.startFirstPage()
+            flow.body()
+            flow.finish()
         }
     }
     return data.toByteArray()

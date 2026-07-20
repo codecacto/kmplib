@@ -30,7 +30,7 @@ import androidx.compose.ui.viewinterop.UIKitView
  * `GMSMapView` (add/remove via [DisposableEffect]) — mesmo modelo do Android.
  *
  * Sem o bridge Swift registrado (`IosMapBridge.factory == null`), exibe um placeholder claro
- * (não quebra). O build/validação final é em host macOS (pod `GoogleMaps` + Xcode).
+ * (não quebra). O build/validação final é em host macOS (pacote SPM `googlemaps/ios-maps-sdk` no Xcode).
  */
 actual class MapScope internal constructor(
     internal val markers: SnapshotStateList<IosMapMarkerData>,

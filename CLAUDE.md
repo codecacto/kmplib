@@ -108,10 +108,11 @@ _ = onSuccess(value)
 
 ## Geradores de PDF (iOS)
 
-**2.77.0 — recibo iOS quitado** (ADR-0003 Arroba Certa). `OsPdfGenerator.ios.kt` e `ReciboPdf.ios.kt`
-são **REAIS** via `UIGraphicsPDFRenderer` + **CoreText** (helper compartilhado `IosPdfRenderer.ios.kt`
-= `IosPdfCanvas`/`renderIosPdf`/`PdfColor`). Restam **7** geradores multi-página como **stubs** que
-lançam exceção (dívida remanescente — o `renderIosPdf` atual é página única):
+**2.78.0 — os 9 geradores iOS estão IMPLEMENTADOS em código** (ADR-0003). O helper multi-página
+`renderIosPdfPaged` + `IosPageFlow` (marca d'água por página) estendeu o `renderIosPdf` de página única
+(recibo, 2.77.0) para N páginas, e o `IosPdfCanvas` ganhou `strokeRect`/`strokeRoundRect`/`fillCircle`/
+`imageCrop`/`measureWrappedHeight`. Os 7 que eram stub agora renderizam de verdade, espelhando o par
+Android (mesmo layout/coordenadas/cores):
 
 - `DocumentPdfGenerator.ios.kt`
 - `FinanceReportPdfGenerator.ios.kt`
@@ -121,26 +122,27 @@ lançam exceção (dívida remanescente — o `renderIosPdf` atual é página ú
 - `VaccinationCardPdfGenerator.ios.kt`
 - `WorkReportPdfGenerator.ios.kt`
 
-(`PdfRasterizer.ios.kt` — `renderPdfPagesToImages` — é real e funciona. `OsPdf`/`ReciboPdf` iOS são
-o **template** para migrar os 7: estender `renderIosPdf` p/ N páginas + traduzir o layout Android.)
+Somados a `OsPdfGenerator.ios`/`ReciboPdf.ios` (2.77.0) e `PdfRasterizer.ios` (`renderPdfPagesToImages`),
+os 9 geradores são reais. Técnica: **CoreText** (`CTLine`) dentro de `UIGraphicsPDFRenderer`/`CGContext`
+(as categorias de desenho de texto do UIKit `NSString.drawAtPoint` não são exportadas no K/N 2.x).
 
-**Motivo**: as categorias de desenho de texto do UIKit (`NSString.sizeWithAttributes`, `drawAtPoint`) não
-são exportadas no Kotlin/Native 2.x.
-
-**Caminho gold-standard do fix** (requer host macOS): desenhar com **CoreText**
-(`CTFramesetterCreateWithAttributedString`, `CTFrameDraw`/`CTLineDraw`, exportados no K/N) dentro de
-`UIGraphicsPDFRenderer`/`CGContext`. O layout lógico já é compartilhado (`pdf/ReciboPdfLayout.kt`).
-
-**Enquanto isso**: o app **não deve vender/exibir** export de PDF no iOS — consulte
-`platform/PlatformCapabilities.pdfGeneration` (mesma coisa para `cameraCapture`, cujo `CameraView.ios`
-também é placeholder). Desde a 2.69.0 há como impedir a **venda** da feature inexistente:
+**PENDÊNCIA — validação em host macOS.** O build Kotlin/Native iOS **não roda em Linux**; o código é
+fiel ao Android mas **não foi compilado/validado em macOS**. Por isso
+`platform/PlatformCapabilities.pdfGeneration` (e `cameraCapture`) **continuam `false`** — o flip para
+`true` é o **passo final em macOS** (compilar os alvos iOS + validação visual dos PDFs; para câmera,
+testar num device). Enquanto `false`, o app **não vende/exibe** a feature no iOS:
 `"Exportar PDF" requiring PlatformCapability.PdfGeneration` + `List<CapabilityFeature<T>>.availableValues()`
 ao montar `PaywallPlan.highlights`/menus, e `CapabilityGate(PlatformCapability.PdfGeneration) { ... }`
-para UI pontual.
+para UI pontual. Nenhum app precisa mudar quando o flag virar `true`.
 
-Os stubs **falham alto** (exceção com mensagem apontando o flag), nunca em silêncio. `CameraView.ios`
-é `@Composable`: não lança, mas desenha um placeholder explícito e **nunca chama o callback**.
-Ao pagar cada dívida, virar o flag em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
+## Câmera / OCR (iOS)
+
+**2.78.0 — `CameraView.ios` e `PlateOcrAnalyzer.ios` implementados** (não mais placeholder).
+`PlateOcrAnalyzer.ios` usa **Apple Vision** (`VNRecognizeTextRequest`) para OCR on-device; `CameraView.ios`
+usa **AVFoundation** (`AVCaptureSession` + `AVCaptureVideoDataOutput` + `AVCaptureVideoPreviewLayer` via
+`UIKitView`) + Vision no `CVPixelBuffer` dos frames (com throttle) e codifica o frame reconhecido em
+**JPEG** na variante `onCapture`. Padrão-ouro (APIs oficiais Apple, sem WebView). Info.plist exige
+`NSCameraUsageDescription`. **Pendente de validação em host macOS** (não compila em Linux).
 
 ## Push own-stack (2.76.0 — sem cerimônia Firebase por app)
 

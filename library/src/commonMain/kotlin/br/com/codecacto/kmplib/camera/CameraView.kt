@@ -13,8 +13,11 @@ import androidx.compose.ui.Modifier
  *   alimentando o [PlateOcrAnalyzer] (ML Kit), com throttle entre leituras
  *   para evitar disparos repetidos. Requer a permissão de câmera concedida
  *   pelo app consumidor (`android.permission.CAMERA`).
- * - **iOS:** placeholder estático (não chama [onPlateCaptured]) — a captura
- *   nativa entra quando construída em host macOS.
+ * - **iOS:** **AVFoundation** (`AVCaptureSession` + `AVCaptureVideoDataOutput`)
+ *   para o preview + **Apple Vision** (`VNRecognizeTextRequest`) para o OCR
+ *   on-device (2.78.0). Implementado espelhando o Android; **pendente de
+ *   validação em host macOS** (o build iOS não roda em Linux). Info.plist:
+ *   `NSCameraUsageDescription`.
  *
  * O consumidor deve combinar com a entrada manual existente (`PlateMask`):
  * o OCR é um incremento, não substitui o campo de texto.
@@ -55,8 +58,10 @@ expect fun CameraView(
  * - **Android:** **CameraX** — `Preview` + `ImageAnalysis` (OCR ML Kit) +
  *   `ImageCapture`; ao detectar a placa, dispara `ImageCapture.takePicture`
  *   para obter um JPEG nítido do veículo, aplica a rotação e devolve os bytes.
- * - **iOS:** placeholder estático (não chama [onCapture]) — a captura nativa
- *   (AVFoundation + Apple Vision) entra quando construída em host macOS.
+ * - **iOS:** **AVFoundation** + **Apple Vision** (2.78.0) — o frame reconhecido
+ *   é codificado em JPEG (`CIImage`→`UIImageJPEGRepresentation`) e devolvido via
+ *   [onCapture]. Implementado espelhando o Android; **pendente de validação em
+ *   host macOS**.
  *
  * @param onCapture chamado com a placa normalizada (ex.: `"ABC1D23"`) e os
  *   **bytes JPEG** do frame reconhecido.

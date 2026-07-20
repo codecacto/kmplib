@@ -1,3 +1,25 @@
+# BREAKING CHANGES — kmplib
+
+> **Fonte de verdade viva = skill `kmplib-catalog`.** Cada módulo/API no catálogo indica a versão em
+> que entrou/mudou. Este arquivo guarda o **histórico curado** dos breaking mais impactantes; o
+> `CHANGELOG.md` (raiz) tem a lista completa por versão.
+
+## Resumo de breaking estruturais (2.x)
+
+Mudanças que **exigiram** ação dos consumidores — detalhe/migração no catálogo do módulo citado:
+
+| Versão | Módulo | Breaking | Migração |
+|--------|--------|----------|----------|
+| 2.78.0 | (nenhum) | Onda de manutenção da auditoria: higiene git, docs, ADRs, `OnboardingPager` (novo), `CrashReporter.initFromBuildConfig` (aditivo), portes iOS de PDF/câmera (aditivos). **Sem breaking.** | — |
+| 2.75.0 | `firebase/crashlytics` → `observability` | Módulo Crashlytics **removido**; crashes vão para `CrashReporter` (Sentry/GlitchTip). | Trocar `CrashlyticsService` por `crashReporterModule` + `CrashReporter.init(...)`. |
+| 2.57.0 | `monetization` | Assinatura por **Offerings/Packages** (RevenueCat gold-standard); `getProducts()`/`purchase(id)` `@Deprecated`. | Usar `getOfferings()`/`purchasePackage(id)`; `toPaywallPlans(packages=...)`. |
+| 2.42.0 | `firebase/firestore` | `FirestoreService` **removido** (SEM Firestore como banco). | CRUD via `core/data` (`RestRepository`) ou local (`sync`). |
+| 2.38.0 | `ads`/`monetization` | AdMob/Firebase Ads **removidos**; só house ads via apps-api. `MonetizationConfig` sem `AdConfig`. | `AdRouter`/`CustomAdManager` REST; `AdsOnly` virou `data object`. |
+| 2.24.0 | `feedback` | `FeedbackConfig` aponta ao apps-api (removidos `appId`/`firebaseProjectId`/`firebaseApiKey`). | Passar `projectSlug`+`httpClient`+`appsApiBaseUrl`. |
+| 2.0.0 | `ui/screens` | `GenericLoginScreen` → `LoginScreen` stateless (MVI). | Ver abaixo. |
+
+---
+
 ## 🚨 BREAKING CHANGES - Versão 1.0.0 → 2.0.0
 
 ### Refatoração Completa da UI - LoginScreen e RegisterScreen

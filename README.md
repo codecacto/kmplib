@@ -1,8 +1,20 @@
-# KmpLib v2.2.0 — Biblioteca KMP CodeCacto
+# KmpLib v2.78.0 — Biblioteca KMP CodeCacto
 
 Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizavel entre todos os apps da CodeCacto. Usar esta lib ao criar um novo app economiza semanas de desenvolvimento.
 
-**Coordenadas Maven:** `br.com.codecacto:kmplib:2.2.0`
+**Coordenadas Maven:** `br.com.codecacto:kmplib:2.78.0`
+
+> **Fonte de verdade viva = skill `kmplib-catalog`** (`.claude/skills/kmplib-catalog`). Este README é
+> um guia de introdução; o catálogo lista TODOS os módulos/APIs com a versão em que entraram. Em caso de
+> divergência, o catálogo vence.
+>
+> **Mudanças estruturais desde a 2.2.0** (ver seções abaixo já ajustadas / catálogo):
+> - **SEM Firestore como banco** — `firebase/firestore` foi **removido na 2.42.0**. Dados de domínio
+>   falam REST com a API central (`core/data`) ou ficam locais (`sync`/`LocalRepository`). Firebase fica
+>   só para **Auth** (login) e **FCM** (push).
+> - **Crashes → GlitchTip/Sentry** — `firebase/crashlytics` foi **removido na 2.75.0**; use o módulo
+>   `observability`/`CrashReporter` (`sentry-kotlin-multiplatform`).
+> - **Sem AdMob** — só **house ads** próprios (módulo `ads`, via apps-api) desde a 2.38.0.
 
 ---
 
@@ -37,7 +49,7 @@ Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizav
 
 ```kotlin
 // No gradle/libs.versions.toml
-kmplib = "2.2.0"
+kmplib = "2.78.0"
 // Em [libraries]
 kmplib = { module = "br.com.codecacto:kmplib", version.ref = "kmplib" }
 
@@ -1419,7 +1431,7 @@ Ao criar um novo app KMP da CodeCacto, siga esta ordem:
 | Koin | 4.1.1 |
 | Navigation Compose | 2.9.1 |
 | Lifecycle | 2.9.6 |
-| kmplib | 2.2.0 |
+| kmplib | 2.78.0 |
 | compileSdk | 36 |
 | minSdk | 24 |
 | targetSdk | 36 |

@@ -20,7 +20,8 @@ data class IosMapMarkerData(
  *
  * Espelha o padrão já usado neste app para recursos nativos do iOS (ex.: `googleSignInHandler`
  * em `MainViewController`): o Kotlin define o contrato, o Swift implementa com o SDK nativo
- * (mantendo o `pod 'GoogleMaps'` no Xcode, onde é idiomático), e a UI Compose embute a `view`
+ * (o pacote **SPM `googlemaps/ios-maps-sdk`** adicionado no Xcode — SPM é inegociável no
+ * ecossistema; o pod `GoogleMaps` foi descontinuado no Q2/2026), e a UI Compose embute a `view`
  * via `UIKitView`. Assim o mapa iOS é Google Maps NATIVO — paridade com o Android (`maps-compose`),
  * sem cinterop na lib.
  */

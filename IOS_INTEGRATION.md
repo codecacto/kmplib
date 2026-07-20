@@ -61,6 +61,7 @@ Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências 
 | Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | Observabilidade de crashes (módulo `observability`, via `sentry-kotlin-multiplatform`) |
 | RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | Compras in-app (se usar monetização) |
 | Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | Login Google (se usar) |
+| Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | Mapa nativo `GMSMapView` (módulo `map`, bridge `MapBridge.swift`). **SPM — o pod `GoogleMaps` foi descontinuado no Q2/2026.** |
 
 #### Como adicionar no Xcode:
 

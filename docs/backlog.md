@@ -3,6 +3,132 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.78.0 — Onda de manutenção da auditoria (jul/2026) — CONCLUÍDA
+> Itens da kmplib do doc `docs/analises/2026-07-19-auditoria-libs-cascas-apps-estrutura.md`. Detalhe no
+> `CHANGELOG.md`. Handoff em `docs/handoffs/2026-07-20-auditoria-onda-kmplib.md`.
+- [x] **P1-11** Higiene git (`git rm --cached` de lixo + configs Firebase órfãs).
+- [x] **P1-1 / P2-16 / P2-1** README (2.2.0→2.78.0), BREAKING_CHANGES, docs mortas → `docs/legacy/`,
+      KDoc do mapa iOS CocoaPods→SPM, `docs/adr/` (ADR-001, ADR-0003).
+- [x] **P1-5** `ui/components/OnboardingPager` (config-driven, 17 apps a migrar).
+- [x] **P2-2** `CrashReporter.initFromBuildConfig` (fim do boilerplate de ~37 apps).
+- [x] **P1-9** 7 geradores de PDF iOS portados (pendente validação macOS — ver item O0-2 abaixo).
+- [x] **P1-10** `CameraView.ios` + `PlateOcrAnalyzer.ios` (AVFoundation + Apple Vision; pendente macOS).
+- [x] **P2-11** Teste de `firebase/auth` (`FakeAuthRepository` + `AuthTest`).
+- [ ] **PENDENTE (macOS):** compilar alvos iOS + validar visualmente os 9 PDFs e a câmera/OCR num
+      device; então virar `PlatformCapabilities.pdfGeneration`/`cameraCapture` para `true`.
+- [ ] **Migração (dev-mobile):** ~17 apps → `OnboardingPager`; apps de crash → `initFromBuildConfig`.
+
+### GAPS — design do produto "ABC Divertido" (ux-designer/dev-mobile, 20/jul/2026, bootstrap por cópia do molde Na Sorte)
+> Levantado no design de telas (`ABC Divertido/mobile/docs/DESIGN.md` §7), alfabetização infantil
+> 100% offline (arquétipo A): letras, números, formas/cores e 3 joguinhos com acerto/erro. Tem
+> **fallback local funcional** — não bloqueia a entrega.
+
+- [ ] **GAP-ABC-M-01 — `CelebrationOverlay` (overlay de celebração/acerto reutilizável, "confete"/
+      estrela + mensagem).** A kmplib não tem um componente de feedback visual de acerto para jogos
+      infantis/gamificados (`ui/share/ShareCard` é outra coisa). Fallback local implementado em
+      `ABC Divertido/mobile/composeApp/.../features/games/common/CelebrationOverlay.kt` (`Surface`
+      com ícone `Celebration` + mensagem, `AnimatedVisibility` fade+scale, auto-dispensa após
+      ~1.2s via callback `onDone`, 100% tokens do tema). Usado pelos 3 joguinhos (Ache a letra,
+      Conte os objetos, Ligue). Candidato de alto reuso: qualquer app com jogos/recompensa
+      (educação infantil, gamificação, hábitos).
+- [ ] **GAP-ABC-M-02 — `AccentTile` (tile grande de conteúdo livre, "flashcard" colorido).**
+      Observado durante a implementação: o `CommunicationTile` existente exige `ImageVector` (ícone +
+      rótulo curto) e não comporta um GLIFO GRANDE (letra/número/emoji gigante como flashcard). Fallback
+      local implementado em `ABC Divertido/mobile/composeApp/.../features/common/AccentTile.kt` —
+      mesma filosofia de acessibilidade do `CommunicationTile` (alvo = tile inteiro, haptic, alto
+      contraste via `LocalHighContrast`), mas com slot de conteúdo `@Composable` livre e rotação de
+      tom pelos 4 tokens `primary/secondary/tertiary/error` (não só os 3 pares fixos do `TileTone`).
+      Candidato de reuso: qualquer app de alfabetização/CAA/flashcard infantil.
+
+### GAPS — design do produto "Meu Pace" (ux-designer/dev-mobile, 20/jul/2026, bootstrap por cópia do molde Na Sorte)
+> Levantado no design de telas (`Meu Pace/docs/DESIGN.md` §7), calculadora de corrida 100% offline
+> (arquétipo A). Tem **fallback local funcional** — não bloqueia a entrega.
+
+- [ ] **GAP-MP-M-01 — `DurationField` (mm:ss e hh:mm:ss).** A kmplib não tem um campo de entrada de
+      **duração de tempo** para esporte/cronômetro (tempo de corrida, pace por km). Hoje só existe
+      `AppTimePicker` (relógio Material 0–23h, modela **instante**, não duração) e `NumberField`
+      (número único). Nenhum cobre "digitar 00:50:00 / 05:00" com máscara e validação de faixa
+      (minutos/segundos 0–59). Usado em 4 telas do Meu Pace (`PaceCalc`, `TimePredict`, `Splits`,
+      `Converter`). Fallback local implementado em `Meu Pace/mobile/composeApp/.../core/ui/
+      DurationFields.kt` (`HmsDurationField`/`MsDurationField`, compostos com `NumberField` + `Text`
+      separador, tokens do tema, sem cor hardcoded). Candidato de alto reuso: qualquer app de
+      treino/cronômetro/tempo (esporte, jejum, receitas com tempo de preparo).
+
+### GAPS — design do produto "Barista de Casa" (ux-designer/dev-mobile, 19/jul/2026, bootstrap por cópia do molde Na Sorte)
+> Levantados no design de telas (`Barista de Casa/docs/DESIGN.md` §7), app de métodos de preparo de
+> café 100% offline (arquétipo A). Ambos com **fallback local funcional** nesta entrega.
+
+- [ ] **GAP-BC-M-01 — `RatingBar`/`StarRating` (entrada + exibição de nota 1–5 por estrelas).** A
+      kmplib (`ui/components`) não tem componente de estrelas. Usado no diário de degustação do
+      Barista de Casa (input no `JournalEntry`, exibição na lista do `Journal`). Fallback local
+      implementado em `Barista de Casa/mobile/composeApp/.../core/ui/StarRating.kt`
+      (`StarRatingInput`/`StarRatingDisplay`, `Icon(Filled.Star/StarBorder)` clicáveis, tokens do
+      tema). Candidato de alto reuso: qualquer app com avaliação/review (restaurantes, produtos,
+      prestadores de serviço).
+- [ ] **GAP-BC-M-02 — `CountdownTimer`/`StepTimer` (cronômetro regressivo multi-etapa, com
+      pausa/skip/reset).** A kmplib tem `AppTimePicker`/`AudioPlayerBar` mas nenhum cronômetro de
+      preparo guiado reativo. Usado no timer de preparo de café (pré-infusão → despejos →
+      finalização). Fallback local implementado em `Barista de Casa/mobile/composeApp/.../features/
+      timer/TimerViewModel.kt` (loop de tick de 1s via corrotina própria, controlado por flag
+      `isRunning`, sem lib externa). Forte candidato a lib: serve qualquer app de timer guiado por
+      etapas (receitas, treino intervalado, chá/infusões, Pomodoro).
+
+### GAPS — design do produto "SOS Ajuda" (ux-designer/dev-mobile, 19-20/jul/2026, bootstrap por cópia do molde Na Sorte)
+> Levantados no design de telas (`SOS Ajuda/docs/DESIGN.md` §7), guia offline de primeiros
+> socorros 100% offline (arquétipo A). Ambos com **fallback local funcional** nesta entrega.
+
+- [ ] **GAP-SOS-M-01 — Metrônomo visual/tátil (RCP 100–120/min).** Não existe na kmplib um
+      componente de metrônomo (pulso animado + BPM + contador + tique sonoro/háptico opcional).
+      Fallback local implementado via `rememberInfiniteTransition`/`animateFloat` +
+      `Modifier.scale` em `SOS Ajuda/mobile/composeApp/.../features/cprmetronome/
+      CprMetronomeContent.kt` (círculo que pulsa no ritmo do BPM corrente, `Slider` 100–120,
+      contador incrementado por corrotina própria no ViewModel a cada `60_000/bpm` ms) — só tokens
+      do tema, sem cor hardcoded. Candidato de alto reuso: qualquer app de ritmo/exercício/timer
+      (pomodoro, respiração guiada, treino intervalado).
+- [ ] **GAP-SOS-M-02 — Keep-screen-on (manter tela ligada).** A kmplib não tem um
+      `KeepScreenOn`/`rememberKeepScreenOn()` (expect/actual: Android `FLAG_KEEP_SCREEN_ON`, iOS
+      `isIdleTimerDisabled`). Essencial na tela `CprMetronome` (uma RCP real dura minutos; a tela
+      apagar no meio é inaceitável) e útil em qualquer app de leitura ativa/timer longo. Fallback
+      local mínimo implementado em `SOS Ajuda/mobile/composeApp/.../core/platform/KeepScreenOn.kt`
+      (`expect @Composable fun KeepScreenOn(enabled: Boolean)` + `.android.kt`/`.ios.kt`), ligado
+      em `CprMetronomeScreen` (`enabled = true` enquanto a tela está aberta). Candidato de alto
+      reuso — promover para `platform/` da lib.
+
+### GAPS — design do produto "Jejum Já" (ux-designer, 19/jul/2026, bootstrap `/novo-projeto`)
+> Levantado no design de telas (`Jejum Já/mobile/docs/DESIGN.md` §7), app timer de jejum
+> intermitente 100% offline (arquétipo A). Tem **fallback local funcional** — não bloqueia a
+> entrega; registrado por potencial de reuso em ≥2 apps (qualquer timer visual: pomodoro,
+> hidratação, meditação, cozimento).
+
+- [ ] **GAP-JJ-M-01 — Anel de progresso circular (`CircularTimerRing`/`AppProgressRing`).** A
+      kmplib só tem progresso **linear** (`UsageMeter`, `BarChart`, `LineChart/AreaChart`) — falta
+      um anel circular com preenchimento proporcional (0–100%) e slot de conteúdo central
+      customizável (tempo decorrido/restante, ícone, etc.), estilo "timer" (Pomodoro/countdown).
+      Fallback local implementado via `Canvas` puro (`drawArc` com `Stroke` round-cap, trilha +
+      progresso, início no topo/-90°) em `Jejum Já/mobile/composeApp/.../features/timer/
+      FastProgressRing.kt` — só tokens do tema (`MaterialTheme.colorScheme`), sem cor hardcoded,
+      já promovível quase sem alteração (`progress: Float`, `content: @Composable BoxScope.() ->
+      Unit` como slot central). Candidato de alto reuso: qualquer app de timer visual do portfólio.
+
+### GAPS — design do produto "Role Games" (ux-designer, 19/jul/2026, `/novo-projeto`)
+> Levantados no design de telas (`Role Games/docs/DESIGN.md` §7), app de mini-jogos de festa
+> offline (arquétipo A). Ambos têm **fallback local funcional** (`Role Games/mobile/composeApp/.../
+> features/roleta/SpinWheel.kt` e a animação da Adedonha) — não bloqueiam a entrega; registrados
+> por potencial de reuso em ≥2 apps (Na Sorte é candidato imediato).
+
+- [ ] **GAP-RG-M-01 — Roleta girável (`SpinWheel`/`FortuneWheel`).** Roleta de N setores rotulados,
+      coloridos por token de tema, com animação de giro + desaceleração e callback do setor
+      sorteado + haptic no fim. Fallback local implementado via `Canvas` + `TextMeasurer`
+      (`rememberTextMeasurer`/`drawText`, mesma técnica multiplataforma-segura do
+      `ui/share/ShareCardRender`) em `features/roleta/SpinWheel.kt` do Role Games — inclui núcleo
+      puro/testável (`sectorIndexAtPointer`/`targetRotationDegrees`) que já poderia ser promovido
+      quase sem alteração. Reusável por qualquer app de sorteio/prenda (Na Sorte, futuros jogos).
+- [ ] **GAP-RG-M-02 — Card de "revelar/rolar" (`RevealCard`/`SlotReveal`).** Card grande que "rola"
+      opções antes de fixar o resultado (letra da Adedonha; padrão repetível para cartas/temas de
+      outros jogos). Fallback local via `rememberInfiniteTransition`/`animateFloat` em
+      `features/adedonha/AdedonhaContent.kt` (`RoundSection`) do Role Games. Animação/UI genérica de
+      sorteio, sem regra de negócio — encaixa na regra-de-ouro de promoção à lib.
+
 ### GAPS — design do produto "Arroba Certa" (ux-designer, 18/jul/2026, `/design`)
 > Levantados no design de telas (`Arroba Certa/docs/design/wireframes.md` §Gaps de lib), a partir do
 > PRD/roadmap do projeto (arquétipo D, app de pesagem/compra-venda de gado). Os dois primeiros JÁ eram
@@ -118,15 +244,15 @@
       (paridade de cor com Android). **Geradores de recibo migrados de stub → real:** `OsPdfGenerator.ios`
       (`OsPdfData` — o do Arroba Certa: fazenda/comprador/discriminação) e `ReciboPdf.ios` (layout
       congelado + negrito inline via `reciboBodyWords`), com o MESMO layout/coordenadas/cores do Android.
-- [ ] **[O0-2] Dívida remanescente (não bloqueia a Onda 1): os 7 geradores de PDF iOS multi-página.**
+- [x] **[O0-2 → 2.78.0/P1-9] Os 7 geradores de PDF iOS multi-página PORTADOS (pendente validação macOS).**
       `DocumentPdfGenerator`, `FinanceReportPdfGenerator`, `HoursReportPdfGenerator`, `InspectionPdfGenerator`,
-      `TableReportPdfGenerator`, `VaccinationCardPdfGenerator`, `WorkReportPdfGenerator` seguem stub no
-      iOS. **Justificativa técnica (ADR-0003 §exceção — registrada):** são renderers **multi-página**
-      (o `IosPdfCanvas`/`renderIosPdf` atual é página única) e nenhum é consumido pela Onda 1 do Arroba
-      Certa; portá-los **sem compilar/validar em iOS** (Linux) seria código cego. Template provado
-      (helper + os 2 geradores de recibo) pronto para a migração num host macOS: estender
-      `renderIosPdf` p/ N páginas e traduzir cada layout Android. `PlatformCapabilities.pdfGeneration`
-      permanece `false` (coarse) até os 9 saírem.
+      `TableReportPdfGenerator`, `VaccinationCardPdfGenerator`, `WorkReportPdfGenerator` saíram de stub →
+      **reais**, espelhando fielmente o par Android. Enabler: **`renderIosPdfPaged` + `IosPageFlow`**
+      (marca d'água por página) + primitivas novas no `IosPdfCanvas` (`strokeRect`/`strokeRoundRect`/
+      `fillCircle`/`imageCrop`/`measureWrappedHeight`). Com o recibo (2.77.0), os **9 geradores** estão
+      implementados em código. **`PlatformCapabilities.pdfGeneration` permanece `false`** — o build K/N
+      iOS não roda em Linux; o flip para `true` é o passo final em **macOS** (compilar alvos iOS +
+      validação visual). Nenhum gerador ficou como stub.
 - [x] **Build:** `:kmplib:compileDebugKotlinAndroid` + `:kmplib:testDebugUnitTest` (suíte completa)
       verdes; `publishToMavenLocal` **2.77.0** OK (Android + metadata, Linux). iOS linka/valida em macOS.
 - [ ] **Consumo (dev-mobile, Arroba Certa):** telas #7 (calculadora — `VoiceCaptureButton`+
