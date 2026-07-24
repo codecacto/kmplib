@@ -75,6 +75,9 @@ fun LoginScreen(
     onAction: (LoginAction) -> Unit,
     modifier: Modifier = Modifier,
     logo: Painter? = null,
+    // Dimensiona a logo. Default = 120dp quadrado (logos-ícone). Logos LARGAS/horizontais passam,
+    // ex.: `Modifier.fillMaxWidth(0.9f)` (a `Image` usa ContentScale.Fit, então preserva o aspecto).
+    logoModifier: Modifier = Modifier.size(120.dp),
     colors: LoginColors = LoginColors(),
     texts: LoginTexts = LoginTexts(),
     authMethods: AuthMethods = AuthMethods(),
@@ -107,7 +110,7 @@ fun LoginScreen(
                     Image(
                         painter = logo,
                         contentDescription = "Logo",
-                        modifier = Modifier.size(120.dp)
+                        modifier = logoModifier
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }
