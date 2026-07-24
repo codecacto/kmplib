@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
+import platform.AVFAudio.setActive
 import platform.Foundation.NSLocale
 import platform.Speech.SFSpeechAudioBufferRecognitionRequest
 import platform.Speech.SFSpeechRecognitionResult
@@ -110,7 +111,7 @@ class IosSpeechRecognizer : SpeechRecognizer {
             // Categoria de gravação (mesmo padrão do TtsController.ios, que usa o overload
             // setCategory(category, error) — member direto, sem import).
             session.setCategory(AVAudioSessionCategoryRecord, error = null)
-            session.setActive(true, error = null)
+            session.setActive(true, null)
 
             val req = SFSpeechAudioBufferRecognitionRequest()
             req.shouldReportPartialResults = config.partialResults

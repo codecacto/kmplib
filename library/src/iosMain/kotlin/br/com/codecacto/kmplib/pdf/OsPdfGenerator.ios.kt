@@ -3,7 +3,7 @@ package br.com.codecacto.kmplib.pdf
 import kotlin.math.PI
 
 /**
- * Render nativo do PDF da OS/orçamento/**recibo** no iOS via `UIGraphicsPDFRenderer` + CoreText
+ * Render nativo do PDF da OS/orçamento/recibo no iOS via `UIGraphicsPDFRenderer` + CoreText
  * (helper [IosPdfCanvas]), com o **MESMO layout lógico e as MESMAS cores** do renderer Android
  * ([AndroidOsPdfGenerator]) — paridade Android=iOS. Este é o gerador consumido pelo **recibo do
  * Arroba Certa** (`OsPdfData`: empresa=fazenda, cliente=comprador, itens=discriminação do cálculo

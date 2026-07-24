@@ -10,7 +10,7 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
-import platform.CoreFoundation.CFBridgingRetain
+import platform.Foundation.CFBridgingRetain
 import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGAffineTransformMake
 import platform.CoreGraphics.CGColorRef
@@ -324,8 +324,9 @@ internal class IosPdfCanvas(
      */
     private fun makeLine(text: String, size: Double, bold: Boolean, color: PdfColor): CTLineRef? {
         val font: UIFont = if (bold) UIFont.boldSystemFontOfSize(size) else UIFont.systemFontOfSize(size)
-        val attr = NSMutableAttributedString(string = text)
-        val range = NSMakeRange(0u, (text as NSString).length)
+        val attr = NSMutableAttributedString.create(string = text)
+        val nsString = text as NSString
+        val range = NSMakeRange(0u, nsString.length)
         attr.addAttribute("NSFont", value = font, range = range)
         color.cgColor()?.let { attr.addAttribute("CTForegroundColor", value = it, range = range) }
         val cfAttr = CFBridgingRetain(attr as NSAttributedString)

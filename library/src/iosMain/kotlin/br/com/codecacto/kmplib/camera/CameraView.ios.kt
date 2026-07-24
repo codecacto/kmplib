@@ -224,16 +224,15 @@ private class PlateCaptureDelegate(
     /** Codifica o frame [pixelBuffer] reconhecido em JPEG (q=0.85). */
     private fun pixelBufferToJpeg(pixelBuffer: platform.CoreVideo.CVPixelBufferRef): ByteArray? {
         val ciImage = CIImage(cVPixelBuffer = pixelBuffer)
-        val cgImage = ciContext.createCGImage(ciImage, fromRect = ciImage.extent) ?: return null
-        val uiImage = UIImage(cGImage = cgImage)
+        // UIImage pode ser criado diretamente a partir de CIImage
+        val uiImage = UIImage(cIImage = ciImage)
         val data = UIImageJPEGRepresentation(uiImage, 0.85) ?: return null
         return data.toByteArray()
     }
-
-    private companion object {
-        const val THROTTLE_SECONDS = 0.6
-    }
 }
+
+// Constante movida para fora da classe NSObject para evitar erro em K/N 2.x
+private const val THROTTLE_SECONDS = 0.6
 
 private fun NSData.toByteArray(): ByteArray {
     val len = length.toInt()

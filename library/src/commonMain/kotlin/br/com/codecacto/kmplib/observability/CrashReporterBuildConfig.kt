@@ -1,6 +1,9 @@
+@file:OptIn(kotlin.experimental.ExperimentalObjCName::class)
+
 package br.com.codecacto.kmplib.observability
 
 import br.com.codecacto.kmplib.core.util.BuildInfo
+import kotlin.native.ObjCName
 
 /**
  * Rótulos canônicos de ambiente do [CrashReporterConfig.environment]. Padronizados na lib para que
@@ -8,6 +11,7 @@ import br.com.codecacto.kmplib.core.util.BuildInfo
  */
 object CrashEnvironment {
     const val PRODUCTION = "production"
+    @ObjCName("DEBUG_ENV") // Evita conflito com macro DEBUG do Xcode
     const val DEBUG = "debug"
 }
 
