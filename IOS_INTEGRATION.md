@@ -53,15 +53,38 @@ kotlin {
 
 Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências iOS. Evite CocoaPods.
 
-#### Packages obrigatórios (via Xcode > Add Package Dependency):
+#### Packages por MÓDULO USADO (não adicione o que o app não usa):
 
-| Package | URL | Uso |
-|---------|-----|-----|
-| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` | Auth, Analytics |
-| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | Observabilidade de crashes (módulo `observability`, via `sentry-kotlin-multiplatform`) |
-| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | Compras in-app (se usar monetização) |
-| Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | Login Google (se usar) |
+A kmplib traz Firebase (GitLive), RevenueCat, SQLDelight e Sentry no `commonMain`, mas o linker do
+Kotlin/Native **descarta o que o app nunca chama**. Ou seja: um app own-auth que não toca
+`firebase/*` **não precisa** do Firebase iOS SDK nem de `GoogleService-Info.plist` — e o build passa.
+Adicione só o que o app realmente usa:
+
+| Package | URL | Quando é necessário |
+|---------|-----|---------------------|
+| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | **Sempre que usar `observability`/`CrashReporter`** — que é o padrão do ecossistema. Ver a nota sobre GlitchTip abaixo. |
+| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | App com compra in-app (`monetization`) |
+| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` | **Só** se o app usa Firebase Auth (`firebase/auth`), Storage client-side (`firebase/storage`), Remote Config ou push por FCM. App own-auth **não adiciona** |
+| Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | Login Google (implica Firebase Auth) |
 | Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | Mapa nativo `GMSMapView` (módulo `map`, bridge `MapBridge.swift`). **SPM — o pod `GoogleMaps` foi descontinuado no Q2/2026.** |
+
+> ⚠️ **"Sentry" aqui é o SDK, não o serviço.** Os crashes do ecossistema vão para o **GlitchTip
+> self-host** (`errors.codecacto.com.br`), que fala o protocolo do Sentry — por isso o cliente É o
+> Sentry Cocoa/`sentry-kotlin-multiplatform` e o DSN aponta para o GlitchTip. Ver `Sentry Cocoa` na
+> tabela: adicionar o package **não** significa contratar Sentry SaaS.
+
+#### `-lsqlite3` — obrigatório quando o app usa SQLDelight (offline/sync)
+
+O driver nativo do SQLDelight (`sqliter`) não linka sozinho no iOS. Sem isto o build falha com
+*undefined symbols* de `sqlite3_*`. Em DOIS lugares:
+
+```kotlin
+// composeApp/build.gradle.kts — dentro de listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { framework { … } }
+linkerOpts("-lsqlite3")
+```
+
+E no target `iosApp` do Xcode: **Build Settings > Other Linker Flags (`OTHER_LDFLAGS`)** → adicionar
+`-lsqlite3` (nas duas configurações, Debug e Release).
 
 #### Como adicionar no Xcode:
 
@@ -71,15 +94,19 @@ Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências 
 4. Selecione a versão (geralmente "Up to Next Major")
 5. Adicione ao target `iosApp`
 
-#### Produtos Firebase recomendados:
-- `FirebaseAuth`
-- `FirebaseAnalytics`
+#### Produtos Firebase — só para app que usa Firebase:
+- `FirebaseAuth` (login Firebase; app own-auth NÃO usa)
 - `FirebaseRemoteConfig` (se usar)
-- `FirebaseMessaging` (se usar push notifications)
+- `FirebaseMessaging` (push por FCM — ver a nota de push abaixo)
+- `FirebaseAnalytics` (base dos itens acima quando presentes)
 
-> **Crashes**: a observabilidade de crashes migrou do Firebase Crashlytics para **Sentry** (módulo
-> `observability`/`CrashReporter`). Adicione o package **Sentry Cocoa** (`Sentry`) ao target `iosApp`;
-> o `sentry-kotlin-multiplatform` faz o cinterop. O DSN é injetado pelo app via `CrashReporterConfig`.
+> **Crashes NÃO são Firebase.** O Crashlytics saiu da kmplib (2.75.0): a observabilidade é
+> `observability`/`CrashReporter` sobre `sentry-kotlin-multiplatform`, reportando ao **GlitchTip**.
+> O DSN é injetado pelo app via `CrashReporterConfig`.
+
+> **Push (roadmap):** o padrão do ecossistema é um **projeto centralizador** — APNs direto (uma chave
+> `.p8`) e FCM administrado no central —, sem `GoogleService-Info.plist`/`google-services.json` por
+> app. Enquanto isso não entra, app sem push não adiciona nada de Firebase.
 
 ---
 
@@ -93,7 +120,7 @@ iosApp/
 ├── iosApp/
 │   ├── Assets.xcassets/
 │   ├── Preview Content/
-│   ├── GoogleService-Info.plist    # Firebase config
+│   ├── GoogleService-Info.plist    # SÓ se o app usa Firebase (own-auth não tem)
 │   ├── Info.plist                  # App config
 │   ├── iOSApp.swift               # Entry point
 │   └── ContentView.swift          # ComposeView bridge
@@ -115,7 +142,24 @@ MARKETING_VERSION=1.0
 
 ## Snippets Swift Padrão
 
-### iOSApp.swift (mínimo)
+### iOSApp.swift (mínimo — app own-auth, o default do ecossistema)
+
+Sem Firebase: nada a configurar no boot. Não existe `GoogleService-Info.plist` neste app.
+
+```swift
+import SwiftUI
+
+@main
+struct iOSApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+### iOSApp.swift (app que USA Firebase — Auth/Remote Config/FCM)
 
 ```swift
 import SwiftUI
@@ -124,6 +168,7 @@ import FirebaseCore
 @main
 struct iOSApp: App {
     init() {
+        // Só faz sentido com GoogleService-Info.plist no target; sem ele o app ABORTA no boot.
         FirebaseApp.configure()
     }
 
@@ -423,12 +468,14 @@ AppBuildConfigKt.googleMapsApiKey
 
 - [ ] `build.gradle.kts` usa `api(libs.kmplib)` em `commonMain.dependencies`
 - [ ] `build.gradle.kts` usa `export(libs.kmplib)` em `binaries.framework`
-- [ ] Dependências SPM adicionadas no Xcode (Firebase, RevenueCat se necessário)
-- [ ] `GoogleService-Info.plist` adicionado ao target
-- [ ] `iOSApp.swift` chama `FirebaseApp.configure()` no init
+- [ ] Dependências SPM no Xcode **só dos módulos usados** (Sentry Cocoa sempre que houver
+      `CrashReporter`; RevenueCat se houver compra; Firebase **só** se o app usa Firebase)
+- [ ] Usa SQLDelight? `linkerOpts("-lsqlite3")` no Gradle **e** `-lsqlite3` em `OTHER_LDFLAGS`
+- [ ] App own-auth: **sem** `GoogleService-Info.plist` e **sem** `FirebaseApp.configure()`
+- [ ] App com Firebase: `GoogleService-Info.plist` no target + `FirebaseApp.configure()` no init
 - [ ] `ContentView.swift` configura handlers ANTES de criar `MainViewController()`
 - [ ] Callbacks usam `_ = callback(...)` para ignorar `KotlinUnit`
 
 ---
 
-*Documento gerado em 2026-07-01. Atualizar conforme necessário.*
+*Documento gerado em 2026-07-01; revisado em 24/07/2026 (Firebase virou opcional, `-lsqlite3` do SQLDelight, Sentry Cocoa = GlitchTip).*
