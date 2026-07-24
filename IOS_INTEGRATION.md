@@ -53,25 +53,35 @@ kotlin {
 
 Todos os projetos devem usar **SPM** (Swift Package Manager) para dependências iOS. Evite CocoaPods.
 
-#### Packages por MÓDULO USADO (não adicione o que o app não usa):
+#### Packages obrigatórios (via Xcode > Add Package Dependency):
 
-A kmplib traz Firebase (GitLive), RevenueCat, SQLDelight e Sentry no `commonMain`, mas o linker do
-Kotlin/Native **descarta o que o app nunca chama**. Ou seja: um app own-auth que não toca
-`firebase/*` **não precisa** do Firebase iOS SDK nem de `GoogleService-Info.plist` — e o build passa.
-Adicione só o que o app realmente usa:
+⚠️ **O link do Kotlin/Native NÃO é por app.** A kmplib é uma só e traz GitLive Firebase e
+`sentry-kotlin-multiplatform` no `commonMain`; os *bindings* cinterop desses artefatos exigem os SDKs
+nativos presentes **no link time**, mesmo que o app nunca chame aquele código. Não conte com
+tree-shaking: sem o package, o build falha com *undefined symbols*.
 
-| Package | URL | Quando é necessário |
-|---------|-----|---------------------|
-| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | **Sempre que usar `observability`/`CrashReporter`** — que é o padrão do ecossistema. Ver a nota sobre GlitchTip abaixo. |
-| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | App com compra in-app (`monetization`) |
-| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` | **Só** se o app usa Firebase Auth (`firebase/auth`), Storage client-side (`firebase/storage`), Remote Config ou push por FCM. App own-auth **não adiciona** |
-| Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | Login Google (implica Firebase Auth) |
-| Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | Mapa nativo `GMSMapView` (módulo `map`, bridge `MapBridge.swift`). **SPM — o pod `GoogleMaps` foi descontinuado no Q2/2026.** |
+| Package | URL | Produtos | Observação |
+|---|---|---|---|
+| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | `Sentry` | **Fixe a versão** compatível com o `sentry-kotlin-multiplatform` da kmplib (hoje **8.49.1** para o sentry-kmp 0.13.0). Faixa aberta pega uma major nova e quebra o cinterop |
+| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` (11.x) | `FirebaseAuth`, `FirebaseStorage`, `FirebaseMessaging`, `FirebaseRemoteConfig` | Exigido pelo GitLive da kmplib **mesmo em app own-auth** |
+| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | `RevenueCat` | + `purchases-hybrid-common` |
+| Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | `GoogleMaps` | Só quem usa o módulo `map`. **SPM — o pod foi descontinuado no Q2/2026** |
+| Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | `GoogleSignIn` | Só com login Google |
 
-> ⚠️ **"Sentry" aqui é o SDK, não o serviço.** Os crashes do ecossistema vão para o **GlitchTip
-> self-host** (`errors.codecacto.com.br`), que fala o protocolo do Sentry — por isso o cliente É o
-> Sentry Cocoa/`sentry-kotlin-multiplatform` e o DSN aponta para o GlitchTip. Ver `Sentry Cocoa` na
-> tabela: adicionar o package **não** significa contratar Sentry SaaS.
+> **Linkar ≠ configurar.** É a distinção que importa: o app **linka** o Firebase (obrigatório, acima),
+> mas só precisa de **`GoogleService-Info.plist` + `FirebaseApp.configure()`** se REALMENTE usar
+> Firebase (login Firebase, Remote Config, FCM). App **own-auth não configura nada** — e chamar
+> `configure()` sem o plist derruba o app no start. Ou seja: SDK no target, plist fora.
+
+> ⚠️ **"Sentry" aqui é o SDK, não o serviço.** Os crashes vão para o **GlitchTip self-host**
+> (`errors.codecacto.com.br`), que fala o protocolo do Sentry — por isso o cliente É o Sentry Cocoa /
+> `sentry-kotlin-multiplatform`, com o DSN apontando para o GlitchTip. Adicionar o package **não** é
+> contratar Sentry SaaS.
+
+> 🔧 **Dívida da lib (registrada):** hoje `firebase-auth`/`storage`/`config` (GitLive) estão no
+> `commonMain` da kmplib, então **todo** app iOS é obrigado a linkar o Firebase inteiro — inclusive os
+> own-auth, que é o padrão do ecossistema. O certo é extrair isso para um módulo opcional
+> (`kmplib-firebase`), aí o app só linka o que usa. Enquanto não acontece, a tabela acima vale.
 
 #### `-lsqlite3` — obrigatório quando o app usa SQLDelight (offline/sync)
 
@@ -94,11 +104,11 @@ E no target `iosApp` do Xcode: **Build Settings > Other Linker Flags (`OTHER_LDF
 4. Selecione a versão (geralmente "Up to Next Major")
 5. Adicione ao target `iosApp`
 
-#### Produtos Firebase — só para app que usa Firebase:
-- `FirebaseAuth` (login Firebase; app own-auth NÃO usa)
-- `FirebaseRemoteConfig` (se usar)
-- `FirebaseMessaging` (push por FCM — ver a nota de push abaixo)
-- `FirebaseAnalytics` (base dos itens acima quando presentes)
+#### Produtos Firebase a linkar (mesmo sem usar Firebase no app):
+- `FirebaseAuth` — exigido pelo `firebase-auth` (GitLive) da kmplib
+- `FirebaseStorage` — exigido pelo `firebase-storage` (GitLive)
+- `FirebaseRemoteConfig` — exigido pelo `firebase-config` (GitLive)
+- `FirebaseMessaging` — quando o app tiver push (FCM)
 
 > **Crashes NÃO são Firebase.** O Crashlytics saiu da kmplib (2.75.0): a observabilidade é
 > `observability`/`CrashReporter` sobre `sentry-kotlin-multiplatform`, reportando ao **GlitchTip**.
@@ -120,7 +130,7 @@ iosApp/
 ├── iosApp/
 │   ├── Assets.xcassets/
 │   ├── Preview Content/
-│   ├── GoogleService-Info.plist    # SÓ se o app usa Firebase (own-auth não tem)
+│   ├── GoogleService-Info.plist    # SÓ se o app CONFIGURA Firebase (own-auth não tem)
 │   ├── Info.plist                  # App config
 │   ├── iOSApp.swift               # Entry point
 │   └── ContentView.swift          # ComposeView bridge
@@ -468,14 +478,15 @@ AppBuildConfigKt.googleMapsApiKey
 
 - [ ] `build.gradle.kts` usa `api(libs.kmplib)` em `commonMain.dependencies`
 - [ ] `build.gradle.kts` usa `export(libs.kmplib)` em `binaries.framework`
-- [ ] Dependências SPM no Xcode **só dos módulos usados** (Sentry Cocoa sempre que houver
-      `CrashReporter`; RevenueCat se houver compra; Firebase **só** se o app usa Firebase)
+- [ ] Dependências SPM no Xcode: **Sentry Cocoa (versão fixada)** + **Firebase (Auth/Storage/Remote
+      Config)** — obrigatórias pelo link da kmplib, mesmo em app own-auth — e RevenueCat se houver compra
 - [ ] Usa SQLDelight? `linkerOpts("-lsqlite3")` no Gradle **e** `-lsqlite3` em `OTHER_LDFLAGS`
-- [ ] App own-auth: **sem** `GoogleService-Info.plist` e **sem** `FirebaseApp.configure()`
-- [ ] App com Firebase: `GoogleService-Info.plist` no target + `FirebaseApp.configure()` no init
+- [ ] App own-auth: linka o Firebase, mas **sem** `GoogleService-Info.plist` e **sem**
+      `FirebaseApp.configure()` (configurar sem o plist derruba o app no start)
+- [ ] App que USA Firebase: `GoogleService-Info.plist` no target + `FirebaseApp.configure()` no init
 - [ ] `ContentView.swift` configura handlers ANTES de criar `MainViewController()`
 - [ ] Callbacks usam `_ = callback(...)` para ignorar `KotlinUnit`
 
 ---
 
-*Documento gerado em 2026-07-01; revisado em 24/07/2026 (Firebase virou opcional, `-lsqlite3` do SQLDelight, Sentry Cocoa = GlitchTip).*
+*Documento gerado em 2026-07-01; revisado em 24/07/2026 (link do Firebase é obrigatório mas a CONFIGURAÇÃO não, `-lsqlite3` do SQLDelight, Sentry Cocoa fixado = cliente do GlitchTip).*
