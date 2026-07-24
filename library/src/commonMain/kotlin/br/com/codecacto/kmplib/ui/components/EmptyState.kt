@@ -40,11 +40,13 @@ fun EmptyState(
     description: String? = null,
     action: (@Composable () -> Unit)? = null,
     iconSize: Dp = 80.dp,
-    iconTint: Color = Color(0xFFE0E0E0),
+    // Cores derivadas do TEMA (nunca hex fixo): hex claro fixo somia no dark/tema do app (texto ≈ fundo).
+    // Ícone decorativo mais fraco (alpha) que o texto; título/descrição em on-surface p/ contraste AA.
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
     titleSize: TextUnit = 18.sp,
-    titleColor: Color = Color(0xFF424242),
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
     descriptionSize: TextUnit = 14.sp,
-    descriptionColor: Color = Color(0xFF757575),
+    descriptionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(16.dp)
 ) {
     Column(
@@ -102,11 +104,11 @@ fun FullScreenEmptyState(
     description: String? = null,
     action: (@Composable () -> Unit)? = null,
     iconSize: Dp = 120.dp,
-    iconTint: Color = Color(0xFFE0E0E0),
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
     titleSize: TextUnit = 20.sp,
-    titleColor: Color = Color(0xFF424242),
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
     descriptionSize: TextUnit = 16.sp,
-    descriptionColor: Color = Color(0xFF757575)
+    descriptionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
