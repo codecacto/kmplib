@@ -1,10 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Caminhos expostos pelo FileProvider da kmplib (ShareHandler.shareFile).
-  Expõe APENAS o subdiretório shared_files dentro do cacheDir do app, que é onde
-  o AndroidShareHandler grava o arquivo temporário antes de compartilhar.
-  Mantenha mínimo: não expor outras pastas reduz a superfície de ataque.
+  Caminhos expostos pelo FileProvider da kmplib (authority "${applicationId}.fileprovider").
+  DEVE cobrir TODOS os subdiretórios de cache que os componentes Android da própria kmplib
+  gravam antes de entregar um content:// Uri via FileProvider.getUriForFile:
+
+    - ImagePicker.android.kt  → cacheDir/photos        (captura de câmera, opção "Tirar foto")
+    - VideoPicker.android.kt  → cacheDir/videos        (captura de vídeo)
+    - ShareHandler.android.kt → cacheDir/shared_files  (ShareHandler.shareFile)
+
+  Se um caminho usado por um desses componentes não estiver aqui, getUriForFile lança
+  IllegalArgumentException e a ação (câmera/vídeo/compartilhar) falha silenciosamente no app
+  consumidor. Mantido mínimo (só subpastas de cacheDir) para reduzir a superfície de ataque.
 -->
 <paths>
+    <cache-path name="photos" path="photos/" />
+    <cache-path name="videos" path="videos/" />
     <cache-path name="shared_files" path="shared_files/" />
 </paths>

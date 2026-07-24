@@ -6,6 +6,18 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.78.1 — fix: FileProvider paths cobrem photos/ e videos/ (jul/2026)
+
+Sem breaking. Correção de bug introduzido na 2.78.0.
+
+### Fix
+- `kmplib_file_paths.xml`: o FileProvider da lib expunha **apenas** `shared_files/`, mas os
+  componentes `ImagePicker` (câmera → `cacheDir/photos`) e `VideoPicker` (`cacheDir/videos`)
+  gravam em subpastas não declaradas. Em qualquer app consumidor que use a câmera/vídeo,
+  `FileProvider.getUriForFile` lançava `IllegalArgumentException` e a ação falhava silenciosamente.
+  Agora o `kmplib_file_paths.xml` cobre os três caminhos usados pela própria lib:
+  `photos/`, `videos/` e `shared_files/`.
+
 ## 2.78.0 — Onda de manutenção da auditoria (jul/2026)
 
 Sem breaking. Higiene, docs e três evoluções aditivas + quitação de dívida iOS (pendente de
