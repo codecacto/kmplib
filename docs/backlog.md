@@ -40,6 +40,47 @@
       tom pelos 4 tokens `primary/secondary/tertiary/error` (não só os 3 pares fixos do `TileTone`).
       Candidato de reuso: qualquer app de alfabetização/CAA/flashcard infantil.
 
+### GAPS — design do produto "LocaSys" (ux-designer, 22/jul/2026, SaaS full-stack multi-tenant de locadoras)
+> Levantado no design de telas (`LocaSys/docs/03-telas-wireframes.md` §4), arquétipo D (App+Backend+Web+Site).
+> Sem fallback local ainda — projeto está em `Ideia`/pré-bootstrap; registrar para priorizar antes/durante
+> as ondas 3 (kanban) e 5 (mapa) do roadmap sugerido no escopo.
+
+- [ ] **GAP-LS-M-KANBAN-01 — `KanbanBoard` para Compose MP (mobile).** A weblib já tem `KanbanBoard`
+      genérico (`@codecacto/weblib/kanban`, 0.44.0); a kmplib não tem equivalente. LocaSys precisa do
+      MESMO quadro (Entregar/Recolher/Retirar/Concluído) no app do motorista — paridade App×Web é regra
+      da casa (`CLAUDE.md`). Proposta: colunas configuráveis (`id`/`title`/`accentColor`/`emptyLabel`),
+      cards via slot `@Composable` (render-prop), `onMoveItem(itemId, from, to)`, modo compacto nativo
+      (chips de coluna, já que a tela mobile é menor que a web — sem DnD obrigatório, "mover" via botão
+      de ação no card). Espelhar nomes/filosofia da API web onde fizer sentido. Candidato de alto reuso:
+      qualquer app de operação/OS (delivery, assistência técnica, campo).
+- [ ] **GAP-LS-KM-TIMELINE-01 — `TimelineList`/`AppTimeline` (linha do tempo de eventos, mobile).** Sem
+      componente equivalente na kmplib hoje. Necessário no Detalhe do contrato (T4) para mostrar o
+      histórico imutável (alocação, entregas, devoluções parciais, pagamentos, avarias, transferências) —
+      lista vertical com ícone por tipo de evento + autor + timestamp, variante compacta ("últimos N +
+      ver tudo"). Candidato de alto reuso: qualquer módulo com `backlib-audit` exposto na UI.
+- [ ] **GAP-LS-M-MAP-CLUSTER-01 — clustering de pins no `map/MapView` (Google Maps, mobile).** Com muitas
+      obras/caçambas próximas, pins sobrepostos ficam ilegíveis. Usar o clustering **oficial** do Google
+      Maps Compose (`maps-compose` já é dependência da lib) — não reinventar algoritmo. Par com o gap
+      web equivalente (weblib backlog).
+- [ ] **GAP-LS-M-STOCKALLOC-01 — `StockAllocationPicker` (alocar quantidade entre múltiplas filiais).**
+      Wizard de nova locação (T3) precisa: produto → saldo por filial → distribuir quantidade entre
+      2-3 filiais numa única interação (soma ≤ saldo total, avisa "faltam N"). Hoje só há `NumberField`
+      (1 valor) e `AppMultiSelect` (seleção, não quantidade por item). Reuso direto no fluxo de
+      transferência manual entre filiais.
+- [ ] **GAP-LS-M-PERIODFILTER-01 — `PeriodFilter` (Dia/Semana/Mês/Personalizado).** Padrão **repetido em
+      ≥2 apps do portfólio** (memória `filtros-periodo-dashboard-relatorios`), ainda não é componente de
+      lib — cada projeto monta na mão com `SegmentedControl`+`AppDatePicker`. LocaSys usa em 2 telas só
+      neste projeto (Financeiro T14, Relatórios T15). Forte candidato de promoção imediata (regra de ouro
+      do `CLAUDE.md`: código repetido em ≥2 lugares é candidato a lib). Proposta: componente sobre
+      `SegmentedControl`+`AppDatePicker` que emite `{mode, from, to}` pronto para a query.
+- [ ] **GAP-LS-M-OWNAUTH-SESSION-01 — own-auth "com sessão/tenancy" (descoberto na Onda 0, T2).** Hoje a
+      kmplib tem own-auth **só-tokens** (`OwnAuthTokenManager`/`secureTokenStorage`/`AuthSessionStore` —
+      ótimos e reusados). Faltou o nível acima: `login`/`register` devolvendo `AuthSession` **com
+      memberships/empresas/filiais**, `reset` com **paths configuráveis**, e `GET /me`. LocaSys construiu
+      esse delta no app (`core/auth/LocaSysAuthApi`/`Repository`). Candidato a promover um "own-auth de
+      sessão" genérico (multi-tenant Conta→Empresa→Filial é padrão recorrente do portfólio). Origem:
+      LocaSys jul/2026; par backend em `Lib/backlib/docs/backlog.md` (authz hierárquico).
+
 ### GAPS — design do produto "Meu Pace" (ux-designer/dev-mobile, 20/jul/2026, bootstrap por cópia do molde Na Sorte)
 > Levantado no design de telas (`Meu Pace/docs/DESIGN.md` §7), calculadora de corrida 100% offline
 > (arquétipo A). Tem **fallback local funcional** — não bloqueia a entrega.
