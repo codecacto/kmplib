@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.login
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -98,7 +99,8 @@ fun LoginScreen(
             FormContainer(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(32.dp))
+                // Mais respiro no topo (logo não colada no topo da tela).
+                Spacer(modifier = Modifier.height(64.dp))
 
                 // Logo
                 if (logo != null) {
@@ -271,9 +273,12 @@ fun LoginScreen(
                     )
                 }
 
-                // Links de termos e privacidade
+                // Links de termos e privacidade — prefixo + links com espaçamento de linha NORMAL.
+                // Antes os links eram TextButton (altura mínima ~48dp), o que abria um vão grande
+                // entre a linha do prefixo e a dos links; agora são Text clicável (tight, com um
+                // padding pequeno só para o alvo de toque).
                 if (termsUrl != null || privacyUrl != null) {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -284,44 +289,36 @@ fun LoginScreen(
                             color = colors.textSecondary,
                             textAlign = TextAlign.Center
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            // Sem isto, o " e " (Text simples) alinhava no topo e os links (dentro de
-                            // TextButton, altura mínima 48dp, texto centralizado) ficavam mais abaixo.
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(horizontalArrangement = Arrangement.Center) {
                             if (termsUrl != null) {
-                                TextButton(
-                                    onClick = { onAction(LoginAction.Click.Terms) },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) {
-                                    Text(
-                                        text = texts.termsText(),
-                                        fontSize = 12.sp,
-                                        color = colors.primary,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Text(
+                                    text = texts.termsText(),
+                                    fontSize = 12.sp,
+                                    color = colors.primary,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
+                                        .clickable { onAction(LoginAction.Click.Terms) }
+                                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                                )
                             }
                             if (termsUrl != null && privacyUrl != null) {
                                 Text(
                                     text = " e ",
                                     fontSize = 12.sp,
-                                    color = colors.textSecondary
+                                    color = colors.textSecondary,
+                                    modifier = Modifier.padding(vertical = 4.dp)
                                 )
                             }
                             if (privacyUrl != null) {
-                                TextButton(
-                                    onClick = { onAction(LoginAction.Click.Privacy) },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) {
-                                    Text(
-                                        text = texts.privacyText(),
-                                        fontSize = 12.sp,
-                                        color = colors.primary,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Text(
+                                    text = texts.privacyText(),
+                                    fontSize = 12.sp,
+                                    color = colors.primary,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
+                                        .clickable { onAction(LoginAction.Click.Privacy) }
+                                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                                )
                             }
                         }
                     }
