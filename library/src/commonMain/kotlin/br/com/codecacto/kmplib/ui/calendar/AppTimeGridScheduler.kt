@@ -38,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -138,7 +139,13 @@ private const val ORPHAN_COLUMN_ID = "__orphan__"
  * @param showOrphanColumn Se `true` e houver órfãos, adiciona uma **coluna de fallback** ([orphanColumnLabel])
  *   com os eventos órfãos visíveis e clicáveis, em vez de escondê-los.
  * @param orphanColumnLabel Rótulo da coluna de fallback dos órfãos. Default "Sem recurso".
- * @param emptyState Nó exibido quando não há NENHUM evento (grade segue visível).
+ * @param emptyState Nó exibido quando não há NENHUM evento (grade segue visível). É um **overlay que
+ *   cobre a área da grade** — bom para uma timeline única, ruim para colunas por recurso: com vários
+ *   profissionais ele tapa a agenda inteira só para dizer "nenhum agendamento". Nesse caso prefira
+ *   [columnEmptyLabel] (aviso discreto DENTRO de cada coluna vazia) e deixe este `null`.
+ * @param columnEmptyLabel Aviso curto desenhado dentro de cada coluna **sem nenhum evento**
+ *   (ex.: "Sem agendamento"). Some assim que a coluna recebe o primeiro evento. Independente de
+ *   [emptyState]; use um OU outro.
  */
 @Composable
 fun AppTimeGridScheduler(
@@ -167,6 +174,7 @@ fun AppTimeGridScheduler(
     orphanColumnLabel: String = "Sem recurso",
     texts: AppTimeGridTexts = AppTimeGridTexts(),
     emptyState: (@Composable () -> Unit)? = null,
+    columnEmptyLabel: String? = null,
 ) {
     val isCompact = LocalIsCompact.current
     val fallbackColors = defaultEventColors()
@@ -367,6 +375,7 @@ fun AppTimeGridScheduler(
                             onSlotClick = onSlotClick,
                             selectedEventId = selectedEventId,
                             texts = texts,
+                            emptyLabel = columnEmptyLabel,
                         )
                     }
                 }
@@ -484,6 +493,7 @@ private fun ResourceColumn(
     onSlotClick: ((columnId: String, minute: Int) -> Unit)?,
     selectedEventId: String?,
     texts: AppTimeGridTexts,
+    emptyLabel: String? = null,
 ) {
     val localDensity = LocalDensity.current
     val guideColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -609,6 +619,23 @@ private fun ResourceColumn(
                 columnLabel = if (isSingle) null else column.label,
                 onClick = onEventClick,
                 renderEvent = renderEvent,
+            )
+        }
+
+        // Coluna sem nenhum evento: aviso DISCRETO dentro da própria coluna (nada de overlay tapando
+        // a agenda toda). Fica no topo da janela, onde o olho já está — e some no primeiro evento.
+        if (events.isEmpty() && emptyLabel != null) {
+            Text(
+                text = emptyLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp, start = 6.dp, end = 6.dp)
+                    .fillMaxWidth(),
             )
         }
     }

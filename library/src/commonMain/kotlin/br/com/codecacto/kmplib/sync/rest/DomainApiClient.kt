@@ -133,27 +133,53 @@ class DomainApiClient(
         execute(path) { token ->
             httpClient.post(url(path)) {
                 bearer(token)
-                setBody(
-                    MultiPartFormDataContent(
-                        formData {
-                            parts.forEach { part ->
-                                append(
-                                    key = part.fieldName,
-                                    value = part.bytes,
-                                    headers = Headers.build {
-                                        append(HttpHeaders.ContentType, part.mimeType)
-                                        append(
-                                            HttpHeaders.ContentDisposition,
-                                            "filename=\"${part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } }}\"",
-                                        )
-                                    },
-                                )
-                            }
-                        },
-                    ),
-                )
+                setBody(multipartBody(parts))
             }
         }.map { it.bodyAsText() }
+
+    /**
+     * Upload multipart via **PUT** — para recursos que já existem e cujo binário é *substituído*
+     * (ex.: `PUT /v1/me/professionals/{id}/photo` troca a foto do profissional). Mesmo corpo e mesma
+     * resiliência do [postMultipart]; muda só o verbo, porque a semântica é substituir, não criar.
+     */
+    suspend fun putMultipart(
+        path: String,
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        fieldName: String = "file",
+    ): DomainResult<String> =
+        putMultipartParts(path, listOf(MultipartPart(fieldName, fileName, fileBytes, mimeType)))
+
+    /** Versão PUT do [postMultipartParts] (múltiplas partes nomeadas). */
+    suspend fun putMultipartParts(
+        path: String,
+        parts: List<MultipartPart>,
+    ): DomainResult<String> =
+        execute(path) { token ->
+            httpClient.put(url(path)) {
+                bearer(token)
+                setBody(multipartBody(parts))
+            }
+        }.map { it.bodyAsText() }
+
+    private fun multipartBody(parts: List<MultipartPart>) = MultiPartFormDataContent(
+        formData {
+            parts.forEach { part ->
+                append(
+                    key = part.fieldName,
+                    value = part.bytes,
+                    headers = Headers.build {
+                        append(HttpHeaders.ContentType, part.mimeType)
+                        append(
+                            HttpHeaders.ContentDisposition,
+                            "filename=\"${part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } }}\"",
+                        )
+                    },
+                )
+            }
+        },
+    )
 
     /** Stream autenticado dos bytes de um binário — ex.: `GET /v1/anexos/{id}/bytes`. */
     suspend fun getBytes(path: String): DomainResult<ByteArray> =

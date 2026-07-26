@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -10,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,43 @@ fun Avatar(
             )
         }
     }
+}
+
+/**
+ * Avatar com **foto remota por URL** — atalho para o caso mais comum (`imageUrl` nulo/vazio cai nas
+ * iniciais). Paridade com o `Avatar src={...}` da weblib: o app passa a URL e pronto, sem repetir o
+ * `AsyncImage` + `ContentScale.Crop` em cada tela.
+ *
+ * ```kotlin
+ * Avatar(name = professional.name, imageUrl = professional.photoUrl, size = 44.dp)
+ * ```
+ */
+@Composable
+fun Avatar(
+    name: String,
+    imageUrl: String?,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    backgroundColor: Color = colorForName(name),
+    textColor: Color = Color.White,
+) {
+    Avatar(
+        name = name,
+        modifier = modifier,
+        size = size,
+        backgroundColor = backgroundColor,
+        textColor = textColor,
+        image = imageUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            {
+                AsyncImage(
+                    model = url,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        },
+    )
 }
 
 /**
