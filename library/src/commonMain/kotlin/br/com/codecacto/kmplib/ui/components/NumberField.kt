@@ -48,9 +48,9 @@ fun NumberField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Done,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    primaryColor: Color = Color(0xFF6C63FF),
-    borderColor: Color = Color(0xFFE0E0E0),
-    labelColor: Color = Color(0xFF9E9E9E)
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     OutlinedTextField(
         value = value,

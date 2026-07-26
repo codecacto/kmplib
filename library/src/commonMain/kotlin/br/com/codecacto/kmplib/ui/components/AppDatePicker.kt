@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -8,11 +9,13 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,14 +30,21 @@ import kotlinx.datetime.toLocalDateTime
 /**
  * Campo de data com seletor em modal ([DatePickerDialog] do Material3).
  *
- * O campo é somente leitura; ao tocar abre o calendário. A data selecionada é
- * propagada via [onDateSelected].
+ * **Tocar em QUALQUER PONTO do campo abre o calendário** — padrão do ecossistema: campo de data
+ * nunca é digitado, é escolhido. Isso exige interceptar o toque pelo [MutableInteractionSource]:
+ * um `Modifier.clickable` no `OutlinedTextField` habilitado **não funciona**, porque o próprio campo
+ * de texto consome o gesto (era o bug até 2.79.0 — só o ícone parecia clicável, e nem ele era).
+ *
+ * O valor é exibido em **dd/MM/yyyy** (padrão BR da UI); o ISO fica na fronteira da API. Use
+ * [formatDate] para mudar a apresentação sem tocar no valor de domínio.
  *
  * @param selectedDate Data atualmente selecionada, ou null
  * @param onDateSelected Callback com a nova data escolhida
  * @param label Rótulo do campo
  * @param modifier Modificador do campo
  * @param isEnabled Se o campo está habilitado
+ * @param placeholder Texto exibido quando não há data escolhida
+ * @param formatDate Como a data aparece no campo. Default dd/MM/yyyy
  * @param confirmText Texto do botão de confirmação
  * @param dismissText Texto do botão de cancelamento
  */
@@ -46,26 +56,37 @@ fun AppDatePicker(
     label: String,
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
+    placeholder: String = "dd/mm/aaaa",
+    formatDate: (LocalDate) -> String = ::formatDateBr,
     confirmText: String = "OK",
-    dismissText: String = "Cancelar"
+    dismissText: String = "Cancelar",
 ) {
     var showDialog by remember { mutableStateOf(false) }
 
+    // Interceptar o toque pelo interactionSource é o caminho oficial para um campo "readOnly que
+    // abre um seletor": o OutlinedTextField consome o gesto, então um clickable por fora nunca dispara.
+    val interactionSource = remember { MutableInteractionSource() }
+    LaunchedEffect(interactionSource, isEnabled) {
+        interactionSource.interactions.collect { interaction ->
+            if (isEnabled && interaction is PressInteraction.Release) showDialog = true
+        }
+    }
+
     OutlinedTextField(
-        value = selectedDate?.toString() ?: "",
+        value = selectedDate?.let(formatDate) ?: "",
         onValueChange = {},
         readOnly = true,
         enabled = isEnabled,
+        singleLine = true,
         label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        interactionSource = interactionSource,
         trailingIcon = {
-            Icon(
-                imageVector = Icons.Default.DateRange,
-                contentDescription = label
-            )
+            IconButton(onClick = { showDialog = true }, enabled = isEnabled) {
+                Icon(imageVector = Icons.Default.DateRange, contentDescription = label)
+            }
         },
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = isEnabled) { showDialog = true }
+        modifier = modifier.fillMaxWidth(),
     )
 
     if (showDialog) {
@@ -73,7 +94,7 @@ fun AppDatePicker(
             ?.atStartOfDayIn(TimeZone.UTC)
             ?.toEpochMilliseconds()
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = initialMillis
+            initialSelectedDateMillis = initialMillis,
         )
 
         DatePickerDialog(
@@ -88,7 +109,7 @@ fun AppDatePicker(
                             onDateSelected(date)
                         }
                         showDialog = false
-                    }
+                    },
                 ) {
                     Text(confirmText)
                 }
@@ -97,9 +118,16 @@ fun AppDatePicker(
                 TextButton(onClick = { showDialog = false }) {
                     Text(dismissText)
                 }
-            }
+            },
         ) {
             DatePicker(state = datePickerState)
         }
     }
+}
+
+/** `LocalDate` → `dd/MM/yyyy` (padrão BR da UI; o ISO fica na fronteira da API). */
+fun formatDateBr(date: LocalDate): String {
+    val d = date.dayOfMonth.toString().padStart(2, '0')
+    val m = date.monthNumber.toString().padStart(2, '0')
+    return "$d/$m/${date.year}"
 }

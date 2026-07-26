@@ -46,7 +46,7 @@ fun AppBadge(
     modifier: Modifier = Modifier,
     text: String? = null,
     style: BadgeStyle = BadgeStyle.CIRCULAR,
-    backgroundColor: Color = Color(0xFFEF4444),
+    backgroundColor: Color = MaterialTheme.colorScheme.error,
     textColor: Color = Color.White,
     maxCount: Int = 99,
     size: Dp = 20.dp,

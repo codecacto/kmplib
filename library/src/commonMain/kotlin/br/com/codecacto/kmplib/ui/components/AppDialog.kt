@@ -116,7 +116,7 @@ fun AppAlertDialog(
     dismissText: String? = "Cancelar",
     onConfirm: () -> Unit = onDismiss,
     isLoading: Boolean = false,
-    confirmButtonColor: Color = Color(0xFF6C63FF),
+    confirmButtonColor: Color = MaterialTheme.colorScheme.primary,
     dismissOnClickOutside: Boolean = true
 ) {
     AppDialog(

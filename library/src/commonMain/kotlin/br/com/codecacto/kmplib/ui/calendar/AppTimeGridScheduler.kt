@@ -100,6 +100,16 @@ private val SINGLE_COLUMN = ScheduleResource(id = "__single__", label = "")
 private const val ORPHAN_COLUMN_ID = "__orphan__"
 
 /**
+ * Respiro no topo da área rolável: o rótulo de cada hora é desenhado meio passo ACIMA da sua linha
+ * (`offset(y = -7.dp)`) para ficar centrado nela. Sem esta folga, a primeira hora da janela nasce
+ * fora da área visível e aparece cortada.
+ */
+private val GRID_TOP_GUTTER = 12.dp
+
+/** Folga no fim, para a última hora não encostar na borda e sobrar rolagem confortável. */
+private val GRID_BOTTOM_GUTTER = 24.dp
+
+/**
  * @param resources Colunas/recursos (um profissional por coluna). Vazio ⇒ **coluna única** (todos os
  *   eventos numa timeline, ex.: agenda pessoal do Influencer).
  * @param events Eventos posicionados por minuto real.
@@ -323,10 +333,17 @@ fun AppTimeGridScheduler(
                 }
 
                 // Corpo (rola na vertical; compartilha o hScroll do cabeçalho).
+                //
+                // O padding vem DEPOIS do `verticalScroll` de propósito: assim ele é conteúdo rolável,
+                // e desloca o eixo de horas E as colunas juntos (o alinhamento hora×evento se mantém).
+                // O respiro do topo existe porque cada rótulo de hora é desenhado em `offset(y = -7.dp)`
+                // para ficar centrado na sua linha — sem ele, a PRIMEIRA hora da janela (ex.: 8h de um
+                // salão que abre às 8) nascia acima da área visível e aparecia cortada.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(vScroll)
+                        .padding(top = GRID_TOP_GUTTER, bottom = GRID_BOTTOM_GUTTER)
                         .then(if (needsHScroll) Modifier.horizontalScroll(hScroll) else Modifier),
                 ) {
                     // Eixo de tempo.

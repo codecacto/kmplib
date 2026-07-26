@@ -42,7 +42,7 @@ fun ConfirmationDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     icon: (@Composable () -> Unit)? = null,
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true
@@ -175,7 +175,7 @@ fun InputDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     isPassword: Boolean = false
 ) {
     if (show) {

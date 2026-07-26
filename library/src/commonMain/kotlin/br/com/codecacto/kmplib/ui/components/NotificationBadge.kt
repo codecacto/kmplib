@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +36,7 @@ fun NotificationBadge(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconTint: Color = Color.White,
-    badgeColor: Color = Color(0xFFEF4444),
+    badgeColor: Color = MaterialTheme.colorScheme.error,
     badgeTextColor: Color = Color.White,
 ) {
     Box(modifier = modifier) {

@@ -61,9 +61,9 @@ fun AppTextField(
     singleLine: Boolean = true,
     maxLength: Int? = null,
     showCharCounter: Boolean = false,
-    primaryColor: Color = Color(0xFF6C63FF),
-    borderColor: Color = Color(0xFFE0E0E0),
-    labelColor: Color = Color(0xFF9E9E9E)
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -163,9 +163,9 @@ fun AppTextArea(
     errorMessage: String? = null,
     enabled: Boolean = true,
     height: Dp? = null,
-    primaryColor: Color = Color(0xFF6C63FF),
-    borderColor: Color = Color(0xFFE0E0E0),
-    labelColor: Color = Color(0xFF9E9E9E)
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     // Supporting text (error ou contador)
     val supportingText: (@Composable () -> Unit)? = when {

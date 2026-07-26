@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ui.components.auth
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,7 +23,7 @@ fun ForgotPasswordLink(
     modifier: Modifier = Modifier,
     text: String = "Esqueci minha senha",
     enabled: Boolean = true,
-    color: Color = Color(0xFF6C63FF)
+    color: Color = MaterialTheme.colorScheme.primary
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -53,7 +54,7 @@ fun AuthNavigationLink(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     promptColor: Color = Color(0xFF757575),
-    linkColor: Color = Color(0xFF6C63FF)
+    linkColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -96,7 +97,7 @@ fun TermsCheckbox(
     privacyText: String = "Política de Privacidade",
     prefixText: String = "Eu aceito os ",
     andText: String = " e ",
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     textColor: Color = Color(0xFF757575)
 ) {
     Row(

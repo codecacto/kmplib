@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,7 +30,7 @@ fun EmailField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = Color(0xFFE0E0E0),
     labelColor: Color = Color(0xFF9E9E9E)
 ) {
@@ -65,7 +66,7 @@ fun PasswordField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Done,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = Color(0xFFE0E0E0),
     labelColor: Color = Color(0xFF9E9E9E)
 ) {
@@ -101,7 +102,7 @@ fun NameField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = Color(0xFFE0E0E0),
     labelColor: Color = Color(0xFF9E9E9E)
 ) {
@@ -138,7 +139,7 @@ fun PhoneField(
     imeAction: ImeAction = ImeAction.Next,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = PhoneVisualTransformation(),
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = Color(0xFFE0E0E0),
     labelColor: Color = Color(0xFF9E9E9E)
 ) {

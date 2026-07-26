@@ -38,8 +38,8 @@ fun AppButton(
     enabled: Boolean = true,
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
-    primaryColor: Color = Color(0xFF6C63FF),
-    contentColor: Color = Color.White
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary
 ) {
     Button(
         onClick = onClick,
@@ -93,7 +93,7 @@ fun AppOutlinedButton(
     enabled: Boolean = true,
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderWidth: Dp = 1.dp
 ) {
     OutlinedButton(
@@ -163,7 +163,7 @@ fun GoogleLoginButton(
     enabled: Boolean = true,
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderWidth: Dp = 1.dp
 ) {
     OutlinedButton(
@@ -227,7 +227,7 @@ fun AppleLoginButton(
     enabled: Boolean = true,
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
-    primaryColor: Color = Color(0xFF6C63FF),
+    primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderWidth: Dp = 1.dp
 ) {
     OutlinedButton(
@@ -291,8 +291,8 @@ fun AppSecondaryButton(
     isLoading: Boolean = false,
     height: Dp = 48.dp,
     fontSize: TextUnit = 14.sp,
-    borderColor: Color = Color(0xFFE0E0E0),
-    contentColor: Color = Color(0xFF757575)
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     OutlinedButton(
         onClick = onClick,
