@@ -124,12 +124,37 @@ platform :ios do
       )
     end
 
-    if build_number
-      increment_build_number_in_xcodeproj(
-        build_number: build_number,
-        xcodeproj: xcode_project
-      )
+    # Build number: NUNCA digitado à mão.
+    #
+    # Sem `build_number` explícito, resolve pelo TestFlight (último build da versão + 1). Isso é o
+    # que permite rodar o release da máquina do fundador — o valor antigo vinha de
+    # GITHUB_RUN_NUMBER (ci/scripts/versioning.sh), que não existe fora do CI e caía em 1,
+    # fazendo a App Store rejeitar o upload por build duplicado.
+    #
+    # Espelha o lado Android, onde o gradle-play-publisher resolve o versionCode pela Play API.
+    # Ver docs/15-release-mobile-spec.md.
+    if build_number.nil? || build_number.to_s.strip.empty?
+      app_id = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
+               CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+      latest = begin
+        latest_testflight_build_number(
+          api_key: api_key,
+          app_identifier: app_id,
+          version: marketing_version,
+          initial_build_number: 0
+        )
+      rescue => e
+        UI.important("Não foi possível ler o último build do TestFlight (#{e.message}); começando em 0.")
+        0
+      end
+      build_number = latest.to_i + 1
+      UI.message("Build number resolvido pelo TestFlight: #{build_number}")
     end
+
+    increment_build_number_in_xcodeproj(
+      build_number: build_number.to_s,
+      xcodeproj: xcode_project
+    )
 
     build_params = {
       scheme: scheme,
