@@ -7,6 +7,9 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Cliente REST **puro/sem estado** dos 6 endpoints da autenticação própria. Ktor core puro (SEM
@@ -73,9 +76,18 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         return if (status in 200..299) {
             Result.success(response)
         } else {
-            Result.failure(mapStatus(suffix, status))
+            // A mensagem do servidor é mais útil que qualquer texto fixo daqui: ele é quem sabe o
+            // mínimo de caracteres exigido, qual campo faltou, etc. O texto local vira fallback.
+            Result.failure(mapStatus(suffix, status, response.serverMessageOrNull()))
         }
     }
+
+    /** `message` do envelope de erro do backend (backlib-errors), se vier legível. */
+    private suspend fun HttpResponse.serverMessageOrNull(): String? = runCatching {
+        val body = bodyAsText()
+        json.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.contentOrNull
+            ?.trim()?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
 
     /**
      * Rastro de diagnóstico das credenciais (só com [OwnAuthConfig.diagnostics] ligado — ver o KDoc
@@ -97,17 +109,27 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
     }
 
-    private fun mapStatus(suffix: String, status: Int): OwnAuthException = when (status) {
+    private fun mapStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
+        // Credencial inválida mantém o texto local DE PROPÓSITO: o servidor responde genérico para não
+        // revelar se o e-mail existe, e repassar a mensagem dele não acrescentaria nada.
         401, 403 -> OwnAuthException.InvalidCredentials(texts.invalidCredentials)
-        409 -> OwnAuthException.EmailAlreadyInUse(texts.emailAlreadyInUse)
-        422 -> if (suffix.startsWith("register") || suffix.startsWith("password"))
-            OwnAuthException.WeakPassword(texts.weakPassword)
-        else OwnAuthException.Server(texts.server(status), status)
-        400 -> if (suffix.startsWith("password/reset"))
-            OwnAuthException.InvalidResetToken(texts.invalidResetToken)
-        else OwnAuthException.Server(texts.server(status), status)
+        409 -> OwnAuthException.EmailAlreadyInUse(serverMessage ?: texts.emailAlreadyInUse)
+        422 -> if (suffix.startsWith("register") || suffix.startsWith("password")) {
+            OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
+        } else {
+            OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+        }
+        400 -> when {
+            suffix.startsWith("password/reset") ->
+                OwnAuthException.InvalidResetToken(serverMessage ?: texts.invalidResetToken)
+            // Validação do backend (ex.: "A senha deve ter ao menos 6 caracteres") — mostrar o motivo
+            // real, que é justamente o que a pessoa precisa saber para corrigir.
+            suffix.startsWith("register") || suffix.startsWith("password") ->
+                OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
+            else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+        }
         429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
-        else -> OwnAuthException.Server(texts.server(status), status)
+        else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
     }
 
     companion object {

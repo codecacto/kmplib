@@ -54,7 +54,12 @@ class OwnAuthConfig(
 data class OwnAuthTexts(
     val invalidCredentials: String = "E-mail ou senha incorretos.",
     val emailAlreadyInUse: String = "Este e-mail já está em uso.",
-    val weakPassword: String = "Senha muito fraca. Use pelo menos 6 caracteres.",
+    /**
+     * Só entra em cena se o servidor NÃO explicar o motivo — o `OwnAuthApi` prefere a mensagem do
+     * backend, que sabe o mínimo real ("A senha deve ter ao menos 6 caracteres"). "Senha fraca" não
+     * diz a ninguém o que corrigir.
+     */
+    val weakPassword: String = "A senha não atende aos requisitos mínimos.",
     val invalidResetToken: String = "Link de definição de senha inválido ou expirado.",
     val tooManyRequests: String = "Muitas tentativas. Tente novamente em instantes.",
     val network: String = "Sem conexão com o servidor.",

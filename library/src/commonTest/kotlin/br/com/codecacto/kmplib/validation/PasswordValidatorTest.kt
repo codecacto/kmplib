@@ -18,30 +18,63 @@ class PasswordValidatorTest {
         assertTrue(PasswordValidator.isValid("Test#2025"))
     }
 
+    // O default da fábrica cobra SÓ comprimento (>= 6). Composição obrigatória é opt-in via
+    // PasswordRules.strong() — regra de negócio, não default (ver KDoc do validador).
+    @Test
+    fun `isValid com o default aceita senha simples de 6 caracteres`() {
+        assertTrue(PasswordValidator.isValid("123456"))
+        assertTrue(PasswordValidator.isValid("senha1"))
+        assertTrue(PasswordValidator.isValid("abcdef"))
+    }
+
     @Test
     fun `isValid returns false for too short password`() {
         assertFalse(PasswordValidator.isValid("Ab1!"))
-        assertFalse(PasswordValidator.isValid("Test@1"))
+        assertFalse(PasswordValidator.isValid("12345"))
     }
 
     @Test
-    fun `isValid returns false for missing uppercase`() {
-        assertFalse(PasswordValidator.isValid("senha@123"))
+    fun `isValid com strong() returns false for missing uppercase`() {
+        assertFalse(PasswordValidator.isValid("senha@123", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid returns false for missing lowercase`() {
-        assertFalse(PasswordValidator.isValid("SENHA@123"))
+    fun `isValid com strong() returns false for missing lowercase`() {
+        assertFalse(PasswordValidator.isValid("SENHA@123", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid returns false for missing digit`() {
-        assertFalse(PasswordValidator.isValid("Senha@Test"))
+    fun `isValid com strong() returns false for missing digit`() {
+        assertFalse(PasswordValidator.isValid("Senha@Test", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid returns false for missing special char`() {
-        assertFalse(PasswordValidator.isValid("Senha123"))
+    fun `isValid com strong() returns false for missing special char`() {
+        assertFalse(PasswordValidator.isValid("Senha123", PasswordRules.strong()))
+    }
+
+    // ========================
+    // errorMessage() — o texto que a UI mostra
+    // ========================
+
+    @Test
+    fun `errorMessage diz o minimo exigido em vez de 'senha fraca'`() {
+        assertEquals("A senha deve ter no mínimo 6 caracteres", PasswordValidator.errorMessage("12345"))
+        assertEquals("A senha deve ter no mínimo 8 caracteres",
+            PasswordValidator.errorMessage("1234567", PasswordRules(minLength = 8)))
+    }
+
+    @Test
+    fun `errorMessage devolve null quando a senha passa`() {
+        assertEquals(null, PasswordValidator.errorMessage("123456"))
+    }
+
+    @Test
+    fun `errorMessage aponta a composicao que falta quando o app pede strong()`() {
+        assertEquals("A senha deve conter letra maiúscula",
+            PasswordValidator.errorMessage("senha@123", PasswordRules.strong()))
+        assertEquals("A senha deve conter número",
+            PasswordValidator.errorMessage("Senha@abc", PasswordRules.strong()))
     }
 
     // ========================
@@ -56,7 +89,7 @@ class PasswordValidatorTest {
 
     @Test
     fun `validate returns TooShort for short password`() {
-        val result = PasswordValidator.validate("Ab1!")
+        val result = PasswordValidator.validate("Ab1!")   // 4 chars — abaixo do mínimo padrão (6)
         assertEquals(1, result.size)
         assertTrue(result[0] is PasswordValidator.ValidationError.TooShort)
     }
@@ -70,37 +103,37 @@ class PasswordValidatorTest {
 
     @Test
     fun `validate returns MissingUppercase when no uppercase`() {
-        val result = PasswordValidator.validate("senha@123")
+        val result = PasswordValidator.validate("senha@123", PasswordRules.strong())
         assertTrue(result.any { it is PasswordValidator.ValidationError.MissingUppercase })
     }
 
     @Test
     fun `validate returns MissingLowercase when no lowercase`() {
-        val result = PasswordValidator.validate("SENHA@123")
+        val result = PasswordValidator.validate("SENHA@123", PasswordRules.strong())
         assertTrue(result.any { it is PasswordValidator.ValidationError.MissingLowercase })
     }
 
     @Test
     fun `validate returns MissingDigit when no digit`() {
-        val result = PasswordValidator.validate("Senha@Test")
+        val result = PasswordValidator.validate("Senha@Test", PasswordRules.strong())
         assertTrue(result.any { it is PasswordValidator.ValidationError.MissingDigit })
     }
 
     @Test
     fun `validate returns MissingSpecialChar when no special char`() {
-        val result = PasswordValidator.validate("Senha123")
+        val result = PasswordValidator.validate("Senha123", PasswordRules.strong())
         assertTrue(result.any { it is PasswordValidator.ValidationError.MissingSpecialChar })
     }
 
     @Test
     fun `validate returns multiple errors for invalid password`() {
-        val result = PasswordValidator.validate("abc")
+        val result = PasswordValidator.validate("abc", PasswordRules.strong())
         assertTrue(result.size >= 4) // TooShort, MissingUppercase, MissingDigit, MissingSpecialChar
     }
 
     @Test
     fun `validate with custom rules - no special char required`() {
-        val rules = PasswordRules(requireSpecialChar = false)
+        val rules = PasswordRules.strong().copy(requireSpecialChar = false)
         val result = PasswordValidator.validate("Senha123", rules)
         assertTrue(result.isEmpty())
     }
@@ -310,8 +343,10 @@ class PasswordValidatorTest {
 
     @Test
     fun `validate password with only spaces`() {
-        val result = PasswordValidator.validate("        ")
-        assertFalse(result.isEmpty()) // Should fail some requirements
+        // Com o default (só comprimento) 8 espaços "passam" — é o preço de não cobrar composição;
+        // o campo em si é que não deixa enviar em branco. Com strong(), reprova.
+        assertTrue(PasswordValidator.validate("        ").isEmpty())
+        assertFalse(PasswordValidator.validate("        ", PasswordRules.strong()).isEmpty())
     }
 
     @Test

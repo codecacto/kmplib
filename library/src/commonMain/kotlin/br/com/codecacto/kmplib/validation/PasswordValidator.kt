@@ -3,21 +3,21 @@ package br.com.codecacto.kmplib.validation
 /**
  * Validador de senha com regras configuráveis.
  *
- * Uso:
- * ```kotlin
- * // Validação simples (mínimo 8 caracteres)
- * PasswordValidator.isValid("Senha123!") // true
+ * **Padrão da fábrica = só comprimento mínimo ([DEFAULT_MIN_LENGTH] caracteres).** Exigir maiúscula,
+ * dígito e caractere especial é opt-in ([PasswordRules.strong]), nunca o default: a composição
+ * obrigatória cria atrito no cadastro sem ganho real de segurança (NIST SP 800-63B desaconselha), e
+ * o produto sofre na conversão. Quem quiser cobrar força pede explicitamente.
  *
- * // Validação com regras personalizadas
- * val rules = PasswordRules(
- *     minLength = 8,
- *     requireUppercase = true,
- *     requireLowercase = true,
- *     requireDigit = true,
- *     requireSpecialChar = true
- * )
- * PasswordValidator.validate("Senha@123", rules) // lista vazia = válida
+ * ```kotlin
+ * PasswordValidator.isValid("123456")                        // true — 6 caracteres bastam
+ * PasswordValidator.errorMessage("123")                      // "A senha deve ter no mínimo 6 caracteres"
+ * PasswordValidator.isValid("abc", PasswordRules(minLength = 8))   // regra própria do app
+ * PasswordValidator.validate("senha", PasswordRules.strong())      // aí sim cobra composição
  * ```
+ *
+ * A mensagem **diz o que falta** ([errorMessage]) — "senha fraca" não informa nada a quem está
+ * tentando se cadastrar. Rótulo de força ([getStrengthLabel]) é outra coisa: serve de medidor
+ * opcional na UI, não de barreira.
  */
 object PasswordValidator {
 
@@ -25,19 +25,31 @@ object PasswordValidator {
      * Regras de validação de senha.
      */
     data class PasswordRules(
-        val minLength: Int = 8,
+        val minLength: Int = DEFAULT_MIN_LENGTH,
         val maxLength: Int = 128,
-        val requireUppercase: Boolean = true,
-        val requireLowercase: Boolean = true,
-        val requireDigit: Boolean = true,
-        val requireSpecialChar: Boolean = true,
+        val requireUppercase: Boolean = false,
+        val requireLowercase: Boolean = false,
+        val requireDigit: Boolean = false,
+        val requireSpecialChar: Boolean = false,
         val specialChars: String = "!@#\$%^&*()_+-=[]{}|;':\",./<>?"
-    )
+    ) {
+        companion object {
+            /** Composição obrigatória (maiúscula + minúscula + dígito + especial, mínimo 8). Opt-in. */
+            fun strong(minLength: Int = 8): PasswordRules = PasswordRules(
+                minLength = minLength,
+                requireUppercase = true,
+                requireLowercase = true,
+                requireDigit = true,
+                requireSpecialChar = true,
+            )
+        }
+    }
 
     /**
      * Resultado da validação de senha.
      */
     sealed class ValidationError(val message: String) {
+        /** Mensagem genérica; prefira [errorMessage], que informa o mínimo exigido de fato. */
         data object TooShort : ValidationError("Senha muito curta")
         data object TooLong : ValidationError("Senha muito longa")
         data object MissingUppercase : ValidationError("Senha deve conter letra maiúscula")
@@ -46,14 +58,32 @@ object PasswordValidator {
         data object MissingSpecialChar : ValidationError("Senha deve conter caractere especial")
     }
 
+    /** Mínimo padrão do ecossistema — o mesmo do backend (`AuthLocalConfig.minPasswordLength`). */
+    const val DEFAULT_MIN_LENGTH: Int = 6
+
     private val DEFAULT_RULES = PasswordRules()
 
     /**
-     * Valida uma senha com regras padrão (mínimo 8 caracteres).
+     * Motivo da recusa, pronto para exibir no campo — ou `null` se a senha passa. Diz **o que
+     * corrigir** ("A senha deve ter no mínimo 6 caracteres"), em vez do inútil "senha fraca".
+     */
+    fun errorMessage(password: String, rules: PasswordRules = DEFAULT_RULES): String? = when {
+        password.length < rules.minLength -> "A senha deve ter no mínimo ${rules.minLength} caracteres"
+        password.length > rules.maxLength -> "A senha deve ter no máximo ${rules.maxLength} caracteres"
+        rules.requireUppercase && password.none { it.isUpperCase() } -> "A senha deve conter letra maiúscula"
+        rules.requireLowercase && password.none { it.isLowerCase() } -> "A senha deve conter letra minúscula"
+        rules.requireDigit && password.none { it.isDigit() } -> "A senha deve conter número"
+        rules.requireSpecialChar && password.none { it in rules.specialChars } -> "A senha deve conter caractere especial"
+        else -> null
+    }
+
+    /**
+     * Valida uma senha com as regras padrão (só o mínimo de [DEFAULT_MIN_LENGTH] caracteres).
      * @param password A senha a ser validada
      * @return true se a senha é válida, false caso contrário
      */
-    fun isValid(password: String): Boolean = validate(password, DEFAULT_RULES).isEmpty()
+    fun isValid(password: String, rules: PasswordRules = DEFAULT_RULES): Boolean =
+        validate(password, rules).isEmpty()
 
     /**
      * Valida uma senha com regras personalizadas.

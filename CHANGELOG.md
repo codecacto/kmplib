@@ -6,6 +6,30 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.85.0 — Senha: só comprimento por padrão, e mensagem que diz o que falta (jul/2026)
+
+**Breaking de comportamento** (decisão do fundador): `PasswordValidator` deixa de exigir composição
+por default. Quem dependia da regra antiga passa `PasswordRules.strong()` — a validação continua lá,
+só não é mais o default.
+
+- **`PasswordRules` default = só `minLength` ([DEFAULT_MIN_LENGTH] = 6).** `requireUppercase`,
+  `requireLowercase`, `requireDigit` e `requireSpecialChar` nascem `false`. Composição obrigatória
+  vira opt-in por **`PasswordRules.strong(minLength = 8)`**. Motivo: exigir maiúscula/símbolo cria
+  atrito no cadastro sem ganho real (NIST SP 800-63B desaconselha) — e o mínimo passa a bater com o
+  do backend (`AuthLocalConfig.minPasswordLength`).
+- **`PasswordValidator.errorMessage(password, rules): String?`** — o motivo pronto para o campo
+  ("A senha deve ter no mínimo 6 caracteres"), ou `null` se passa. Substitui o "Senha fraca" que os
+  apps escreviam à mão e que não dizia a ninguém o que corrigir.
+- `isValid` ganhou o parâmetro `rules` (era fixo no default).
+- **Rótulo de força** (`getStrength`/`getStrengthLabel`) continua igual — é medidor opcional de UI,
+  nunca barreira de cadastro.
+
+### own-auth: o erro vem do servidor
+`OwnAuthApi` passa a ler a `message` do envelope de erro do backend e usá-la em 400/409/422, em vez
+do texto fixo local. Quem sabe o mínimo exigido é o servidor; o texto da lib virou fallback (e o de
+senha deixou de dizer "fraca"). 401 segue com texto local de propósito — a resposta do servidor é
+genérica ali para não revelar se o e-mail existe.
+
 ## 2.84.0 — Rastro de diagnóstico do login (opt-in, só debug) (jul/2026)
 
 Aditivo e desligado por padrão. Nasceu de um login que falhava no aparelho e passava no `curl`, sem
