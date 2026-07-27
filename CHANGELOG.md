@@ -6,6 +6,20 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.84.0 — Rastro de diagnóstico do login (opt-in, só debug) (jul/2026)
+
+Aditivo e desligado por padrão. Nasceu de um login que falhava no aparelho e passava no `curl`, sem
+nada no logcat para comparar.
+
+- **`OwnAuthConfig(diagnostics = false)`** — quando ligado, o `OwnAuthApi` registra no `AppLogger`
+  (tag `OwnAuthApi`): a rota chamada (`→ POST …`), o status da resposta (`← 401 …`), e o **e-mail
+  exato que o app enviou**, entre delimitadores, com o comprimento e os **pontos de código dos
+  caracteres não-ASCII**. É isso que revela o que a tela não mostra: espaço invisível colado pelo
+  teclado, acento inserido pelo corretor ou palavra inteira trocada por sugestão.
+- **A senha nunca é impressa** — só o comprimento e um aviso se houver espaço nas bordas.
+- **Default `false` porque imprime dado pessoal no log do aparelho.** Ligue com
+  `diagnostics = BuildInfo.isDebug`; em release fica mudo.
+
 ## 2.83.0 — Teclado do iOS não capitaliza nem autocorrige campo de identificador (jul/2026)
 
 Correção de bug com impacto direto em login. Sem breaking: `AppTextField` ganhou dois parâmetros

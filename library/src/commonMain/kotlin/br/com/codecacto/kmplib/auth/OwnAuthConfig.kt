@@ -20,6 +20,12 @@ import kotlinx.serialization.json.Json
  *   falta menos que isto para expirar (default 60s), evitando enviar um access token quase-morto.
  * @param json instância kotlinx [Json] usada na (de)serialização (default tolerante da lib).
  * @param texts mensagens de erro (defaults pt-BR; injete traduções via `*Texts` do app).
+ * @param diagnostics liga o **rastro de diagnóstico** do login no [AppLogger] (tag `OwnAuthApi`):
+ *   rota chamada, status HTTP e o e-mail EXATO que o app enviou, com comprimento e os pontos de
+ *   código dos caracteres não-ASCII — é assim que se enxerga espaço invisível, acento ou palavra
+ *   trocada pelo corretor do teclado. **Nunca loga a senha** (só o comprimento).
+ *   **Default `false`: isto imprime dado pessoal no log do aparelho.** Ligue apenas em build de
+ *   debug (ex.: `diagnostics = isDebugBuild`), jamais em release.
  */
 class OwnAuthConfig(
     val httpClient: HttpClient,
@@ -28,6 +34,7 @@ class OwnAuthConfig(
     val refreshSkewSeconds: Long = DEFAULT_REFRESH_SKEW_SECONDS,
     val json: Json = DefaultHttpClientJson,
     val texts: OwnAuthTexts = OwnAuthTexts(),
+    val diagnostics: Boolean = false,
 ) {
     /** Base normalizada (sem barra final). */
     val baseUrl: String = baseUrl.trimEnd('/')

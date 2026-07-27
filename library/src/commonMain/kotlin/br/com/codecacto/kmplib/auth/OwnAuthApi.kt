@@ -25,8 +25,10 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     suspend fun register(name: String, email: String, password: String, acceptedTerms: Boolean): Result<OwnAuthTokens> =
         postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms)))
 
-    suspend fun login(email: String, password: String): Result<OwnAuthTokens> =
-        postForTokens("login", json.encodeToString(LoginBody(email, password)))
+    suspend fun login(email: String, password: String): Result<OwnAuthTokens> {
+        logCredentialShape("login", email, password)
+        return postForTokens("login", json.encodeToString(LoginBody(email, password)))
+    }
 
     suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
         postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
@@ -55,8 +57,10 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         execute(suffix, body).map { }
 
     private suspend fun execute(suffix: String, body: String): Result<HttpResponse> {
+        val url = config.url(suffix)
+        if (config.diagnostics) AppLogger.d(TAG, "→ POST $url")
         val response = try {
-            client.post(config.url(suffix)) {
+            client.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
@@ -65,11 +69,32 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             return Result.failure(OwnAuthException.Network(texts.network))
         }
         val status = response.status.value
+        if (config.diagnostics) AppLogger.d(TAG, "← $status $url")
         return if (status in 200..299) {
             Result.success(response)
         } else {
             Result.failure(mapStatus(suffix, status))
         }
+    }
+
+    /**
+     * Rastro de diagnóstico das credenciais (só com [OwnAuthConfig.diagnostics] ligado — ver o KDoc
+     * de lá: imprime dado pessoal, é para build de debug).
+     *
+     * Mostra o e-mail **entre delimitadores**, o comprimento e os pontos de código dos caracteres
+     * não-ASCII. É o que revela o que a tela não mostra: espaço invisível colado pelo teclado, acento
+     * inserido pelo corretor, ou palavra inteira substituída por sugestão. Da senha sai **apenas** o
+     * comprimento e se ela tem espaço nas bordas — nunca o valor.
+     */
+    private fun logCredentialShape(suffix: String, email: String, password: String) {
+        if (!config.diagnostics) return
+        val estranhos = email.mapIndexedNotNull { i, c ->
+            if (c.code in 32..126) null else "[$i]=U+${c.code.toString(16).uppercase().padStart(4, '0')}"
+        }
+        AppLogger.d(TAG, "$suffix e-mail=>>>$email<<< (${email.length} chars)" +
+            if (estranhos.isEmpty()) " — só ASCII imprimível" else " — NÃO-ASCII: ${estranhos.joinToString(" ")}")
+        AppLogger.d(TAG, "$suffix senha=${password.length} chars" +
+            (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
     }
 
     private fun mapStatus(suffix: String, status: Int): OwnAuthException = when (status) {
