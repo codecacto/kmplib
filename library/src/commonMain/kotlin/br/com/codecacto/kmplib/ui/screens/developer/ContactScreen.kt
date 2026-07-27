@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
 import androidx.compose.foundation.background
+import br.com.codecacto.kmplib.ui.components.appKeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -209,7 +209,7 @@ fun ContactScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Text),
                         enabled = !isLoading
                     )
 
@@ -226,7 +226,7 @@ fun ContactScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Email),
                         enabled = !isLoading
                     )
 
@@ -244,7 +244,7 @@ fun ContactScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Phone),
                         enabled = !isLoading
                     )
 

@@ -6,7 +6,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -444,7 +443,7 @@ private fun FeedbackStep(
             } else {
                 null
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Email),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = primaryColor,
@@ -467,7 +466,7 @@ private fun FeedbackStep(
                 null
             },
             visualTransformation = PhoneVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Phone),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = primaryColor,

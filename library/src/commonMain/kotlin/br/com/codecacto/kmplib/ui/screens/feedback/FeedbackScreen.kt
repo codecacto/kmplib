@@ -1,12 +1,12 @@
 package br.com.codecacto.kmplib.ui.screens.feedback
 
 import androidx.compose.foundation.background
+import br.com.codecacto.kmplib.ui.components.appKeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -292,7 +292,7 @@ fun FeedbackScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Text),
                     enabled = !isLoading && !isSent
                 )
 
@@ -312,7 +312,7 @@ fun FeedbackScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Email),
                     enabled = !isLoading && !isSent
                 )
 
@@ -333,7 +333,7 @@ fun FeedbackScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Phone),
                     enabled = !isLoading && !isSent
                 )
 

@@ -6,6 +6,32 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.83.0 — Teclado do iOS não capitaliza nem autocorrige campo de identificador (jul/2026)
+
+Correção de bug com impacto direto em login. Sem breaking: `AppTextField` ganhou dois parâmetros
+opcionais (`capitalization`/`autoCorrect`) e o resto da lib passou a usar a fábrica nova.
+
+### O bug
+`KeyboardOptions` montada só com `keyboardType` + `imeAction` deixa capitalização e autocorreção
+**não especificadas** — e cada plataforma resolve o "não especificado" do seu jeito. No Android o IME
+desliga as duas sozinho em `KeyboardType.Email`; no **iOS** o `UITextField` fica com
+`.sentences` + `.default`, ou seja **capitaliza a primeira letra e troca a palavra digitada por uma
+sugestão** antes do envio. Resultado no Meu Barbeiro: o mesmo usuário entrava no Android e recebia
+"e-mail ou senha inválidos" no iPhone — o backend recebia um e-mail que ninguém digitou. Qualquer
+campo de e-mail, telefone, documento, código ou senha da lib sofria o mesmo.
+
+### O que mudou
+- **`appKeyboardOptions(keyboardType, imeAction, capitalization, autoCorrect)`** (novo,
+  `ui/components/AppKeyboardOptions.kt`) — capitalização e autocorreção **derivadas do tipo do
+  campo**: só `KeyboardType.Text` escreve como frase (capitaliza + autocorrige); todo o resto entra
+  como identificador (`None` + autocorreção desligada). Helpers públicos `defaultCapitalizationFor` /
+  `defaultAutoCorrectFor` para quem monta `KeyboardOptions` fora da lib.
+- **`AppTextField`** usa a fábrica e aceita `capitalization`/`autoCorrect` explícitos (default `null`
+  = derivado). Campo de senha entra como identificador mesmo com `keyboardType` de texto.
+- **`AppTextArea`** segue como texto corrido (frase + autocorreção), que é o certo para observação.
+- Migrados: `NumberField`, `SearchTopBar` (busca sem autocorreção — trocar "Hygor" por "Higor" no meio
+  da digitação some com o resultado), `FeedbackScreen`, `ContactScreen`, `AppReviewDialog`.
+
 ## 2.82.0 — Fallback do paywall pela loja + alerta de pagamento no Discord (jul/2026)
 
 Sem breaking para **consumidores**; breaking de **fonte** só para quem implementa `CrashReporter`

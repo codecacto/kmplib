@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -205,7 +204,8 @@ fun SearchTopBar(
                             }
                         }
                     },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    // Busca: sem autocorreção — trocar "Hygor" por "Higor" no meio da digitação some com o resultado.
+                    keyboardOptions = appKeyboardOptions(imeAction = ImeAction.Search, autoCorrect = false),
                     keyboardActions = KeyboardActions(onSearch = { }),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,

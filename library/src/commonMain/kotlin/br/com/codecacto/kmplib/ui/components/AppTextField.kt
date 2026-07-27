@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -14,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
  * @param isPassword Se é campo de senha (com toggle de visibilidade)
  * @param keyboardType Tipo de teclado
  * @param imeAction Ação do IME
+ * @param capitalization Capitalização do teclado; `null` = derivada do [keyboardType] (ver [appKeyboardOptions])
+ * @param autoCorrect Autocorreção do teclado; `null` = derivada do [keyboardType] (ver [appKeyboardOptions])
  * @param keyboardActions Ações do teclado
  * @param visualTransformation Transformação visual do texto
  * @param errorMessage Mensagem de erro (null = sem erro)
@@ -54,6 +56,8 @@ fun AppTextField(
     isPassword: Boolean = false,
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Next,
+    capitalization: KeyboardCapitalization? = null,
+    autoCorrect: Boolean? = null,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     errorMessage: String? = null,
@@ -109,9 +113,18 @@ fun AppTextField(
             isPassword && !passwordVisible -> PasswordVisualTransformation()
             else -> visualTransformation
         },
-        keyboardOptions = KeyboardOptions(
+        // Capitalização/autocorreção derivadas do tipo (ver `appKeyboardOptions`): sem isso, o teclado
+        // do iOS capitaliza e AUTOCORRIGE e-mail/senha/telefone — o campo envia uma palavra que a
+        // pessoa não digitou. Campo de senha entra como identificador, nunca como texto corrido.
+        keyboardOptions = appKeyboardOptions(
             keyboardType = if (isPassword) KeyboardType.Password else keyboardType,
-            imeAction = imeAction
+            imeAction = imeAction,
+            capitalization = capitalization ?: defaultCapitalizationFor(
+                if (isPassword) KeyboardType.Password else keyboardType,
+            ),
+            autoCorrect = autoCorrect ?: defaultAutoCorrectFor(
+                if (isPassword) KeyboardType.Password else keyboardType,
+            ),
         ),
         keyboardActions = keyboardActions,
         singleLine = singleLine,
@@ -196,9 +209,11 @@ fun AppTextArea(
         },
         label = label?.let { { Text(it) } },
         placeholder = placeholder?.let { { Text(it) } },
-        keyboardOptions = KeyboardOptions(
+        // TextArea é texto corrido de verdade (comentário, observação): capitalização de frase e
+        // autocorreção LIGADAS são o comportamento certo aqui — o oposto dos campos de identificador.
+        keyboardOptions = appKeyboardOptions(
             keyboardType = KeyboardType.Text,
-            imeAction = ImeAction.Default
+            imeAction = ImeAction.Default,
         ),
         singleLine = false,
         minLines = minLines,

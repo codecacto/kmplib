@@ -3,7 +3,6 @@ package br.com.codecacto.kmplib.ui.components
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -97,9 +96,10 @@ fun NumberField(
         leadingIcon = leadingIcon?.let {
             { Icon(imageVector = it, contentDescription = null) }
         },
-        keyboardOptions = KeyboardOptions(
+        // Número nunca capitaliza nem autocorrige (ver `appKeyboardOptions`).
+        keyboardOptions = appKeyboardOptions(
             keyboardType = if (allowDecimals) KeyboardType.Decimal else KeyboardType.Number,
-            imeAction = imeAction
+            imeAction = imeAction,
         ),
         keyboardActions = keyboardActions,
         singleLine = true,
