@@ -21,6 +21,8 @@ internal class SentryCrashReporter : CrashReporter {
     /** Guarda se o SDK foi inicializado de fato — quando `false`, tudo é no-op. */
     private var active: Boolean = false
 
+    override val isActive: Boolean get() = active
+
     override fun init(config: CrashReporterConfig) {
         // enabled=false OU DSN em branco => no-op (debug local sem DSN configurado).
         if (!config.enabled || config.dsn.isBlank()) {
@@ -61,10 +63,11 @@ internal class SentryCrashReporter : CrashReporter {
         }
     }
 
-    override fun captureMessage(message: String, level: CrashLevel) {
+    override fun captureMessage(message: String, level: CrashLevel, tags: Map<String, String>) {
         if (!active) return
         Sentry.captureMessage(message) { scope ->
             scope.level = level.toSentryLevel()
+            tags.forEach { (key, value) -> scope.setTag(key, value) }
         }
     }
 

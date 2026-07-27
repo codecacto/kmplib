@@ -85,6 +85,79 @@ class EntitlementControllerTest {
     }
 
     @Test
+    fun plans_ttlZero_desabilitaCache() = runTest {
+        val repo = FakeEntitlementRepository(
+            plans = ApiResult.Success(listOf(Plan(plano = "pro", nome = "Pro", preco = "9.90")))
+        )
+        val controller = EntitlementController(repo, plansCacheTtlMillis = 0L)
+        controller.plans()
+        controller.plans()
+        // Sem TTL nao ha cache: toda leitura vai a rede (antes da 2.79.0 o cache era eterno).
+        assertEquals(2, repo.plansCalls)
+    }
+
+    @Test
+    fun invalidatePlansCache_forcaNovaLeitura() = runTest {
+        val repo = FakeEntitlementRepository(
+            plans = ApiResult.Success(listOf(Plan(plano = "pro", nome = "Pro", preco = "9.90")))
+        )
+        val controller = EntitlementController(repo)
+        controller.plans()
+        controller.invalidatePlansCache()
+        controller.plans()
+        assertEquals(2, repo.plansCalls)
+    }
+
+    @Test
+    fun plansResult_sucessoVazio_eAvailable_naoUnavailable() = runTest {
+        // "Nenhum plano ativo" NAO e falha: o paywall vazio esta correto e nao deve virar fallback.
+        val repo = FakeEntitlementRepository(plans = ApiResult.Success(emptyList()))
+        val controller = EntitlementController(repo)
+        val res = controller.plansResult()
+        assertTrue(res is PlansResult.Available)
+        assertTrue(res.plans.isEmpty())
+        assertEquals(false, res.fromCache)
+    }
+
+    @Test
+    fun plansResult_erro_eUnavailable_comMensagem() = runTest {
+        val repo = FakeEntitlementRepository(plans = ApiResult.Error(code = 401, message = "401"))
+        val controller = EntitlementController(repo)
+        val res = controller.plansResult()
+        assertTrue(res is PlansResult.Unavailable)
+        assertEquals("401", res.message)
+    }
+
+    @Test
+    fun plansResult_erroDepoisDeSucesso_serveCacheAindaValido() = runTest {
+        val repo = FakeEntitlementRepository(
+            plans = ApiResult.Success(listOf(Plan(plano = "pro", nome = "Pro", preco = "9.90")))
+        )
+        val controller = EntitlementController(repo)
+        controller.plansResult(forceReload = true)
+
+        repo.plans = ApiResult.Error(code = 500, message = "boom")
+        val res = controller.plansResult(forceReload = true)
+
+        // Degradacao segura: exibe a ultima oferta conhecida (dentro do TTL) em vez de zerar a tela.
+        assertTrue(res is PlansResult.Available)
+        assertTrue(res.fromCache)
+        assertEquals("Pro", res.plans.single().nome)
+    }
+
+    @Test
+    fun plansResult_erroSemCacheValido_eUnavailable() = runTest {
+        val repo = FakeEntitlementRepository(
+            plans = ApiResult.Success(listOf(Plan(plano = "pro", nome = "Pro", preco = "9.90")))
+        )
+        val controller = EntitlementController(repo, plansCacheTtlMillis = 0L)
+        controller.plansResult()
+
+        repo.plans = ApiResult.Error(code = 500, message = "boom")
+        assertTrue(controller.plansResult() is PlansResult.Unavailable)
+    }
+
+    @Test
     fun assertUsage_allowed_passesArgs() = runTest {
         val repo = FakeEntitlementRepository(assertResult = AssertResult.Allowed)
         val controller = EntitlementController(repo)

@@ -78,14 +78,30 @@ class CrashReporterTest {
     }
 
     @Test
-    fun captura_mensagem_com_nivel() {
+    fun captura_mensagem_com_nivel_e_tags() {
         val reporter = FakeCrashReporter()
         reporter.init(config())
 
-        reporter.captureMessage("degradado", CrashLevel.Warning)
+        reporter.captureMessage("degradado", CrashLevel.Warning, mapOf("area" to "pagamento"))
 
         assertEquals(1, reporter.messages.size)
-        assertEquals("degradado" to CrashLevel.Warning, reporter.messages.first())
+        val msg = reporter.messages.first()
+        assertEquals("degradado", msg.message)
+        assertEquals(CrashLevel.Warning, msg.level)
+        assertEquals("pagamento", msg.tags["area"])
+    }
+
+    @Test
+    fun isActive_reflete_o_estado_do_reporter() {
+        val reporter = FakeCrashReporter()
+        // Antes do init: morto — nenhum evento sai daqui.
+        assertFalse(reporter.isActive)
+
+        reporter.init(config(dsn = ""))
+        assertFalse(reporter.isActive)
+
+        reporter.init(config())
+        assertTrue(reporter.isActive)
     }
 
     @Test

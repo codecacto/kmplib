@@ -6,6 +6,53 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.82.0 — Fallback do paywall pela loja + alerta de pagamento no Discord (jul/2026)
+
+Sem breaking para **consumidores**; breaking de **fonte** só para quem implementa `CrashReporter`
+à mão (ver `BREAKING_CHANGES.md`). Nasceu do incidente de 26/07 (Super 8 docs/16 §A-24): o paywall
+abriu sem plano nenhum e **sem erro em lugar nenhum** porque a identidade Firebase quebrou, e a
+lista do paywall é a interseção `oferta central × Packages da loja`.
+
+### Fallback do paywall (`ui/screens/paywall`)
+- **`List<PurchasePackage>.toPaywallPlansFromStore(recommendedDurationMonths = null, planName =
+  ::defaultPlanName, durationLabel = ::defaultDurationLabel, highlights = { emptyList() })`** — monta a
+  vitrine **só com os Packages da loja** quando a oferta central não pôde ser lida. Não inventa oferta:
+  os Packages saem do mesmo `monetizacao.yaml` que alimenta o catálogo central. Mais restritivo que o
+  caminho normal, porque falta a confirmação de "o que está ativo": **só duração canônica (1/6/12)** —
+  `$rc_three_month` residual e `lifetime` são **omitidos** (no caminho normal aparecem por último) —,
+  **preço obrigatório e > 0**, ordem/selo pela fonte única `withDerivedHighlight`.
+- **`defaultPlanName(durationMonths)`** — nome canônico pt-BR (**Mensal/Semestral/Anual**, sem
+  "Premium" nem trimestral) para o card no fallback, onde não existe `Plan.nome` do catálogo.
+
+### Oferta central: leitura com resultado explícito + TTL (`monetization/entitlement`)
+- **`sealed interface PlansResult { Available(plans, fromCache) | Unavailable(message) }`** e
+  **`EntitlementController.plansResult(forceReload = false)`**. `plans()` continua existindo e
+  devolvendo `List<Plan>`, mas `emptyList()` é **ambíguo** ("falhou" × "nenhum plano ativo") e a
+  ambiguidade custa dinheiro: era o mesmo paywall morto nos dois casos.
+- **`EntitlementController(repository, plansCacheTtlMillis = DEFAULT_PLANS_CACHE_TTL_MILLIS /* 60s */)`** —
+  o cache de planos **não expirava** (era eterno dentro da sessão; só `forceReload` derrubava), então
+  ligar/desligar plano no admin central só aparecia com swipe-refresh ou matando o app. Agora tem TTL
+  igual ao do `AdminApiEntitlementRepository`, `invalidatePlansCache()` e degradação segura (erro com
+  cache válido serve o cache, em vez de zerar a tela).
+
+### Alerta de pagamento (`monetization/alert`) — NOVO
+- **`enum PaymentAlertKind`** (7 tipos: `OfertaCentralIndisponivel`, `PaywallSemPlano` (Fatal),
+  `LojaIndisponivel`, `CompraFalhou`, `RestauracaoFalhou`, `EntitlementIndisponivel`,
+  `IdentidadeAusente`) — cada um com **título FIXO** (o GlitchTip agrupa issue por título; contador no
+  título viraria issue nova e enxurrada no Discord) e nível proporcional ao dano comercial.
+- **`class PaymentAlertReporter(reporter, projeto, umaVezPorSessao = true)`** — `report(kind, detalhe,
+  nivel, tagsExtra): Boolean`. Caminho: **app → `CrashReporter` → GlitchTip → alerta com destinatário
+  Discord**. O app **nunca** fala com o Discord direto (webhook no binário é segredo público). Tags
+  `area=pagamento`, `projeto`, `tipo`, `detalhe`. Anti-spam: 1× por tipo por sessão. **LGPD:** `detalhe`
+  é técnico (contador/flag/código), jamais `uid`/e-mail/CPF/id de transação.
+
+### Observabilidade (`observability`)
+- **`CrashReporter.isActive`** — o app agora pode **falhar alto**: DSN ausente fazia `init` virar no-op
+  silencioso, indistinguível de "nenhum erro aconteceu" (os 6 projetos mobile do GlitchTip tinham zero
+  eventos e não havia como saber, de fora, se era isso).
+- **`captureMessage(message, level, tags = emptyMap())`** — ganhou `tags` (o `captureException` já tinha);
+  é o que dá roteamento/filtro ao alerta no painel e campos no embed do Discord.
+
 ## 2.78.1 — fix: FileProvider paths cobrem photos/ e videos/ (jul/2026)
 
 Sem breaking. Correção de bug introduzido na 2.78.0.

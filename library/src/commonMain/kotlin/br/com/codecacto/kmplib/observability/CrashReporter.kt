@@ -26,6 +26,21 @@ package br.com.codecacto.kmplib.observability
 interface CrashReporter {
 
     /**
+     * O reporter está **de fato** enviando eventos? `false` significa que [init] ainda não rodou ou
+     * rodou em modo no-op (DSN em branco / `enabled = false`) — e então TODA chamada abaixo é
+     * descartada em silêncio.
+     *
+     * Existe para o app poder **falhar alto**: um DSN ausente é indistinguível de "nenhum erro
+     * aconteceu" quando ninguém pergunta. Logue isto no bootstrap:
+     * ```kotlin
+     * AppLogger.i("Boot", "crash reporter ativo=${reporter.isActive}")
+     * ```
+     * Foi o que custou a investigação de 27/07: os 6 projetos mobile do GlitchTip tinham **zero**
+     * eventos e não havia como saber, de fora, se era ausência de crash ou reporter morto.
+     */
+    val isActive: Boolean
+
+    /**
      * Inicializa o reporter com a [config] do app. **No-op** quando
      * [CrashReporterConfig.enabled] é `false` ou o DSN está em branco (útil em
      * debug local sem DSN). Idempotente do ponto de vista do app: chame uma vez
@@ -39,8 +54,16 @@ interface CrashReporter {
      */
     fun captureException(throwable: Throwable, tags: Map<String, String> = emptyMap())
 
-    /** Reporta uma mensagem (sem exceção) no [level] informado. */
-    fun captureMessage(message: String, level: CrashLevel = CrashLevel.Error)
+    /**
+     * Reporta uma mensagem (sem exceção) no [level] informado. [tags] opcionais são anexados ao
+     * evento — é assim que um alerta ganha roteamento/filtro no painel (ex.:
+     * `mapOf("area" to "pagamento")`).
+     */
+    fun captureMessage(
+        message: String,
+        level: CrashLevel = CrashLevel.Error,
+        tags: Map<String, String> = emptyMap(),
+    )
 
     /**
      * Adiciona um breadcrumb (trilha de contexto que acompanha o próximo evento).

@@ -4,6 +4,22 @@ import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
+import kotlin.time.TimeSource
+
+/**
+ * Resultado da leitura da oferta do projeto ([EntitlementController.plansResult]).
+ *
+ * Separar "leitura ok" de "leitura falhou" e o que permite ao paywall reagir: com [Unavailable] o app
+ * cai no fallback da loja e ALERTA; com [Available] vazio, o projeto realmente nao tem plano ativo (e
+ * mostrar tela vazia esta correto).
+ */
+sealed interface PlansResult {
+    /** A leitura funcionou. [plans] pode estar vazia — significa "nenhum plano ativo", de verdade. */
+    data class Available(val plans: List<Plan>, val fromCache: Boolean) : PlansResult
+
+    /** A leitura falhou (rede, 401, 5xx). [message] e a causa tecnica, quando houver. */
+    data class Unavailable(val message: String?) : PlansResult
+}
 
 /**
  * Orquestra a leitura de monetizacao para o MVI, combinando a fonte de verdade
@@ -34,11 +50,23 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
  * ```
  */
 class EntitlementController(
-    private val repository: EntitlementRepository
+    private val repository: EntitlementRepository,
+    /**
+     * TTL do cache em memoria dos planos (default 60s, igual ao [AdminApiEntitlementRepository]).
+     * `0` desabilita o cache.
+     *
+     * Antes da 2.79.0 este cache **nao expirava**: a lista era guardada para sempre dentro da sessao
+     * do app e so `forceReload` a derrubava — por isso ligar/desligar um plano no admin central so
+     * aparecia com swipe-refresh ou matando o app.
+     */
+    private val plansCacheTtlMillis: Long = DEFAULT_PLANS_CACHE_TTL_MILLIS
 ) {
 
-    /** Plano(s) do catalogo do projeto (para o Paywall). Cache leve: recarregue quando precisar. */
+    private val timeSource = TimeSource.Monotonic
+
+    /** Plano(s) do catalogo do projeto (para o Paywall). Cache leve com TTL ([plansCacheTtlMillis]). */
     private var cachedPlans: List<Plan>? = null
+    private var cachedPlansMark: TimeSource.Monotonic.ValueTimeMark? = null
 
     /**
      * Recarrega entitlement do admin-api e o sinal premium da loja, devolvendo o proximo estado.
@@ -70,13 +98,54 @@ class EntitlementController(
             ApiResult.Loading -> current
         }
 
-    /** Le os planos do projeto (com cache simples). */
-    suspend fun plans(forceReload: Boolean = false): List<Plan> {
-        cachedPlans?.takeIf { !forceReload }?.let { return it }
-        return when (val res = repository.getPlans()) {
-            is ApiResult.Success -> res.data.also { cachedPlans = it }
-            else -> cachedPlans ?: emptyList()
+    /**
+     * Le os planos do projeto (cache com TTL). **Nao distingue falha de "nenhum plano ativo"** — as
+     * duas coisas chegam como lista vazia. Para decidir fallback de paywall, use [plansResult].
+     */
+    suspend fun plans(forceReload: Boolean = false): List<Plan> =
+        when (val res = plansResult(forceReload)) {
+            is PlansResult.Available -> res.plans
+            is PlansResult.Unavailable -> emptyList()
         }
+
+    /**
+     * Le os planos do projeto dizendo **se a leitura funcionou**.
+     *
+     * Existe porque `emptyList()` e ambiguo e a ambiguidade custa dinheiro: "o admin-api recusou por
+     * falta de token" e "este projeto nao tem plano ativo" produzem a MESMA tela vazia (docs/16 §A-24
+     * do Super 8). Com [PlansResult.Unavailable] o app pode cair no fallback da loja
+     * (`toPaywallPlansFromStore`) e **alertar** (`PaymentAlertKind.OfertaCentralIndisponivel`) em vez
+     * de mostrar um paywall morto.
+     *
+     * Cache: uma leitura bem-sucedida vale por [plansCacheTtlMillis]; falha **nao** e cacheada, mas um
+     * cache ainda valido e servido em vez do erro (degradacao segura — nunca concede nada, so exibe).
+     */
+    suspend fun plansResult(forceReload: Boolean = false): PlansResult {
+        if (!forceReload) freshCachedPlans()?.let { return PlansResult.Available(it, fromCache = true) }
+        return when (val res = repository.getPlans()) {
+            is ApiResult.Success -> {
+                cachedPlans = res.data
+                cachedPlansMark = timeSource.markNow()
+                PlansResult.Available(res.data, fromCache = false)
+            }
+            is ApiResult.Error ->
+                freshCachedPlans()?.let { PlansResult.Available(it, fromCache = true) }
+                    ?: PlansResult.Unavailable(res.message)
+            ApiResult.Loading -> PlansResult.Unavailable(message = null)
+        }
+    }
+
+    /** Descarta o cache de planos (ex.: apos mudanca de plano no admin ou pull-to-refresh). */
+    fun invalidatePlansCache() {
+        cachedPlans = null
+        cachedPlansMark = null
+    }
+
+    private fun freshCachedPlans(): List<Plan>? {
+        if (plansCacheTtlMillis <= 0L) return null
+        val plans = cachedPlans ?: return null
+        val mark = cachedPlansMark ?: return null
+        return plans.takeIf { mark.elapsedNow().inWholeMilliseconds <= plansCacheTtlMillis }
     }
 
     /**
@@ -126,4 +195,9 @@ class EntitlementController(
             is AssertResult.Denied -> current.showingPaywall(res.quota) to false
             is AssertResult.Failed -> current.copy(error = res.message) to false
         }
+
+    companion object {
+        /** TTL default do cache de planos: 60s, o mesmo do [AdminApiEntitlementRepository]. */
+        const val DEFAULT_PLANS_CACHE_TTL_MILLIS: Long = 60_000L
+    }
 }

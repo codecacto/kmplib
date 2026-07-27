@@ -129,6 +129,68 @@ fun List<Plan>.toPaywallPlans(
     return withDerivedHighlight(resolved, forcedPlanId)
 }
 
+/**
+ * **FALLBACK do paywall — monta a vitrine SÓ com os Packages da loja**, quando a oferta central
+ * (`admin-api /me/plans`) não pôde ser lida.
+ *
+ * Por que existe: o paywall canônico é a **interseção** `oferta central × Packages da loja`, e lista
+ * vazia de um lado zera a tela **sem erro visível**. A leitura central é a mais frágil das duas (exige
+ * identidade Firebase — em 26/07 ela caiu por dois motivos ambientais no mesmo dia, ver docs/16 §A-24
+ * do Super 8) enquanto a loja tinha tudo para vender. Sem este caminho, uma falha de identidade vira
+ * **receita zero** com a loja funcionando.
+ *
+ * Não é "inventar oferta": os Packages são provisionados do MESMO `monetizacao.yaml` que alimenta o
+ * catálogo central (`Ferramentas/provisioner`, 4 pontas). O que se perde no fallback é a confirmação
+ * de **quais planos estão ativos** — e é justamente por isso que ele é mais restritivo:
+ *
+ * - **Só duração canônica (1/6/12).** Um Package fora do padrão (o `$rc_three_month` residual, um
+ *   `lifetime`) é **OMITIDO** — sem a oferta central não há como afirmar que aquilo está à venda, e
+ *   trimestral não existe no padrão da fábrica. No caminho normal o não-canônico aparece por último;
+ *   aqui, não aparece.
+ * - **Preço obrigatório e > 0** (`priceLabel` não-branco e `priceAmountMicros > 0`): Package sem preço
+ *   resolvido não é vendável, e preço zero como "premium" seria um bug de cobrança.
+ * - **Ordem fixa e selo derivado** por [withDerivedHighlight] (mesma fonte única do caminho normal).
+ *
+ * **Quem usa isto DEVE alertar** (`PaymentAlertKind.OfertaCentralIndisponivel`): funcionar em fallback
+ * é funcionar meio-cego, e o fundador precisa saber no Discord.
+ *
+ * ```kotlin
+ * val planos = if (ofertaCentralOk) offer.toPaywallPlans(packages, durationLabel = ::rotulo)
+ *              else packages.toPaywallPlansFromStore(planName = ::nomeI18n, durationLabel = ::rotulo)
+ * ```
+ *
+ * @param recommendedDurationMonths força o selo numa duração; `null` => maior duração elegível.
+ * @param planName nome do card por duração canônica (i18n do app). Default: [defaultPlanName].
+ * @param durationLabel rótulo de duração; `null` => sem rótulo.
+ * @param highlights destaques por duração — no fallback não há `Plan.destaques` do catálogo, então os
+ *   benefícios vêm do app (`composeResources`). Default: nenhum.
+ */
+fun List<PurchasePackage>.toPaywallPlansFromStore(
+    recommendedDurationMonths: Int? = null,
+    planName: (durationMonths: Int) -> String = ::defaultPlanName,
+    durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
+    highlights: (durationMonths: Int) -> List<String> = { emptyList() },
+): List<PaywallPlan> {
+    val resolved = this.mapNotNull { pkg ->
+        val months = pkg.durationMonths?.takeIf { PlanInterval.isCanonical(it) } ?: return@mapNotNull null
+        if (pkg.priceLabel.isBlank() || pkg.priceAmountMicros <= 0L) return@mapNotNull null
+        PaywallPlan(
+            id = pkg.packageId,
+            name = planName(months),
+            priceLabel = pkg.priceLabel,
+            durationLabel = durationLabel(months),
+            highlights = highlights(months),
+            durationMonths = months,
+            isFree = false,
+        )
+    }
+
+    val forcedPlanId = recommendedDurationMonths
+        ?.let { months -> resolved.firstOrNull { it.durationMonths == months }?.id }
+
+    return withDerivedHighlight(resolved, forcedPlanId)
+}
+
 /** Correlacao Plan x Package: duracao canonica primeiro, `storeProductId` como fallback. */
 private fun Plan.matchPackage(packages: List<PurchasePackage>): PurchasePackage? {
     val byDuration = durationMonths
@@ -198,4 +260,18 @@ fun defaultDurationLabel(durationMonths: Int): String = when (durationMonths) {
     1 -> "1 mes"
     12 -> "1 ano"
     else -> "$durationMonths meses"
+}
+
+/**
+ * Nome canonico do plano (pt-BR) derivado de `durationMonths` — os **3 tipos** do ecossistema, nesta
+ * grafia: **Mensal / Semestral / Anual**. Sem "Premium" no rotulo do card, sem trimestral.
+ *
+ * Usado pelo fallback ([toPaywallPlansFromStore]), onde nao existe `Plan.nome` do catalogo central.
+ * App com i18n deve passar o proprio lambda (`composeResources`) em vez deste default.
+ */
+fun defaultPlanName(durationMonths: Int): String = when (PlanInterval.fromDurationMonths(durationMonths)) {
+    PlanInterval.Monthly -> "Mensal"
+    PlanInterval.SemiAnnual -> "Semestral"
+    PlanInterval.Yearly -> "Anual"
+    null -> "$durationMonths meses"
 }

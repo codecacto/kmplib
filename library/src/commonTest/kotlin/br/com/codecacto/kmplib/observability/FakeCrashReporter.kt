@@ -13,12 +13,16 @@ class FakeCrashReporter : CrashReporter {
     var active: Boolean = false
         private set
 
+    override val isActive: Boolean get() = active
+
     val exceptions = mutableListOf<Pair<Throwable, Map<String, String>>>()
-    val messages = mutableListOf<Pair<String, CrashLevel>>()
+    val messages = mutableListOf<Message>()
     val breadcrumbs = mutableListOf<Breadcrumb>()
     val tags = mutableMapOf<String, String>()
     var currentUserId: String? = null
         private set
+
+    data class Message(val message: String, val level: CrashLevel, val tags: Map<String, String>)
 
     data class Breadcrumb(val message: String, val category: String?, val level: CrashLevel)
 
@@ -32,9 +36,9 @@ class FakeCrashReporter : CrashReporter {
         exceptions.add(throwable to tags)
     }
 
-    override fun captureMessage(message: String, level: CrashLevel) {
+    override fun captureMessage(message: String, level: CrashLevel, tags: Map<String, String>) {
         if (!active) return
-        messages.add(message to level)
+        messages.add(Message(message, level, tags))
     }
 
     override fun addBreadcrumb(message: String, category: String?, level: CrashLevel) {

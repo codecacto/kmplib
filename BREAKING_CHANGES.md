@@ -10,6 +10,7 @@ Mudanças que **exigiram** ação dos consumidores — detalhe/migração no cat
 
 | Versão | Módulo | Breaking | Migração |
 |--------|--------|----------|----------|
+| 2.82.0 | `observability` | Só para quem **implementa** `CrashReporter` (fake/duble próprio): a interface ganhou `val isActive` e `captureMessage` ganhou o 3º parâmetro `tags`. **Chamadores não mudam** (`tags` tem default). | Implementar `isActive` (delegar ao estado do `init`) e acrescentar `tags: Map<String, String>` na assinatura de `captureMessage`. |
 | 2.78.0 | (nenhum) | Onda de manutenção da auditoria: higiene git, docs, ADRs, `OnboardingPager` (novo), `CrashReporter.initFromBuildConfig` (aditivo), portes iOS de PDF/câmera (aditivos). **Sem breaking.** | — |
 | 2.75.0 | `firebase/crashlytics` → `observability` | Módulo Crashlytics **removido**; crashes vão para `CrashReporter` (Sentry/GlitchTip). | Trocar `CrashlyticsService` por `crashReporterModule` + `CrashReporter.init(...)`. |
 | 2.57.0 | `monetization` | Assinatura por **Offerings/Packages** (RevenueCat gold-standard); `getProducts()`/`purchase(id)` `@Deprecated`. | Usar `getOfferings()`/`purchasePackage(id)`; `toPaywallPlans(packages=...)`. |
