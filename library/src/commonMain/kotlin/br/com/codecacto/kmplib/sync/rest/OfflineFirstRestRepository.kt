@@ -115,6 +115,15 @@ data class RestPage<T>(
  * | 4xx de validação / 403 / 404 | `OnlineFirst`: nada persistido, devolve `Error` (o formulário corrige) · `LocalFirst`: linha fica [RestRowState.Failed], com o erro **preservado e visível** |
  * | **402** | `DomainResult.Quota` (Paywall) — semântica intacta |
  *
+ * ### O registro criado offline sobe como CREATE (2.92.0 — GAP-KL-M-RESTCRUD-PENDINGOP)
+ * A operação pendente de uma linha é derivada do **estado dela** ([resolveOutboxOp]), não da última
+ * chamada: enquanto `server_id == null` a linha **nunca existiu no servidor**, então `update()` só
+ * troca o payload (a operação segue `CREATE`) e `delete()` a apaga **localmente**, sem tocar a rede.
+ * Antes, o primeiro `update()` sobre um registro criado offline trocava `CREATE` por `UPDATE` e o
+ * drain fazia `PUT /…/local-…` → **404** → linha marcada como recusada: a execução offline inteira
+ * (iniciar a rota sem rede e marcar embarques) nunca subia. O drain **cura** linhas já gravadas
+ * assim por versões anteriores.
+ *
  * ### Estado por linha (a UI não precisa de overlay próprio)
  * [observeAllWithState]/[stateOf] expõem `pendente / falhou / sincronizado` por registro
  * ([RestRowState]); [requeueFailed]/[discardFailed] resolvem a linha recusada. Antes disso cada app
@@ -286,9 +295,22 @@ open class OfflineFirstRestRepository<T : Any>(
         }
     }
 
-    /** Atualiza o registro — mesma política de falha do [create] (ver [RestWriteMode]). */
-    suspend fun update(model: T): DomainResult<T> =
-        if (writeMode == RestWriteMode.LocalFirst) updateLocalFirst(model) else updateOnlineFirst(model)
+    /**
+     * Atualiza o registro — mesma política de falha do [create] (ver [RestWriteMode]).
+     *
+     * **Linha ainda pendente de criação** (criada offline, `server_id == null`): não há o que
+     * atualizar no servidor — um `PUT /…/local-…` renderia 404 e marcaria a escrita como recusada.
+     * A alteração grava no espelho e a operação pendente **continua CREATE** ([resolveOutboxOp]); o
+     * drain envia **um único POST** com o payload mais recente. Devolve `Success` com o modelo local,
+     * porque a escrita **foi aceita** (o estado da linha é [RestRowState.Pending]).
+     */
+    suspend fun update(model: T): DomainResult<T> {
+        if (mirror.isLocalOnly(descriptor.idOf(model))) {
+            mirror.putDirty(model, SyncOpType.UPDATE) // resolveOutboxOp preserva o CREATE pendente
+            return DomainResult.Success(model)
+        }
+        return if (writeMode == RestWriteMode.LocalFirst) updateLocalFirst(model) else updateOnlineFirst(model)
+    }
 
     private suspend fun updateOnlineFirst(model: T): DomainResult<T> =
         when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
@@ -324,8 +346,16 @@ open class OfflineFirstRestRepository<T : Any>(
      * retentável vira **tombstone** (replay no reconnect). Em [RestWriteMode.LocalFirst] o tombstone
      * é gravado **antes** da rede e uma recusa terminal **reexibe** a linha marcada como não-salva —
      * o registro continua existindo no servidor, e esconder isso seria mentir para o usuário.
+     *
+     * **Linha que nunca subiu** (criada offline, `server_id == null`): a exclusão é **local e
+     * imediata**, sem tocar a rede — o servidor não conhece o id `local-…` e só devolveria um 404
+     * previsível (que a máquina de estados leria como recusa terminal).
      */
     suspend fun delete(id: String): DomainResult<Unit> {
+        if (mirror.isLocalOnly(id)) {
+            mirror.removeHard(id)
+            return DomainResult.Success(Unit)
+        }
         if (writeMode == RestWriteMode.LocalFirst) mirror.tombstone(id)
         return when (val r = api.delete(itemPath(id))) {
             is DomainResult.Success -> { mirror.removeHard(id); DomainResult.Success(Unit) }
@@ -443,8 +473,21 @@ open class OfflineFirstRestRepository<T : Any>(
                 continue
             }
             val model = descriptor.remapRefs(decoded, parentRemap)
-            when (rowItem.pending_op) {
-                SyncOpType.CREATE.wire -> when (val r = api.postJson(collection, descriptor.encodeBody(model))) {
+            // A operação enviada sai do ESTADO da linha, não só do que foi gravado em `pending_op`:
+            // sem `server_id` a linha nunca existiu no servidor, logo é sempre um POST (e um delete
+            // sobre ela se resolve local). Isto também **cura** linhas gravadas por versões
+            // anteriores, que trocavam o CREATE pendente por UPDATE e ficavam presas em 404.
+            val op = resolveOutboxOp(
+                requested = rowItem.pending_op?.let { SyncOpType.fromWire(it) } ?: SyncOpType.UPDATE,
+                knownLocally = true,
+                hasServerId = rowItem.server_id != null,
+            )
+            if (op == null) {
+                mirror.removeHard(rowItem.local_id) // delete de algo que nunca subiu: nada a enviar
+                continue
+            }
+            when (op) {
+                SyncOpType.CREATE -> when (val r = api.postJson(collection, descriptor.encodeBody(model))) {
                     is DomainResult.Success -> {
                         val saved = decodeOrNull(r.data)
                         if (saved == null) {
@@ -458,12 +501,12 @@ open class OfflineFirstRestRepository<T : Any>(
                     is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
                     is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
-                SyncOpType.UPDATE.wire -> when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
+                SyncOpType.UPDATE -> when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
                     is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
                     is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
                     is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
-                SyncOpType.DELETE.wire -> when (val r = api.delete(itemPath(descriptor.idOf(model)))) {
+                SyncOpType.DELETE -> when (val r = api.delete(itemPath(descriptor.idOf(model)))) {
                     is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
                     is DomainResult.Error -> when {
                         r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá

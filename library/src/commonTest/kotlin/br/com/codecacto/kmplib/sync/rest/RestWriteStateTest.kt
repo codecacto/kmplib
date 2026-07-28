@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.sync.db.Synced_entity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -59,6 +60,54 @@ class RestWriteStateTest {
             RestFailureClass.Terminal,
             classifyRestFailure(OfflineFirstRestRepository.INVALID_PAYLOAD_CODE),
         )
+    }
+
+    // -- Máquina de estados da outbox (resolveOutboxOp) ---------------------
+
+    @Test
+    fun `update sobre linha SEM server_id continua sendo CREATE — o registro nunca existiu la`() {
+        assertEquals(
+            SyncOpType.CREATE,
+            resolveOutboxOp(SyncOpType.UPDATE, knownLocally = true, hasServerId = false),
+        )
+        // Idempotente: vários updates seguidos não escapam do CREATE.
+        assertEquals(
+            SyncOpType.CREATE,
+            resolveOutboxOp(SyncOpType.CREATE, knownLocally = true, hasServerId = false),
+        )
+    }
+
+    @Test
+    fun `delete sobre linha SEM server_id nao envia nada (nulo) — resolve local, sem 404`() {
+        assertNull(resolveOutboxOp(SyncOpType.DELETE, knownLocally = true, hasServerId = false))
+    }
+
+    @Test
+    fun `linha ja confirmada pelo servidor mantem a operacao pedida`() {
+        assertEquals(
+            SyncOpType.UPDATE,
+            resolveOutboxOp(SyncOpType.UPDATE, knownLocally = true, hasServerId = true),
+        )
+        assertEquals(
+            SyncOpType.DELETE,
+            resolveOutboxOp(SyncOpType.DELETE, knownLocally = true, hasServerId = true),
+        )
+    }
+
+    @Test
+    fun `create sobre linha que JA tem server_id vira update — repetir o POST duplicaria`() {
+        assertEquals(
+            SyncOpType.UPDATE,
+            resolveOutboxOp(SyncOpType.CREATE, knownLocally = true, hasServerId = true),
+        )
+    }
+
+    @Test
+    fun `linha desconhecida no espelho respeita o pedido — inferir viraria POST duplicado`() {
+        // Ex.: update de um item que ainda não foi baixado: o id veio do app e é do servidor.
+        SyncOpType.entries.forEach { op ->
+            assertEquals(op, resolveOutboxOp(op, knownLocally = false, hasServerId = false), op.wire)
+        }
     }
 
     private fun row(

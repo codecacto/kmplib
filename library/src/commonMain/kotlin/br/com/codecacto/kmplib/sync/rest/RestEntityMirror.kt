@@ -52,6 +52,17 @@ class RestEntityMirror<T : Any>(
     /** Server id conhecido para um id local (== client id offline). `null` se ainda não sincronizado. */
     fun serverIdOf(localId: String): String? = store.getByLocalId(name, localId)?.server_id
 
+    /**
+     * A linha existe no espelho e **nunca foi confirmada pelo servidor** (`server_id == null`): ela
+     * só existe neste aparelho, sob um id local. Toda escrita sobre ela ainda é uma **criação**, e
+     * apagá-la se resolve **localmente** — nenhum `PUT`/`DELETE` em `/…/local-…` faz sentido (o
+     * servidor não conhece esse id e responderia 404).
+     */
+    fun isLocalOnly(localId: String): Boolean {
+        val linha = store.getByLocalId(name, localId) ?: return false
+        return linha.server_id == null
+    }
+
     /** Linhas sujas (outbox) desta entidade, mais antigas primeiro — **inclusive as recusadas**. */
     fun dirtyRows(): List<Synced_entity> = store.getDirty(name)
 
@@ -141,25 +152,52 @@ class RestEntityMirror<T : Any>(
         }
     }
 
-    /** Grava SUJO (offline) enfileirando [op] na outbox. `localId` = id local (client id no create). */
+    /**
+     * Grava SUJO (offline) enfileirando [op] na outbox — **preservando a operação pendente enquanto
+     * a linha ainda não subiu**. `localId` = id local (client id no create).
+     *
+     * A operação efetivamente gravada sai de [resolveOutboxOp]: enquanto `server_id == null` a linha
+     * continua pendente de **CREATE** (um `update` só troca o payload), e um `delete` sobre ela
+     * **remove a linha localmente** em vez de enfileirar um `DELETE` que só produziria 404.
+     */
     fun putDirty(model: T, op: SyncOpType) {
         val localId = idOf(model)
         val existing = store.getByLocalId(name, localId)
+        val efetiva = resolveOutboxOp(
+            requested = op,
+            knownLocally = existing != null,
+            hasServerId = existing?.server_id != null,
+        ) ?: run { store.deleteHard(name, localId); return }
         store.upsert(
             row(
                 model,
                 serverId = existing?.server_id,
                 dirty = true,
-                pendingOp = op.wire,
+                pendingOp = efetiva.wire,
                 clientId = existing?.client_id ?: localId,
                 updatedAt = null,
             ),
         )
     }
 
-    /** Marca exclusão (tombstone) mantendo o payload para replay do delete na reconexão. */
+    /**
+     * Marca exclusão (tombstone) mantendo o payload para replay do delete na reconexão.
+     *
+     * **Linha que nunca subiu** (`server_id == null` — ainda pendente de CREATE) é **removida de
+     * vez**: não há nada a apagar no servidor, e enfileirar um `DELETE /…/local-…` só renderia um
+     * 404 previsível, que a máquina de estados classificaria como recusa terminal.
+     */
     fun tombstone(localId: String) {
         val existing = store.getByLocalId(name, localId) ?: return
+        val efetiva = resolveOutboxOp(
+            requested = SyncOpType.DELETE,
+            knownLocally = true,
+            hasServerId = existing.server_id != null,
+        )
+        if (efetiva == null) {
+            store.deleteHard(name, localId)
+            return
+        }
         store.upsert(
             existing.copy(
                 dirty = 1L,

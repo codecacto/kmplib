@@ -6,6 +6,58 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.92.0 — offline-first REST-CRUD: o registro criado offline sobe como CREATE (jul/2026)
+
+Fecha o **P0 `GAP-KL-M-RESTCRUD-PENDINGOP`**, defeito **pré-existente** da outbox que a 2.91.0
+tornou visível (antes ele falhava calado; com o estado por linha, ele passou a acender "não salvo"
+na cara do usuário). Vale para **todos os ~14 apps** da onda REST-CRUD que criam e editam um
+registro dentro da mesma janela offline. **Sem breaking change** — nenhuma assinatura pública mudou.
+
+### O defeito
+
+`RestEntityMirror.putDirty` gravava `pending_op` com a operação **pedida pelo caller**, sem olhar o
+estado da linha. Sequência real (iniciar a rota **sem rede** e marcar embarques):
+
+1. offline, a linha nasce com `pending_op = CREATE` e id local (`server_id == null`);
+2. o primeiro toque chama `update()` → a operação pendente **vira `UPDATE`**;
+3. ao reconectar, o drain faz `PUT /v1/…/local-…` → **404** → classificado como recusa **terminal**
+   → linha marcada `Failed`;
+4. o reenvio repete o mesmo PUT impossível. **A execução offline inteira nunca subia.**
+
+### A correção — máquina de estados da outbox num ponto só
+
+- **`resolveOutboxOp(requested, knownLocally, hasServerId): SyncOpType?`** (`sync/rest`, pura e
+  testável) é a nova fonte única da operação pendente. Invariante: **`server_id == null` ⇒ a linha
+  nunca existiu no servidor**, logo toda escrita subsequente **continua sendo uma criação** (o
+  payload muda, a operação não). `null` = **nada a enviar** (resolve-se localmente).
+- **Transições corrigidas** (todas as que decidiam `pending_op` sem olhar o estado anterior):
+
+  | Situação | Antes | Agora |
+  |---|---|---|
+  | `update` sobre linha com `CREATE` pendente (`server_id == null`) | virava `UPDATE` → `PUT /…/local-…` → 404 eterno | continua `CREATE`; o drain faz **um único POST** com o payload final |
+  | `delete` sobre linha com `CREATE` pendente | enfileirava `DELETE /…/local-…` (404 previsível) | **remove a linha localmente**, sem tocar a rede |
+  | `create` sobre linha que **já tem** `server_id` | re-`POST` → **duplicaria** o registro | vira `UPDATE` |
+  | linha **desconhecida** no espelho | — | respeita o pedido (o id veio do app; inferir viraria POST duplicado) |
+  | linha gravada por versão anterior (`UPDATE` sem `server_id`) | presa em 404 para sempre | **curada no drain**: sobe como POST |
+
+- **`OfflineFirstRestRepository.update()`/`delete()`** passaram a **curto-circuitar** a rede quando a
+  linha é local-only (`mirror.isLocalOnly(id)`): não há o que atualizar/apagar num id que o servidor
+  não conhece. `update()` grava no espelho e devolve `Success` (a escrita **foi** aceita; o estado é
+  `Pending`); `delete()` apaga local e devolve `Success`. Vale para os **dois** `RestWriteMode` — em
+  `OnlineFirst` o mesmo `PUT /…/local-…` também acontecia.
+- **`drainOutbox`** deriva a operação do **estado da linha** (não só do `pending_op` gravado), o que
+  **cura** as linhas já corrompidas em aparelhos que rodaram a 2.91.0 — sem migração de schema.
+- **API nova (aditiva):** `resolveOutboxOp(...)` e `RestEntityMirror.isLocalOnly(localId)`.
+
+### Testes
+
+`RestWriteStateTest` 10 → **15** (as 5 transições da máquina de estados, puras) e
+`OfflineFirstRestWriteTest` 15 → **22**: o fluxo do motorista ponta a ponta (offline → toque →
+reconexão: **um** POST, `clientId → serverId` remapeado, linha `Synced`), vários updates antes de
+qualquer sync → **um** POST com o payload final, `delete` sobre `CREATE` pendente sem ida à rede,
+cura de linha legada, e as duas **regressões** que garantem que linha já sincronizada continua indo
+de `PUT`/`DELETE` ao servidor. Suíte: **1.483 testes, 0 falhas**; `koverVerify` verde.
+
 ## 2.91.0 — offline-first REST-CRUD: a escrita não some, e o espelho é por conta (jul/2026)
 
 Fecha os **dois P0** que o tech-lead levantou na entrega do "Todos a Bordo"

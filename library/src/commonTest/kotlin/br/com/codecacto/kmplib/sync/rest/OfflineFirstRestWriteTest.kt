@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.sync.rest
 
 import br.com.codecacto.kmplib.sync.FakeSyncStore
 import br.com.codecacto.kmplib.sync.SyncOpType
+import br.com.codecacto.kmplib.sync.db.Synced_entity
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -50,6 +51,9 @@ class OfflineFirstRestWriteTest {
         var serverId: String = "srv-1"
         var body: String? = null
         var requests: Int = 0
+
+        /** Chamadas recebidas, como `"POST /v1/marcacoes"` — o verbo importa (POST × PUT). */
+        val calls = mutableListOf<String>()
     }
 
     private fun repo(
@@ -61,6 +65,7 @@ class OfflineFirstRestWriteTest {
             HttpClient(
                 MockEngine { request ->
                     server.requests++
+                    server.calls += "${request.method.value} ${request.url.encodedPath}"
                     if (server.transportDown) throw RuntimeException("sem rede")
                     val enviado = (request.body as? io.ktor.http.content.TextContent)?.text ?: ""
                     if (server.status.value in 200..299) {
@@ -338,6 +343,169 @@ class OfflineFirstRestWriteTest {
         server.serverId = "srv-A1"
         assertEquals("srv-A1", r.drainOutbox(emptyMap())[local.id])
         assertEquals("Ana", r.getCached("srv-A1")?.nome)
+    }
+
+    // -- Máquina de estados da outbox: o que nasceu offline sobe como CREATE ---
+    // GAP-KL-M-RESTCRUD-PENDINGOP (2.92.0). Sem isto, "iniciar a rota sem rede" nunca subia:
+    // o 1º toque trocava o CREATE pendente por UPDATE, o drain fazia PUT /…/local-… e o 404
+    // marcava a linha como recusada — para sempre.
+
+    @Test
+    fun `update sobre linha pendente de CREATE mantem a operacao CREATE e o drain faz POST`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+
+        // 1) Sem rede, a linha nasce com id local e CREATE pendente.
+        val local = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+        assertTrue(local.id.startsWith("local-"))
+
+        // 2) Ainda sem rede, o motorista marca o embarque (1º toque = update).
+        val res = r.update(local.copy(embarcadoEm = "07:10"))
+        assertTrue(res is DomainResult.Success)
+        val pendente = r.stateOf(local.id)
+        assertTrue(pendente is RestRowState.Pending)
+        assertEquals(SyncOpType.CREATE, (pendente as RestRowState.Pending).op) // NÃO virou UPDATE
+        assertEquals("07:10", r.getCached(local.id)?.embarcadoEm)
+
+        // 3) Reconectou: UM POST, id remapeado, linha limpa — nada de PUT em /local-…
+        server.transportDown = false
+        server.serverId = "srv-9"
+        server.calls.clear()
+        val remap = r.drainOutbox(emptyMap())
+
+        assertEquals(listOf("POST /v1/marcacoes"), server.calls)
+        assertEquals("srv-9", remap[local.id])
+        assertTrue(r.stateOf("srv-9").isSynced)
+        assertEquals("07:10", r.getCached("srv-9")?.embarcadoEm)
+        assertNull(r.getCached(local.id))
+        assertTrue(r.failedRows().isEmpty())
+    }
+
+    @Test
+    fun `OnlineFirst - update sobre CREATE pendente nao faz PUT em id local (era 404 eterno)`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.OnlineFirst)
+        val local = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+
+        // Rede de volta, mas o registro ainda não existe no servidor: nenhuma requisição deve sair.
+        server.transportDown = false
+        server.status = HttpStatusCode.NotFound
+        server.calls.clear()
+        val res = r.update(local.copy(embarcadoEm = "07:10"))
+
+        assertTrue(res is DomainResult.Success)
+        assertTrue(server.calls.isEmpty())
+        assertEquals(SyncOpType.CREATE, (r.stateOf(local.id) as RestRowState.Pending).op)
+        assertEquals("07:10", r.getCached(local.id)?.embarcadoEm)
+    }
+
+    @Test
+    fun `varios updates antes de qualquer sync viram UM unico POST com o payload final`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+        val local = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+
+        r.update(local.copy(embarcadoEm = "07:10"))
+        r.update(local.copy(embarcadoEm = null)) // desmarcou
+        r.update(local.copy(embarcadoEm = "07:12")) // marcou de novo
+
+        assertEquals(1, store.getDirty("marcacao").size) // uma linha, uma operação
+
+        server.transportDown = false
+        server.serverId = "srv-3"
+        server.calls.clear()
+        r.drainOutbox(emptyMap())
+
+        assertEquals(listOf("POST /v1/marcacoes"), server.calls)
+        assertEquals("07:12", r.getCached("srv-3")?.embarcadoEm)
+    }
+
+    @Test
+    fun `delete sobre CREATE pendente remove local e NAO envia DELETE (evita 404 previsivel)`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+        val local = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+
+        server.transportDown = false
+        server.calls.clear()
+        val res = r.delete(local.id)
+
+        assertTrue(res is DomainResult.Success)
+        assertTrue(server.calls.isEmpty()) // nada foi à rede: não há o que apagar lá
+        assertTrue(r.getAllCached().isEmpty())
+        assertTrue(store.getDirty("marcacao").isEmpty()) // nem sobrou tombstone na outbox
+
+        r.drainOutbox(emptyMap())
+        assertTrue(server.calls.isEmpty()) // e o ciclo seguinte não tem o que drenar
+    }
+
+    @Test
+    fun `linha legada gravada como UPDATE sem server_id e curada e sobe como POST`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { serverId = "srv-legado" }
+        val r = repo(server, store, RestWriteMode.OnlineFirst)
+        // Estado que versões anteriores deixaram no aparelho: create pendente que virou "update".
+        store.upsert(
+            Synced_entity(
+                account_id = "",
+                entity = "marcacao",
+                local_id = "local-legado",
+                server_id = null,
+                client_id = "local-legado",
+                payload_json = """{"id":"local-legado","nome":"Ana","embarcadoEm":"07:10"}""",
+                updated_at = null,
+                dirty = 1L,
+                pending_op = SyncOpType.UPDATE.wire,
+                deleted = 0L,
+                base_updated_at = null,
+                last_error = "404",
+                failed = 0L,
+                fail_code = null,
+                attempts = 7L,
+            ),
+        )
+
+        val remap = r.drainOutbox(emptyMap())
+
+        assertEquals(listOf("POST /v1/marcacoes"), server.calls)
+        assertEquals("srv-legado", remap["local-legado"])
+        assertTrue(r.stateOf("srv-legado").isSynced)
+        assertEquals("07:10", r.getCached("srv-legado")?.embarcadoEm)
+    }
+
+    @Test
+    fun `update em linha JA sincronizada continua fazendo PUT (sem regressao para os apps)`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { serverId = "srv-1" }
+        val r = repo(server, store, RestWriteMode.OnlineFirst)
+        val criada = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+        assertEquals("srv-1", criada.id)
+
+        server.calls.clear()
+        val res = r.update(criada.copy(embarcadoEm = "07:10"))
+
+        assertTrue(res is DomainResult.Success)
+        assertEquals(listOf("PUT /v1/marcacoes/srv-1"), server.calls)
+        assertTrue(r.stateOf("srv-1").isSynced)
+    }
+
+    @Test
+    fun `delete em linha JA sincronizada continua indo ao servidor`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { serverId = "srv-1" }
+        val r = repo(server, store, RestWriteMode.OnlineFirst)
+        val criada = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+
+        server.calls.clear()
+        val res = r.delete(criada.id)
+
+        assertTrue(res is DomainResult.Success)
+        assertEquals(listOf("DELETE /v1/marcacoes/srv-1"), server.calls)
+        assertTrue(r.getAllCached().isEmpty())
     }
 
     @Test

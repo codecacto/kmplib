@@ -35,6 +35,31 @@
         passa a usar `deleteAccountData(accountId)` em vez de `deleteAll()`. Demais apps com login:
         adotar o mesmo wiring (1 linha) — sem ele o comportamento é o de hoje.
 
+- [x] **GAP-KL-M-RESTCRUD-PENDINGOP — a outbox trocava o `CREATE` pendente por `UPDATE`.**
+      **ENTREGUE na 2.92.0.** Defeito **pré-existente** (não é regressão da 2.91.0 — em `OnlineFirst`
+      o caminho era idêntico); o que a 2.91.0 mudou é que ele passou a **falhar alto** em vez de sumir
+      calado. Criar offline e editar na mesma janela deixava a linha presa em `PUT /…/local-…` → 404 →
+      `Failed`, para sempre: "iniciar a rota sem rede" nunca subia.
+      - **Correção:** `resolveOutboxOp(requested, knownLocally, hasServerId)` — fonte **única** da
+        operação pendente, com a invariante "`server_id == null` ⇒ ainda é criação". Corrigiu 4
+        transições (update→CREATE preservado; delete de linha local-only = remoção local, sem 404;
+        create sobre linha já existente = UPDATE, sem duplicar; linha desconhecida respeita o pedido)
+        + `update()`/`delete()` do repositório curto-circuitam a rede em linha local-only
+        (`mirror.isLocalOnly`) + `drainOutbox` **cura** linhas já corrompidas por versões anteriores.
+      - **Sem breaking change** e sem migração de schema. Consumidores: apenas bumpar.
+
+- [ ] **GAP-KL-M-RESTCRUD-INFLIGHT — escrita durante requisição em voo pode ser sobrescrita.**
+      Detectado ao corrigir o `GAP-KL-M-RESTCRUD-PENDINGOP`, **não corrigido** (classe diferente:
+      concorrência, não máquina de estados). Se o usuário toca de novo no MESMO registro enquanto o
+      `POST`/`PUT` daquele registro ainda está em voo, o `markSynced`/`confirm` da resposta grava a
+      versão do **servidor** por cima da segunda escrita local — que some sem aviso. Janela real só
+      com rede lenta + toque repetido no mesmo item (o caso comum, tocar em itens diferentes, não é
+      afetado); a fila e o estado por linha continuam corretos.
+      - **Correção proposta:** revisão local por linha (contador incrementado em toda escrita no
+        espelho); ao reconciliar, só gravar LIMPO se a revisão for a mesma que foi enviada — senão
+        migrar o id e **manter a linha suja** como `UPDATE` pendente. Exige tocar `Synced_entity`
+        (coluna nova + migração) — por isso não entrou junto.
+
 - [ ] **GAP-KL-M-CARDOVERFLOW — menu "três-pontinhos" de card não existe na lib.** O padrão do
       estúdio (memória `card-overflow-menu-top-right`: overflow no topo direito do card, clique no
       card = detalhe) é reimplementado por app — no "Todos a Bordo" está em

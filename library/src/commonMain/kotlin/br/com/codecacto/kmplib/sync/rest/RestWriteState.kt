@@ -85,6 +85,39 @@ fun classifyRestFailure(code: Int): RestFailureClass = when {
 }
 
 /**
+ * **Operação que a outbox deve DE FATO enviar** para uma linha, dada a operação [requested] pelo
+ * caller e o estado atual daquela linha no espelho. Concentra num único ponto a **máquina de estados
+ * da outbox** — antes, cada caminho de escrita gravava `pending_op` sem olhar o que já havia lá.
+ *
+ * A invariante é uma só: **`server_id == null` significa que a linha NUNCA existiu no servidor**,
+ * então toda escrita subsequente sobre ela continua sendo uma **criação** (o payload muda, a operação
+ * não). Sem isso, o primeiro `update()` sobre uma linha criada offline trocava `CREATE` por `UPDATE`,
+ * o drain fazia `PUT /v1/…/local-…`, o servidor devolvia **404** — classificado como recusa terminal
+ * — e **a execução offline inteira nunca subia**, repetindo para sempre o mesmo PUT impossível.
+ *
+ * @param requested operação que o caller pediu (create/update/delete).
+ * @param knownLocally a linha existe no espelho? Se **não**, não há o que inferir: o id veio do app e
+ *   presume-se do servidor (ex.: `update` de um item ainda não baixado) — respeita-se [requested],
+ *   senão um `update` viraria `POST` e **duplicaria** o registro.
+ * @param hasServerId a linha já tem `server_id` (foi confirmada pelo servidor ao menos uma vez).
+ * @return a operação efetiva, ou **`null`** quando **não há nada a enviar**: apagar algo que nunca
+ *   subiu se resolve **localmente** (um `DELETE /v1/…/local-…` só renderia um 404 previsível).
+ */
+fun resolveOutboxOp(
+    requested: SyncOpType,
+    knownLocally: Boolean,
+    hasServerId: Boolean,
+): SyncOpType? = when {
+    !knownLocally -> requested
+    // Já existe no servidor: repetir o POST duplicaria o registro — a escrita é uma atualização.
+    hasServerId -> if (requested == SyncOpType.CREATE) SyncOpType.UPDATE else requested
+    // Nunca existiu no servidor: não há o que apagar lá.
+    requested == SyncOpType.DELETE -> null
+    // Nunca existiu no servidor: qualquer escrita ainda é a criação (só o payload muda).
+    else -> SyncOpType.CREATE
+}
+
+/**
  * **Estado de sincronização de UMA linha do espelho** — o que a UI precisa saber para não inventar
  * o próprio overlay ("está indo", "o servidor recusou", "está gravado").
  *
