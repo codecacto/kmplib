@@ -6,6 +6,43 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.87.0 — `MonetizationConfig.FreemiumQuota`: o default do ecossistema ganha nome (jul/2026)
+
+Aditivo, retrocompatível. O `CLAUDE.md` declara "**freemium com limite de uso → paywall**" como o
+modelo **default** da fábrica, e esse modelo não tinha representação no `MonetizationConfig`: quem o
+queria era obrigado a configurar `PremiumOnly`, que dá o comportamento certo (`shouldShowAds =
+false`, assinatura ligada) mas **descreve errado** — diz que não existe plano gratuito. Config que
+mente é dívida: o próximo a ler assume que o app é pague-para-usar.
+
+- **Novo modo `MonetizationConfig.FreemiumQuota(purchase)`** — tier gratuito real porém limitado por
+  quota, paywall de assinatura e **nenhuma publicidade** (house ad dentro da ferramenta de trabalho
+  de um profissional pagante é ruído, não receita). Comportamento idêntico a `PremiumOnly`; o que
+  muda é a **verdade declarada** (`hasFreeTier = true`).
+- **O modo descreve postura, nunca mecanismo.** `FreemiumQuota` **não liga nem conhece** mecanismo
+  de quota: o enforcement continua server-side (admin-api / `backlib-quota`) e o cliente só exibe
+  "X de Y" (`UsageMeter`) e abre o paywall no 402.
+- **Postura saiu do `MonetizationManager` e virou contrato do `MonetizationConfig`:** as três
+  perguntas — `showsAds`, `sellsSubscription`, `hasFreeTier` — são `abstract`, mais `purchaseConfig`,
+  `modeName` e a regra pura `shouldShowAds(isPremium)`. Antes o manager derivava tudo por `is`-check
+  (`_config is PremiumOnly || _config is Freemium`): modo novo esquecido ali devolveria `false` em
+  **silêncio**, agora não compila sem responder as três. `MonetizationManager.initialize` ficou
+  uniforme (sem `when` por modo) e ganhou `hasFreeTier`; o comportamento observável dos três modos
+  antigos é **byte a byte o mesmo**.
+- **Por que não foi uma reestruturação em booleanos ortogonais:** as dimensões **não** são
+  ortogonais — exibir anúncio pressupõe existir tier gratuito. Três booleanos livres representariam
+  oito combinações, várias ilegais (`ads + pague para usar`), o oposto de "estado ilegal não deve ser
+  representável". Faltava **uma combinação legal**, não dimensionalidade. Teste cobre a invariante.
+- **`RevenueCatEntitlementProvider`** passa a inicializar em `FreemiumQuota` (era `PremiumOnly`) e
+  ganhou o parâmetro opcional `monetizationConfig`; `createEntitlementProvider` idem. Mesma postura
+  real de quem usa a fachada (ChamadaFacil, CallRecorder, MundoBandeiras — todos pareados com
+  `OfflineQuotaGate`). Único efeito observável: `hasFreeTier` deixa de mentir.
+- Testes: `MonetizationConfigTest` (10). O `MonetizationManager` é `object` que fala com o SDK do
+  RevenueCat na inicialização e não é unit-testável fora de device — por isso a decisão mora no
+  config, como regra pura.
+- **Espelhado na `casca-mobile`:** `MonetizationMode.FREEMIUM_QUOTA` (novo **default documentado** da
+  fábrica), mapeamento extraído para a função pura `monetizationConfigFor(mode, purchase)` e
+  `MonetizationModeTest` (6).
+
 ## 2.86.0 — Matriz de permissão por módulo (GAP-TS-KM-PERMMATRIX-01) (jul/2026)
 
 Aditivo. Promove à lib o padrão "uma linha por módulo, com seletor Sem acesso / Ver / Ver e editar"

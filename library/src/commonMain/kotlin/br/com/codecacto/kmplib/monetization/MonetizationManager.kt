@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.onEach
  * Uso no app:
  * ```kotlin
  * MonetizationManager.initialize(
- *     MonetizationConfig.Freemium(
+ *     MonetizationConfig.FreemiumQuota(
  *         purchase = PurchaseConfig(...)
  *     )
  * )
@@ -30,6 +30,10 @@ import kotlinx.coroutines.flow.onEach
  *
  * A publicidade em si (house ads) e governada por `AdRouter`/`CustomAdManager`; aqui so se decide se
  * o usuario e premium. [shouldShowAds] = "deve exibir qualquer anuncio" (true quando NAO premium).
+ *
+ * A **postura** (tem ads? vende assinatura? tem tier gratuito?) e derivada do proprio
+ * [MonetizationConfig], nao de `is`-check aqui: modo novo na lib obriga o compilador a responder as
+ * tres perguntas, em vez de este objeto responder `false` em silencio.
  */
 object MonetizationManager {
     private const val TAG = "MonetizationManager"
@@ -45,25 +49,35 @@ object MonetizationManager {
     /** Configuracao atual. */
     val config: MonetizationConfig? get() = _config
 
-    /** Se o modo atual inclui ads. */
+    /** Se o modo atual monetiza o tier gratuito com publicidade (house ads). */
     val hasAds: Boolean
-        get() = _config is MonetizationConfig.AdsOnly || _config is MonetizationConfig.Freemium
+        get() = _config?.showsAds == true
 
-    /** Se o modo atual inclui purchase/assinatura. */
+    /** Se o modo atual vende assinatura (tem paywall). */
     val hasPurchase: Boolean
-        get() = _config is MonetizationConfig.PremiumOnly || _config is MonetizationConfig.Freemium
+        get() = _config?.sellsSubscription == true
+
+    /**
+     * Se o modo atual tem **tier gratuito** utilizavel.
+     *
+     * `false` so em `PremiumOnly` ("pague para usar"). Distinto de [hasPurchase]: um SaaS freemium
+     * com limite de uso tem os dois `true` (ver [MonetizationConfig.FreemiumQuota]).
+     */
+    val hasFreeTier: Boolean
+        get() = _config?.hasFreeTier == true
 
     /**
      * Se o usuario e premium.
-     * - AdsOnly: sempre false
-     * - PremiumOnly / Freemium: depende do estado da assinatura
+     * - AdsOnly: sempre false (o modo nao vende assinatura)
+     * - demais modos: segue o estado da assinatura
      */
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
 
     /**
-     * Se ads (house ads) devem ser exibidos.
+     * Se ads (house ads) devem ser exibidos — [MonetizationConfig.shouldShowAds] aplicado ao estado
+     * corrente da assinatura.
      * - AdsOnly: sempre true (gratuito)
-     * - PremiumOnly: sempre false
+     * - PremiumOnly / FreemiumQuota: sempre false (modos sem publicidade)
      * - Freemium: !isPremium
      */
     val shouldShowAds: StateFlow<Boolean> = _shouldShowAds.asStateFlow()
@@ -71,7 +85,8 @@ object MonetizationManager {
     /**
      * Inicializa o sistema de monetizacao.
      *
-     * @param config Modo de monetizacao (AdsOnly, PremiumOnly, ou Freemium)
+     * @param config Modo de monetizacao ([MonetizationConfig.AdsOnly], [MonetizationConfig.PremiumOnly],
+     *   [MonetizationConfig.Freemium] ou [MonetizationConfig.FreemiumQuota])
      * @param userId ID opcional do usuario para o RevenueCat
      */
     fun initialize(config: MonetizationConfig, userId: String? = null) {
@@ -81,35 +96,19 @@ object MonetizationManager {
         }
 
         _config = config
+        _isPremium.value = false
+        // Valor inicial, antes do primeiro estado de assinatura chegar: o modo decide.
+        _shouldShowAds.value = config.shouldShowAds(isPremium = false)
 
-        when (config) {
-            is MonetizationConfig.AdsOnly -> {
-                _isPremium.value = false
-                // App gratuito: house ads sempre podem aparecer (on/off por formato fica no AdRouter).
-                _shouldShowAds.value = true
-                AppLogger.d(TAG, "Modo: ADS_ONLY")
-            }
-            is MonetizationConfig.PremiumOnly -> {
-                PurchaseManager.initialize(config.purchase, userId)
-                _shouldShowAds.value = false
-                // isPremium segue o estado da assinatura
-                PurchaseManager.subscriptionState.onEach { info ->
-                    _isPremium.value = info.isActive
-                }.launchIn(scope)
-                AppLogger.d(TAG, "Modo: PREMIUM_ONLY")
-            }
-            is MonetizationConfig.Freemium -> {
-                PurchaseManager.initialize(config.purchase, userId)
-                // isPremium segue o estado da assinatura; ads aparecem quando NAO premium.
-                PurchaseManager.subscriptionState.onEach { info ->
-                    _isPremium.value = info.isActive
-                    _shouldShowAds.value = !info.isActive
-                }.launchIn(scope)
-                // Valor inicial (antes do primeiro estado de assinatura chegar).
-                _shouldShowAds.value = true
-                AppLogger.d(TAG, "Modo: FREEMIUM")
-            }
+        config.purchaseConfig?.let { purchase ->
+            PurchaseManager.initialize(purchase, userId)
+            PurchaseManager.subscriptionState.onEach { info ->
+                _isPremium.value = info.isActive
+                _shouldShowAds.value = config.shouldShowAds(info.isActive)
+            }.launchIn(scope)
         }
+
+        AppLogger.d(TAG, "Modo: ${config.modeName}")
 
         _initialized.value = true
     }

@@ -82,11 +82,14 @@ class MyApplication : Application() {
         // Feedback
         FeedbackService.initialize(FeedbackConfig(appId = "br.com.codecacto.meuapp", appVersion = "1.0.0"))
 
-        // Monetizacao (escolha um modo)
+        // Monetizacao (escolha um modo — ver secao 6)
         MonetizationManager.initialize(
-            MonetizationConfig.Freemium(
-                ads = AdConfig(banner = AdUnitIds("ca-app-pub-xxx", "ca-app-pub-yyy"), testMode = BuildConfig.DEBUG),
-                purchase = PurchaseConfig(androidApiKey = "goog_xxx", entitlementId = "premium")
+            MonetizationConfig.FreemiumQuota(
+                purchase = PurchaseConfig(
+                    androidApiKey = "goog_xxx",
+                    iosApiKey = "appl_xxx",
+                    entitlementId = "premium",
+                )
             )
         )
     }
@@ -289,37 +292,60 @@ iOS: usa NSLog (o SDK nativo do Firebase no Xcode captura crashes automaticament
 
 ## 6. Monetizacao (Ads + Assinaturas)
 
-### Modos disponiveis
+### Modos disponiveis (postura de monetizacao)
+
+O `MonetizationConfig` responde tres perguntas — **tem ads? vende assinatura? tem tier gratuito?** —
+e nada alem disso. Ele **nao** configura publicidade (isso e do `AdRouter`/`CustomAdManager`) nem
+mecanismo de quota (isso e server-side, no admin-api).
 
 ```kotlin
-// So ads, sem assinatura
-MonetizationConfig.AdsOnly(ads = adConfig)
+// Gratis sustentado por house ads, sem assinatura
+MonetizationConfig.AdsOnly
 
-// So assinatura, sem ads
+// PAGUE PARA USAR: so assinatura, sem ads e SEM tier gratuito
 MonetizationConfig.PremiumOnly(purchase = purchaseConfig)
 
-// Freemium: ads + assinatura (premium remove ads)
-MonetizationConfig.Freemium(ads = adConfig, purchase = purchaseConfig)
+// Gratis COM house ads + assinatura pra remover a publicidade
+MonetizationConfig.Freemium(purchase = purchaseConfig)
+
+// DEFAULT DO ECOSSISTEMA (2.87.0): "freemium com limite de uso -> paywall".
+// Tier gratuito real porem limitado por quota (server-side), assinatura pra
+// destravar e NENHUMA publicidade. E o modo dos SaaS B2B da fabrica.
+MonetizationConfig.FreemiumQuota(purchase = purchaseConfig)
 ```
 
-### Ads (AdMob)
+| Modo | ads | assinatura | tier gratis |
+|---|---|---|---|
+| `AdsOnly` | sim | nao | sim |
+| `PremiumOnly` | nao | sim | **nao** |
+| `Freemium` | sim | sim | sim |
+| `FreemiumQuota` | nao | sim | sim |
+
+Postura consultavel em runtime: `MonetizationManager.hasAds` / `hasPurchase` / `hasFreeTier`; a
+decisao corrente e `config.shouldShowAds(isPremium)` (regra pura).
+
+> **Se o seu app tem plano gratuito, ainda que limitado, o modo NAO e `PremiumOnly`** — e
+> `FreemiumQuota`. Os dois se comportam igual (`shouldShowAds = false`), mas `PremiumOnly` declara
+> que nao existe plano gratuito, e config que mente vira decisao errada la na frente.
+
+### Ads (house ads via apps-api)
+
+Desde a **2.38.0 nao existe AdMob na kmplib** — a publicidade e 100% **house ads** (anuncios
+proprios, servidos pelo apps-api). Ver a secao do modulo `ads` no catalogo (`ads/custom`,
+`ads/router`, `ads/stats`).
 
 ```kotlin
-// Banner
+// Bootstrap (uma vez, no start do app)
+AdRouter.initialize("meu-app", httpClient = appHttpClient, defaults = AdRouting.ALL_CUSTOM)
+CustomAdManager.initialize(CustomAdConfig(projectSlug = "meu-app", surface = "app", httpClient = appHttpClient))
+
+// Banner (respeita MonetizationManager.shouldShowAds — some para assinante)
 @Composable fun MyScreen() {
-    BannerAd(modifier = Modifier.fillMaxWidth())
+    ManagedBannerAd(modifier = Modifier.fillMaxWidth())
 }
 
 // Interstitial
-AdManager.interstitial?.load()
-AdManager.interstitial?.show(onDismissed = { /* continuar */ })
-
-// App Open
-AdManager.appOpen?.load()
-AdManager.appOpen?.show(onDismissed = { })
-
-// Verificar se ads estao habilitados (Remote Config)
-AdManager.adsEnabled.collect { enabled -> }
+ManagedInterstitialAd(show = mostrar, onDismiss = { /* continuar */ })
 ```
 
 ### Assinaturas (RevenueCat)
@@ -331,11 +357,13 @@ val repo = PurchaseManager.repository!!
 repo.isPremium()
 repo.subscriptionState.collect { info -> }
 
-// Listar produtos
-val products = repo.getProducts()
+// Listar a oferta — camada uniforme Offerings/Packages (gold-standard RevenueCat).
+// O preco ja vem FORMATADO pela loja; o app NUNCA ve o productId cru nem calcula preco.
+val pacotes: List<PurchasePackage> = repo.getOfferings().getOrDefault(emptyList())
 
-// Comprar
-val result = repo.purchase("premium_mensal")
+// Comprar (por packageId; getProducts()/purchase(productId) sao @Deprecated,
+// servem so a consumiveis/pay-per-action)
+val result = repo.purchasePackage(pacotes.first().packageId)
 when (result) {
     is PurchaseResult.Success -> { }
     is PurchaseResult.Cancelled -> { }
@@ -1379,9 +1407,9 @@ Ao criar um novo app KMP da CodeCacto, siga esta ordem:
 - [ ] Customizar via LoginTexts, LoginColors, RegisterTexts
 
 ### 4. Monetizacao
-- [ ] Escolher modo: AdsOnly, PremiumOnly ou Freemium
+- [ ] Escolher modo: AdsOnly, PremiumOnly, Freemium ou **FreemiumQuota** (default da fabrica)
 - [ ] Configurar MonetizationManager.initialize() no Application
-- [ ] Usar BannerAd() onde precisar
+- [ ] Usar ManagedBannerAd() onde precisar (so nos modos com ads)
 - [ ] Usar PurchaseManager.repository para assinaturas
 
 ### 5. Feedback

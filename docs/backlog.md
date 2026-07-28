@@ -3,6 +3,41 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAP — postura de monetização "freemium com limite de uso → paywall" (lib-mobile, 28/jul/2026)
+> Detectado no bootstrap do **TattooStudio** e aprovado pelo CTO para resolver **na lib**. O
+> `CLAUDE.md` lista esse modelo como o **default do ecossistema**, e ele não existia no
+> `MonetizationConfig` — quem o queria configurava `PREMIUM_ONLY`, que se comporta certo e **descreve
+> errado** (diz que não há plano gratuito).
+
+- [x] **GAP-KL-M-MONET-FREEMIUMQUOTA — `MonetizationConfig.FreemiumQuota`.** **ENTREGUE na 2.87.0.**
+      Modo novo (aditivo) + postura (`showsAds`/`sellsSubscription`/`hasFreeTier`/`purchaseConfig`/
+      `modeName`/`shouldShowAds`) movida para dentro do `MonetizationConfig`, onde o compilador cobra
+      quem acrescentar um modo. Espelhado na `casca-mobile` (`MonetizationMode.FREEMIUM_QUOTA` +
+      `monetizationConfigFor`). Detalhe no `CHANGELOG.md` 2.87.0.
+      - **Descartada a alternativa "três booleanos ortogonais"**: as dimensões não são ortogonais
+        (ads pressupõe tier gratuito), e o produto cartesiano tornaria combinações ilegais
+        representáveis, quebrando os 3 modos em uso em ~20 consumidores sem ganho.
+      - **Migração pendente (o CTO agenda; ninguém migrado nesta entrega).** Candidatos = quem hoje
+        declara `PREMIUM_ONLY`/`PremiumOnly` **e tem tier gratuito**:
+        - **Confirmados** (têm limite grátis no código — `freeLimit`/`OfflineQuotaGate`):
+          **TattooStudio** (o caso que originou o gap), **OlhoNoCPF**, **PapelStudio**, **MinhaOS**,
+          **MeuFrete**, **MinhaFrota**, **QuemMeDeve**, **Emprestei**, **LocaFesta**.
+        - **A confirmar com o PO** (usam `PremiumOnly` sem quota local visível; pode ser
+          pague-para-usar legítimo): **Influencer**, **Prospecta**, **Esquecido**, **Minha Voz**.
+        - **Pague-para-usar de verdade, NÃO migrar:** **Meu Advogado** (cobrança por ação).
+        - **Fora do escopo** (`AdsOnly`/`Freemium` seguem corretos): os ~20 apps offline da
+          Incubadora, Foco, Larguei, Salmos.
+        - Migração é trocar uma linha (`PREMIUM_ONLY` → `FREEMIUM_QUOTA`, ou `PremiumOnly(...)` →
+          `FreemiumQuota(...)`) e bumpar a kmplib; **zero mudança de comportamento**.
+
+- [ ] **GAP-KL-M-MONET-ADSRACE — corrida do premium no `Freemium` (ads no cold start).** Em
+      `MonetizationConfig.Freemium`, `shouldShowAds` nasce `true` antes do primeiro estado de
+      assinatura chegar do RevenueCat — um assinante vê banner por uma fração de segundo no cold
+      start. É o mesmo padrão que o `EntitlementPremiumSource` corrigiu para quota (2.68.0). Não foi
+      tocado na 2.87.0 de propósito: mudar o valor inicial altera impressões de anúncio dos apps
+      `Freemium` em produção (Foco, Larguei), e isso é decisão de receita, não de refatoração.
+      Requer ok do fundador/CTO.
+
 ### GAPS — design do produto "TattooStudio" (ux-designer, 28/jul/2026, SaaS multi-tenant de gestão p/ tatuador — arquétipo D leve)
 > Levantado no design de telas (`TattooStudio/docs/design/wireframes.md` §7), tela de **Equipe e
 > permissões** (nova, revisão 2 do PRD — Organization/Membership/permissões granulares por módulo,

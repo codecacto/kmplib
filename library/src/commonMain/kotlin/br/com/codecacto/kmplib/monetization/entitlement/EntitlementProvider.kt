@@ -74,17 +74,26 @@ sealed interface PurchaseOutcome {
 private const val TAG = "EntitlementProvider"
 
 /**
- * Provider real (RevenueCat via kmplib). Inicializa o [MonetizationManager] em modo `PremiumOnly`
- * (assinatura, sem ads) na camada Offerings/Packages a partir do [purchaseConfig] fornecido pelo app
+ * Provider real (RevenueCat via kmplib). Inicializa o [MonetizationManager] — se ainda ninguém o
+ * inicializou — na camada Offerings/Packages a partir do [purchaseConfig] fornecido pelo app
  * (chaves/entitlement/offering), e reflete o estado da assinatura.
+ *
+ * O modo default é [MonetizationConfig.FreemiumQuota] (tier gratuito limitado + paywall, **sem
+ * publicidade**), que é a postura real de quem usa esta fachada: ela nasceu para ser o gate de
+ * premium de apps freemium com limite de uso (ChamadaFacil, CallRecorder, MundoBandeiras), sempre
+ * pareada com `OfflineQuotaGate`. Até a 2.86.0 ela inicializava em `PremiumOnly`, que produz o mesmo
+ * comportamento (`shouldShowAds = false`, assinatura ligada) mas **declara que não existe plano
+ * gratuito** — mentira para todos esses apps. App realmente pay-to-use passa
+ * [MonetizationConfig.PremiumOnly] explicitamente em [monetizationConfig].
  */
 class RevenueCatEntitlementProvider(
-    private val purchaseConfig: PurchaseConfig,
+    purchaseConfig: PurchaseConfig,
+    monetizationConfig: MonetizationConfig = MonetizationConfig.FreemiumQuota(purchase = purchaseConfig),
 ) : EntitlementProvider {
 
     init {
         if (!MonetizationManager.hasPurchase) {
-            MonetizationManager.initialize(MonetizationConfig.PremiumOnly(purchase = purchaseConfig))
+            MonetizationManager.initialize(monetizationConfig)
         }
     }
 
@@ -152,6 +161,21 @@ class StubEntitlementProvider : EntitlementProvider {
  * Seleciona o provider conforme a presença de credenciais RevenueCat: [purchaseConfig] `null` ⇒ stub
  * fail-closed; não-nulo ⇒ provider real. O app decide passando (ou não) a config (ex.:
  * `if (RevenueCatConfig.temChave) purchaseConfig else null`).
+ *
+ * [monetizationConfig] declara a **postura** do app quando este provider for o primeiro a inicializar
+ * o [MonetizationManager]; `null` (default) usa [MonetizationConfig.FreemiumQuota] — ver
+ * [RevenueCatEntitlementProvider].
  */
-fun createEntitlementProvider(purchaseConfig: PurchaseConfig?): EntitlementProvider =
-    if (purchaseConfig != null) RevenueCatEntitlementProvider(purchaseConfig) else StubEntitlementProvider()
+fun createEntitlementProvider(
+    purchaseConfig: PurchaseConfig?,
+    monetizationConfig: MonetizationConfig? = null,
+): EntitlementProvider =
+    if (purchaseConfig != null) {
+        RevenueCatEntitlementProvider(
+            purchaseConfig = purchaseConfig,
+            monetizationConfig = monetizationConfig
+                ?: MonetizationConfig.FreemiumQuota(purchase = purchaseConfig),
+        )
+    } else {
+        StubEntitlementProvider()
+    }
