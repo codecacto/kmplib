@@ -5,6 +5,7 @@ import com.revenuecat.purchases.kmp.Purchases
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
 import com.revenuecat.purchases.kmp.models.Package
 import com.revenuecat.purchases.kmp.models.PackageType
+import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
 import com.revenuecat.purchases.kmp.models.StoreProduct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -225,25 +226,36 @@ internal class RevenueCatPurchaseRepository(
     }
 
     override suspend fun identify(appUserId: String): Result<Unit> {
-        val id = appUserId.trim()
-        if (id.isEmpty()) {
-            AppLogger.w(TAG, "identify ignorado: appUserId em branco")
-            return Result.failure(IllegalArgumentException("appUserId em branco"))
+        val id = when (val check = PurchaseIdentity.check(appUserId)) {
+            is AppUserIdCheck.Invalid -> {
+                // Contrato quebrado de quem chama: a partir daqui nenhuma compra cai no tenant certo.
+                AppLogger.e(TAG, "identify recusado: ${check.reason}", null)
+                return identityFailure(PurchaseIdentityError.INVALID_APP_USER_ID, check.reason)
+            }
+
+            is AppUserIdCheck.Valid -> check.appUserId
+        }
+        if (PurchaseIdentity.looksLikePersonalData(id)) {
+            // Não bloqueia (sem identidade a compra iria para o tenant errado, que é pior), mas o id
+            // trafega para webhook/dashboard de terceiro: dado pessoal aqui é vazamento evitável.
+            AppLogger.w(TAG, "appUserId parece dado pessoal — use um id opaco e estavel (LGPD)")
         }
         if (!Purchases.isConfigured) {
             AppLogger.w(TAG, "identify ignorado: RevenueCat nao configurado")
-            return Result.failure(IllegalStateException("RevenueCat nao configurado"))
+            return identityFailure(PurchaseIdentityError.NOT_CONFIGURED, "RevenueCat nao configurado")
         }
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.logIn(
                 newAppUserID = id,
                 onError = { error ->
-                    AppLogger.e(TAG, "Erro ao identificar app user: ${error.message}")
-                    continuation.resume(Result.failure(IllegalStateException(error.message)))
+                    AppLogger.e(TAG, "Erro ao identificar app user: ${error.message}", null)
+                    continuation.resume(
+                        identityFailure(error.code.toIdentityError(), error.message)
+                    )
                 },
-                onSuccess = { customerInfo, _ ->
-                    _subscriptionState.value = customerInfo.toSubscriptionInfo()
-                    AppLogger.d(TAG, "App user identificado no RevenueCat")
+                onSuccess = { customerInfo, created ->
+                    onIdentityChanged(customerInfo)
+                    AppLogger.d(TAG, "App user identificado no RevenueCat (novo=$created)")
                     continuation.resume(Result.success(Unit))
                 }
             )
@@ -252,14 +264,23 @@ internal class RevenueCatPurchaseRepository(
 
     override suspend fun resetIdentity(): Result<Unit> {
         if (!Purchases.isConfigured) return Result.success(Unit)
+        // Anonimizar quem já é anônimo é o estado desejado — o SDK devolveria
+        // `LogOutWithAnonymousUserError`, um falso incidente de pagamento no logout de todo usuário
+        // que nunca chegou a ser identificado.
+        if (Purchases.sharedInstance.isAnonymous) {
+            AppLogger.d(TAG, "resetIdentity no-op: app user ja anonimo")
+            return Result.success(Unit)
+        }
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.logOut(
                 onError = { error ->
                     AppLogger.w(TAG, "Erro ao anonimizar app user: ${error.message}")
-                    continuation.resume(Result.failure(IllegalStateException(error.message)))
+                    continuation.resume(
+                        identityFailure(error.code.toIdentityError(), error.message)
+                    )
                 },
                 onSuccess = { customerInfo ->
-                    _subscriptionState.value = customerInfo.toSubscriptionInfo()
+                    onIdentityChanged(customerInfo)
                     continuation.resume(Result.success(Unit))
                 }
             )
@@ -268,6 +289,46 @@ internal class RevenueCatPurchaseRepository(
 
     override fun currentAppUserId(): String? =
         if (Purchases.isConfigured) Purchases.sharedInstance.appUserID else null
+
+    /**
+     * Efeito colateral obrigatório de toda troca de sujeito (login/logout na loja):
+     *
+     * 1. **derruba o catálogo em cache** — a oferta do RevenueCat pode ser personalizada por app user
+     *    (Targeting/Experiments), e cada `Package`/`StoreProduct` carrega o contexto de offering que
+     *    atribui a compra; comprar um objeto buscado para o sujeito anterior atribui a receita errado;
+     * 2. **republica o entitlement** do novo sujeito, para a UI não continuar mostrando o premium de
+     *    quem saiu (nem esconder o de quem entrou).
+     */
+    private fun onIdentityChanged(
+        customerInfo: com.revenuecat.purchases.kmp.models.CustomerInfo
+    ) {
+        cachedPackages = emptyMap()
+        cachedProducts = emptyList()
+        _subscriptionState.value = customerInfo.toSubscriptionInfo()
+    }
+
+    private fun identityFailure(reason: PurchaseIdentityError, message: String): Result<Unit> =
+        Result.failure(PurchaseIdentityException(reason, message))
+
+    /**
+     * Mapeia o código TIPADO do SDK (não a mensagem, que é localizada) para o motivo da lib. O caller
+     * usa isso para decidir o que vira alerta de pagamento e o que é só transitório.
+     */
+    private fun PurchasesErrorCode.toIdentityError(): PurchaseIdentityError = when (this) {
+        PurchasesErrorCode.NetworkError,
+        PurchasesErrorCode.OfflineConnectionError -> PurchaseIdentityError.NETWORK
+
+        PurchasesErrorCode.InvalidAppUserIdError -> PurchaseIdentityError.INVALID_APP_USER_ID
+
+        PurchasesErrorCode.ConfigurationError,
+        PurchasesErrorCode.InvalidCredentialsError -> PurchaseIdentityError.NOT_CONFIGURED
+
+        PurchasesErrorCode.StoreProblemError,
+        PurchasesErrorCode.UnknownBackendError,
+        PurchasesErrorCode.UnexpectedBackendResponseError -> PurchaseIdentityError.STORE
+
+        else -> PurchaseIdentityError.UNKNOWN
+    }
 
     override suspend fun getSubscriptionInfo(): SubscriptionInfo {
         return suspendCancellableCoroutine { continuation ->

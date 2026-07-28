@@ -3,6 +3,47 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAP — identidade de quem assina na loja (regularização, 28/jul/2026) — **ENTREGUE na 2.89.0**
+> Detectado pelo **dev-mobile** na Onda 3 do **TattooStudio**: o `appUserId` só podia ser informado no
+> bootstrap (`Purchases.configure`), mas quem assina é a **organização**, conhecida só depois do
+> `GET /me`. Ele implementou na lib (commit `1c2abf6`) para não contornar por fora — decisão certa, na
+> lane errada: sem bump, sem catálogo, sem publish. Regularizado aqui.
+
+- [x] **GAP-KL-M-BILLING-IDENTITY — `identify`/`resetIdentity`/`currentAppUserId`.** **ENTREGUE na
+      2.89.0** (`monetization/purchase/PurchaseIdentity.kt` + os 3 membros com default em
+      `PurchaseRepository`, expostos por `PurchaseManager` e `MonetizationManager`). Detalhe no
+      `CHANGELOG.md` 2.89.0.
+      - **Nomes mantidos** (`identify`, não `logIn`): API pública neutra ao fornecedor, e `logOut()`
+        numa fachada de monetização colidiria com o `signOut()` da autenticação — dois "logout" no
+        mesmo app. O KDoc cita `Purchases.logIn/logOut` para quem procurar pelo nome do SDK.
+      - **Acrescentado na revisão (padrão-ouro do fornecedor):** falha **tipada**
+        (`PurchaseIdentityException`/`PurchaseIdentityError`, lida do `PurchasesErrorCode` e não da
+        mensagem localizada) para o app distinguir alerta de pagamento × transitório; `resetIdentity`
+        com app user **já anônimo** vira sucesso no-op (o SDK devolveria `LogOutWithAnonymousUserError`
+        — falso incidente no logout de quem nunca foi identificado); **invalidação do catálogo em
+        cache** a cada troca de sujeito (a oferta pode ser personalizada por app user e o `Package`
+        carrega o contexto que atribui a compra); validação do id em **função pura** com os valores
+        reservados do RevenueCat, e aviso (nunca bloqueio) para id que parece dado pessoal.
+      - **Não exposto no `EntitlementProvider`**: fachada de app single-user offline; obrigaria o
+        `StubEntitlementProvider` a fingir troca de sujeito. Sem consumidor ⇒ sem API especulativa.
+      - **Migração:** nenhuma. Aditivo com defaults na interface; nenhum app implementa
+        `PurchaseRepository` e a superfície usada pelos consumidores está intacta. TattooStudio
+        (único consumidor) só precisa alinhar o `libs.versions.toml` para **2.89.0**.
+
+### DÍVIDA — `mapErrorCode` classifica erro de compra por SUBSTRING da mensagem (28/jul/2026)
+> Achado ao levar a identidade ao padrão-ouro: o `RevenueCatPurchaseRepository` traduz erro de
+> `purchase`/`purchasePackage`/`purchaseConsumable` procurando `"network"`/`"store"`/`"pending"`/
+> `"declined"`/`"already owned"` **dentro da mensagem** do SDK. A mensagem do RevenueCat é
+> **localizada** — no aparelho em pt-BR nada casa e todo erro de compra vira `UNKNOWN`, incluindo
+> "pagamento recusado" e "já é assinante".
+
+- [ ] **GAP-KL-M-PURCHASE-ERRORCODE — mapear `PurchasesErrorCode` tipado no fluxo de compra.** O SDK
+      expõe `error.code` em commonMain (é o que a 2.89.0 passou a usar na identidade). Trocar as 5
+      comparações de substring por `when (error.code)` e cobrir com teste.
+      - **NÃO feito junto na 2.89.0** de propósito: muda o `PurchaseErrorCode` visto por **todos** os
+        apps que vendem assinatura, num caminho hoje sem cobertura — é mudança de comportamento de
+        pagamento, merece entrega própria com o CTO ciente, não carona numa regularização.
+
 ### GAPS — design do produto "Todos a Bordo" (ux-designer, 28/jul/2026) — **RESOLVIDOS na 2.88.0**
 > Levantados no design de telas (`Todos a Bordo/docs/design/wireframes.md` §Gaps de lib), a partir do
 > RNF crítico do PRD: marcar embarque/desembarque deve ser **1-2 toques, sem digitação** (motorista

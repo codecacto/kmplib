@@ -6,6 +6,73 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.89.0 — identidade de quem assina na loja: `identify`/`resetIdentity` (jul/2026)
+
+Aditivo e retrocompatível. **Regularização**: a API nasceu na Onda 3 do TattooStudio (commit
+`1c2abf6`, feito pelo dev-mobile para desbloquear a integração) e foi aqui revisada como dona da lib,
+levada ao padrão-ouro do fornecedor, coberta por teste, versionada e publicada.
+
+**O problema.** O `appUserId` só podia ser informado no **bootstrap** (`Purchases.configure`, via
+`MonetizationManager.initialize`). Em produto multi-tenant quem assina é a **organização**, que só é
+conhecida **depois do login** (`GET /me`). Sem trocar a identidade, o webhook do RevenueCat chega à
+central com o app user anônimo/UID do usuário e **o entitlement nasce no tenant errado**: a
+organização paga e continua bloqueada. Reconfigurar o SDK não é suportado pelo fornecedor, e chamar o
+SDK por fora da lib fura a fundação — a forma oficial é `Purchases.logIn` **após** o configure.
+
+- **API nova** em `PurchaseRepository`, exposta por `PurchaseManager` e pela fachada pública
+  `MonetizationManager`: `suspend identify(appUserId): Result<Unit>`, `suspend resetIdentity():
+  Result<Unit>`, `currentAppUserId(): String?`. Os três têm **implementação default na interface**
+  (falha explícita / `null`), então fakes e implementações existentes seguem compilando — nenhum
+  consumidor atual (Super 8, LocAki, Influencer, Meu Barbeiro, Meu Advogado, Incubadora) implementa
+  `PurchaseRepository`, e a superfície que eles usam (`initialize`, `repository`, `isPremium`,
+  `shouldShowAds`, `hasPurchase`, `config`, `purchaseConsumable`, `subscriptionState`) está intacta.
+- **Nome `identify`/`resetIdentity`, não `logIn`/`logOut`** (decisão de dono da lib, mantida do
+  commit original): a API pública da lib é neutra ao fornecedor (como `CrashReporter` é a Sentry) e,
+  sobretudo, um `logOut()` na fachada de monetização colidiria com o `signOut()` do módulo de
+  **autenticação** — dois "logout" no mesmo app, um derrubando a sessão e o outro não. A própria
+  documentação do RevenueCat chama o tema de *Identifying Users*; o KDoc cita `Purchases.logIn/logOut`
+  para quem procurar pelo nome do SDK.
+- **`Result<Unit>` mantido**: é o padrão do módulo para operação de plumbing (igual a `getOfferings()`
+  na mesma interface); os selados `PurchaseResult`/`RestoreResult` são para fluxo de compra do
+  usuário, com `Cancelled` — que aqui não existe.
+- **Falha tipada `PurchaseIdentityException(reason: PurchaseIdentityError, message)`** (era
+  `IllegalStateException`/`IllegalArgumentException` genérica): `NOT_CONFIGURED` · `UNSUPPORTED` ·
+  `INVALID_APP_USER_ID` · `NETWORK` · `STORE` · `UNKNOWN`. Erro no caminho do dinheiro tem de chegar
+  ao Discord (`PaymentAlertKind.IdentidadeAusente` → `CrashReporter` → GlitchTip), e **queda de rede
+  não pode virar enxurrada de alerta igual a contrato quebrado** — sem motivo tipado o app alertaria
+  tudo do mesmo jeito. O motivo sai do **código tipado** do SDK (`PurchasesErrorCode`), nunca da
+  mensagem (que é localizada).
+- **Núcleo puro `PurchaseIdentity`** (commonMain, sem SDK): `check`/`isAnonymous`/
+  `looksLikePersonalData`/`ANONYMOUS_ID_PREFIX`. Recusa **antes de tocar a rede** id em branco,
+  valores reservados do RevenueCat (`null`/`none`/`nil`/`(null)`/`NaN`/`unknown`/`undefined`/
+  `unidentified`/`anonymous`/`[]`/`no_user`, case-insensitive — tipicamente o que sai de quem
+  serializa campo nulo do backend direto no id), id anônimo do próprio SDK e caractere de controle.
+  Errar o App User ID não dá erro visível, dá dinheiro no lugar errado: por isso a regra virou função
+  pura coberta caso a caso, e não `if` solto dentro do adapter.
+  - **Dado pessoal (e-mail/CPF) só AVISA**, nunca bloqueia: o fornecedor desaconselha e-mail como App
+    User ID (muda, e trafega para webhook/dashboard de terceiro — LGPD), mas recusar deixaria a
+    compra inteira no tenant errado, que é pior que o aviso.
+- **Padrão-ouro do fornecedor, além do `logIn` cru** (correções feitas nesta revisão):
+  - **`resetIdentity` com app user já anônimo é sucesso no-op.** O SDK devolve
+    `LogOutWithAnonymousUserError` nesse caso — um **falso incidente de pagamento** no logout de todo
+    usuário que nunca chegou a ser identificado.
+  - **Toda troca de sujeito invalida o catálogo em cache** (offerings/packages do repositório). A
+    oferta do RevenueCat pode ser personalizada por app user (Targeting/Experiments) e cada
+    `Package`/`StoreProduct` carrega o contexto de offering que **atribui a compra**: comprar um
+    objeto buscado para o sujeito anterior atribui a receita errado.
+  - `subscriptionState` — e portanto `MonetizationManager.isPremium` — passa a valer o entitlement
+    **do novo sujeito** em ambas as direções (login e logout), nunca o de quem saiu.
+- **Testes (14 novos):** `PurchaseIdentityTest` (6 — núcleo puro) e `PurchaseIdentityApiTest` (8 —
+  defaults da interface, sem loja configurada, entitlement do novo sujeito, **não-herança entre
+  tenants**, logout idempotente, id inválido sem tocar a loja, falha de rede preserva o estado,
+  propagação até `MonetizationManager.isPremium`), sobre o novo `FakePurchaseRepository` reutilizável
+  em `commonTest`. Suíte cheia: **1419 testes, 0 falhas**; `koverVerify` (40%) verde.
+- **Não exposto no `EntitlementProvider`** de propósito: aquela fachada serve app single-user offline
+  (ChamadaFacil/CallRecorder), e pôr identidade na interface obrigaria o `StubEntitlementProvider` a
+  fingir que troca de sujeito. Quem precisa fala com o `MonetizationManager`.
+- **Consumidor:** TattooStudio (`core/monetization/BillingIdentity.kt`, `billingAppUserId` =
+  `organizationId`). Nenhum outro app precisa mudar.
+
 ## 2.88.0 — UI de execução de lista: `ChecklistItem`, `ProgressCounter` e `AppBanner` (jul/2026)
 
 Aditivo. Três componentes promovidos **antes** de o primeiro app implementá-los localmente (gaps

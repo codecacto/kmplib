@@ -55,14 +55,33 @@ object PurchaseManager {
     /** Identifica o app user na loja (ver [PurchaseRepository.identify]). */
     internal suspend fun identify(appUserId: String): Result<Unit> =
         _repository?.identify(appUserId)
-            ?: Result.failure(IllegalStateException("purchase nao inicializado"))
+            ?: Result.failure(
+                PurchaseIdentityException(
+                    PurchaseIdentityError.NOT_CONFIGURED,
+                    "monetizacao sem purchase configurado"
+                )
+            )
 
-    /** Volta o app user para anonimo (ver [PurchaseRepository.resetIdentity]). */
+    /**
+     * Volta o app user para anonimo (ver [PurchaseRepository.resetIdentity]).
+     *
+     * Sem purchase configurado devolve **sucesso**: nao ha identidade na loja para desfazer, e o
+     * logout do app nao pode falhar por causa de uma loja que nem existe neste build.
+     */
     internal suspend fun resetIdentity(): Result<Unit> =
         _repository?.resetIdentity() ?: Result.success(Unit)
 
     /** App user id corrente na loja (diagnostico). */
     internal fun currentAppUserId(): String? = _repository?.currentAppUserId()
+
+    /**
+     * Costura interna (testes / repositorio alternativo): injeta o [repository] sem passar pelo
+     * [PurchaseInitializer], que toca o SDK nativo e nao roda em unit test. Nao e visivel aos apps.
+     */
+    internal fun initializeWith(repository: PurchaseRepository) {
+        _repository = repository
+        _initialized.value = true
+    }
 
     internal fun reset() {
         _repository = null

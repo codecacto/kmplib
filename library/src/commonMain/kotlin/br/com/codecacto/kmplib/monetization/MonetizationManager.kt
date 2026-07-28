@@ -2,7 +2,11 @@ package br.com.codecacto.kmplib.monetization
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentity
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityError
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityException
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -132,17 +136,29 @@ object MonetizationManager {
      * sem este passo o webhook chega à central com o UID do usuário e **o entitlement vai para o
      * tenant errado** — a organização paga e continua bloqueada.
      *
-     * Idempotente (mesmo id ⇒ no-op no SDK). Sem monetização configurada devolve falha, nunca lança.
+     * Idempotente (mesmo id ⇒ no-op no SDK). Atualiza [isPremium] com o entitlement do novo sujeito.
+     * **Nunca lança:** falha vem em `Result.failure(`[PurchaseIdentityException]`)`, com
+     * [PurchaseIdentityError] tipado para o app decidir o que vira alerta de pagamento
+     * (`PaymentAlertKind.IdentidadeAusente`) e o que é transitório (`NETWORK`). Sem purchase
+     * configurado ⇒ `NOT_CONFIGURED` (estado válido de build sem chave, não é incidente).
+     *
+     * Ver [PurchaseRepository.identify] para o contrato completo.
      */
     suspend fun identify(appUserId: String): Result<Unit> = PurchaseManager.identify(appUserId)
 
     /**
      * Volta a identidade da loja para anônima (`Purchases.logOut`). Chamar no **logout**, para o
      * próximo usuário do mesmo aparelho não herdar o entitlement de quem saiu.
+     *
+     * Já anônimo (ou sem purchase configurado) ⇒ **sucesso no-op**: o logout do app não falha por
+     * causa de uma identidade de loja que nunca existiu.
      */
     suspend fun resetIdentity(): Result<Unit> = PurchaseManager.resetIdentity()
 
-    /** App user id corrente na loja — para log/diagnóstico ("identifiquei quem?"). */
+    /**
+     * App user id corrente na loja — para log/diagnóstico ("identifiquei quem?"). `null` sem loja
+     * configurada; anônimo devolve o id do próprio SDK (ver [PurchaseIdentity.isAnonymous]).
+     */
     fun currentAppUserId(): String? = PurchaseManager.currentAppUserId()
 
     /** Reseta o estado (util para testes). */
