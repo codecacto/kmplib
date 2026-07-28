@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.sync.rest
 
 import br.com.codecacto.kmplib.core.network.ConnectivityObserver
 import br.com.codecacto.kmplib.sync.SyncState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,6 +43,22 @@ class RestCrudSyncEngineTest {
         // O filho recebeu o remap gerado pelo pai.
         assertEquals("srv-1", filho.receivedRemap["local-1"])
         assertEquals(SyncState.Idle, engine.state.value)
+    }
+
+    @Test
+    fun `sem escopo de conta declarado, nenhum ciclo roda (nao sobe outbox de dono desconhecido)`() = runTest {
+        val log = mutableListOf<String>()
+        val p = FakeParticipant("p", log = log)
+        val scope = MutableStateFlow("")
+        val engine = RestCrudSyncEngine(listOf(p), ConnectivityObserver(), accountScope = scope)
+
+        assertTrue(!engine.syncNow())
+        assertTrue(log.isEmpty())
+
+        // Declarado o titular, o ciclo passa a rodar normalmente.
+        scope.value = "conta-1"
+        assertTrue(engine.syncNow())
+        assertEquals(listOf("drain:p", "refresh:p"), log)
     }
 
     @Test

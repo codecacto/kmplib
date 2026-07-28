@@ -88,6 +88,7 @@ class DefaultSyncEngine(
             val resolvedOp = if (existing?.server_id != null || serverId != null) SyncOpType.UPDATE else SyncOpType.CREATE
             store.upsert(
                 Synced_entity(
+                    account_id = "",
                     entity = entity,
                     local_id = localId,
                     server_id = serverId ?: existing?.server_id,
@@ -99,6 +100,9 @@ class DefaultSyncEngine(
                     deleted = false.toDbLong(),
                     base_updated_at = existing?.base_updated_at,
                     last_error = null,
+                    failed = 0L,
+                    fail_code = null,
+                    attempts = 0L,
                 )
             )
         }
@@ -112,6 +116,7 @@ class DefaultSyncEngine(
         serverId: String?,
         payloadJson: String,
     ) = Synced_entity(
+        account_id = "",
         entity = entity,
         local_id = localId,
         server_id = serverId,
@@ -123,6 +128,9 @@ class DefaultSyncEngine(
         deleted = false.toDbLong(),
         base_updated_at = null,
         last_error = null,
+        failed = 0L,
+        fail_code = null,
+        attempts = 0L,
     )
 
     // ----------------------------------------------------------------------
@@ -319,6 +327,7 @@ class DefaultSyncEngine(
         val clientId = local?.client_id ?: delta.clientId ?: delta.serverId
         store.upsert(
             Synced_entity(
+                account_id = "",
                 entity = entityName,
                 local_id = localId,
                 server_id = delta.serverId,
@@ -330,6 +339,9 @@ class DefaultSyncEngine(
                 deleted = false.toDbLong(),
                 base_updated_at = delta.updatedAt,
                 last_error = null,
+                failed = 0L,
+                fail_code = null,
+                attempts = 0L,
             )
         )
         return false

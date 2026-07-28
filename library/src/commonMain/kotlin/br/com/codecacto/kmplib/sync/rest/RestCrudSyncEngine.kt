@@ -50,11 +50,17 @@ interface RestCrudSyncParticipant {
  * @param participants repositórios offline-first **na ordem de dependência** (pais primeiro).
  * @param connectivity observador de conectividade da lib.
  * @param scope escopo das coroutines de auto-sync (default `SupervisorJob + Default`).
+ * @param accountScope (2.91.0, opcional) escopo de conta do espelho
+ *   ([SyncStore.accountScope][br.com.codecacto.kmplib.sync.SyncStore.accountScope]). **Passe-o em
+ *   todo app com login:** enquanto ele estiver em branco (ninguém reivindicou o espelho ainda),
+ *   nenhum ciclo roda — é a trava que impede o PUSH de subir a outbox do bucket sem escopo com o
+ *   Bearer de quem acabou de entrar. `null` (default) mantém o comportamento anterior.
  */
 class RestCrudSyncEngine(
     private val participants: List<RestCrudSyncParticipant>,
     private val connectivity: ConnectivityObserver,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val accountScope: StateFlow<String>? = null,
 ) {
     private val mutex = Mutex()
 
@@ -77,6 +83,12 @@ class RestCrudSyncEngine(
      * Serializado por mutex. Retorna `true` se todo o ciclo (push + todos os refresh) teve sucesso.
      */
     suspend fun syncNow(): Boolean = mutex.withLock {
+        if (accountScope != null && accountScope.value.isBlank()) {
+            // Sem titular declarado não há como saber de quem é a outbox — não se sobe nada.
+            AppLogger.w(TAG, "Ciclo ignorado: espelho ainda sem escopo de conta (setAccountScope).")
+            _state.value = SyncState.Idle
+            return@withLock false
+        }
         _state.value = SyncState.Syncing(pending = 0)
         runCatching {
             // 1) PUSH — pais primeiro; o remap acumulado corrige as FKs dos filhos.

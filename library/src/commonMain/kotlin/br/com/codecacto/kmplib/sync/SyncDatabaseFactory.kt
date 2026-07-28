@@ -13,6 +13,13 @@ import br.com.codecacto.kmplib.sync.db.SyncDatabase
  * Chame uma vez (no bootstrap/Koin do app) e injete a instância no
  * [DefaultSyncEngine] e nos repositórios [SyncableRepository].
  *
+ * ### Schema v2 (kmplib 2.91.0) — migração automática, sem perda
+ * O espelho ganhou `account_id` (escopo de conta) e `failed`/`fail_code`/`attempts` (estado de
+ * escrita por linha). As bases já instaladas **migram sozinhas** no primeiro `createSyncDatabase`
+ * após o update (o driver aplica `Schema.migrate`): nada é dropado — as linhas existentes vão para
+ * o bucket "sem escopo", que a primeira chamada a [SyncStore.setAccountScope] reivindica conforme a
+ * [LegacyRowsPolicy]. Ver `1.sqm`.
+ *
  * @param name nome do arquivo do banco (default [DEFAULT_SYNC_DB_NAME]).
  */
 expect fun createSyncDatabase(name: String = DEFAULT_SYNC_DB_NAME): SyncDatabase

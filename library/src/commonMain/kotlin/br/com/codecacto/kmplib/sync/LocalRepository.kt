@@ -67,6 +67,7 @@ open class LocalRepository<T : Any>(
         val clientId = entity.clientIdOf(model)
         store.upsert(
             Synced_entity(
+                account_id = "",
                 entity = entity.name,
                 local_id = clientId,
                 server_id = entity.serverIdOf(model),
@@ -78,6 +79,9 @@ open class LocalRepository<T : Any>(
                 deleted = false.toDbLong(),
                 base_updated_at = null,
                 last_error = null,
+                failed = 0L,
+                fail_code = null,
+                attempts = 0L,
             ),
         )
     }
@@ -103,6 +107,7 @@ open class LocalRepository<T : Any>(
         val clientId = entity.clientIdOf(model)
         store.upsert(
             Synced_entity(
+                account_id = "",
                 entity = entity.name,
                 local_id = clientId,
                 server_id = entity.serverIdOf(model),
@@ -114,6 +119,9 @@ open class LocalRepository<T : Any>(
                 deleted = false.toDbLong(),
                 base_updated_at = null,
                 last_error = null,
+                failed = 0L,
+                fail_code = null,
+                attempts = 0L,
             ),
         )
     }

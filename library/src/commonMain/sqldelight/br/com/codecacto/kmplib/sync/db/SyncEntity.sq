@@ -2,9 +2,21 @@
 -- Schema genérico de sync offline-first (T1a — kmplib 2.30.0)
 -- Agnóstico de domínio: uma única tabela-espelho para QUALQUER entidade.
 -- O app registra suas SyncableEntity<T> e serializa o modelo em payload_json.
+--
+-- v2 (kmplib 2.91.0):
+--   * account_id  — ESCOPO DE CONTA (GAP-KL-M-SYNC-ACCOUNTSCOPE). Sem ele, trocar de
+--     usuário no mesmo aparelho vazava dado entre contas na leitura E, pior, no push
+--     (a outbox de A subia inteira para a conta de B). Faz parte da PK: cada conta tem
+--     o SEU espelho e a SUA outbox, isoladas — trocar de conta e voltar preserva as duas.
+--     '' (string vazia) = bucket "sem escopo" (base legada, pré-migração).
+--   * failed / fail_code / attempts — ESTADO DE ESCRITA POR LINHA
+--     (GAP-KL-M-RESTCRUD-LOCALFIRST): distingue "pendente, vai retentar" de "o servidor
+--     RECUSOU" (4xx terminal), preservando o erro para o app exibir. Sem isso, o motor
+--     retentava para sempre uma linha que nunca seria aceita, ou perdia a escrita.
 -- =============================================================================
 
 -- Espelho local de uma entidade sincronizável.
+--  account_id     : conta dona da linha ('' = sem escopo/legado). Parte da PK.
 --  entity         : nome lógico da entidade (ex.: "frete", "caminhao").
 --  local_id       : id local estável (== client_id no nascimento; PK composta).
 --  server_id      : id atribuído pelo servidor (NULL até o 1º push aceito).
@@ -16,7 +28,11 @@
 --  deleted        : 1 = tombstone (exclusão lógica até confirmar no servidor).
 --  base_updated_at: updatedAt-base p/ detecção de conflito (LWW server-side).
 --  last_error     : último erro de sync do item (NULL se ok).
+--  failed         : 1 = o servidor RECUSOU de forma terminal (4xx) — NÃO retentar sozinho.
+--  fail_code      : código HTTP (ou sentinela) da recusa terminal; NULL se não falhou.
+--  attempts       : tentativas de push já feitas para esta linha (diagnóstico/UI).
 CREATE TABLE synced_entity (
+    account_id      TEXT    NOT NULL DEFAULT '',
     entity          TEXT    NOT NULL,
     local_id        TEXT    NOT NULL,
     server_id       TEXT,
@@ -28,16 +44,22 @@ CREATE TABLE synced_entity (
     deleted         INTEGER NOT NULL DEFAULT 0,
     base_updated_at TEXT,
     last_error      TEXT,
-    PRIMARY KEY (entity, local_id)
+    failed          INTEGER NOT NULL DEFAULT 0,
+    fail_code       INTEGER,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, entity, local_id)
 );
 
-CREATE INDEX synced_entity_dirty ON synced_entity(entity, dirty);
-CREATE INDEX synced_entity_server ON synced_entity(entity, server_id);
+CREATE INDEX synced_entity_dirty ON synced_entity(account_id, entity, dirty);
+CREATE INDEX synced_entity_server ON synced_entity(account_id, entity, server_id);
 
 -- Cursor de paginação/delta por entidade (avança após cada pull aplicado).
+-- Escopado por conta pelo mesmo motivo do espelho: o cursor de A não vale para B.
 CREATE TABLE sync_cursor (
-    entity TEXT NOT NULL PRIMARY KEY,
-    cursor TEXT
+    account_id TEXT NOT NULL DEFAULT '',
+    entity     TEXT NOT NULL,
+    cursor     TEXT,
+    PRIMARY KEY (account_id, entity)
 );
 
 -- ---------------------------------------------------------------------------
@@ -46,58 +68,79 @@ CREATE TABLE sync_cursor (
 selectAllVisible:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND deleted = 0
+WHERE account_id = :accountId AND entity = :entity AND deleted = 0
 ORDER BY updated_at DESC;
 
 selectVisibleById:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND local_id = :localId AND deleted = 0;
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId AND deleted = 0;
 
 selectByLocalId:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND local_id = :localId;
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
 selectByServerId:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND server_id = :serverId;
+WHERE account_id = :accountId AND entity = :entity AND server_id = :serverId;
 
 selectByClientId:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND client_id = :clientId;
+WHERE account_id = :accountId AND entity = :entity AND client_id = :clientId;
 
 -- Outbox: itens sujos (pendentes de push) de uma entidade, mais antigos primeiro.
 selectDirty:
 SELECT *
 FROM synced_entity
-WHERE entity = :entity AND dirty = 1
+WHERE account_id = :accountId AND entity = :entity AND dirty = 1
 ORDER BY updated_at ASC;
 
--- Outbox global (todas as entidades) — usado pela fila visível do SyncEngine.
+-- Outbox DRENÁVEL: sujos que ainda não foram recusados de forma terminal pelo servidor.
+-- É o que o push consome — uma linha `failed = 1` só volta por retry EXPLÍCITO do app.
+selectDrainable:
+SELECT *
+FROM synced_entity
+WHERE account_id = :accountId AND entity = :entity AND dirty = 1 AND failed = 0
+ORDER BY updated_at ASC;
+
+-- Linhas recusadas pelo servidor (4xx terminal) — a UI mostra e oferece nova tentativa.
+selectFailed:
+SELECT *
+FROM synced_entity
+WHERE account_id = :accountId AND entity = :entity AND failed = 1
+ORDER BY updated_at ASC;
+
+-- Outbox global (todas as entidades da conta) — usado pela fila visível do SyncEngine.
 selectAllDirty:
 SELECT *
 FROM synced_entity
-WHERE dirty = 1
+WHERE account_id = :accountId AND dirty = 1
 ORDER BY updated_at ASC;
 
 countDirty:
-SELECT COUNT(*) FROM synced_entity WHERE dirty = 1;
+SELECT COUNT(*) FROM synced_entity WHERE account_id = :accountId AND dirty = 1;
+
+-- Quantas linhas ainda estão no bucket legado (sem escopo de conta).
+countLegacy:
+SELECT COUNT(*) FROM synced_entity WHERE account_id = '';
 
 -- ---------------------------------------------------------------------------
 -- Escrita
 -- ---------------------------------------------------------------------------
 upsert:
 INSERT INTO synced_entity (
-    entity, local_id, server_id, client_id, payload_json,
-    updated_at, dirty, pending_op, deleted, base_updated_at, last_error
+    account_id, entity, local_id, server_id, client_id, payload_json,
+    updated_at, dirty, pending_op, deleted, base_updated_at, last_error,
+    failed, fail_code, attempts
 ) VALUES (
-    :entity, :localId, :serverId, :clientId, :payloadJson,
-    :updatedAt, :dirty, :pendingOp, :deleted, :baseUpdatedAt, :lastError
+    :accountId, :entity, :localId, :serverId, :clientId, :payloadJson,
+    :updatedAt, :dirty, :pendingOp, :deleted, :baseUpdatedAt, :lastError,
+    :failed, :failCode, :attempts
 )
-ON CONFLICT(entity, local_id) DO UPDATE SET
+ON CONFLICT(account_id, entity, local_id) DO UPDATE SET
     server_id       = excluded.server_id,
     client_id       = excluded.client_id,
     payload_json    = excluded.payload_json,
@@ -106,35 +149,74 @@ ON CONFLICT(entity, local_id) DO UPDATE SET
     pending_op      = excluded.pending_op,
     deleted         = excluded.deleted,
     base_updated_at = excluded.base_updated_at,
-    last_error      = excluded.last_error;
+    last_error      = excluded.last_error,
+    failed          = excluded.failed,
+    fail_code       = excluded.fail_code,
+    attempts        = excluded.attempts;
 
 markClean:
 UPDATE synced_entity
-SET dirty = 0, pending_op = NULL, last_error = NULL,
+SET dirty = 0, pending_op = NULL, last_error = NULL, failed = 0, fail_code = NULL, attempts = 0,
     server_id = :serverId, updated_at = :updatedAt, base_updated_at = :baseUpdatedAt
-WHERE entity = :entity AND local_id = :localId;
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
 setError:
 UPDATE synced_entity
 SET last_error = :lastError
-WHERE entity = :entity AND local_id = :localId;
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
+
+-- Recusa TERMINAL do servidor: a linha para de ser drenada e passa a ser visível como
+-- "não salva" para o app (com o erro preservado). Também reexibe um delete recusado
+-- (deleted = 0) — o registro continua existindo no servidor.
+markFailed:
+UPDATE synced_entity
+SET failed = 1, fail_code = :failCode, last_error = :lastError,
+    attempts = attempts + 1, deleted = 0
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
+
+-- Retry explícito: volta a linha para a outbox drenável, preservando o payload.
+clearFailed:
+UPDATE synced_entity
+SET failed = 0, fail_code = NULL, last_error = NULL
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
+
+-- Falha RETENTÁVEL (5xx/timeout/rede): conta a tentativa e guarda o erro, sem sair da outbox.
+bumpAttempt:
+UPDATE synced_entity
+SET attempts = attempts + 1, last_error = :lastError
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
 deleteHard:
 DELETE FROM synced_entity
-WHERE entity = :entity AND local_id = :localId;
+WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
+-- Apaga TUDO, de TODAS as contas (wipe do aparelho).
 deleteAll:
 DELETE FROM synced_entity;
+
+-- Apaga o espelho + outbox de UMA conta (exclusão de conta/LGPD) — as demais ficam intactas.
+deleteAccount:
+DELETE FROM synced_entity WHERE account_id = :accountId;
+
+-- Adoção única do bucket legado (base criada antes do escopo de conta existir).
+adoptLegacy:
+UPDATE OR REPLACE synced_entity SET account_id = :accountId WHERE account_id = '';
 
 -- ---------------------------------------------------------------------------
 -- Cursor
 -- ---------------------------------------------------------------------------
 getCursor:
-SELECT cursor FROM sync_cursor WHERE entity = :entity;
+SELECT cursor FROM sync_cursor WHERE account_id = :accountId AND entity = :entity;
 
 setCursor:
-INSERT INTO sync_cursor (entity, cursor) VALUES (:entity, :cursor)
-ON CONFLICT(entity) DO UPDATE SET cursor = excluded.cursor;
+INSERT INTO sync_cursor (account_id, entity, cursor) VALUES (:accountId, :entity, :cursor)
+ON CONFLICT(account_id, entity) DO UPDATE SET cursor = excluded.cursor;
 
 clearCursors:
 DELETE FROM sync_cursor;
+
+deleteAccountCursors:
+DELETE FROM sync_cursor WHERE account_id = :accountId;
+
+adoptLegacyCursors:
+UPDATE OR REPLACE sync_cursor SET account_id = :accountId WHERE account_id = '';

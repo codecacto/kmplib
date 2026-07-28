@@ -80,6 +80,7 @@ class LocalRepositoryTest {
         val store = FakeSyncStore()
         store.upsert(
             br.com.codecacto.kmplib.sync.db.Synced_entity(
+                account_id = "",
                 entity = "note",
                 local_id = "x",
                 server_id = null,
@@ -91,6 +92,9 @@ class LocalRepositoryTest {
                 deleted = 0L,
                 base_updated_at = null,
                 last_error = null,
+                failed = 0L,
+                fail_code = null,
+                attempts = 0L,
             ),
         )
         val repo = repo(store)

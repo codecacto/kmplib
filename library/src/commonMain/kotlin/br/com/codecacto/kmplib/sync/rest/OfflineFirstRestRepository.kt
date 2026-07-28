@@ -99,12 +99,26 @@ data class RestPage<T>(
  *
  * - **Leitura** serve do **espelho local** ([RestEntityMirror]/SQLDelight) — funciona offline; a UI
  *   nunca espera rede.
- * - **Escrita otimista + sync:** [create]/[update]/[delete] chamam o backend **primeiro** (para o
- *   **402 de quota** abrir o Paywall na hora e o id/valores derivados virem do servidor) e gravam o
- *   resultado LIMPO no espelho; **offline** (sem rede) gravam SUJO na outbox e o [RestCrudSyncEngine]
- *   drena ao reconectar.
+ * - **Escrita otimista + sync:** [create]/[update]/[delete] — ver [RestWriteMode] para os dois
+ *   caminhos ([RestWriteMode.OnlineFirst], default, e [RestWriteMode.LocalFirst]).
  * - **Reconciliação por GET** ([refresh]) e **remap de FK** (id temporário local → id do servidor) no
  *   [drainOutbox], via [RestCrudEntity.remapRefs].
+ *
+ * ### A escrita NUNCA some (2.91.0 — GAP-KL-M-RESTCRUD-LOCALFIRST)
+ * Até a 2.90.0 só a falha de **transporte** (código sentinela [DomainResult.OFFLINE_CODE]) caía na
+ * outbox: com rede presente e servidor respondendo **5xx/timeout**, a escrita do usuário
+ * **desaparecia**. Agora toda falha é classificada ([classifyRestFailure]):
+ *
+ * | Falha | O que acontece com a escrita |
+ * |---|---|
+ * | transporte / 5xx / 408 / 429 / 401 pós-refresh | vai para a **outbox** e retenta (devolve `Success`) |
+ * | 4xx de validação / 403 / 404 | `OnlineFirst`: nada persistido, devolve `Error` (o formulário corrige) · `LocalFirst`: linha fica [RestRowState.Failed], com o erro **preservado e visível** |
+ * | **402** | `DomainResult.Quota` (Paywall) — semântica intacta |
+ *
+ * ### Estado por linha (a UI não precisa de overlay próprio)
+ * [observeAllWithState]/[stateOf] expõem `pendente / falhou / sincronizado` por registro
+ * ([RestRowState]); [requeueFailed]/[discardFailed] resolvem a linha recusada. Antes disso cada app
+ * inventava um overlay em memória — que morria com o processo, levando junto a escrita recusada.
  *
  * ### Padrão de uso (composição — recomendado)
  * O app **compõe** este repositório dentro do seu repositório de domínio (que implementa a interface
@@ -122,6 +136,8 @@ data class RestPage<T>(
  * @param refreshPageSize tamanho de página usado pelo [refresh] paginado (`?size=`). Default
  *   [DEFAULT_REFRESH_PAGE_SIZE] = teto do contrato REST-CRUD (100). **Não deve exceder o máximo de
  *   página do backend** (senão o servidor clampa e a parada por "página incompleta" dispararia cedo).
+ * @param writeMode caminho da escrita — ver [RestWriteMode]. Default [RestWriteMode.OnlineFirst]
+ *   (compatível). Use [RestWriteMode.LocalFirst] quando o toque do usuário **é o registro**.
  */
 open class OfflineFirstRestRepository<T : Any>(
     protected val api: DomainApiClient,
@@ -131,6 +147,7 @@ open class OfflineFirstRestRepository<T : Any>(
     protected val json: Json = restMirrorJson,
     private val clientIdFactory: () -> String = ::newRestClientId,
     protected val refreshPageSize: Int = DEFAULT_REFRESH_PAGE_SIZE,
+    protected val writeMode: RestWriteMode = RestWriteMode.OnlineFirst,
 ) : RestCrudSyncParticipant {
 
     /** Espelho local da entidade — exposto para os endpoints custom do app reconciliarem o cache. */
@@ -158,6 +175,57 @@ open class OfflineFirstRestRepository<T : Any>(
     fun getCached(id: String): T? = mirror.get(id)
     fun getAllCached(): List<T> = mirror.getVisible()
 
+    // -- Estado de escrita por linha (2.91.0) ------------------------------
+
+    /**
+     * Espelho visível **com o estado de sync de cada linha** (`pendente / falhou / sincronizado`) —
+     * é o que permite a lista mostrar "enviando…" e "não salvo" **sem overlay em memória** no app.
+     */
+    fun observeAllWithState(): Flow<List<RestRow<T>>> = mirror.observeVisibleWithState()
+
+    /** Uma linha visível com o seu estado de sync. */
+    fun observeByIdWithState(id: String): Flow<RestRow<T>?> = mirror.observeVisibleWithStateById(id)
+
+    fun getAllCachedWithState(): List<RestRow<T>> = mirror.getVisibleWithState()
+
+    /** Estado de sync de uma linha (síncrono). [RestRowState.Synced] se ela não existe localmente. */
+    fun stateOf(id: String): RestRowState = mirror.stateOf(id)
+
+    /** Linhas que o servidor **recusou** (4xx terminal ou 402), com o erro preservado. */
+    fun failedRows(): List<RestRow<T>> = mirror.failedRows()
+
+    /**
+     * Retry **explícito** de uma linha recusada: devolve-a à outbox drenável preservando o conteúdo
+     * local. O envio acontece no próximo ciclo — chame `engine.syncNow()` em seguida para tentar já.
+     *
+     * @return `false` se não havia linha recusada com esse id.
+     */
+    fun requeueFailed(id: String): Boolean {
+        if (!stateOf(id).isFailed) return false
+        mirror.clearFailure(id)
+        return true
+    }
+
+    /** Retry explícito de **todas** as linhas recusadas desta entidade. Devolve quantas voltaram à fila. */
+    fun requeueAllFailed(): Int {
+        val recusadas = mirror.failedRows().map { descriptor.idOf(it.model) }
+        recusadas.forEach { mirror.clearFailure(it) }
+        return recusadas.size
+    }
+
+    /**
+     * Descarta uma escrita recusada (o usuário desistiu de corrigir): remove a linha local. Um
+     * `create` recusado simplesmente some (nunca existiu no servidor); um `update`/`delete` recusado
+     * volta na versão do servidor no próximo [refresh].
+     *
+     * @return `false` se não havia linha recusada com esse id.
+     */
+    fun discardFailed(id: String): Boolean {
+        if (!stateOf(id).isFailed) return false
+        mirror.removeHard(id)
+        return true
+    }
+
     /** Cache-first: se não estiver no espelho, busca por `GET {collection}/{id}`. */
     suspend fun getById(id: String): DomainResult<T?> {
         mirror.get(id)?.let { return DomainResult.Success(it) }
@@ -170,49 +238,133 @@ open class OfflineFirstRestRepository<T : Any>(
 
     // -- Escrita otimista + sync -------------------------------------------
 
-    /** Cria online-first; offline → grava otimista na outbox com id local. */
+    /**
+     * Cria o registro. Em [RestWriteMode.OnlineFirst] chama o servidor primeiro e grava LIMPO o que
+     * ele devolveu; em [RestWriteMode.LocalFirst] grava na outbox **antes** de tocar a rede e
+     * reconcilia depois. Em ambos, falha **retentável** (rede/5xx/timeout) fica na outbox e devolve
+     * `Success` com o modelo local — a escrita nunca some.
+     */
     suspend fun create(model: T): DomainResult<T> =
+        if (writeMode == RestWriteMode.LocalFirst) createLocalFirst(model) else createOnlineFirst(model)
+
+    private suspend fun createOnlineFirst(model: T): DomainResult<T> =
         when (val r = api.postJson(collection, descriptor.encodeBody(model))) {
             is DomainResult.Success -> {
-                val saved = decodeOrNull(r.data) ?: return DomainResult.Error(-2, "Resposta inválida do servidor.")
+                val saved = decodeOrNull(r.data) ?: return DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
                 mirror.putClean(saved); DomainResult.Success(saved)
             }
             is DomainResult.Quota -> r
-            is DomainResult.Error -> if (r.isOffline) {
+            is DomainResult.Error -> if (classifyRestFailure(r.code).isRetryable) {
+                // Rede ausente OU servidor instável: a escrita vai para a outbox e converge sozinha.
                 val local = descriptor.withLocalId(model, clientIdFactory())
                 mirror.putDirty(local, SyncOpType.CREATE)
+                if (!r.isOffline) mirror.bumpAttempt(descriptor.idOf(local), r.message)
                 DomainResult.Success(local)
             } else {
-                r
+                r // terminal/402: nada persistido — o formulário mostra o erro e corrige.
             }
         }
 
-    /** Atualiza online-first; offline → grava otimista na outbox. */
+    private suspend fun createLocalFirst(model: T): DomainResult<T> {
+        val local = descriptor.withLocalId(model, clientIdFactory())
+        val localId = descriptor.idOf(local)
+        mirror.putDirty(local, SyncOpType.CREATE) // grava ANTES da rede: o toque já está salvo.
+        return when (val r = api.postJson(collection, descriptor.encodeBody(local))) {
+            is DomainResult.Success -> {
+                val saved = decodeOrNull(r.data)
+                if (saved == null) {
+                    // O servidor aceitou, mas a resposta é ilegível: retentar duplicaria o registro.
+                    mirror.markFailed(localId, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
+                    DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
+                } else {
+                    mirror.markSynced(localId, saved)
+                    DomainResult.Success(saved)
+                }
+            }
+            is DomainResult.Quota -> { mirror.markFailed(localId, 402, quotaMessage(r)); r }
+            is DomainResult.Error -> resolveWriteFailure(localId, local, r)
+        }
+    }
+
+    /** Atualiza o registro — mesma política de falha do [create] (ver [RestWriteMode]). */
     suspend fun update(model: T): DomainResult<T> =
+        if (writeMode == RestWriteMode.LocalFirst) updateLocalFirst(model) else updateOnlineFirst(model)
+
+    private suspend fun updateOnlineFirst(model: T): DomainResult<T> =
         when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
             is DomainResult.Success -> {
                 val saved = decodeOrNull(r.data) ?: model
                 mirror.confirm(saved); DomainResult.Success(saved)
             }
             is DomainResult.Quota -> r
-            is DomainResult.Error -> if (r.isOffline) {
-                mirror.putDirty(model, SyncOpType.UPDATE); DomainResult.Success(model)
+            is DomainResult.Error -> if (classifyRestFailure(r.code).isRetryable) {
+                mirror.putDirty(model, SyncOpType.UPDATE)
+                if (!r.isOffline) mirror.bumpAttempt(descriptor.idOf(model), r.message)
+                DomainResult.Success(model)
             } else {
                 r
             }
         }
 
-    /** Exclui online-first; offline → tombstone (replay no reconnect); 404 → remove local. */
-    suspend fun delete(id: String): DomainResult<Unit> =
-        when (val r = api.delete(itemPath(id))) {
+    private suspend fun updateLocalFirst(model: T): DomainResult<T> {
+        val id = descriptor.idOf(model)
+        mirror.putDirty(model, SyncOpType.UPDATE) // grava ANTES da rede.
+        return when (val r = api.putJson(itemPath(id), descriptor.encodeBody(model))) {
+            is DomainResult.Success -> {
+                val saved = decodeOrNull(r.data) ?: model
+                mirror.confirm(saved); DomainResult.Success(saved)
+            }
+            is DomainResult.Quota -> { mirror.markFailed(id, 402, quotaMessage(r)); r }
+            is DomainResult.Error -> resolveWriteFailure(id, model, r)
+        }
+    }
+
+    /**
+     * Exclui o registro. 404 = já não existe no servidor ⇒ remove local e devolve sucesso. Falha
+     * retentável vira **tombstone** (replay no reconnect). Em [RestWriteMode.LocalFirst] o tombstone
+     * é gravado **antes** da rede e uma recusa terminal **reexibe** a linha marcada como não-salva —
+     * o registro continua existindo no servidor, e esconder isso seria mentir para o usuário.
+     */
+    suspend fun delete(id: String): DomainResult<Unit> {
+        if (writeMode == RestWriteMode.LocalFirst) mirror.tombstone(id)
+        return when (val r = api.delete(itemPath(id))) {
             is DomainResult.Success -> { mirror.removeHard(id); DomainResult.Success(Unit) }
-            is DomainResult.Quota -> r
+            is DomainResult.Quota -> {
+                if (writeMode == RestWriteMode.LocalFirst) mirror.markFailed(id, 402, quotaMessage(r))
+                r
+            }
             is DomainResult.Error -> when {
                 r.code == 404 -> { mirror.removeHard(id); DomainResult.Success(Unit) }
-                r.isOffline -> { mirror.tombstone(id); DomainResult.Success(Unit) }
-                else -> r
+                classifyRestFailure(r.code).isRetryable -> {
+                    mirror.tombstone(id)
+                    if (!r.isOffline) mirror.bumpAttempt(id, r.message)
+                    DomainResult.Success(Unit)
+                }
+                else -> {
+                    // Terminal (403/409/422…): em local-first a linha volta a aparecer, sinalizada.
+                    if (writeMode == RestWriteMode.LocalFirst) mirror.markFailed(id, r.code, r.message)
+                    r
+                }
             }
         }
+    }
+
+    /**
+     * Política única de falha de escrita do caminho **local-first**: retentável ⇒ a linha fica na
+     * outbox e a chamada devolve `Success` (a escrita **foi** aceita, o estado é [RestRowState.Pending]);
+     * terminal ⇒ a linha vira [RestRowState.Failed] com o erro preservado e a chamada devolve `Error`.
+     */
+    private fun resolveWriteFailure(localId: String, local: T, error: DomainResult.Error): DomainResult<T> =
+        when (classifyRestFailure(error.code)) {
+            RestFailureClass.Offline -> DomainResult.Success(local)
+            RestFailureClass.Retryable -> { mirror.bumpAttempt(localId, error.message); DomainResult.Success(local) }
+            RestFailureClass.Terminal, RestFailureClass.Quota -> {
+                mirror.markFailed(localId, error.code, error.message); error
+            }
+        }
+
+    private fun quotaMessage(quota: DomainResult.Quota): String =
+        "Limite do plano atingido${quota.quota.feature.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}."
 
     // -- Sync (RestCrudSyncParticipant) ------------------------------------
 
@@ -262,7 +414,7 @@ open class OfflineFirstRestRepository<T : Any>(
         when (val r = api.getJson(pagedPath(page, size))) {
             is DomainResult.Success -> {
                 val decoded = runCatching { descriptor.decodePage(r.data) }.getOrNull()
-                    ?: return DomainResult.Error(-2, "Resposta inválida do servidor.")
+                    ?: return DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
                 mirror.mergeClean(decoded.items)
                 DomainResult.Success(decoded)
             }
@@ -275,40 +427,67 @@ open class OfflineFirstRestRepository<T : Any>(
      * acumulado (FK de pais já sincronizados). Retorna o `clientId → serverId` dos **creates** que
      * confirmou, para o [RestCrudSyncEngine] alimentar o remap dos filhos. Pausa (retorna o que já fez)
      * ao perder a rede — a outbox é preservada e retentada no próximo ciclo.
+     *
+     * **Consome só as linhas drenáveis** ([RestEntityMirror.drainableRows]): o que o servidor recusou
+     * de forma terminal fica de fora até o app pedir [requeueFailed]. Antes da 2.91.0 uma linha
+     * recusada por validação era retentada **em todo ciclo, para sempre**, sem nunca convergir e sem
+     * ninguém saber.
      */
     override suspend fun drainOutbox(parentRemap: Map<String, String>): Map<String, String> {
         val added = mutableMapOf<String, String>()
-        for (rowItem in mirror.dirtyRows()) {
-            val decoded = mirror.decode(rowItem.payload_json) ?: continue
+        for (rowItem in mirror.drainableRows()) {
+            val decoded = mirror.decode(rowItem.payload_json)
+            if (decoded == null) {
+                // Payload ilegível (schema mudou sob a linha): não há o que enviar — para e mostra.
+                mirror.markFailed(rowItem.local_id, INVALID_PAYLOAD_CODE, INVALID_PAYLOAD_MESSAGE)
+                continue
+            }
             val model = descriptor.remapRefs(decoded, parentRemap)
             when (rowItem.pending_op) {
                 SyncOpType.CREATE.wire -> when (val r = api.postJson(collection, descriptor.encodeBody(model))) {
                     is DomainResult.Success -> {
-                        val saved = decodeOrNull(r.data) ?: continue
-                        added[rowItem.local_id] = descriptor.idOf(saved)
-                        mirror.markSynced(rowItem.local_id, saved)
+                        val saved = decodeOrNull(r.data)
+                        if (saved == null) {
+                            // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
+                            mirror.markFailed(rowItem.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
+                        } else {
+                            added[rowItem.local_id] = descriptor.idOf(saved)
+                            mirror.markSynced(rowItem.local_id, saved)
+                        }
                     }
-                    is DomainResult.Error -> if (r.isOffline) return added // sem rede: pausa
-                    is DomainResult.Quota -> Unit // mantém sujo; usuário resolve no paywall/próximo online
+                    is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
                 SyncOpType.UPDATE.wire -> when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
                     is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
-                    is DomainResult.Error -> if (r.isOffline) return added
-                    is DomainResult.Quota -> Unit
+                    is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
                 SyncOpType.DELETE.wire -> when (val r = api.delete(itemPath(descriptor.idOf(model)))) {
                     is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
                     is DomainResult.Error -> when {
-                        r.code == 404 -> mirror.removeHard(rowItem.local_id)
-                        r.isOffline -> return added
-                        else -> Unit
+                        r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá
+                        else -> if (!applyDrainFailure(rowItem.local_id, r)) return added
                     }
-                    is DomainResult.Quota -> Unit
+                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
             }
         }
         return added
     }
+
+    /**
+     * Aplica ao espelho a falha de uma linha durante o push.
+     * @return `false` quando o ciclo deve **pausar** (sem rede) — a outbox fica intacta.
+     */
+    private fun applyDrainFailure(localId: String, error: DomainResult.Error): Boolean =
+        when (classifyRestFailure(error.code)) {
+            RestFailureClass.Offline -> false
+            RestFailureClass.Retryable -> { mirror.bumpAttempt(localId, error.message); true }
+            RestFailureClass.Terminal, RestFailureClass.Quota -> {
+                mirror.markFailed(localId, error.code, error.message); true
+            }
+        }
 
     protected fun decodeOrNull(body: String): T? =
         runCatching { descriptor.decodeModel(body) }.getOrNull()
@@ -319,6 +498,17 @@ open class OfflineFirstRestRepository<T : Any>(
 
         /** Salvaguarda anti-loop: máximo de páginas que um único [refresh] percorre. */
         const val MAX_REFRESH_PAGES: Int = 10_000
+
+        /**
+         * Sentinela: o servidor aceitou a escrita mas devolveu um corpo que não decodifica.
+         * Classificado como **terminal** de propósito — repetir o POST duplicaria o registro.
+         */
+        const val INVALID_RESPONSE_CODE: Int = -2
+        const val INVALID_RESPONSE_MESSAGE: String = "Resposta inválida do servidor."
+
+        /** Sentinela: o payload local não decodifica (schema mudou sob a linha). Terminal. */
+        const val INVALID_PAYLOAD_CODE: Int = -3
+        const val INVALID_PAYLOAD_MESSAGE: String = "Registro local ilegível (formato antigo)."
     }
 }
 

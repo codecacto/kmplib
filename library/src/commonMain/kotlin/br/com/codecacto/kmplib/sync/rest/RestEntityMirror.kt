@@ -52,8 +52,48 @@ class RestEntityMirror<T : Any>(
     /** Server id conhecido para um id local (== client id offline). `null` se ainda não sincronizado. */
     fun serverIdOf(localId: String): String? = store.getByLocalId(name, localId)?.server_id
 
-    /** Linhas sujas (outbox) desta entidade, mais antigas primeiro. */
+    /** Linhas sujas (outbox) desta entidade, mais antigas primeiro — **inclusive as recusadas**. */
     fun dirtyRows(): List<Synced_entity> = store.getDirty(name)
+
+    /**
+     * Linhas **drenáveis** (sujas que ainda não foram recusadas de forma terminal). É o que o push
+     * consome: uma linha `Failed` só volta por retry explícito ([clearFailure]).
+     */
+    fun drainableRows(): List<Synced_entity> = store.getDrainable(name)
+
+    // -- Estado de escrita por linha (2.91.0) ------------------------------
+
+    /** Estado de sync de uma linha: pendente / falhou / sincronizada. */
+    fun stateOf(localId: String): RestRowState =
+        (store.getByLocalId(name, localId) ?: store.getByServerId(name, localId))
+            ?.toRestRowState()
+            ?: RestRowState.Synced
+
+    /** Espelho visível **com o estado de cada linha** — a lista que a UI renderiza sem overlay próprio. */
+    fun observeVisibleWithState(): Flow<List<RestRow<T>>> =
+        store.observeVisible(name).map { rows -> rows.mapNotNull { it.toRestRow() } }
+
+    /** Uma linha visível com o seu estado. */
+    fun observeVisibleWithStateById(localId: String): Flow<RestRow<T>?> =
+        store.observeVisibleById(name, localId).map { row -> row?.toRestRow() }
+
+    fun getVisibleWithState(): List<RestRow<T>> = store.getVisible(name).mapNotNull { it.toRestRow() }
+
+    /** Linhas que o servidor **recusou** (com o erro preservado). */
+    fun failedRows(): List<RestRow<T>> = store.getFailed(name).mapNotNull { it.toRestRow() }
+
+    /** Marca a linha como recusada de forma terminal, preservando código e mensagem do servidor. */
+    fun markFailed(localId: String, code: Int, message: String?) =
+        store.markFailed(name, localId, code, message)
+
+    /** Devolve a linha recusada à outbox drenável (retry explícito do app). */
+    fun clearFailure(localId: String) = store.clearFailed(name, localId)
+
+    /** Conta uma tentativa que falhou de forma **retentável** (a linha continua na outbox). */
+    fun bumpAttempt(localId: String, error: String?) = store.bumpAttempt(name, localId, error)
+
+    private fun Synced_entity.toRestRow(): RestRow<T>? =
+        decode(payload_json)?.let { RestRow(it, toRestRowState()) }
 
     // -- Escrita -----------------------------------------------------------
 
@@ -120,7 +160,17 @@ class RestEntityMirror<T : Any>(
     /** Marca exclusão (tombstone) mantendo o payload para replay do delete na reconexão. */
     fun tombstone(localId: String) {
         val existing = store.getByLocalId(name, localId) ?: return
-        store.upsert(existing.copy(dirty = 1L, pending_op = SyncOpType.DELETE.wire, deleted = 1L))
+        store.upsert(
+            existing.copy(
+                dirty = 1L,
+                pending_op = SyncOpType.DELETE.wire,
+                deleted = 1L,
+                // Intenção nova do usuário: sai do estado "recusado" e volta à outbox drenável.
+                failed = 0L,
+                fail_code = null,
+                last_error = null,
+            ),
+        )
     }
 
     /** Após confirmar no servidor: migra o id local (client id) para o server id e grava LIMPO. */
@@ -151,6 +201,14 @@ class RestEntityMirror<T : Any>(
     /** Remoção física local (após confirmar o delete no servidor, ou reconciliação). */
     fun removeHard(localId: String) = store.deleteHard(name, localId)
 
+    /**
+     * Monta a linha do espelho. `account_id` sai em branco de propósito: **quem escopa é o
+     * [SyncStore]**, que grava sempre na conta corrente — assim nenhuma linha pode ser escrita no
+     * bucket de outra conta por engano.
+     *
+     * Escrever (limpo ou sujo) **zera o estado de falha**: uma alteração nova do usuário substitui
+     * a recusa anterior e volta à outbox drenável.
+     */
     private fun row(
         model: T,
         serverId: String?,
@@ -159,6 +217,7 @@ class RestEntityMirror<T : Any>(
         clientId: String = idOf(model),
         updatedAt: String?,
     ): Synced_entity = Synced_entity(
+        account_id = "",
         entity = name,
         local_id = serverId ?: idOf(model),
         server_id = serverId,
@@ -170,6 +229,9 @@ class RestEntityMirror<T : Any>(
         deleted = 0L,
         base_updated_at = null,
         last_error = null,
+        failed = 0L,
+        fail_code = null,
+        attempts = 0L,
     )
 
     fun decode(payloadJson: String): T? =

@@ -1,0 +1,70 @@
+-- =============================================================================
+-- Migração 1 → 2 (kmplib 2.91.0)
+--
+-- Acrescenta ao espelho de sync:
+--   * `account_id` como PARTE DA CHAVE PRIMÁRIA — escopo de conta
+--     (GAP-KL-M-SYNC-ACCOUNTSCOPE);
+--   * `failed`/`fail_code`/`attempts` — estado de escrita por linha
+--     (GAP-KL-M-RESTCRUD-LOCALFIRST).
+--
+-- **Preserva os dados das bases já instaladas** (~14 apps em produção): as linhas
+-- existentes são copiadas para o bucket "sem escopo" (`account_id = ''`), de onde o
+-- app as reivindica na primeira chamada a `SyncStore.setAccountScope(...)`
+-- (política `LegacyRowsPolicy`). Nada é dropado.
+--
+-- SQLite não permite ALTER TABLE de chave primária → o caminho oficial é
+-- criar/copiar/dropar/renomear (https://sqlite.org/lang_altertable.html#otheralter).
+-- Os índices são recriados DEPOIS do DROP da tabela antiga (ela ainda os detém sob os
+-- mesmos nomes até ser dropada).
+-- =============================================================================
+
+ALTER TABLE synced_entity RENAME TO synced_entity_v1;
+
+CREATE TABLE synced_entity (
+    account_id      TEXT    NOT NULL DEFAULT '',
+    entity          TEXT    NOT NULL,
+    local_id        TEXT    NOT NULL,
+    server_id       TEXT,
+    client_id       TEXT    NOT NULL,
+    payload_json    TEXT    NOT NULL,
+    updated_at      TEXT,
+    dirty           INTEGER NOT NULL DEFAULT 0,
+    pending_op      TEXT,
+    deleted         INTEGER NOT NULL DEFAULT 0,
+    base_updated_at TEXT,
+    last_error      TEXT,
+    failed          INTEGER NOT NULL DEFAULT 0,
+    fail_code       INTEGER,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, entity, local_id)
+);
+
+INSERT INTO synced_entity (
+    account_id, entity, local_id, server_id, client_id, payload_json,
+    updated_at, dirty, pending_op, deleted, base_updated_at, last_error,
+    failed, fail_code, attempts
+)
+SELECT
+    '', entity, local_id, server_id, client_id, payload_json,
+    updated_at, dirty, pending_op, deleted, base_updated_at, last_error,
+    0, NULL, 0
+FROM synced_entity_v1;
+
+DROP TABLE synced_entity_v1;
+
+CREATE INDEX synced_entity_dirty ON synced_entity(account_id, entity, dirty);
+CREATE INDEX synced_entity_server ON synced_entity(account_id, entity, server_id);
+
+ALTER TABLE sync_cursor RENAME TO sync_cursor_v1;
+
+CREATE TABLE sync_cursor (
+    account_id TEXT NOT NULL DEFAULT '',
+    entity     TEXT NOT NULL,
+    cursor     TEXT,
+    PRIMARY KEY (account_id, entity)
+);
+
+INSERT INTO sync_cursor (account_id, entity, cursor)
+SELECT '', entity, cursor FROM sync_cursor_v1;
+
+DROP TABLE sync_cursor_v1;

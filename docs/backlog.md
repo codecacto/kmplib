@@ -8,40 +8,32 @@
 > idade). **Nada foi implementado na lib** — os três valem para todos os apps da migração REST-CRUD,
 > e a decisão é do CTO/lib-mobile. No app, cada um está contornado com solução visível e reversível.
 
-- [ ] **GAP-KL-M-RESTCRUD-LOCALFIRST — `OfflineFirstRestRepository.update`/`create` perdem a escrita
-      em falha NÃO-offline (P0 de perda de dado).** Hoje o caminho é *online-first*: `DomainResult
-      .Error` só cai na outbox quando `isOffline` (código sentinela -1). Num **4xx/5xx real** (rede
-      presente, servidor recusando) nada é gravado no espelho e nada entra na outbox — a escrita
-      **desaparece**, e o app só descobre pelo `Result.failure`. Isso contradiz o que "offline-first"
-      promete e o que os apps documentam ("grava no local no instante do toque").
-      - **Onde dói:** "Todos a Bordo" — cada toque de embarque/desembarque é registro de segurança de
-        criança; em rede ruim (não ausente) o toque sumia em silêncio.
-      - **Correção proposta (padrão-ouro):** caminho **local-first** opcional no `update`/`create` —
-        gravar **dirty** no espelho e deixar o `RestCrudSyncEngine` confirmar, com a resposta do
-        servidor reconciliando depois. Precisa decidir o que fazer com 4xx **permanente** (ex.: 422):
-        reter na outbox para sempre é tão ruim quanto perder — sugere-se marcar a linha com erro
-        (`SyncStore.setError`) e expor esse estado ao app, que hoje não tem como saber.
-      - **Contorno no app (não replicar sem pensar):** overlay em memória (`MarkOverlay` +
-        `ExecutionManager`) mantém a marcação visível e sinalizada como "não salva", com botão de
-        reenvio. **Não sobrevive à morte do processo** — é remendo de UI, não persistência.
+- [x] **GAP-KL-M-RESTCRUD-LOCALFIRST — escrita perdida em erro de servidor.** **ENTREGUE na 2.91.0.**
+      `classifyRestFailure`/`RestFailureClass` (retentável × terminal × cota), falha **retentável** vai
+      para a outbox **nos dois modos** (correção que os ~14 apps recebem sem migrar nada),
+      `RestWriteMode.LocalFirst` opt-in (grava e enfileira **antes** da rede), estado por linha
+      (`RestRowState` + `observeAllWithState`/`stateOf`/`failedRows`/`requeueFailed`/`discardFailed`) e
+      drain que **para de retentar** o que o servidor recusou. 402/401 com semântica intacta. Detalhe
+      no `CHANGELOG.md` 2.91.0.
+      - **Decisão registrada:** o erro **terminal** só persiste a linha (como `Failed`) no modo
+        `LocalFirst`. Em `OnlineFirst` continua devolvendo `Error` sem gravar — é o comportamento
+        certo de formulário, e mudar isso faria aparecer "linha fantasma" na lista de 13 apps que não
+        pediram nada. Quem quiser o comportamento novo troca 1 parâmetro.
+      - **Migração:** "Todos a Bordo" passa `writeMode = RestWriteMode.LocalFirst` nos repositórios da
+        execução e **apaga** `domain/OptimisticMarks.kt` + o overlay do `ExecutionManager` (o estado
+        agora é persistido e sobrevive à morte do processo). Demais apps: nada a fazer.
 
-- [ ] **GAP-KL-M-SYNC-ACCOUNTSCOPE — espelho local (`synced_entity`) NÃO tem escopo de conta (P0 de
-      segurança/LGPD).** A tabela é chaveada por `entity` + `local_id`; nada amarra a linha à conta
-      que a criou. Num aparelho compartilhado (van que passa ao motorista substituto, celular de
-      loja, tablet de equipe), trocar de usuário produz **dois** estragos:
-      1. **Leitura:** entre o login do novo usuário e o primeiro PULL, as telas dele listam os dados
-         do anterior (no caso do "Todos a Bordo": nome + endereço de crianças).
-      2. **Escrita (permanente):** o ciclo faz **PUSH antes do PULL** e o `drainOutbox` sobe cada
-         linha suja com o **Bearer corrente** — o dado do usuário A é **recriado dentro da conta de
-         B** no servidor, com FK remapeada. O `reconcile` preserva linhas sujas de propósito, então
-         não é transitório.
-      - **Correção proposta:** coluna `account_id` (ou namespace de banco por conta) no espelho, com
-        o `SyncStore` filtrando por titular corrente e uma troca de titular explícita na API. Sem
-        isso, **todo app da onda REST-CRUD** carrega o mesmo defeito.
-      - **Contorno no app:** `core/session/MirrorOwnerGuard` grava o `accountId` dono no cofre da
-        plataforma e, se o titular mudar (ou for desconhecido), faz `SyncStore.deleteAll()` **antes**
-        de qualquer tela coletar e antes de o motor de sync arrancar. Funciona, mas é bruto: apaga a
-        outbox do usuário anterior em vez de isolá-la.
+- [x] **GAP-KL-M-SYNC-ACCOUNTSCOPE — espelho local sem escopo de conta.** **ENTREGUE na 2.91.0.**
+      `account_id` entrou na PK de `synced_entity`/`sync_cursor`; todo o `SyncStore` filtra pelo
+      titular corrente (`accountScope`/`setAccountScope`/`deleteAccountData`). **Isolar, não apagar:**
+      trocar de conta e voltar preserva a fila pendente de cada uma. Migração v1→v2 automática
+      (`1.sqm`) com `LegacyRowsPolicy` (`Adopt` default / `Isolate` / `Discard`) — nada é dropado nas
+      bases em produção. `RestCrudSyncEngine(accountScope = …)` trava o ciclo enquanto não houver
+      titular declarado.
+      - **Migração:** "Todos a Bordo" chama `store.setAccountScope(session.accountId)` no bootstrap
+        (antes de `engine.start()`) e **apaga** `core/session/MirrorOwnerGuard`; a exclusão de conta
+        passa a usar `deleteAccountData(accountId)` em vez de `deleteAll()`. Demais apps com login:
+        adotar o mesmo wiring (1 linha) — sem ele o comportamento é o de hoje.
 
 - [ ] **GAP-KL-M-CARDOVERFLOW — menu "três-pontinhos" de card não existe na lib.** O padrão do
       estúdio (memória `card-overflow-menu-top-right`: overflow no topo direito do card, clique no

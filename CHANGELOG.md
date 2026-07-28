@@ -6,6 +6,81 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.91.0 — offline-first REST-CRUD: a escrita não some, e o espelho é por conta (jul/2026)
+
+Fecha os **dois P0** que o tech-lead levantou na entrega do "Todos a Bordo"
+(`GAP-KL-M-RESTCRUD-LOCALFIRST` e `GAP-KL-M-SYNC-ACCOUNTSCOPE`). Os dois defeitos valem para os
+~14 apps da onda REST-CRUD, e no app estavam contornados na camada de UI — contorno que esta versão
+existe para eliminar.
+
+### GAP 1 — escrita perdida em erro de servidor
+
+**O defeito.** `OfflineFirstRestRepository.create`/`update` eram *online-first* e só caíam na outbox
+quando o erro era **falha de transporte** (código sentinela `-1`). Com rede presente e servidor
+respondendo **4xx/5xx**, nada era gravado no espelho e nada entrava na fila: a escrita do usuário
+**desaparecia**. No "Todos a Bordo" isso era uma criança marcada como desembarcada **sem que o
+registro existisse**.
+
+- **Toda falha passa a ser classificada** (`classifyRestFailure` → `RestFailureClass`):
+  `Offline` · `Retryable` (5xx, 408, 429 e 401 pós-refresh) · `Terminal` (4xx de validação/403/404)
+  · `Quota` (402). **401 é retentável** de propósito: o `DomainApiClient` já renovou o token e
+  tentou de novo — se ainda falhou, a sessão expirou, e o certo é preservar a escrita para depois do
+  novo login. **429 é retentável, 402 não** (limite de taxa passa; cota do plano só passa com
+  upgrade). Resposta ilegível é **terminal**: repetir o POST duplicaria o registro.
+- **Falha retentável agora vai para a outbox nos DOIS modos** — é a correção que os ~14 apps
+  recebem **sem migrar nada**. Antes, um 502 momentâneo apagava a escrita.
+- **`RestWriteMode.LocalFirst`** (opt-in, param de construtor): a escrita grava no espelho e entra
+  na outbox **antes** de tocar a rede, e o resultado do servidor reconcilia depois. Recusa terminal
+  deixa a linha **visível e marcada como não-salva, com o erro preservado** — nunca revertida em
+  silêncio. `RestWriteMode.OnlineFirst` segue o default e, no erro terminal, continua devolvendo
+  `Error` sem persistir (é o comportamento certo de um formulário, onde o usuário corrige o campo).
+- **Estado por linha** (`RestRowState.Synced|Pending|Failed`, `RestRow<T>`): `observeAllWithState()`,
+  `observeByIdWithState()`, `stateOf(id)`, `failedRows()`, `requeueFailed(id)`, `requeueAllFailed()`,
+  `discardFailed(id)`. É o que torna desnecessário o overlay em memória que o app inventou — e que
+  **morria com o processo**, levando junto a marcação recusada.
+- **O drain deixou de retentar para sempre** o que nunca será aceito: consome só a fila **drenável**
+  (`dirty = 1 AND failed = 0`); 4xx/402 durante o push marcam a linha como recusada (visível), e a
+  linha só volta por retry **explícito** do app.
+- **402 e 401 mantêm a semântica**: `DomainResult.Quota` continua abrindo o Paywall na hora; o
+  refresh de token segue no `DomainApiClient`.
+
+### GAP 2 — espelho local sem escopo de conta
+
+**O defeito.** `synced_entity` era chaveada por `entity` + `local_id`, sem nada amarrando a linha à
+conta que a criou. Num aparelho compartilhado, trocar de usuário vazava dado na **leitura** e, pior,
+na **escrita**: o ciclo faz PUSH antes do PULL, então a outbox de A subia inteira **para a conta de
+B** no servidor — permanente, porque o `reconcile` preserva linhas sujas de propósito.
+
+- **`account_id` entrou na chave primária** do espelho (e do `sync_cursor`), e **toda** leitura/
+  escrita/push do `SyncStore` filtra pelo titular corrente. **Isolar, não apagar:** trocar de conta e
+  voltar **preserva a fila pendente de cada uma** — o contorno do app (`MirrorOwnerGuard`) apagava o
+  espelho do usuário anterior, destruindo escrita não sincronizada de quem só trocou de conta.
+- **API:** `SyncStore.accountScope: StateFlow<String>`, `setAccountScope(accountId, legacy)`,
+  `countLegacyRows()`, `deleteAccountData(accountId)` (exclusão de conta/LGPD, sem tocar nas outras).
+  As leituras reativas acompanham a troca de titular (`flatMapLatest`).
+- **Migração de schema v1 → v2 automática e sem perda** (`1.sqm`; SQLite não altera PK, então é
+  criar/copiar/dropar/renomear): as linhas existentes vão para o bucket **sem escopo**, que a
+  primeira `setAccountScope` reivindica conforme a **`LegacyRowsPolicy`** — `Adopt` (default:
+  preserva espelho e outbox de quem estava usando o app quando ele foi atualizado), `Isolate`
+  (preserva invisível; o `refresh` repovoa) ou `Discard` (fail-closed, para aparelho compartilhado
+  com dado sensível). **Nada é dropado** nas bases dos ~14 apps.
+- **`RestCrudSyncEngine(accountScope = store.accountScope)`** (opcional, recomendado em todo app com
+  login): enquanto o titular não for declarado, **nenhum ciclo roda** — trava que impede o push do
+  bucket sem escopo com o Bearer de quem acabou de entrar.
+
+### Compatibilidade
+
+- **Sem breaking de fonte.** Os novos membros de `SyncStore` têm implementação default (os
+  `FakeSyncStore` que os apps mantêm em `commonTest` seguem compilando); `writeMode` e `accountScope`
+  são parâmetros novos **no fim** das assinaturas, com default = comportamento anterior.
+- **Mudança de comportamento (intencional, sem opt-in):** falha retentável passa a cair na outbox e
+  devolver `Success` com o modelo local (antes: `Error` e escrita perdida); e o drain para de
+  retentar indefinidamente linha recusada por 4xx/402.
+- `Synced_entity` (data class gerada) ganhou 4 colunas — só afeta quem **constrói** a linha à mão;
+  nenhum app do portfólio faz isso (verificado).
+- Testes: `RestWriteStateTest` (10), `OfflineFirstRestWriteTest` (15), `SyncAccountScopeTest` (9) +
+  1 no `RestCrudSyncEngineTest` = **35 novos**, suíte verde.
+
 ## 2.90.0 — erro de compra classificado por código tipado, não por texto (jul/2026)
 
 Fecha o `GAP-KL-M-PURCHASE-ERRORCODE`, registrado na 2.89.0 e priorizado pelo CTO como entrega
