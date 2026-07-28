@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.sync.SyncOpType
 import br.com.codecacto.kmplib.sync.SyncStore
 import br.com.codecacto.kmplib.sync.db.Synced_entity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -20,6 +21,16 @@ import kotlinx.serialization.json.Json
  * `dirty=1` = há mudança local ainda não confirmada. É a peça de baixo nível usada pelo
  * [OfflineFirstRestRepository]; expõe operações finas para os endpoints **custom** do app (ex.: um
  * `PATCH /.../status`) reconciliarem o espelho sem passar pela CRUD genérica.
+ *
+ * ### Handle estável (2.93.0 — GAP-KL-M-RESTCRUD-IDMIGRATION)
+ * **Todo id aceito aqui é um `handle`**, não necessariamente a chave física da linha: a busca casa
+ * por `local_id`, `client_id` **ou** `server_id`. O id que o app recebeu no `create` offline
+ * (`local-…`) continua reencontrando o registro **depois** de o drain migrar o id — porque
+ * `client_id` deixou de ser sobrescrito pelo id do servidor e virou a âncora permanente da linha.
+ *
+ * Antes, `markSynced` apagava a linha do id local, reinseria sob o id do servidor **e** gravava o id
+ * do servidor também em `client_id`: qualquer consulta pelo id que a UI carregava no back stack
+ * passava a devolver vazio no meio do uso.
  *
  * @param T modelo de domínio (`@Serializable`).
  * @param name nome lógico estável da entidade (chave no espelho). Ex.: "empresa".
@@ -40,17 +51,55 @@ class RestEntityMirror<T : Any>(
     fun observeVisible(): Flow<List<T>> =
         store.observeVisible(name).map { rows -> rows.mapNotNull { decode(it.payload_json) } }
 
+    /** Observa a linha por **handle** — segue emitindo o mesmo registro depois de o id migrar. */
     fun observeVisibleById(localId: String): Flow<T?> =
-        store.observeVisibleById(name, localId).map { row -> row?.let { decode(it.payload_json) } }
+        store.observeVisibleByHandle(name, localId).map { row -> row?.let { decode(it.payload_json) } }
 
     fun getVisible(): List<T> = store.getVisible(name).mapNotNull { decode(it.payload_json) }
 
-    fun get(localId: String): T? =
-        (store.getByLocalId(name, localId) ?: store.getByServerId(name, localId))
-            ?.let { decode(it.payload_json) }
+    fun get(localId: String): T? = rowFor(localId)?.let { decode(it.payload_json) }
 
-    /** Server id conhecido para um id local (== client id offline). `null` se ainda não sincronizado. */
-    fun serverIdOf(localId: String): String? = store.getByLocalId(name, localId)?.server_id
+    /** Linha crua do espelho para um **handle** (`local_id`/`client_id`/`server_id`). */
+    fun rowFor(handle: String): Synced_entity? = store.getByHandle(name, handle)
+
+    /**
+     * **Chave física** da linha para um handle (o `local_id` da tabela) — o id que as operações de
+     * escrita de baixo nível do [SyncStore] esperam. Cai no próprio handle quando a linha não existe.
+     */
+    fun rowIdOf(handle: String): String = rowFor(handle)?.local_id ?: handle
+
+    /**
+     * **Id canônico** de um handle: o id do servidor quando o registro já subiu, o id local enquanto
+     * não subiu. É o id a usar em URL de endpoint custom do app (`PATCH /v1/x/{id}/status`) e como
+     * chave de correlação de filhos.
+     *
+     * Resolve também quando a linha já saiu do espelho, pelo **remap durável**
+     * ([SyncStore.resolveServerId]).
+     */
+    fun canonicalIdOf(handle: String): String {
+        rowFor(handle)?.let { return it.server_id ?: it.local_id }
+        return store.resolveServerId(handle) ?: handle
+    }
+
+    /**
+     * [canonicalIdOf] **reativo**: emite o handle enquanto o registro só existe local e o id do
+     * servidor assim que ele migra — sem que a tela precise ser recriada.
+     *
+     * É o que a ViewModel usa como chave para consultar **filhos** (que passam a guardar a FK com o
+     * id do servidor assim que sincronizam):
+     * ```kotlin
+     * rotaRepo.observeCanonicalId(handle)
+     *     .flatMapLatest { rotaId -> passageiroRepo.observeAll().map { it.filter { p -> p.rotaId == rotaId } } }
+     * ```
+     */
+    fun observeCanonicalId(handle: String): Flow<String> =
+        store.observeVisibleByHandle(name, handle)
+            .map { row -> row?.let { it.server_id ?: it.local_id } ?: store.resolveServerId(handle) ?: handle }
+            .distinctUntilChanged()
+
+    /** Server id conhecido para um handle. `null` se o registro ainda não foi sincronizado. */
+    fun serverIdOf(localId: String): String? =
+        rowFor(localId)?.server_id ?: store.resolveServerId(localId)
 
     /**
      * A linha existe no espelho e **nunca foi confirmada pelo servidor** (`server_id == null`): ela
@@ -59,7 +108,7 @@ class RestEntityMirror<T : Any>(
      * servidor não conhece esse id e responderia 404).
      */
     fun isLocalOnly(localId: String): Boolean {
-        val linha = store.getByLocalId(name, localId) ?: return false
+        val linha = rowFor(localId) ?: return false
         return linha.server_id == null
     }
 
@@ -74,19 +123,17 @@ class RestEntityMirror<T : Any>(
 
     // -- Estado de escrita por linha (2.91.0) ------------------------------
 
-    /** Estado de sync de uma linha: pendente / falhou / sincronizada. */
+    /** Estado de sync de uma linha (por **handle**): pendente / falhou / sincronizada. */
     fun stateOf(localId: String): RestRowState =
-        (store.getByLocalId(name, localId) ?: store.getByServerId(name, localId))
-            ?.toRestRowState()
-            ?: RestRowState.Synced
+        rowFor(localId)?.toRestRowState() ?: RestRowState.Synced
 
     /** Espelho visível **com o estado de cada linha** — a lista que a UI renderiza sem overlay próprio. */
     fun observeVisibleWithState(): Flow<List<RestRow<T>>> =
         store.observeVisible(name).map { rows -> rows.mapNotNull { it.toRestRow() } }
 
-    /** Uma linha visível com o seu estado. */
+    /** Uma linha visível com o seu estado (por **handle**). */
     fun observeVisibleWithStateById(localId: String): Flow<RestRow<T>?> =
-        store.observeVisibleById(name, localId).map { row -> row?.toRestRow() }
+        store.observeVisibleByHandle(name, localId).map { row -> row?.toRestRow() }
 
     fun getVisibleWithState(): List<RestRow<T>> = store.getVisible(name).mapNotNull { it.toRestRow() }
 
@@ -95,22 +142,37 @@ class RestEntityMirror<T : Any>(
 
     /** Marca a linha como recusada de forma terminal, preservando código e mensagem do servidor. */
     fun markFailed(localId: String, code: Int, message: String?) =
-        store.markFailed(name, localId, code, message)
+        store.markFailed(name, rowIdOf(localId), code, message)
 
     /** Devolve a linha recusada à outbox drenável (retry explícito do app). */
-    fun clearFailure(localId: String) = store.clearFailed(name, localId)
+    fun clearFailure(localId: String) = store.clearFailed(name, rowIdOf(localId))
 
     /** Conta uma tentativa que falhou de forma **retentável** (a linha continua na outbox). */
-    fun bumpAttempt(localId: String, error: String?) = store.bumpAttempt(name, localId, error)
+    fun bumpAttempt(localId: String, error: String?) = store.bumpAttempt(name, rowIdOf(localId), error)
 
     private fun Synced_entity.toRestRow(): RestRow<T>? =
         decode(payload_json)?.let { RestRow(it, toRestRowState()) }
 
     // -- Escrita -----------------------------------------------------------
 
-    /** Grava/atualiza LIMPO (confirmado pelo servidor). `localId` = id do servidor. */
-    fun putClean(model: T, serverId: String = idOf(model), updatedAt: String? = null) {
-        store.upsert(row(model, serverId = serverId, dirty = false, pendingOp = null, updatedAt = updatedAt))
+    /**
+     * Grava/atualiza LIMPO (confirmado pelo servidor). [serverId] = id do servidor.
+     *
+     * **Preserva o `client_id`** de uma linha que já existia — a âncora do handle.
+     *
+     * @param replacingHandle id **local** da linha que esta confirmação substitui, quando o app
+     *   confirmou a criação por um endpoint **próprio** (fora da CRUD genérica). Informando-o, a
+     *   linha local **migra** para o id do servidor e o remap durável é registrado — exatamente como
+     *   no drain. Sem ele, uma criação confirmada por fora deixaria a linha local órfã ao lado da
+     *   nova, e o handle que a UI carrega apontaria para o registro errado.
+     */
+    fun putClean(
+        model: T,
+        serverId: String = idOf(model),
+        updatedAt: String? = null,
+        replacingHandle: String? = null,
+    ) {
+        writeClean(model, serverId, updatedAt, handle = replacingHandle ?: idOf(model))
     }
 
     /** Reconcilia o conjunto vindo do servidor: substitui as linhas LIMPAS, preservando as sujas. */
@@ -125,10 +187,8 @@ class RestEntityMirror<T : Any>(
             // Upsert limpo dos itens do servidor que NÃO têm edição local pendente.
             serverModels.forEach { model ->
                 val id = idOf(model)
-                val existing = store.getByLocalId(name, id)
-                if (existing == null || existing.dirty == 0L) {
-                    store.upsert(row(model, serverId = id, dirty = false, pendingOp = null, updatedAt = null))
-                }
+                val existing = store.getByHandle(name, id)
+                if (existing == null || existing.dirty == 0L) writeClean(model, id, null, handle = id)
             }
         }
     }
@@ -144,10 +204,8 @@ class RestEntityMirror<T : Any>(
         store.transaction {
             serverModels.forEach { model ->
                 val id = idOf(model)
-                val existing = store.getByLocalId(name, id)
-                if (existing == null || existing.dirty == 0L) {
-                    store.upsert(row(model, serverId = id, dirty = false, pendingOp = null, updatedAt = null))
-                }
+                val existing = store.getByHandle(name, id)
+                if (existing == null || existing.dirty == 0L) writeClean(model, id, null, handle = id)
             }
         }
     }
@@ -161,20 +219,21 @@ class RestEntityMirror<T : Any>(
      * **remove a linha localmente** em vez de enfileirar um `DELETE` que só produziria 404.
      */
     fun putDirty(model: T, op: SyncOpType) {
-        val localId = idOf(model)
-        val existing = store.getByLocalId(name, localId)
+        val handle = idOf(model)
+        val existing = rowFor(handle)
         val efetiva = resolveOutboxOp(
             requested = op,
             knownLocally = existing != null,
             hasServerId = existing?.server_id != null,
-        ) ?: run { store.deleteHard(name, localId); return }
+        ) ?: run { store.deleteHard(name, existing?.local_id ?: handle); return }
         store.upsert(
             row(
                 model,
+                localId = existing?.local_id ?: handle,
                 serverId = existing?.server_id,
                 dirty = true,
                 pendingOp = efetiva.wire,
-                clientId = existing?.client_id ?: localId,
+                clientId = existing?.client_id ?: handle,
                 updatedAt = null,
             ),
         )
@@ -188,14 +247,14 @@ class RestEntityMirror<T : Any>(
      * 404 previsível, que a máquina de estados classificaria como recusa terminal.
      */
     fun tombstone(localId: String) {
-        val existing = store.getByLocalId(name, localId) ?: return
+        val existing = rowFor(localId) ?: return
         val efetiva = resolveOutboxOp(
             requested = SyncOpType.DELETE,
             knownLocally = true,
             hasServerId = existing.server_id != null,
         )
         if (efetiva == null) {
-            store.deleteHard(name, localId)
+            store.deleteHard(name, existing.local_id)
             return
         }
         store.upsert(
@@ -211,18 +270,55 @@ class RestEntityMirror<T : Any>(
         )
     }
 
-    /** Após confirmar no servidor: migra o id local (client id) para o server id e grava LIMPO. */
+    /**
+     * Após confirmar no servidor: migra o id local (client id) para o server id e grava LIMPO.
+     *
+     * Duas garantias novas na 2.93.0, ambas necessárias para o registro **não sumir** da UI nem
+     * quebrar a FK dos filhos:
+     * 1. **`client_id` é preservado** — a linha migra de `local_id`, mas continua alcançável pelo id
+     *    que o app carregou na navegação ([observeVisibleById]/[get]/[stateOf] por handle);
+     * 2. **o remap `clientId → serverId` é gravado de forma durável** ([SyncStore.rememberServerId]),
+     *    para um filho que drene em OUTRO ciclo — ou depois de o processo morrer — ainda conseguir
+     *    traduzir a FK do pai. Antes, essa tradução vivia numa variável do ciclo de sync.
+     */
     fun markSynced(oldLocalId: String, serverModel: T) {
-        val serverId = idOf(serverModel)
-        store.transaction {
-            if (oldLocalId != serverId) store.deleteHard(name, oldLocalId)
-            store.upsert(row(serverModel, serverId = serverId, dirty = false, pendingOp = null, updatedAt = null))
-        }
+        writeClean(serverModel, idOf(serverModel), updatedAt = null, handle = oldLocalId)
     }
 
     /** Confirma um update/status (mesmo id) como LIMPO. */
     fun confirm(model: T) {
-        store.upsert(row(model, serverId = idOf(model), dirty = false, pendingOp = null, updatedAt = null))
+        writeClean(model, idOf(model), updatedAt = null, handle = idOf(model))
+    }
+
+    /**
+     * Caminho ÚNICO de escrita LIMPA (confirmada pelo servidor) — usado por [putClean], [confirm],
+     * [markSynced], [reconcile] e [mergeClean]. Concentra as três invariantes que antes cada caminho
+     * repetia (ou esquecia):
+     * - a chave física da linha passa a ser o **id do servidor**;
+     * - **`client_id` nunca muda** depois de atribuído (âncora do handle);
+     * - migração de id (`client_id != server_id`) é **registrada de forma durável**.
+     */
+    private fun writeClean(model: T, serverId: String, updatedAt: String?, handle: String) {
+        // O handle vem primeiro: numa migração ele identifica **a linha que está migrando**, e é ela
+        // que precisa ser removida e ter o `client_id` herdado.
+        val existing = rowFor(handle) ?: rowFor(serverId)
+        val clientId = existing?.client_id ?: handle.takeIf { it.isNotBlank() } ?: serverId
+        store.transaction {
+            val antiga = existing?.local_id
+            if (antiga != null && antiga != serverId) store.deleteHard(name, antiga)
+            store.upsert(
+                row(
+                    model,
+                    localId = serverId,
+                    serverId = serverId,
+                    dirty = false,
+                    pendingOp = null,
+                    clientId = clientId,
+                    updatedAt = updatedAt,
+                ),
+            )
+            if (clientId != serverId) store.rememberServerId(name, clientId, serverId)
+        }
     }
 
     /**
@@ -231,13 +327,12 @@ class RestEntityMirror<T : Any>(
      * (ex.: contagem denormalizada de filhos após upload/remoção online).
      */
     fun patch(model: T) {
-        val localId = idOf(model)
-        val existing = store.getByLocalId(name, localId) ?: run { confirm(model); return }
+        val existing = rowFor(idOf(model)) ?: run { confirm(model); return }
         store.upsert(existing.copy(payload_json = json.encodeToString(serializer, model)))
     }
 
     /** Remoção física local (após confirmar o delete no servidor, ou reconciliação). */
-    fun removeHard(localId: String) = store.deleteHard(name, localId)
+    fun removeHard(localId: String) = store.deleteHard(name, rowIdOf(localId))
 
     /**
      * Monta a linha do espelho. `account_id` sai em branco de propósito: **quem escopa é o
@@ -249,6 +344,7 @@ class RestEntityMirror<T : Any>(
      */
     private fun row(
         model: T,
+        localId: String,
         serverId: String?,
         dirty: Boolean,
         pendingOp: String?,
@@ -257,7 +353,7 @@ class RestEntityMirror<T : Any>(
     ): Synced_entity = Synced_entity(
         account_id = "",
         entity = name,
-        local_id = serverId ?: idOf(model),
+        local_id = localId,
         server_id = serverId,
         client_id = clientId,
         payload_json = json.encodeToString(serializer, model),

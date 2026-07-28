@@ -22,6 +22,9 @@ class FakeSyncStore : SyncStore {
 
     private val rows = LinkedHashMap<Key, Synced_entity>()
     private val cursors = HashMap<Pair<String, String>, String?>()
+
+    /** Remap durável `clientId → serverId`, escopado por conta (espelha `sync_id_remap`). */
+    private val remap = LinkedHashMap<Pair<String, String>, String>()
     private val revision = MutableStateFlow(0)
 
     private val _accountScope = MutableStateFlow(SyncStore.NO_ACCOUNT)
@@ -38,12 +41,22 @@ class FakeSyncStore : SyncStore {
             return
         }
         val legadas = rows.keys.filter { it.account == SyncStore.NO_ACCOUNT }
+        val remapLegado = remap.keys.filter { it.first == SyncStore.NO_ACCOUNT }
         when (legacy) {
-            LegacyRowsPolicy.Adopt -> legadas.forEach { k ->
-                val row = rows.remove(k) ?: return@forEach
-                rows[k.copy(account = titular)] = row
+            LegacyRowsPolicy.Adopt -> {
+                legadas.forEach { k ->
+                    val row = rows.remove(k) ?: return@forEach
+                    rows[k.copy(account = titular)] = row
+                }
+                remapLegado.forEach { k ->
+                    val v = remap.remove(k) ?: return@forEach
+                    remap[titular to k.second] = v
+                }
             }
-            LegacyRowsPolicy.Discard -> legadas.forEach { rows.remove(it) }
+            LegacyRowsPolicy.Discard -> {
+                legadas.forEach { rows.remove(it) }
+                remapLegado.forEach { remap.remove(it) }
+            }
             LegacyRowsPolicy.Isolate -> Unit
         }
         _accountScope.value = titular
@@ -55,6 +68,7 @@ class FakeSyncStore : SyncStore {
     override fun deleteAccountData(accountId: String) {
         rows.keys.filter { it.account == accountId }.forEach { rows.remove(it) }
         cursors.keys.filter { it.first == accountId }.forEach { cursors.remove(it) }
+        remap.keys.filter { it.first == accountId }.forEach { remap.remove(it) }
         revision.value++
     }
 
@@ -67,6 +81,22 @@ class FakeSyncStore : SyncStore {
     override fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?> =
         combine(revision, _accountScope) { _, acc -> acc }
             .map { acc -> rows[Key(acc, entity, localId)]?.takeIf { !it.deleted.toDbBoolean() } }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeVisibleByHandle(entity: String, handle: String): Flow<Synced_entity?> =
+        combine(revision, _accountScope) { _, acc -> acc }
+            .map { acc -> findByHandle(acc, entity, handle)?.takeIf { !it.deleted.toDbBoolean() } }
+
+    /** Espelha o `selectVisibleByHandle`/`selectByHandle`: casa local_id, depois server_id, depois client_id. */
+    private fun findByHandle(acc: String, entity: String, handle: String): Synced_entity? {
+        rows[Key(acc, entity, handle)]?.let { return it }
+        val candidatos = rows.entries.filter { it.key.account == acc && it.key.entity == entity }
+        return candidatos.firstOrNull { it.value.server_id == handle }?.value
+            ?: candidatos.firstOrNull { it.value.client_id == handle }?.value
+    }
+
+    override fun getByHandle(entity: String, handle: String): Synced_entity? =
+        findByHandle(account, entity, handle)
 
     override fun observeAllDirty(): Flow<List<Synced_entity>> =
         combine(revision, _accountScope) { _, acc -> acc }
@@ -154,9 +184,26 @@ class FakeSyncStore : SyncStore {
         revision.value++
     }
 
+    override fun rememberServerId(entity: String, clientId: String, serverId: String) {
+        if (clientId.isBlank() || serverId.isBlank() || clientId == serverId) return
+        remap[account to clientId] = serverId
+    }
+
+    override fun resolveServerId(clientId: String): String? = remap[account to clientId]
+
+    override fun resolveClientId(serverId: String): String? =
+        remap.entries.firstOrNull { it.key.first == account && it.value == serverId }?.key?.second
+
+    override fun countIdRemap(): Long = remap.keys.count { it.first == account }.toLong()
+
+    override fun forgetServerId(clientId: String) {
+        remap.remove(account to clientId)
+    }
+
     override fun deleteAll() {
         rows.clear()
         cursors.clear()
+        remap.clear()
         revision.value++
     }
 

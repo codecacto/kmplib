@@ -1,0 +1,31 @@
+-- =============================================================================
+-- Migração 2 → 3 (kmplib 2.93.0)
+--
+-- Acrescenta:
+--   * `sync_id_remap` — REMAP DURÁVEL `clientId → serverId`
+--     (GAP-KL-M-RESTCRUD-IDMIGRATION). Sem ele, a tradução do id local para o id do
+--     servidor vivia numa variável do ciclo de sync: um FILHO que não drenasse no mesmo
+--     ciclo do pai subia a FK apontando para o id local, o backend recusava (FK/UUID) e a
+--     linha ficava `Failed` para sempre — perda definitiva de dado.
+--   * índice `synced_entity_client` — `client_id` virou a âncora permanente da linha
+--     (deixou de ser sobrescrito pelo id do servidor) e passou a ser consultado a cada
+--     leitura por handle.
+--
+-- **Puramente ADITIVA**: nenhuma linha é movida, copiada ou dropada. As bases em produção
+-- (~14 apps) seguem intactas; o remap nasce vazio e é populado a partir da próxima migração
+-- de id. Registros criados offline ANTES desta versão e já sincronizados perderam o
+-- `client_id` original (ele havia sido sobrescrito pelo id do servidor) — para eles o
+-- `client_id` já é igual ao `server_id`, então o handle resolve por identidade e nada quebra.
+-- =============================================================================
+
+CREATE INDEX synced_entity_client ON synced_entity(account_id, entity, client_id);
+
+CREATE TABLE sync_id_remap (
+    account_id TEXT NOT NULL DEFAULT '',
+    client_id  TEXT NOT NULL,
+    server_id  TEXT NOT NULL,
+    entity     TEXT NOT NULL,
+    PRIMARY KEY (account_id, client_id)
+);
+
+CREATE INDEX sync_id_remap_server ON sync_id_remap(account_id, server_id);

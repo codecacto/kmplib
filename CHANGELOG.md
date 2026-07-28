@@ -6,6 +6,87 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.93.0 — offline-first REST-CRUD: o id migra, o handle do app não (jul/2026)
+
+Fecha o **P0 `GAP-KL-M-RESTCRUD-IDMIGRATION`** — o terceiro defeito da mesma família, também
+**pré-existente**, e a causa-raiz comum dos dois achados do code review do "Todos a Bordo" (um
+bloqueante, um importante). Vale para **todos os ~14 apps** da onda REST-CRUD. **Sem breaking
+change**: nenhuma assinatura pública mudou de forma incompatível.
+
+### O defeito — uma raiz, dois estragos
+
+Um registro criado offline nasce com id local (`local-…`) e ganha o id do servidor quando
+sincroniza. A migração era feita apagando a linha do id local e reinserindo sob o id do servidor —
+**e gravando o id do servidor também em `client_id`**, a única coluna que poderia servir de âncora.
+Em paralelo, a tradução `clientId → serverId` vivia numa **variável local do ciclo de sync**
+(`RestCrudSyncEngine.syncNow`), descartada ao fim dele.
+
+1. **A tela esvaziava no meio do uso (bloqueante).** A UI navega com o id local, que congela no back
+   stack. Ao voltar o sinal, o drain migra o id e **toda consulta pelo id local passa a devolver
+   vazio**. No "Todos a Bordo": as telas de execução mostravam "nenhum passageiro" e a conferência
+   final calculava sobre lista vazia — banner verde **"Tudo certo!" com as crianças ainda dentro do
+   veículo**, exatamente a falha que o produto existe para impedir. Não era recuperável de dentro da
+   tela.
+2. **A FK do filho ficava impossível (perda definitiva de dado).** Um filho que não drenasse no
+   mesmo ciclo do pai (sinal caiu no meio do drain, app fechado entre os dois `POST`s) perdia a
+   tradução: no ciclo seguinte o pai não tem mais nada a drenar, o remap chega **vazio**, e o `POST`
+   do filho sobe com a FK apontando para o id local. O backend tem `FOREIGN KEY … REFERENCES` com
+   UUID: **4xx → terminal → `Failed` para sempre**, e cada "Tentar novamente" repetia o mesmo POST
+   impossível.
+
+### A correção
+
+- **`client_id` virou âncora PERMANENTE.** Todo caminho de escrita limpa passou por um ponto único
+  (`RestEntityMirror.writeClean`, usado por `putClean`/`confirm`/`markSynced`/`reconcile`/
+  `mergeClean`) com três invariantes: a chave física passa a ser o id do servidor; **`client_id`
+  nunca muda depois de atribuído**; migração de id é **registrada de forma durável**.
+- **Handle estável — o consumidor não precisa saber que existe migração.** `SyncStore` ganhou
+  `getByHandle`/`observeVisibleByHandle` (`selectByHandle`/`selectVisibleByHandle`: casa `local_id`
+  **ou** `client_id` **ou** `server_id`). **Todo id aceito pelo `RestEntityMirror` e pelo
+  `OfflineFirstRestRepository` é um handle**: `observeById`, `getCached`, `getById`, `stateOf`,
+  `observeByIdWithState`, `update`, `delete`, `requeueFailed`, `discardFailed`. O id que o app
+  recebeu no `create` vale para sempre — inclusive depois de reiniciar o processo.
+- **Remap durável `clientId → serverId`** (tabela nova `sync_id_remap`, escopada por conta):
+  gravado no **instante** da migração, sobrevive a ciclos, a **drenagem parcial** e a reinício de
+  processo. `SyncStore.rememberServerId`/`resolveServerId`/`resolveClientId`/`countIdRemap`/
+  `forgetServerId`.
+- **Resolução de FK entre entidades que drenam em ciclos diferentes**, em duas camadas:
+  `RestCrudEntity.remapRefs` passou a receber um mapa **materializado** com o remap do ciclo **mais**
+  os mapeamentos duráveis dos ids que aquele payload realmente referencia (nada de `Map` preguiçoso
+  que mentiria em `isEmpty()`); e o corpo enviado passa por uma varredura genérica
+  (`RestPayloadRemap`) que traduz valores string iguais a um id conhecido. **A correção chega aos
+  apps que nem implementam `remapRefs`** — nenhum precisa mudar.
+- **Correlação de filhos na UI:** `OfflineFirstRestRepository.canonicalId(handle)` (síncrono),
+  `observeCanonicalId(handle)` (reativo — emite o id do servidor assim que ele migra) e
+  `ids: RestIdResolver` (`canonical`/`same`/`clientIdOf`/`isMigrated`), para comparar ids que podem
+  ter migrado sem usar `==`.
+- **Correções vizinhas encontradas no caminho:** `update()` normaliza um modelo cujo id é um handle
+  antigo antes de falar com a rede (novo `RestCrudEntity.withId`, default delegando a `withLocalId`)
+  — antes faria `PUT /…/local-…` num registro que já existia no servidor; o drain monta a URL de
+  `PUT`/`DELETE` com o `server_id` **da linha**, não com o id que por acaso está no payload;
+  `putClean` ganhou `replacingHandle` para o app que confirma uma criação por endpoint **próprio**
+  migrar a linha local em vez de deixar uma órfã ao lado; e `newRestClientId()` ganhou sufixo
+  aleatório, porque virou **chave** do remap durável e o contador reinicia com o processo.
+
+### Migração de schema (v2 → v3)
+
+`2.sqm` é **puramente aditivo** (cria `sync_id_remap` + índice por `client_id`): nenhuma linha é
+movida, copiada ou dropada nas bases em produção. Registros criados offline **antes** desta versão e
+já sincronizados tiveram o `client_id` sobrescrito lá atrás — para eles `client_id == server_id`, o
+handle resolve por identidade e nada quebra.
+
+### Testes
+
+`RestIdMigrationTest` (**13**, novos): FK de pai e filho em **ciclos diferentes** (com e sem o hook
+`remapRefs`), **drain interrompido no meio**, **reinício de processo** entre o `POST` do pai e o do
+filho, consulta por handle depois da migração (`getCached`/`observeById`/`getById`/`stateOf`),
+`update`/`delete` pelo handle antigo, `observeCanonicalId`, `RestIdResolver.same`, `client_id`
+sobrevivendo a `markSynced`/`reconcile`/`confirm`, `putClean` de endpoint custom, isolamento do
+remap por conta e a varredura genérica (não toca texto livre nem quebra corpo não-JSON).
+**Controle negativo:** sabotando só o remap durável, **6 dos 13** falham; sabotando só a preservação
+do `client_id`, **11 dos 13** — mais o teste do fluxo do motorista da 2.92.0. Suíte: **1.498 testes,
+0 falhas**; `koverVerify` verde.
+
 ## 2.92.0 — offline-first REST-CRUD: o registro criado offline sobe como CREATE (jul/2026)
 
 Fecha o **P0 `GAP-KL-M-RESTCRUD-PENDINGOP`**, defeito **pré-existente** da outbox que a 2.91.0

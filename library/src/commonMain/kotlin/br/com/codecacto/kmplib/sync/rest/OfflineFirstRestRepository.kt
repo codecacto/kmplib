@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import br.com.codecacto.kmplib.sync.SyncOpType
 import br.com.codecacto.kmplib.sync.SyncStore
 import kotlinx.coroutines.flow.Flow
+import kotlin.random.Random
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
@@ -59,10 +60,25 @@ interface RestCrudEntity<T : Any> {
     fun withLocalId(model: T, clientId: String): T
 
     /**
+     * Aplica um id ao modelo. Usado quando o app opera um registro pelo **handle** que carregou na
+     * navegação e o id já migrou para o do servidor: a lib normaliza o modelo para o id canônico
+     * antes de falar com a rede.
+     *
+     * Default: delega a [withLocalId] — que já é exatamente "copie o modelo com este id". Sobrescreva
+     * só se aplicar um client id envolver algo a mais (ex.: carimbar `createdAt` provisório).
+     */
+    fun withId(model: T, id: String): T = withLocalId(model, id)
+
+    /**
      * Remapeia as **FKs pendentes** do modelo antes do push (clientId local do pai → serverId), a
      * partir do [remap] acumulado no ciclo de sync. Ex.: um lançamento criado offline referencia uma
      * empresa também criada offline — quando a empresa é confirmada, seu clientId vira serverId e este
      * hook corrige a FK antes de enviar o lançamento. Default: identidade (entidade sem FKs).
+     *
+     * **Desde a 2.93.0 o [remap] recebido também enxerga o remap DURÁVEL** (mapeamentos de ciclos
+     * anteriores e de outras execuções do app), não só o do ciclo corrente — e, mesmo quando este
+     * hook não é implementado, o corpo enviado passa por uma tradução genérica
+     * ([RestPayloadRemap]). Nenhum app precisa mudar para receber a correção.
      */
     fun remapRefs(model: T, remap: Map<String, String>): T = model
 }
@@ -124,6 +140,23 @@ data class RestPage<T>(
  * (iniciar a rota sem rede e marcar embarques) nunca subia. O drain **cura** linhas já gravadas
  * assim por versões anteriores.
  *
+ * ### O id migra; o handle do app, não (2.93.0 — GAP-KL-M-RESTCRUD-IDMIGRATION)
+ * Um registro criado offline nasce com id local e ganha o id do servidor quando sincroniza. Até a
+ * 2.92.0 essa migração **quebrava tudo que apontasse para o id local**:
+ * - a tela aberta com o id local (congelado no back stack) passava a consultar uma linha que já não
+ *   existia — no "Todos a Bordo", as telas de execução mostravam "nenhum passageiro" e a conferência
+ *   final calculava sobre lista vazia, dando "Tudo certo!" com as crianças ainda no veículo;
+ * - um **filho** que não drenasse no mesmo ciclo do pai subia a FK com o id local (o remap vivia
+ *   numa variável do ciclo), o backend recusava por `FOREIGN KEY`/UUID, a recusa era **terminal** e
+ *   o registro ficava `Failed` para sempre — perda definitiva de dado.
+ *
+ * Agora: `client_id` é a **âncora permanente** da linha (nunca é sobrescrito pelo id do servidor) e
+ * toda leitura/escrita aceita **handle** — o id que o app recebeu no [create] continua valendo para
+ * [observeById]/[getCached]/[stateOf]/[update]/[delete] depois da migração. A tradução
+ * `clientId → serverId` é gravada de forma **durável** no instante da migração, então sobrevive a
+ * ciclos, a drenagem parcial e a reinício de processo. Para correlacionar **filhos**, use
+ * [observeCanonicalId] (reativo) ou [ids]`.same(...)`.
+ *
  * ### Estado por linha (a UI não precisa de overlay próprio)
  * [observeAllWithState]/[stateOf] expõem `pendente / falhou / sincronizado` por registro
  * ([RestRowState]); [requeueFailed]/[discardFailed] resolvem a linha recusada. Antes disso cada app
@@ -151,7 +184,7 @@ data class RestPage<T>(
 open class OfflineFirstRestRepository<T : Any>(
     protected val api: DomainApiClient,
     protected val descriptor: RestCrudEntity<T>,
-    store: SyncStore,
+    protected val store: SyncStore,
     protected val collectionPath: String,
     protected val json: Json = restMirrorJson,
     private val clientIdFactory: () -> String = ::newRestClientId,
@@ -168,6 +201,12 @@ open class OfflineFirstRestRepository<T : Any>(
         json = json,
     )
 
+    /**
+     * Tradutor de identidade (`id local ⇄ id do servidor`) — use no lugar de `==` ao comparar ids que
+     * podem ter migrado (tipicamente a **FK de um filho** contra o handle do pai). Ver [RestIdResolver].
+     */
+    val ids: RestIdResolver = RestIdResolver(store)
+
     private val collection: String = "/" + collectionPath.trim('/')
     protected fun itemPath(id: String): String = "$collection/$id"
 
@@ -180,9 +219,39 @@ open class OfflineFirstRestRepository<T : Any>(
     // -- Leitura (espelho, offline) ----------------------------------------
 
     fun observeAll(): Flow<List<T>> = mirror.observeVisible()
+
+    /**
+     * Observa um registro pelo seu **handle estável** — o id que o app recebeu no [create] e carrega
+     * na navegação. Continua emitindo o mesmo registro **depois** de o id migrar de local para
+     * servidor (2.93.0); antes, a tela aberta com um id local esvaziava no meio do uso, assim que o
+     * drain migrava o id.
+     */
     fun observeById(id: String): Flow<T?> = mirror.observeVisibleById(id)
+
     fun getCached(id: String): T? = mirror.get(id)
     fun getAllCached(): List<T> = mirror.getVisible()
+
+    // -- Identidade estável (2.93.0) ---------------------------------------
+
+    /**
+     * Id **canônico** de um handle: o id do servidor quando o registro já subiu, o id local enquanto
+     * não subiu.
+     *
+     * Use ao montar a URL de um endpoint **custom** do app (`PATCH /v1/rotas/{id}/encerrar`) e como
+     * chave de correlação de **filhos** — o app nunca precisa saber *quando* a migração aconteceu,
+     * só perguntar o id corrente.
+     */
+    fun canonicalId(handle: String): String = mirror.canonicalIdOf(handle)
+
+    /**
+     * [canonicalId] **reativo**: emite o handle enquanto o registro é só local e o id do servidor
+     * assim que ele migra. É a forma correta de uma tela de execução consultar filhos:
+     * ```kotlin
+     * rotaRepo.observeCanonicalId(rotaHandle)
+     *     .flatMapLatest { rotaId -> passageiroRepo.observeAll().map { l -> l.filter { it.rotaId == rotaId } } }
+     * ```
+     */
+    fun observeCanonicalId(handle: String): Flow<String> = mirror.observeCanonicalId(handle)
 
     // -- Estado de escrita por linha (2.91.0) ------------------------------
 
@@ -238,7 +307,7 @@ open class OfflineFirstRestRepository<T : Any>(
     /** Cache-first: se não estiver no espelho, busca por `GET {collection}/{id}`. */
     suspend fun getById(id: String): DomainResult<T?> {
         mirror.get(id)?.let { return DomainResult.Success(it) }
-        return when (val r = api.getJson(itemPath(id))) {
+        return when (val r = api.getJson(itemPath(canonicalId(id)))) {
             is DomainResult.Success -> DomainResult.Success(decodeOrNull(r.data))
             is DomainResult.Quota -> r
             is DomainResult.Error -> if (r.code == 404) DomainResult.Success(null) else r
@@ -305,11 +374,23 @@ open class OfflineFirstRestRepository<T : Any>(
      * porque a escrita **foi aceita** (o estado da linha é [RestRowState.Pending]).
      */
     suspend fun update(model: T): DomainResult<T> {
-        if (mirror.isLocalOnly(descriptor.idOf(model))) {
-            mirror.putDirty(model, SyncOpType.UPDATE) // resolveOutboxOp preserva o CREATE pendente
-            return DomainResult.Success(model)
+        val alvo = normalizeHandle(model)
+        if (mirror.isLocalOnly(descriptor.idOf(alvo))) {
+            mirror.putDirty(alvo, SyncOpType.UPDATE) // resolveOutboxOp preserva o CREATE pendente
+            return DomainResult.Success(alvo)
         }
-        return if (writeMode == RestWriteMode.LocalFirst) updateLocalFirst(model) else updateOnlineFirst(model)
+        return if (writeMode == RestWriteMode.LocalFirst) updateLocalFirst(alvo) else updateOnlineFirst(alvo)
+    }
+
+    /**
+     * Normaliza um modelo cujo id é um **handle antigo** (o id local com que o registro nasceu) para
+     * o id canônico atual. Sem isto, o app que guardou o modelo em memória antes do sync faria
+     * `PUT /…/local-…` — 404 — mesmo com o registro já existindo no servidor.
+     */
+    private fun normalizeHandle(model: T): T {
+        val handle = descriptor.idOf(model)
+        val canonico = mirror.canonicalIdOf(handle)
+        return if (canonico == handle) model else descriptor.withId(model, canonico)
     }
 
     private suspend fun updateOnlineFirst(model: T): DomainResult<T> =
@@ -351,11 +432,12 @@ open class OfflineFirstRestRepository<T : Any>(
      * imediata**, sem tocar a rede — o servidor não conhece o id `local-…` e só devolveria um 404
      * previsível (que a máquina de estados leria como recusa terminal).
      */
-    suspend fun delete(id: String): DomainResult<Unit> {
-        if (mirror.isLocalOnly(id)) {
-            mirror.removeHard(id)
+    suspend fun delete(handle: String): DomainResult<Unit> {
+        if (mirror.isLocalOnly(handle)) {
+            mirror.removeHard(handle)
             return DomainResult.Success(Unit)
         }
+        val id = canonicalId(handle)
         if (writeMode == RestWriteMode.LocalFirst) mirror.tombstone(id)
         return when (val r = api.delete(itemPath(id))) {
             is DomainResult.Success -> { mirror.removeHard(id); DomainResult.Success(Unit) }
@@ -462,9 +544,30 @@ open class OfflineFirstRestRepository<T : Any>(
      * de forma terminal fica de fora até o app pedir [requeueFailed]. Antes da 2.91.0 uma linha
      * recusada por validação era retentada **em todo ciclo, para sempre**, sem nunca convergir e sem
      * ninguém saber.
+     *
+     * ### FK de pai que sincronizou em OUTRO ciclo (2.93.0)
+     * O [parentRemap] cobre só o ciclo corrente. Se o filho não drenou junto do pai (queda de sinal
+     * no meio do drain, app fechado entre os dois `POST`s), no ciclo seguinte não há mais nada a
+     * drenar no pai e o remap chega **vazio** — a FK subia apontando para o id local, o backend
+     * recusava por `FOREIGN KEY`/UUID e a linha ficava `Failed` para sempre. Agora a resolução
+     * consulta também o **remap durável** ([SyncStore.resolveServerId]), gravado no instante da
+     * migração de cada id, e o corpo enviado passa por uma tradução genérica ([RestPayloadRemap]) —
+     * o que faz a correção valer inclusive para quem não implementa [RestCrudEntity.remapRefs].
      */
     override suspend fun drainOutbox(parentRemap: Map<String, String>): Map<String, String> {
         val added = mutableMapOf<String, String>()
+        // Cache do ciclo: um id resolvido uma vez não volta ao banco (nem repete o "não migrou").
+        val cache = HashMap<String, String?>()
+        var temRemap = parentRemap.isNotEmpty() || store.countIdRemap() > 0L
+        fun resolveRef(id: String): String? =
+            added[id] ?: parentRemap[id] ?: cache.getOrPut(id) { store.resolveServerId(id) }
+
+        /** Corpo do push com as FKs já traduzidas (hook do app primeiro, varredura genérica depois). */
+        fun bodyOf(model: T): String {
+            val bruto = descriptor.encodeBody(model)
+            return if (temRemap) RestPayloadRemap.applyToBody(bruto, json, ::resolveRef) else bruto
+        }
+
         for (rowItem in mirror.drainableRows()) {
             val decoded = mirror.decode(rowItem.payload_json)
             if (decoded == null) {
@@ -472,7 +575,12 @@ open class OfflineFirstRestRepository<T : Any>(
                 mirror.markFailed(rowItem.local_id, INVALID_PAYLOAD_CODE, INVALID_PAYLOAD_MESSAGE)
                 continue
             }
-            val model = descriptor.remapRefs(decoded, parentRemap)
+            // O hook do app enxerga o remap do ciclo **e** os mapeamentos duráveis dos ids que este
+            // payload realmente referencia (mapa materializado — nada de `Map` mentiroso/preguiçoso).
+            val remapDaLinha =
+                if (temRemap) parentRemap + RestPayloadRemap.resolveFor(rowItem.payload_json, json, ::resolveRef)
+                else parentRemap
+            val model = descriptor.remapRefs(decoded, remapDaLinha)
             // A operação enviada sai do ESTADO da linha, não só do que foi gravado em `pending_op`:
             // sem `server_id` a linha nunca existiu no servidor, logo é sempre um POST (e um delete
             // sobre ela se resolve local). Isto também **cura** linhas gravadas por versões
@@ -487,26 +595,35 @@ open class OfflineFirstRestRepository<T : Any>(
                 continue
             }
             when (op) {
-                SyncOpType.CREATE -> when (val r = api.postJson(collection, descriptor.encodeBody(model))) {
+                SyncOpType.CREATE -> when (val r = api.postJson(collection, bodyOf(model))) {
                     is DomainResult.Success -> {
                         val saved = decodeOrNull(r.data)
                         if (saved == null) {
                             // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
                             mirror.markFailed(rowItem.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
                         } else {
-                            added[rowItem.local_id] = descriptor.idOf(saved)
+                            val serverId = descriptor.idOf(saved)
+                            added[rowItem.client_id] = serverId
+                            added[rowItem.local_id] = serverId
+                            // markSynced grava o remap DURÁVEL: o filho que drenar num ciclo
+                            // futuro (ou noutra execução do app) ainda acha este id.
                             mirror.markSynced(rowItem.local_id, saved)
+                            if (rowItem.client_id != serverId) temRemap = true
                         }
                     }
                     is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
                     is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
-                SyncOpType.UPDATE -> when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
+                // A URL usa o id do SERVIDOR da linha (a chave que ele conhece), não o id que por
+                // acaso está dentro do payload — que pode ser um handle antigo.
+                SyncOpType.UPDATE -> when (
+                    val r = api.putJson(itemPath(rowItem.server_id ?: descriptor.idOf(model)), bodyOf(model))
+                ) {
                     is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
                     is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
                     is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
-                SyncOpType.DELETE -> when (val r = api.delete(itemPath(descriptor.idOf(model)))) {
+                SyncOpType.DELETE -> when (val r = api.delete(itemPath(rowItem.server_id ?: descriptor.idOf(model)))) {
                     is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
                     is DomainResult.Error -> when {
                         r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá
@@ -555,7 +672,16 @@ open class OfflineFirstRestRepository<T : Any>(
     }
 }
 
-/** Gerador de id de cliente para entidades criadas **offline** (migra p/ id do servidor no drain). */
-fun newRestClientId(): String = "local-${currentTimeMillis()}-${restClientIdCounter++}"
+/**
+ * Gerador de id de cliente para entidades criadas **offline** — o **handle estável** do registro:
+ * o app pode carregá-lo na navegação e continuar consultando por ele depois de o id migrar para o do
+ * servidor (ver [OfflineFirstRestRepository.observeById]/[OfflineFirstRestRepository.canonicalId]).
+ *
+ * Precisa ser **único no aparelho**, porque virou chave do remap durável `clientId → serverId`: o
+ * contador reinicia com o processo, então o sufixo aleatório é o que impede colisão entre duas
+ * execuções que gerem um id no mesmo milissegundo.
+ */
+fun newRestClientId(): String =
+    "local-${currentTimeMillis()}-${restClientIdCounter++}-${Random.nextInt(0, 0xFFFF).toString(16)}"
 
 private var restClientIdCounter: Long = 0L

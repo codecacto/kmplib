@@ -3,6 +3,17 @@
 -- Agnóstico de domínio: uma única tabela-espelho para QUALQUER entidade.
 -- O app registra suas SyncableEntity<T> e serializa o modelo em payload_json.
 --
+-- v3 (kmplib 2.93.0):
+--   * sync_id_remap — REMAP DURÁVEL `clientId → serverId`
+--     (GAP-KL-M-RESTCRUD-IDMIGRATION). O remap só existia dentro de UM ciclo de sync
+--     (variável local do RestCrudSyncEngine): um filho que não drenasse junto do pai
+--     perdia a tradução e subia a FK apontando para o id local → 4xx → `Failed` para
+--     sempre. Agora a tradução é gravada no mesmo instante em que o id migra e sobrevive
+--     a ciclos, a reinício de processo e a drenagem parcial.
+--   * índice por client_id — `client_id` virou ÂNCORA PERMANENTE da linha (deixou de ser
+--     sobrescrito pelo id do servidor), e é por ele que a UI reencontra o registro depois
+--     de o id migrar de local para servidor.
+--
 -- v2 (kmplib 2.91.0):
 --   * account_id  — ESCOPO DE CONTA (GAP-KL-M-SYNC-ACCOUNTSCOPE). Sem ele, trocar de
 --     usuário no mesmo aparelho vazava dado entre contas na leitura E, pior, no push
@@ -52,6 +63,29 @@ CREATE TABLE synced_entity (
 
 CREATE INDEX synced_entity_dirty ON synced_entity(account_id, entity, dirty);
 CREATE INDEX synced_entity_server ON synced_entity(account_id, entity, server_id);
+-- `client_id` é a âncora PERMANENTE da linha (nunca é sobrescrito pelo id do servidor):
+-- é por ele que a UI reencontra o registro depois de o id migrar de local para servidor.
+CREATE INDEX synced_entity_client ON synced_entity(account_id, entity, client_id);
+
+-- Remap DURÁVEL `clientId → serverId` (kmplib 2.93.0).
+-- Gravado no exato instante em que um id local migra para o id do servidor (markSynced) e
+-- mantido depois disso: é a única forma de um FILHO que drena em OUTRO ciclo (ou depois de o
+-- processo morrer) traduzir a FK do pai. `client_id` é globalmente único no aparelho
+-- (`newRestClientId`), por isso a PK não inclui a entidade — a resolução é cross-entity, que é
+-- exatamente o caso de uso (o filho resolve o id do PAI, de outra entidade).
+--  account_id : conta dona do mapeamento (mesmo escopo do espelho).
+--  client_id  : id local com que o registro nasceu neste aparelho.
+--  server_id  : id atribuído pelo servidor quando o registro foi aceito.
+--  entity     : entidade de origem (diagnóstico; não participa da chave).
+CREATE TABLE sync_id_remap (
+    account_id TEXT NOT NULL DEFAULT '',
+    client_id  TEXT NOT NULL,
+    server_id  TEXT NOT NULL,
+    entity     TEXT NOT NULL,
+    PRIMARY KEY (account_id, client_id)
+);
+
+CREATE INDEX sync_id_remap_server ON sync_id_remap(account_id, server_id);
 
 -- Cursor de paginação/delta por entidade (avança após cada pull aplicado).
 -- Escopado por conta pelo mesmo motivo do espelho: o cursor de A não vale para B.
@@ -90,6 +124,31 @@ selectByClientId:
 SELECT *
 FROM synced_entity
 WHERE account_id = :accountId AND entity = :entity AND client_id = :clientId;
+
+-- ---------------------------------------------------------------------------
+-- HANDLE ESTÁVEL (kmplib 2.93.0)
+--
+-- O id que o app carrega na navegação **não migra**: a linha é reencontrada por
+-- `local_id` OU `client_id` OU `server_id`. Antes, uma tela aberta com o id local de um
+-- registro criado offline ficava vazia assim que o drain migrava o id (a consulta por
+-- `local_id` deixava de casar) — e a conferência final passava a calcular sobre lista vazia.
+-- `ORDER BY` torna a escolha determinística quando mais de uma coluna casa.
+-- ---------------------------------------------------------------------------
+selectVisibleByHandle:
+SELECT *
+FROM synced_entity
+WHERE account_id = :accountId AND entity = :entity AND deleted = 0
+  AND (local_id = :handle OR client_id = :handle OR server_id = :handle)
+ORDER BY (local_id = :handle) DESC, (server_id = :handle) DESC
+LIMIT 1;
+
+selectByHandle:
+SELECT *
+FROM synced_entity
+WHERE account_id = :accountId AND entity = :entity
+  AND (local_id = :handle OR client_id = :handle OR server_id = :handle)
+ORDER BY (local_id = :handle) DESC, (server_id = :handle) DESC
+LIMIT 1;
 
 -- Outbox: itens sujos (pendentes de push) de uma entidade, mais antigos primeiro.
 selectDirty:
@@ -201,6 +260,37 @@ DELETE FROM synced_entity WHERE account_id = :accountId;
 -- Adoção única do bucket legado (base criada antes do escopo de conta existir).
 adoptLegacy:
 UPDATE OR REPLACE synced_entity SET account_id = :accountId WHERE account_id = '';
+
+-- ---------------------------------------------------------------------------
+-- Remap durável clientId → serverId
+-- ---------------------------------------------------------------------------
+rememberRemap:
+INSERT INTO sync_id_remap (account_id, client_id, server_id, entity)
+VALUES (:accountId, :clientId, :serverId, :entity)
+ON CONFLICT(account_id, client_id) DO UPDATE SET
+    server_id = excluded.server_id,
+    entity    = excluded.entity;
+
+selectRemapByClientId:
+SELECT server_id FROM sync_id_remap WHERE account_id = :accountId AND client_id = :clientId;
+
+selectRemapByServerId:
+SELECT client_id FROM sync_id_remap WHERE account_id = :accountId AND server_id = :serverId;
+
+countRemap:
+SELECT COUNT(*) FROM sync_id_remap WHERE account_id = :accountId;
+
+forgetRemap:
+DELETE FROM sync_id_remap WHERE account_id = :accountId AND client_id = :clientId;
+
+clearRemap:
+DELETE FROM sync_id_remap;
+
+deleteAccountRemap:
+DELETE FROM sync_id_remap WHERE account_id = :accountId;
+
+adoptLegacyRemap:
+UPDATE OR REPLACE sync_id_remap SET account_id = :accountId WHERE account_id = '';
 
 -- ---------------------------------------------------------------------------
 -- Cursor

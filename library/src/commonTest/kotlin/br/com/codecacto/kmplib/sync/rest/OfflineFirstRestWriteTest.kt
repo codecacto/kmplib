@@ -378,7 +378,10 @@ class OfflineFirstRestWriteTest {
         assertEquals("srv-9", remap[local.id])
         assertTrue(r.stateOf("srv-9").isSynced)
         assertEquals("07:10", r.getCached("srv-9")?.embarcadoEm)
-        assertNull(r.getCached(local.id))
+        // 2.93.0: o id local é o HANDLE do registro — continua alcançando a MESMA linha depois da
+        // migração (antes devolvia null, e a tela aberta com ele esvaziava no meio do uso).
+        assertEquals("srv-9", r.getCached(local.id)?.id)
+        assertEquals("srv-9", r.canonicalId(local.id))
         assertTrue(r.failedRows().isEmpty())
     }
 

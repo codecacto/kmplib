@@ -48,6 +48,30 @@
         (`mirror.isLocalOnly`) + `drainOutbox` **cura** linhas já corrompidas por versões anteriores.
       - **Sem breaking change** e sem migração de schema. Consumidores: apenas bumpar.
 
+- [x] **GAP-KL-M-RESTCRUD-IDMIGRATION — a migração de id quebrava a UI e a FK dos filhos.**
+      **ENTREGUE na 2.93.0.** Terceiro defeito da mesma família, também **pré-existente**; é a
+      causa-raiz comum de dois achados do code review do "Todos a Bordo" (um bloqueante, um
+      importante). Raiz única: a migração `local-… → serverId` apagava a linha do id local, reinseria
+      sob o id do servidor **e sobrescrevia `client_id`** (matando a única âncora possível), enquanto
+      a tradução `clientId → serverId` vivia numa **variável do ciclo** de sync.
+      - **Estrago 1 (bloqueante):** a tela aberta com o id local esvaziava assim que o id migrava —
+        conferência final sobre lista vazia = "Tudo certo!" com criança dentro do veículo.
+      - **Estrago 2 (perda de dado):** filho que não drenasse no mesmo ciclo do pai subia a FK com o
+        id local → 4xx de FK → recusa **terminal** → `Failed` para sempre.
+      - **Correção:** `client_id` virou **âncora permanente** (ponto único de escrita limpa,
+        `RestEntityMirror.writeClean`); **handle estável** (`getByHandle`/`observeVisibleByHandle` —
+        todo id aceito pelo mirror/repo casa `local_id`|`client_id`|`server_id`); **remap durável**
+        `sync_id_remap` (escopado por conta, gravado no instante da migração, sobrevive a ciclos, a
+        drenagem parcial e a reinício de processo); resolução de FK em duas camadas (mapa
+        materializado para o `remapRefs` + varredura genérica `RestPayloadRemap` do corpo, que faz a
+        correção valer **mesmo para quem não implementa `remapRefs`**); e
+        `canonicalId`/`observeCanonicalId`/`ids: RestIdResolver` para a UI correlacionar filhos.
+      - **Migração v2→v3 (`2.sqm`) puramente ADITIVA** — nada é movido nem dropado nas bases em
+        produção. **Sem breaking change**; consumidores só bumpam.
+      - **Migração do "Todos a Bordo":** ver handoff — o app pode **apagar** qualquer contorno de id
+        (guardar o id do servidor na navegação, recarregar tela após sync) e passar a usar
+        `observeCanonicalId`/`ids.same` para correlacionar passageiros × rota.
+
 - [ ] **GAP-KL-M-RESTCRUD-INFLIGHT — escrita durante requisição em voo pode ser sobrescrita.**
       Detectado ao corrigir o `GAP-KL-M-RESTCRUD-PENDINGOP`, **não corrigido** (classe diferente:
       concorrência, não máquina de estados). Se o usuário toca de novo no MESMO registro enquanto o
@@ -59,6 +83,19 @@
         espelho); ao reconciliar, só gravar LIMPO se a revisão for a mesma que foi enviada — senão
         migrar o id e **manter a linha suja** como `UPDATE` pendente. Exige tocar `Synced_entity`
         (coluna nova + migração) — por isso não entrou junto.
+      - **Custo reavaliado após a 2.93.0 (para decisão do CTO — NÃO implementado):** caiu bastante,
+        porque a 2.93.0 criou exatamente as duas peças que faltavam. (a) `RestEntityMirror.writeClean`
+        virou o **ponto único** de escrita limpa — a checagem de revisão entra ali, não em 5 lugares;
+        (b) "migrar o id **e** manter a linha suja" agora é expressável sem gambiarra (o id migra por
+        `writeClean` + remap durável, e `resolveOutboxOp` decide a operação restante pelo estado da
+        linha). Estimativa: **~40% do tamanho desta entrega** — `ALTER TABLE … ADD COLUMN revision`
+        (migração v3→v4 aditiva, sem mover dado), `bumpRevision` no `.sq`, `revisionOf`/`writeCleanIf`
+        no `SyncStore`+`FakeSyncStore`, captura da revisão nos 4 pontos de envio
+        (`createLocalFirst`/`updateLocalFirst`/`update`/`drainOutbox`) e ~6 testes (toque duplo com
+        resposta lenta, `CREATE` em voo + 2º toque, `UPDATE` em voo + 2º toque, revisão intacta =
+        comportamento de hoje). **Não sai "de graça"** — é uma entrega própria, com migração de
+        schema própria; mas é o momento mais barato para fazê-la, porque a área está fresca e a
+        superfície de teste já existe.
 
 - [ ] **GAP-KL-M-CARDOVERFLOW — menu "três-pontinhos" de card não existe na lib.** O padrão do
       estúdio (memória `card-overflow-menu-top-right`: overflow no topo direito do card, clique no

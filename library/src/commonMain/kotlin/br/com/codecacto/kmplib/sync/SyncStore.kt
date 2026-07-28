@@ -40,6 +40,13 @@ import kotlinx.coroutines.flow.flatMapLatest
  * engine.start()
  * ```
  *
+ * ### Handle estável + remap durável (2.93.0 — GAP-KL-M-RESTCRUD-IDMIGRATION)
+ * `client_id` é a **âncora permanente** da linha: ele nunca é sobrescrito pelo id do servidor, e
+ * [getByHandle]/[observeVisibleByHandle] reencontram o registro por `local_id` **ou** `client_id`
+ * **ou** `server_id` — o id que o app carregou na navegação continua valendo depois de o id migrar.
+ * Em paralelo, [rememberServerId]/[resolveServerId] persistem a tradução `clientId → serverId`, que
+ * antes só existia dentro de um ciclo de sync (e por isso se perdia entre pai e filho).
+ *
  * Todas as APIs abaixo têm **implementação default** (no-op/compat) para não quebrar os `SyncStore`
  * falsos que os apps já mantêm em `commonTest`.
  */
@@ -84,12 +91,37 @@ interface SyncStore {
     fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?>
     fun observeAllDirty(): Flow<List<Synced_entity>>
 
+    /**
+     * Observa a linha visível por **handle estável** (2.93.0): casa por `local_id` **OU**
+     * `client_id` **OU** `server_id`, e por isso **continua emitindo a mesma linha depois de o id
+     * migrar** de local para servidor.
+     *
+     * É o que permite a UI carregar na navegação o id que recebeu no `create` offline e seguir
+     * consultando por ele para sempre. Antes, o drain apagava a linha do id local e reinseria sob o
+     * id do servidor: a tela aberta com o id local ficava **vazia** no meio do uso.
+     *
+     * Default (compat): [observeVisibleById] — segue funcionando, sem acompanhar a migração.
+     */
+    fun observeVisibleByHandle(entity: String, handle: String): Flow<Synced_entity?> =
+        observeVisibleById(entity, handle)
+
     // -- Leitura pontual ----------------------------------------------------
     /** Lista (síncrona) todos os registros visíveis (não-deletados) de uma entidade. */
     fun getVisible(entity: String): List<Synced_entity>
     fun getByLocalId(entity: String, localId: String): Synced_entity?
     fun getByServerId(entity: String, serverId: String): Synced_entity?
     fun getByClientId(entity: String, clientId: String): Synced_entity?
+
+    /**
+     * Busca a linha por **handle estável** (2.93.0): `local_id` **OU** `client_id` **OU**
+     * `server_id`. Versão síncrona da [observeVisibleByHandle] (inclui linhas em tombstone).
+     *
+     * Default (compat): a composição das três buscas — correta em qualquer impl, inclusive nos
+     * `SyncStore` falsos que os apps mantêm em `commonTest`.
+     */
+    fun getByHandle(entity: String, handle: String): Synced_entity? =
+        getByLocalId(entity, handle) ?: getByServerId(entity, handle) ?: getByClientId(entity, handle)
+
     fun getDirty(entity: String): List<Synced_entity>
     fun getAllDirty(): List<Synced_entity>
     fun countDirty(): Long
@@ -131,6 +163,36 @@ interface SyncStore {
 
     /** Falha **retentável** (5xx/timeout/rede): conta a tentativa e guarda o erro, sem sair da outbox. */
     fun bumpAttempt(entity: String, localId: String, error: String?) = setError(entity, localId, error)
+
+    // -- Remap durável clientId → serverId (2.93.0) -------------------------
+
+    /**
+     * Registra que o id local [clientId] passou a ser conhecido no servidor como [serverId].
+     * Gravado no **mesmo instante** em que a linha migra de id ([markClean]/`markSynced`).
+     *
+     * Existe porque o remap vivia numa variável do ciclo de sync: um registro **filho** que não
+     * drenasse junto do pai perdia a tradução e subia com a FK apontando para o id local — o
+     * backend recusava (`FOREIGN KEY`/UUID), a recusa era terminal e o dado ficava perdido para
+     * sempre. Persistido, o mapeamento sobrevive a ciclos, a **reinício de processo** e a
+     * drenagem parcial (queda de sinal no meio do drain).
+     *
+     * [clientId] é único no aparelho ([newRestClientId][br.com.codecacto.kmplib.sync.rest.newRestClientId]),
+     * por isso a resolução é **cross-entity** — que é justamente o caso de uso (o filho resolve o
+     * id do PAI, de outra entidade).
+     */
+    fun rememberServerId(entity: String, clientId: String, serverId: String) = Unit
+
+    /** Id do servidor conhecido para um id local. `null` se ele nunca migrou (ou já é um id do servidor). */
+    fun resolveServerId(clientId: String): String? = null
+
+    /** Id local com que um registro do servidor nasceu neste aparelho, se foi criado aqui. */
+    fun resolveClientId(serverId: String): String? = null
+
+    /** Quantos mapeamentos duráveis existem na conta corrente (guarda barata: `0` ⇒ nada a remapear). */
+    fun countIdRemap(): Long = 0L
+
+    /** Esquece um mapeamento (o registro deixou de existir dos dois lados). */
+    fun forgetServerId(clientId: String) = Unit
 
     // -- Cursor -------------------------------------------------------------
     fun getCursor(entity: String): String?
@@ -214,10 +276,12 @@ class SqlDelightSyncStore(
                 LegacyRowsPolicy.Adopt -> q.transaction {
                     q.adoptLegacy(titular)
                     q.adoptLegacyCursors(titular)
+                    q.adoptLegacyRemap(titular)
                 }
                 LegacyRowsPolicy.Discard -> q.transaction {
                     q.deleteAccount(SyncStore.NO_ACCOUNT)
                     q.deleteAccountCursors(SyncStore.NO_ACCOUNT)
+                    q.deleteAccountRemap(SyncStore.NO_ACCOUNT)
                 }
                 LegacyRowsPolicy.Isolate -> Unit
             }
@@ -232,6 +296,7 @@ class SqlDelightSyncStore(
         q.transaction {
             q.deleteAccount(accountId)
             q.deleteAccountCursors(accountId)
+            q.deleteAccountRemap(accountId)
         }
     }
 
@@ -245,6 +310,12 @@ class SqlDelightSyncStore(
     override fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?> =
         _accountScope.flatMapLatest { acc ->
             q.selectVisibleById(acc, entity, localId).asFlow().mapToOneOrNull(ioDispatcher)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeVisibleByHandle(entity: String, handle: String): Flow<Synced_entity?> =
+        _accountScope.flatMapLatest { acc ->
+            q.selectVisibleByHandle(acc, entity, handle).asFlow().mapToOneOrNull(ioDispatcher)
         }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -264,6 +335,9 @@ class SqlDelightSyncStore(
 
     override fun getByClientId(entity: String, clientId: String): Synced_entity? =
         q.selectByClientId(account, entity, clientId).executeAsOneOrNull()
+
+    override fun getByHandle(entity: String, handle: String): Synced_entity? =
+        q.selectByHandle(account, entity, handle).executeAsOneOrNull()
 
     override fun getDirty(entity: String): List<Synced_entity> =
         q.selectDirty(account, entity).executeAsList()
@@ -323,9 +397,27 @@ class SqlDelightSyncStore(
         q.deleteHard(account, entity, localId)
     }
 
+    override fun rememberServerId(entity: String, clientId: String, serverId: String) {
+        if (clientId.isBlank() || serverId.isBlank() || clientId == serverId) return
+        q.rememberRemap(account, clientId, serverId, entity)
+    }
+
+    override fun resolveServerId(clientId: String): String? =
+        q.selectRemapByClientId(account, clientId).executeAsOneOrNull()
+
+    override fun resolveClientId(serverId: String): String? =
+        q.selectRemapByServerId(account, serverId).executeAsOneOrNull()
+
+    override fun countIdRemap(): Long = q.countRemap(account).executeAsOne()
+
+    override fun forgetServerId(clientId: String) {
+        q.forgetRemap(account, clientId)
+    }
+
     override fun deleteAll() {
         q.deleteAll()
         q.clearCursors()
+        q.clearRemap()
     }
 
     override fun transaction(body: () -> Unit) {

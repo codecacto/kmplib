@@ -43,6 +43,15 @@ interface RestCrudSyncParticipant {
  *    [RestCrudEntity.remapRefs]).
  * 2. **PULL** — [refresh] de cada participante (reconciliação por GET de lista).
  *
+ * **A ordem dos [participants] deixou de ser a única defesa (2.93.0).** O remap acumulado aqui vale
+ * só para este ciclo; desde a 2.93.0 cada migração de id é gravada de forma **durável** no espelho
+ * ([SyncStore.rememberServerId][br.com.codecacto.kmplib.sync.SyncStore.rememberServerId]), então um
+ * filho que **não** drenou junto do pai — sinal caiu no meio do drain, app fechado entre os dois
+ * `POST`s — resolve a FK do pai no ciclo seguinte, ou noutra execução do app. Antes disso ele subia
+ * a FK com o id local, o backend recusava (`FOREIGN KEY`/UUID), a recusa era **terminal** e o
+ * registro se perdia. Continue passando pais antes de filhos: é o que faz o caso comum resolver num
+ * ciclo só.
+ *
  * Dispara automaticamente ao (re)conectar ([ConnectivityObserver]) e sob demanda ([syncNow], p/
  * pull-to-refresh). **Best-effort:** falha de rede pausa sem quebrar a UI (a outbox é preservada e
  * retentada no próximo online). Serializado por mutex (nunca há dois ciclos concorrentes).
