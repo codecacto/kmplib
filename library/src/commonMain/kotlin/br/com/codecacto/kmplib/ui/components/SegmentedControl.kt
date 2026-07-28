@@ -33,13 +33,20 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * @param selectedIndex Índice da opção atualmente selecionada.
  * @param onOptionSelected Callback com o índice da opção escolhida.
  * @param modifier Modificador externo.
+ * @param enabled `false` desabilita todos os segmentos (ex.: formulário salvando).
+ * @param optionContentDescriptions Descrições de acessibilidade por opção, quando o rótulo sozinho
+ *   não basta. Numa **matriz** de opções (várias linhas com as mesmas 3 escolhas), "Ver" isolado não
+ *   diz a que se refere — passe "Agenda, Ver" para o leitor de tela anunciar a linha. `null`
+ *   (default) usa o próprio rótulo. Índices ausentes caem no rótulo.
  */
 @Composable
 fun SegmentedControl(
     options: List<String>,
     selectedIndex: Int,
     onOptionSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    optionContentDescriptions: List<String>? = null,
 ) {
     if (options.isEmpty()) return
 
@@ -48,6 +55,7 @@ fun SegmentedControl(
             val selected = index == selectedIndex
             SegmentedButton(
                 selected = selected,
+                enabled = enabled,
                 onClick = { onOptionSelected(index) },
                 shape = SegmentedButtonDefaults.itemShape(
                     index = index,
@@ -61,8 +69,10 @@ fun SegmentedControl(
                     activeBorderColor = MaterialTheme.colorScheme.primary,
                 ),
                 modifier = Modifier.semantics {
+                    val base = optionContentDescriptions?.getOrNull(index)?.takeIf { it.isNotBlank() }
+                        ?: label
                     contentDescription =
-                        if (selected) "$label, selecionado" else label
+                        if (selected) "$base, selecionado" else base
                 }
             ) {
                 Text(text = label)

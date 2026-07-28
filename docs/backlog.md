@@ -3,6 +3,34 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPS — design do produto "TattooStudio" (ux-designer, 28/jul/2026, SaaS multi-tenant de gestão p/ tatuador — arquétipo D leve)
+> Levantado no design de telas (`TattooStudio/docs/design/wireframes.md` §7), tela de **Equipe e
+> permissões** (nova, revisão 2 do PRD — Organization/Membership/permissões granulares por módulo,
+> molde de dados do Influencer). **Duplicação JÁ CONFIRMADA, não hipotética:** o Influencer implementou
+> este exato padrão visual à mão em
+> `Influencer/mobile/composeApp/.../presentation/team/PermissionsEditor.kt` (`Row`/`Box`/`clickable`
+> customizados, sem componente de lib). Cruza o limiar de "≥2 projetos duplicando" — prioridade alta.
+
+- [x] **GAP-TS-KM-PERMMATRIX-01 — `ModulePermissionMatrix` (matriz módulo × nível de permissão).**
+      **ENTREGUE na 2.86.0.** Módulo novo `permissions` (modelo + normalização/validação/fronteira,
+      commonMain puro) + `ui/components/ModulePermissionMatrix` (stateless, responsivo, `readOnly`,
+      flags opcionais). Detalhe no `CHANGELOG.md` 2.86.0 e na skill `kmplib-catalog`.
+      - **Além do pedido original, e por quê:** a auditoria do código do Influencer mostrou que as duas
+        plataformas **divergiam de comportamento** — o web filtrava `NONE` antes de persistir e
+        bloqueava salvar sem nenhum acesso; o mobile não fazia nenhum dos dois. Por isso a regra não
+        virou "detalhe interno do componente": saiu como **função pura testável**
+        (`normalized()`/`validate()`/`PermissionMatrixWire.parse`), que é o que permite mobile e web
+        ficarem idênticos e o que a suíte cobre.
+      - **Flags como slot genérico:** `PermissionFlagSpec(key, label, requiresModule, requiresLevel)` —
+        o `contentsPost` do Influencer deixa de ser campo fixo dentro de um componente genérico. Lista
+        vazia (caso do TattooStudio) não renderiza nada.
+      - **API final** (difere um pouco da proposta): `onStateChange: (PermissionMatrixState) -> Unit`
+        no lugar de `onLevelChange(moduleKey, level)` — estado imutável inteiro cobre nível **e** flag
+        num só callback e casa com `setState { copy(...) }` do MVI. Níveis seguem fixos
+        (`NONE`/`VIEW`/`EDIT`, ordinal) por decisão do CTO; só os **rótulos** são parametrizáveis.
+      - **Migração pendente:** Influencer (mobile + web) — ver handoff
+        `2026-07-28-permission-matrix-kmplib`. TattooStudio já nasce consumindo.
+
 ### 2.78.0 — Onda de manutenção da auditoria (jul/2026) — CONCLUÍDA
 > Itens da kmplib do doc `docs/analises/2026-07-19-auditoria-libs-cascas-apps-estrutura.md`. Detalhe no
 > `CHANGELOG.md`. Handoff em `docs/handoffs/2026-07-20-auditoria-onda-kmplib.md`.

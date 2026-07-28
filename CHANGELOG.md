@@ -6,6 +6,38 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.86.0 — Matriz de permissão por módulo (GAP-TS-KM-PERMMATRIX-01) (jul/2026)
+
+Aditivo. Promove à lib o padrão "uma linha por módulo, com seletor Sem acesso / Ver / Ver e editar"
+que o Influencer já implementou **duas vezes à mão** (mobile `PermissionsEditor.kt`, web
+`PermissionsDialog.tsx`) e que o TattooStudio precisa igual — a 2ª duplicação real.
+
+O motivo forte não foi economizar código, foi **fechar a divergência entre plataformas**: o web
+filtrava módulos `NONE` antes de persistir e bloqueava salvar sem nenhum acesso; o mobile não fazia
+**nenhum dos dois** (mandava o mapa inteiro e deixava salvar com tudo `NONE`). Por isso a regra saiu
+de dentro do componente e virou **função pura testável**.
+
+- **Novo módulo `permissions`** (commonMain puro, sem Compose): `PermissionLevel` (`NONE` < `VIEW` <
+  `EDIT`, comparável por ordinal), `PermissionModuleSpec` (chave de fio + rótulo já resolvido pelo
+  app — a lib **não** conhece o conjunto de módulos de ninguém), `PermissionFlagSpec` (flag booleana
+  extra com dependência declarada de módulo/nível — o `contentsPost` do Influencer deixa de ser
+  campo fixo dentro de um componente genérico), `PermissionMatrixState` (imutável, `copy()`),
+  `normalized()`, `validate()`, `PermissionMatrixWire` (`{ modules: Map<String,String>, ...flags }`
+  com parse tolerante) e `PermissionMatrixJson` (envelope JSON, nada lança).
+- **Forward-compat sem perda de permissão:** chave de módulo que **este** cliente não renderiza é
+  **preservada** no round-trip (app velho não revoga o que não entende). Já um **nível ilegível** é
+  descartado com log — exibir "Sem acesso" e continuar concedendo escondido seria mentir para quem
+  administra.
+- **`ui/components/ModulePermissionMatrix`** — componente stateless (`state` + `onStateChange`),
+  responsivo (`LocalIsCompact`: seletor em linha própria no telefone, ao lado do rótulo no
+  tablet/desktop com largura máxima), modo `readOnly` com `StatusBadge` semântico (tela "minhas
+  permissões"), bloco opcional de flags e i18n por `PermissionMatrixTexts` (defaults pt-BR iguais
+  aos do web).
+- **`SegmentedControl` ganhou `enabled` e `optionContentDescriptions`** (aditivos, no fim da
+  assinatura). O segundo existe porque numa matriz o leitor de tela anunciava N vezes "Ver" sem
+  dizer de que módulo; agora sai "Agenda, Ver e editar".
+- Testes: `PermissionMatrixTest` (21).
+
 ## 2.85.0 — Senha: só comprimento por padrão, e mensagem que diz o que falta (jul/2026)
 
 **Breaking de comportamento** (decisão do fundador): `PasswordValidator` deixa de exigir composição
