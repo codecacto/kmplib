@@ -52,6 +52,18 @@ object PurchaseManager {
         _repository?.purchaseConsumable(productId)
             ?: ConsumablePurchaseResult.Error("purchase nao inicializado", PurchaseErrorCode.UNKNOWN)
 
+    /** Identifica o app user na loja (ver [PurchaseRepository.identify]). */
+    internal suspend fun identify(appUserId: String): Result<Unit> =
+        _repository?.identify(appUserId)
+            ?: Result.failure(IllegalStateException("purchase nao inicializado"))
+
+    /** Volta o app user para anonimo (ver [PurchaseRepository.resetIdentity]). */
+    internal suspend fun resetIdentity(): Result<Unit> =
+        _repository?.resetIdentity() ?: Result.success(Unit)
+
+    /** App user id corrente na loja (diagnostico). */
+    internal fun currentAppUserId(): String? = _repository?.currentAppUserId()
+
     internal fun reset() {
         _repository = null
         _initialized.value = false

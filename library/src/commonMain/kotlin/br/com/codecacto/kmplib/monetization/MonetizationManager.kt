@@ -123,6 +123,28 @@ object MonetizationManager {
     suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
         PurchaseManager.purchaseConsumable(productId)
 
+    /**
+     * **Identifica quem assina** na loja (`Purchases.logIn`) — chamar assim que o app souber o
+     * sujeito real da assinatura, tipicamente depois do login/`GET /me`.
+     *
+     * O `appUserId` do [initialize] só existe no bootstrap, quando muitas vezes ainda não se sabe
+     * quem (ou qual organização) vai assinar. Num produto multi-tenant o sujeito é a ORGANIZAÇÃO:
+     * sem este passo o webhook chega à central com o UID do usuário e **o entitlement vai para o
+     * tenant errado** — a organização paga e continua bloqueada.
+     *
+     * Idempotente (mesmo id ⇒ no-op no SDK). Sem monetização configurada devolve falha, nunca lança.
+     */
+    suspend fun identify(appUserId: String): Result<Unit> = PurchaseManager.identify(appUserId)
+
+    /**
+     * Volta a identidade da loja para anônima (`Purchases.logOut`). Chamar no **logout**, para o
+     * próximo usuário do mesmo aparelho não herdar o entitlement de quem saiu.
+     */
+    suspend fun resetIdentity(): Result<Unit> = PurchaseManager.resetIdentity()
+
+    /** App user id corrente na loja — para log/diagnóstico ("identifiquei quem?"). */
+    fun currentAppUserId(): String? = PurchaseManager.currentAppUserId()
+
     /** Reseta o estado (util para testes). */
     fun reset() {
         _config = null

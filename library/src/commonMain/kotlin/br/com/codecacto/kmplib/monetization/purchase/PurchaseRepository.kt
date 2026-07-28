@@ -64,6 +64,37 @@ interface PurchaseRepository {
     /** Restaura compras anteriores. */
     suspend fun restorePurchases(): RestoreResult
 
+    /**
+     * **Identifica o app user do RevenueCat** (`Purchases.logIn`) — a forma OFICIAL do fornecedor de
+     * amarrar a compra a um sujeito conhecido depois do `configure`.
+     *
+     * Existe porque o `appUserId` do [PurchaseInitializer] só pode ser informado no **bootstrap**, e
+     * o sujeito real da assinatura muitas vezes só é conhecido **depois do login** (ex.: produto
+     * multi-tenant em que quem assina é a ORGANIZAÇÃO, resolvida por `GET /me`). Sem este passo o
+     * webhook chega à central com o id anônimo/do usuário e o entitlement vai para o tenant errado —
+     * a organização paga e continua bloqueada.
+     *
+     * Idempotente por natureza: chamar com o id já corrente é no-op do lado do SDK. Atualiza
+     * [subscriptionState] com o `customerInfo` devolvido pelo login (o entitlement do novo sujeito).
+     *
+     * Tem implementação default (falha explícita) para não quebrar fakes/impls existentes — a
+     * implementação real é a do RevenueCat.
+     *
+     * @param appUserId identificador estável do sujeito da assinatura (nunca um id anônimo/rotativo).
+     */
+    suspend fun identify(appUserId: String): Result<Unit> =
+        Result.failure(UnsupportedOperationException("identify nao suportado por este repository"))
+
+    /**
+     * Volta o RevenueCat para um app user **anônimo** (`Purchases.logOut`). Chamar no logout, para o
+     * próximo usuário do mesmo aparelho não herdar o entitlement de quem saiu.
+     */
+    suspend fun resetIdentity(): Result<Unit> =
+        Result.failure(UnsupportedOperationException("resetIdentity nao suportado por este repository"))
+
+    /** App user id corrente no SDK (diagnóstico/log). `null` quando o SDK não está configurado. */
+    fun currentAppUserId(): String? = null
+
     /** Retorna a info atual da assinatura. */
     suspend fun getSubscriptionInfo(): SubscriptionInfo
 

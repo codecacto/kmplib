@@ -224,6 +224,51 @@ internal class RevenueCatPurchaseRepository(
         }
     }
 
+    override suspend fun identify(appUserId: String): Result<Unit> {
+        val id = appUserId.trim()
+        if (id.isEmpty()) {
+            AppLogger.w(TAG, "identify ignorado: appUserId em branco")
+            return Result.failure(IllegalArgumentException("appUserId em branco"))
+        }
+        if (!Purchases.isConfigured) {
+            AppLogger.w(TAG, "identify ignorado: RevenueCat nao configurado")
+            return Result.failure(IllegalStateException("RevenueCat nao configurado"))
+        }
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.logIn(
+                newAppUserID = id,
+                onError = { error ->
+                    AppLogger.e(TAG, "Erro ao identificar app user: ${error.message}")
+                    continuation.resume(Result.failure(IllegalStateException(error.message)))
+                },
+                onSuccess = { customerInfo, _ ->
+                    _subscriptionState.value = customerInfo.toSubscriptionInfo()
+                    AppLogger.d(TAG, "App user identificado no RevenueCat")
+                    continuation.resume(Result.success(Unit))
+                }
+            )
+        }
+    }
+
+    override suspend fun resetIdentity(): Result<Unit> {
+        if (!Purchases.isConfigured) return Result.success(Unit)
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.logOut(
+                onError = { error ->
+                    AppLogger.w(TAG, "Erro ao anonimizar app user: ${error.message}")
+                    continuation.resume(Result.failure(IllegalStateException(error.message)))
+                },
+                onSuccess = { customerInfo ->
+                    _subscriptionState.value = customerInfo.toSubscriptionInfo()
+                    continuation.resume(Result.success(Unit))
+                }
+            )
+        }
+    }
+
+    override fun currentAppUserId(): String? =
+        if (Purchases.isConfigured) Purchases.sharedInstance.appUserID else null
+
     override suspend fun getSubscriptionInfo(): SubscriptionInfo {
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.getCustomerInfo(
