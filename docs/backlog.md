@@ -3,6 +3,55 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPs abertos por "Todos a Bordo" (correção de code/security review, 28/jul/2026)
+> Reportados pelo **dev-mobile** ao corrigir os bloqueantes do app do motorista (dado de menor de
+> idade). **Nada foi implementado na lib** — os três valem para todos os apps da migração REST-CRUD,
+> e a decisão é do CTO/lib-mobile. No app, cada um está contornado com solução visível e reversível.
+
+- [ ] **GAP-KL-M-RESTCRUD-LOCALFIRST — `OfflineFirstRestRepository.update`/`create` perdem a escrita
+      em falha NÃO-offline (P0 de perda de dado).** Hoje o caminho é *online-first*: `DomainResult
+      .Error` só cai na outbox quando `isOffline` (código sentinela -1). Num **4xx/5xx real** (rede
+      presente, servidor recusando) nada é gravado no espelho e nada entra na outbox — a escrita
+      **desaparece**, e o app só descobre pelo `Result.failure`. Isso contradiz o que "offline-first"
+      promete e o que os apps documentam ("grava no local no instante do toque").
+      - **Onde dói:** "Todos a Bordo" — cada toque de embarque/desembarque é registro de segurança de
+        criança; em rede ruim (não ausente) o toque sumia em silêncio.
+      - **Correção proposta (padrão-ouro):** caminho **local-first** opcional no `update`/`create` —
+        gravar **dirty** no espelho e deixar o `RestCrudSyncEngine` confirmar, com a resposta do
+        servidor reconciliando depois. Precisa decidir o que fazer com 4xx **permanente** (ex.: 422):
+        reter na outbox para sempre é tão ruim quanto perder — sugere-se marcar a linha com erro
+        (`SyncStore.setError`) e expor esse estado ao app, que hoje não tem como saber.
+      - **Contorno no app (não replicar sem pensar):** overlay em memória (`MarkOverlay` +
+        `ExecutionManager`) mantém a marcação visível e sinalizada como "não salva", com botão de
+        reenvio. **Não sobrevive à morte do processo** — é remendo de UI, não persistência.
+
+- [ ] **GAP-KL-M-SYNC-ACCOUNTSCOPE — espelho local (`synced_entity`) NÃO tem escopo de conta (P0 de
+      segurança/LGPD).** A tabela é chaveada por `entity` + `local_id`; nada amarra a linha à conta
+      que a criou. Num aparelho compartilhado (van que passa ao motorista substituto, celular de
+      loja, tablet de equipe), trocar de usuário produz **dois** estragos:
+      1. **Leitura:** entre o login do novo usuário e o primeiro PULL, as telas dele listam os dados
+         do anterior (no caso do "Todos a Bordo": nome + endereço de crianças).
+      2. **Escrita (permanente):** o ciclo faz **PUSH antes do PULL** e o `drainOutbox` sobe cada
+         linha suja com o **Bearer corrente** — o dado do usuário A é **recriado dentro da conta de
+         B** no servidor, com FK remapeada. O `reconcile` preserva linhas sujas de propósito, então
+         não é transitório.
+      - **Correção proposta:** coluna `account_id` (ou namespace de banco por conta) no espelho, com
+        o `SyncStore` filtrando por titular corrente e uma troca de titular explícita na API. Sem
+        isso, **todo app da onda REST-CRUD** carrega o mesmo defeito.
+      - **Contorno no app:** `core/session/MirrorOwnerGuard` grava o `accountId` dono no cofre da
+        plataforma e, se o titular mudar (ou for desconhecido), faz `SyncStore.deleteAll()` **antes**
+        de qualquer tela coletar e antes de o motor de sync arrancar. Funciona, mas é bruto: apaga a
+        outbox do usuário anterior em vez de isolá-la.
+
+- [ ] **GAP-KL-M-CARDOVERFLOW — menu "três-pontinhos" de card não existe na lib.** O padrão do
+      estúdio (memória `card-overflow-menu-top-right`: overflow no topo direito do card, clique no
+      card = detalhe) é reimplementado por app — no "Todos a Bordo" está em
+      `core/ui/CardOverflowMenu.kt` (rotas, passageiros). A kmplib tem `AppTopBar`/`FilterIconButton`,
+      mas nada para o overflow **de item de lista**.
+      - **Correção proposta:** `CardOverflowMenu(items: List<OverflowAction>, contentDescription, …)`
+        em `ui/components`, com `DropdownMenu` do Material 3, alvo ≥48dp, tom `DANGER` para a ação
+        destrutiva e i18n injetável — o mesmo tratamento dado ao `ChecklistItem` (2.88.0).
+
 ### GAP — identidade de quem assina na loja (regularização, 28/jul/2026) — **ENTREGUE na 2.89.0**
 > Detectado pelo **dev-mobile** na Onda 3 do **TattooStudio**: o `appUserId` só podia ser informado no
 > bootstrap (`Purchases.configure`), mas quem assina é a **organização**, conhecida só depois do
