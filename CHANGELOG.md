@@ -52,11 +52,11 @@ estado da linha. Sequência real (iniciar a rota **sem rede** e marcar embarques
 ### Testes
 
 `RestWriteStateTest` 10 → **15** (as 5 transições da máquina de estados, puras) e
-`OfflineFirstRestWriteTest` 15 → **22**: o fluxo do motorista ponta a ponta (offline → toque →
+`OfflineFirstRestWriteTest` 15 → **24**: o fluxo do motorista ponta a ponta (offline → toque →
 reconexão: **um** POST, `clientId → serverId` remapeado, linha `Synced`), vários updates antes de
 qualquer sync → **um** POST com o payload final, `delete` sobre `CREATE` pendente sem ida à rede,
 cura de linha legada, e as duas **regressões** que garantem que linha já sincronizada continua indo
-de `PUT`/`DELETE` ao servidor. Suíte: **1.483 testes, 0 falhas**; `koverVerify` verde.
+de `PUT`/`DELETE` ao servidor. Suíte: **1.485 testes, 0 falhas**; `koverVerify` verde.
 
 ## 2.91.0 — offline-first REST-CRUD: a escrita não some, e o espelho é por conta (jul/2026)
 

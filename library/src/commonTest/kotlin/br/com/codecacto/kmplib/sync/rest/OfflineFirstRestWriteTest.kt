@@ -444,6 +444,39 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
+    fun `mirror tombstone sobre CREATE pendente apaga local em vez de enfileirar DELETE`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+        val local = (r.create(Marcacao(id = "", nome = "Ana")) as DomainResult.Success).data
+
+        r.mirror.tombstone(local.id) // caminho de baixo nível usado pelos endpoints custom do app
+
+        assertTrue(r.getAllCached().isEmpty())
+        assertTrue(store.getDirty("marcacao").isEmpty()) // nem tombstone sobrou na outbox
+        server.transportDown = false
+        server.calls.clear()
+        r.drainOutbox(emptyMap())
+        assertTrue(server.calls.isEmpty())
+    }
+
+    @Test
+    fun `mirror tombstone em linha sincronizada continua enfileirando DELETE (sem regressao)`() = runTest {
+        val store = FakeSyncStore()
+        val server = Server().apply { serverId = "srv-1" }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+        r.create(Marcacao(id = "", nome = "Ana"))
+
+        r.mirror.tombstone("srv-1")
+
+        assertEquals(SyncOpType.DELETE, (r.stateOf("srv-1") as RestRowState.Pending).op)
+        server.calls.clear()
+        r.drainOutbox(emptyMap())
+        assertEquals(listOf("DELETE /v1/marcacoes/srv-1"), server.calls)
+        assertTrue(r.getAllCached().isEmpty())
+    }
+
+    @Test
     fun `linha legada gravada como UPDATE sem server_id e curada e sobe como POST`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { serverId = "srv-legado" }
