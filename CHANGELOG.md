@@ -6,6 +6,114 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.94.0 — a prova da recusa, a correlação por handles e a integridade do ciclo (jul/2026)
+
+Fecha os **três achados** do code review que validou a 2.93.0 no consumidor real ("Todos a Bordo").
+Todos são **pré-existentes** e valem para os ~14 apps da onda REST-CRUD. **Sem breaking change**:
+nenhuma assinatura pública mudou de forma incompatível (só entraram parâmetros com default e APIs
+novas). Migração de schema **v3 → v4 puramente aditiva**.
+
+### 1 (P1) — o toque seguinte apagava a prova de que o servidor tinha recusado
+
+`RestEntityMirror.putDirty` montava a linha com `attempts = 0, failed = 0, last_error = null`, e o
+`upsert` gravava tudo. Zerar `failed` está **certo** (a intenção nova do usuário substitui a recusa
+e devolve a linha à fila drenável); zerar `attempts` **não**, porque `attempts` é história de
+*entrega*, não do payload. Sequência real e silenciosa:
+
+1. o registro é recusado (4xx) → `attempts ≥ 1` → o app avisa "não salvo" ✔
+2. no ponto seguinte, **sem sinal**, o usuário toca de novo → tudo era zerado
+3. a linha virava `Pending(attempts = 0)`, **indistinguível de uma pendência nova legítima** — e a
+   conferência do app a dava por boa: **"Tudo certo!"** com o servidor sem registro nenhum daquela
+   criança, exatamente o desfecho que o produto existe para impedir.
+
+**Correção — duas camadas com tempos de vida diferentes:**
+
+| Camada | Colunas | Quem limpa |
+|---|---|---|
+| **estado ATUAL da falha** | `failed`, `fail_code`, `last_error` | uma escrita nova do usuário (correto, mantido) |
+| **histórico de ENTREGA** | `attempts`, `rejections`, `reject_code`, `reject_error` | **só o servidor aceitar** a linha |
+
+- schema v4 (`3.sqm`, `ALTER TABLE ADD COLUMN`): **`rejections` / `reject_code` / `reject_error`**;
+- `markFailed` grava nas duas camadas; `clearFailed` (retry explícito) **não** toca no histórico —
+  pedir "tentar de novo" sem sinal não pode transformar uma recusa em pendência confiável;
+- `markClean`/`RestEntityMirror.writeClean` são o **único** ponto que zera o histórico, e zeram
+  porque o servidor **aceitou** (o registro existe do outro lado);
+- a política de preservação ficou concentrada no Kotlin (`RestEntityMirror.row`/`DeliveryHistory`),
+  não dividida entre a SQL e o chamador.
+
+**API nova (aditiva):** `RestRejection(count, code, message)` com `isQuota`; `RestRowState.rejection`
+(`null` = **nunca** recusada, com garantia); e os três sinais derivados
+`RestRowState.wasRejected`, **`RestRowState.hasDeliveryTrouble`** (o critério de "não pode ser dado
+por bom") e `RestRowState.isUntriedPending` (a pendência **legítima** do offline-first — sinalizar
+toda pendência transformaria o trajeto sem sinal num alarme contínuo). `RestRow` repassa os dois
+primeiros.
+
+### 2 (P1) — a documentação da própria lib induzia ao erro
+
+O exemplo `it.rotaId == rotaId` aparecia em **três** lugares (`RestIdResolver`,
+`OfflineFirstRestRepository.observeCanonicalId`, `RestEntityMirror.observeCanonicalId`) e é
+**incorreto sempre que o drain puder ser interrompido** — que é o default (`applyDrainFailure`
+devolve `false` em `RestFailureClass.Offline` e o drain aborta). Interrompido o drain, filhos já
+migrados (FK = id do servidor) e filhos ainda locais (FK = id local) **convivem na mesma lista**:
+comparar por igualdade contra qualquer um dos dois derruba a outra metade — no app, "sumiu da lista".
+
+- **exemplos corrigidos** nos três lugares (e no catálogo), com o "ERRADO/CERTO" explícito;
+- **`RestIdResolver.handlesOf(id): Set<String>`** promovido a API de primeira classe (`{id} ∪
+  {canonical(id)} ∪ {clientIdOf(id)}`, resolvendo nos dois sentidos), mais a sobrecarga
+  `handlesOf(ids: Iterable<String>)`. Era o helper que o app teve de escrever à mão;
+- **`indexByHandle(items, idOf)`** — o mapa responde por qualquer handle (padrão "atributo do
+  cadastro a partir de uma FK congelada": o ponto de parada sumindo do card, sem erro na tela);
+- **`groupByRef(items, refOf): RestRefGroups<T>`** — filhos agrupados por pai, com `get`/`count`
+  aceitando qualquer handle (memo interno) e `countByCanonicalId()` para alimentar uma lista inteira;
+- **operador de fluxo, com o dispatcher certo** (a nota do dev): `Flow.resolvingIds(ids) { … }`
+  resolve **fora do contexto do coletor** (`RestIdResolver(store, dispatcher = …)`) — consultar o
+  remap é leitura de banco, e fazê-la no `map` de um fluxo coletado pela UI é SQLite na thread
+  principal;
+- no repositório: **`observeHandles(handle)`** (reativo, já com `flowOn`) e
+  **`observeChildren(handle, children, refOf)`** — o atalho correto por construção.
+
+### 3 (P2) — o ciclo de sync não reconferia o titular
+
+`syncNow` conferia o escopo **uma vez, no início**. Um ciclo em voo atravessava um `setAccountScope`
+e misturava Bearer e bucket: o PUSH subia a outbox do titular anterior com o token de quem acabou de
+entrar — **vazamento de dado entre contas** (no consumidor, dado de criança).
+
+- o motor **reconfere o titular antes de cada participante** (push e pull) e aborta o ciclo se ele
+  mudar; abortar por troca de titular **não** é "falha de sincronização" (estado volta a `Idle`);
+- `OfflineFirstRestRepository.drainOutbox` reconfere **antes de cada linha** e **antes de aplicar a
+  resposta** de cada requisição: nada é escrito no espelho depois da troca — gravar sob o titular
+  novo colocaria o dado de quem saiu dentro da conta de quem entrou. A outbox de quem saiu fica
+  intacta;
+- `refresh()`/`refreshPage()` reconferem entre o GET e a reconciliação (senão o dado lido sob A seria
+  gravado no bucket de B). Sentinela nova `ACCOUNT_CHANGED_CODE (-4)`;
+- **`RestCrudSyncEngine.setAccountScope(accountId, legacy)`** (novo, `suspend`) — troca o titular
+  **sob o mesmo mutex do ciclo**: a troca espera o ciclo em execução terminar e um ciclo novo só
+  arranca depois de ela ser aplicada. É o caminho recomendado para todo app com login, e o único que
+  fecha **até a requisição em voo**. Habilitado pelo novo parâmetro de construtor `store: SyncStore?`
+  (que também deriva o `accountScope` sozinho).
+
+### Testes
+
+**+29 casos** (`RestRejectionHistoryTest` 10, `RestHandleCorrelationTest` 12, `RestCrudSyncEngineTest`
++5, `OfflineFirstRestWriteTest` +2), incluindo a sequência exata do achado 1 (recusa → toque offline
+→ estado final) e a troca de titular no meio do ciclo. Suíte: **1527 casos, 0 falhas**; `koverVerify`
+verde.
+
+**Controle negativo** (os testes novos falham sem a correção): revertendo a preservação do histórico
+em `putDirty` → **4 falhas** em `RestRejectionHistoryTest`; trocando `handlesOf` pela correlação
+ingênua (`setOf(canonical(id))`) → **7 falhas** em `RestHandleCorrelationTest`; desligando a
+reconferência do titular → **4 falhas** (2 no motor, 2 no repositório).
+
+### Migrar
+
+- **Todos os apps da onda**: nada a fazer para receber as correções 1 e 3 (a preservação do histórico
+  e as reconferências são comportamento interno). Apps **com login** devem trocar
+  `store.setAccountScope(...)` por `engine.setAccountScope(...)` e construir o motor com `store =`.
+- **"Todos a Bordo"**: `RestRowState.hasDeliveryTrouble` substitui o `isUnsaved` local derivado de
+  `attempts`; `IdHandles.kt` pode ser **apagado** (`handlesOf` agora é da lib).
+
+---
+
 ## 2.93.0 — offline-first REST-CRUD: o id migra, o handle do app não (jul/2026)
 
 Fecha o **P0 `GAP-KL-M-RESTCRUD-IDMIGRATION`** — o terceiro defeito da mesma família, também

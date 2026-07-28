@@ -1,9 +1,15 @@
 package br.com.codecacto.kmplib.sync.rest
 
+import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import br.com.codecacto.kmplib.sync.SyncOpType
 import br.com.codecacto.kmplib.sync.SyncStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlin.random.Random
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -162,6 +168,14 @@ data class RestPage<T>(
  * ([RestRowState]); [requeueFailed]/[discardFailed] resolvem a linha recusada. Antes disso cada app
  * inventava um overlay em memória — que morria com o processo, levando junto a escrita recusada.
  *
+ * ### O histórico de recusa sobrevive ao toque seguinte (2.94.0 — GAP-KL-M-RESTCRUD-REJECTHISTORY)
+ * O estado ATUAL da falha é (corretamente) limpo por uma escrita nova — a intenção nova substitui a
+ * recusa. Mas o **histórico de entrega** (`attempts` e [RestRowState.rejection]) não: ele descreve a
+ * entrega, não o conteúdo. Antes, um toque posterior zerava tudo e a linha voltava a ser
+ * indistinguível de uma pendência nova legítima, que o app dá por boa: no "Todos a Bordo", um
+ * registro recusado pelo servidor e tocado de novo **sem sinal** virava "Tudo certo!" na conferência.
+ * Use [hasDeliveryTrouble] para decidir o que pode ser dado por bom.
+ *
  * ### Padrão de uso (composição — recomendado)
  * O app **compõe** este repositório dentro do seu repositório de domínio (que implementa a interface
  * usada pelos ViewModels) e traduz [DomainResult] → `Result`/exceções do app (ex.: `Quota` →
@@ -245,13 +259,60 @@ open class OfflineFirstRestRepository<T : Any>(
 
     /**
      * [canonicalId] **reativo**: emite o handle enquanto o registro é só local e o id do servidor
-     * assim que ele migra. É a forma correta de uma tela de execução consultar filhos:
-     * ```kotlin
-     * rotaRepo.observeCanonicalId(rotaHandle)
-     *     .flatMapLatest { rotaId -> passageiroRepo.observeAll().map { l -> l.filter { it.rotaId == rotaId } } }
-     * ```
+     * assim que ele migra.
+     *
+     * Use para montar a **URL** de um endpoint custom (`PATCH /v1/rotas/{id}/encerrar`). Para
+     * correlacionar **filhos**, use [observeChildren]/[observeHandles] — comparar a FK do filho por
+     * igualdade com este id derruba metade da lista quando o drain é interrompido (ver [ids]).
      */
     fun observeCanonicalId(handle: String): Flow<String> = mirror.observeCanonicalId(handle)
+
+    /**
+     * **Conjunto de handles** do registro, reativo: emite `{handle}` enquanto ele só existe local e
+     * `{handle, idDoServidor}` assim que o id migra.
+     *
+     * É o que se usa para correlacionar filhos sem perder metade da lista. A resolução roda no
+     * dispatcher do [ids] (nunca na thread do coletor — consultar o remap é leitura de banco).
+     *
+     * ```kotlin
+     * rotaRepo.observeHandles(rotaHandle).flatMapLatest { hs ->
+     *     passageiroRepo.observeAll().map { l -> l.filter { it.rotaId in hs } }
+     * }
+     * ```
+     */
+    fun observeHandles(handle: String): Flow<Set<String>> =
+        mirror.observeCanonicalId(handle)
+            .map { canonico -> ids.handlesOf(handle) + ids.handlesOf(canonico) }
+            .flowOn(ids.dispatcher)
+            .distinctUntilChanged()
+
+    /**
+     * **Filhos deste registro, correlacionados por conjunto de handles** — o atalho para o padrão
+     * que os ~14 apps da onda REST-CRUD reencontram.
+     *
+     * Resolve os dois problemas de uma vez:
+     * 1. **id que migra:** reage à migração do pai (via [observeHandles]) e aceita a FK do filho em
+     *    qualquer um dos dois estados. Enquanto o drain estiver interrompido, filhos já migrados
+     *    (FK = id do servidor) e filhos ainda locais (FK = id local) **convivem** — comparar por
+     *    igualdade com um dos dois derrubaria a outra metade;
+     * 2. **thread:** a resolução acontece fora do contexto do coletor.
+     *
+     * ```kotlin
+     * rotaRepo.observeChildren(rotaHandle, passageiroRepo.observeAll()) { it.rotaId }
+     * ```
+     *
+     * @param handle id do pai como a tela o carrega (local ou do servidor).
+     * @param children fluxo dos filhos (tipicamente `filhoRepo.observeAll()`).
+     * @param refOf FK do filho para o pai (`null`/em branco = filho sem pai, filtrado fora).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun <C> observeChildren(
+        handle: String,
+        children: Flow<List<C>>,
+        refOf: (C) -> String?,
+    ): Flow<List<C>> = observeHandles(handle).flatMapLatest { handles ->
+        children.map { lista -> lista.filter { filho -> refOf(filho)?.let { it in handles } == true } }
+    }
 
     // -- Estado de escrita por linha (2.91.0) ------------------------------
 
@@ -492,6 +553,7 @@ open class OfflineFirstRestRepository<T : Any>(
      * backend que ignora `?page=` e repete a lista). Limite duro [MAX_REFRESH_PAGES] anti-loop.
      */
     override suspend fun refresh(): Boolean {
+        val titular = accountNow()
         val accumulated = LinkedHashMap<String, T>()
         var page = 1
         while (page <= MAX_REFRESH_PAGES) {
@@ -510,6 +572,9 @@ open class OfflineFirstRestRepository<T : Any>(
                 else -> return false // Quota/Error: não reconcilia sobre conjunto parcial.
             }
         }
+        // O titular pode ter mudado entre o GET e a escrita: reconciliar agora gravaria o dado de
+        // quem saiu dentro do bucket de quem entrou.
+        if (!aindaTitular(titular)) return false
         mirror.reconcile(accumulated.values.toList())
         return true
     }
@@ -522,17 +587,23 @@ open class OfflineFirstRestRepository<T : Any>(
      * + metadados) para a UI paginar (`hasNextPage`). Distinto do [refresh] (dataset completo + reconcile).
      * Candidato C-02 do ReciboFácil.
      */
-    suspend fun refreshPage(page: Int = 1, size: Int = refreshPageSize): DomainResult<RestPage<T>> =
-        when (val r = api.getJson(pagedPath(page, size))) {
+    suspend fun refreshPage(page: Int = 1, size: Int = refreshPageSize): DomainResult<RestPage<T>> {
+        val titular = accountNow()
+        return when (val r = api.getJson(pagedPath(page, size))) {
             is DomainResult.Success -> {
                 val decoded = runCatching { descriptor.decodePage(r.data) }.getOrNull()
                     ?: return DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
-                mirror.mergeClean(decoded.items)
-                DomainResult.Success(decoded)
+                if (!aindaTitular(titular)) {
+                    DomainResult.Error(ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE)
+                } else {
+                    mirror.mergeClean(decoded.items)
+                    DomainResult.Success(decoded)
+                }
             }
             is DomainResult.Quota -> r
             is DomainResult.Error -> r
         }
+    }
 
     /**
      * Drena a outbox desta entidade (create/update/delete) contra o backend, aplicando o [parentRemap]
@@ -553,8 +624,16 @@ open class OfflineFirstRestRepository<T : Any>(
      * consulta também o **remap durável** ([SyncStore.resolveServerId]), gravado no instante da
      * migração de cada id, e o corpo enviado passa por uma tradução genérica ([RestPayloadRemap]) —
      * o que faz a correção valer inclusive para quem não implementa [RestCrudEntity.remapRefs].
+     *
+     * ### O titular é reconferido a cada linha (2.94.0 — GAP-KL-M-SYNC-SCOPERACE)
+     * A outbox é lida uma vez, no início; se a conta trocar no meio da drenagem, as linhas restantes
+     * são de quem saiu e o `Bearer` já é de quem entrou — **o dado de uma conta subiria dentro da
+     * outra**. O push para na hora e devolve o que já confirmou; a outbox de quem saiu fica intacta
+     * e sobe quando ele voltar. Sobra, no máximo, **uma** requisição em voo — para fechar até essa
+     * janela, troque de conta por [RestCrudSyncEngine.setAccountScope], que espera o ciclo terminar.
      */
     override suspend fun drainOutbox(parentRemap: Map<String, String>): Map<String, String> {
+        val titular = accountNow()
         val added = mutableMapOf<String, String>()
         // Cache do ciclo: um id resolvido uma vez não volta ao banco (nem repete o "não migrou").
         val cache = HashMap<String, String?>()
@@ -569,6 +648,7 @@ open class OfflineFirstRestRepository<T : Any>(
         }
 
         for (rowItem in mirror.drainableRows()) {
+            if (!aindaTitular(titular)) return abortarPush(added)
             val decoded = mirror.decode(rowItem.payload_json)
             if (decoded == null) {
                 // Payload ilegível (schema mudou sob a linha): não há o que enviar — para e mostra.
@@ -595,44 +675,74 @@ open class OfflineFirstRestRepository<T : Any>(
                 continue
             }
             when (op) {
-                SyncOpType.CREATE -> when (val r = api.postJson(collection, bodyOf(model))) {
-                    is DomainResult.Success -> {
-                        val saved = decodeOrNull(r.data)
-                        if (saved == null) {
-                            // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
-                            mirror.markFailed(rowItem.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
-                        } else {
-                            val serverId = descriptor.idOf(saved)
-                            added[rowItem.client_id] = serverId
-                            added[rowItem.local_id] = serverId
-                            // markSynced grava o remap DURÁVEL: o filho que drenar num ciclo
-                            // futuro (ou noutra execução do app) ainda acha este id.
-                            mirror.markSynced(rowItem.local_id, saved)
-                            if (rowItem.client_id != serverId) temRemap = true
+                SyncOpType.CREATE -> {
+                    val r = api.postJson(collection, bodyOf(model))
+                    // A resposta chegou DEPOIS de um login/logout: escrever agora criaria o registro
+                    // de quem saiu dentro do espelho de quem entrou. Fail-closed — ver [abortarPush].
+                    if (!aindaTitular(titular)) return abortarPush(added)
+                    when (r) {
+                        is DomainResult.Success -> {
+                            val saved = decodeOrNull(r.data)
+                            if (saved == null) {
+                                // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
+                                mirror.markFailed(rowItem.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
+                            } else {
+                                val serverId = descriptor.idOf(saved)
+                                added[rowItem.client_id] = serverId
+                                added[rowItem.local_id] = serverId
+                                // markSynced grava o remap DURÁVEL: o filho que drenar num ciclo
+                                // futuro (ou noutra execução do app) ainda acha este id.
+                                mirror.markSynced(rowItem.local_id, saved)
+                                if (rowItem.client_id != serverId) temRemap = true
+                            }
                         }
+                        is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                     }
-                    is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
-                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                 }
                 // A URL usa o id do SERVIDOR da linha (a chave que ele conhece), não o id que por
                 // acaso está dentro do payload — que pode ser um handle antigo.
-                SyncOpType.UPDATE -> when (
+                SyncOpType.UPDATE -> {
                     val r = api.putJson(itemPath(rowItem.server_id ?: descriptor.idOf(model)), bodyOf(model))
-                ) {
-                    is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
-                    is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
-                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
-                }
-                SyncOpType.DELETE -> when (val r = api.delete(itemPath(rowItem.server_id ?: descriptor.idOf(model)))) {
-                    is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
-                    is DomainResult.Error -> when {
-                        r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá
-                        else -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                    if (!aindaTitular(titular)) return abortarPush(added)
+                    when (r) {
+                        is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
+                        is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
                     }
-                    is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
+                }
+                SyncOpType.DELETE -> {
+                    val r = api.delete(itemPath(rowItem.server_id ?: descriptor.idOf(model)))
+                    if (!aindaTitular(titular)) return abortarPush(added)
+                    when (r) {
+                        is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
+                        is DomainResult.Error -> when {
+                            r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá
+                            else -> if (!applyDrainFailure(rowItem.local_id, r)) return added
+                        }
+                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
+                    }
                 }
             }
         }
+        return added
+    }
+
+    /**
+     * Interrompe o push porque o espelho **mudou de dono** no meio dele.
+     *
+     * Nada é escrito no espelho a partir daqui: gravar sob o titular novo colocaria o dado de quem
+     * saiu dentro da conta de quem entrou — o vazamento que este escopo existe para impedir. A
+     * outbox de quem saiu fica **intacta** e sobe quando ele voltar.
+     *
+     * Resíduo conhecido: a requisição que já estava em voo pode ter sido aceita pelo servidor sem
+     * que a confirmação tenha sido registrada localmente; no próximo ciclo daquela conta ela é
+     * reenviada (o corpo carrega o `client_id`, que é a chave de idempotência do contrato). Trocar
+     * de conta por [RestCrudSyncEngine.setAccountScope] elimina até esse caso, porque a troca espera
+     * o ciclo terminar.
+     */
+    private fun abortarPush(added: Map<String, String>): Map<String, String> {
+        AppLogger.w(TAG, "Push de '${descriptor.name}' interrompido: o titular do espelho mudou.")
         return added
     }
 
@@ -652,7 +762,20 @@ open class OfflineFirstRestRepository<T : Any>(
     protected fun decodeOrNull(body: String): T? =
         runCatching { descriptor.decodeModel(body) }.getOrNull()
 
+    // -- Integridade do titular (2.94.0) -----------------------------------
+
+    /** Conta dona do espelho **neste instante**. */
+    private fun accountNow(): String = store.accountScope.value
+
+    /**
+     * `true` se o espelho ainda pertence a quem pertencia quando esta operação começou. Um `false`
+     * significa que houve login/logout no meio do caminho — e que continuar misturaria as contas.
+     */
+    private fun aindaTitular(esperado: String): Boolean = accountNow() == esperado
+
     companion object {
+        private const val TAG = "OfflineFirstRest"
+
         /** Tamanho de página default do [refresh] paginado = teto do contrato REST-CRUD (`?size` 1..100). */
         const val DEFAULT_REFRESH_PAGE_SIZE: Int = 100
 
@@ -669,6 +792,13 @@ open class OfflineFirstRestRepository<T : Any>(
         /** Sentinela: o payload local não decodifica (schema mudou sob a linha). Terminal. */
         const val INVALID_PAYLOAD_CODE: Int = -3
         const val INVALID_PAYLOAD_MESSAGE: String = "Registro local ilegível (formato antigo)."
+
+        /**
+         * Sentinela: a conta dona do espelho mudou no meio da operação (login/logout). Nada foi
+         * escrito — o dado lido pertence a quem saiu, e gravá-lo agora o colocaria na conta errada.
+         */
+        const val ACCOUNT_CHANGED_CODE: Int = -4
+        const val ACCOUNT_CHANGED_MESSAGE: String = "A conta mudou durante a sincronização."
     }
 }
 

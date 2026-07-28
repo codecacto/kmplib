@@ -118,13 +118,58 @@ fun resolveOutboxOp(
 }
 
 /**
+ * **Histórico de recusa de uma linha** — o que o servidor JÁ disse sobre ela, ainda que o usuário a
+ * tenha tocado depois (2.94.0 — GAP-KL-M-RESTCRUD-REJECTHISTORY).
+ *
+ * É **história de entrega**, não estado do payload, e por isso **não é apagado** por uma escrita
+ * nova: só o servidor aceitar a linha a limpa. Um `null` aqui significa, com garantia, *"esta linha
+ * nunca foi recusada"* — é essa garantia que permite ao app distinguir:
+ *
+ * | Situação | Estado | [RestRowState.rejection] | Como tratar |
+ * |---|---|---|---|
+ * | criada/editada sem sinal | `Pending` | `null` | **pendência legítima** do offline-first: vai subir |
+ * | 5xx passageiro | `Pending`, `attempts > 0` | `null` | vai subir; a UI pode dizer "tentando enviar…" |
+ * | recusada agora | `Failed` | preenchido | mostrar o erro; `requeue`/`discard` |
+ * | recusada antes, **tocada de novo offline** | `Pending` | **preenchido** | **NÃO dar por boa** |
+ *
+ * A última linha é o motivo de tudo isto existir. Antes, o toque do passo 2 zerava `attempts`, a
+ * linha virava indistinguível de uma pendência nova e o app a contava como boa — no "Todos a Bordo",
+ * a conferência exibia **"Tudo certo!"** com o servidor sem registro nenhum daquela criança.
+ *
+ * @param count quantas vezes o servidor recusou esta linha (cumulativo).
+ * @param code código da ÚLTIMA recusa (HTTP ou sentinela do [OfflineFirstRestRepository]).
+ * @param message mensagem técnica da última recusa — diagnóstico, não texto de tela.
+ */
+data class RestRejection(
+    val count: Int,
+    val code: Int,
+    val message: String? = null,
+) {
+    /** `true` se a última recusa foi por **cota** (402) — o caminho é o Paywall, não "tentar de novo". */
+    val isQuota: Boolean get() = code == 402
+}
+
+/**
  * **Estado de sincronização de UMA linha do espelho** — o que a UI precisa saber para não inventar
  * o próprio overlay ("está indo", "o servidor recusou", "está gravado").
  *
  * Antes da 2.91.0 esse estado não existia na lib e cada app remendava por fora — no "Todos a Bordo"
  * era um overlay em memória que **morria com o processo**, levando junto a marcação recusada.
+ *
+ * ### Duas camadas, de propósito (2.94.0)
+ * - **estado ATUAL da falha** ([Failed] com `code`/`message`) — é substituído por uma escrita nova do
+ *   usuário: a intenção nova cancela a recusa anterior, e a linha volta à outbox drenável;
+ * - **histórico de entrega** ([rejection] e `attempts`) — **sobrevive** a essa escrita, porque
+ *   descreve a entrega e não o conteúdo. Só é zerado quando o servidor **aceita** a linha.
  */
 sealed interface RestRowState {
+
+    /**
+     * Histórico de recusa desta linha. `null` = o servidor **nunca** recusou esta linha.
+     *
+     * Sempre `null` em [Synced] (o servidor aceitou; o histórico cumpriu o seu papel).
+     */
+    val rejection: RestRejection? get() = null
 
     /** Gravado e confirmado pelo servidor. */
     data object Synced : RestRowState
@@ -132,11 +177,15 @@ sealed interface RestRowState {
     /**
      * Na outbox, aguardando o próximo ciclo de sync. [attempts] > 0 e [lastError] preenchido =
      * já houve tentativa que falhou de forma **retentável** (útil para "tentando enviar…").
+     *
+     * **[rejection] preenchido aqui NÃO é pendência confiável**: é uma linha que o servidor já
+     * recusou e que o usuário tocou de novo (tipicamente offline). Ver [hasDeliveryTrouble].
      */
     data class Pending(
         val op: SyncOpType,
         val attempts: Int = 0,
         val lastError: String? = null,
+        override val rejection: RestRejection? = null,
     ) : RestRowState
 
     /**
@@ -149,6 +198,7 @@ sealed interface RestRowState {
         val code: Int,
         val message: String?,
         val attempts: Int = 0,
+        override val rejection: RestRejection? = null,
     ) : RestRowState {
         /** `true` se a recusa foi por **cota** (402) — o caminho é o Paywall, não "tentar de novo". */
         val isQuota: Boolean get() = code == 402
@@ -159,11 +209,46 @@ sealed interface RestRowState {
     val isFailed: Boolean get() = this is Failed
 }
 
+/**
+ * `true` se o servidor **já recusou** esta linha alguma vez — mesmo que o usuário a tenha tocado
+ * depois e ela esteja de volta à fila como [RestRowState.Pending].
+ */
+val RestRowState.wasRejected: Boolean get() = rejection != null
+
+/**
+ * **O sinal a usar para decidir se uma escrita pode ser dada por boa.** `true` quando a linha não
+ * está confirmada no servidor **e já teve problema na entrega**: recusada agora, recusada antes
+ * (ainda que tocada depois) ou pendente após uma tentativa que falhou.
+ *
+ * O complemento — [isUntriedPending] — é a pendência **legítima** do offline-first, que o app deve
+ * tratar como normal: sinalizar toda pendência transformaria o trajeto sem sinal num alarme
+ * contínuo, e alarme contínuo é alarme ignorado.
+ */
+val RestRowState.hasDeliveryTrouble: Boolean
+    get() = when (this) {
+        is RestRowState.Synced -> false
+        is RestRowState.Failed -> true
+        is RestRowState.Pending -> attempts > 0 || rejection != null
+    }
+
+/**
+ * Pendência **limpa**: está na outbox, nunca foi tentada e nunca foi recusada. É o caso normal de um
+ * app offline-first — o usuário marcou sem sinal e aquilo vai subir.
+ */
+val RestRowState.isUntriedPending: Boolean
+    get() = this is RestRowState.Pending && !hasDeliveryTrouble
+
 /** Uma linha do espelho com o seu [state] — o par que a lista da UI consome. */
 data class RestRow<T>(val model: T, val state: RestRowState) {
     val isSynced: Boolean get() = state.isSynced
     val isPending: Boolean get() = state.isPending
     val isFailed: Boolean get() = state.isFailed
+
+    /** Ver [RestRowState.hasDeliveryTrouble] — o que a UI sinaliza e a conferência não dá por bom. */
+    val hasDeliveryTrouble: Boolean get() = state.hasDeliveryTrouble
+
+    /** Ver [RestRowState.wasRejected]. */
+    val wasRejected: Boolean get() = state.wasRejected
 }
 
 /** Deriva o [RestRowState] de uma linha crua do espelho. */
@@ -171,14 +256,23 @@ internal fun Synced_entity.toRestRowState(): RestRowState {
     if (dirty == 0L) return RestRowState.Synced
     val op = pending_op?.let { SyncOpType.fromWire(it) } ?: SyncOpType.UPDATE
     val tentativas = attempts.toInt()
+    val historico = rejections.takeIf { it > 0L }?.let {
+        RestRejection(count = it.toInt(), code = reject_code?.toInt() ?: 0, message = reject_error)
+    }
     return if (failed != 0L) {
         RestRowState.Failed(
             op = op,
             code = fail_code?.toInt() ?: 0,
             message = last_error,
             attempts = tentativas,
+            rejection = historico,
         )
     } else {
-        RestRowState.Pending(op = op, attempts = tentativas, lastError = last_error)
+        RestRowState.Pending(
+            op = op,
+            attempts = tentativas,
+            lastError = last_error,
+            rejection = historico,
+        )
     }
 }

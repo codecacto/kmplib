@@ -370,6 +370,9 @@ class SqlDelightSyncStore(
             failed = row.failed,
             failCode = row.fail_code,
             attempts = row.attempts,
+            rejections = row.rejections,
+            rejectCode = row.reject_code,
+            rejectError = row.reject_error,
         )
     }
 

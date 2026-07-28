@@ -54,6 +54,9 @@ class OfflineFirstRestWriteTest {
 
         /** Chamadas recebidas, como `"POST /v1/marcacoes"` — o verbo importa (POST × PUT). */
         val calls = mutableListOf<String>()
+
+        /** Gancho para o teste mexer no mundo **durante** uma requisição (ex.: trocar de conta). */
+        var onRequest: (() -> Unit)? = null
     }
 
     private fun repo(
@@ -66,6 +69,7 @@ class OfflineFirstRestWriteTest {
                 MockEngine { request ->
                     server.requests++
                     server.calls += "${request.method.value} ${request.url.encodedPath}"
+                    server.onRequest?.invoke()
                     if (server.transportDown) throw RuntimeException("sem rede")
                     val enviado = (request.body as? io.ktor.http.content.TextContent)?.text ?: ""
                     if (server.status.value in 200..299) {
@@ -502,6 +506,9 @@ class OfflineFirstRestWriteTest {
                 failed = 0L,
                 fail_code = null,
                 attempts = 7L,
+                rejections = 0L,
+                reject_code = null,
+                reject_error = null,
             ),
         )
 
@@ -541,6 +548,54 @@ class OfflineFirstRestWriteTest {
 
         assertTrue(res is DomainResult.Success)
         assertEquals(listOf("DELETE /v1/marcacoes/srv-1"), server.calls)
+        assertTrue(r.getAllCached().isEmpty())
+    }
+
+    @Test
+    fun `drain PARA na hora quando o titular muda no meio (a linha seguinte nao sobe sob outra conta)`() = runTest {
+        val store = FakeSyncStore()
+        store.setAccountScope("motorista-A")
+        val server = Server().apply { transportDown = true }
+        val r = repo(server, store, RestWriteMode.LocalFirst)
+        r.create(Marcacao(id = "", nome = "Ana"))
+        r.create(Marcacao(id = "", nome = "Bruno"))
+        assertEquals(2, store.getDirty("marcacao").size)
+
+        // Reconectou e o push começou; no meio dele, outro motorista faz login no aparelho.
+        server.transportDown = false
+        server.calls.clear()
+        server.onRequest = { store.setAccountScope("motorista-B") }
+        r.drainOutbox(emptyMap())
+
+        // Só a requisição que já estava em voo saiu — a segunda linha NÃO foi enviada com o
+        // Bearer de B. (Para fechar até essa, o app troca de conta por engine.setAccountScope.)
+        assertEquals(1, server.calls.size)
+
+        // E, sobretudo, NADA de A foi escrito no espelho de B.
+        assertTrue(r.getAllCached().isEmpty())
+        assertTrue(store.getDirty("marcacao").isEmpty())
+
+        // A outbox de A continua intacta, com as duas marcações, para subir quando ele voltar.
+        server.onRequest = null
+        store.setAccountScope("motorista-A")
+        assertEquals(2, store.getDirty("marcacao").size)
+        assertEquals(listOf("Ana", "Bruno"), r.getAllCached().map { it.nome }.sorted())
+    }
+
+    @Test
+    fun `refresh NAO reconcilia no bucket errado quando o titular muda durante o GET`() = runTest {
+        val store = FakeSyncStore()
+        store.setAccountScope("motorista-A")
+        val server = Server()
+        val r = repo(server, store, RestWriteMode.OnlineFirst)
+        server.body = """[{"id":"srv-1","nome":"Ana"}]"""
+        server.onRequest = { store.setAccountScope("motorista-B") }
+
+        assertFalse(r.refresh())
+
+        // Nada de A foi gravado dentro do bucket de B.
+        assertTrue(r.getAllCached().isEmpty())
+        store.setAccountScope("motorista-A")
         assertTrue(r.getAllCached().isEmpty())
     }
 

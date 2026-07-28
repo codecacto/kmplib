@@ -85,12 +85,19 @@ class RestEntityMirror<T : Any>(
      * [canonicalIdOf] **reativo**: emite o handle enquanto o registro só existe local e o id do
      * servidor assim que ele migra — sem que a tela precise ser recriada.
      *
-     * É o que a ViewModel usa como chave para consultar **filhos** (que passam a guardar a FK com o
-     * id do servidor assim que sincronizam):
+     * Serve para montar a **URL** de um endpoint custom (`PATCH /v1/rotas/{id}/encerrar`), onde há um
+     * id só e ele tem de ser o que o servidor conhece.
+     *
+     * ### NÃO use isto para correlacionar filhos por igualdade de id
      * ```kotlin
-     * rotaRepo.observeCanonicalId(handle)
-     *     .flatMapLatest { rotaId -> passageiroRepo.observeAll().map { it.filter { p -> p.rotaId == rotaId } } }
+     * // ERRADO — esvazia a lista no meio do uso:
+     * observeCanonicalId(handle).flatMapLatest { id -> filhos.map { l -> l.filter { it.paiId == id } } }
      * ```
+     * O drain **pausa** ao perder o sinal (`RestFailureClass.Offline`), então filhos já migrados
+     * (FK = id do servidor) e filhos ainda locais (FK = id local) convivem na mesma lista: comparar
+     * por igualdade contra QUALQUER um dos dois derruba a outra metade. Correlacione por **conjunto
+     * de handles** — ver [OfflineFirstRestRepository.observeChildren] e
+     * [RestIdResolver.handlesOf].
      */
     fun observeCanonicalId(handle: String): Flow<String> =
         store.observeVisibleByHandle(name, handle)
@@ -235,6 +242,10 @@ class RestEntityMirror<T : Any>(
                 pendingOp = efetiva.wire,
                 clientId = existing?.client_id ?: handle,
                 updatedAt = null,
+                // Escrita do usuário: limpa o estado ATUAL da falha (a intenção nova substitui a
+                // recusa) mas PRESERVA o histórico de entrega — senão o toque seguinte apagaria a
+                // prova de que o servidor já recusou este registro.
+                delivery = existing.deliveryHistory(),
             ),
         )
     }
@@ -292,11 +303,14 @@ class RestEntityMirror<T : Any>(
 
     /**
      * Caminho ÚNICO de escrita LIMPA (confirmada pelo servidor) — usado por [putClean], [confirm],
-     * [markSynced], [reconcile] e [mergeClean]. Concentra as três invariantes que antes cada caminho
+     * [markSynced], [reconcile] e [mergeClean]. Concentra as invariantes que antes cada caminho
      * repetia (ou esquecia):
      * - a chave física da linha passa a ser o **id do servidor**;
      * - **`client_id` nunca muda** depois de atribuído (âncora do handle);
-     * - migração de id (`client_id != server_id`) é **registrada de forma durável**.
+     * - migração de id (`client_id != server_id`) é **registrada de forma durável**;
+     * - o **histórico de entrega é zerado** (`delivery = NONE`) — este é o ÚNICO ponto que apaga a
+     *   evidência de recusa, e apaga porque o servidor **aceitou**: o registro existe do outro lado
+     *   e não há mais nada de que desconfiar.
      */
     private fun writeClean(model: T, serverId: String, updatedAt: String?, handle: String) {
         // O handle vem primeiro: numa migração ele identifica **a linha que está migrando**, e é ela
@@ -339,8 +353,11 @@ class RestEntityMirror<T : Any>(
      * [SyncStore]**, que grava sempre na conta corrente — assim nenhuma linha pode ser escrita no
      * bucket de outra conta por engano.
      *
-     * Escrever (limpo ou sujo) **zera o estado de falha**: uma alteração nova do usuário substitui
-     * a recusa anterior e volta à outbox drenável.
+     * Escrever (limpo ou sujo) **zera o estado ATUAL da falha** (`failed`/`fail_code`/`last_error`):
+     * uma alteração nova do usuário substitui a recusa anterior e volta à outbox drenável.
+     *
+     * O **histórico de entrega** ([delivery]) é outra coisa e segue outra regra: [putDirty] o carrega
+     * adiante, [writeClean] o zera. Ver [DeliveryHistory].
      */
     private fun row(
         model: T,
@@ -350,6 +367,7 @@ class RestEntityMirror<T : Any>(
         pendingOp: String?,
         clientId: String = idOf(model),
         updatedAt: String?,
+        delivery: DeliveryHistory = DeliveryHistory.NONE,
     ): Synced_entity = Synced_entity(
         account_id = "",
         entity = name,
@@ -365,11 +383,48 @@ class RestEntityMirror<T : Any>(
         last_error = null,
         failed = 0L,
         fail_code = null,
-        attempts = 0L,
+        attempts = delivery.attempts,
+        rejections = delivery.rejections,
+        reject_code = delivery.rejectCode,
+        reject_error = delivery.rejectError,
     )
 
     fun decode(payloadJson: String): T? =
         runCatching { json.decodeFromString(serializer, payloadJson) }.getOrNull()
+
+    /**
+     * **Histórico de entrega** de uma linha (2.94.0 — GAP-KL-M-RESTCRUD-REJECTHISTORY): quantas
+     * tentativas de push já houve e o que o servidor já respondeu de recusa.
+     *
+     * Vive separado do estado ATUAL da falha porque tem tempo de vida diferente: o estado atual é
+     * substituído pela próxima escrita do usuário; o histórico só é zerado quando o servidor
+     * **aceita** a linha ([writeClean]). Sem essa separação, qualquer toque posterior apagava a
+     * evidência de que o registro havia sido recusado, e a pendência resultante era indistinguível
+     * de uma pendência nova legítima — que o app dá por boa.
+     */
+    private data class DeliveryHistory(
+        val attempts: Long,
+        val rejections: Long,
+        val rejectCode: Long?,
+        val rejectError: String?,
+    ) {
+        companion object {
+            /** Linha nova, ou linha que o servidor acabou de aceitar: nada a lembrar. */
+            val NONE = DeliveryHistory(attempts = 0L, rejections = 0L, rejectCode = null, rejectError = null)
+        }
+    }
+
+    private fun Synced_entity?.deliveryHistory(): DeliveryHistory =
+        if (this == null) {
+            DeliveryHistory.NONE
+        } else {
+            DeliveryHistory(
+                attempts = attempts,
+                rejections = rejections,
+                rejectCode = reject_code,
+                rejectError = reject_error,
+            )
+        }
 }
 
 /** Json tolerante do espelho REST-CRUD (mesma política do módulo `sync`). */

@@ -72,6 +72,58 @@
         (guardar o id do servidor na navegação, recarregar tela após sync) e passar a usar
         `observeCanonicalId`/`ids.same` para correlacionar passageiros × rota.
 
+- [x] **GAP-KL-M-RESTCRUD-REJECTHISTORY — o toque seguinte apagava a prova da recusa.**
+      **ENTREGUE na 2.94.0.** Achado do code review que validou a 2.93.0 no consumidor real.
+      `putDirty` montava a linha com `attempts = 0, failed = 0, last_error = null`: zerar `failed`
+      está **certo** (a intenção nova do usuário substitui a recusa e devolve a linha à fila
+      drenável), mas `attempts` é história de **entrega**, não do payload. Consequência: recusa (4xx)
+      → toque **sem sinal** → `Pending(attempts = 0)`, indistinguível de pendência nova legítima → a
+      conferência dava por bom um registro que o servidor **nunca aceitou**.
+      - **Correção — duas camadas com tempos de vida diferentes.** Estado ATUAL da falha
+        (`failed`/`fail_code`/`last_error`) segue sendo limpo pela escrita do usuário; **histórico de
+        entrega** (`attempts` + as colunas novas `rejections`/`reject_code`/`reject_error`) só é
+        zerado quando o servidor **aceita** (`markClean`/`writeClean` — ponto único). `clearFailed`
+        (retry explícito) **não** apaga o histórico: pedir "tentar de novo" sem sinal não converte
+        recusa em pendência confiável. A política de preservação ficou no Kotlin
+        (`RestEntityMirror.row`/`DeliveryHistory`), não dividida entre a SQL e o chamador.
+      - **API nova:** `RestRejection(count, code, message)`; `RestRowState.rejection` (`null` =
+        **nunca** recusada); `wasRejected`, **`hasDeliveryTrouble`** (o critério de "não pode ser dado
+        por bom") e `isUntriedPending` (a pendência legítima do offline-first).
+      - **Migração v3→v4 (`3.sqm`) puramente ADITIVA** (`ALTER TABLE … ADD COLUMN`). **Sem breaking
+        change**; consumidores só bumpam. "Todos a Bordo" troca o `isUnsaved` local (derivado de
+        `attempts`) por `hasDeliveryTrouble`.
+
+- [x] **GAP-KL-M-RESTCRUD-HANDLESET — a doc da lib induzia à correlação por igualdade de id.**
+      **ENTREGUE na 2.94.0.** O exemplo `it.rotaId == rotaId` aparecia em três lugares e é incorreto
+      sempre que o drain puder ser interrompido (o default: `Offline` aborta o drain) — filhos já
+      migrados e filhos ainda locais convivem, e comparar por igualdade derruba metade da lista.
+      - Exemplos corrigidos nos três lugares + catálogo; **`RestIdResolver.handlesOf(id)`** promovido
+        a API de primeira classe (era helper escrito à mão no app), com `handlesOf(Iterable)`,
+        **`indexByHandle`** (atributo do cadastro a partir de FK congelada) e **`groupByRef` →
+        `RestRefGroups`** (filtrar/contar filhos por pai, aceitando qualquer handle).
+      - **Dispatcher (nota do dev-mobile atendida):** `RestIdResolver(store, dispatcher = …)` +
+        operador `Flow.resolvingIds(ids) { … }` resolvem **fora do contexto do coletor** (consultar o
+        remap é leitura de banco). No repositório: `observeHandles(handle)` e
+        **`observeChildren(handle, children, refOf)`** — o atalho correto por construção.
+      - **Migração:** "Todos a Bordo" apaga `data/repository/IdHandles.kt`. Demais apps: adotar
+        `observeChildren`/`handlesOf` no lugar de `==` (ver a tabela ERRADO/CERTO no KDoc).
+
+- [x] **GAP-KL-M-SYNC-SCOPERACE — o ciclo de sync não reconferia o titular.**
+      **ENTREGUE na 2.94.0.** `syncNow` conferia o escopo **uma vez, no início**: um ciclo em voo
+      atravessava um `setAccountScope` e o PUSH subia a outbox do titular anterior com o Bearer de
+      quem acabou de entrar — vazamento de dado entre contas.
+      - **Correção:** reconferência antes de cada participante (push e pull), antes de cada linha da
+        outbox e **antes de aplicar a resposta** de cada requisição (gravar depois da troca colocaria
+        o dado de quem saiu na conta de quem entrou); `refresh`/`refreshPage` reconferem entre o GET e
+        a reconciliação (sentinela `ACCOUNT_CHANGED_CODE = -4`). Abortar por troca de titular **não**
+        é "falha de sincronização".
+      - **`RestCrudSyncEngine.setAccountScope(...)`** (novo, `suspend`, habilitado pelo parâmetro de
+        construtor `store: SyncStore?`) troca o titular **sob o mesmo mutex do ciclo** — é o único
+        caminho que fecha **até a requisição em voo**, e o recomendado para todo app com login.
+      - **Resíduo documentado:** quem trocar de conta direto no `SyncStore` durante um ciclo pode ter
+        **uma** requisição já aceita pelo servidor sem confirmação local (ela é reenviada no próximo
+        ciclo daquela conta; o corpo carrega o `client_id`, chave de idempotência do contrato).
+
 - [ ] **GAP-KL-M-RESTCRUD-INFLIGHT — escrita durante requisição em voo pode ser sobrescrita.**
       Detectado ao corrigir o `GAP-KL-M-RESTCRUD-PENDINGOP`, **não corrigido** (classe diferente:
       concorrência, não máquina de estados). Se o usuário toca de novo no MESMO registro enquanto o
@@ -95,7 +147,9 @@
         resposta lenta, `CREATE` em voo + 2º toque, `UPDATE` em voo + 2º toque, revisão intacta =
         comportamento de hoje). **Não sai "de graça"** — é uma entrega própria, com migração de
         schema própria; mas é o momento mais barato para fazê-la, porque a área está fresca e a
-        superfície de teste já existe.
+        superfície de teste já existe. **(Atualizado após a 2.94.0:** a migração passa a ser
+        **v4→v5**, e a 2.94.0 ainda reduziu o custo — `writeClean` segue sendo o ponto único e o
+        `FakeSyncStore` já foi estendido duas vezes seguindo o mesmo padrão.**)**
 
 - [ ] **GAP-KL-M-CARDOVERFLOW — menu "três-pontinhos" de card não existe na lib.** O padrão do
       estúdio (memória `card-overflow-menu-top-right`: overflow no topo direito do card, clique no

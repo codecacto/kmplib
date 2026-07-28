@@ -3,6 +3,16 @@
 -- Agnóstico de domínio: uma única tabela-espelho para QUALQUER entidade.
 -- O app registra suas SyncableEntity<T> e serializa o modelo em payload_json.
 --
+-- v4 (kmplib 2.94.0):
+--   * rejections / reject_code / reject_error — HISTÓRICO DE ENTREGA
+--     (GAP-KL-M-RESTCRUD-REJECTHISTORY). `failed`/`fail_code`/`last_error` descrevem o
+--     estado ATUAL da falha e são (corretamente) limpos por uma escrita nova do usuário;
+--     estas três colunas descrevem o que o servidor JÁ disse sobre a linha e **sobrevivem**
+--     a essa escrita. Sem elas, qualquer toque posterior apagava a prova de que o registro
+--     tinha sido recusado: a linha virava "pendência nova legítima" e a conferência do app
+--     a dava por boa — no "Todos a Bordo", "Tudo certo!" com o servidor sem registro nenhum
+--     daquela criança.
+--
 -- v3 (kmplib 2.93.0):
 --   * sync_id_remap — REMAP DURÁVEL `clientId → serverId`
 --     (GAP-KL-M-RESTCRUD-IDMIGRATION). O remap só existia dentro de UM ciclo de sync
@@ -38,10 +48,17 @@
 --  pending_op     : "create" | "update" | "delete" enquanto dirty; NULL após drenar.
 --  deleted        : 1 = tombstone (exclusão lógica até confirmar no servidor).
 --  base_updated_at: updatedAt-base p/ detecção de conflito (LWW server-side).
+--
+--  ESTADO ATUAL DA FALHA (limpo por uma escrita nova do usuário — ela substitui a recusa):
 --  last_error     : último erro de sync do item (NULL se ok).
 --  failed         : 1 = o servidor RECUSOU de forma terminal (4xx) — NÃO retentar sozinho.
 --  fail_code      : código HTTP (ou sentinela) da recusa terminal; NULL se não falhou.
---  attempts       : tentativas de push já feitas para esta linha (diagnóstico/UI).
+--
+--  HISTÓRICO DE ENTREGA (NÃO é limpo por escrita do usuário; só quando o servidor ACEITA):
+--  attempts       : tentativas de push já feitas para esta linha.
+--  rejections     : quantas vezes o servidor recusou esta linha de forma terminal (ou por cota).
+--  reject_code    : código da ÚLTIMA recusa; sobrevive ao toque seguinte do usuário.
+--  reject_error   : mensagem da ÚLTIMA recusa; sobrevive ao toque seguinte do usuário.
 CREATE TABLE synced_entity (
     account_id      TEXT    NOT NULL DEFAULT '',
     entity          TEXT    NOT NULL,
@@ -58,6 +75,9 @@ CREATE TABLE synced_entity (
     failed          INTEGER NOT NULL DEFAULT 0,
     fail_code       INTEGER,
     attempts        INTEGER NOT NULL DEFAULT 0,
+    rejections      INTEGER NOT NULL DEFAULT 0,
+    reject_code     INTEGER,
+    reject_error    TEXT,
     PRIMARY KEY (account_id, entity, local_id)
 );
 
@@ -189,15 +209,20 @@ SELECT COUNT(*) FROM synced_entity WHERE account_id = '';
 -- ---------------------------------------------------------------------------
 -- Escrita
 -- ---------------------------------------------------------------------------
+-- NOTA (2.94.0): esta escrita é DELIBERADAMENTE burra — grava o que o chamador mandou,
+-- inclusive as colunas de histórico. Quem decide o que preservar entre escritas é o
+-- `RestEntityMirror` (`putDirty` carrega o histórico da linha; `writeClean` o zera, porque o
+-- servidor aceitou). Concentrar a política no Kotlin a torna testável e documentada num lugar
+-- só, em vez de dividida entre a SQL e o chamador.
 upsert:
 INSERT INTO synced_entity (
     account_id, entity, local_id, server_id, client_id, payload_json,
     updated_at, dirty, pending_op, deleted, base_updated_at, last_error,
-    failed, fail_code, attempts
+    failed, fail_code, attempts, rejections, reject_code, reject_error
 ) VALUES (
     :accountId, :entity, :localId, :serverId, :clientId, :payloadJson,
     :updatedAt, :dirty, :pendingOp, :deleted, :baseUpdatedAt, :lastError,
-    :failed, :failCode, :attempts
+    :failed, :failCode, :attempts, :rejections, :rejectCode, :rejectError
 )
 ON CONFLICT(account_id, entity, local_id) DO UPDATE SET
     server_id       = excluded.server_id,
@@ -211,11 +236,17 @@ ON CONFLICT(account_id, entity, local_id) DO UPDATE SET
     last_error      = excluded.last_error,
     failed          = excluded.failed,
     fail_code       = excluded.fail_code,
-    attempts        = excluded.attempts;
+    attempts        = excluded.attempts,
+    rejections      = excluded.rejections,
+    reject_code     = excluded.reject_code,
+    reject_error    = excluded.reject_error;
 
+-- O servidor ACEITOU: o histórico de entrega cumpriu o seu papel e é zerado junto com o
+-- estado de falha. É o ÚNICO ponto que apaga a evidência de recusa — de propósito.
 markClean:
 UPDATE synced_entity
 SET dirty = 0, pending_op = NULL, last_error = NULL, failed = 0, fail_code = NULL, attempts = 0,
+    rejections = 0, reject_code = NULL, reject_error = NULL,
     server_id = :serverId, updated_at = :updatedAt, base_updated_at = :baseUpdatedAt
 WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
@@ -227,13 +258,18 @@ WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 -- Recusa TERMINAL do servidor: a linha para de ser drenada e passa a ser visível como
 -- "não salva" para o app (com o erro preservado). Também reexibe um delete recusado
 -- (deleted = 0) — o registro continua existindo no servidor.
+-- Grava nas DUAS camadas: estado atual (failed/fail_code/last_error) E histórico
+-- (rejections/reject_code/reject_error), que sobrevive ao próximo toque do usuário.
 markFailed:
 UPDATE synced_entity
 SET failed = 1, fail_code = :failCode, last_error = :lastError,
-    attempts = attempts + 1, deleted = 0
+    attempts = attempts + 1, deleted = 0,
+    rejections = rejections + 1, reject_code = :failCode, reject_error = :lastError
 WHERE account_id = :accountId AND entity = :entity AND local_id = :localId;
 
 -- Retry explícito: volta a linha para a outbox drenável, preservando o payload.
+-- NÃO mexe no histórico: pedir "tentar de novo" não apaga o fato de ter sido recusada — sem
+-- isso, um reenvio sem sinal transformaria a marcação recusada em pendência confiável.
 clearFailed:
 UPDATE synced_entity
 SET failed = 0, fail_code = NULL, last_error = NULL

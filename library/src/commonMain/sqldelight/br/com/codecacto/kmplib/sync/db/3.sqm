@@ -1,0 +1,31 @@
+-- =============================================================================
+-- Migração 3 → 4 (kmplib 2.94.0)
+--
+-- Acrescenta o HISTÓRICO DE ENTREGA da linha (GAP-KL-M-RESTCRUD-REJECTHISTORY):
+--   * rejections   — quantas vezes o servidor recusou esta linha de forma terminal.
+--   * reject_code  — código da ÚLTIMA recusa.
+--   * reject_error — mensagem da ÚLTIMA recusa.
+--
+-- Por que existe: `failed`/`fail_code`/`last_error` são o estado ATUAL da falha e são
+-- (corretamente) limpos quando o usuário escreve de novo — a intenção nova substitui a
+-- recusa anterior. Mas o `attempts` também era zerado, e com ele sumia a ÚNICA evidência de
+-- que aquele registro já havia sido recusado pelo servidor. Sequência real, silenciosa:
+--
+--   1. o registro é recusado (4xx)                → failed=1, attempts=1 → o app avisa
+--   2. o usuário toca de novo, agora SEM SINAL    → putDirty zerava tudo
+--   3. a linha virava "pendência nova legítima"   → a conferência a dava por boa
+--
+-- No "Todos a Bordo" isso devolvia o desfecho que o produto existe para impedir: banner
+-- "Tudo certo!" com o servidor sem registro nenhum daquela criança. As três colunas separam
+-- "o que está errado AGORA" de "o que o servidor JÁ disse sobre esta linha".
+--
+-- **Puramente ADITIVA**: nenhuma linha é movida, copiada ou dropada; nenhum índice muda. As
+-- bases em produção (~14 apps) seguem intactas. As linhas existentes nascem com
+-- rejections = 0 (histórico desconhecido = "nunca recusada"), que é o default seguro: uma
+-- linha já recusada em produção continua com failed = 1 e, portanto, continua visível como
+-- não-salva pelo estado ATUAL; só o histórico começa do zero.
+-- =============================================================================
+
+ALTER TABLE synced_entity ADD COLUMN rejections INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE synced_entity ADD COLUMN reject_code INTEGER;
+ALTER TABLE synced_entity ADD COLUMN reject_error TEXT;

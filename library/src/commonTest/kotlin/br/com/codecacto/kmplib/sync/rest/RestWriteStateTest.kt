@@ -117,6 +117,9 @@ class RestWriteStateTest {
         code: Long? = null,
         error: String? = null,
         attempts: Long = 0L,
+        rejections: Long = 0L,
+        rejectCode: Long? = null,
+        rejectError: String? = null,
     ) = Synced_entity(
         account_id = "acc",
         entity = "e",
@@ -133,6 +136,9 @@ class RestWriteStateTest {
         failed = failed,
         fail_code = code,
         attempts = attempts,
+        rejections = rejections,
+        reject_code = rejectCode,
+        reject_error = rejectError,
     )
 
     @Test

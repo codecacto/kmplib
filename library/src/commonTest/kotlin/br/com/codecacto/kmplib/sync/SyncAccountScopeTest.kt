@@ -34,6 +34,9 @@ class SyncAccountScopeTest {
         failed = 0L,
         fail_code = null,
         attempts = 0L,
+        rejections = 0L,
+        reject_code = null,
+        reject_error = null,
     )
 
     @Test

@@ -103,6 +103,9 @@ class DefaultSyncEngine(
                     failed = 0L,
                     fail_code = null,
                     attempts = 0L,
+                    rejections = 0L,
+                    reject_code = null,
+                    reject_error = null,
                 )
             )
         }
@@ -131,6 +134,9 @@ class DefaultSyncEngine(
         failed = 0L,
         fail_code = null,
         attempts = 0L,
+        rejections = 0L,
+        reject_code = null,
+        reject_error = null,
     )
 
     // ----------------------------------------------------------------------
@@ -342,6 +348,9 @@ class DefaultSyncEngine(
                 failed = 0L,
                 fail_code = null,
                 attempts = 0L,
+                rejections = 0L,
+                reject_code = null,
+                reject_error = null,
             )
         )
         return false

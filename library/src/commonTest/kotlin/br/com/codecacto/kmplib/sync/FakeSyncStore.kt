@@ -145,6 +145,10 @@ class FakeSyncStore : SyncStore {
             failed = 0L,
             fail_code = null,
             attempts = 0L,
+            // O servidor aceitou: o histórico de entrega cumpriu o papel e é zerado junto.
+            rejections = 0L,
+            reject_code = null,
+            reject_error = null,
         )
         revision.value++
     }
@@ -163,10 +167,15 @@ class FakeSyncStore : SyncStore {
             last_error = error,
             attempts = existing.attempts + 1,
             deleted = 0L,
+            // Histórico: sobrevive à próxima escrita do usuário (espelha `markFailed` da SQL).
+            rejections = existing.rejections + 1,
+            reject_code = code.toLong(),
+            reject_error = error,
         )
         revision.value++
     }
 
+    /** Retry explícito: NÃO apaga o histórico — pedir "tentar de novo" não desfaz a recusa. */
     override fun clearFailed(entity: String, localId: String) {
         val existing = rows[key(entity, localId)] ?: return
         rows[key(entity, localId)] = existing.copy(failed = 0L, fail_code = null, last_error = null)
