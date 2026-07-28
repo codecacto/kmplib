@@ -50,7 +50,12 @@ object PurchaseManager {
      */
     internal suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
         _repository?.purchaseConsumable(productId)
-            ?: ConsumablePurchaseResult.Error("purchase nao inicializado", PurchaseErrorCode.UNKNOWN)
+        // Build sem monetizacao configurada: e defeito de CONFIGURACAO, nao "erro desconhecido"
+        // (ate a 2.89.0 saia UNKNOWN, indistinguivel de uma falha real da loja).
+            ?: ConsumablePurchaseResult.Error(
+                "purchase nao inicializado",
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+            )
 
     /** Identifica o app user na loja (ver [PurchaseRepository.identify]). */
     internal suspend fun identify(appUserId: String): Result<Unit> =

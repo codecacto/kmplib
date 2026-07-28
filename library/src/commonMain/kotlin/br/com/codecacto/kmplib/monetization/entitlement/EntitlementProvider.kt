@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.monetization.MonetizationConfig
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseConfig
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
@@ -64,8 +65,19 @@ sealed interface PurchaseOutcome {
     /** Nada para restaurar. */
     data object NadaParaRestaurar : PurchaseOutcome
 
-    /** Falha (rede/loja). */
-    data class Falha(val mensagem: String) : PurchaseOutcome
+    /**
+     * Falha real da compra/restauração.
+     *
+     * @param mensagem texto TÉCNICO do SDK (log). **Não exiba**: use `code.userMessage()`, que diz
+     *   ao usuário o que fazer ("revise a forma de pagamento" ≠ "verifique sua internet").
+     * @param code motivo TIPADO (2.90.0; default [PurchaseErrorCode.UNKNOWN] para não quebrar quem
+     *   já construía `Falha(mensagem)`). Também decide o alerta:
+     *   [br.com.codecacto.kmplib.monetization.purchase.isPaymentIncident].
+     */
+    data class Falha(
+        val mensagem: String,
+        val code: PurchaseErrorCode = PurchaseErrorCode.UNKNOWN,
+    ) : PurchaseOutcome
 
     /** Billing indisponível (stub sem credenciais/pacote) — a UI mostra "em breve". */
     data object Indisponivel : PurchaseOutcome
@@ -120,7 +132,7 @@ class RevenueCatEntitlementProvider(
         return when (val r = repo.purchasePackage(packageId)) {
             is PurchaseResult.Success -> PurchaseOutcome.Ativado
             is PurchaseResult.Cancelled -> PurchaseOutcome.Cancelado
-            is PurchaseResult.Error -> PurchaseOutcome.Falha(r.message)
+            is PurchaseResult.Error -> PurchaseOutcome.Falha(r.message, r.code)
         }
     }
 
@@ -129,7 +141,11 @@ class RevenueCatEntitlementProvider(
         return when (val r = repo.restorePurchases()) {
             is RestoreResult.Success -> PurchaseOutcome.Ativado
             is RestoreResult.NoPurchasesToRestore -> PurchaseOutcome.NadaParaRestaurar
-            is RestoreResult.Error -> PurchaseOutcome.Falha(r.message)
+            // Desistir do fluxo da loja não é falha de restauração — vira `Cancelado`, para a UI não
+            // mostrar erro e o app não alertar quem só mudou de ideia.
+            is RestoreResult.Error ->
+                if (r.code == PurchaseErrorCode.USER_CANCELLED) PurchaseOutcome.Cancelado
+                else PurchaseOutcome.Falha(r.message, r.code)
         }
     }
 }

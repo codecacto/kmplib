@@ -30,19 +30,27 @@
         `PurchaseRepository` e a superfície usada pelos consumidores está intacta. TattooStudio
         (único consumidor) só precisa alinhar o `libs.versions.toml` para **2.89.0**.
 
-### DÍVIDA — `mapErrorCode` classifica erro de compra por SUBSTRING da mensagem (28/jul/2026)
-> Achado ao levar a identidade ao padrão-ouro: o `RevenueCatPurchaseRepository` traduz erro de
+### DÍVIDA — `mapErrorCode` classificava erro de compra por SUBSTRING (28/jul/2026) — **ENTREGUE na 2.90.0**
+> Achado ao levar a identidade ao padrão-ouro: o `RevenueCatPurchaseRepository` traduzia erro de
 > `purchase`/`purchasePackage`/`purchaseConsumable` procurando `"network"`/`"store"`/`"pending"`/
 > `"declined"`/`"already owned"` **dentro da mensagem** do SDK. A mensagem do RevenueCat é
-> **localizada** — no aparelho em pt-BR nada casa e todo erro de compra vira `UNKNOWN`, incluindo
+> **localizada** — no aparelho em pt-BR nada casava e todo erro de compra virava `UNKNOWN`, incluindo
 > "pagamento recusado" e "já é assinante".
 
-- [ ] **GAP-KL-M-PURCHASE-ERRORCODE — mapear `PurchasesErrorCode` tipado no fluxo de compra.** O SDK
-      expõe `error.code` em commonMain (é o que a 2.89.0 passou a usar na identidade). Trocar as 5
-      comparações de substring por `when (error.code)` e cobrir com teste.
-      - **NÃO feito junto na 2.89.0** de propósito: muda o `PurchaseErrorCode` visto por **todos** os
-        apps que vendem assinatura, num caminho hoje sem cobertura — é mudança de comportamento de
-        pagamento, merece entrega própria com o CTO ciente, não carona numa regularização.
+- [x] **GAP-KL-M-PURCHASE-ERRORCODE — `PurchasesErrorCode` tipado no fluxo de compra.** **ENTREGUE na
+      2.90.0** (`monetization/purchase/PurchaseErrorMapper.kt` + `PurchaseError.kt`). Detalhe no
+      `CHANGELOG.md` 2.90.0.
+      - **Achado durante a implementação:** o mapeamento antigo estava errado **em qualquer idioma**,
+        não só em pt-BR — o RevenueCat não tem código "declined" (recusa é `PurchaseInvalidError`) e
+        "já possui" é *"This product is already active for the user"*. `PAYMENT_DECLINED` e
+        `ALREADY_OWNED` eram inalcançáveis desde sempre.
+      - **Além do pedido, no mesmo vício (perder o tipo):** `RestoreResult.Error` e
+        `PurchaseOutcome.Falha` ganharam `code` (default `UNKNOWN`); `getOfferings()` falha com
+        `PurchaseException` tipada; `purchaseConsumable` sem billing devolve `CONFIGURATION_ERROR`.
+      - **`isPaymentIncident` + `userMessage`** entraram porque o código sozinho não resolve o
+        problema relatado: sem eles cada app decide na mão o que alerta e o que escreve na tela — e
+        três apps já divergiam (dois exibiam a mensagem crua do SDK, um exibia `code.name`).
+      - **Migração:** só `when` exaustivo sobre o enum (Super 8, Prospecta) — ver `BREAKING_CHANGES.md`.
 
 ### GAPS — design do produto "Todos a Bordo" (ux-designer, 28/jul/2026) — **RESOLVIDOS na 2.88.0**
 > Levantados no design de telas (`Todos a Bordo/docs/design/wireframes.md` §Gaps de lib), a partir do

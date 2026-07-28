@@ -10,6 +10,7 @@ Mudanças que **exigiram** ação dos consumidores — detalhe/migração no cat
 
 | Versão | Módulo | Breaking | Migração |
 |--------|--------|----------|----------|
+| 2.90.0 | `monetization/purchase` | `PurchaseErrorCode` ganhou 6 valores (`CONFIGURATION_ERROR`, `PURCHASE_NOT_ALLOWED`, `ALREADY_OWNED_BY_OTHER_USER`, `PURCHASE_IN_PROGRESS`, `INELIGIBLE`, `USER_CANCELLED`). Só quebra quem tem **`when (code)` exaustivo sem `else`** (Super 8, Prospecta). Ordinais dos 7 valores antigos preservados; construir/comparar código não muda. | Apagar o `when` local e usar `code.userMessage()` (i18n via `PurchaseErrorTexts`) — a migração remove código em vez de adicionar. |
 | 2.82.0 | `observability` | Só para quem **implementa** `CrashReporter` (fake/duble próprio): a interface ganhou `val isActive` e `captureMessage` ganhou o 3º parâmetro `tags`. **Chamadores não mudam** (`tags` tem default). | Implementar `isActive` (delegar ao estado do `init`) e acrescentar `tags: Map<String, String>` na assinatura de `captureMessage`. |
 | 2.78.0 | (nenhum) | Onda de manutenção da auditoria: higiene git, docs, ADRs, `OnboardingPager` (novo), `CrashReporter.initFromBuildConfig` (aditivo), portes iOS de PDF/câmera (aditivos). **Sem breaking.** | — |
 | 2.75.0 | `firebase/crashlytics` → `observability` | Módulo Crashlytics **removido**; crashes vão para `CrashReporter` (Sentry/GlitchTip). | Trocar `CrashlyticsService` por `crashReporterModule` + `CrashReporter.init(...)`. |

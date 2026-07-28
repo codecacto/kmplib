@@ -6,6 +6,73 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.90.0 — erro de compra classificado por código tipado, não por texto (jul/2026)
+
+Fecha o `GAP-KL-M-PURCHASE-ERRORCODE`, registrado na 2.89.0 e priorizado pelo CTO como entrega
+própria (é mudança de comportamento no caminho do dinheiro, em código sem cobertura).
+
+**O defeito.** `RevenueCatPurchaseRepository.mapErrorCode(message)` classificava o erro de
+`purchase`/`purchasePackage`/`purchaseConsumable` procurando `"network"`/`"store"`/`"pending"`/
+`"declined"`/`"already owned"` **dentro da mensagem** do SDK. Duas consequências:
+
+- a mensagem do RevenueCat é **localizada** — num aparelho em pt-BR nenhuma substring casa e todo
+  erro de compra vira `UNKNOWN`. O alerta de pagamento chegava ao Discord existindo e **sem
+  informar**, e a UI mostrava o mesmo texto para "cartão recusado" (o usuário resolve), "sem
+  internet" (só tentar de novo) e "já é assinante" (restaurar);
+- pior: dois desses textos **não existem em idioma nenhum**. O RevenueCat não tem código "declined"
+  (recusa vem como `PurchaseInvalidError`) e "já possui" é *"This product is already active for the
+  user"* — ou seja, `PAYMENT_DECLINED` e `ALREADY_OWNED` eram **inalcançáveis mesmo em inglês**.
+
+- **Classificação agora sai do `PurchasesErrorCode`** (mesmo padrão que a 2.89.0 aplicou em
+  `PurchaseIdentityError`), em `monetization/purchase/PurchaseErrorMapper.kt` (a superfície pública
+  do erro — `PurchaseException`, `isPaymentIncident`, `PurchaseErrorTexts`/`userMessage` — fica em
+  `PurchaseError.kt`):
+  `PurchasesErrorCode.toPurchaseErrorCode()` recebe **só o código** — classificar por texto deixou de
+  ser possível sem mudar a assinatura. A mensagem do SDK continua viajando em
+  `PurchaseResult.Error.message`, mas **como diagnóstico técnico**, e o KDoc diz para não exibi-la.
+- **`PurchaseErrorCode` ganhou 6 valores** (no fim do enum, ordinais dos 7 antigos preservados):
+  `CONFIGURATION_ERROR`, `PURCHASE_NOT_ALLOWED`, `ALREADY_OWNED_BY_OTHER_USER`,
+  `PURCHASE_IN_PROGRESS`, `INELIGIBLE`, `USER_CANCELLED`. Critério: cada valor só existe se **a UI
+  ou o alerta agem diferente** por causa dele — daí `ProductNotAvailableForPurchaseError` reusar
+  `PRODUCT_NOT_FOUND` (para o usuário é o mesmo "plano indisponível") em vez de inflar o enum.
+- **Cancelamento não é erro** (o falso-positivo mais provável deste caminho, irmão do
+  `LogOutWithAnonymousUserError` tratado na 2.89.0). `toPurchaseFailure(userCancelled)` devolve
+  `Cancelled` se **o flag do SDK OU o código `PurchaseCancelledError`** disser desistência — basta
+  uma das fontes, porque elas nem sempre concordam. Nos caminhos sem branch de cancelamento
+  (`RestoreResult.Error`, falha de `getOfferings`) entra `USER_CANCELLED`, com
+  `isPaymentIncident = false`; e `RevenueCatEntitlementProvider.restore()` converte esse código em
+  `PurchaseOutcome.Cancelado` — desistir de restaurar deixou de ser "restauração falhou" (alerta).
+- **`val PurchaseErrorCode.isPaymentIncident`** — separa falha **do sistema** (configuração, oferta,
+  loja, código desconhecido ⇒ reportar via `PaymentAlertReporter` com `detalhe = "codigo=<NOME>"`) de
+  falha **do usuário/ambiente** (rede, cartão, restrição, já assina, desistiu ⇒ mensagem na tela, sem
+  alerta). Sem isso, ou se alerta tudo (enxurrada que esconde o incidente real) ou nada.
+- **`PurchaseErrorTexts` + `PurchaseErrorCode.userMessage(texts)`** — o texto de tela por código,
+  i18n injetável, defaults pt-BR que dizem **o que fazer**. A ação de cada código é a mesma em todo
+  app do ecossistema, e até aqui cada um reescrevia o próprio `when` — quando reescrevia: dois apps
+  exibiam a mensagem crua do SDK e um exibia literalmente o nome do enum (`code.name`).
+- **Mesmo vício corrigido nos vizinhos** (perder o tipo, não só classificar por texto):
+  `RestoreResult.Error` ganhou `code` (default `UNKNOWN`, retrocompatível); `getOfferings()` falha
+  com **`PurchaseException(code, message)`** em vez de `IllegalStateException` (continua `Throwable`,
+  quem lia `.message` não muda); `PurchaseOutcome.Falha` ganhou `code` (default `UNKNOWN`);
+  `PurchaseManager.purchaseConsumable` sem monetização configurada devolve `CONFIGURATION_ERROR`, não
+  `UNKNOWN`.
+- **Testes — `PurchaseErrorMapperTest` (17)**, o primeiro deste caminho: classificação de cada código
+  relevante; **a mensagem não classifica** (5 textos que casariam com as substrings antigas, cada um
+  com código contrário, e o mesmo em pt-BR — falha se alguém reintroduzir `contains("network")`);
+  cancelamento pelo flag, pelo código e por ambos; `isPaymentIncident` por valor; mensagem própria e
+  não repetida para todo código; e um **guarda de bump do SDK**: código novo do RevenueCat que caia
+  em `UNKNOWN` faz o teste falhar listando o nome, para a classificação ser consciente.
+
+**Migração (source-breaking apenas para `when` exaustivo sobre `PurchaseErrorCode`):** **Super 8**
+(`features/premium/PremiumViewModel.kt:482`) e **Prospecta**
+(`features/premium/PremiumViewModel.kt:176`) têm `when (code)` sem `else` e param de compilar ao
+bumpar. A migração é uma **simplificação**: apagar o `when` local e usar
+`code.userMessage()` (ou `userMessage(PurchaseErrorTexts(...))` para customizar). **Minha Voz**
+(`PremiumViewModel.kt:174`) mostra `code.name` ao usuário — trocar por `code.userMessage()`. Os
+demais consumidores (LocAki, Influencer, Meu Barbeiro, Meu Advogado, TattooStudio, MinhaOS, MeuFrete,
+PapelStudio, OlhoNoCPF, MinhaDespensa, MinhaObra, QuemMeDeve, Esquecido) só **constroem**
+`PurchaseErrorCode`/`Falha` — compilam sem mudança.
+
 ## 2.89.0 — identidade de quem assina na loja: `identify`/`resetIdentity` (jul/2026)
 
 Aditivo e retrocompatível. **Regularização**: a API nasceu na Onda 3 do TattooStudio (commit

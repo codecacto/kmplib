@@ -5,6 +5,7 @@ import com.revenuecat.purchases.kmp.Purchases
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
 import com.revenuecat.purchases.kmp.models.Package
 import com.revenuecat.purchases.kmp.models.PackageType
+import com.revenuecat.purchases.kmp.models.PurchasesError
 import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
 import com.revenuecat.purchases.kmp.models.StoreProduct
 import kotlinx.coroutines.flow.Flow
@@ -33,8 +34,9 @@ internal class RevenueCatPurchaseRepository(
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.getOfferings(
                 onError = { error ->
-                    AppLogger.e(TAG, "Erro ao buscar offerings: ${error.message}")
-                    continuation.resume(Result.failure(IllegalStateException(error.message)))
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao buscar offerings [$code]: ${error.message}")
+                    continuation.resume(Result.failure(PurchaseException(code, error.message)))
                 },
                 onSuccess = { offerings ->
                     // Offering configurado (config.offeringId) com fallback para o `current`.
@@ -69,16 +71,7 @@ internal class RevenueCatPurchaseRepository(
             Purchases.sharedInstance.purchase(
                 packageToPurchase = pkg,
                 onError = { error, userCancelled ->
-                    if (userCancelled) {
-                        continuation.resume(PurchaseResult.Cancelled)
-                    } else {
-                        continuation.resume(
-                            PurchaseResult.Error(
-                                message = error.message,
-                                code = mapErrorCode(error.message)
-                            )
-                        )
-                    }
+                    continuation.resume(error.toPurchaseResult(userCancelled))
                 },
                 onSuccess = { _, customerInfo ->
                     val subscriptionInfo = customerInfo.toSubscriptionInfo()
@@ -131,16 +124,7 @@ internal class RevenueCatPurchaseRepository(
             Purchases.sharedInstance.purchase(
                 storeProduct = product,
                 onError = { error, userCancelled ->
-                    if (userCancelled) {
-                        continuation.resume(PurchaseResult.Cancelled)
-                    } else {
-                        continuation.resume(
-                            PurchaseResult.Error(
-                                message = error.message,
-                                code = mapErrorCode(error.message)
-                            )
-                        )
-                    }
+                    continuation.resume(error.toPurchaseResult(userCancelled))
                 },
                 onSuccess = { _, customerInfo ->
                     val subscriptionInfo = customerInfo.toSubscriptionInfo()
@@ -167,16 +151,15 @@ internal class RevenueCatPurchaseRepository(
             Purchases.sharedInstance.purchase(
                 storeProduct = product,
                 onError = { error, userCancelled ->
-                    if (userCancelled) {
-                        continuation.resume(ConsumablePurchaseResult.Cancelled)
-                    } else {
-                        continuation.resume(
-                            ConsumablePurchaseResult.Error(
-                                message = error.message,
-                                code = mapErrorCode(error.message)
+                    continuation.resume(
+                        when (val failure = error.toPurchaseFailure(userCancelled)) {
+                            is PurchaseFailure.Cancelled -> ConsumablePurchaseResult.Cancelled
+                            is PurchaseFailure.Failed -> ConsumablePurchaseResult.Error(
+                                message = failure.message,
+                                code = failure.code,
                             )
-                        )
-                    }
+                        }
+                    )
                 },
                 onSuccess = { storeTransaction, _ ->
                     val transactionId = storeTransaction.transactionId
@@ -208,8 +191,11 @@ internal class RevenueCatPurchaseRepository(
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.restorePurchases(
                 onError = { error ->
-                    AppLogger.e(TAG, "Erro ao restaurar compras: ${error.message}")
-                    continuation.resume(RestoreResult.Error(error.message))
+                    // `restorePurchases` não informa "cancelou"; o código tipado é a única forma de
+                    // não contar uma desistência como falha de restauração (que é alerta).
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao restaurar compras [$code]: ${error.message}")
+                    continuation.resume(RestoreResult.Error(error.message, code))
                 },
                 onSuccess = { customerInfo ->
                     val subscriptionInfo = customerInfo.toSubscriptionInfo()
@@ -418,15 +404,17 @@ internal class RevenueCatPurchaseRepository(
         )
     }
 
-    private fun mapErrorCode(message: String): PurchaseErrorCode {
-        val lower = message.lowercase()
-        return when {
-            lower.contains("network") -> PurchaseErrorCode.NETWORK_ERROR
-            lower.contains("store") -> PurchaseErrorCode.STORE_ERROR
-            lower.contains("pending") -> PurchaseErrorCode.PAYMENT_PENDING
-            lower.contains("declined") -> PurchaseErrorCode.PAYMENT_DECLINED
-            lower.contains("already") && lower.contains("owned") -> PurchaseErrorCode.ALREADY_OWNED
-            else -> PurchaseErrorCode.UNKNOWN
+    /**
+     * Traduz o erro do SDK no resultado de compra da lib. Desistência vira [PurchaseResult.Cancelled]
+     * (nunca `Error`), e o motivo da falha real sai do **código tipado** — ver [toPurchaseFailure].
+     */
+    private fun PurchasesError.toPurchaseResult(
+        userCancelled: Boolean
+    ): PurchaseResult = when (val failure = toPurchaseFailure(userCancelled)) {
+        is PurchaseFailure.Cancelled -> PurchaseResult.Cancelled
+        is PurchaseFailure.Failed -> {
+            AppLogger.e(TAG, "Compra falhou [${failure.code}]: ${failure.message}")
+            PurchaseResult.Error(message = failure.message, code = failure.code)
         }
     }
 
