@@ -186,12 +186,22 @@ internal fun normalizeProgress(progress: Float): Float =
 internal fun percentToFraction(percent: Int): Float =
     percent.coerceIn(0, 100) / 100f
 
-/** Resolve o tom semantico para um token de cor da camada de tema. */
+/**
+ * Resolve um [ProgressTone] para o token de cor da camada de tema
+ * ([MaterialTheme.colorScheme]/[AppColors]) — nunca `Color(...)` hardcoded.
+ *
+ * Fonte unica do mapeamento tom → cor de progresso: [AppProgressBar] e [CounterBadge] leem daqui,
+ * para que "Success" seja o MESMO verde na barra e no selo compacto.
+ */
 @Composable
-private fun ProgressTone.toColor(): Color = when (this) {
+fun progressToneColor(tone: ProgressTone): Color = when (tone) {
     ProgressTone.Primary -> MaterialTheme.colorScheme.primary
     ProgressTone.Success -> AppColors.current.success
     ProgressTone.Warning -> AppColors.current.warning
     ProgressTone.Error -> MaterialTheme.colorScheme.error
     ProgressTone.Info -> AppColors.current.info
 }
+
+/** Acucar interno: resolve o tom deste [ProgressTone] via [progressToneColor]. */
+@Composable
+private fun ProgressTone.toColor(): Color = progressToneColor(this)

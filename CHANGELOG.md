@@ -6,6 +6,67 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.88.0 — UI de execução de lista: `ChecklistItem`, `ProgressCounter` e `AppBanner` (jul/2026)
+
+Aditivo. Três componentes promovidos **antes** de o primeiro app implementá-los localmente (gaps
+GAP-TB-M-01/02/03 levantados pelo ux-designer no design do "Todos a Bordo"), porque são o coração
+das telas de execução e nasceriam duplicados em ≥2 apps. Todos em `ui/components`, `commonMain`,
+100% tokens de tema, zero cor hardcoded.
+
+- **`ChecklistItem`** — item de lista em que o **item inteiro** é o alvo de toque (mínimo **64dp**,
+  acima dos 48dp do Material, porque o uso é "de campo": motorista no trânsito, profissional de
+  luva). 1 toque marca, o 2º desfaz, **sem diálogo** (marcar não é ação destrutiva; o desfazer é o
+  próprio toque). Título + subtítulo, slots `leading`/`trailing`, tom por estado
+  (`checkedTone`/`uncheckedTone`). Domínio-agnóstico: serve chamada/presença, check-in de evento,
+  inventário, vistoria, portal do colaborador.
+  - **Acessibilidade (padrão-ouro):** `Modifier.toggleable` + `Role.Checkbox` (um único nó semântico
+    para o item todo) e `stateDescription` **do domínio** via `ChecklistItemTexts` — o leitor de tela
+    lê *"Ana Beatriz, Rua das Flores 123, Embarcado"*, não "caixa de seleção marcada". Retorno
+    **háptico** no toque: confirma o acerto sem exigir olhar a tela.
+  - **Estado nunca só na cor** (WCAG 1.4.1): ícone diferente **e** tom de fundo diferente. Coberto
+    por teste.
+  - **`NEUTRAL` = ausência de tom** (fundo de superfície, borda de contorno). É o que permite que só
+    os itens que significam algo chamem atenção numa lista longa — e que o MESMO componente sirva o
+    caso "pendência crítica" (`uncheckedTone = DANGER`: item vermelho até ser resolvido) sem
+    parâmetro extra.
+- **`ProgressCounter`** (+ `CounterBadge` compacto e o modelo puro `CountProgress`) — contador
+  operacional "X de Y" com barra fina e rótulo. **Deliberadamente distinto de
+  `UsageMeter`/`UsageBadge`**, que são de **billing** (`UsageSnapshot`: cota paga, fonte de verdade
+  no servidor, `-1` = ilimitado, paywall no esgotamento). Aqui não há cota nem servidor nem
+  "esgotado" — é o andamento da tarefa do dia. Misturar as semânticas faria uma tela de operação
+  herdar comportamento de cobrança.
+  - Acessível: o bloco vira **um nó** que anuncia a frase inteira ("7 de 12 embarcados") + o
+    `ProgressBarRangeInfo`, em vez de fragmentos desconexos e um percentual órfão.
+  - Bordas cobertas por teste: `total = 0` (sem divisão por zero e **sem** pintar de "completo"),
+    contagem acima do total (barra e `remaining` não estouram).
+  - Reusa `AppProgressBar` (não desenha outra barra); `progressToneColor` virou público como fonte
+    única do mapeamento tom → cor de progresso.
+- **`AppBanner`** — faixa full-width com ícone + título + mensagem, ação e dismiss opcionais: o
+  **par mobile do `Banner` da weblib**, fechando a paridade do padrão "aviso inline por tom, **erro =
+  sólido**" (memória `error-banner-solid-standard`).
+  - **`defaultBannerStyle(tone)`**: `DANGER` nasce `SOLID`, os demais `SOFT` — exatamente o default
+    da weblib desde a 0.67.0. O app força `SOLID` quando o banner **é** o resultado da tela ("Tudo
+    certo!"). `bannerLiveRegion(tone)` traduz o `role="alert"`/`role="status"` da web para
+    `LiveRegionMode.Assertive`/`Polite`.
+  - **Contraste do texto sobre fundo preenchido:** usa o par oficial do `ColorScheme` quando ele
+    existe (`error`/`onError`) e, para os tons sem par no Material (`success`/`warning`/`info`),
+    **deriva por contraste WCAG** (`ColorContrast.pickOnColor`). É o que impede um âmbar sólido de
+    receber texto branco ilegível em qualquer paleta de app — coberto por teste.
+  - **Tom = `StatusTone`** (o vocabulário que o kmplib já usa em `StatusBadge`), com a tabela de
+    equivalência à weblib documentada no KDoc (`error` ↔ `DANGER`). Dois vocabulários dentro do mesmo
+    app seria pior que a diferença de rótulo entre plataformas.
+- **`statusToneColor(tone)`** promovido a público: fonte única do mapeamento tom → token, lido por
+  `StatusBadge`, `ChecklistItem` e `AppBanner` (antes o `when` vivia privado dentro do `StatusBadge`).
+- **`SolidErrorBanner` `@Deprecated`** → `AppBanner(tone = DANGER)`. Continua funcionando (delega),
+  **mas o visual foi corrigido**: apesar do nome, ele pintava `errorContainer`/`onErrorContainer` —
+  um vermelho **claro**, justamente o que o padrão "erro = banner sólido" proíbe, e o motivo de o
+  LocaSys ter mantido uma cópia local *de verdade* sólida. Defaults passaram a `error`/`onError`.
+  Efeito visível em quem não passa cores: **Meu Barbeiro** (4 telas) — a correção é a intenção.
+- Testes: `ChecklistItemTest` (8), `ProgressCounterTest` (11), `AppBannerTest` (7) = **26**.
+- **Migração (dev-mobile):** Meu Barbeiro (4 arquivos, `SolidErrorBanner` → `AppBanner`) e LocaSys
+  (21 telas + **deletar** `core/ui/SolidErrorBanner.kt` local, que carregava o próprio pedido de
+  promoção `GAP-LS-M-BANNER-01`).
+
 ## 2.87.0 — `MonetizationConfig.FreemiumQuota`: o default do ecossistema ganha nome (jul/2026)
 
 Aditivo, retrocompatível. O `CLAUDE.md` declara "**freemium com limite de uso → paywall**" como o

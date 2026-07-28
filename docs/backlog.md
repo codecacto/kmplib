@@ -3,6 +3,48 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPS — design do produto "Todos a Bordo" (ux-designer, 28/jul/2026) — **RESOLVIDOS na 2.88.0**
+> Levantados no design de telas (`Todos a Bordo/docs/design/wireframes.md` §Gaps de lib), a partir do
+> RNF crítico do PRD: marcar embarque/desembarque deve ser **1-2 toques, sem digitação** (motorista
+> com atenção dividida na direção). Não bloqueavam o MVP (havia fallback local trivial), mas foram
+> promovidos **antes** da implementação por decisão do CTO: são o componente mais crítico do produto,
+> e deixar cada app compô-los à mão é como a duplicação nasce.
+
+- [x] **GAP-TB-M-01 — `ChecklistItem`.** **ENTREGUE na 2.88.0** (`ui/components/ChecklistItem.kt`).
+      Item inteiro como alvo (mín. 64dp), 1 toque alterna / 2º desfaz, sem diálogo, tom por estado,
+      slots `leading`/`trailing`. Detalhe no `CHANGELOG.md` 2.88.0.
+      - **Nome final: `ChecklistItem`** (só um). `CheckInRow` foi descartado como alias — dois nomes
+        públicos para o mesmo componente é superfície duplicada e leva duas telas do mesmo app a
+        parecerem componentes diferentes.
+      - **Além do pedido:** `stateDescription` do domínio (o leitor de tela lê "Embarcado", não
+        "marcado") e retorno háptico — o RNF é "atenção dividida com a direção", e confirmar o toque
+        sem olhar a tela é parte de resolver isso.
+      - `uncheckedTone = DANGER` cobre a lista "ainda a bordo" da Conferência (§4) com o MESMO
+        componente, sem parâmetro novo: `NEUTRAL` significa "sem tingimento".
+- [x] **GAP-TB-M-02 — `ProgressCounter` + `CounterBadge` + `CountProgress`.** **ENTREGUE na 2.88.0**
+      (`ui/components/ProgressCounter.kt`). Contador operacional "X de Y" + barra fina + rótulo, e a
+      versão pill para top bar. Detalhe no `CHANGELOG.md` 2.88.0.
+      - **Separação de billing mantida e explícita:** modelo próprio `CountProgress` (não
+        `UsageSnapshot`), sem "esgotado"/paywall/servidor. O KDoc diz **por que** são coisas
+        diferentes, para ninguém "unificar" isso adiante.
+      - Anúncio acessível é a frase inteira ("7 de 12 embarcados"), não o número solto.
+- [x] **GAP-TB-M-03 — `AppBanner`.** **ENTREGUE na 2.88.0** (`ui/components/AppBanner.kt`), com
+      `BannerStyle`, `defaultBannerStyle`, `bannerDefaultIcon`, `bannerLiveRegion`. Detalhe no
+      `CHANGELOG.md` 2.88.0.
+      - **Paridade com a weblib por default, não por convenção:** `DANGER` nasce `SOLID` e o resto
+        `SOFT` (igual ao `Banner` desde a 0.67.0); `role="alert"`/`status` viram
+        `LiveRegionMode.Assertive`/`Polite`. O app força `SOLID` quando o banner é o resultado da
+        tela ("Tudo certo!").
+      - **Tom reusa `StatusTone`** (vocabulário já existente no kmplib), com a tabela de equivalência
+        `error ↔ DANGER` no KDoc — em vez de um terceiro enum de tons na lib.
+      - **Achado durante a implementação (duplicação REAL, não hipotética):** o `SolidErrorBanner` da
+        kmplib pintava `errorContainer` (vermelho **claro**), violando o padrão que o próprio nome
+        anunciava — e o LocaSys mantinha uma cópia local *de verdade* sólida com um pedido de
+        promoção embutido (`GAP-LS-M-BANNER-01`). Corrigido: `SolidErrorBanner` virou delegate
+        `@Deprecated` do `AppBanner`, com defaults `error`/`onError`.
+      - **Migração pendente (dev-mobile):** Meu Barbeiro (4 arquivos) e LocaSys (21 telas + deletar a
+        cópia local).
+
 ### GAP — postura de monetização "freemium com limite de uso → paywall" (lib-mobile, 28/jul/2026)
 > Detectado no bootstrap do **TattooStudio** e aprovado pelo CTO para resolver **na lib**. O
 > `CLAUDE.md` lista esse modelo como o **default do ecossistema**, e ele não existia no

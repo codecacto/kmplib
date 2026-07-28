@@ -40,6 +40,26 @@ fun StatusBadge(
 enum class StatusTone { SUCCESS, NEUTRAL, WARNING, DANGER, INFO }
 
 /**
+ * Resolve um [StatusTone] para o **token de cor** correspondente da camada de tema
+ * ([AppColors]/[MaterialTheme.colorScheme]) — nunca `Color(...)` hardcoded.
+ *
+ * É a **fonte única** do mapeamento tom → cor do ecossistema: [StatusBadge], [ChecklistItem] e
+ * [AppBanner] leem daqui, para que "SUCCESS" seja o MESMO verde em qualquer componente e em qualquer
+ * paleta do app. Também é público para a tela que precise tingir um elemento próprio de forma coerente
+ * (ex.: um ícone ao lado de um selo).
+ *
+ * `NEUTRAL` mapeia para `onSurfaceVariant` — a "ausência de tom" (cinza do tema), não uma cor de marca.
+ */
+@Composable
+fun statusToneColor(tone: StatusTone): Color = when (tone) {
+    StatusTone.SUCCESS -> AppColors.current.success
+    StatusTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    StatusTone.WARNING -> AppColors.current.warning
+    StatusTone.DANGER -> MaterialTheme.colorScheme.error
+    StatusTone.INFO -> AppColors.current.info
+}
+
+/**
  * `StatusBadge` **semântico**: você diz o significado, a lib resolve a cor pelo tema (com o fundo em
  * 15% de opacidade, padrão dos selos do ecossistema).
  *
@@ -56,13 +76,7 @@ fun StatusBadge(
     tone: StatusTone,
     modifier: Modifier = Modifier,
 ) {
-    val color = when (tone) {
-        StatusTone.SUCCESS -> AppColors.current.success
-        StatusTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
-        StatusTone.WARNING -> AppColors.current.warning
-        StatusTone.DANGER -> MaterialTheme.colorScheme.error
-        StatusTone.INFO -> AppColors.current.info
-    }
+    val color = statusToneColor(tone)
     StatusBadge(
         text = text,
         textColor = color,
