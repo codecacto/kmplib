@@ -3,6 +3,29 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ABERTO — gaps de fundação (rodada de segurança do Influencer, 28/jul/2026 — sinalização, NÃO implementar agora)
+> Levantados durante a 4ª rodada de auditoria de segurança do Influencer (28/07/2026) — ver
+> `Influencer/STATUS.md` §Pendências, item "[28/jul] Gaps de fundação identificados na rodada de
+> segurança". Registro para quando o `lib-mobile` avaliar via `/lib-audit` ou pedido direto do
+> fundador — nenhum bloqueou a rodada (o app não usa hoje a capacidade que falta; nada foi contornado
+> às pressas no projeto). Confirmar ≥2 consumidores reais antes de implementar (regra do
+> `lib-evolution`); nenhum item abaixo tem prioridade declarada pelo fundador.
+
+- [ ] **GAP-KM-AUTH-RELOADUSER-01 — `IAuthRepository.reloadUser()` ausente.** Depois de uma mudança de
+      estado do usuário no provedor de auth (ex.: e-mail verificado em outra aba/dispositivo, claim
+      customizado sincronizado no servidor), o app não tem como forçar a releitura do usuário corrente
+      sem deslogar/logar de novo — falta na interface da lib o equivalente a `FirebaseUser.reload()`.
+      Caso apontado pela rodada: conferir `emailVerified` depois da confirmação do e-mail.
+- [ ] **GAP-KM-UI-RADIOCARD-01 — falta um cartão de opção selecionável (radio card).** Padrão de
+      seleção única entre poucas opções ricas (ícone + título + descrição, cartão inteiro clicável,
+      estado selecionado visível), hoje composto à mão com `Card` + `RadioButton` soltos em vez de um
+      componente dedicado com a a11y certa (`role="radiogroup"`/roving tabindex) — o par web já tem
+      `PermissionMatrix`/`OptionGroup` nessa linha.
+- [ ] **GAP-KM-UI-EMPTYSTATE-COMPACT-01 — falta um preset compacto do `EmptyState`.** O `EmptyState` da
+      lib é dimensionado para ocupar a tela inteira (ícone grande + título + mensagem + CTA); falta uma
+      variante compacta para caber dentro de uma seção/card menor (ex.: lista vazia dentro de uma aba,
+      não a tela toda) sem perder a estrutura ícone+título+mensagem do padrão atual.
+
 ### GAPs abertos por "Todos a Bordo" (correção de code/security review, 28/jul/2026)
 > Reportados pelo **dev-mobile** ao corrigir os bloqueantes do app do motorista (dado de menor de
 > idade). **Nada foi implementado na lib** — os três valem para todos os apps da migração REST-CRUD,
