@@ -17,6 +17,18 @@ class DensityGridTest {
         assertEquals(1, GridDensity.One.columns)
         assertEquals(2, GridDensity.Two.columns)
         assertEquals(3, GridDensity.Three.columns)
+        assertEquals(4, GridDensity.Four.columns)
+        assertEquals(5, GridDensity.Five.columns)
+    }
+
+    @Test
+    fun `gridDensityOf acha pelo numero de colunas e cai no fallback fora da faixa`() {
+        GridDensity.entries.forEach { density ->
+            assertEquals(density, gridDensityOf(density.columns))
+        }
+        assertEquals(GridDensity.Three, gridDensityOf(0))
+        assertEquals(GridDensity.Three, gridDensityOf(9))
+        assertEquals(GridDensity.One, gridDensityOf(9, fallback = GridDensity.One))
     }
 
     @Test
@@ -55,7 +67,7 @@ class DensityGridTest {
     @Test
     fun `ordem dos degraus e crescente`() {
         val columns = GridDensity.entries.map { it.columns }
-        assertEquals(listOf(1, 2, 3), columns)
+        assertEquals(listOf(1, 2, 3, 4, 5), columns)
     }
 
     // --- CommunicationTile: tom → token (todos preenchidos, nenhum usa surface) ---

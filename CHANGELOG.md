@@ -6,6 +6,26 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.96.0 — a densidade da prancha vai até 5: tablet grande não vira fita no meio (jul/2026)
+
+`GridDensity` tinha 3 degraus (1/2/3 colunas), pensados para celular. Num tablet grande isso
+obriga o app a escolher entre botão gigante e uma **faixa estreita centralizada** com meia tela de
+margem — nenhum dos dois é o que a pessoa quer ver num painel de comunicação.
+
+- **`GridDensity.Four` (4) e `GridDensity.Five` (5)**: degraus de tela grande, onde 3 colunas de
+  alvo confortável ainda deixam tela sobrando. Num celular eles valem (é escolha do usuário), mas
+  o alvo fica pequeno — cabe ao app decidir quais degraus oferecer nas configurações.
+- **`gridDensityOf(columns, fallback)`**: densidade pelo nº de colunas, com fallback para valor
+  fora da faixa. Substitui o `when (columns)` manual que cada app repetia ao ler a preferência
+  persistida — e que, ao ganhar degraus, calaria em `else` no degrau novo.
+
+`effectiveGridColumns` e o `DensityGrid` não mudaram: continuam derivando colunas da largura, com
+piso na densidade escolhida e teto em 8.
+
+**Compatibilidade:** aditivo. Um `when (density)` exaustivo sobre `GridDensity` num consumidor
+passa a exigir os dois ramos novos (erro de compilação ao subir de versão, nunca comportamento
+silencioso).
+
 ## 2.95.0 — o volume do aparelho é do usuário: amplificação da fala vira opt-in (jul/2026)
 
 `AndroidTtsController` **forçava** o volume de mídia no máximo e amplificava toda fala com um

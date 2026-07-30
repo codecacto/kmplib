@@ -19,15 +19,25 @@ import kotlin.math.floor
  *
  * - [One]: um alvo enorme por vez (máxima acessibilidade / baixa visão / motricidade reduzida).
  * - [Two]: grade de 2 colunas.
- * - [Three]: grade de 3 colunas (mais itens visíveis).
+ * - [Three]: grade de 3 colunas (mais itens visíveis) — padrão típico de celular.
+ * - [Four] / [Five]: degraus de tablet, onde 3 colunas de alvo grande ainda deixam tela sobrando.
+ *
+ * Os degraus altos existem para **tela grande**: num celular eles valem (é escolha do usuário), mas
+ * o alvo fica pequeno. Cabe ao app decidir quais degraus oferecer na tela de configurações.
  *
  * [columns] é o número de colunas correspondente — chave de layout do [DensityGrid], pura e testável.
  */
 enum class GridDensity(val columns: Int) {
     One(1),
     Two(2),
-    Three(3)
+    Three(3),
+    Four(4),
+    Five(5)
 }
+
+/** Densidade cujo [GridDensity.columns] é [columns]; fora da faixa cai em [fallback]. */
+fun gridDensityOf(columns: Int, fallback: GridDensity = GridDensity.Three): GridDensity =
+    GridDensity.entries.firstOrNull { it.columns == columns } ?: fallback
 
 /**
  * Colunas efetivas da grade dada a densidade escolhida e a largura disponível (dp).
@@ -52,7 +62,7 @@ fun effectiveGridColumns(
 }
 
 /**
- * Grade acessível de densidade variável (1/2/3 colunas), reutilizável por qualquer app do tipo
+ * Grade acessível de densidade variável (1 a 5 colunas), reutilizável por qualquer app do tipo
  * "prancha/board/launcher" acessível (CAA, atalhos, respostas rápidas).
  *
  * A densidade é a **escolha do usuário** (hoisted fora do componente, ex.: [SegmentedControl] na top
