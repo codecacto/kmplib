@@ -45,10 +45,11 @@ object TtsControllerHolder {
 /**
  * Implementação Android do [TtsController] usando `android.speech.tts.TextToSpeech`.
  *
- * **Volume/amplificação:** num app de comunicação assistiva a fala precisa ser bem audível.
- * Além de rotear pelo stream de MÍDIA no volume máximo, o caminho padrão **amplifica** a fala:
- * sintetiza para um arquivo ([TextToSpeech.synthesizeToFile]) e o toca com um [LoudnessEnhancer]
- * (ganho real de áudio, além do teto do volume). Se qualquer etapa falhar, cai no `speak` direto
+ * **Volume:** por padrão a fala **respeita o volume do aparelho** — é roteada pelo stream de MÍDIA
+ * (o param de volume do enunciado é relativo a ele), sem forçar nada. A amplificação é **opt-in**
+ * via [setVolumeBoost]: só então o controller sobe o volume de mídia ao máximo e sintetiza para um
+ * arquivo ([TextToSpeech.synthesizeToFile]) para tocar com um [LoudnessEnhancer] (ganho real de
+ * áudio, além do teto do volume). Se qualquer etapa da amplificação falhar, cai no `speak` direto
  * (fallback) — nunca fica mudo.
  *
  * Best-effort: nenhuma operação lança; voz ausente apenas não fala.
@@ -69,6 +70,8 @@ class AndroidTtsController : TtsController {
 
     private var currentRate: Float = 1f
     private var voiceGender: TtsVoiceGender = TtsVoiceGender.Female
+    /** Amplificação opt-in ([setVolumeBoost]). Desligada = respeita o volume do aparelho. */
+    private var volumeBoost = false
     private var released = false
 
     private val ready = CompletableDeferred<Boolean>()
@@ -148,8 +151,9 @@ class AndroidTtsController : TtsController {
         val engine = engine() ?: return
         val effectiveRate = resolveTtsSpeakRate(rate, currentRate)
         currentRate = effectiveRate
-        // App de acessibilidade: garante o volume de MÍDIA no máximo ao falar (sem UI).
-        maximizeMediaVolume()
+        // Só com a amplificação ligada explicitamente ([setVolumeBoost]) o app mexe no volume do
+        // aparelho. Desligada (padrão), o volume é o que o usuário definiu no device.
+        if (volumeBoost) maximizeMediaVolume()
         try {
             val locale = localeOf(langTag)
             val availability = ttsAvailabilityFromAndroidCode(engine.isLanguageAvailable(locale))
@@ -169,10 +173,11 @@ class AndroidTtsController : TtsController {
             // Roteia a fala pelo stream de MÍDIA (mais alto/previsível) em vez do stream padrão.
             engine.setAudioAttributes(mediaAudioAttributes())
 
-            // Caminho padrão: fala AMPLIFICADA (síntese + playback com LoudnessEnhancer).
-            val amplified = speakAmplified(engine, text)
+            // Caminho padrão: fala direta pelo motor, no volume do aparelho. Só com amplificação
+            // ligada ([setVolumeBoost]) usa a síntese + playback com LoudnessEnhancer (que também
+            // cai na fala direta se qualquer etapa falhar).
+            val amplified = volumeBoost && speakAmplified(engine, text)
             if (!amplified) {
-                // Fallback: fala direta pelo motor, no volume máximo do stream.
                 speakDirect(engine, text)
             }
         } catch (e: Exception) {
@@ -244,7 +249,10 @@ class AndroidTtsController : TtsController {
         }
     }
 
-    /** Fala direta pelo motor (fallback), no volume máximo do stream de mídia. */
+    /**
+     * Fala direta pelo motor. `KEY_PARAM_VOLUME = 1.0` é **relativo** ao stream de mídia: mantém a
+     * fala no topo do que o usuário permitiu, sem alterar o volume do aparelho.
+     */
     private fun speakDirect(engine: TextToSpeech, text: String) {
         val params = Bundle().apply {
             putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID)
@@ -284,6 +292,10 @@ class AndroidTtsController : TtsController {
 
     override fun setVoiceGender(gender: TtsVoiceGender) {
         voiceGender = gender
+    }
+
+    override fun setVolumeBoost(enabled: Boolean) {
+        volumeBoost = enabled
     }
 
     /**
@@ -339,9 +351,9 @@ class AndroidTtsController : TtsController {
         Locale.forLanguageTag(normalizeTtsLangTag(langTag))
 
     /**
-     * Sobe o volume do stream de MÍDIA para o máximo (best-effort, sem UI). Num app de
-     * comunicação assistiva a fala precisa ser ouvida; só o param de volume chega ao máximo
-     * RELATIVO ao volume atual do aparelho. Não faz nada se já estiver no máximo.
+     * Sobe o volume do stream de MÍDIA para o máximo (best-effort, sem UI). Chamado **apenas** com
+     * a amplificação ligada ([setVolumeBoost]) — sobrescreve o volume escolhido pelo usuário, então
+     * nunca roda no caminho padrão. Não faz nada se já estiver no máximo.
      */
     private fun maximizeMediaVolume() {
         try {

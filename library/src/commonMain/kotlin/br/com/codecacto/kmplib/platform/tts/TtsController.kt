@@ -121,6 +121,19 @@ interface TtsController {
     fun setVoiceGender(gender: TtsVoiceGender)
 
     /**
+     * Liga/desliga a **amplificação** da fala. **Desligado por padrão**: a fala sai pelo stream de
+     * mídia e o app **respeita o volume que o usuário definiu no aparelho** (inclusive mudo).
+     *
+     * Ligado (`true`), o controller passa a forçar o volume de mídia no máximo e a aplicar ganho de
+     * áudio real antes de falar — comportamento agressivo, reservado a cenários em que o app *tem*
+     * de ser ouvido e o usuário optou explicitamente por isso. Só tem efeito no Android; no iOS o
+     * volume é sempre o do sistema (a plataforma não permite forçá-lo) e a chamada é no-op.
+     *
+     * Guarda o estado e o aplica nas **próximas** falas (não afeta a fala em andamento).
+     */
+    fun setVolumeBoost(enabled: Boolean) {}
+
+    /**
      * Libera os recursos nativos do motor de TTS. Após chamar, crie outro via [createTtsController].
      * Obrigatório no `onCleared()` do ViewModel (ou use [rememberTtsController]).
      */

@@ -6,6 +6,33 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.95.0 — o volume do aparelho é do usuário: amplificação da fala vira opt-in (jul/2026)
+
+`AndroidTtsController` **forçava** o volume de mídia no máximo e amplificava toda fala com um
+`LoudnessEnhancer` (síntese em arquivo + ganho real de áudio). O comportamento nasceu para
+comunicação assistiva, mas valia para **todo** consumidor de TTS da lib: o app sobrescrevia, sem UI
+e sem pedir, o volume que a pessoa tinha escolhido no aparelho — inclusive um volume baixo
+deliberado.
+
+**Agora o padrão respeita o aparelho.** A fala continua roteada pelo stream de MÍDIA (o
+`KEY_PARAM_VOLUME = 1.0` é *relativo* a ele: fica no topo do que o usuário permitiu, sem alterar o
+volume do sistema).
+
+A amplificação continua disponível, agora **explícita**:
+
+```kotlin
+tts.setVolumeBoost(true)   // volume de mídia no máximo + LoudnessEnhancer
+```
+
+- `TtsController.setVolumeBoost(enabled: Boolean)` entra com **corpo default vazio** na interface —
+  quem implementa o contrato (fakes de teste, iOS) não precisa mexer em nada;
+- iOS é no-op: a plataforma não permite forçar o volume do sistema;
+- o fallback segue de pé — se qualquer etapa da amplificação falhar, cai na fala direta e nunca
+  fica mudo.
+
+**Mudança de comportamento (sem breaking de assinatura):** um app que dependia do volume forçado
+precisa chamar `setVolumeBoost(true)` para manter o que tinha.
+
 ## 2.94.0 — a prova da recusa, a correlação por handles e a integridade do ciclo (jul/2026)
 
 Fecha os **três achados** do code review que validou a 2.93.0 no consumidor real ("Todos a Bordo").
