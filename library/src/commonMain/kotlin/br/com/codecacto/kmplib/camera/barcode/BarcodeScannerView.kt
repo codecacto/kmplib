@@ -227,7 +227,9 @@ fun BarcodeScannerView(
             is BarcodeScannerState.InitializationFailed -> ScannerMessage(
                 icon = Icons.Outlined.NoPhotography,
                 title = null,
-                message = state.message?.takeIf { it.isNotBlank() } ?: texts.initializationFailed,
+                // A mensagem técnica do SDK ("bindToLifecycle falhou") é diagnóstico, não texto de
+                // tela: fica no `BarcodeScannerState` (via onStateChange) para log/telemetria.
+                message = texts.initializationFailed,
                 primaryLabel = texts.retry,
                 onPrimary = {
                     cameraStatus = null
