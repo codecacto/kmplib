@@ -6,6 +6,7 @@ import platform.Foundation.stringByAddingPercentEncodingWithAllowedCharacters
 import platform.Foundation.NSCharacterSet
 import platform.Foundation.URLQueryAllowedCharacterSet
 import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
 import br.com.codecacto.kmplib.core.util.AppLogger
 
 class IosUrlLauncher : UrlLauncher {
@@ -101,6 +102,11 @@ class IosUrlLauncher : UrlLauncher {
 
     override fun openSubscriptionManagement() {
         openUrl("https://apps.apple.com/account/subscriptions")
+    }
+
+    override fun openAppSettings() {
+        // A Apple só permite abrir a página do próprio app nos Ajustes (não uma sub-tela).
+        openUrl(UIApplicationOpenSettingsURLString)
     }
 
     private fun encodeUrlComponent(value: String): String {

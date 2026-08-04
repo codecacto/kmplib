@@ -21,11 +21,15 @@ package br.com.codecacto.kmplib.platform
 expect object PlatformCapabilities {
 
     /**
-     * `CameraView` com preview ao vivo + OCR de placa + captura de JPEG.
+     * Tudo que depende de **preview de câmera ao vivo**: o `CameraView` (OCR de placa + captura de
+     * JPEG) **e** o leitor de código de barras (`BarcodeScannerView`/`BarcodeCameraPreview`).
      *
      * - Android: `true` (CameraX + ML Kit).
-     * - iOS: `false` — o `actual` desenha só um placeholder estático (nunca chama o callback).
-     *   Dívida: `AVCaptureSession` + `AVCapturePhotoOutput` + Apple Vision, requer host macOS.
+     * - iOS: `false` — os `actual` de câmera **existem em código** (AVFoundation + Vision /
+     *   `AVCaptureMetadataOutput`), mas o build Kotlin/Native iOS não roda no servidor: seguem
+     *   **pendentes de compilação e validação em host macOS**. Até lá, o app não deve **vender nem
+     *   exibir** a leitura por câmera no iPhone — use `PlatformCapability.CameraCapture` +
+     *   `availableValues()`, ou `CapabilityGate`, e deixe a **digitação manual** como caminho.
      */
     val cameraCapture: Boolean
 

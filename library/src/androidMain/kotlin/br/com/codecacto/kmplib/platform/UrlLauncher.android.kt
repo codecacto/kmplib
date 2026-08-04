@@ -138,6 +138,20 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
         val packageName = context.packageName
         openUrl("https://play.google.com/store/account/subscriptions?package=$packageName")
     }
+
+    override fun openAppSettings() {
+        try {
+            val intent = Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null)
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro ao abrir as Configurações do app", e)
+        }
+    }
 }
 
 actual fun getUrlLauncher(): UrlLauncher {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+    <string name="kmplib_barcode_aim_hint">Aponte para o código de barras do produto</string>
+    <string name="kmplib_barcode_starting">A preparar a câmara…</string>
+    <string name="kmplib_barcode_permission_title">Precisamos da câmara</string>
+    <string name="kmplib_barcode_permission_message">A câmara é usada para ler o código de barras do produto.</string>
+    <string name="kmplib_barcode_permission_allow">Permitir câmara</string>
+    <string name="kmplib_barcode_permission_denied_message">O acesso à câmara está bloqueado. Autorize nas Definições do dispositivo para digitalizar.</string>
+    <string name="kmplib_barcode_open_settings">Abrir Definições</string>
+    <string name="kmplib_barcode_camera_unavailable">Câmara indisponível neste dispositivo.</string>
+    <string name="kmplib_barcode_init_failed">Não foi possível iniciar a câmara.</string>
+    <string name="kmplib_barcode_retry">Tentar novamente</string>
+    <string name="kmplib_barcode_manual_entry">Escrever o código manualmente</string>
+    <string name="kmplib_barcode_torch_on">Ligar lanterna</string>
+    <string name="kmplib_barcode_torch_off">Desligar lanterna</string>
+</resources>

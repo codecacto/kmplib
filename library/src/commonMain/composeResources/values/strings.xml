@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Base = pt-BR. Traduções em values-en / values-es / values-pt-rPT.
+
+  Estas strings seguem o IDIOMA DO DISPOSITIVO (mecanismo oficial Compose Multiplatform Resources).
+  Não há seletor de idioma no mobile — o usuário troca nas Configurações do celular.
+
+  Elas são apenas os DEFAULTS do BarcodeScannerTexts: qualquer app pode sobrescrever passando o
+  próprio objeto de textos, como no restante da lib.
+-->
+<resources>
+    <string name="kmplib_barcode_aim_hint">Aponte para o código de barras do produto</string>
+    <string name="kmplib_barcode_starting">Preparando a câmera…</string>
+    <string name="kmplib_barcode_permission_title">Precisamos da câmera</string>
+    <string name="kmplib_barcode_permission_message">A câmera é usada para ler o código de barras do produto.</string>
+    <string name="kmplib_barcode_permission_allow">Permitir câmera</string>
+    <string name="kmplib_barcode_permission_denied_message">O acesso à câmera está bloqueado. Libere nas Configurações do aparelho para escanear.</string>
+    <string name="kmplib_barcode_open_settings">Abrir Configurações</string>
+    <string name="kmplib_barcode_camera_unavailable">Câmera indisponível neste aparelho.</string>
+    <string name="kmplib_barcode_init_failed">Não foi possível iniciar a câmera.</string>
+    <string name="kmplib_barcode_retry">Tentar novamente</string>
+    <string name="kmplib_barcode_manual_entry">Digitar código manualmente</string>
+    <string name="kmplib_barcode_torch_on">Ligar lanterna</string>
+    <string name="kmplib_barcode_torch_off">Desligar lanterna</string>
+</resources>

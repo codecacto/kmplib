@@ -64,6 +64,29 @@ interface UrlLauncher {
      * Abre a página de gerenciamento de assinaturas na loja (Play Store / App Store).
      */
     fun openSubscriptionManagement()
+
+    /**
+     * Abre a tela de **Configurações do próprio app** no sistema — onde o usuário reativa uma
+     * permissão que negou em definitivo.
+     *
+     * É o único caminho de saída quando uma permissão fica em
+     * [br.com.codecacto.kmplib.platform.permission.PermissionStatus.PERMANENTLY_DENIED]: pedir de
+     * novo não abre diálogo nenhum, e sem esta ação a tela vira um beco sem saída. Usado pelo
+     * [br.com.codecacto.kmplib.platform.permission.PermissionState.openAppSettings].
+     *
+     * - **Android:** `Intent(ACTION_APPLICATION_DETAILS_SETTINGS, package:<id>)`.
+     * - **iOS:** `UIApplication.openSettingsURLString` (Apple não permite abrir uma sub-tela
+     *   específica; cai na página do app).
+     *
+     * O corpo default apenas registra um aviso — existe para não quebrar implementações de
+     * `UrlLauncher` mantidas por apps (fakes de teste). As implementações da lib sobrescrevem.
+     */
+    fun openAppSettings() {
+        br.com.codecacto.kmplib.core.util.AppLogger.w(
+            "UrlLauncher",
+            "openAppSettings() não implementado nesta implementação de UrlLauncher",
+        )
+    }
 }
 
 /**

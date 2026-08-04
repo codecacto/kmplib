@@ -6,6 +6,110 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.97.0 — leitura de código de barras: o produto entra pela câmera, não pelos 13 dígitos (ago/2026)
+
+Fecha o **GAP-CV-M-01**. O módulo `camera` só sabia ler **placa veicular** (OCR); não havia caminho
+para **código de barras**, e sem ele o app de validade de varejo que está nascendo (Controle de
+Validade) vira "um app de digitar 13 dígitos de pé na gôndola" — a digitação manual continua sendo
+requisito, mas como **saída**, não como caminho principal.
+
+### Módulo novo: `camera/barcode`
+
+- **`BarcodeScannerView`** — o componente pronto: preview + mira + lanterna + estados de permissão
+  + anti-repetição + confirmação de leitura + slot de overlay para o app. É o que a tela de
+  scanner usa.
+- **`BarcodeCameraPreview`** (`expect`/`actual`) — preview cru com detecção contínua, para quem
+  quiser compor a própria tela.
+- **`BarcodeAnalyzer`** (`expect class`) — leitura a partir de **bytes de imagem** (foto da
+  galeria), irmão do `PlateOcrAnalyzer`.
+- **`ScannedBarcode`** / **`BarcodeFormat`** / **`BarcodeFormats`** (presets `RETAIL` · `COMMON` ·
+  `ALL`) · **`Gtin`** · **`parseBarcode`** · **`parseTypedRetailBarcode`**.
+- **`BarcodeScanDebounce`/`BarcodeScanDebouncer`**, **`BarcodeScanFeedback`**,
+  **`BarcodeScannerState`/`BarcodeCameraStatus`**, **`BarcodeScannerTexts`**,
+  **`BarcodeScannerHandle`**.
+
+### Padrão-ouro, e por que cada escolha
+
+- **Android = ML Kit Barcode Scanning sobre CameraX**, com o **modelo embarcado**
+  (`com.google.mlkit:barcode-scanning`) e não a variante que baixa do Play Services: num depósito
+  ou numa loja com Wi-Fi ruim a leitura tem de funcionar no primeiro uso.
+- **iOS = `AVCaptureMetadataOutput` (AVFoundation) para o AO VIVO e `VNDetectBarcodesRequest`
+  (Vision) para IMAGEM PARADA.** A Apple decodifica códigos dentro do próprio pipeline de captura;
+  rodar um request de Vision por frame gastaria CPU e bateria à toa num app que fica com a câmera
+  aberta o turno inteiro. Vision é o caminho oficial da imagem parada — e é lá que ele é usado.
+- **Nada de ZXing, WebView ou wrapper de terceiros.**
+
+### O que a lib resolve para não ser resolvido errado em cada app
+
+- **Leitura contínua sem repetir.** A câmera reconhece o mesmo código em ~30 frames por segundo;
+  sem filtro, apontar por dois segundos cadastraria cinquenta lotes. O `BarcodeScanDebouncer` é
+  `commonMain` puro e determinístico (o tempo entra por parâmetro): supressão do **mesmo** código,
+  intervalo entre **quaisquer** duas leituras e confirmação por N leituras iguais. Um código
+  **diferente** passa em seguida **sem recriar a tela** (modo "escanear vários seguidos"), e
+  `resetDebounce()` libera reler o **mesmo** produto na hora — duas caixas com validades
+  diferentes é o caso normal do varejo.
+- **Dígito verificador conferido na fronteira.** Um GTIN parcial/borrado é **descartado** em vez de
+  virar produto errado no estoque. Inclui a expansão **UPC-E → UPC-A**, a normalização
+  `toGtin13()`/`toGtin14()` e `isProductCode` (um QR nunca vira chave de catálogo; um ITF-14 sim, e
+  só encurta para 13 dígitos se o excesso forem zeros — GTIN-14 com indicador ≠ 0 é **outro item**,
+  a caixa, e confundi-lo com a unidade seria erro de estoque).
+- **A pegadinha do UPC-A.** O iOS **não tem** UPC-A como simbologia: devolve EAN-13 com zero à
+  esquerda; o Android devolve 12 dígitos e o tipo `UPC_A`. Comparar `format` faria o mesmo produto
+  ter chaves diferentes por plataforma — `toGtin13()` iguala as duas (coberto por teste).
+- **Nunca um beco sem saída.** Permissão pendente, **negada em definitivo** (com "Abrir
+  Configurações"), aparelho sem câmera e falha de inicialização são estados nomeados, cada um com
+  sua ação e com a **digitação manual** ao lado.
+- **Feedback = vibração ligada, som desligado** (padrão da casa, igual ao `ChecklistItem`): a
+  confirmação não exige olhar a tela, e o bipe é do ambiente, não do app — quem quiser liga
+  (`BarcodeScanFeedback.FULL`).
+- **Lanterna** ligável (gôndola é escura), com o botão **escondido** quando o aparelho não tem.
+
+### i18n — os textos da lib passam a seguir o idioma do aparelho
+
+Primeira vez que a kmplib traz **strings** nos Compose Multiplatform Resources
+(`values` = pt-BR, `values-en`, `values-es`, `values-pt-rPT`). O padrão `*Texts` injetável
+continua valendo — muda que, quando o app **não** passa nada, `rememberBarcodeScannerTexts()`
+devolve os textos no idioma do dispositivo, sem seletor e sem trabalho do app.
+
+### Infra de câmera fatorada (a lib parou de duplicar dentro de si mesma)
+
+`CameraXPreview` (androidMain, interno) passou a ser a base **compartilhada** pelo OCR de placa e
+pelo leitor de código de barras. Três defeitos do `CameraView` foram corrigidos na mudança —
+valem para o MeuEstacionamento sem nenhuma alteração no app:
+
+- **`unbind` no `onDispose`**: sair da tela agora desliga a câmera. Antes o bind ficava preso ao
+  ciclo da Activity e a câmera seguia ligada (indicador do sistema aceso) em outra tela.
+- **permissão reconsultada**: a versão anterior lia a permissão **uma única vez** (`remember`) e
+  ficava presa no placeholder mesmo depois de o usuário conceder o acesso. Agora usa o
+  `rememberPermissionState`, que confere e solicita.
+- **callbacks na main thread** e `ProcessCameraProvider` fora dela (o `.get()` bloqueava a main);
+  falha de bind virou erro reportado em vez de `runCatching` mudo com tela preta.
+
+### Aditivos fora do módulo
+
+- **`platform/permission/rememberPermissionState`** + `PermissionState` + `rememberPermissionManager`
+  — o ciclo "conferir → pedir → mandar para as Configurações" num lugar só (o
+  `rememberPermissionManager` já era citado no KDoc do `PermissionManager` e não existia).
+- **`UrlLauncher.openAppSettings()`** — Android `ACTION_APPLICATION_DETAILS_SETTINGS`, iOS
+  `openSettingsURLString`. Entra com **corpo default** (loga aviso), então `UrlLauncher` mantido por
+  app segue compilando.
+- `PlatformCapabilities.cameraCapture` teve o KDoc corrigido: passa a declarar que gate **também** a
+  leitura de código de barras, e que o `false` no iOS é pendência de **validação em macOS**, não
+  stub silencioso.
+
+### Testes
+
+`BarcodeParserTest` (18), `BarcodeScanDebouncerTest` (11), `BarcodeScannerStateTest` (7) = **36
+novos**; suíte total **1.564 testes, 0 falhas**, `koverVerify` verde.
+
+**Compatibilidade:** aditivo. Nenhuma assinatura pública existente mudou de forma incompatível.
+
+**Pendente de macOS:** os `actual` iOS (`BarcodeCameraPreview.ios`, `BarcodeAnalyzer.ios`,
+`BarcodeScanFeedback.ios`, `AppleBarcodeFormats.ios`) estão escritos conforme as APIs oficiais mas
+**não compilam em Linux** — os klibs iOS saem da release no Mac do fundador.
+`PlatformCapabilities.cameraCapture` segue `false` no iOS até lá; o app **não deve vender** o
+scanner no iPhone antes dessa validação (a digitação manual cobre).
+
 ## 2.96.0 — a densidade da prancha vai até 5: tablet grande não vira fita no meio (jul/2026)
 
 `GridDensity` tinha 3 degraus (1/2/3 colunas), pensados para celular. Num tablet grande isso

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+    <string name="kmplib_barcode_aim_hint">Point the camera at the product barcode</string>
+    <string name="kmplib_barcode_starting">Getting the camera ready…</string>
+    <string name="kmplib_barcode_permission_title">We need the camera</string>
+    <string name="kmplib_barcode_permission_message">The camera is used to read the product barcode.</string>
+    <string name="kmplib_barcode_permission_allow">Allow camera</string>
+    <string name="kmplib_barcode_permission_denied_message">Camera access is blocked. Allow it in your device Settings to scan.</string>
+    <string name="kmplib_barcode_open_settings">Open Settings</string>
+    <string name="kmplib_barcode_camera_unavailable">No camera available on this device.</string>
+    <string name="kmplib_barcode_init_failed">Could not start the camera.</string>
+    <string name="kmplib_barcode_retry">Try again</string>
+    <string name="kmplib_barcode_manual_entry">Enter the code manually</string>
+    <string name="kmplib_barcode_torch_on">Turn on flashlight</string>
+    <string name="kmplib_barcode_torch_off">Turn off flashlight</string>
+</resources>

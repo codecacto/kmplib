@@ -54,6 +54,9 @@ playServicesLocation = "21.3.0"
 # Camera + OCR de placa (GAP-ME-01)
 cameraX = "1.4.2"
 mlkitTextRecognition = "16.0.1"
+# Leitura de código de barras (GAP-CV-M-01) — ML Kit Barcode Scanning com modelo EMBARCADO
+# (funciona offline no 1º uso; a variante play-services baixa o modelo sob demanda).
+mlkitBarcodeScanning = "17.3.0"
 
 # SQLDelight (sync offline-first — T1a). 2.0.x suporta Kotlin 2.x / KMP Android+iOS.
 sqldelight = "2.0.2"
@@ -143,6 +146,7 @@ androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.r
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraX" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraX" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
+mlkit-barcode-scanning = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcodeScanning" }
 
 # SQLDelight (sync offline-first — T1a)
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }

@@ -26,6 +26,37 @@
       variante compacta para caber dentro de uma seção/card menor (ex.: lista vazia dentro de uma aba,
       não a tela toda) sem perder a estrutura ícone+título+mensagem do padrão atual.
 
+### ENTREGUE — GAP-CV-M-01: leitor de código de barras (EAN) — módulo `camera/barcode` (04/ago/2026)
+> Levantado pelo ux-designer no design de telas do projeto novo **Controle de Validade**
+> (`5-Apps-Online-Freemium-Cota/ControleDeValidade`, app B2B de controle de validade de varejo). Ver
+> `ControleDeValidade/docs/design/wireframes.md` §"Gap de lib" e §"Scanner de código de barras".
+
+- [x] **GAP-CV-M-01 — `BarcodeScannerView`/analyzer para leitura de código de barras (EAN).**
+      **ENTREGUE na 2.97.0** — módulo novo `camera/barcode`. Detalhe no `CHANGELOG.md` 2.97.0 e na
+      skill `kmplib-catalog` §`camera/barcode`.
+      - **Entregue:** `BarcodeScannerView` (componente pronto: preview + mira + lanterna + estados de
+        permissão + anti-repetição + feedback + slot de overlay), `BarcodeCameraPreview`
+        (expect/actual, preview cru), `BarcodeAnalyzer` (imagem parada), `ScannedBarcode`/
+        `BarcodeFormat`/`BarcodeFormats`, `Gtin` (verificador + expansão UPC-E), `parseBarcode`,
+        `parseTypedRetailBarcode` (entrada manual), `BarcodeScanDebounce`/`BarcodeScanDebouncer`,
+        `BarcodeScanFeedback`, `BarcodeScannerState`/`BarcodeCameraStatus`, `BarcodeScannerTexts`
+        (i18n em 4 idiomas via Compose Resources, idioma do aparelho), `BarcodeScannerHandle`.
+      - **Padrão-ouro:** Android **ML Kit Barcode Scanning** (modelo embarcado) sobre **CameraX**;
+        iOS **`AVCaptureMetadataOutput`** ao vivo + **Vision `VNDetectBarcodesRequest`** em imagem
+        parada. Sem ZXing/WebView/wrapper.
+      - **Nome:** o componente pronto ficou com o nome que o design já usava (`BarcodeScannerView`);
+        o preview cru chama-se `BarcodeCameraPreview` (a proposta original tinha um nome só).
+      - **Fora do escopo original, entregue junto:** infra Android de câmera fatorada
+        (`CameraXPreview`, compartilhada com o OCR de placa) + 3 defeitos do `CameraView` corrigidos
+        (sem `unbind` ao sair, permissão lida uma única vez, callback fora da main / provider
+        bloqueando a main); `rememberPermissionState`/`rememberPermissionManager`;
+        `UrlLauncher.openAppSettings()`.
+      - **Pendência de macOS:** os `actual` iOS não compilam em Linux;
+        `PlatformCapabilities.cameraCapture` continua `false` no iOS e agora gate também o scanner —
+        o app **não vende** a leitura por câmera no iPhone até a validação no Mac (a digitação manual
+        cobre, RF5).
+      - **Migração:** nenhuma. Mudança aditiva; consumidores apenas bumpam quando quiserem.
+
 ### GAPs abertos por "Todos a Bordo" (correção de code/security review, 28/jul/2026)
 > Reportados pelo **dev-mobile** ao corrigir os bloqueantes do app do motorista (dado de menor de
 > idade). **Nada foi implementado na lib** — os três valem para todos os apps da migração REST-CRUD,

@@ -1,15 +1,9 @@
 package br.com.codecacto.kmplib.camera
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,23 +17,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import br.com.codecacto.kmplib.platform.permission.AppPermission
+import br.com.codecacto.kmplib.platform.permission.rememberPermissionState
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 /**
@@ -90,15 +84,16 @@ actual fun CameraView(
 /**
  * Pipeline compartilhado de câmera + OCR.
  *
- * Monta `PreviewView` + `ImageAnalysis` (ML Kit) e, quando [onPhoto] != null,
- * também `ImageCapture`. Ao extrair uma placa válida via [extractPlate]
- * (respeitando o throttle de [CAPTURE_THROTTLE_MS]):
+ * Monta o preview + análise via [CameraXPreview] (infra comum do módulo `camera`, dividida com o
+ * leitor de código de barras) e, quando [onPhoto] != null, também `ImageCapture`. Ao extrair uma
+ * placa válida via [extractPlate] (respeitando o throttle de [CAPTURE_THROTTLE_MS]):
  * - dispara [onPlate] com a placa; e
  * - se [onPhoto] != null, aciona `ImageCapture.takePicture`, converte o
  *   resultado em JPEG upright ([imageProxyToUprightJpeg]) e dispara [onPhoto].
  *
- * Se a permissão de câmera não estiver concedida, exibe um placeholder claro
- * (o app consumidor é responsável por solicitar `CAMERA`).
+ * Permissão: usa o [rememberPermissionState] da lib. Diferente da versão anterior — que lia a
+ * permissão **uma única vez** e ficava presa no placeholder mesmo depois de o usuário conceder o
+ * acesso — o estado é reconsultado e a permissão é solicitada quando ainda não foi.
  */
 @Composable
 private fun CameraViewImpl(
@@ -106,19 +101,12 @@ private fun CameraViewImpl(
     onPlate: (String) -> Unit,
     onPhoto: ((String, ByteArray) -> Unit)?
 ) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnPlate by rememberUpdatedState(onPlate)
     val currentOnPhoto by rememberUpdatedState(onPhoto)
+    val permission = rememberPermissionState(AppPermission.CAMERA)
+    val mainScope = rememberCoroutineScope()
 
-    val hasPermission = remember {
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    if (!hasPermission) {
+    if (!permission.isGranted) {
         CameraPlaceholder(
             modifier = modifier,
             message = "Permissão de câmera necessária para ler a placa."
@@ -126,8 +114,6 @@ private fun CameraViewImpl(
         return
     }
 
-    val previewView = remember { PreviewView(context) }
-    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val captureExecutor = remember { Executors.newSingleThreadExecutor() }
     val recognizer = remember {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -145,24 +131,13 @@ private fun CameraViewImpl(
 
     DisposableEffect(Unit) {
         onDispose {
-            analysisExecutor.shutdown()
             captureExecutor.shutdown()
             recognizer.close()
         }
     }
 
-    LaunchedEffect(imageCapture) {
-        val cameraProvider = ProcessCameraProvider.getInstance(context).get()
-
-        val preview = Preview.Builder().build().also {
-            it.surfaceProvider = previewView.surfaceProvider
-        }
-
-        val analysis = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .build()
-
-        analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+    val analyzer = remember(recognizer, imageCapture) {
+        ImageAnalysis.Analyzer { imageProxy ->
             processFrame(
                 imageProxy = imageProxy,
                 recognizer = recognizer,
@@ -171,36 +146,26 @@ private fun CameraViewImpl(
                 },
                 onPlate = { plate ->
                     lastCaptureTime = System.currentTimeMillis()
-                    currentOnPlate(plate)
+                    // A análise roda em thread de fundo; o callback público vai para a main.
+                    mainScope.launch(Dispatchers.Main) { currentOnPlate(plate) }
                     val capture = imageCapture
                     val photoCallback = currentOnPhoto
                     if (capture != null && photoCallback != null) {
                         capturePhoto(capture, captureExecutor) { jpeg ->
-                            if (jpeg != null) photoCallback(plate, jpeg)
+                            if (jpeg != null) {
+                                mainScope.launch(Dispatchers.Main) { photoCallback(plate, jpeg) }
+                            }
                         }
                     }
                 }
             )
         }
-
-        runCatching {
-            cameraProvider.unbindAll()
-            val useCases = buildList {
-                add(preview)
-                add(analysis)
-                imageCapture?.let { add(it) }
-            }.toTypedArray()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                CameraSelector.DEFAULT_BACK_CAMERA,
-                *useCases
-            )
-        }
     }
 
-    AndroidView(
-        factory = { previewView },
-        modifier = modifier
+    CameraXPreview(
+        modifier = modifier,
+        analyzer = analyzer,
+        imageCapture = imageCapture,
     )
 }
 

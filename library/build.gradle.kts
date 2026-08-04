@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.96.0"
+version = "2.97.0"
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)
@@ -267,6 +267,10 @@ kotlin {
             implementation(libs.androidx.camera.lifecycle)
             implementation(libs.androidx.camera.view)
             implementation(libs.mlkit.text.recognition)
+
+            // Leitura de código de barras (GAP-CV-M-01) — ML Kit Barcode Scanning sobre a MESMA
+            // base CameraX (CameraXPreview). Modelo embarcado: funciona offline no primeiro uso.
+            implementation(libs.mlkit.barcode.scanning)
 
             // SQLDelight driver Android (sync — T1a)
             implementation(libs.sqldelight.driver.android)
