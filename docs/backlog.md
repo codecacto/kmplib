@@ -3204,3 +3204,26 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       (ui/mvi), e componentes `SkeletonBox`, `AppDatePicker`, `AppBottomSheet`, `AppMultiSelect`
       (ui/components). Cobertura nova: testes de máscara (CPF/CNPJ/telefone), `PaginatedResponse`,
       `UiResource`.
+
+- [x] **2.98.0 — login social no own-auth (Onda 0 do Crédito na Mão, Gap (a))**
+      `POST {authBasePath}/social` + `GET {authBasePath}/social/nonce` no `OwnAuthApi`;
+      `EmailPasswordAuthRepository.signInWithGoogle/Apple` deixaram de lançar `unsupported(...)`;
+      novo `OwnAuthSocialService` (`socialNonce` + `signInWithSocial`), `SocialProvider`,
+      `SocialNonce`; `OwnAuthSession.providerId` (a origem do login sobrevive ao refresh e ao
+      restore). Providers movidos de `firebase.auth` para **`auth.social`** com `typealias
+      @Deprecated`. `GoogleSignInBridge` (iOS) tira o Google do stub. Nonce SEMPRE do servidor.
+      28 testes novos; suíte 1592/0.
+- [ ] **GAP-KL-M-SOCIAL-IOS-VALIDATE — validar o `GoogleSignInBridge` em host macOS.**
+      O `actual` iOS do `GoogleAuthProvider` e o bridge foram escritos conforme o SDK oficial
+      GoogleSignIn-iOS (SPM) mas **não compilam em Linux**. Pendente: compilar os alvos iOS no Mac
+      do fundador, plugar o `setSignInStarter` num app real e validar o fluxo ponta a ponta
+      (requer os 3 client IDs do Google Cloud, que também são pré-requisito do fundador).
+- [ ] **GAP-KL-M-SOCIAL-DUPLIC — dois `GoogleSignInResult`/`AppleSignInResult` na lib.**
+      Existe o par de `auth.social` (campos nulos, resultado do provider nativo) e o par de
+      `ui.screens.login.LoginContract` (campos não-nulos, contrato da tela). Unificar hoje mudaria a
+      nulidade de um campo público de tela — source-breaking em quem consome `LoginScreen`. Candidato
+      a resolver numa major, quando houver plano de migração; até lá, os KDoc apontam um para o outro.
+- [ ] **GAP-KL-M-SOCIAL-APPLE-ANDROID — Sign in with Apple no Android: NÃO fazer (decisão registrada).**
+      Sem SDK oficial da Apple; só o fluxo web (Custom Tabs + Services ID + domínio verificado + deep
+      link), que traz superfície de ataque própria para um caso que nenhum app do portfólio tem. Fica
+      o erro explícito. Reabrir só se um produto exigir nominalmente.

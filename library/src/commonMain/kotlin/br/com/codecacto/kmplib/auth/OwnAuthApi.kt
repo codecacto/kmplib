@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.auth
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -12,7 +13,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Cliente REST **puro/sem estado** dos 6 endpoints da autenticação própria. Ktor core puro (SEM
+ * Cliente REST **puro/sem estado** dos 8 endpoints da autenticação própria (6 de senha + 2 sociais). Ktor core puro (SEM
  * `ContentNegotiation`) + kotlinx-json manual, mesmo padrão de `DomainApiClient`/`RestSyncPort`.
  *
  * Traduz status HTTP em [OwnAuthException] tipada (para o [OwnAuthTokenManager] distinguir 4xx de
@@ -35,6 +36,49 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
 
     suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
         postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
+
+    /**
+     * `GET {authBasePath}/social/nonce` — pede ao **servidor** o nonce de uso único que será
+     * embutido no `idToken` do provedor social.
+     *
+     * O nonce **nunca** é gerado no aparelho: ele só prova alguma coisa se quem verifica for quem
+     * emitiu. Ver [SocialNonce].
+     */
+    suspend fun socialNonce(): Result<SocialNonce> =
+        executeGet(config.socialNonceSuffix).mapCatching { response ->
+            json.decodeFromString(SocialNonce.serializer(), response.bodyAsText())
+        }
+
+    /**
+     * `POST {authBasePath}/social` — troca o `idToken` do provedor pelo par de tokens **próprio**,
+     * no MESMO shape de `login`/`register`/`refresh` (`{accessToken, refreshToken,
+     * expiresInSeconds}` na raiz).
+     *
+     * @param idToken o JWT do provedor. **Nunca** um access token do Google: ele não prova
+     *   identidade e o backend o recusa (ver `GoogleSignInResult`).
+     * @param nonce o valor **cru** emitido por [socialNonce] (a Apple recebeu o SHA-256 dele; o
+     *   servidor refaz o hash e compara).
+     * @param name/@param email só têm efeito na **criação** da identidade — a Apple só entrega
+     *   nome/e-mail na primeira autorização, e em login subsequente o servidor os ignora.
+     */
+    suspend fun social(
+        provider: SocialProvider,
+        idToken: String,
+        nonce: String,
+        name: String? = null,
+        email: String? = null,
+    ): Result<OwnAuthTokens> = postForTokens(
+        config.socialSuffix,
+        json.encodeToString(
+            SocialBody(
+                provider = provider.wire,
+                idToken = idToken,
+                nonce = nonce,
+                name = name?.trim()?.takeIf { it.isNotEmpty() },
+                email = email?.trim()?.takeIf { it.isNotEmpty() },
+            )
+        ),
+    )
 
     /** `logout` revoga a família do refresh. Best-effort e idempotente (204). */
     suspend fun logout(refreshToken: String): Result<Unit> =
@@ -59,14 +103,26 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     private suspend fun postForUnit(suffix: String, body: String): Result<Unit> =
         execute(suffix, body).map { }
 
-    private suspend fun execute(suffix: String, body: String): Result<HttpResponse> {
-        val url = config.url(suffix)
-        if (config.diagnostics) AppLogger.d(TAG, "→ POST $url")
-        val response = try {
-            client.post(url) {
+    private suspend fun execute(suffix: String, body: String): Result<HttpResponse> =
+        send(suffix, "POST") {
+            client.post(config.url(suffix)) {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
+        }
+
+    private suspend fun executeGet(suffix: String): Result<HttpResponse> =
+        send(suffix, "GET") { client.get(config.url(suffix)) }
+
+    private suspend fun send(
+        suffix: String,
+        verb: String,
+        call: suspend () -> HttpResponse,
+    ): Result<HttpResponse> {
+        val url = config.url(suffix)
+        if (config.diagnostics) AppLogger.d(TAG, "→ $verb $url")
+        val response = try {
+            call()
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha de transporte em $suffix: ${e.message}")
             return Result.failure(OwnAuthException.Network(texts.network))
@@ -109,7 +165,24 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
     }
 
-    private fun mapStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
+    private fun mapStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException {
+        // Social tem um vocabulário de recusa próprio: nonce vencido/reusado, `aud` inesperado,
+        // `email_verified=false`, assinatura inválida. Todos significam a mesma coisa para a tela —
+        // "esta prova de identidade não serve" —, e a mensagem do servidor é a única que diz qual
+        // dos casos foi (por isso ela tem prioridade, ao contrário do 401 de senha, que é genérico
+        // de propósito para não revelar se o e-mail existe).
+        if (suffix.startsWith(config.socialSuffix)) {
+            return when (status) {
+                400, 401, 403, 422 ->
+                    OwnAuthException.InvalidCredentials(serverMessage ?: texts.socialRejected)
+                429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
+                else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+            }
+        }
+        return mapPasswordStatus(suffix, status, serverMessage)
+    }
+
+    private fun mapPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
         // Credencial inválida mantém o texto local DE PROPÓSITO: o servidor responde genérico para não
         // revelar se o e-mail existe, e repassar a mensagem dele não acrescentaria nada.
         401, 403 -> OwnAuthException.InvalidCredentials(texts.invalidCredentials)

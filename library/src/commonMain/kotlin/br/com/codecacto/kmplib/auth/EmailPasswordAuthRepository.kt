@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.map
  * Firebase). É **aditiva**: um `IAuthRepository` a mais ao lado do `AuthRepository` (Firebase); o app
  * escolhe qual bindar no Koin (ver [AuthProvider]/[ownAuth]). Nenhum app Firebase é afetado.
  *
- * Também implementa [OwnAuthService] (registro com termos + reset por token do convite).
+ * Também implementa [OwnAuthService] (registro com termos + reset por token do convite) e
+ * [OwnAuthSocialService] (Google/Apple via `POST /auth/social`, desde a 2.98.0).
  *
  * ### currentUser a partir do `sub`
  * O JWT próprio carrega só `sub` (id da conta) e o backend não expõe `GET /me`. O [User] é remontado
@@ -19,16 +20,20 @@ import kotlinx.coroutines.flow.map
  * login/registro, `providerId = "password"`. Não inventamos endpoint de perfil.
  *
  * ### Operações não suportadas pelo backend (falham explicitamente, nunca em silêncio)
- * `signInWithGoogle`/`signInWithApple`/`updateProfile`/`changePassword`/`deleteAccount`/
- * `sendEmailVerification` não têm endpoint no contrato own-auth atual → `Result.failure(
- * AuthException.UnknownError)`. `signUpWithEmail` também falha de propósito: registre por
- * [OwnAuthService.register] (que exige `acceptedTerms`).
+ * `updateProfile`/`changePassword`/`deleteAccount`/`sendEmailVerification` não têm endpoint no
+ * contrato own-auth atual → `Result.failure(AuthException.UnknownError)`. `signUpWithEmail` também
+ * falha de propósito: registre por [OwnAuthService.register] (que exige `acceptedTerms`).
+ *
+ * ### Login social (2.98.0)
+ * `signInWithGoogle`/`signInWithApple` **deixaram de falhar** — agora falam com `POST
+ * {authBasePath}/social`. A API pública não mudou; mudou o corpo. Ver [OwnAuthSocialService] para o
+ * fluxo completo (nonce do servidor → provider nativo → troca).
  */
 class EmailPasswordAuthRepository(
     private val api: OwnAuthApi,
     private val tokenManager: OwnAuthTokenManager,
     private val texts: OwnAuthTexts = OwnAuthTexts(),
-) : IAuthRepository, OwnAuthService {
+) : IAuthRepository, OwnAuthService, OwnAuthSocialService {
 
     override val currentUser: Flow<User?> = tokenManager.session.map { it?.toUser() }
 
@@ -74,16 +79,68 @@ class EmailPasswordAuthRepository(
     override suspend fun sendPasswordResetEmail(email: String): Result<Unit> =
         requestPasswordReset(email)
 
+    // ---- OwnAuthSocialService (login social) -----------------------------
+
+    /**
+     * Nonce "em voo": o último emitido por [socialNonce] e ainda não consumido.
+     *
+     * Existe porque a assinatura `signInWithGoogle(idToken, accessToken)` — herdada do contrato
+     * Firebase, e que os apps já consomem — **não tem campo para o nonce**, enquanto no fluxo Google
+     * o nonce vai embutido *dentro* do `idToken` e o servidor precisa saber contra qual valor
+     * comparar. Guardar o valor aqui é o que permite implementar social sem quebrar a API pública.
+     * Quem controla o fluxo por completo deve usar [signInWithSocial], que recebe o nonce explícito.
+     */
+    private var pendingNonce: String? = null
+
+    override suspend fun socialNonce(): Result<SocialNonce> =
+        api.socialNonce()
+            .onSuccess { pendingNonce = it.nonce.takeIf { n -> n.isNotBlank() } }
+            .mapAuthError()
+
+    override suspend fun signInWithSocial(
+        provider: SocialProvider,
+        idToken: String,
+        nonce: String,
+        name: String?,
+        email: String?,
+    ): Result<User> = api.social(provider, idToken, nonce, name, email)
+        .onSuccess {
+            // O nonce é de uso único no servidor; consumi-lo aqui impede que uma segunda tentativa
+            // reaproveite, em silêncio, um valor que já foi gasto.
+            pendingNonce = null
+        }
+        .mapAndAdopt(
+            email = email.orEmpty(),
+            name = name.orEmpty(),
+            providerId = provider.userProviderId,
+        )
+
+    /**
+     * Login com Google. **O parâmetro [accessToken] é IGNORADO de propósito** — access token não é
+     * prova de identidade (qualquer app obtém um para o próprio projeto e o apresenta a um servidor
+     * terceiro); só o `idToken` viaja para o backend.
+     *
+     * Usa o nonce emitido por [socialNonce]; sem ele, **falha explícito** em vez de inventar um
+     * valor que o servidor recusaria com uma mensagem enganosa de credencial inválida.
+     */
+    override suspend fun signInWithGoogle(idToken: String, accessToken: String?): Result<User> {
+        val nonce = pendingNonce
+            ?: return Result.failure(AuthException.UnknownError(texts.socialNonceMissing))
+        return signInWithSocial(SocialProvider.GOOGLE, idToken, nonce)
+    }
+
+    /**
+     * Login com Apple. O [nonce] é o valor **cru** devolvido por `AppleAuthProvider.signIn(nonce)`
+     * (a Apple recebeu o SHA-256 dele) e deve ter saído de [socialNonce] — o servidor recusa nonce
+     * que ele não emitiu.
+     */
+    override suspend fun signInWithApple(idToken: String, nonce: String): Result<User> =
+        signInWithSocial(SocialProvider.APPLE, idToken, nonce)
+
     // ---- Não suportadas pelo backend own-auth ----------------------------
 
     override suspend fun signUpWithEmail(email: String, password: String, displayName: String?): Result<User> =
         unsupported("Cadastro own-auth exige aceite de termos — use OwnAuthService.register(...).")
-
-    override suspend fun signInWithGoogle(idToken: String, accessToken: String?): Result<User> =
-        unsupported("Login com Google não disponível na autenticação por e-mail e senha.")
-
-    override suspend fun signInWithApple(idToken: String, nonce: String): Result<User> =
-        unsupported("Login com Apple não disponível na autenticação por e-mail e senha.")
 
     override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> =
         Result.failure(AuthException.UnknownError(texts.unsupported))
@@ -99,11 +156,17 @@ class EmailPasswordAuthRepository(
 
     // ---- Helpers ---------------------------------------------------------
 
-    private suspend fun Result<OwnAuthTokens>.mapAndAdopt(email: String, name: String = ""): Result<User> =
+    private suspend fun Result<OwnAuthTokens>.mapAndAdopt(
+        email: String,
+        name: String = "",
+        providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+    ): Result<User> =
         fold(
             onSuccess = { tokens ->
-                tokenManager.adopt(tokens, email = email, name = name)
-                Result.success(tokenManager.session.value?.toUser() ?: fallbackUser(email, name))
+                tokenManager.adopt(tokens, email = email, name = name, providerId = providerId)
+                Result.success(
+                    tokenManager.session.value?.toUser() ?: fallbackUser(email, name, providerId)
+                )
             },
             onFailure = { Result.failure(it.toAuthException()) },
         )
@@ -114,8 +177,11 @@ class EmailPasswordAuthRepository(
     private fun <T> unsupported(message: String): Result<T> =
         Result.failure(AuthException.UnknownError(message))
 
-    private fun fallbackUser(email: String, name: String) =
-        User(id = "", email = email, displayName = name.ifBlank { null })
+    private fun fallbackUser(
+        email: String,
+        name: String,
+        providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+    ) = User(id = "", email = email, displayName = name.ifBlank { null }, providerId = providerId)
 
     private fun OwnAuthSession.toUser(): User = User(
         id = accountId,
@@ -123,7 +189,9 @@ class EmailPasswordAuthRepository(
         displayName = name.ifBlank { null },
         photoUrl = null,
         isEmailVerified = false,
-        providerId = "password",
+        // A ORIGEM do login vem da sessão, não é mais fixa em "password" — é o que faz
+        // `user.isGoogleProvider`/`isAppleProvider` responderem a verdade no own-auth.
+        providerId = providerId,
     )
 
     /** Converte a [OwnAuthException] tipada para a [AuthException] canônica que os apps já tratam. */

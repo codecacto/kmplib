@@ -2,7 +2,7 @@ package br.com.codecacto.kmplib
 
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
-import br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder
+import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder

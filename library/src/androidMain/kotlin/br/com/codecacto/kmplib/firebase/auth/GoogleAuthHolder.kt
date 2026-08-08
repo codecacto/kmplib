@@ -1,32 +1,14 @@
 package br.com.codecacto.kmplib.firebase.auth
 
-import android.app.Activity
-import android.content.Context
-import java.lang.ref.WeakReference
-
 /**
- * Holder para o contexto do Android necessário para Google Sign-In.
- *
- * Inicializado automaticamente via [KmpLib.init] e [KmpLib.setActivity].
- * O CredentialManager requer Activity context para exibir o seletor de contas.
+ * Alias de compatibilidade — o holder mudou para `br.com.codecacto.kmplib.auth.social` na 2.98.0,
+ * junto do `GoogleAuthProvider` (que nunca dependeu de Firebase).
  */
-object GoogleAuthHolder {
-    private var contextRef: WeakReference<Context>? = null
-    private var activityRef: WeakReference<Activity>? = null
-
-    fun init(context: Context) {
-        contextRef = WeakReference(context.applicationContext)
-    }
-
-    fun setActivity(activity: Activity) {
-        activityRef = WeakReference(activity)
-    }
-
-    fun clearActivity() {
-        activityRef = null
-    }
-
-    internal fun getActivity(): Activity? = activityRef?.get()
-
-    internal fun getContext(): Context? = activityRef?.get() ?: contextRef?.get()
-}
+@Deprecated(
+    message = "Movido para br.com.codecacto.kmplib.auth.social.",
+    replaceWith = ReplaceWith(
+        "GoogleAuthHolder",
+        "br.com.codecacto.kmplib.auth.social.GoogleAuthHolder",
+    ),
+)
+typealias GoogleAuthHolder = br.com.codecacto.kmplib.auth.social.GoogleAuthHolder

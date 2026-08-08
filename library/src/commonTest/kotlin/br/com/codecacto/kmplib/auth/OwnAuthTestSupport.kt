@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.network.DefaultHttpClientJson
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -7,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
 
 /** Cofre seguro em memória para testes (o real usa EncryptedSharedPreferences/Keychain). */
 class FakeSecureTokenStorage : SecureTokenStorage {
@@ -32,6 +34,22 @@ fun mockOwnAuthApi(
     authBasePath: String = "/v1/staff/auth",
     responder: (path: String, attempt: Int) -> Pair<HttpStatusCode, String>,
 ): Pair<OwnAuthApi, MutableList<CapturedRequest>> {
+    val config = OwnAuthConfig(
+        mockHttpClient(captured, responder),
+        baseUrl = baseUrl,
+        authBasePath = authBasePath,
+    )
+    return OwnAuthApi(config) to captured
+}
+
+/**
+ * `HttpClient` sobre MockEngine que captura cada requisição em [captured] e responde pelo
+ * [responder] (path final + nº da tentativa → status + corpo JSON).
+ */
+fun mockHttpClient(
+    captured: MutableList<CapturedRequest> = mutableListOf(),
+    responder: (path: String, attempt: Int) -> Pair<HttpStatusCode, String>,
+): HttpClient {
     var attempt = 0
     val engine = MockEngine { request ->
         attempt++
@@ -40,9 +58,11 @@ fun mockOwnAuthApi(
         val (status, body) = responder(request.url.encodedPath, attempt)
         respond(content = body, status = status, headers = headersOf("Content-Type", "application/json"))
     }
-    val config = OwnAuthConfig(HttpClient(engine), baseUrl = baseUrl, authBasePath = authBasePath)
-    return OwnAuthApi(config) to captured
+    return HttpClient(engine)
 }
+
+/** Mesmo [Json] tolerante que a config own-auth usa — para assertar (de)serialização nos testes. */
+val ownAuthTestJson: Json = DefaultHttpClientJson
 
 private const val B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 

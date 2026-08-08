@@ -18,6 +18,7 @@ package br.com.codecacto.kmplib.auth
  *         single { ownAuth(OwnAuthConfig(httpClient = get(), baseUrl = API_BASE, authBasePath = "/v1/staff/auth")) }
  *         single<IAuthRepository> { get<OwnAuth>().repository }
  *         single<OwnAuthService> { get<OwnAuth>().service }
+ *         single<OwnAuthSocialService> { get<OwnAuth>().social }   // se o backend tem /auth/social
  *     }
  * }
  * ```
@@ -41,6 +42,12 @@ class OwnAuth internal constructor(
 
     /** O serviço de registro + reset (bindar [OwnAuthService] no Koin, mesma instância). */
     val service: OwnAuthService get() = repositoryImpl
+
+    /**
+     * O login social Google/Apple (bindar [OwnAuthSocialService] no Koin, mesma instância).
+     * Só faz sentido quando o backend expõe `POST {authBasePath}/social`.
+     */
+    val social: OwnAuthSocialService get() = repositoryImpl
 
     /** Lê o cofre e semeia a sessão em memória. Chamar uma vez no start do app. */
     suspend fun restore(): OwnAuthSession? = tokenManager.restore()

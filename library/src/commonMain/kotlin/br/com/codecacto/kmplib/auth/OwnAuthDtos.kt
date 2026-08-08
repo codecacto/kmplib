@@ -18,6 +18,42 @@ data class OwnAuthTokens(
     val tokenType: String = "Bearer",
 )
 
+/**
+ * Nonce de uso único emitido pelo **servidor** (`GET {authBasePath}/social/nonce`), a ser embutido
+ * no `idToken` do provedor social.
+ *
+ * **Por que vem do servidor:** o nonce existe para amarrar *aquele* `idToken` a *aquela* requisição
+ * de login. Um nonce escolhido pelo próprio aparelho não amarra nada — quem obtiver um `idToken`
+ * válido (log, proxy, app malicioso no mesmo dispositivo) o reapresenta escolhendo o mesmo valor. Só
+ * o emissor que também verifica pode declarar "este token foi feito para esta sessão".
+ *
+ * @property expiresInSeconds validade informada pelo servidor (o backend do ecossistema usa 5 min).
+ *   É informativo: quem invalida é o servidor, o cliente não decide expiração.
+ */
+@Serializable
+data class SocialNonce(
+    val nonce: String,
+    val expiresInSeconds: Long = 0,
+)
+
+/**
+ * Corpo de `POST {authBasePath}/social`.
+ *
+ * **`accessToken` do Google NÃO existe aqui, de propósito** — ele não é prova de identidade
+ * (ver `GoogleSignInResult`). Só o `idToken` viaja.
+ *
+ * `name`/`email` são aceitos pelo servidor **apenas na criação** da identidade (a Apple só entrega
+ * nome/e-mail na primeira autorização); em login subsequente o servidor os ignora.
+ */
+@Serializable
+internal data class SocialBody(
+    val provider: String,
+    val idToken: String,
+    val nonce: String,
+    val name: String? = null,
+    val email: String? = null,
+)
+
 @Serializable
 internal data class RegisterBody(
     val name: String,

@@ -35,6 +35,8 @@ class OwnAuthConfig(
     val json: Json = DefaultHttpClientJson,
     val texts: OwnAuthTexts = OwnAuthTexts(),
     val diagnostics: Boolean = false,
+    socialSuffix: String = DEFAULT_SOCIAL_SUFFIX,
+    socialNonceSuffix: String = DEFAULT_SOCIAL_NONCE_SUFFIX,
 ) {
     /** Base normalizada (sem barra final). */
     val baseUrl: String = baseUrl.trimEnd('/')
@@ -42,11 +44,31 @@ class OwnAuthConfig(
     /** Prefixo de auth normalizado (com barra inicial, sem barra final). */
     val authBasePath: String = "/" + authBasePath.trim('/')
 
+    /** Sufixo de `POST .../social` (login social). Normalizado sem barras nas pontas. */
+    val socialSuffix: String = socialSuffix.trim('/')
+
+    /** Sufixo de `GET .../social/nonce` (emissão do nonce). Normalizado sem barras nas pontas. */
+    val socialNonceSuffix: String = socialNonceSuffix.trim('/')
+
+    init {
+        // Sufixo em branco casaria com TODA rota no roteamento de erro (`"login".startsWith("")`),
+        // e o 401 genérico do login por senha passaria a vazar a mensagem do servidor sob a regra do
+        // social. Falha alto na construção, que é onde o erro é do programador e não do usuário.
+        require(this.socialSuffix.isNotBlank()) { "socialSuffix não pode ser vazio" }
+        require(this.socialNonceSuffix.isNotBlank()) { "socialNonceSuffix não pode ser vazio" }
+    }
+
     internal fun url(suffix: String): String = baseUrl + authBasePath + "/" + suffix.trimStart('/')
 
     companion object {
         const val DEFAULT_AUTH_BASE_PATH: String = "/v1/staff/auth"
         const val DEFAULT_REFRESH_SKEW_SECONDS: Long = 60
+
+        /** `POST {authBasePath}/social` — troca o `idToken` do provedor pelo par de tokens próprio. */
+        const val DEFAULT_SOCIAL_SUFFIX: String = "social"
+
+        /** `GET {authBasePath}/social/nonce` — nonce de uso único emitido pelo servidor. */
+        const val DEFAULT_SOCIAL_NONCE_SUFFIX: String = "social/nonce"
     }
 }
 
@@ -64,6 +86,19 @@ data class OwnAuthTexts(
     val tooManyRequests: String = "Muitas tentativas. Tente novamente em instantes.",
     val network: String = "Sem conexão com o servidor.",
     val sessionExpired: String = "Sessão expirada. Entre novamente.",
+    /**
+     * Fallback quando o servidor recusa o `idToken` social sem explicar (nonce vencido/reusado,
+     * `aud` inesperado, e-mail não verificado pelo provedor). Se o backend mandar `message`, é ela
+     * que aparece — ela sabe o motivo real.
+     */
+    val socialRejected: String = "Não foi possível concluir o login com esta conta. Tente novamente.",
+    /**
+     * Erro de PROGRAMAÇÃO do app, não do usuário: pediu `signInWithGoogle` sem antes buscar o nonce
+     * no servidor. Aparece explícito em vez de mandar um nonce inventado (que o servidor recusaria
+     * com uma mensagem enganosa de credencial inválida).
+     */
+    val socialNonceMissing: String =
+        "Nonce do servidor ausente: chame socialNonce() antes do login social (ou use signInWithSocial).",
     val server: (Int) -> String = { code -> "Erro do servidor ($code)." },
     val unsupported: String = "Operação não disponível para login por e-mail e senha.",
 )

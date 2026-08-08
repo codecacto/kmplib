@@ -1,52 +1,5 @@
+// Arquivo esvaziado na 2.98.0 — o `actual` mudou para
+// androidMain/.../auth/social/GoogleAuthProvider.android.kt. O nome antigo sobrevive como
+// `typealias @Deprecated` em commonMain/.../firebase/auth/GoogleAuthProvider.kt.
+// Pode ser removido do disco (o agente não roda `rm`; ver o handoff).
 package br.com.codecacto.kmplib.firebase.auth
-
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-
-actual class GoogleAuthProvider actual constructor(private val webClientId: String) {
-
-    actual suspend fun signIn(): GoogleSignInResult {
-        val activity = GoogleAuthHolder.getActivity()
-            ?: return GoogleSignInResult(
-                idToken = null,
-                error = "GoogleAuthHolder sem Activity. Chame KmpLib.setActivity(this) no Activity.onResume()"
-            )
-        val context = activity
-
-        return try {
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(webClientId)
-                .build()
-
-            val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
-                .build()
-
-            val credentialManager = CredentialManager.create(context)
-            val result = credentialManager.getCredential(context, request)
-            val credential = result.credential
-
-            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-            val idToken = googleIdTokenCredential.idToken
-
-            GoogleSignInResult(
-                idToken = idToken,
-                accessToken = null
-            )
-        } catch (e: GetCredentialCancellationException) {
-            GoogleSignInResult(
-                idToken = null,
-                error = "Login cancelado pelo usuário"
-            )
-        } catch (e: Exception) {
-            GoogleSignInResult(
-                idToken = null,
-                error = e.message ?: "Erro ao realizar login com Google"
-            )
-        }
-    }
-}

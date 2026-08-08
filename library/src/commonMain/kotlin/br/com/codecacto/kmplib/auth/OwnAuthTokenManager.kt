@@ -46,8 +46,13 @@ class OwnAuthTokenManager(
     }
 
     /** Persiste e publica uma sessão nova (após login/registro bem-sucedidos). */
-    suspend fun adopt(tokens: OwnAuthTokens, email: String, name: String) {
-        val session = tokens.toSession(email, name)
+    suspend fun adopt(
+        tokens: OwnAuthTokens,
+        email: String,
+        name: String,
+        providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+    ) {
+        val session = tokens.toSession(email, name, providerId)
         store.save(session)
         _session.value = session
     }
@@ -89,7 +94,9 @@ class OwnAuthTokenManager(
         val result = api.refresh(session.refreshToken)
         return result.fold(
             onSuccess = { tokens ->
-                val renewed = tokens.toSession(session.email, session.name)
+                // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar o
+                // token não converte um login social em login por senha.
+                val renewed = tokens.toSession(session.email, session.name, session.providerId)
                 store.save(renewed)
                 _session.value = renewed
                 renewed.accessToken
@@ -111,7 +118,11 @@ class OwnAuthTokenManager(
         )
     }
 
-    private fun OwnAuthTokens.toSession(email: String, name: String): OwnAuthSession {
+    private fun OwnAuthTokens.toSession(
+        email: String,
+        name: String,
+        providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+    ): OwnAuthSession {
         val accountId = JwtDecoder.subject(accessToken).orEmpty()
         val expiresAt = nowMillis() / 1000 + expiresInSeconds
         return OwnAuthSession(
@@ -121,6 +132,7 @@ class OwnAuthTokenManager(
             accountId = accountId,
             email = email,
             name = name,
+            providerId = providerId,
         )
     }
 

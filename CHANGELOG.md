@@ -6,6 +6,104 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.98.0 — login social no own-auth: Google e Apple sem Firebase (ago/2026)
+
+Onda 0 do **Crédito na Mão**, lado mobile. Fecha o **Gap (a)** da arquitetura daquele projeto e
+destrava o login social para **todo app novo do ecossistema**, que nasce em own-auth (`backlib-auth-local`),
+não em Firebase Auth. Par backend: `POST /auth/social` + `GET /auth/social/nonce` do `backlib-oidc`.
+
+**Aditivo. Nenhum dos 10 apps com Firebase Auth muda de comportamento nem precisa recompilar
+diferente.**
+
+### 1. Os providers saíram do pacote `firebase.*` — porque nunca foram de Firebase
+
+`GoogleAuthProvider`, `AppleAuthProvider`, `GoogleSignInResult`, `AppleSignInResult` e
+`GoogleAuthHolder` mudaram de `br.com.codecacto.kmplib.firebase.auth` para
+**`br.com.codecacto.kmplib.auth.social`**. O código sempre foi neutro (Android = Credential Manager
++ `GetGoogleIdOption`, a API oficial vigente; iOS = `ASAuthorizationController` puro); só o **nome do
+pacote** dizia o contrário, e um pacote que mente é o que faz o próximo dev concluir que login social
+exige Firebase.
+
+Os nomes antigos continuam existindo como **`typealias @Deprecated`** com `ReplaceWith`. Não é uma
+cópia: é o mesmo tipo, então `is`/`as` e atribuição cruzada seguem valendo (coberto por teste).
+
+### 2. `signInWithGoogle`/`signInWithApple` deixaram de lançar `unsupported(...)`
+
+`EmailPasswordAuthRepository` agora fala com `POST {authBasePath}/social` e devolve o **mesmo shape na
+raiz** (`{accessToken, refreshToken, expiresInSeconds}`) de `login`/`register`/`refresh`. **A API
+pública não mudou** — as assinaturas já existiam no `IAuthRepository`; mudou o corpo.
+
+- **`OwnAuthSocialService`** (interface **nova**, não método a mais numa interface existente — isso
+  quebraria as fakes que os apps mantêm em `commonTest`): `socialNonce()` e
+  `signInWithSocial(provider, idToken, nonce, name?, email?)`. Exposta por `OwnAuth.social`.
+- **`SocialProvider`** (`GOOGLE`/`APPLE`) com `wire` (`"google"`/`"apple"`) e `userProviderId`
+  (`"google.com"`/`"apple.com"`, o mesmo vocabulário do `AuthRepository` Firebase).
+- **`SocialNonce`** e o `SocialBody` de fio; `OwnAuthConfig` ganhou `socialSuffix` e
+  `socialNonceSuffix` (configuráveis, defaults `social` e `social/nonce`).
+- `OwnAuthSession` ganhou **`providerId`** (default `"password"`, então sessão gravada antes desta
+  versão lê sem perda) e `toUser()` parou de carimbar `"password"` fixo: `user.isGoogleProvider`
+  passa a responder a verdade no own-auth. O **refresh preserva a origem** — renovar token não
+  converte login social em login por senha.
+
+### 3. O nonce vem do servidor. Sempre.
+
+`GET /auth/social/nonce` é o único emissor. Nonce escolhido pelo próprio aparelho não amarra nada: um
+`idToken` vazado (log, proxy, outro app no mesmo dispositivo) é reapresentado com o mesmo valor e
+passa. Por isso os providers ganharam a sobrecarga **`signIn(nonce: String)`** (Android:
+`GetGoogleIdOption.setNonce`; iOS Apple: SHA-256 hex do valor cru), e o `signIn()` sem nonce ficou
+documentado como caminho **Firebase-only**.
+
+Como `signInWithGoogle(idToken, accessToken)` — assinatura herdada do contrato Firebase — não tem
+campo de nonce e no fluxo Google o nonce viaja *dentro* do `idToken`, o repositório guarda o último
+nonce emitido por `socialNonce()` e o consome no primeiro uso. Sem nonce prévio, **falha explícito e
+sem tocar a rede**, em vez de inventar um valor e receber do servidor um "credencial inválida" que
+apontaria para o lugar errado.
+
+### 4. O `accessToken` do Google nunca sai do aparelho como prova de identidade
+
+O parâmetro continua na assinatura (compatibilidade) e é **ignorado**. Access token é credencial de
+*autorização*: qualquer app obtém um para o próprio projeto e o apresenta a um servidor terceiro
+(*token substitution*). Só o `idToken` — assinado, com `aud`/`nonce`/`exp` verificáveis — prova quem
+é o usuário. Há teste que falha se a string aparecer no corpo.
+
+### 5. Google no iOS saiu de stub: `GoogleSignInBridge`
+
+`GoogleAuthProvider.ios` devolvia um erro dizendo "implemente no Swift". Agora existe
+**`@ObjCName("GoogleSignInBridge")`**, mesmo padrão do `ApplePushBridge` (2.76.0): o Kotlin declara o
+contrato e suspende; o Swift executa com o SDK oficial **GoogleSignIn-iOS** (SPM) e responde por
+`onSignInSuccess`/`onSignInFailure`/`onSignInCancelled`. Fluxos serializados por `Mutex`, callback
+tardio ignorado, e **sem executor registrado o erro diz exatamente o que falta**. Passo a passo Swift
+completo no KDoc do bridge.
+
+Não é reimplementação de OAuth à mão (o atalho errado): consumir o SDK por cinterop dentro da lib
+obrigaria **todo** app consumidor a linkar o GoogleSignIn, inclusive os que não têm login social.
+
+**Não compila em Linux — pendente de validação em macOS.**
+
+### 6. Apple no Android continua indisponível — decisão, não lacuna
+
+A Apple não publica SDK Android; a única alternativa seria o fluxo web (Custom Tabs + Services ID +
+domínio verificado + deep link de retorno), com superfície de ataque própria (interceptação do
+redirect) para atender um caso que nenhum app do portfólio tem. O padrão de mercado é não exibir o
+botão. `AppleAuthProvider.signIn()` no Android devolve **erro explícito e legível**, nunca um
+resultado vazio que a tela confunda com "cancelado". O app esconde o botão no Android.
+
+### Testes
+
+`OwnAuthSocialTest` (24) + `SocialProviderAliasTest` (4). Suíte total **1592, zero falha**.
+**Controle negativo:** revertendo o `providerId` da sessão para `"password"` fixo, 4 testes falham.
+
+### Migração (opcional, sem prazo)
+
+Trocar `import br.com.codecacto.kmplib.firebase.auth.{GoogleAuthProvider, AppleAuthProvider,
+GoogleSignInResult, AppleSignInResult, GoogleAuthHolder}` por `...auth.social.*`. O alias mantém tudo
+compilando enquanto isso.
+
+> **Nota:** `br.com.codecacto.kmplib.ui.screens.login.GoogleSignInResult`/`AppleSignInResult`
+> (contrato da tela `LoginScreen`, campos não-nulos) são tipos **diferentes** e **não** foram
+> unificados: fundi-los mudaria a nulidade de um campo público de tela e quebraria consumidores.
+> Registrado no `docs/backlog.md`.
+
 ## 2.97.0 — leitura de código de barras: o produto entra pela câmera, não pelos 13 dígitos (ago/2026)
 
 Fecha o **GAP-CV-M-01**. O módulo `camera` só sabia ler **placa veicular** (OCR); não havia caminho

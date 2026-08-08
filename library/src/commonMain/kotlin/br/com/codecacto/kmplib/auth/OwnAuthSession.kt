@@ -16,6 +16,11 @@ import kotlinx.serialization.json.jsonObject
  *
  * @property accessExpiresAtEpochSeconds epoch (segundos) em que o access token expira — base do
  *   refresh proativo (renovar um pouco ANTES de expirar).
+ * @property providerId como o usuário entrou: `"password"`, `"google.com"` ou `"apple.com"` (mesmo
+ *   vocabulário do `AuthRepository` Firebase, para `user.isGoogleProvider` valer nos dois mundos).
+ *   Sessão gravada antes da 2.98.0 não tem o campo e cai no default `"password"` — que é a verdade,
+ *   já que social não existia. **É o único campo que a lib sabe sobre a origem**: o JWT próprio
+ *   carrega só `sub`, e o backend não expõe `GET /me`.
  */
 @Serializable
 data class OwnAuthSession(
@@ -25,7 +30,13 @@ data class OwnAuthSession(
     val accountId: String,
     val email: String = "",
     val name: String = "",
-)
+    val providerId: String = DEFAULT_PROVIDER_ID,
+) {
+    companion object {
+        /** Login por e-mail e senha — mesmo valor que o `User.providerId` default. */
+        const val DEFAULT_PROVIDER_ID: String = "password"
+    }
+}
 
 /**
  * Decodifica claims do payload de um JWT **sem verificar a assinatura** (a verificação é do servidor;
