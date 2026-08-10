@@ -66,6 +66,23 @@
             android:exported="false" />
 
         <!--
+          Receiver dos BOTÕES da notificação (2.100.0) — "Marcar como tomada", "Adiar 30 min".
+
+          exported="false" é o certo aqui, ao contrário do BootCompletedReceiver: quem dispara é o
+          PendingIntent que a própria lib criou, e o sistema o entrega mesmo a um receiver não
+          exportado. Nenhum outro app pode forjar uma ação.
+
+          É um BroadcastReceiver de propósito: o valor da ação está em NÃO abrir o app. Uma Activity
+          abriria a tela; um Service exigiria foreground service no Android 12+ (com notificação
+          própria — o oposto do pretendido). O broadcast sobe o processo quando o app está morto,
+          roda Application.onCreate() e só então entrega o evento ao handler registrado em
+          NotificationActions.setHandler(...).
+        -->
+        <receiver
+            android:name="br.com.codecacto.kmplib.platform.NotificationActionReceiver"
+            android:exported="false" />
+
+        <!--
           Restaura os lembretes depois do boot e da atualização do app.
 
           exported="true" é OBRIGATÓRIO aqui: quem envia o broadcast é o sistema operacional, e um

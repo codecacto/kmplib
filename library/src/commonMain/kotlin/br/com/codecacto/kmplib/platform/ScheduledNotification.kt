@@ -1,6 +1,20 @@
 package br.com.codecacto.kmplib.platform
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Formato de serialização do registro de agendamentos (e do payload que viaja no `Intent` do
+ * Android).
+ *
+ * `ignoreUnknownKeys` + `encodeDefaults` é o par que garante compatibilidade nos **dois** sentidos:
+ * um registro gravado por versão anterior é lido sem os campos novos (que assumem o default), e um
+ * registro gravado por versão nova não quebra se o app for revertido.
+ */
+internal val notificationScheduleJson: Json = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
 
 /** Como um agendamento se repete. */
 @Serializable
@@ -47,8 +61,37 @@ data class ScheduledNotification(
     val data: Map<String, String> = emptyMap(),
     val channelId: String? = null,
     val isCritical: Boolean = false,
+    /**
+     * Botões da notificação (2.100.0).
+     *
+     * Persistidos junto com o resto **de propósito**: sem isto, um lembrete restaurado depois do
+     * reboot voltaria sem os botões — a pessoa teria "Adiar 30 min" na segunda-feira e não teria na
+     * terça, sem explicação. Campo **novo com default**, então um registro gravado por versão
+     * anterior continua sendo lido sem erro (e volta simplesmente sem ações).
+     */
+    val actions: List<NotificationAction> = emptyList(),
+    /**
+     * Instante (epoch millis) para o qual este disparo foi **adiado**; `0` = não adiado (2.100.0).
+     *
+     * Existe como campo separado para o adiamento **não apagar** o horário regular: num lembrete
+     * diário, [triggerAtMillis]/[hour]/[minute] continuam valendo para os próximos dias enquanto
+     * este campo carrega só o disparo de hoje que o usuário empurrou para frente. É o que faz
+     * "adiar" não matar a recorrência — e o que permite reabrir o app depois de um reboot no meio do
+     * adiamento sem perder o lembrete.
+     */
+    val snoozedUntilMillis: Long = 0L,
 ) {
     val isDaily: Boolean get() = kind == NotificationScheduleKind.DAILY
+
+    /** `true` quando há um adiamento pendente. */
+    val isSnoozed: Boolean get() = snoozedUntilMillis > 0L
+
+    /**
+     * O instante em que este agendamento deve disparar de fato: o adiamento quando existe, o horário
+     * regular quando não. **Use este** ao armar o alarme/trigger — nunca [triggerAtMillis] cru.
+     */
+    val nextTriggerMillis: Long
+        get() = if (snoozedUntilMillis > 0L) snoozedUntilMillis else triggerAtMillis
 }
 
 /**

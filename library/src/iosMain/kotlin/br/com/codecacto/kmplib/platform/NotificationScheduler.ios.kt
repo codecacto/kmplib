@@ -4,13 +4,6 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import platform.Foundation.NSCalendar
-import platform.Foundation.NSCalendarUnitDay
-import platform.Foundation.NSCalendarUnitHour
-import platform.Foundation.NSCalendarUnitMinute
-import platform.Foundation.NSCalendarUnitMonth
-import platform.Foundation.NSCalendarUnitSecond
-import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSDateComponents
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
@@ -18,12 +11,44 @@ import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
 import platform.UserNotifications.UNCalendarNotificationTrigger
 import platform.UserNotifications.UNMutableNotificationContent
+import platform.UserNotifications.UNNotificationAction
+import platform.UserNotifications.UNNotificationActionOptionDestructive
+import platform.UserNotifications.UNNotificationActionOptionForeground
+import platform.UserNotifications.UNNotificationActionOptions
+import platform.UserNotifications.UNNotificationCategory
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
+import platform.UserNotifications.UNNotificationTrigger
 import platform.UserNotifications.UNUserNotificationCenter
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import kotlin.concurrent.AtomicInt
+
+/**
+ * Identificadores das requisições registradas no `UNUserNotificationCenter`.
+ *
+ * O iOS chaveia notificação por **String**, então o adiamento pode ter requisição própria — o que o
+ * Android não permite (lá a chave é o `requestCode` `Int` do `PendingIntent`). Isso importa num caso
+ * concreto: adiar um lembrete **diário** no iOS não pode substituir a requisição `repeats = true`,
+ * senão o lembrete de amanhã só voltaria quando o app fosse aberto de novo.
+ */
+internal object IosNotificationRequests {
+
+    private const val SNOOZE_SUFFIX = "#snooze"
+
+    /** Requisição do horário regular. */
+    fun base(id: Int): String = id.toString()
+
+    /** Requisição do disparo adiado (convive com a regular). */
+    fun snooze(id: Int): String = "$id$SNOOZE_SUFFIX"
+
+    /** Todas as requisições que um agendamento pode ocupar. */
+    fun all(id: Int): List<String> = listOf(base(id), snooze(id))
+
+    /** Volta do identificador para o id do agendamento; `null` quando não é requisição da lib. */
+    fun notificationIdOf(identifier: String): Int? =
+        identifier.removeSuffix(SNOOZE_SUFFIX).toIntOrNull()
+}
 
 /**
  * Agendador iOS sobre `UNUserNotificationCenter`.
@@ -45,6 +70,16 @@ import kotlin.concurrent.AtomicInt
  * resto, reabastecendo em [refreshScheduledNotifications] (chame na abertura do app). Lembretes
  * diários usam `repeats = true`, então **um** pedido cobre disparos infinitos e quase não consome
  * cota — por isso eles têm prioridade na janela.
+ *
+ * ### Botões de ação (2.100.0)
+ * O iOS não aceita ações por notificação: elas vivem numa `UNNotificationCategory` registrada no
+ * centro, e a notificação aponta para a categoria pelo identificador. A lib deriva esse
+ * identificador do **conteúdo** das ações ([NotificationActionRules.categoryIdentifier]) e
+ * re-registra o conjunto de categorias a cada agendamento — dois lembretes com os mesmos botões
+ * compartilham uma categoria, e o app não precisa inventar nome nenhum.
+ *
+ * A resposta do usuário chega pelo delegate: ver [NotificationActionBridge] e
+ * [installNotificationActionDelegate].
  */
 @Suppress("UNCHECKED_CAST")
 class IosNotificationScheduler : NotificationScheduler {
@@ -105,7 +140,6 @@ class IosNotificationScheduler : NotificationScheduler {
         }
     }
 
-    @OptIn(ExperimentalForeignApi::class)
     override fun scheduleNotification(
         id: Int,
         title: String,
@@ -113,37 +147,10 @@ class IosNotificationScheduler : NotificationScheduler {
         scheduledTime: Instant,
         data: Map<String, String>,
         channelId: String?,
-        isCritical: Boolean
+        isCritical: Boolean,
+        actions: List<NotificationAction>
     ) {
-        val content = UNMutableNotificationContent().apply {
-            setTitle(title)
-            setBody(body)
-            setSound(
-                if (isCritical) UNNotificationSound.defaultCriticalSound()
-                else UNNotificationSound.defaultSound()
-            )
-            if (data.isNotEmpty()) {
-                setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
-            }
-        }
-
-        // Converter Instant para DateComponents
-        val localDateTime = scheduledTime.toLocalDateTime(TimeZone.currentSystemDefault())
-        val dateComponents = NSDateComponents().apply {
-            year = localDateTime.year.toLong()
-            month = localDateTime.monthNumber.toLong()
-            day = localDateTime.dayOfMonth.toLong()
-            hour = localDateTime.hour.toLong()
-            minute = localDateTime.minute.toLong()
-            second = localDateTime.second.toLong()
-        }
-
-        val trigger = UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(
-            dateComponents,
-            repeats = false
-        )
-
-        val scheduled = ScheduledNotification(
+        val item = ScheduledNotification(
             id = id,
             title = title,
             body = body,
@@ -152,18 +159,19 @@ class IosNotificationScheduler : NotificationScheduler {
             data = data,
             channelId = channelId,
             isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
         )
-        store.put(scheduled)
+        store.put(item)
+        syncCategories()
 
-        if (fitsInWindow(scheduled)) {
-            submit(id, content, trigger)
+        if (fitsInWindow(item)) {
+            submit(item)
         } else {
             AppLogger.d(TAG, "Notificação id=$id além do teto de pendentes do iOS — fica na fila da lib")
         }
         pruneDeferred()
     }
 
-    @OptIn(ExperimentalForeignApi::class)
     override fun scheduleDailyNotification(
         id: Int,
         title: String,
@@ -172,57 +180,36 @@ class IosNotificationScheduler : NotificationScheduler {
         minute: Int,
         data: Map<String, String>,
         channelId: String?,
-        isCritical: Boolean
+        isCritical: Boolean,
+        actions: List<NotificationAction>
     ) {
-        val content = UNMutableNotificationContent().apply {
-            setTitle(title)
-            setBody(body)
-            setSound(
-                if (isCritical) UNNotificationSound.defaultCriticalSound()
-                else UNNotificationSound.defaultSound()
-            )
-            if (data.isNotEmpty()) {
-                setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
-            }
-        }
-
-        // Apenas hour/minute => dispara todo dia nesse horário local quando repeats=true.
-        val dateComponents = NSDateComponents().apply {
-            this.hour = hour.coerceIn(0, 23).toLong()
-            this.minute = minute.coerceIn(0, 59).toLong()
-        }
-
-        val trigger = UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(
-            dateComponents,
-            repeats = true
+        val item = ScheduledNotification(
+            id = id,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.DAILY,
+            triggerAtMillis = NotificationRescheduling.nextDailyTriggerMillis(
+                hour = hour,
+                minute = minute,
+                nowMillis = nowMillis(),
+            ),
+            hour = hour.coerceIn(0, 23),
+            minute = minute.coerceIn(0, 59),
+            data = data,
+            channelId = channelId,
+            isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
         )
-
-        store.put(
-            ScheduledNotification(
-                id = id,
-                title = title,
-                body = body,
-                kind = NotificationScheduleKind.DAILY,
-                triggerAtMillis = NotificationRescheduling.nextDailyTriggerMillis(
-                    hour = hour,
-                    minute = minute,
-                    nowMillis = nowMillis(),
-                ),
-                hour = hour.coerceIn(0, 23),
-                minute = minute.coerceIn(0, 59),
-                data = data,
-                channelId = channelId,
-                isCritical = isCritical,
-            )
-        )
-
-        submit(id, content, trigger)
+        store.put(item)
+        syncCategories()
+        submit(item)
         pruneDeferred()
     }
 
     override fun cancelNotification(id: Int) {
-        notificationCenter.removePendingNotificationRequestsWithIdentifiers(listOf(id.toString()))
-        notificationCenter.removeDeliveredNotificationsWithIdentifiers(listOf(id.toString()))
+        val identifiers = IosNotificationRequests.all(id)
+        notificationCenter.removePendingNotificationRequestsWithIdentifiers(identifiers)
+        notificationCenter.removeDeliveredNotificationsWithIdentifiers(identifiers)
         store.remove(id)
         AppLogger.d(TAG, "Notificação cancelada: id=$id")
         // Cancelar libera vaga no teto de 64: promove quem estava esperando na fila da lib.
@@ -233,6 +220,7 @@ class IosNotificationScheduler : NotificationScheduler {
         notificationCenter.removeAllPendingNotificationRequests()
         notificationCenter.removeAllDeliveredNotifications()
         store.clear()
+        syncCategories()
         AppLogger.d(TAG, "Todas as notificações canceladas")
     }
 
@@ -241,19 +229,21 @@ class IosNotificationScheduler : NotificationScheduler {
         title: String,
         body: String,
         data: Map<String, String>,
-        channelId: String?
+        channelId: String?,
+        actions: List<NotificationAction>
     ) {
-        val content = UNMutableNotificationContent().apply {
-            setTitle(title)
-            setBody(body)
-            setSound(UNNotificationSound.defaultSound())
-            if (data.isNotEmpty()) {
-                setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
-            }
-        }
+        val resolvedActions = NotificationActionRules.distinctActions(actions)
+        val content = buildContent(
+            title = title,
+            body = body,
+            data = data,
+            isCritical = false,
+            actions = resolvedActions,
+        )
+        if (resolvedActions.isNotEmpty()) syncCategories(extra = resolvedActions)
 
         val request = UNNotificationRequest.requestWithIdentifier(
-            identifier = id.toString(),
+            identifier = IosNotificationRequests.base(id),
             content = content,
             trigger = null // null = imediato
         )
@@ -270,6 +260,26 @@ class IosNotificationScheduler : NotificationScheduler {
     override fun scheduledNotifications(): List<ScheduledNotification> = store.all()
 
     /**
+     * Adia o agendamento [id] em [minutes] minutos.
+     *
+     * No iOS o disparo adiado ganha uma **requisição própria** (`"<id>#snooze"`) para não substituir
+     * a requisição `repeats = true` do lembrete diário — assim o adiamento de hoje não custa o
+     * lembrete de amanhã.
+     */
+    override fun snoozeNotification(id: Int, minutes: Int) {
+        val item = store.get(id)
+        if (item == null) {
+            AppLogger.w(TAG, "Adiar id=$id: agendamento não está no registro — nada a fazer")
+            return
+        }
+        val snoozed = NotificationActionRules.applySnooze(item, minutes, nowMillis())
+        store.put(snoozed)
+        notificationCenter.removeDeliveredNotificationsWithIdentifiers(IosNotificationRequests.all(id))
+        submit(snoozed)
+        AppLogger.d(TAG, "Notificação id=$id adiada em $minutes min (próximo=${snoozed.nextTriggerMillis})")
+    }
+
+    /**
      * Reabastece a fila do sistema dentro do teto de 64 pendentes e limpa disparos únicos vencidos.
      *
      * Diferente do Android, **não** exibe "disparos perdidos": no iOS quem entrega é o próprio SO,
@@ -282,15 +292,18 @@ class IosNotificationScheduler : NotificationScheduler {
         val plan = NotificationRescheduling.plan(stored = store.all(), nowMillis = now)
         plan.expiredIds.forEach { expired ->
             store.remove(expired)
-            notificationCenter.removePendingNotificationRequestsWithIdentifiers(listOf(expired.toString()))
+            notificationCenter.removePendingNotificationRequestsWithIdentifiers(
+                IosNotificationRequests.all(expired)
+            )
         }
         plan.toSchedule.forEach(store::put)
+        syncCategories()
 
         val window = NotificationRescheduling.selectWindow(store.all(), now)
         window.register.forEach { item -> submit(item) }
         if (window.deferred.isNotEmpty()) {
             notificationCenter.removePendingNotificationRequestsWithIdentifiers(
-                window.deferred.map { it.id.toString() }
+                window.deferred.flatMap { IosNotificationRequests.all(it.id) }
             )
         }
         AppLogger.d(
@@ -310,64 +323,166 @@ class IosNotificationScheduler : NotificationScheduler {
         val deferred = NotificationRescheduling.selectWindow(store.all(), nowMillis()).deferred
         if (deferred.isNotEmpty()) {
             notificationCenter.removePendingNotificationRequestsWithIdentifiers(
-                deferred.map { it.id.toString() }
+                deferred.flatMap { IosNotificationRequests.all(it.id) }
             )
         }
     }
 
-    /** Registra (ou substitui, pelo identifier) um agendamento do espelho no sistema. */
+    /**
+     * Registra (ou substitui, pelo identifier) um agendamento do espelho no sistema.
+     *
+     * Um item pode ocupar **duas** requisições: a do horário regular e a do adiamento pendente.
+     */
     @OptIn(ExperimentalForeignApi::class)
     private fun submit(item: ScheduledNotification) {
-        val content = UNMutableNotificationContent().apply {
-            setTitle(item.title)
-            setBody(item.body)
-            setSound(
-                if (item.isCritical) UNNotificationSound.defaultCriticalSound()
-                else UNNotificationSound.defaultSound()
+        val now = nowMillis()
+        val hasPendingSnooze = item.isSnoozed && item.snoozedUntilMillis > now
+
+        when {
+            item.isDaily -> submitRequest(
+                identifier = IosNotificationRequests.base(item.id),
+                item = item,
+                trigger = dailyTrigger(item),
             )
-            if (item.data.isNotEmpty()) {
-                setUserInfo(item.data.mapKeys { it.key as Any } as Map<Any?, *>)
-            }
+
+            // Disparo único adiado: a requisição regular apontaria para um instante no passado, que
+            // o iOS nunca entrega — a do adiamento a substitui.
+            hasPendingSnooze -> notificationCenter.removePendingNotificationRequestsWithIdentifiers(
+                listOf(IosNotificationRequests.base(item.id))
+            )
+
+            else -> submitRequest(
+                identifier = IosNotificationRequests.base(item.id),
+                item = item,
+                trigger = calendarTrigger(item.triggerAtMillis),
+            )
         }
 
-        val components = NSDateComponents()
-        val trigger = if (item.isDaily) {
-            components.hour = item.hour.coerceIn(0, 23).toLong()
-            components.minute = item.minute.coerceIn(0, 59).toLong()
-            UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = true)
+        if (hasPendingSnooze) {
+            submitRequest(
+                identifier = IosNotificationRequests.snooze(item.id),
+                item = item,
+                trigger = calendarTrigger(item.snoozedUntilMillis),
+            )
         } else {
-            val local = Instant.fromEpochMilliseconds(item.triggerAtMillis)
-                .toLocalDateTime(TimeZone.currentSystemDefault())
-            components.year = local.year.toLong()
-            components.month = local.monthNumber.toLong()
-            components.day = local.dayOfMonth.toLong()
-            components.hour = local.hour.toLong()
-            components.minute = local.minute.toLong()
-            components.second = local.second.toLong()
-            UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = false)
+            notificationCenter.removePendingNotificationRequestsWithIdentifiers(
+                listOf(IosNotificationRequests.snooze(item.id))
+            )
         }
-
-        submit(item.id, content, trigger)
     }
 
-    private fun submit(
-        id: Int,
-        content: UNMutableNotificationContent,
-        trigger: UNCalendarNotificationTrigger,
+    @OptIn(ExperimentalForeignApi::class)
+    private fun dailyTrigger(item: ScheduledNotification): UNCalendarNotificationTrigger {
+        // Apenas hour/minute => dispara todo dia nesse horário local quando repeats=true.
+        val components = NSDateComponents().apply {
+            hour = item.hour.coerceIn(0, 23).toLong()
+            minute = item.minute.coerceIn(0, 59).toLong()
+        }
+        return UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = true)
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    private fun calendarTrigger(atMillis: Long): UNCalendarNotificationTrigger {
+        val local = Instant.fromEpochMilliseconds(atMillis)
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+        val components = NSDateComponents().apply {
+            year = local.year.toLong()
+            month = local.monthNumber.toLong()
+            day = local.dayOfMonth.toLong()
+            hour = local.hour.toLong()
+            minute = local.minute.toLong()
+            second = local.second.toLong()
+        }
+        return UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = false)
+    }
+
+    private fun buildContent(
+        title: String,
+        body: String,
+        data: Map<String, String>,
+        isCritical: Boolean,
+        actions: List<NotificationAction>,
+    ): UNMutableNotificationContent = UNMutableNotificationContent().apply {
+        setTitle(title)
+        setBody(body)
+        setSound(
+            if (isCritical) UNNotificationSound.defaultCriticalSound()
+            else UNNotificationSound.defaultSound()
+        )
+        if (data.isNotEmpty()) {
+            setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
+        }
+        val category = NotificationActionRules.categoryIdentifier(actions)
+        if (category.isNotEmpty()) setCategoryIdentifier(category)
+    }
+
+    private fun submitRequest(
+        identifier: String,
+        item: ScheduledNotification,
+        trigger: UNNotificationTrigger,
     ) {
         val request = UNNotificationRequest.requestWithIdentifier(
-            identifier = id.toString(),
-            content = content,
-            trigger = trigger
+            identifier = identifier,
+            content = buildContent(
+                title = item.title,
+                body = item.body,
+                data = item.data,
+                isCritical = item.isCritical,
+                actions = item.actions,
+            ),
+            trigger = trigger,
         )
         notificationCenter.addNotificationRequest(request) { error ->
             if (error != null) {
                 AppLogger.e(TAG, "Erro ao agendar notificação: ${error.localizedDescription}")
             } else {
-                AppLogger.d(TAG, "Notificação agendada: id=$id")
+                AppLogger.d(TAG, "Notificação agendada: $identifier")
             }
         }
     }
+
+    /**
+     * Re-registra no centro **todas** as categorias de ação em uso.
+     *
+     * `setNotificationCategories` **substitui** o conjunto inteiro (não acrescenta), então o registro
+     * é sempre montado a partir do espelho da lib — registrar só a categoria do agendamento atual
+     * apagaria os botões de todos os outros lembretes já agendados.
+     */
+    private fun syncCategories(extra: List<NotificationAction> = emptyList()) {
+        val sets = buildList {
+            store.all().forEach { if (it.actions.isNotEmpty()) add(it.actions) }
+            if (extra.isNotEmpty()) add(extra)
+        }
+        if (sets.isEmpty()) {
+            notificationCenter.setNotificationCategories(emptySet<UNNotificationCategory>())
+            return
+        }
+
+        val categories = sets
+            .associateBy { NotificationActionRules.categoryIdentifier(it) }
+            .map { (identifier, actions) -> buildCategory(identifier, actions) }
+            .toSet()
+        notificationCenter.setNotificationCategories(categories)
+    }
+
+    private fun buildCategory(
+        identifier: String,
+        actions: List<NotificationAction>,
+    ): UNNotificationCategory = UNNotificationCategory.categoryWithIdentifier(
+        identifier = identifier,
+        actions = actions.map { action ->
+            var options: UNNotificationActionOptions = 0uL
+            if (action.opensApp) options = options or UNNotificationActionOptionForeground
+            if (action.destructive) options = options or UNNotificationActionOptionDestructive
+            UNNotificationAction.actionWithIdentifier(
+                identifier = action.id,
+                title = action.title,
+                options = options,
+            )
+        },
+        intentIdentifiers = emptyList<String>(),
+        options = 0uL,
+    )
 
     private fun nowMillis(): Long = currentTimeMillis()
 }

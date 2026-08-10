@@ -182,43 +182,25 @@ class AndroidNotificationScheduler : NotificationScheduler {
         scheduledTime: Instant,
         data: Map<String, String>,
         channelId: String?,
-        isCritical: Boolean
+        isCritical: Boolean,
+        actions: List<NotificationAction>
     ) {
         val ctx = context ?: return
-        val resolvedChannel = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID
-        val triggerTime = scheduledTime.toEpochMilliseconds()
-
-        scheduleExactAlarm(
-            ctx = ctx,
+        val item = ScheduledNotification(
             id = id,
-            intent = buildAlarmIntent(
-                ctx = ctx,
-                id = id,
-                title = title,
-                body = body,
-                data = data,
-                channelId = resolvedChannel,
-                daily = false,
-                hour = -1,
-                minute = -1,
-                isCritical = isCritical,
-            ),
-            triggerTime = triggerTime,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.ONE_SHOT,
+            triggerAtMillis = scheduledTime.toEpochMilliseconds(),
+            data = data,
+            channelId = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID,
+            isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
         )
 
-        store?.put(
-            ScheduledNotification(
-                id = id,
-                title = title,
-                body = body,
-                kind = NotificationScheduleKind.ONE_SHOT,
-                triggerAtMillis = triggerTime,
-                data = data,
-                channelId = resolvedChannel,
-                isCritical = isCritical,
-            )
-        )
-        AppLogger.d(TAG, "Notificação agendada: id=$id, time=$scheduledTime")
+        NotificationAlarms.arm(ctx, item)
+        store?.put(item)
+        AppLogger.d(TAG, "Notificação agendada: id=$id, time=$scheduledTime, ações=${item.actions.size}")
     }
 
     override fun scheduleDailyNotification(
@@ -229,65 +211,60 @@ class AndroidNotificationScheduler : NotificationScheduler {
         minute: Int,
         data: Map<String, String>,
         channelId: String?,
-        isCritical: Boolean
+        isCritical: Boolean,
+        actions: List<NotificationAction>
     ) {
         val ctx = context ?: return
-
-        val triggerTime = nextDailyTriggerMillis(hour, minute)
-        val resolvedChannel = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID
-
-        scheduleExactAlarm(
-            ctx = ctx,
+        val item = ScheduledNotification(
             id = id,
-            intent = buildAlarmIntent(
-                ctx = ctx,
-                id = id,
-                title = title,
-                body = body,
-                data = data,
-                channelId = resolvedChannel,
-                daily = true,
-                hour = hour,
-                minute = minute,
-                isCritical = isCritical,
-            ),
-            triggerTime = triggerTime,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.DAILY,
+            triggerAtMillis = nextDailyTriggerMillis(hour, minute),
+            hour = hour.coerceIn(0, 23),
+            minute = minute.coerceIn(0, 59),
+            data = data,
+            channelId = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID,
+            isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
         )
 
-        store?.put(
-            ScheduledNotification(
-                id = id,
-                title = title,
-                body = body,
-                kind = NotificationScheduleKind.DAILY,
-                triggerAtMillis = triggerTime,
-                hour = hour.coerceIn(0, 23),
-                minute = minute.coerceIn(0, 59),
-                data = data,
-                channelId = resolvedChannel,
-                isCritical = isCritical,
-            )
+        NotificationAlarms.arm(ctx, item)
+        store?.put(item)
+        AppLogger.d(
+            TAG,
+            "Lembrete diário agendado: id=$id, horario=$hour:$minute, proximo=${item.triggerAtMillis}",
         )
-        AppLogger.d(TAG, "Lembrete diário agendado: id=$id, horario=$hour:$minute, proximo=$triggerTime")
     }
 
     override fun cancelNotification(id: Int) {
         val ctx = context ?: return
 
-        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        val intent = Intent(ctx, NotificationReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            ctx,
-            id,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        alarmManager.cancel(pendingIntent)
+        NotificationAlarms.cancel(ctx, id)
         NotificationManagerCompat.from(ctx).cancel(id)
         store?.remove(id)
         AppLogger.d(TAG, "Notificação cancelada: id=$id")
+    }
+
+    /**
+     * Adia um agendamento existente — o mesmo caminho do botão "Adiar" da notificação.
+     *
+     * Reusa o registro persistente: nada de id novo, nada de agendamento paralelo. Um id que não
+     * está no registro é no-op com aviso — a lib não inventa um lembrete que ela não agendou.
+     */
+    override fun snoozeNotification(id: Int, minutes: Int) {
+        val ctx = context ?: return
+        val currentStore = store ?: return
+        val item = currentStore.get(id)
+        if (item == null) {
+            AppLogger.w(TAG, "Adiar id=$id: agendamento não está no registro — nada a fazer")
+            return
+        }
+        val snoozed = NotificationActionRules.applySnooze(item, minutes, System.currentTimeMillis())
+        NotificationAlarms.arm(ctx, snoozed)
+        currentStore.put(snoozed)
+        NotificationManagerCompat.from(ctx).cancel(id)
+        AppLogger.d(TAG, "Notificação id=$id adiada em $minutes min (próximo=${snoozed.nextTriggerMillis})")
     }
 
     /**
@@ -299,19 +276,9 @@ class AndroidNotificationScheduler : NotificationScheduler {
      */
     override fun cancelAllNotifications() {
         val ctx = context ?: return
-        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val currentStore = store
 
-        currentStore?.all()?.forEach { scheduled ->
-            val pendingIntent = PendingIntent.getBroadcast(
-                ctx,
-                scheduled.id,
-                Intent(ctx, NotificationReceiver::class.java),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            runCatching { alarmManager.cancel(pendingIntent) }
-                .onFailure { AppLogger.w(TAG, "Falha ao cancelar alarme id=${scheduled.id}: ${it.message}") }
-        }
+        currentStore?.all()?.forEach { scheduled -> NotificationAlarms.cancel(ctx, scheduled.id) }
         currentStore?.clear()
 
         NotificationManagerCompat.from(ctx).cancelAll()
@@ -323,7 +290,8 @@ class AndroidNotificationScheduler : NotificationScheduler {
         title: String,
         body: String,
         data: Map<String, String>,
-        channelId: String?
+        channelId: String?,
+        actions: List<NotificationAction>
     ) {
         val ctx = context ?: return
 
@@ -332,22 +300,19 @@ class AndroidNotificationScheduler : NotificationScheduler {
             return
         }
 
-        val contentIntent = buildContentIntent(ctx, id, data)
-        val notification = NotificationCompat.Builder(ctx, channelId ?: DEFAULT_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(contentIntent)
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            NotificationManagerCompat.from(ctx).notify(id, notification)
-            AppLogger.d(TAG, "Notificação exibida: id=$id")
-        } catch (e: SecurityException) {
-            AppLogger.e(TAG, "Sem permissão para exibir notificação", e)
-        }
+        NotificationPresenter.show(
+            ctx = ctx,
+            item = ScheduledNotification(
+                id = id,
+                title = title,
+                body = body,
+                kind = NotificationScheduleKind.ONE_SHOT,
+                triggerAtMillis = System.currentTimeMillis(),
+                data = data,
+                channelId = channelId ?: DEFAULT_CHANNEL_ID,
+                actions = NotificationActionRules.distinctActions(actions),
+            ),
+        )
     }
 
     override fun scheduledNotifications(): List<ScheduledNotification> = store?.all().orEmpty()
@@ -376,29 +341,16 @@ class AndroidNotificationScheduler : NotificationScheduler {
                 body = missed.body,
                 data = missed.data,
                 channelId = missed.channelId,
+                // O disparo perdido chega com os MESMOS botões do disparo normal: a pessoa que
+                // religou o celular 20 min depois da dose continua podendo marcar e adiar dali.
+                actions = missed.actions,
             )
         }
 
         plan.expiredIds.forEach(currentStore::remove)
 
         plan.toSchedule.forEach { item ->
-            scheduleExactAlarm(
-                ctx = ctx,
-                id = item.id,
-                intent = buildAlarmIntent(
-                    ctx = ctx,
-                    id = item.id,
-                    title = item.title,
-                    body = item.body,
-                    data = item.data,
-                    channelId = item.channelId ?: DEFAULT_CHANNEL_ID,
-                    daily = item.isDaily,
-                    hour = item.hour,
-                    minute = item.minute,
-                    isCritical = item.isCritical,
-                ),
-                triggerTime = item.triggerAtMillis,
-            )
+            NotificationAlarms.arm(ctx, item)
             currentStore.put(item)
         }
 
@@ -442,76 +394,6 @@ class AndroidNotificationScheduler : NotificationScheduler {
         }
     }
 
-    private fun buildAlarmIntent(
-        ctx: Context,
-        id: Int,
-        title: String,
-        body: String,
-        data: Map<String, String>,
-        channelId: String,
-        daily: Boolean,
-        hour: Int,
-        minute: Int,
-        isCritical: Boolean,
-    ): Intent = Intent(ctx, NotificationReceiver::class.java).apply {
-        putExtra(EXTRA_NOTIFICATION_ID, id)
-        putExtra(EXTRA_TITLE, title)
-        putExtra(EXTRA_BODY, body)
-        putExtra(EXTRA_DATA, HashMap(data))
-        putExtra(EXTRA_CHANNEL_ID, channelId)
-        putExtra(EXTRA_DAILY, daily)
-        putExtra(EXTRA_HOUR, hour)
-        putExtra(EXTRA_MINUTE, minute)
-        putExtra(EXTRA_CRITICAL, isCritical)
-    }
-
-    private fun scheduleExactAlarm(ctx: Context, id: Int, intent: Intent, triggerTime: Long) {
-        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pendingIntent = PendingIntent.getBroadcast(
-            ctx,
-            id,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                } else {
-                    // Sem a permissão de alarme exato o disparo pode atrasar alguns minutos — melhor
-                    // isso do que não agendar nada. O app pode oferecer `requestExactAlarmPermission()`.
-                    AppLogger.w(TAG, "Sem permissão de alarme exato; agendando alarme inexato (id=$id)")
-                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-                }
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-            }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao agendar alarme exato", e)
-        }
-    }
-
-    private fun buildContentIntent(
-        context: Context,
-        id: Int,
-        data: Map<String, String>
-    ): PendingIntent? {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?: return null
-
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        launchIntent.putExtra(EXTRA_NOTIFICATION_ID, id)
-        data.forEach { (key, value) ->
-            launchIntent.putExtra(key, value)
-        }
-
-        return PendingIntent.getActivity(
-            context,
-            id,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
 }
 
 actual fun getNotificationScheduler(): NotificationScheduler {

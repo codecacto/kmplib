@@ -110,24 +110,34 @@ object NotificationRescheduling {
         val expiredIds = mutableListOf<Int>()
 
         stored.forEach { item ->
-            val missedBy = nowMillis - item.triggerAtMillis
+            // O adiamento manda quando existe: quem tocou "adiar 30 min" espera a notificação em 30
+            // min, mesmo que o aparelho reinicie no meio.
+            val effectiveTrigger = item.nextTriggerMillis
+            val missedBy = nowMillis - effectiveTrigger
             val missedWithinGrace = missedBy in 1..graceMillis
 
             when (item.kind) {
                 NotificationScheduleKind.DAILY -> {
-                    if (missedWithinGrace) toShowNow += item
-                    toSchedule += item.copy(
-                        triggerAtMillis = nextDailyTriggerMillis(
-                            hour = item.hour,
-                            minute = item.minute,
-                            nowMillis = nowMillis,
-                            timeZone = timeZone,
-                        ),
-                    )
+                    if (item.isSnoozed && item.snoozedUntilMillis > nowMillis) {
+                        // Adiamento ainda no futuro: reagenda como está (o horário regular fica
+                        // guardado em hour/minute para depois).
+                        toSchedule += item
+                    } else {
+                        if (missedWithinGrace) toShowNow += item
+                        toSchedule += item.copy(
+                            snoozedUntilMillis = 0L,
+                            triggerAtMillis = nextDailyTriggerMillis(
+                                hour = item.hour,
+                                minute = item.minute,
+                                nowMillis = nowMillis,
+                                timeZone = timeZone,
+                            ),
+                        )
+                    }
                 }
 
                 NotificationScheduleKind.ONE_SHOT -> when {
-                    item.triggerAtMillis > nowMillis -> toSchedule += item
+                    effectiveTrigger > nowMillis -> toSchedule += item
                     missedWithinGrace -> {
                         toShowNow += item
                         expiredIds += item.id
@@ -139,8 +149,8 @@ object NotificationRescheduling {
         }
 
         return NotificationReschedulePlan(
-            toSchedule = toSchedule.sortedBy { it.triggerAtMillis },
-            toShowNow = toShowNow.sortedBy { it.triggerAtMillis },
+            toSchedule = toSchedule.sortedBy { it.nextTriggerMillis },
+            toShowNow = toShowNow.sortedBy { it.nextTriggerMillis },
             expiredIds = expiredIds,
         )
     }
@@ -158,9 +168,9 @@ object NotificationRescheduling {
         limit: Int = IOS_PENDING_LIMIT,
     ): NotificationWindow {
         if (limit <= 0) return NotificationWindow(emptyList(), items)
-        val pending = items.filter { it.isDaily || it.triggerAtMillis > nowMillis }
+        val pending = items.filter { it.isDaily || it.nextTriggerMillis > nowMillis }
         val ordered = pending.sortedWith(
-            compareByDescending<ScheduledNotification> { it.isDaily }.thenBy { it.triggerAtMillis },
+            compareByDescending<ScheduledNotification> { it.isDaily }.thenBy { it.nextTriggerMillis },
         )
         return NotificationWindow(
             register = ordered.take(limit),

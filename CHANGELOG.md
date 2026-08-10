@@ -6,6 +6,128 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.100.0 — botões de ação na notificação: adiar e agir sem abrir o app (ago/2026)
+
+**Aditiva.** Nenhum consumidor precisa mudar nada para continuar funcionando: `actions` entra com
+default `emptyList()` no fim das assinaturas, e uma notificação sem ações é byte-a-byte a de sempre.
+
+### O gap
+
+A kmplib agendava notificação local, mas a notificação **não tinha botões**: o
+`NotificationCompat.Builder` do Android era montado sem nenhum `addAction`, e no iOS não havia
+`UNNotificationCategory`/`UNNotificationAction`. Ou seja, **nenhum app do ecossistema conseguia
+oferecer "Adiar 30 min" nem "Marcar como tomada" na própria notificação** — a única saída era abrir o
+app. Dois consumidores pediam isso por escrito, no mesmo domínio (lembrete de dose):
+
+- **Desparasite-se** — RF-12 (adiar 15/30/60 min pela notificação) e Fluxo 3 do `docs/design/flows.md`
+  ("marcar dose como tomada sem abrir o app").
+- **Hora do Remédio** — `GAP-HR-M-02` ("ações na notificação") e `GAP-HR-M-03` ("adiar padronizado",
+  hoje composto à mão no app com um agendamento único paralelo).
+
+### A API
+
+```kotlin
+scheduler.scheduleDailyNotification(
+    id = 42, title = "Nitazoxanida", body = "1 comprimido — 08:00", hour = 8, minute = 0,
+    data = mapOf("doseId" to "d-17"),
+    actions = listOf(
+        NotificationAction.app(id = "MARK_TAKEN", title = "Marcar como tomada"),
+        NotificationAction.snooze(minutes = 30, title = "Adiar 30 min"),
+    ),
+)
+
+// no Application (NÃO numa Activity — a ação chega com o app morto):
+NotificationActions.setHandler { event ->
+    if (event.actionId == "MARK_TAKEN") doseRepository.marcarComoTomada(event.data["doseId"].orEmpty())
+}
+```
+
+- **`NotificationAction`** (`id` estável, `title` já traduzido, `kind`, `snoozeMinutes`, `opensApp`,
+  `destructive`) + fábricas `app(...)`, `snooze(...)` e **`snoozeOptions(listOf(15, 30, 60)) { "Adiar
+  $it min" }`** — o app declara **só os intervalos**, a lib monta os botões.
+- **`NotificationActions.setHandler(...)`** — ponto único de registro, no `Application`/bootstrap.
+  Evento que chega antes do handler fica numa fila de 32 e é entregue no registro; handler que lança
+  ou passa de 8 s é cortado com log (um `BroadcastReceiver` não pode lançar).
+- **`NotificationActionEvent(notificationId, actionId, data)`** — o `data` do agendamento é por onde
+  trafega o id de domínio. A lib nunca o interpreta.
+- **`snoozeNotification(id, minutes)`** na interface (corpo default) — o MESMO caminho do botão,
+  exposto para o "Adiar" que fica **dentro** da tela.
+
+### Adiar é da lib, regra de domínio é do app
+
+`NotificationActionKind.SNOOZE` é executado inteiramente pela kmplib: nenhuma linha de código de
+plataforma no app. E o adiamento **não cria agendamento novo** — o campo novo
+`ScheduledNotification.snoozedUntilMillis` desloca o disparo do MESMO `id`, então:
+
+- adiar duas vezes continua sendo **um** lembrete (nada de id derivado, nada de alarme paralelo);
+- **adiar um lembrete diário não mata a recorrência**: `hour`/`minute` ficam intactos e, depois do
+  disparo adiado, o lembrete volta ao horário normal;
+- reiniciar o aparelho no meio do adiamento **não perde** o disparo adiado (`plan()` passou a
+  decidir pelo `nextTriggerMillis`), e um adiamento vencido é limpo em vez de disparar no passado.
+
+### Persistência — os botões voltam iguais depois do reboot
+
+`ScheduledNotification` ganhou `actions` e `snoozedUntilMillis`, **ambos com default**. Um registro
+gravado pela 2.99.0 (`SharedPreferences`/`NSUserDefaults`) continua sendo lido sem erro: o campo novo
+assume o default e o lembrete volta simplesmente sem ações — coberto por teste com o JSON literal da
+versão anterior. Sem isso, o lembrete restaurado depois do boot voltaria sem botões, e a pessoa teria
+"Adiar" na segunda e não teria na terça, sem explicação.
+
+### Android — o receiver que existe justamente para NÃO abrir o app
+
+- **`NotificationActionReceiver`**, declarado no manifesto da própria lib (`exported="false"`): todo
+  consumidor herda só bumpando. `PendingIntent.getBroadcast` + `FLAG_IMMUTABLE`.
+- **Pegadinha resolvida:** `PendingIntent` são considerados iguais quando `requestCode`, componente e
+  `Intent.filterEquals` batem — e `filterEquals` **ignora os extras**. Sem uma `data: Uri` distinta
+  por ação, "Marcar como tomada" e "Adiar 30 min" da mesma notificação virariam o mesmo
+  `PendingIntent` e o segundo botão executaria o primeiro. Cada ação tem `Uri` própria + `requestCode`
+  derivado.
+- Broadcast (e não `Activity`, que abriria a tela, nem `Service`, que exigiria foreground service com
+  notificação própria no Android 12+). Processo morto: o sistema sobe o app, roda
+  `Application.onCreate()` e só então entrega. O handler roda dentro de **`goAsync()`**, então a
+  gravação no banco local termina antes de o processo poder ser encerrado.
+- A notificação é **dispensada** assim que uma ação é tocada.
+- **Refactor interno junto:** a montagem do alarme e a exibição da notificação viraram
+  `NotificationAlarms` e `NotificationPresenter` (internos). Antes a mesma lista de `putExtra` estava
+  repetida em três arquivos — bastaria esquecer um para o lembrete restaurado perder os botões.
+
+### iOS — categorias, e o adiamento com requisição própria
+
+- `UNNotificationCategory` + `UNNotificationAction` registrados no `UNUserNotificationCenter`, com o
+  **identificador da categoria derivado do conteúdo das ações**
+  (`NotificationActionRules.categoryIdentifier`): dois lembretes com os mesmos botões compartilham
+  categoria e o app não inventa nome nenhum. Como `setNotificationCategories` **substitui** o conjunto
+  inteiro, o registro é remontado a partir do espelho da lib — registrar só a categoria do
+  agendamento atual apagaria os botões de todos os outros.
+- **Resposta:** `NotificationActionBridge` (`@ObjCName`, alimentado pelo delegate Swift — mesmo padrão
+  do `ApplePushBridge`, porque o centro aceita **um** delegate por processo e num app com push ele já
+  é do `AppDelegate`) **ou** `installNotificationActionDelegate()`, que instala o delegate da lib
+  **só se não houver outro**.
+- **Diferença de plataforma explorada de propósito:** no iOS a requisição é chaveada por `String`,
+  então o disparo adiado ganha identificador próprio (`"<id>#snooze"`) e **convive** com a requisição
+  `repeats = true` do lembrete diário. Sem isso, adiar hoje custaria o lembrete de amanhã (no Android,
+  onde a chave é o `requestCode` `Int`, o reagendamento do próprio receiver já resolve).
+- iOS **pendente de validação em macOS** (não compila em Linux).
+
+### Testes
+
+`NotificationActionTest` (23) — fábricas e validação, categoria determinística, adiamento que não
+toca no horário regular, adiar duas vezes = um agendamento, reboot no meio do adiamento, adiamento
+vencido que volta ao horário normal, disparo adiado perdido dentro da graça, ordenação da janela do
+iOS pelo disparo efetivo, round-trip de serialização e **leitura do registro gravado pela versão
+anterior**, entrega ao handler, fila de eventos pré-handler, teto da fila e handler que lança.
+`NotificationReschedulingTest` (22) segue verde sem alteração. Suíte: **1665 testes, 0 falhas**;
+`koverVerify` verde.
+
+### Migrar (não feito nesta rodada — propagação é tarefa própria)
+
+**Hora do Remédio** é candidato imediato: `GAP-HR-M-02` e `GAP-HR-M-03` deixam de existir, o
+`DoseReminderScheduler.snooze` e o `snoozeNotificationId` locais podem sair (o adiamento paralelo com
+id derivado vira `snoozeNotification(id, minutes)` da lib) e a `ConfirmDoseSheet` ganha par na própria
+notificação.
+
+---
+
 ## 2.99.0 — lembrete que sobrevive ao reboot + efemérides lunares de verdade (ago/2026)
 
 Duas peças de fundação, ambas nascidas do app novo **Desparasite-se** (protocolo antiparasitário

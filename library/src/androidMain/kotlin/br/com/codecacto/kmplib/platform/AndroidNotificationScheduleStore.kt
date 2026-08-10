@@ -3,7 +3,6 @@ package br.com.codecacto.kmplib.platform
 import android.content.Context
 import android.content.SharedPreferences
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.serialization.json.Json
 
 /**
  * Registro persistente dos agendamentos, em `SharedPreferences`.
@@ -68,10 +67,11 @@ internal class AndroidNotificationScheduleStore(
         private const val PREFS_NAME = "kmplib_scheduled_notifications"
         private const val KEY_ITEMS = "items"
 
-        /** Tolerante a campo novo/desconhecido: um app com registro gravado por versão anterior lê sem perder tudo. */
-        private val json = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
+        /**
+         * Tolerante a campo novo/desconhecido: um registro gravado por versão anterior é lido sem
+         * perder tudo (campo novo assume o default). Fonte única em `notificationScheduleJson`, a
+         * mesma usada pelo payload que viaja no `Intent` do alarme.
+         */
+        private val json = notificationScheduleJson
     }
 }

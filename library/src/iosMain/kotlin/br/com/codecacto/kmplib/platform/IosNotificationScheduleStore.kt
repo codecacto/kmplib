@@ -1,7 +1,6 @@
 package br.com.codecacto.kmplib.platform
 
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.serialization.json.Json
 import platform.Foundation.NSUserDefaults
 
 /**
@@ -60,9 +59,6 @@ internal class IosNotificationScheduleStore : NotificationScheduleStore {
         const val TAG = "NotificationStore"
         const val KEY_ITEMS = "kmplib_scheduled_notifications"
 
-        val json = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
+        val json = notificationScheduleJson
     }
 }

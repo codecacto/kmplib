@@ -53,6 +53,8 @@ interface NotificationScheduler {
      * @param data Dados extras para a notificação
      * @param channelId ID do canal (Android) - usa padrão se não informado
      * @param isCritical Se true, tenta bypassar modo não perturbe
+     * @param actions Botões da notificação (2.100.0). Ver [NotificationAction]; lista vazia = a
+     *   notificação de sempre, só com o toque no corpo.
      */
     fun scheduleNotification(
         id: Int,
@@ -61,7 +63,8 @@ interface NotificationScheduler {
         scheduledTime: Instant,
         data: Map<String, String> = emptyMap(),
         channelId: String? = null,
-        isCritical: Boolean = false
+        isCritical: Boolean = false,
+        actions: List<NotificationAction> = emptyList()
     )
 
     /**
@@ -78,6 +81,9 @@ interface NotificationScheduler {
      * @param data Dados extras para a notificação
      * @param channelId ID do canal (Android) - usa padrão se não informado
      * @param isCritical Se true, tenta bypassar modo não perturbe
+     * @param actions Botões da notificação (2.100.0). Um botão de
+     *   [NotificationActionKind.SNOOZE] adia **só o disparo de hoje**: a recorrência diária continua
+     *   valendo para os próximos dias.
      *
      * Android: o disparo usa `setExactAndAllowWhileIdle` com reagendamento do próximo dia dentro do
      * receiver, e o agendamento é **persistido** pela lib — o `BootCompletedReceiver` restaura tudo
@@ -92,7 +98,8 @@ interface NotificationScheduler {
         minute: Int,
         data: Map<String, String> = emptyMap(),
         channelId: String? = null,
-        isCritical: Boolean = false
+        isCritical: Boolean = false,
+        actions: List<NotificationAction> = emptyList()
     )
 
     /**
@@ -108,14 +115,33 @@ interface NotificationScheduler {
 
     /**
      * Exibe uma notificação imediatamente.
+     *
+     * @param actions Botões da notificação (2.100.0) — é o que faz um disparo **perdido**, exibido
+     *   na volta do reboot, chegar com os mesmos botões do disparo normal.
      */
     fun showNotificationNow(
         id: Int,
         title: String,
         body: String,
         data: Map<String, String> = emptyMap(),
-        channelId: String? = null
+        channelId: String? = null,
+        actions: List<NotificationAction> = emptyList()
     )
+
+    /**
+     * Adia um agendamento **existente** em [minutes] minutos, a partir de agora (2.100.0).
+     *
+     * É o mesmo caminho que o botão de [NotificationActionKind.SNOOZE] executa — exposto aqui para o
+     * app oferecer "Adiar" **dentro** da tela (bottom sheet de dose, por exemplo) sem reinventar um
+     * agendamento único paralelo, que é como os apps vinham fazendo (e que duplicava lembrete e
+     * inventava id novo).
+     *
+     * - Não duplica: o adiamento desloca o disparo do MESMO [id].
+     * - Não mata a recorrência: num lembrete diário, o horário regular continua valendo.
+     * - Adiar de novo simplesmente move o mesmo disparo mais para a frente.
+     * - [id] desconhecido no registro ⇒ no-op com log de aviso (nada é inventado).
+     */
+    fun snoozeNotification(id: Int, minutes: Int) {}
 
     // -----------------------------------------------------------------------------------------
     // Sobrevivência a reboot / atualização (2.99.0)

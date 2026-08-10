@@ -3,6 +3,31 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — GAP-HR-M-02 / GAP-HR-M-03 (Hora do Remédio) + RF-12 (Desparasite-se): ações na notificação (10/ago/2026)
+> Dois consumidores no mesmo domínio (lembrete de dose) pedindo a mesma coisa por escrito: botão na
+> própria notificação. A lib montava o `NotificationCompat.Builder` **sem nenhum `addAction`** e não
+> tinha `UNNotificationCategory` no iOS — nenhum app do ecossistema conseguia oferecer isso.
+
+- [x] **Botões de ação (adiar + ação de domínio) na notificação local. ENTREGUE na 2.100.0.**
+      - **Entregue:** `NotificationAction`/`NotificationActionKind` (+ fábricas `app`, `snooze`,
+        `snoozeOptions`), `NotificationActions.setHandler(...)` (registro no `Application`, fila de
+        eventos pré-handler, timeout de 8 s), `NotificationActionEvent`/`NotificationActionHandler`,
+        regras puras `NotificationActionRules`; `actions` **aditivo com default** em
+        `scheduleNotification`/`scheduleDailyNotification`/`showNotificationNow`; método novo
+        `snoozeNotification(id, minutes)` (corpo default). Android:
+        `NotificationActionReceiver` declarado no manifesto da lib + `goAsync()`; iOS: categorias
+        derivadas do conjunto de ações + `NotificationActionBridge`/`installNotificationActionDelegate()`.
+      - **Decisão registrada:** adiar **não cria agendamento novo** — `snoozedUntilMillis` desloca o
+        disparo do MESMO id, então adiar 2× é um lembrete só e adiar um diário não mata a recorrência.
+        No iOS o disparo adiado ganha requisição própria (`"<id>#snooze"`) porque lá a chave é String e
+        substituir a requisição `repeats = true` custaria o lembrete do dia seguinte.
+      - **Compatibilidade:** campos novos com default ⇒ registro gravado pela 2.99.0 continua legível
+        (teste com o JSON literal da versão anterior).
+      - **Pendência de macOS:** categorias/ações e o bridge iOS não compilam em Linux.
+      - **Migração (tarefa própria, NÃO feita nesta rodada):** `Hora do Remédio` — apagar
+        `DoseReminderScheduler.snooze` + `snoozeNotificationId` locais e usar `snoozeNotification`;
+        `Desparasite-se` já nasce sobre a API.
+
 ### ENTREGUE — GAP-HR-M-04 / RNF-01 (Desparasite-se): lembrete local que sobrevive ao reboot (10/ago/2026)
 > Gap documentado no `Hora do Remédio` (`mobile/docs/DESIGN.md`, GAP-HR-M-04) e levantado como
 > **bloqueante de MVP** no PRD do `Desparasite-se` (RNF-01). Atingia TODO app do ecossistema com
