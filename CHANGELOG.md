@@ -124,9 +124,12 @@ algoritmo caro).
 ### Migração
 
 - **Nada obrigatório.** Mudança aditiva: bumpar já traz a sobrevivência a reboot, sem tocar em código.
-- **Apps com lembrete local** podem **remover o contorno** de "reagendar tudo na abertura" e trocar por
-  `scheduler.refreshScheduledNotifications()` (mais barato e idempotente). Manter o contorno também
-  funciona.
+- **Apps com lembrete local**: o contorno "reagendar tudo na abertura" pode ficar — e, na verdade,
+  **convém ficar por uma versão**. Quem já tinha alarmes agendados por uma kmplib anterior **não tem
+  registro persistente**: o receiver de boot leria um registro vazio e não restauraria nada. Reagendar
+  na primeira abertura depois da atualização é o que **semeia** esse registro (todo `schedule*` agora
+  persiste). Depois disso, `scheduler.refreshScheduledNotifications()` (idempotente e mais barato) dá
+  conta sozinho.
 - **Lua Certa:** apagar `core/domain/moon` local e importar de `br.com.codecacto.kmplib.astro`.
 - **Hora do Remédio:** o `GAP-HR-M-04` deixou de existir.
 
