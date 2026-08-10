@@ -91,6 +91,27 @@ No POM do `kmplib-android` as mesmas coordenadas saíram de `runtime` para **`co
 `./gradlew :kmplib:compileReleaseKotlinAndroid` verde · `:kmplib:testDebugUnitTest` **1665 testes,
 0 falhas, 0 erros**.
 
+#### Como conferir (e o arquivo que NÃO serve para conferir)
+
+> **O `kmplib-<versão>.pom` da raiz não distingue `api` de `implementation`.** Ele é o POM de
+> compatibilidade do módulo-raiz de um projeto KMP, cuja função é redirecionar para o Gradle Module
+> Metadata: ali **toda** dependência sai com `<scope>runtime</scope>`, inclusive as declaradas
+> `api`. Ler esse arquivo e concluir "está como `implementation`" é um **falso negativo** — aconteceu
+> ao verificar esta própria versão. A pista de que a leitura não serve está no controle: na 2.100.0
+> essas coordenadas **nem apareciam** no POM da raiz; passaram a aparecer justamente por terem virado
+> `api`, e mesmo assim com `runtime`.
+>
+> Os dois arquivos que respondem de fato:
+>
+> ```bash
+> V=2.101.0; M=~/.m2/repository/br/com/codecacto
+> # 1) o que o commonMain do consumidor compila contra (esperado: 15, era 6 na 2.100.0)
+> python3 -c "import json,sys;m=json.load(open('$M/kmplib/$V/kmplib-$V.module'));\
+> print([len(v.get('dependencies',[])) for v in m['variants'] if v['name']=='metadataApiElements'])"
+> # 2) o que o alvo Android exporta (esperado: scope=compile)
+> grep -A3 kotlinx-datetime-jvm $M/kmplib-android/$V/*.pom
+> ```
+
 ### Migração
 
 **Nenhuma obrigatória.** Quem declarou a dependência por conta própria pode **remover** a linha do
