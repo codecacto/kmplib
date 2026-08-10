@@ -6,6 +6,98 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.101.0 — `api()` para tudo que vaza na API pública (conserto de fundação, ago/2026)
+
+**Aditiva.** Nenhuma assinatura mudou, nenhum comportamento mudou, nenhum arquivo `.kt` foi tocado.
+A mudança inteira está no `library/build.gradle.kts` (+ uma entrada nova no catálogo). Quem já
+declarava as coordenadas por conta própria fica apenas **redundante** — continua compilando.
+
+### O defeito
+
+`library/build.gradle.kts` declarava `implementation(libs.kotlinx.datetime)`, mas a **API pública**
+da lib exige tipos dessa biblioteca (`MoonPhaseEvent.instant: Instant`,
+`MoonPhaseEvent.dateIn(timeZone: TimeZone)`, `NotificationScheduler.scheduleNotification(
+scheduledTime: Instant, …)`, `ScheduleEvent.start: LocalDateTime`, todo o `core/util/TimeUtils`…).
+
+Regra do Gradle: **tipo que aparece na API pública exige `api`, não `implementation`.** Com
+`implementation` a dependência não é exportada, então o consumidor **não consegue nem nomear o tipo
+que a lib exige dele** — e acaba declarando a coordenada no próprio build, **adivinhando a versão**.
+Foi exatamente o que o **Desparasite-se** teve de fazer.
+
+**Por que isso não é cosmético:** se o app declarar uma versão diferente, o Gradle resolve para a
+**maior** — e no `kotlinx-datetime` 0.7.x o `Instant` deixou de ser classe própria e virou typealias
+de `kotlin.time.Instant`. O resultado já está documentado no próprio build da lib (bloco do
+RevenueCat): **R8 falhando no release com `Missing class kotlinx.datetime.Instant`**. Ou seja,
+**compila em debug e quebra no release**, que é a pior hora de descobrir.
+
+### A varredura (não só a datetime)
+
+Auditoria de **toda** a API pública de `commonMain` + `androidMain`. Nove artefatos estavam no mesmo
+erro; cinco outros foram **verificados** como uso genuinamente interno e continuam `implementation`.
+
+| Artefato | Era | Virou | Tipo que vaza |
+|---|---|---|---|
+| `kotlinx-datetime` | implementation | **api** | `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `TimeZone` |
+| `kotlinx-coroutines-core` | implementation | **api** | `Flow`, `StateFlow`, `CoroutineScope` |
+| `kotlinx-serialization-json` | implementation | **api** | `KSerializer`, `Json`, `JsonObject`, `JsonElement` |
+| `ktor-client-core` | implementation | **api** | `HttpClient`, `HttpClientEngine`, `HttpClientConfig<*>`, `ResponseException` |
+| `lifecycle-viewmodel` | implementation | **api** | `ViewModel` (**supertipo** de `BaseViewModel`) |
+| `compose.ui` | implementation | **api** | `Modifier`, `Color`, `Dp`, `ImageVector`, `TextStyle` |
+| `compose.foundation` | implementation | **api** | `RowScope`, `ColumnScope`, `BoxScope` (slots) |
+| `compose.material3` | implementation | **api** | `ColorScheme`, `Typography`, `SnackbarHostState` |
+| `compose.components.resources` | implementation | **api** | `StringResource`/`DrawableResource` via o `Res` gerado **público** |
+| `androidx.fragment` (androidMain) | **não declarada** | **api** | `FragmentActivity` em `KmpLib.setActivity(...)` |
+
+Detalhes de cada caso:
+
+- **`ViewModel`** é o supertipo público de `BaseViewModel`, a classe-base de **todo** ViewModel de
+  **todo** app do ecossistema. Mesma classe de defeito da datetime, e mais silenciosa: os apps a
+  recebiam por acaso, transitivamente, via `lifecycle-viewmodel-compose`.
+- **Compose** — a kmplib **é** uma biblioteca de UI: 133 assinaturas públicas só com
+  `modifier: Modifier = Modifier`, mais 214 com `Color`/`Dp`/`ImageVector`. É o mesmo padrão das
+  bibliotecas oficiais (`androidx.compose.material3` declara `api` para `ui` e `foundation`).
+- **`androidx.fragment`** não era declarada em lugar nenhum: `FragmentActivity` chegava ao consumidor
+  **por acaso**, transitivamente por `api(firebase-auth-android)` → `play-services-base`. Um projeto
+  **own-auth sem Firebase** (o padrão de todo projeto novo, ago/2026) ficaria sem conseguir nomear o
+  tipo que a lib exige no `MainActivity`. Declarada na versão que já resolvia (`1.5.7`), então a
+  resolução não muda.
+
+**Verificados como internos — seguem `implementation`, de propósito** (documentado no build):
+`ktor-client-logging`, `ktor-client-content-negotiation`, `ktor-serialization-kotlinx-json`
+(`HttpLogLevel` é enum próprio; o mapeamento é `internal`), `sqldelight-coroutines` (só as extensões
+`asFlow`/`mapToList` dentro do `SyncStore`), `sentry-kotlin-multiplatform` (`SentryCrashReporter` é
+`internal`; `CrashReporter` é **neutra ao fornecedor**), Firebase GitLive (`FirebaseAuth`/
+`FirebaseUser`/`FirebaseStorage` são `private` — é o que permite a um projeto own-auth consumir a lib
+sem falar Firebase), RevenueCat (`RevenueCatPurchaseRepository` e o mapeamento de erro são
+`internal`), `compose.components.uiToolingPreview` (as 28 funções `@Preview` da lib são todas
+`private`) e `compose.materialIconsExtended` (a lib usa **valores** `Icons.*` como default de
+parâmetro, nunca um **tipo** do artefato — o tipo é `ImageVector`, do `compose.ui`).
+
+### Prova
+
+`metadataApiElements` do módulo Gradle publicado (é a variante que o `commonMain` do consumidor
+compila contra):
+
+- **2.100.0** — 6 dependências: `coil-compose`, `kmpnotifier`, `koin-core`, `kotlin-stdlib`,
+  `sqldelight-runtime`, `compose-runtime`.
+- **2.101.0** — 15: as 6 acima **+** `kotlinx-datetime`, `kotlinx-coroutines-core`,
+  `kotlinx-serialization-json`, `ktor-client-core`, `lifecycle-viewmodel`, `ui`, `foundation`,
+  `material3`, `components-resources`.
+
+No POM do `kmplib-android` as mesmas coordenadas saíram de `runtime` para **`compile`**, e
+`androidx.fragment` aparece pela primeira vez (também `compile`).
+`components-ui-tooling-preview` continua `runtime`, como deve.
+
+`./gradlew :kmplib:compileReleaseKotlinAndroid` verde · `:kmplib:testDebugUnitTest` **1665 testes,
+0 falhas, 0 erros**.
+
+### Migração
+
+**Nenhuma obrigatória.** Quem declarou a dependência por conta própria pode **remover** a linha do
+próprio build (o Desparasite-se pode tirar o `kotlinx-datetime`), mas mantê-la também funciona.
+
+---
+
 ## 2.100.0 — botões de ação na notificação: adiar e agir sem abrir o app (ago/2026)
 
 **Aditiva.** Nenhum consumidor precisa mudar nada para continuar funcionando: `actions` entra com

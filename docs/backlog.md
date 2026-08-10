@@ -3,6 +3,33 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — GAP-KL-M-APIDEPS: `api()` para tudo que vaza na API pública (10/ago/2026)
+> Reportado pelo **Desparasite-se**, que teve de declarar `kotlinx-datetime` no próprio build para
+> conseguir nomear `MoonPhaseEvent.instant`/`dateIn(TimeZone)` — tipos que a **API pública da kmplib
+> exige**. `implementation` onde a regra do Gradle manda `api` faz cada app **adivinhar a versão**, e
+> versão divergente de `kotlinx-datetime` (0.7.x tornou `Instant` typealias de `kotlin.time.Instant`)
+> quebra o R8 **só no release** — o próprio build da lib já documentava esse sintoma no bloco do
+> RevenueCat.
+
+- [x] **Varredura completa da API pública + `api()` nos 10 artefatos que vazavam. ENTREGUE na 2.101.0.**
+      - **Entregue (`build.gradle.kts`, zero `.kt` tocado):** `kotlinx-datetime`,
+        `kotlinx-coroutines-core`, `kotlinx-serialization-json`, `ktor-client-core`,
+        `lifecycle-viewmodel` (supertipo de `BaseViewModel`), `compose.ui`, `compose.foundation`,
+        `compose.material3`, `compose.components.resources` → `api()`; e **`androidx.fragment`**
+        declarada pela primeira vez (`FragmentActivity` em `KmpLib.setActivity` chegava só por acaso,
+        transitivamente via `api(firebase-auth-android)` → `play-services-base` — um projeto own-auth
+        sem Firebase não conseguia nomeá-lo).
+      - **Decisão registrada:** as deps de uso **interno auditado** ficam `implementation` de
+        propósito, com o motivo escrito no build — Firebase GitLive e RevenueCat (impls `internal`/
+        `private`; é o que permite consumir a lib sem falar Firebase), Sentry KMP (`CrashReporter` é
+        neutra ao fornecedor), `sqldelight-coroutines`, os plugins Ktor de logging/negotiation
+        (`HttpLogLevel` é enum próprio), `uiToolingPreview` (os 28 `@Preview` são `private`) e
+        `materialIconsExtended` (a lib usa **valores** `Icons.*`, nunca um **tipo** do artefato).
+      - **Prova:** `metadataApiElements` do módulo publicado foi de **6 → 15** dependências; no POM do
+        `kmplib-android` as coordenadas saíram de `runtime` para **`compile`**.
+      - **Compatibilidade:** puramente **aditiva** — quem já declarava fica redundante e pode remover
+        a linha (Desparasite-se: `kotlinx-datetime`). Nenhuma migração obrigatória, sem aviso crítico.
+
 ### ENTREGUE — GAP-HR-M-02 / GAP-HR-M-03 (Hora do Remédio) + RF-12 (Desparasite-se): ações na notificação (10/ago/2026)
 > Dois consumidores no mesmo domínio (lembrete de dose) pedindo a mesma coisa por escrito: botão na
 > própria notificação. A lib montava o `NotificationCompat.Builder` **sem nenhum `addAction`** e não
