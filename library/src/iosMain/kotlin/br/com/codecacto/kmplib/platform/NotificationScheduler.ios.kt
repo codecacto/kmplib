@@ -22,8 +22,30 @@ import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
 import platform.UserNotifications.UNUserNotificationCenter
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import kotlin.concurrent.AtomicInt
 
+/**
+ * Agendador iOS sobre `UNUserNotificationCenter`.
+ *
+ * ### Diferença de contrato para o Android (documentada de propósito)
+ * No Android, a lib precisa de um `BOOT_COMPLETED` receiver porque o `AlarmManager` é **zerado no
+ * boot**. No iOS **não existe esse problema**: uma notificação entregue ao
+ * `UNUserNotificationCenter` é persistida pelo sistema e sobrevive a reboot, a app encerrado e a
+ * atualização — quem dispara é o SO, não o app. Por isso não há (nem pode haver) receiver de boot
+ * aqui: o iOS sequer entrega broadcast de boot a apps de terceiros.
+ *
+ * ### O limite que EXISTE no iOS: 64 pendentes por app
+ * O sistema mantém no máximo **64 notificações pendentes por app** e **descarta em silêncio** o que
+ * passar disso — sem erro, sem callback de falha. Um cronograma de 26 dias com dose de 12/12h pede
+ * 52 disparos só de dose, mais avisos: encosta no teto.
+ *
+ * A lib resolve com um **espelho persistente** ([IosNotificationScheduleStore]) e uma **janela**:
+ * registra no sistema os próximos [NotificationRescheduling.IOS_PENDING_LIMIT] disparos e guarda o
+ * resto, reabastecendo em [refreshScheduledNotifications] (chame na abertura do app). Lembretes
+ * diários usam `repeats = true`, então **um** pedido cobre disparos infinitos e quase não consome
+ * cota — por isso eles têm prioridade na janela.
+ */
 @Suppress("UNCHECKED_CAST")
 class IosNotificationScheduler : NotificationScheduler {
 
@@ -33,6 +55,7 @@ class IosNotificationScheduler : NotificationScheduler {
 
     private val notificationCenter = UNUserNotificationCenter.currentNotificationCenter()
     private val permissionGranted = AtomicInt(0) // 0 = unknown, 1 = granted, -1 = denied
+    private val store: NotificationScheduleStore = IosNotificationScheduleStore()
 
     /**
      * Verifica se tem permissão para notificações.
@@ -120,19 +143,24 @@ class IosNotificationScheduler : NotificationScheduler {
             repeats = false
         )
 
-        val request = UNNotificationRequest.requestWithIdentifier(
-            identifier = id.toString(),
-            content = content,
-            trigger = trigger
+        val scheduled = ScheduledNotification(
+            id = id,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.ONE_SHOT,
+            triggerAtMillis = scheduledTime.toEpochMilliseconds(),
+            data = data,
+            channelId = channelId,
+            isCritical = isCritical,
         )
+        store.put(scheduled)
 
-        notificationCenter.addNotificationRequest(request) { error ->
-            if (error != null) {
-                AppLogger.e(TAG, "Erro ao agendar notificação: ${error.localizedDescription}")
-            } else {
-                AppLogger.d(TAG, "Notificação agendada: id=$id")
-            }
+        if (fitsInWindow(scheduled)) {
+            submit(id, content, trigger)
+        } else {
+            AppLogger.d(TAG, "Notificação id=$id além do teto de pendentes do iOS — fica na fila da lib")
         }
+        pruneDeferred()
     }
 
     @OptIn(ExperimentalForeignApi::class)
@@ -169,30 +197,42 @@ class IosNotificationScheduler : NotificationScheduler {
             repeats = true
         )
 
-        val request = UNNotificationRequest.requestWithIdentifier(
-            identifier = id.toString(),
-            content = content,
-            trigger = trigger
+        store.put(
+            ScheduledNotification(
+                id = id,
+                title = title,
+                body = body,
+                kind = NotificationScheduleKind.DAILY,
+                triggerAtMillis = NotificationRescheduling.nextDailyTriggerMillis(
+                    hour = hour,
+                    minute = minute,
+                    nowMillis = nowMillis(),
+                ),
+                hour = hour.coerceIn(0, 23),
+                minute = minute.coerceIn(0, 59),
+                data = data,
+                channelId = channelId,
+                isCritical = isCritical,
+            )
         )
 
-        notificationCenter.addNotificationRequest(request) { error ->
-            if (error != null) {
-                AppLogger.e(TAG, "Erro ao agendar lembrete diário: ${error.localizedDescription}")
-            } else {
-                AppLogger.d(TAG, "Lembrete diário agendado: id=$id, horario=$hour:$minute")
-            }
-        }
+        submit(id, content, trigger)
+        pruneDeferred()
     }
 
     override fun cancelNotification(id: Int) {
         notificationCenter.removePendingNotificationRequestsWithIdentifiers(listOf(id.toString()))
         notificationCenter.removeDeliveredNotificationsWithIdentifiers(listOf(id.toString()))
+        store.remove(id)
         AppLogger.d(TAG, "Notificação cancelada: id=$id")
+        // Cancelar libera vaga no teto de 64: promove quem estava esperando na fila da lib.
+        refreshScheduledNotifications()
     }
 
     override fun cancelAllNotifications() {
         notificationCenter.removeAllPendingNotificationRequests()
         notificationCenter.removeAllDeliveredNotifications()
+        store.clear()
         AppLogger.d(TAG, "Todas as notificações canceladas")
     }
 
@@ -226,6 +266,110 @@ class IosNotificationScheduler : NotificationScheduler {
             }
         }
     }
+
+    override fun scheduledNotifications(): List<ScheduledNotification> = store.all()
+
+    /**
+     * Reabastece a fila do sistema dentro do teto de 64 pendentes e limpa disparos únicos vencidos.
+     *
+     * Diferente do Android, **não** exibe "disparos perdidos": no iOS quem entrega é o próprio SO,
+     * mesmo com o app encerrado, então o usuário já recebeu — reexibir aqui duplicaria o aviso.
+     *
+     * Chame na abertura do app (é idempotente e barato).
+     */
+    override fun refreshScheduledNotifications() {
+        val now = nowMillis()
+        val plan = NotificationRescheduling.plan(stored = store.all(), nowMillis = now)
+        plan.expiredIds.forEach { expired ->
+            store.remove(expired)
+            notificationCenter.removePendingNotificationRequestsWithIdentifiers(listOf(expired.toString()))
+        }
+        plan.toSchedule.forEach(store::put)
+
+        val window = NotificationRescheduling.selectWindow(store.all(), now)
+        window.register.forEach { item -> submit(item) }
+        if (window.deferred.isNotEmpty()) {
+            notificationCenter.removePendingNotificationRequestsWithIdentifiers(
+                window.deferred.map { it.id.toString() }
+            )
+        }
+        AppLogger.d(
+            TAG,
+            "Fila do iOS reconciliada: ${window.register.size} registradas, ${window.deferred.size} aguardando"
+        )
+    }
+
+    /** `true` se [item] cabe na janela de pendentes registrada no sistema. */
+    private fun fitsInWindow(item: ScheduledNotification): Boolean =
+        NotificationRescheduling.selectWindow(store.all(), nowMillis())
+            .register
+            .any { it.id == item.id }
+
+    /** Tira do sistema o que passou do teto (ficam guardados no espelho da lib). */
+    private fun pruneDeferred() {
+        val deferred = NotificationRescheduling.selectWindow(store.all(), nowMillis()).deferred
+        if (deferred.isNotEmpty()) {
+            notificationCenter.removePendingNotificationRequestsWithIdentifiers(
+                deferred.map { it.id.toString() }
+            )
+        }
+    }
+
+    /** Registra (ou substitui, pelo identifier) um agendamento do espelho no sistema. */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun submit(item: ScheduledNotification) {
+        val content = UNMutableNotificationContent().apply {
+            setTitle(item.title)
+            setBody(item.body)
+            setSound(
+                if (item.isCritical) UNNotificationSound.defaultCriticalSound()
+                else UNNotificationSound.defaultSound()
+            )
+            if (item.data.isNotEmpty()) {
+                setUserInfo(item.data.mapKeys { it.key as Any } as Map<Any?, *>)
+            }
+        }
+
+        val components = NSDateComponents()
+        val trigger = if (item.isDaily) {
+            components.hour = item.hour.coerceIn(0, 23).toLong()
+            components.minute = item.minute.coerceIn(0, 59).toLong()
+            UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = true)
+        } else {
+            val local = Instant.fromEpochMilliseconds(item.triggerAtMillis)
+                .toLocalDateTime(TimeZone.currentSystemDefault())
+            components.year = local.year.toLong()
+            components.month = local.monthNumber.toLong()
+            components.day = local.dayOfMonth.toLong()
+            components.hour = local.hour.toLong()
+            components.minute = local.minute.toLong()
+            components.second = local.second.toLong()
+            UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = false)
+        }
+
+        submit(item.id, content, trigger)
+    }
+
+    private fun submit(
+        id: Int,
+        content: UNMutableNotificationContent,
+        trigger: UNCalendarNotificationTrigger,
+    ) {
+        val request = UNNotificationRequest.requestWithIdentifier(
+            identifier = id.toString(),
+            content = content,
+            trigger = trigger
+        )
+        notificationCenter.addNotificationRequest(request) { error ->
+            if (error != null) {
+                AppLogger.e(TAG, "Erro ao agendar notificação: ${error.localizedDescription}")
+            } else {
+                AppLogger.d(TAG, "Notificação agendada: id=$id")
+            }
+        }
+    }
+
+    private fun nowMillis(): Long = currentTimeMillis()
 }
 
 actual fun getNotificationScheduler(): NotificationScheduler = IosNotificationScheduler()

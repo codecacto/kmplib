@@ -8,7 +8,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -79,26 +81,27 @@ class AndroidNotificationScheduler : NotificationScheduler {
         /**
          * Calcula o próximo timestamp (epoch millis) para o horário local hour:minute.
          * Se o horário de hoje já passou (com base em [now]), retorna o de amanhã.
+         *
+         * Delega à regra pura [NotificationRescheduling.nextDailyTriggerMillis] (testada em
+         * `commonTest`) — o `Calendar` aqui serve só para informar "agora".
          */
         fun nextDailyTriggerMillis(
             hour: Int,
             minute: Int,
             now: java.util.Calendar = java.util.Calendar.getInstance()
-        ): Long {
-            val target = now.clone() as java.util.Calendar
-            target.set(java.util.Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
-            target.set(java.util.Calendar.MINUTE, minute.coerceIn(0, 59))
-            target.set(java.util.Calendar.SECOND, 0)
-            target.set(java.util.Calendar.MILLISECOND, 0)
-            if (target.timeInMillis <= now.timeInMillis) {
-                target.add(java.util.Calendar.DAY_OF_MONTH, 1)
-            }
-            return target.timeInMillis
-        }
+        ): Long = NotificationRescheduling.nextDailyTriggerMillis(
+            hour = hour,
+            minute = minute,
+            nowMillis = now.timeInMillis,
+        )
     }
 
     private val context: Context?
         get() = NotificationSchedulerHolder.getContext()
+
+    /** Espelho persistente dos agendamentos — é o que sobrevive ao boot (o AlarmManager não). */
+    private val store: NotificationScheduleStore?
+        get() = context?.let { AndroidNotificationScheduleStore(it) }
 
     init {
         createDefaultChannels()
@@ -182,52 +185,40 @@ class AndroidNotificationScheduler : NotificationScheduler {
         isCritical: Boolean
     ) {
         val ctx = context ?: return
-
-        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        val intent = Intent(ctx, NotificationReceiver::class.java).apply {
-            putExtra(EXTRA_NOTIFICATION_ID, id)
-            putExtra(EXTRA_TITLE, title)
-            putExtra(EXTRA_BODY, body)
-            putExtra(EXTRA_DATA, HashMap(data))
-            putExtra(EXTRA_CHANNEL_ID, channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID)
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            ctx,
-            id,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
+        val resolvedChannel = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID
         val triggerTime = scheduledTime.toEpochMilliseconds()
 
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-                } else {
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTime,
-                        pendingIntent
-                    )
-                }
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTime,
-                    pendingIntent
-                )
-            }
-            AppLogger.d(TAG, "Notificação agendada: id=$id, time=$scheduledTime")
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao agendar notificação", e)
-        }
+        scheduleExactAlarm(
+            ctx = ctx,
+            id = id,
+            intent = buildAlarmIntent(
+                ctx = ctx,
+                id = id,
+                title = title,
+                body = body,
+                data = data,
+                channelId = resolvedChannel,
+                daily = false,
+                hour = -1,
+                minute = -1,
+                isCritical = isCritical,
+            ),
+            triggerTime = triggerTime,
+        )
+
+        store?.put(
+            ScheduledNotification(
+                id = id,
+                title = title,
+                body = body,
+                kind = NotificationScheduleKind.ONE_SHOT,
+                triggerAtMillis = triggerTime,
+                data = data,
+                channelId = resolvedChannel,
+                isCritical = isCritical,
+            )
+        )
+        AppLogger.d(TAG, "Notificação agendada: id=$id, time=$scheduledTime")
     }
 
     override fun scheduleDailyNotification(
@@ -245,20 +236,38 @@ class AndroidNotificationScheduler : NotificationScheduler {
         val triggerTime = nextDailyTriggerMillis(hour, minute)
         val resolvedChannel = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID
 
-        val intent = Intent(ctx, NotificationReceiver::class.java).apply {
-            putExtra(EXTRA_NOTIFICATION_ID, id)
-            putExtra(EXTRA_TITLE, title)
-            putExtra(EXTRA_BODY, body)
-            putExtra(EXTRA_DATA, HashMap(data))
-            putExtra(EXTRA_CHANNEL_ID, resolvedChannel)
-            // Marcadores de recorrência para o receiver reagendar o próximo dia.
-            putExtra(EXTRA_DAILY, true)
-            putExtra(EXTRA_HOUR, hour)
-            putExtra(EXTRA_MINUTE, minute)
-            putExtra(EXTRA_CRITICAL, isCritical)
-        }
+        scheduleExactAlarm(
+            ctx = ctx,
+            id = id,
+            intent = buildAlarmIntent(
+                ctx = ctx,
+                id = id,
+                title = title,
+                body = body,
+                data = data,
+                channelId = resolvedChannel,
+                daily = true,
+                hour = hour,
+                minute = minute,
+                isCritical = isCritical,
+            ),
+            triggerTime = triggerTime,
+        )
 
-        scheduleExactAlarm(ctx, id, intent, triggerTime)
+        store?.put(
+            ScheduledNotification(
+                id = id,
+                title = title,
+                body = body,
+                kind = NotificationScheduleKind.DAILY,
+                triggerAtMillis = triggerTime,
+                hour = hour.coerceIn(0, 23),
+                minute = minute.coerceIn(0, 59),
+                data = data,
+                channelId = resolvedChannel,
+                isCritical = isCritical,
+            )
+        )
         AppLogger.d(TAG, "Lembrete diário agendado: id=$id, horario=$hour:$minute, proximo=$triggerTime")
     }
 
@@ -277,13 +286,36 @@ class AndroidNotificationScheduler : NotificationScheduler {
 
         alarmManager.cancel(pendingIntent)
         NotificationManagerCompat.from(ctx).cancel(id)
+        store?.remove(id)
         AppLogger.d(TAG, "Notificação cancelada: id=$id")
     }
 
+    /**
+     * Cancela TODAS as notificações — agendadas e já exibidas.
+     *
+     * Até a 2.98.0 este método só dispensava as notificações **na bandeja**: os alarmes seguiam
+     * armados no `AlarmManager` e voltavam a disparar, contrariando o próprio contrato documentado.
+     * Com o registro persistente a lib passa a saber o que cancelar, e o método faz o que promete.
+     */
     override fun cancelAllNotifications() {
         val ctx = context ?: return
+        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val currentStore = store
+
+        currentStore?.all()?.forEach { scheduled ->
+            val pendingIntent = PendingIntent.getBroadcast(
+                ctx,
+                scheduled.id,
+                Intent(ctx, NotificationReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            runCatching { alarmManager.cancel(pendingIntent) }
+                .onFailure { AppLogger.w(TAG, "Falha ao cancelar alarme id=${scheduled.id}: ${it.message}") }
+        }
+        currentStore?.clear()
+
         NotificationManagerCompat.from(ctx).cancelAll()
-        AppLogger.d(TAG, "Todas as notificações canceladas")
+        AppLogger.d(TAG, "Todas as notificações canceladas (bandeja + alarmes agendados)")
     }
 
     override fun showNotificationNow(
@@ -318,6 +350,121 @@ class AndroidNotificationScheduler : NotificationScheduler {
         }
     }
 
+    override fun scheduledNotifications(): List<ScheduledNotification> = store?.all().orEmpty()
+
+    /**
+     * Reagenda no `AlarmManager` tudo o que estiver no registro persistente.
+     *
+     * Chamado pelo [BootCompletedReceiver] (boot e atualização do app) e seguro de chamar na
+     * abertura do app: é idempotente (`FLAG_UPDATE_CURRENT` sobrescreve o alarme de mesmo id).
+     */
+    override fun refreshScheduledNotifications() {
+        val ctx = context ?: return
+        val currentStore = store ?: return
+        val stored = currentStore.all()
+        if (stored.isEmpty()) return
+
+        val plan = NotificationRescheduling.plan(
+            stored = stored,
+            nowMillis = System.currentTimeMillis(),
+        )
+
+        plan.toShowNow.forEach { missed ->
+            showNotificationNow(
+                id = missed.id,
+                title = missed.title,
+                body = missed.body,
+                data = missed.data,
+                channelId = missed.channelId,
+            )
+        }
+
+        plan.expiredIds.forEach(currentStore::remove)
+
+        plan.toSchedule.forEach { item ->
+            scheduleExactAlarm(
+                ctx = ctx,
+                id = item.id,
+                intent = buildAlarmIntent(
+                    ctx = ctx,
+                    id = item.id,
+                    title = item.title,
+                    body = item.body,
+                    data = item.data,
+                    channelId = item.channelId ?: DEFAULT_CHANNEL_ID,
+                    daily = item.isDaily,
+                    hour = item.hour,
+                    minute = item.minute,
+                    isCritical = item.isCritical,
+                ),
+                triggerTime = item.triggerAtMillis,
+            )
+            currentStore.put(item)
+        }
+
+        AppLogger.d(
+            TAG,
+            "Agendamentos restaurados: ${plan.toSchedule.size} reagendados, " +
+                "${plan.toShowNow.size} perdidos exibidos, ${plan.expiredIds.size} expirados"
+        )
+    }
+
+    override fun canScheduleExactAlarms(): Boolean {
+        val ctx = context ?: return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return alarmManager.canScheduleExactAlarms()
+    }
+
+    override fun requestExactAlarmPermission() {
+        val ctx = context ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (canScheduleExactAlarms()) return
+        runCatching {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${ctx.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            ctx.startActivity(intent)
+        }.onFailure {
+            AppLogger.w(TAG, "Não foi possível abrir a tela de alarmes exatos: ${it.message}")
+        }
+    }
+
+    override fun openBatteryOptimizationSettings() {
+        val ctx = context ?: return
+        runCatching {
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+        }.onFailure {
+            AppLogger.w(TAG, "Não foi possível abrir a otimização de bateria: ${it.message}")
+        }
+    }
+
+    private fun buildAlarmIntent(
+        ctx: Context,
+        id: Int,
+        title: String,
+        body: String,
+        data: Map<String, String>,
+        channelId: String,
+        daily: Boolean,
+        hour: Int,
+        minute: Int,
+        isCritical: Boolean,
+    ): Intent = Intent(ctx, NotificationReceiver::class.java).apply {
+        putExtra(EXTRA_NOTIFICATION_ID, id)
+        putExtra(EXTRA_TITLE, title)
+        putExtra(EXTRA_BODY, body)
+        putExtra(EXTRA_DATA, HashMap(data))
+        putExtra(EXTRA_CHANNEL_ID, channelId)
+        putExtra(EXTRA_DAILY, daily)
+        putExtra(EXTRA_HOUR, hour)
+        putExtra(EXTRA_MINUTE, minute)
+        putExtra(EXTRA_CRITICAL, isCritical)
+    }
+
     private fun scheduleExactAlarm(ctx: Context, id: Int, intent: Intent, triggerTime: Long) {
         val alarmManager = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pendingIntent = PendingIntent.getBroadcast(
@@ -331,6 +478,9 @@ class AndroidNotificationScheduler : NotificationScheduler {
                 if (alarmManager.canScheduleExactAlarms()) {
                     alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
                 } else {
+                    // Sem a permissão de alarme exato o disparo pode atrasar alguns minutos — melhor
+                    // isso do que não agendar nada. O app pode oferecer `requestExactAlarmPermission()`.
+                    AppLogger.w(TAG, "Sem permissão de alarme exato; agendando alarme inexato (id=$id)")
                     alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
                 }
             } else {
@@ -369,4 +519,3 @@ actual fun getNotificationScheduler(): NotificationScheduler {
         ?: throw IllegalStateException("NotificationSchedulerHolder nao foi inicializado. Chame NotificationSchedulerHolder.init(context) no Application.onCreate()")
     return AndroidNotificationScheduler()
 }
-

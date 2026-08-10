@@ -6,6 +6,130 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.99.0 — lembrete que sobrevive ao reboot + efemérides lunares de verdade (ago/2026)
+
+Duas peças de fundação, ambas nascidas do app novo **Desparasite-se** (protocolo antiparasitário
+ancorado em fases da lua, com lembrete de dose 12/12h) — que seria o 2º/3º consumidor de código hoje
+duplicado em apps. Em vez de copiar, resolveu-se na fundação.
+
+**Aditiva.** Nenhuma assinatura existente mudou; os métodos novos da interface `NotificationScheduler`
+entram com corpo default, então qualquer fake/decorator que um app mantenha continua compilando.
+
+---
+
+### 1. `BOOT_COMPLETED` — o lembrete parou de morrer quando o celular reinicia (crítico)
+
+**O defeito:** o `AlarmManager` do Android **zera todos os alarmes no boot**. A kmplib não registrava
+receiver de boot e não guardava registro nenhum dos agendamentos — então, ao reiniciar o aparelho,
+**todo lembrete local agendado por qualquer app do ecossistema desaparecia em silêncio** e só voltava
+se o usuário abrisse o app. Estava documentado como limitação (`GAP-HR-M-04` do Hora do Remédio,
+`RNF-01` do Desparasite-se), com cada app inventando o mesmo contorno: reagendar tudo na abertura.
+Para lembrete de medicação de 12/12h isso não é detalhe técnico — é a promessa central do produto
+falhando sem nenhum aviso.
+
+**A correção (padrão-ouro da plataforma, não contorno):**
+
+- **`BootCompletedReceiver`** declarado **no manifesto da própria lib**, junto da permissão
+  `RECEIVE_BOOT_COMPLETED` — todo app consumidor herda o conserto **só bumpando a versão**, sem editar
+  manifest. Escuta `BOOT_COMPLETED`, **`MY_PACKAGE_REPLACED`** (atualizar o app também apaga os
+  alarmes) e as variantes `QUICKBOOT_POWERON` de fabricante.
+- **Registro persistente dos agendamentos** (`ScheduledNotification` + `NotificationScheduleStore`),
+  sem o qual não há o que reagendar: `SharedPreferences` no Android (leitura **síncrona** — o receiver
+  de boot roda fora de escopo de corrotina, onde `runBlocking` num DataStore seria justamente o que a
+  doc do Android proíbe) e `NSUserDefaults` no iOS.
+- **`refreshScheduledNotifications()`** na interface comum: reconcilia registro × sistema
+  operacional. Idempotente; chamar na abertura do app é barato.
+- **Disparo perdido tem janela de graça de 1 h.** Celular desligado às 19:50, dose às 20:00, ligou às
+  20:20 ⇒ **avisa**. Ligou no dia seguinte de manhã ⇒ **não avisa** (lembrete de ontem aparecendo hoje
+  sugere tomar fora de hora — em app de medicação, ruído é perigoso).
+- **Alarme exato no Android 12+**: `canScheduleExactAlarms()` e `requestExactAlarmPermission()`
+  (abre `ACTION_REQUEST_SCHEDULE_EXACT_ALARM`). Sem a permissão, a lib **continua agendando** com
+  alarme inexato e loga o aviso — nunca fica em silêncio. **A lib NÃO declara
+  `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`**: são permissões de uso restrito, e impô-las a todo app da
+  fundação — inclusive aos que nem agendam nada — seria transferir risco de revisão na Play a quem não
+  pediu. Quem precisa declara a sua.
+- **Restrição de fabricante:** `openBatteryOptimizationSettings()` abre a lista geral de otimização de
+  bateria (sem permissão restrita) — a mitigação possível para as camadas agressivas de Xiaomi/Samsung/
+  Huawei, que matam alarme e são a causa nº 1 de "não tocou" mesmo com o código certo.
+- **`NotificationReceiver` passou a ser declarado pela lib.** Antes, cada app tinha de lembrar de
+  declará-lo à mão, e quem esquecesse tinha agendamento que nunca aparecia — sem erro de build. A
+  declaração é idêntica à que os apps já usam, então o manifest merger mescla sem conflito.
+
+**Correção de contrato junto:** `cancelAllNotifications()` só dispensava as notificações **da
+bandeja** — os alarmes seguiam armados e voltavam a disparar, ao contrário do que o próprio KDoc
+prometia. Com o registro, agora cancela de verdade.
+
+**iOS — a diferença está documentada, não silenciada.** O `UNUserNotificationCenter` persiste os
+agendamentos e sobrevive a reboot sozinho: **não há nem pode haver receiver de boot** (o iOS não
+entrega broadcast de boot a apps de terceiros). O limite que **existe** lá é outro: **64 notificações
+pendentes por app**, com o excedente **descartado em silêncio** — e um ciclo de 26 dias com dose de
+12/12h pede 52 disparos só de dose. A lib passa a manter o espelho e registrar no sistema apenas a
+**janela** dos próximos 60 (folga de 4 para o app), reabastecendo em `refreshScheduledNotifications()`.
+Lembrete diário usa `repeats = true` (um pedido cobre disparos infinitos) e por isso tem prioridade na
+janela.
+
+**Testes:** `NotificationReschedulingTest` (22) — próximo disparo diário com fuso, virada de mês,
+entrada inválida; plano pós-boot para diário e único; janela de graça (dentro, fora, configurável); o
+cenário completo do protocolo de 26 dias sobrevivendo ao boot; teto do iOS (prioridade do diário,
+vencidos não ocupam vaga); e o store. A regra vive em `commonMain` puro, com o "agora" por parâmetro —
+a decisão testada é exatamente a que roda dentro do receiver.
+
+**Pendência de macOS:** os `actual` iOS (espelho + janela) estão escritos conforme a API oficial, mas
+**não compilam em Linux** — validação final no Mac, como o resto do iOS da lib.
+
+---
+
+### 2. `astro` — módulo novo: efemérides lunares por Meeus (não mais "idade média")
+
+Promovido do `core/domain/moon` do **Lua Certa**, mas **não copiado: corrigido**. A implementação de
+origem calculava a idade lunar por **módulo do mês sinódico médio** a partir de uma época fixa —
+atalho clássico que trata 29,530588861 dias como constante. Ele **não é**: o ciclo real varia entre
+~29,27 e ~29,83 dias, e o erro instantâneo passa de **meio dia**. Para escrever "hoje é lua crescente"
+isso passa despercebido; para **ancorar um cronograma de 26 dias no instante da lua nova**, desloca o
+ciclo inteiro em um dia. "Já estava assim" não autoriza subir o atalho para a fundação.
+
+**O que entrou:** `br.com.codecacto.kmplib.astro` implementando **Meeus, _Astronomical Algorithms_
+(2ª ed.)** — capítulo 49 para os instantes das 4 fases principais (série completa de termos
+periódicos + as 14 correções planetárias) e capítulos 47/48 para a fração iluminada, com conversão
+TT→UTC por **ΔT** (polinômios de Espenak & Meeus, 1600–2150). Erro típico de **segundos**.
+
+- **`MoonCalculator`** — `phaseAt(instant)`, `phaseOn(date, timeZone)` (meio-dia local),
+  `nextPhase(phase, from)`, `previousPhase(...)`, `nextPhases(..., count)`, `phasesBetween(start, end)`
+  e os atalhos `nextNewMoon`/`nextFullMoon`.
+- **`MoonPhaseEvent(phase, instant)`** — a fase é um **instante**; a data civil **depende do fuso** e
+  por isso não é campo, e sim `dateIn(zone)`/`dateTimeIn(zone)`/`daysFrom(date, zone)`. Uma lua nova
+  às 02:30 UTC cai no dia anterior em Brasília: guardar "a data" sem o fuso é exatamente como se erra
+  o começo de um cronograma por um dia.
+- **`MoonPhaseInfo`** — fase nomeada, `ageDays`, `cycleFraction`, `illuminationFraction`/
+  `illuminationPercent`, `cycleLengthDays` e as luas novas **reais** que abrem e fecham o ciclo.
+- **`MoonPhase`** (8 fases, com `glyph`, `isWaxing`, `group`), **`MoonPhaseGroup`**,
+  **`PrincipalMoonPhase`** (as 4 que têm instante exato) e **`MoonPhaseTexts`** (rótulos injetáveis).
+  O enum **não** carrega `displayName` em pt-BR: fundação com rótulo fixo obrigaria todo app a exibir
+  português, contra a regra de o mobile seguir o idioma do aparelho.
+
+**Namespace:** módulo próprio `astro`, não `core/*`. `core` é infraestrutura de app (formato, rede,
+preferências); isto é um **domínio de cálculo** puro e autocontido, como `brdata` é um domínio de
+dados. Fica pronto para crescer (nascer/pôr do sol, por exemplo) sem inchar `core`.
+
+**Testes:** `MoonCalculatorTest` (27), validados contra **fontes externas**, não contra o próprio
+algoritmo: o **Exemplo 49.a do livro de Meeus** (reproduzido ao segundo) e **oito eclipses** solares e
+lunares dos catálogos da NASA de 1999 a 2024 (um eclipse só ocorre em lua nova/cheia, então o instante
+do máximo ancora a fase com precisão de minutos), tolerância de 2 min. Mais: comportamento por fuso,
+virada de ano, datas de 1900 e 2100, coerência de idade/ciclo/iluminação, e um **controle negativo**
+que mede o desvio da aproximação por sinódico médio (passa de 5 h — é o teste que justifica o
+algoritmo caro).
+
+---
+
+### Migração
+
+- **Nada obrigatório.** Mudança aditiva: bumpar já traz a sobrevivência a reboot, sem tocar em código.
+- **Apps com lembrete local** podem **remover o contorno** de "reagendar tudo na abertura" e trocar por
+  `scheduler.refreshScheduledNotifications()` (mais barato e idempotente). Manter o contorno também
+  funciona.
+- **Lua Certa:** apagar `core/domain/moon` local e importar de `br.com.codecacto.kmplib.astro`.
+- **Hora do Remédio:** o `GAP-HR-M-04` deixou de existir.
+
 ## 2.98.0 — login social no own-auth: Google e Apple sem Firebase (ago/2026)
 
 Onda 0 do **Crédito na Mão**, lado mobile. Fecha o **Gap (a)** da arquitetura daquele projeto e

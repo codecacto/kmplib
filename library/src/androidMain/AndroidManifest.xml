@@ -2,6 +2,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
+      RECEIVE_BOOT_COMPLETED (2.99.0) — sobrevivência dos lembretes locais a um reboot.
+
+      O AlarmManager do Android PERDE todos os alarmes quando o aparelho reinicia. Sem este
+      receiver, qualquer lembrete agendado pela kmplib (dose de medicação, versículo diário,
+      lembrete de tarefa) morria em silêncio no boot e só voltava se o usuário abrisse o app.
+
+      A permissão é de nível "normal": não gera prompt para o usuário, não exige declaração de
+      política na Play e não tem impacto de privacidade. Declará-la AQUI, e não em cada app, é o
+      ponto: assim todo consumidor herda a correção só bumpando a versão.
+
+      NÃO declaramos SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM de propósito. Elas são de uso restrito
+      (a Play cobra justificativa de política e pode reprovar quem não se enquadra), e impô-las a
+      TODO app da lib — inclusive os que nem agendam nada — seria transferir um risco de revisão de
+      loja para quem não pediu. O app que precisa de alarme exato declara a sua; a lib detecta a
+      ausência (NotificationScheduler.canScheduleExactAlarms) e degrada para alarme inexato.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
       FileProvider da kmplib (correção de bug — ShareHandler.shareFile).
 
       O AndroidShareHandler grava o arquivo em context.cacheDir/shared_files e
@@ -33,6 +52,38 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/kmplib_file_paths" />
         </provider>
+
+        <!--
+          Receiver que EXIBE a notificação agendada (alarme → notificação).
+
+          Passou a ser declarado pela própria lib na 2.99.0. Antes, cada app consumidor tinha de
+          lembrar de declará-lo à mão — e quem esquecesse tinha agendamento que nunca aparecia, sem
+          erro nenhum no build. A declaração é idêntica à que os apps já usam
+          (android:exported="false"), então o manifest merger mescla sem conflito com quem já a tem.
+        -->
+        <receiver
+            android:name="br.com.codecacto.kmplib.platform.NotificationReceiver"
+            android:exported="false" />
+
+        <!--
+          Restaura os lembretes depois do boot e da atualização do app.
+
+          exported="true" é OBRIGATÓRIO aqui: quem envia o broadcast é o sistema operacional, e um
+          receiver não exportado nunca o receberia. Não há risco de superfície: BOOT_COMPLETED e
+          MY_PACKAGE_REPLACED são broadcasts PROTEGIDOS (só o SO pode emiti-los), e o onReceive só
+          relê o próprio registro da lib — não aceita dado nenhum do Intent.
+        -->
+        <receiver
+            android:name="br.com.codecacto.kmplib.platform.BootCompletedReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

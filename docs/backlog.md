@@ -3,6 +3,43 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — GAP-HR-M-04 / RNF-01 (Desparasite-se): lembrete local que sobrevive ao reboot (10/ago/2026)
+> Gap documentado no `Hora do Remédio` (`mobile/docs/DESIGN.md`, GAP-HR-M-04) e levantado como
+> **bloqueante de MVP** no PRD do `Desparasite-se` (RNF-01). Atingia TODO app do ecossistema com
+> lembrete local.
+
+- [x] **BOOT_COMPLETED + persistência dos agendamentos. ENTREGUE na 2.99.0.**
+      - **Entregue:** `BootCompletedReceiver` e `RECEIVE_BOOT_COMPLETED` **declarados no manifesto da
+        lib** (todo consumidor herda só bumpando); `NotificationReceiver` também passou a ser declarado
+        pela lib; registro persistente (`ScheduledNotification`/`NotificationScheduleStore`,
+        SharedPreferences no Android e NSUserDefaults no iOS); regra pura `NotificationRescheduling`
+        (próximo disparo diário com fuso, plano pós-boot, janela de graça de 1 h, janela do teto de 64
+        do iOS); `refreshScheduledNotifications()`/`scheduledNotifications()`/`canScheduleExactAlarms()`/
+        `requestExactAlarmPermission()`/`openBatteryOptimizationSettings()` na interface comum, todos
+        com corpo default.
+      - **Corrigido junto:** `cancelAllNotifications()` não cancelava os alarmes (só dispensava a
+        bandeja), contrariando o próprio KDoc.
+      - **Decisão registrada:** a lib **não** declara `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` —
+        permissões de uso restrito não podem ser impostas a apps que nem agendam nada. Degrada para
+        alarme inexato com log, e expõe o pedido de permissão para quem precisa.
+      - **Pendência de macOS:** os `actual` iOS (espelho + janela de 64) não compilam em Linux.
+      - **Migração:** nenhuma obrigatória. Apps com lembrete local podem trocar o contorno "reagendar
+        tudo na abertura" por `refreshScheduledNotifications()`.
+
+### ENTREGUE — cálculo lunar promovido e corrigido: módulo `astro` (10/ago/2026)
+> Detectado pelo PRD do `Desparasite-se` (2º consumidor do `MoonCalculator` do `Lua Certa`).
+
+- [x] **Efemérides lunares na fundação. ENTREGUE na 2.99.0** — módulo novo `astro`
+      (`MoonCalculator`/`MoonPhase`/`PrincipalMoonPhase`/`MoonPhaseInfo`/`MoonPhaseEvent`/
+      `MoonPhaseTexts`), implementando **Meeus cap. 49/47/48 + ΔT**.
+      - **Por que não foi cópia:** a origem usava idade lunar por módulo do sinódico médio (erro > meio
+        dia). Padrão-ouro exige o algoritmo astronômico correto quando a precisão importa — e importa,
+        porque o Desparasite-se ancora 26 dias no instante da lua nova.
+      - **API além do que o Lua Certa usava:** instante exato da próxima/anterior ocorrência de uma fase
+        principal, N próximas ocorrências, marcos de um intervalo, e fuso explícito em toda conversão
+        para data civil.
+      - **Migração:** Lua Certa migrado na mesma rodada (cópia local apagada).
+
 ### ABERTO — gaps de fundação (rodada de segurança do Influencer, 28/jul/2026 — sinalização, NÃO implementar agora)
 > Levantados durante a 4ª rodada de auditoria de segurança do Influencer (28/07/2026) — ver
 > `Influencer/STATUS.md` §Pendências, item "[28/jul] Gaps de fundação identificados na rodada de
@@ -21,10 +58,20 @@
       estado selecionado visível), hoje composto à mão com `Card` + `RadioButton` soltos em vez de um
       componente dedicado com a a11y certa (`role="radiogroup"`/roving tabindex) — o par web já tem
       `PermissionMatrix`/`OptionGroup` nessa linha.
+      - **Consumidor adicional (10/ago/2026, design do Desparasite-se):** tela "Configurar Âncora"
+        (`1-Apps-Offline-Ads/Desparasite-se`) — 4 opções de fase da lua (nova/cheia/crescente/
+        minguante), cada uma com data calculada + "faltam N dias", seleção única, cartão inteiro
+        clicável. Hoje resolvido com `Card` + `RadioButton` compostos à mão (sem bloqueio), mas é
+        exatamente o caso de uso do gap. Ver `Desparasite-se/docs/design/wireframes.md` tela 4.
+        Confirma 2º consumidor real (regra de ≥2 antes de implementar, skill `lib-evolution`).
 - [ ] **GAP-KM-UI-EMPTYSTATE-COMPACT-01 — falta um preset compacto do `EmptyState`.** O `EmptyState` da
       lib é dimensionado para ocupar a tela inteira (ícone grande + título + mensagem + CTA); falta uma
       variante compacta para caber dentro de uma seção/card menor (ex.: lista vazia dentro de uma aba,
       não a tela toda) sem perder a estrutura ícone+título+mensagem do padrão atual.
+      - **Consumidor adicional (10/ago/2026, design do Desparasite-se):** tela "Início" — sub-estado
+        "nenhuma dose prevista para hoje" dentro do card do dia (não é a tela inteira vazia, é uma
+        seção). Hoje resolvido com `Text` solto. Ver
+        `Desparasite-se/docs/design/wireframes.md` tela 8.
 
 ### ENTREGUE — GAP-CV-M-01: leitor de código de barras (EAN) — módulo `camera/barcode` (04/ago/2026)
 > Levantado pelo ux-designer no design de telas do projeto novo **Controle de Validade**

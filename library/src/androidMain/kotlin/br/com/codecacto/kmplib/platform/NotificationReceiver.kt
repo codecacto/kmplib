@@ -68,6 +68,10 @@ class NotificationReceiver : BroadcastReceiver() {
         // Lembrete diário recorrente: reagenda o próximo disparo (amanhã, mesmo horário).
         if (intent.getBooleanExtra(AndroidNotificationScheduler.EXTRA_DAILY, false)) {
             rescheduleDaily(context, intent, id, title, body, channelId, data)
+        } else {
+            // Disparo único consumido: sai do registro persistente para não ser "restaurado" num
+            // boot futuro (o plano de restauração o descartaria, mas registro sujo vira lixo eterno).
+            runCatching { AndroidNotificationScheduleStore(context).remove(id) }
         }
     }
 
@@ -114,6 +118,25 @@ class NotificationReceiver : BroadcastReceiver() {
             AppLogger.d(TAG, "Lembrete diário reagendado: id=$id, proximo=$nextTrigger")
         } catch (e: Exception) {
             AppLogger.e(TAG, "Erro ao reagendar lembrete diário", e)
+        }
+
+        // Mantém o registro persistente apontando para o PRÓXIMO disparo: é ele que o
+        // BootCompletedReceiver vai ler se o aparelho reiniciar antes da próxima dose.
+        runCatching {
+            AndroidNotificationScheduleStore(context).put(
+                ScheduledNotification(
+                    id = id,
+                    title = title,
+                    body = body,
+                    kind = NotificationScheduleKind.DAILY,
+                    triggerAtMillis = nextTrigger,
+                    hour = hour,
+                    minute = minute,
+                    data = data,
+                    channelId = channelId,
+                    isCritical = isCritical,
+                )
+            )
         }
     }
 
