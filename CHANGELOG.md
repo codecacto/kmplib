@@ -6,6 +6,100 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.102.0 — módulo `pix`: parser de BR Code (EMV MPM) + identidade de plaquinha (ago/2026)
+
+**Aditiva.** Pacote novo `br.com.codecacto.kmplib.pix`, **`commonMain` puro**: zero `expect/actual`,
+zero dependência nova, nenhum arquivo existente alterado. Quem já consome a lib não muda nada.
+
+### O gap
+
+Nenhuma lib do monorepo sabia **interpretar** o payload de um QR Code de Pix. A kmplib já lê o
+código (`camera/barcode`, 2.97.0 — `BarcodeScannerView` com `BarcodeFormat.QR_CODE`, e o
+`parseBarcode` de simbologia livre entrega o texto íntegro), mas o que chega ao app é uma string
+opaca. Decodificá-la é `commonMain` puro e 100% testável: material de fundação por natureza — e o
+tipo de código que, escrito dentro de um app, seria reescrito (diferente) no app seguinte.
+
+O produto que motivou é o **Confere QR** (`confere-qr`, app offline AdsOnly): empresas espalham
+plaquinhas de QR de Pix no balcão/mesa/totem, e existe o golpe de **trocar a plaquinha** por um QR de
+outra conta. O app cadastra os QR legítimos e, na ronda do dia, confere cada plaquinha — e, além de
+comparar com o cofre, **mostra quem receberia** (chave, nome, cidade), o que permite desconfiar de uma
+plaquinha **mesmo nunca cadastrada**.
+
+### O que entrou
+
+- **`parseEmvTlv`** — parser TLV do EMV MPM (`ID(2)+tamanho(2)+valor`, com templates aninhados),
+  **estrito no enquadramento e tolerante com ID desconhecido**. A assimetria é o contrato: estrutura
+  que não fecha é payload corrompido (recusar, com `EmvTlvError` + posição); ID que a lib não conhece
+  é campo de PSP novo (**preservar** — recusar faria o app acusar fraude num QR legítimo). Template
+  cujo interior não é TLV vira folha com o valor intacto, em vez de derrubar o payload todo.
+- **`PixCrc`** — CRC-16/CCITT-FALSE (polinômio `0x1021`, init `0xFFFF`, sem reflexão, sem XOR final),
+  sobre os bytes **UTF-8** e cobrindo o payload **incluindo `"6304"`**. `compute` / `sign` (fecha um
+  payload; é como as fixtures são montadas) / `isValid` / `declaredCrcOf` (normaliza a caixa — há
+  emissor que grava o CRC minúsculo, e recusar por isso reprovaria um QR íntegro).
+- **`BrCode`** — modelo tipado: formato (`00`), método de iniciação (`01`), conta Pix (`26`–`51`),
+  MCC (`52`), moeda (`53`), **valor como string decimal** (`54`; `Double` para dinheiro segue
+  proibido), país (`58`), nome (`59`), cidade (`60`), CEP (`61`), `txid` (`62`/`05`), CRC (`63`) e a
+  árvore crua completa. `PixAccount` (GUI/chave/descrição/URL) e `inferPixKeyType`
+  (CPF/CNPJ/e-mail/telefone/aleatória/desconhecida) — **sem validar DV como critério de rejeição**:
+  chave com DV inválido é problema do PSP que a aceitou, e recusar aqui esconderia do usuário
+  justamente o QR que ele precisa ver.
+- **`parseBrCode(text: String?): BrCodeReading`** — ponto de entrada único, **nunca lança** (o insumo
+  vem de câmera lendo etiqueta suja: lixo é o caso normal). Quatro desfechos, com **"CRC não confere"
+  separado de "não é EMV"**: `Pix` · `NotPix` (é EMV de outro arranjo — cidadão de primeira classe,
+  não erro) · `InvalidCrc` (adulterado/truncado — o produto alerta diferente) · `NotEmv`.
+- **`PixIdentity` + `comparePix`** — o núcleo. Ver abaixo.
+
+### O ponto que decide o produto: os dois regimes
+
+- **Estático** (`01`=`11` **ou ausente** — ausente é o default do padrão): o payload é fixo, logo a
+  identidade **é** o payload inteiro. Igualdade exata resolve.
+- **Dinâmico** (`01`=`12`): o payload aponta para uma URL de cobrança que o PSP **troca a cada
+  cobrança**. Igualdade exata **nunca** casa — e um app ingênuo marcaria **toda plaquinha legítima
+  como fraude**. Pior que não ter a checagem: o funcionário aprende que "dá erro sempre" e passa a
+  ignorar o alerta, inclusive o verdadeiro. A identidade dinâmica é derivada do que é estável:
+  **host + prefixo de caminho + recebedor** (`PixEndpoint` + `PixReceiver`).
+
+`comparePix` devolve **motivo tipado, nunca `Boolean`** — porque "o nome do recebedor é outro" é a
+frase que faz parar o pagamento, e "não deu para comparar" é o oposto de "divergente":
+`SamePlaque` · `ReceiverChanged(changed: Set<PixReceiverField>)` · `EndpointChanged(hostChanged)` ·
+`PayloadChanged` · `RegimeChanged` · `NotComparable(reason)`. Precedência fixa e testada:
+**NotComparable → ReceiverChanged → RegimeChanged → EndpointChanged → PayloadChanged → SamePlaque**
+(recebedor diferente é o mais grave e vem antes de tudo).
+
+Detalhes de segurança que ficaram na lib, e não em cada app:
+
+- **Sem hash.** A identidade é `@Serializable` (`PixIdentity.encode`/`decode`, discriminador `type`),
+  legível e auditável — o app pode exibir *por que* divergiu. `decode` nunca lança.
+- **Normalização mínima e declarada.** O payload validado tem **só as bordas** aparadas (espaço, BOM,
+  *zero-width*); o interior é intocado, porque mexer nele mudaria o CRC e poderia fazer dois payloads
+  distintos virarem "iguais" — e "igual" aqui significa "plaquinha válida". Na comparação de
+  recebedor, apara-se apenas apresentação: caixa/acento/espaço duplicado no nome e cidade, pontuação
+  em CPF/CNPJ/telefone, caixa em e-mail/UUID. Chave de formato desconhecido é comparada **como veio**.
+  Coberto por teste que dois documentos/nomes distintos **não** colidem depois de normalizados.
+- **Armadilha de *userinfo*.** O host de `https://banco-de-verdade.com@servidor-do-golpe.com/x` é o
+  que vem **depois do último `@`** — o olho lê o primeiro nome, o aparelho conecta no segundo.
+- **Fail-closed onde falta base:** método de iniciação fora do padrão, dinâmico sem URL legível,
+  leitura sem CRC válido e leitura não-Pix **não** produzem identidade (logo não entram no cofre nem
+  viram veredito). A exibição de "quem recebe" continua funcionando — é o diferencial do produto.
+
+### Testes
+
+**70 casos novos** em `commonTest`, suíte **1735/0** (15 skipped pré-existentes):
+`EmvTlvTest` (12), `PixCrcTest` (8), `BrCodeParserTest` (21), `PixIdentityTest` (29).
+
+Fixtures **sintéticas** (`PixFixtures` — nada de dado real de comerciante), com o CRC gerado pela
+própria `PixCrc.sign`. Isso não torna a suíte auto-referente: o algoritmo é ancorado em **fonte
+externa** no `PixCrcTest` — o *check value* publicado do CRC-16/CCITT-FALSE (`"123456789"` → `0x29B1`)
+e o valor inicial (`""` → `0xFFFF`, que prova a ausência de XOR final) —, e há teste que falha se o
+sufixo `"6304"` sair do cálculo.
+
+**Controle negativo:** trocando a identidade dinâmica pelo payload cru (o erro clássico), **7 dos 70**
+falham, entre eles `QR dinamico legitimo com URL diferente e a MESMA plaquinha`.
+
+### Consumidores
+
+Nenhum a migrar (módulo novo). O **Confere QR** nasce sobre isto. `camera/barcode` **não foi tocado**.
+
 ## 2.101.0 — `api()` para tudo que vaza na API pública (conserto de fundação, ago/2026)
 
 **Aditiva.** Nenhuma assinatura mudou, nenhum comportamento mudou, nenhum arquivo `.kt` foi tocado.

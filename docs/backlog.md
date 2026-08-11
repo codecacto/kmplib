@@ -92,6 +92,33 @@
         para data civil.
       - **Migração:** Lua Certa migrado na mesma rodada (cópia local apagada).
 
+### GAPS — design do produto "Confere QR" (ux-designer, 11/ago/2026, `/design` — arquétipo A, conferência de QR Pix)
+> Levantado durante o design do MVP (`docs/design/wireframes.md` do projeto). Depende do módulo `pix`
+> (parser BR Code + comparação tipada), que está sendo construído nesta mesma janela pelo `lib-mobile`
+> — **não é gap**, é dependência declarada no handoff, sequenciando o início do dev-mobile.
+
+- [ ] **GAP-KL-M-QRGEN-01 — falta um GERADOR de QR Code (a lib só tem LEITURA, `camera/barcode`).**
+      O Confere QR precisa exibir um QR Code de transferência do cofre (tela "Exportar Cofre" — QR
+      escaneado por outro aparelho, sem conta/nuvem) e a kmplib não tem o componente inverso ao
+      `BarcodeScannerView`: renderizar uma string como imagem de QR. A weblib já tem o par
+      (`ui/QRCode` — "SVG/PNG + logo"); no mobile esse par não existe. Geração de QR é matemática pura
+      (encoding roda 100% em `commonMain`, sem `expect/actual`, sem depender de câmera/permissão) —
+      custo de implementação baixo, componente sai pronto para Android e iOS ao mesmo tempo.
+      - **Proposta de API** (padrão de `signature/SignaturePad` — canvas `commonMain` puro):
+        `@Composable fun QrCodeView(value: String, modifier: Modifier = Modifier, size: Dp = 240.dp,
+        foregroundColor: Color = MaterialTheme.colorScheme.onSurface, backgroundColor: Color =
+        MaterialTheme.colorScheme.surface, errorCorrectionLevel: QrErrorCorrection = QrErrorCorrection.M)`
+        + helper puro testável `fun qrCodeFitsPayload(value: String, errorCorrectionLevel:
+        QrErrorCorrection = QrErrorCorrection.M): Boolean` (resolve "este payload cabe num QR
+        escaneável com confiança?" sem cada app recalcular capacidade por versão/correção do padrão QR
+        — necessário porque um cofre com muitas plaquinhas pode não caber num único QR; ver
+        `docs/design/wireframes.md` §13 do Confere QR para o comportamento de fallback para arquivo).
+      - **Quem precisa:** Confere QR (tela "Exportar Cofre"). Reusável por qualquer app futuro de
+        pareamento/handshake local sem conta (compartilhar configuração, convite offline).
+      - **Enquanto não é promovido:** dev-mobile implementa localmente (lib de geração de QR pura
+        Kotlin) e marca como candidato a promoção — não bloqueia o MVP; reportar via `/lib-audit` ou
+        ao aparecer o 2º consumidor.
+
 ### ABERTO — gaps de fundação (rodada de segurança do Influencer, 28/jul/2026 — sinalização, NÃO implementar agora)
 > Levantados durante a 4ª rodada de auditoria de segurança do Influencer (28/07/2026) — ver
 > `Influencer/STATUS.md` §Pendências, item "[28/jul] Gaps de fundação identificados na rodada de
@@ -3312,6 +3339,15 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       restore). Providers movidos de `firebase.auth` para **`auth.social`** com `typealias
       @Deprecated`. `GoogleSignInBridge` (iOS) tira o Google do stub. Nonce SEMPRE do servidor.
       28 testes novos; suíte 1592/0.
+- [x] **2.102.0 — módulo `pix`: parser de BR Code (EMV MPM) + identidade de plaquinha**
+      Gap confirmado por grep: nenhuma lib do monorepo (kmplib/backlib) interpretava payload de Pix.
+      `commonMain` puro (zero `expect/actual`, zero dependência): `parseEmvTlv` (estrito no
+      enquadramento, tolerante com ID desconhecido), `PixCrc` (CRC-16/CCITT-FALSE sobre UTF-8,
+      incluindo `6304`), `BrCode`/`PixAccount`/`inferPixKeyType`, `parseBrCode` (ponto de entrada que
+      nunca lança, com **CRC inválido separado de não-EMV**) e `PixIdentity`/`comparePix` (os dois
+      regimes: estático = payload inteiro; dinâmico = host + prefixo + recebedor, o antídoto do erro
+      clássico de comparar payload cru). 70 testes novos; suíte 1735/0. Motivador: Confere QR.
+
 - [ ] **GAP-KL-M-SOCIAL-IOS-VALIDATE — validar o `GoogleSignInBridge` em host macOS.**
       O `actual` iOS do `GoogleAuthProvider` e o bridge foram escritos conforme o SDK oficial
       GoogleSignIn-iOS (SPM) mas **não compilam em Linux**. Pendente: compilar os alvos iOS no Mac
