@@ -3348,6 +3348,24 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       regimes: estático = payload inteiro; dinâmico = host + prefixo + recebedor, o antídoto do erro
       clássico de comparar payload cru). 70 testes novos; suíte 1735/0. Motivador: Confere QR.
 
+- [ ] **GAP-KL-M-PIX-DYNAMIC-JWS — conferir a cobrança dinâmica na fonte (só quando um produto pedir).**
+      O módulo `pix` (2.102.0) valida o **payload** do BR Code e ancora a identidade da plaquinha
+      dinâmica em host + prefixo + recebedor, o que é o máximo que se decide **offline**. O passo
+      seguinte, quando algum produto precisar, é **resolver a URL da tag `25`** (`GET`) e verificar a
+      **assinatura JWS do PSP** sobre os dados da cobrança — é o único jeito de provar que a cobrança
+      apontada é do recebedor esperado, e não só que o host bate. Fora de escopo agora porque: (a) o
+      motivador (Confere QR) é **offline/AdsOnly** e não deve depender de rede na ronda; (b) o módulo é
+      `commonMain` puro e trazer HTTP+verificação de assinatura muda a natureza dele (entraria como
+      peça separada, reusando `createHttpClient`); (c) verificar JWS exige a cadeia de chaves públicas
+      dos PSPs, que ninguém do portfólio consome hoje.
+- [ ] **GAP-KL-M-PIX-LENGTH-BYTES — tamanho TLV contado em caracteres, não em bytes (limitação declarada).**
+      `parseEmvTlv` conta o campo de 2 dígitos em **caracteres**, que é como o padrão define e como todo
+      emissor escreve. Um emissor fora do padrão que contasse **bytes** num payload com nome acentuado
+      (UTF-8) produziria enquadramento que não fecha — hoje isso aparece como
+      `EmvTlvError.LengthOverflow` (falha alta, nunca campo silenciosamente errado). Só vale tratar se
+      aparecer QR real assim; a alternativa (tentar reinterpretar em bytes no fallback) abriria caminho
+      para aceitar payload corrompido.
+
 - [ ] **GAP-KL-M-SOCIAL-IOS-VALIDATE — validar o `GoogleSignInBridge` em host macOS.**
       O `actual` iOS do `GoogleAuthProvider` e o bridge foram escritos conforme o SDK oficial
       GoogleSignIn-iOS (SPM) mas **não compilam em Linux**. Pendente: compilar os alvos iOS no Mac
