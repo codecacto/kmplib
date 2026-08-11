@@ -6,6 +6,125 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.103.0 — módulo `qr`: GERADOR de QR Code (ISO/IEC 18004) (ago/2026)
+
+**Aditiva.** Pacote novo `br.com.codecacto.kmplib.qr` + dois arquivos em `ui/components`,
+**`commonMain` puro**: zero `expect/actual` novo, **zero dependência nova**, nenhum arquivo existente
+alterado. (GAP-KL-M-QRGEN-01.)
+
+### O gap
+
+A lib **lia** QR (`camera/barcode`, 2.97.0) e não sabia **gerar**. A weblib tem o par (`ui/QRCode`);
+no mobile não havia. O Confere QR precisa disso na tela "Exportar Cofre": o dono exporta e o
+funcionário importa **sem conta e sem nuvem**, por arquivo (sempre funciona) ou por **QR de
+transferência** (o caminho prático para quem não sabe mandar arquivo). Segundo consumidor já na fila:
+o projeto `gerador-de-qr-code`.
+
+### Decisão de abordagem: encoder próprio em `commonMain`
+
+Mantida a orientação do CTO, e por três razões que se sustentam sozinhas:
+
+1. **Não existe "API oficial de cada plataforma" para GERAR.** A Apple tem `CIQRCodeGenerator`
+   (CoreImage); o **Android não tem nada** — nem no framework, nem no Play Services (ML Kit só *lê*).
+   O padrão-ouro "use a API do fornecedor" não tem o que aplicar em metade dos alvos.
+2. **Duas implementações produziriam duas saídas.** Um `expect/actual` com CoreImage no iOS e algo
+   escrito à mão no Android daria símbolos diferentes para o mesmo payload, com o lado iOS **sem poder
+   ser compilado nem testado em Linux** — dívida iOS a mais, na direção oposta ao que a lib vem
+   pagando (2.77/2.78).
+3. **É matemática determinística, e a lib já faz isso** (`Gtin`, `BarcodeScanDebouncer`,
+   `MoonCalculator`): um código só, testável sem device, igual nos dois alvos.
+
+**Sobre o risco levantado ("encoder à mão não se verifica sem device"):** legítimo, e foi endereçado
+com verificação **externa**, não com confiança:
+
+- **Matriz comparada bit a bit com uma implementação independente** — `node-qrcode` 1.5.4 — em 8
+  vetores (v1 a v24, os 4 níveis, os 3 modos, incluindo informação de versão e multi-bloco). Bate
+  **100%**.
+- **O que geramos foi DECODIFICADO por um leitor independente** (`jsQR`), renderizando a matriz como
+  imagem 4px/módulo: **27/27** payloads voltaram idênticos — com acento, emoji, 1200 caracteres, os 4
+  níveis e a **máscara escolhida pela nossa heurística** (não forçada). É a prova mais próxima de
+  leitura real que existe sem câmera.
+- **Vetores do próprio padrão** onde eles existem: gerador Reed-Solomon (expoentes publicados de α),
+  os 32 valores da Tabela C.1 (informação de formato), Tabela D.1 (informação de versão, `0x07C94` /
+  `0x28C69`) e o exemplo clássico `"01234567"` em 1-M (bitstream **e** os 10 *codewords* de EC).
+
+Uma dependência KMP de terceiro (QRose/qr-kit) resolveria o mesmo problema, mas: nenhuma delas usa
+API de plataforma (todas são encoders em Kotlin, ou seja, **a mesma classe de código** que este),
+adicionaria uma dependência transitiva ao artefato de **todo** app do ecossistema, e nos deixaria sem
+controle sobre a quiet zone e o nível de correção que este produto precisa expor. Com a verificação
+acima no lugar, não há ganho de risco em terceirizar.
+
+### O que entrou
+
+- **`encodeQr(text, errorCorrection, quietZone, minVersion, maxVersion, forcedMask): QrEncodeResult`**
+  — ponto de entrada. Modo (numérico → alfanumérico → bytes UTF-8) e versão (a menor que couber)
+  escolhidos automaticamente; máscara pela menor penalidade. **Conteúdo grande é
+  `QrEncodeResult.TooLong` com os números**, não exceção: "não cabe" é estado de produto (o cofre
+  grande precisa do fallback de arquivo), enquanto argumento inválido de programação lança.
+- **`QrCode` — matriz SEPARADA da renderização.** É dado puro (`size`, `isDark(x, y)`, `toMatrix()`,
+  `toDebugString()`), alimentando tanto o `@Composable` quanto o bitmap. Uma composable não devolve
+  bytes, e o app precisa de PNG para anexar/compartilhar.
+- **`qrCodeFits(...): QrCapacityCheck`** (+ `qrCodeFitsPayload` booleano e
+  `qrByteCapacity(version, level)`) — **decide QR × arquivo ANTES de tentar**, com
+  `requiredVersion`/`remainingBytes`/`usedFraction`, não só um sim/não. Teste garante que a capacidade
+  declarada é **exata** (o encoder aceita o payload no limite e recusa 1 byte além), nos 4 níveis e em
+  6 versões: helper conservador mandaria o usuário para o arquivo sem necessidade, otimista faria a
+  tela prometer o que o encoder não entrega.
+- **`QrCodeView(qrCode | value, size, foregroundColor, backgroundColor, texts, onTooLong)`** —
+  Canvas, cores por token do tema, `contentDescription` (QR é imagem muda para leitor de tela). Módulo
+  em **pixel inteiro** com desenho centralizado, e módulos escuros vizinhos agrupados numa faixa (sem
+  costura clara de anti-aliasing entre retângulos).
+- **`renderQrCodeToPng(...)` / `renderQrCodeToPngOrNull(...)`** — off-screen, mesmo padrão do
+  `renderShareCardToPng` (`ImageBitmap` + `CanvasDrawScope` + `encodeBitmapToPng`), sem
+  `expect/actual` próprio e sem depender de fontes. O tamanho é ajustado **para baixo** ao múltiplo do
+  número de módulos (720px pedidos em 29 módulos ⇒ 696px): módulo fracionário é a causa clássica de
+  "o PNG não lê, mas na tela lia".
+- **Quiet zone de 4 módulos embutida na matriz e CLAMPADA nesse mínimo.** É exigência do padrão e o
+  esquecimento clássico: sem ela muitos leitores não decodificam, e o defeito aparece como "não lê no
+  celular do funcionário", não como erro. `quietZone = 0` é elevado a 4, com teste.
+- **Níveis L/M/Q/H expostos, com o trade-off no KDoc** em vez de um nível fixo escondido: para QR
+  lido de **tela para tela** (o caso deste produto) `L` é a escolha tecnicamente correta e a que mais
+  cabe; `H` é para impresso pequeno ou com logo sobreposto.
+
+### Onde encoders caseiros erram — coberto
+
+**Máscara**: as 8 expressões da Tabela 10 (com teste específico nas máscaras 1, 2 e 4, as únicas que
+revelam a troca de linha/coluna) e as 4 penalidades **isoladas**, cada uma com matriz cujo valor
+esperado se calcula no papel — incluindo os dois pontos em que implementações erram: blocos 2×2 são
+contados **sobrepostos** (3×3 uniforme = 4 blocos, não 1) e a regra 3 casa a janela de 11 bits nos
+**dois** arranjos. Mais: informação de formato (BCH 15,5) e de versão (BCH 18,6), intercalamento com
+blocos curtos **e** longos, padding `0xEC`/`0x11` **depois** do terminador, Reed-Solomon em GF(256)
+com `0x11D`, e os padrões funcionais (localização, separadores, sincronismo, alinhamento — inclusive o
+**passo excepcional da versão 32** — e o módulo escuro fixo).
+
+**Um defeito real foi pego pelo teste de referência durante o desenvolvimento:** a reserva da área de
+informação de formato apagava o módulo de **sincronismo** em (8, 6) e (6, 8). O símbolo saía com 2
+módulos errados — invisível a olho nu, e reprovado por qualquer leitor de referência. Corrigido com
+**fonte única** de posições (`forEachFormatPosition`), usada pela reserva e pelo desenho: quando as
+duas listas viviam separadas, uma incluía o sincronismo e a outra não.
+
+### Testes
+
+**64 casos novos**, suíte **1799/0** (15 skipped pré-existentes): `QrReferenceMatrixTest` (3, sobre 8
+vetores externos), `QrStructureTest` (13), `QrEncoderTest` (13), `QrCapacityTest` (9),
+`QrPenaltyTest` (11), `QrReedSolomonTest` (11), `QrMaskChoiceTest` (4).
+
+**O que os testes NÃO provam:** que um iPhone ou um Android **real** decodifica o símbolo na tela —
+isso depende de câmera, brilho, contraste e distância, e é validação de device (passo do fundador,
+como a `assembleDebug`). O que está provado é a estrutura (idêntica a terceiro) e a decodificação por
+software (27/27 no jsQR).
+
+**Divergência conhecida e inofensiva:** a regra 4 de penalidade tem duas leituras na prática. A kmplib
+segue a Tabela 11 do ISO (45%–55% ⇒ sem penalidade); algumas bibliotecas usam `|ceil(p/5) − 10|`, que
+cobra já em 55,0%. Isso muda **apenas qual máscara é escolhida** — as 8 produzem símbolo válido e
+legível —, então o teste **mede** a concordância com a referência em vez de exigi-la, e falha se ela
+despencar (sinal de que as regras 1 a 3, que **não** admitem duas leituras, foram quebradas).
+
+### Consumidores
+
+Nenhum a migrar (módulo novo). Confere QR (tela "Exportar Cofre") e `gerador-de-qr-code` nascem sobre
+isto. `camera/barcode` **não foi tocado**.
+
 ## 2.102.0 — módulo `pix`: parser de BR Code (EMV MPM) + identidade de plaquinha (ago/2026)
 
 **Aditiva.** Pacote novo `br.com.codecacto.kmplib.pix`, **`commonMain` puro**: zero `expect/actual`,

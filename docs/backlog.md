@@ -97,7 +97,11 @@
 > (parser BR Code + comparação tipada), que está sendo construído nesta mesma janela pelo `lib-mobile`
 > — **não é gap**, é dependência declarada no handoff, sequenciando o início do dev-mobile.
 
-- [ ] **GAP-KL-M-QRGEN-01 — falta um GERADOR de QR Code (a lib só tem LEITURA, `camera/barcode`).**
+- [x] **GAP-KL-M-QRGEN-01 — ENTREGUE na 2.103.0 (módulo `qr`).** Encoder ISO/IEC 18004 em `commonMain`
+      puro (sem dependência, sem `expect/actual`): `encodeQr`/`QrCode`/`qrCodeFits`/`QrCodeView`/
+      `renderQrCodeToPng`. Verificação externa: matriz idêntica ao `node-qrcode` em 8 vetores e **27/27**
+      payloads decodificados pelo `jsQR`. 64 testes. Registro original abaixo.
+- [x] **GAP-KL-M-QRGEN-01 (registro original)**
       O Confere QR precisa exibir um QR Code de transferência do cofre (tela "Exportar Cofre" — QR
       escaneado por outro aparelho, sem conta/nuvem) e a kmplib não tem o componente inverso ao
       `BarcodeScannerView`: renderizar uma string como imagem de QR. A weblib já tem o par
@@ -3365,6 +3369,31 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       `EmvTlvError.LengthOverflow` (falha alta, nunca campo silenciosamente errado). Só vale tratar se
       aparecer QR real assim; a alternativa (tentar reinterpretar em bytes no fallback) abriria caminho
       para aceitar payload corrompido.
+
+- [ ] **GAP-KL-M-QR-DEVICE-READ — validar leitura do QR gerado em APARELHO real (passo do fundador).**
+      A 2.103.0 prova a estrutura (matriz idêntica a implementação independente) e a decodificação por
+      **software** (27/27 no `jsQR`). O que nenhum teste daqui alcança é a leitura por **câmera**: brilho
+      de tela, contraste, distância e densidade de módulos. Checar em device: (a) QR de versão alta
+      (≥ 20) lido de tela a ~40 cm — é onde o módulo fica com menos de um pixel de câmera; (b) tema
+      escuro (o default usa `onSurface` sobre `surface`; se o app inverter, muitos leitores recusam);
+      (c) PNG do `renderQrCodeToPng` aberto no WhatsApp e lido de outro aparelho.
+- [ ] **GAP-KL-M-QR-LOGO — QR com logo sobreposto (só quando um produto pedir).**
+      O par web (`ui/QRCode` da weblib) suporta logo no centro; o mobile não. Não é desenhar por cima:
+      exige nível `H`, limitar a área coberta (~a 25% que a EC recupera) e, idealmente, apagar os
+      módulos sob o logo em vez de tapá-los. Fora de escopo agora porque o Confere QR não usa logo, e
+      um logo grande demais gera QR que lê no aparelho de quem testou e falha no do usuário.
+- [ ] **GAP-KL-M-QR-MIXEDMODE — modo misto no QR (economia marginal, deliberadamente fora).**
+      Alternar Numeric/Alphanumeric/Byte dentro do mesmo símbolo economiza alguns bytes em payload
+      heterogêneo. Multiplica os caminhos de codificação e torna `qrCodeFits` imprevisível para quem
+      chama (a conta deixa de ser "um segmento"). Só vale se algum produto ficar preso na borda de
+      capacidade.
+- [ ] **GAP-KL-M-FLAKY-NOTIFACTION — `NotificationActionTest > acao que chega antes do handler nao se
+      perde` é INTERMITENTE.** Falhou 1× numa execução da suíte completa em ago/2026 e passou em 3
+      execuções isoladas seguidas; a suíte fechou 1799/0 na reexecução. É teste **pré-existente** da
+      2.100.0 (fila de eventos + timeout de handler com corrotinas), não regressão do módulo `qr`.
+      Suspeita: dependência de tempo real no `dispatch`/`HANDLER_TIMEOUT_MILLIS`. Consertar com tempo
+      **injetado** em vez de aumentar timeout — teste flaky na fundação é pior que teste ausente,
+      porque ensina o time a ignorar vermelho.
 
 - [ ] **GAP-KL-M-SOCIAL-IOS-VALIDATE — validar o `GoogleSignInBridge` em host macOS.**
       O `actual` iOS do `GoogleAuthProvider` e o bridge foram escritos conforme o SDK oficial
