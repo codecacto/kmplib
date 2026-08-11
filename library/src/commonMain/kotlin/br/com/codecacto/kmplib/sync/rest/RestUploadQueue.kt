@@ -29,10 +29,39 @@ import kotlinx.coroutines.flow.asStateFlow
  * viewModelScope.launch { queue.process() }
  * ```
  *
+ * ## DEPRECIADA na 2.104.0 — a fila **não sobrevive ao processo**
+ *
+ * Os bytes ficam num `mutableMapOf` e a fila num `MutableStateFlow`: **memória pura**. Quem cadastra
+ * um registro com anexo **sem sinal** e fecha o app perde o anexo em silêncio — o registro sobe
+ * depois, sem ele. Use o [RestUploadOutbox], que grava os binários no disco, a fila no MESMO espelho
+ * `synced_entity` (com escopo de conta e histórico de entrega) e participa do ciclo do
+ * [RestCrudSyncEngine].
+ *
+ * Migração (a fila em memória não precisa ser convertida — o que estiver nela já é volátil):
+ * ```kotlin
+ * // antes
+ * val queue = RestUploadQueue(api) { id, body -> ... }
+ * queue.enqueue(UploadRequest(id, "comprovante.jpg", "/v1/lancamentos/$lid/anexos", bytes, "image/jpeg"))
+ * viewModelScope.launch { queue.process() }
+ *
+ * // depois — sobe sozinha no ciclo de sync, e sobrevive a fechar o app
+ * val outbox = RestUploadOutbox(api, store) { upload, body -> ... }
+ * outbox.enqueue(
+ *     bytes = bytes, fileName = "comprovante.jpg", mimeType = "image/jpeg",
+ *     path = "/v1/lancamentos/{owner}/anexos",
+ *     ownerEntity = LancamentoCrud.name, ownerHandle = lancamentoId,
+ * )
+ * ```
+ *
  * @param api cliente REST de domínio (Bearer Firebase + refresh 401).
  * @param onUploaded callback opcional com o corpo bruto da resposta 2xx de cada item (para o app
  *   decodificar o anexo criado e gravar no espelho). Recebe `(uploadId, responseBody)`.
  */
+@Deprecated(
+    message = "Fila em memória: o anexo se perde se o processo morrer. Use RestUploadOutbox " +
+        "(fila persistente em SQLDelight + binários no disco, participante do RestCrudSyncEngine).",
+    level = DeprecationLevel.WARNING,
+)
 class RestUploadQueue(
     private val api: DomainApiClient,
     private val onUploaded: (suspend (uploadId: String, responseBody: String) -> Unit)? = null,

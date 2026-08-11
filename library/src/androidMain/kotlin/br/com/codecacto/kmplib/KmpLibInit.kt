@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
+import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
@@ -31,16 +32,20 @@ fun KmpLib.init(context: Context) {
     NotificationSchedulerHolder.init(context)
     GoogleAuthHolder.init(context)
     SyncDatabaseHolder.init(context)
+    BlobStoreHolder.init(context)
     TtsControllerHolder.init(context)
     SpeechRecognizerHolder.init(context)
 }
 
 /**
- * Inicializa apenas o banco de sync (offline-first). Atalho para apps que querem
- * registrar só o Context do SQLDelight sem o resto do [init]. Já é chamado por [init].
+ * Inicializa apenas a camada offline-first: o banco de sync (SQLDelight) **e** o
+ * [BlobStore][br.com.codecacto.kmplib.core.storage.BlobStore] (binários da fila de upload). Atalho
+ * para apps que querem registrar só o Context dessa camada, sem o resto do [init]. Já é chamado
+ * por [init].
  */
 fun KmpLib.initSync(context: Context) {
     SyncDatabaseHolder.init(context)
+    BlobStoreHolder.init(context)
 }
 
 /**

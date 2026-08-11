@@ -47,6 +47,15 @@ enum class UploadStatus { PENDING, UPLOADING, COMPLETED, FAILED }
  * evita saturar a banda do canteiro. Chame [process] a partir de uma coroutine
  * (viewModelScope) e colete [items] na UI com `UploadQueueView`/`UploadProgressItem`.
  *
+ * ## Limitação (não resolvida aqui): a fila é SÓ EM MEMÓRIA
+ * Os bytes vivem num `mutableMapOf` e a fila num `MutableStateFlow` — **nada sobrevive ao processo
+ * morrer**. Quem enfileira uma foto sem sinal e fecha o app perde a foto em silêncio. Para o
+ * caminho REST-CRUD existe o substituto durável
+ * ([RestUploadOutbox][br.com.codecacto.kmplib.sync.rest.RestUploadOutbox], 2.104.0: binários no
+ * disco + fila no espelho `synced_entity` + participação no ciclo de sync). Esta variante, que fala
+ * com o **Firebase Storage**, continua em memória: enquanto ela existir, enfileire só o que o
+ * usuário está olhando subir, e prefira o Storage do backend de domínio para anexo offline.
+ *
  * Exemplo:
  * ```kotlin
  * val queue = UploadQueue(storageService)

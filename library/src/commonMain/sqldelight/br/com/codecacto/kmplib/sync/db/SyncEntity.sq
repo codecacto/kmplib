@@ -202,6 +202,16 @@ ORDER BY updated_at ASC;
 countDirty:
 SELECT COUNT(*) FROM synced_entity WHERE account_id = :accountId AND dirty = 1;
 
+-- Linhas de UMA entidade em TODAS as contas (kmplib 2.104.0). ÚNICA consulta que ignora o escopo,
+-- e por um motivo específico: o dono de binários no disco (BlobStore/RestUploadOutbox) precisa saber
+-- quais arquivos ainda são referenciados por ALGUMA conta antes de varrer órfãos. Varrer olhando só
+-- a conta corrente apagaria as fotos ainda não enviadas de quem trocou de usuário no aparelho.
+-- NÃO usar para leitura de domínio — o isolamento por conta continua valendo em todo o resto.
+selectEntityAllAccounts:
+SELECT *
+FROM synced_entity
+WHERE entity = :entity;
+
 -- Quantas linhas ainda estão no bucket legado (sem escopo de conta).
 countLegacy:
 SELECT COUNT(*) FROM synced_entity WHERE account_id = '';

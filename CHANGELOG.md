@@ -6,6 +6,102 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.104.0 — fila de upload DURÁVEL: `RestUploadOutbox` + `core/storage/BlobStore` (ago/2026)
+
+**Aditiva** (uma depreciação, nenhuma quebra; **sem migração de schema**). Corrige perda silenciosa de
+dado do usuário. (GAP-AC-M-PHOTOOUTBOX-01.)
+
+### O defeito
+
+`sync/rest/RestUploadQueue` e `firebase/storage/UploadQueue` guardavam a fila num
+`MutableStateFlow<List<UploadItem>>` e os bytes num `mutableMapOf<String, UploadRequest>` — **memória
+pura**. A tabela `synced_entity` só guarda `payload_json`; nenhum binário. E o `RestCrudSyncEngine`
+não conhecia uploads: seus participantes só expõem `drainOutbox`/`refresh`.
+
+Consequência real, verificada: **o usuário cadastra um item com foto offline, fecha o app, e a foto
+se perde em silêncio** — o item sincroniza depois, sem ela. Atinge qualquer app da fábrica com anexo
+offline. O caso que expôs: **Acervo** (`moedas`), onde anverso e reverso são obrigatórios e o uso
+típico é numa feira sem sinal — item de coleção sem foto é registro sem valor.
+
+### A decisão de fundo: estender a outbox que existe, não somar uma segunda fila
+
+A fila persistida é o **mesmo** espelho `synced_entity`, gravado pelo **mesmo** `RestEntityMirror`,
+sob um nome de entidade próprio (`kmplib_upload`). Isso não é economia de código — é o que faz a fila
+de fotos herdar, **sem código novo e sem poder divergir**:
+
+- **escopo de conta** (2.91.0) — a foto de um usuário não sobe na conta de outro no aparelho
+  compartilhado, e trocar de conta e voltar preserva a fila de cada um;
+- **histórico de entrega** (2.94.0) — uma recusa do servidor não é apagada pelo toque seguinte;
+- **drenável × recusada** (2.91.0) — 4xx sai da fila e só volta por retry explícito;
+- o vocabulário de estado `RestRowState`, que a UI já sabe ler.
+
+**Nenhuma coluna foi acrescentada à tabela** — só uma consulta nova (`selectEntityAllAccounts`).
+Apps em produção migram apenas bumpando.
+
+### Os bytes: `core/storage/BlobStore` (expect/actual)
+
+Novo `BlobStore` (chave→bytes, `suspend`, nada lança) + `createBlobStore(diretório)`:
+**Android = `filesDir`** (interno privado; **não** `cacheDir`, que o sistema apaga sob pressão de
+espaço — seria a foto sumindo pelo mesmo motivo de sempre) e **iOS = `Application Support`** (**não**
+`Caches`, purgável; **não** `Documents`, que é do usuário). Escrita **atômica** (temporário +
+`rename` / `writeToFile(atomically:)`) nos dois. Id de blob é **recusado** quando inválido, nunca
+"sanitizado": sanitizar faria dois ids diferentes virarem o mesmo arquivo e uma foto sobrescrever a
+outra. `KmpLib.init(context)`/`initSync(context)` já registram o holder.
+
+### A amarração de ordem (a lição do ADR-0006 do "Todos a Bordo")
+
+A foto só sobe depois que o item dono migrou do id local para o id do servidor. O upload declara o
+dono (`ownerEntity`/`ownerHandle`) e o caminho usa `{owner}`; a cada ciclo a lib resolve o id do
+servidor pelo remap do ciclo, pelo espelho do dono e pelo **remap durável** (2.93.0) — o que faz a
+foto ainda achar o item quando o app foi fechado **entre** o `POST` do item e o da foto. Enquanto o
+dono não migrou, o upload **espera** (`UploadTarget.WaitingOwner`): não conta tentativa, não vira
+erro na tela. Enviar antes significaria `POST /v1/items/local-…/photos` → recusa por `FOREIGN KEY`
+→ **terminal** → foto perdida para sempre.
+
+### Retentativa, estado e limpeza
+
+- **Recuo exponencial** determinístico (`UploadRetryPolicy`, 30 s → 30 min, teto de 8 tentativas);
+  esgotada a política vira erro **visível** com o binário preservado, em vez de girar para sempre.
+- **Estado observável**: `observeAll()`/`observePendingCount()` ("3 fotos aguardando envio") e
+  `observeForOwner(handle)` — este correlacionado por **conjunto de handles**, nunca por igualdade
+  de id (senão as fotos do item recém-sincronizado somem da tela).
+- **Limpeza**: sucesso apaga a linha e **depois** o arquivo (nessa ordem: arquivo sem linha é órfão
+  recolhível; linha sem arquivo seria erro na cara do usuário de uma foto que já subiu).
+  `sweepOrphanBlobs()` recolhe resíduo de processo morto no meio — e olha as linhas de **todas as
+  contas**, porque varrer só a conta corrente apagaria as fotos de quem trocou de usuário.
+
+### O que entrou
+
+- **`core/storage`**: `BlobStore`, `createBlobStore` (expect/actual Android/iOS), `InMemoryBlobStore`,
+  `isValidBlobId`, `BlobStoreHolder` (Android).
+- **`sync/rest`**: `RestUploadOutbox` (participante do `RestCrudSyncEngine`), `PendingUpload`/
+  `PendingUploadPart`/`UploadMethod`/`UploadContent`, `UploadRetryPolicy`/`uploadRetryDelayMillis`,
+  `UploadTarget`, `UploadEnqueueResult`/`UploadRejectReason`, `UploadDrainSummary`,
+  `resolveUploadPath`/`uploadPathRequiresOwner`/`uploadBlobId`/`isValidUploadId`,
+  `RestRow<PendingUpload>.toUploadItem()` (os composables `UploadQueueView`/`UploadProgressItem`
+  renderizam a fila nova sem mudança).
+- **`sync`**: `SyncStore.getRowsAcrossAccounts(entity)` (default `null` = "não sei responder ⇒ não
+  varra"; fake de app segue compilando) + query `selectEntityAllAccounts`.
+
+### Compatibilidade
+
+- **`RestUploadQueue` está `@Deprecated` (WARNING)**, com o caminho de migração no KDoc. Continua
+  funcionando; MinhasHoras não quebra. A fila em memória não precisa ser convertida — o que estiver
+  nela já é volátil por construção.
+- `firebase/storage/UploadQueue` **não** foi depreciada (fala com o Firebase Storage, não há
+  substituto equivalente), mas a limitação passou a estar escrita no KDoc.
+
+### Testes
+
+`RestUploadOutboxTest` (**23**): sobrevivência ao processo morrer (outbox recriada sobre o mesmo
+espelho e o mesmo disco, com verificação dos bytes no corpo multipart), FIFO, espera do dono, remap
+durável entre ciclos, dono inexistente, correlação por handles, recuo/adiamento/esgotamento, pausa
+sem rede, 4xx e 402, histórico de recusa preservado no requeue, escopo de conta, varredura de órfãos
+(inclusive o store que não sabe responder), descarte, binário sumido, recusas de enfileiramento,
+multipart de 2 partes, `onUploaded`, contagem pendente e as funções puras. **Controle negativo:**
+trocando a espera do dono por "envia com o id local", 1 teste falha — o que exatamente pega o defeito
+do ADR-0006.
+
 ## 2.103.0 — módulo `qr`: GERADOR de QR Code (ISO/IEC 18004) (ago/2026)
 
 **Aditiva.** Pacote novo `br.com.codecacto.kmplib.qr` + dois arquivos em `ui/components`,

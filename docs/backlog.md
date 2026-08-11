@@ -3,6 +3,98 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPS — design do produto "Acervo" (ux-designer, 11/ago/2026, `/design` — arquétipo D, coleção
+pessoal via product flavors `moedas`/`cards`)
+> Levantado durante o design do MVP (`Acervo/docs/design/wireframes.md`) e revisado pelo tech-lead no
+> plano técnico (`Acervo/docs/plano-tecnico.md`). Os **três primeiros** (UI) têm contorno viável com
+> componentes existentes e não bloqueiam o dev-mobile. O **quarto** (`GAP-AC-M-PHOTOOUTBOX-01`,
+> acrescentado pelo tech-lead) **é bloqueante**: não é falta de componente, é perda de dado do usuário.
+
+- [ ] **GAP-KM-UI-RADIOCARD-01 — 3º consumidor real confirmado (cartão de opção selecionável).** O
+      gap já registrado abaixo (Desparasite-se, 2º consumidor) é exatamente a peça que falta na tela
+      mais crítica do Acervo: **escolha de variante de carta** (Normal/Reverse Holo/Holo/1st
+      Edition/Shadowless/Promo — até 6 opções verticais com descrição, onde a UI precisa deixar
+      inequívoco que trocar a seleção troca de ITEM DE COLEÇÃO, não só de rótulo — RF-C02 do PRD) e,
+      secundariamente, escolha de serviço de encapsulamento/grading (PCGS/NGC, PSA/BGS/CGC). Hoje
+      `SegmentedControl` (kmplib) não serve bem a >3-4 opções curtas nem a opção com descrição/badge, e
+      `AppMultiSelect` é multisseleção — nenhum dos dois comunica "seleção única com consequência de
+      domínio" com a força que a tela exige. **A weblib já tem o par exato** (`RadioGroup`
+      `variant="card"`, `/menu` `OptionGroup`) — este é um gap de paridade mobile↔web, não invenção.
+      Com 3 consumidores reais (Desparasite-se + Acervo × 2 telas), confirma o limiar de ≥2 da
+      `lib-evolution`; recomendo priorizar. **Enquanto não é promovido:** dev-mobile compõe
+      `Card`+`RadioButton`/toggle manual com `role=radiogroup`/roving focus à mão, replicando a a11y
+      descrita no gap original. Ver `Acervo/docs/design/wireframes.md` §"Cadastro de item — cards"
+      (escolha de variante) e §"Conservação — moedas" (encapsulamento).
+- [ ] **GAP-AC-M-LABELEDPHOTO-01 — falta um campo de foto obrigatória ROTULADA (par fixo).** O
+      `ImagePicker` da lib captura/seleciona 1 imagem, mas não tem uma variante para o padrão "duas (ou
+      mais) fotos com rótulo semântico fixo + indicador de obrigatoriedade + estado de erro", que hoje
+      cada tela compõe à mão (`Text` do rótulo + `ImagePicker` + helper de validação, repetido por
+      slot). Caso motivador: cadastro de moeda exige **Anverso** e **Reverso** como campos distintos e
+      nomeados (RF-M02 do PRD — nunca "foto 1/foto 2"), ambos obrigatórios para salvar; o mesmo padrão
+      se repete em qualquer domínio de documento com frente/verso (RG, carteira, comprovante) ou
+      antes/depois de serviço. **Proposta de API:** `LabeledPhotoField(label: String, value:
+      ImageResult?, onPick: () -> Unit, required: Boolean = false, error: String? = null, modifier)` —
+      ou, minimamente invasivo, um `label`/`required`/`error` opcional no `ImagePicker` existente.
+      **Quem precisa:** Acervo (`moedas`, 2 slots por item — é o hard-requirement da tela mais crítica
+      do MVP). **Enquanto não é promovido:** dev-mobile compõe `Text`+`ImagePicker`+validação local
+      (2 instâncias lado a lado/empilhadas). Ver `Acervo/docs/design/wireframes.md`
+      §"Fotos anverso/reverso — MOEDAS".
+- [ ] **GAP-AC-M-GRIDCHECKLIST-01 — falta uma variante em GRADE do `ChecklistItem`.** O
+      `ChecklistItem` (2.88.0) é *row-oriented* (lista vertical, 1 alvo de toque por linha) — ótimo
+      para o checklist de série de moedas (peça sem foto no catálogo, só nome). Mas o checklist de set
+      de cards (RF-C07/C08 do PRD) é uma **grade de imagens** (a carta tem capa visual, e cada célula
+      pode ter mais de um sub-estado porque variante conta separado — normal "Tenho", reverse holo
+      "Falta" na mesma carta) — não existe hoje um tile de grade que combine imagem + selo de
+      status(es) com a mesma semântica de acessibilidade (`stateDescription`, alvo mínimo) do
+      `ChecklistItem`. Padrão reusável além de cards: álbum de figurinhas, checklist de guarda-roupa
+      por foto, inventário fotográfico com meta de conclusão. **Quem precisa:** Acervo (`cards`, tela
+      "Detalhe do set / Checklist"). **Enquanto não é promovido:** dev-mobile compõe `DensityGrid` +
+      `StatusBadge` por célula, sem a a11y unificada. Ver `Acervo/docs/design/wireframes.md`
+      §"Detalhe do set / Checklist — CARDS".
+
+- [x] **GAP-AC-M-PHOTOOUTBOX-01 — ENTREGUE na 2.104.0** (`RestUploadOutbox` + `core/storage/BlobStore`).
+      Os 4 pontos do escopo, mais o que a implementação exigiu por honestidade:
+      - **(1) bytes persistidos:** `BlobStore` (expect/actual) — Android `filesDir` (**não** `cacheDir`,
+        que o sistema apaga), iOS `Application Support` (**não** `Caches` nem `Documents`), escrita
+        atômica, id inválido **recusado** (sanitizar faria duas fotos virarem um arquivo só).
+      - **(2) participante do ciclo:** `RestUploadOutbox : RestCrudSyncParticipant` — registre **depois**
+        do repositório dono e o `parentRemap` do ciclo já resolve o id no mesmo ciclo.
+      - **(3) migração de id:** o upload declara `ownerEntity`/`ownerHandle`, o caminho usa `{owner}` e a
+        resolução consulta remap do ciclo + espelho do dono + **remap durável**. Dono ainda local ⇒
+        `WaitingOwner` (**espera, não falha**); dono inexistente ⇒ falha visível com o binário preservado.
+      - **(4) estado por foto:** o MESMO `RestRowState` — porque a fila é o MESMO `synced_entity` sob a
+        entidade `kmplib_upload`, o que traz de graça escopo de conta, histórico de entrega e
+        drenável×recusada. **Sem migração de schema.**
+      - **Além do escopo pedido:** recuo exponencial determinístico com teto de tentativas (erro visível
+        em vez de girar para sempre), `observePendingCount()` ("3 fotos aguardando envio"),
+        `observeForOwner` por **conjunto de handles**, `sweepOrphanBlobs()` que enxerga **todas as
+        contas** (varrer só a corrente apagaria fotos de quem trocou de usuário) e
+        `RestRow<PendingUpload>.toUploadItem()` para os composables existentes renderizarem a fila nova.
+      - **Compatibilidade:** `RestUploadQueue` ficou `@Deprecated` (WARNING) com antes/depois no KDoc —
+        MinhasHoras não quebra. `firebase/storage/UploadQueue` **não** foi depreciada (não há
+        substituto para o Firebase Storage), mas a limitação passou a estar escrita.
+      - **Testes:** `RestUploadOutboxTest` (23), com controle negativo da amarração de ordem.
+      - **Não migrei consumidor nenhum** (é tarefa própria). Registro original abaixo.
+
+- [x] **GAP-AC-M-PHOTOOUTBOX-01 (registro original) — fila de upload de foto PERSISTENTE, integrada ao
+      `RestCrudSyncEngine`. (BLOQUEANTE para o Acervo — risco de perda de dado do usuário.)**
+      Hoje `sync/rest/RestUploadQueue` e `firebase/storage/UploadQueue` são **100% em memória**
+      (`MutableStateFlow<List<UploadItem>>` + `mutableMapOf<String, UploadRequest>`), e a tabela
+      `synced_entity` guarda apenas `payload_json` — nenhum binário. O `RestCrudSyncEngine` também não
+      conhece uploads: seus participantes (`RestCrudSyncParticipant`) só expõem `drainOutbox`/`refresh`.
+      Consequência: **foto tirada offline não sobrevive ao fechamento do app.** O item sincroniza
+      depois; a foto, não. Cenário real do Acervo (`moedas`): o colecionador cadastra uma moeda numa
+      feira sem sinal com **anverso e reverso obrigatórios** (RF-M02), fecha o app, volta para casa — o
+      registro sobe sem as fotos, e um item de coleção sem foto é um registro sem valor. Quebra RF-01,
+      RF-M02 e RNF-01 ao mesmo tempo. **Escopo:** (1) persistir os bytes (arquivo no diretório do app +
+      linha de fila no SQLDelight), não em memória; (2) tornar o upload um participante do ciclo de
+      sync, drenado **depois** do registro dono; (3) respeitar a migração de id — a foto só sobe quando
+      o item tem `serverId`, resolvido por `RestIdResolver` (mesma lição do ADR-0006 do Todos a Bordo,
+      "id local → id do servidor, nunca comparar FK com `==`"); (4) expor estado por foto no mesmo
+      vocabulário de `RestRowState`. **Quem precisa:** Acervo (os dois flavors) — e qualquer app
+      offline-first com foto, que hoje herdaria o mesmo defeito calado. Ver
+      `Acervo/docs/adr/0004-semantica-item-nao-sincronizado.md` §"Débito de fundação".
+
 ### ENTREGUE — GAP-KL-M-APIDEPS: `api()` para tudo que vaza na API pública (10/ago/2026)
 > Reportado pelo **Desparasite-se**, que teve de declarar `kotlinx-datetime` no próprio build para
 > conseguir nomear `MoonPhaseEvent.instant`/`dateIn(TimeZone)` — tipos que a **API pública da kmplib
@@ -1262,8 +1354,23 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       - **Consumidor:** `Onboarding/ChecklistVeicular/mobile` — re-bumpar para **2.64.0** e trocar o envio de
         foto-prova (2 partes) por `postMultipartParts`/`enqueueParts` (com dev-mobile).
 
-- [ ] **GAP-KL-M-UPLOAD-PERSIST — upload resiliente/persistente (fila sobrevive à morte do processo).**
-      **Reportado na revisão do 2.64.0.** Hoje TANTO `firebase/storage/UploadQueue` QUANTO
+- [~] **GAP-KL-M-UPLOAD-PERSIST — PARCIALMENTE ENTREGUE na 2.104.0; restou só o agendamento em
+      background.** A metade que este item chamava de padrão-ouro — **persistir a referência de
+      arquivo, não os bytes numa linha do SQLite** — é exatamente o que o `RestUploadOutbox` faz: o
+      binário vai para o disco privado do app (`core/storage/BlobStore`) e o SQLite guarda só
+      metadado. A fila sobrevive à morte do processo e é retomada no ciclo de sync (na abertura do
+      app e ao reconectar).
+      **O que continua ABERTO (e é o que resta deste item):** upload em **background**, com a API
+      oficial de cada SO (**WorkManager** no Android, **`URLSession` background** no iOS), para a foto
+      subir sem o app ser aberto. É `expect/actual` + integração com o ciclo de background do app, e
+      segue como unidade de trabalho própria. **Não é correção de perda de dado** (essa foi paga na
+      2.104.0) — é conveniência: hoje a foto sobe na próxima vez que o app abre com rede.
+      **Ressalva registrada:** a fila do **Firebase Storage** (`firebase/storage/UploadQueue`) continua
+      em memória; a divergência entre as duas irmãs, que este item queria evitar, existe hoje de
+      propósito — o caminho REST-CRUD é o padrão do ecossistema e não podia esperar. Quando algum app
+      exigir anexo offline **no Firebase Storage**, a saída é o mesmo `BlobStore` + um participante
+      equivalente, não uma terceira fila.
+      Registro original: **reportado na revisão do 2.64.0.** Hoje TANTO `firebase/storage/UploadQueue` QUANTO
       `sync/rest/RestUploadQueue` guardam requests+bytes SÓ em memória (`mutableMapOf` + `StateFlow`): se o
       app é morto no meio do upload, a fila é perdida (o usuário precisa reanexar). Decisão desta revisão:
       **NÃO é saneamento direto** desta demanda — (a) o comportamento é consistente com a irmã do Firebase

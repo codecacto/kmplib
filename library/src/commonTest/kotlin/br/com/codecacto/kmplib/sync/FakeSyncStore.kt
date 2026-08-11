@@ -126,6 +126,10 @@ class FakeSyncStore : SyncStore {
     override fun getAllDirty(): List<Synced_entity> =
         rows.entries.filter { it.key.account == account && it.value.dirty.toDbBoolean() }.map { it.value }
 
+    /** Espelha o `selectEntityAllAccounts`: ignora o escopo (só a varredura de blobs órfãos usa). */
+    override fun getRowsAcrossAccounts(entity: String): List<Synced_entity> =
+        rows.entries.filter { it.key.entity == entity }.map { it.value }
+
     override fun countDirty(): Long = getAllDirty().size.toLong()
 
     override fun upsert(row: Synced_entity) {

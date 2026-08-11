@@ -138,6 +138,21 @@ interface SyncStore {
     /** Linhas recusadas pelo servidor (4xx terminal) — a UI exibe e oferece nova tentativa. */
     fun getFailed(entity: String): List<Synced_entity> = getDirty(entity).filter { it.failed != 0L }
 
+    /**
+     * Linhas de uma entidade em **TODAS as contas** — a única leitura que ignora o [accountScope],
+     * de propósito e para um caso só: varrer **binários órfãos** no disco
+     * ([BlobStore][br.com.codecacto.kmplib.core.storage.BlobStore]).
+     *
+     * Um arquivo de upload pendente pertence à conta que o enfileirou, mas vive num diretório único
+     * do app. Decidir "este arquivo ainda é referenciado?" olhando apenas a conta corrente apagaria
+     * as fotos ainda não enviadas de quem trocou de usuário no aparelho — exatamente a perda de dado
+     * que o escopo de conta existe para evitar.
+     *
+     * **`null` = a implementação não sabe responder** (fake de app, store customizado). Quem varre
+     * DEVE tratar `null` como "não varra nada": presumir "nenhuma referência" apagaria tudo.
+     */
+    fun getRowsAcrossAccounts(entity: String): List<Synced_entity>? = null
+
     // -- Escrita ------------------------------------------------------------
     fun upsert(row: Synced_entity)
     fun markClean(entity: String, localId: String, serverId: String?, updatedAt: String?, baseUpdatedAt: String?)
@@ -350,6 +365,9 @@ class SqlDelightSyncStore(
 
     override fun getAllDirty(): List<Synced_entity> =
         q.selectAllDirty(account).executeAsList()
+
+    override fun getRowsAcrossAccounts(entity: String): List<Synced_entity> =
+        q.selectEntityAllAccounts(entity).executeAsList()
 
     override fun countDirty(): Long = q.countDirty(account).executeAsOne()
 
