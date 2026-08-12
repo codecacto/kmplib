@@ -6,6 +6,67 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.106.0 — o 402 do backend próprio volta a abrir o paywall (ago/2026)
+
+**Aditiva** (nenhuma quebra de assinatura, nenhum formato deixou de ser aceito). `GAP-KM-QUOTA-PARSE-01`.
+
+### O defeito
+
+`parseQuotaExceeded` cobria dois formatos de corpo — o envelope canônico do admin-api
+(`{ ok, error: { details } }`) e o payload direto (o objeto raiz **é** o `details`) — e **não** o
+terceiro, que é o do **`ErrorResponse` da backlib**: `details` no **topo** do corpo.
+
+```json
+{ "message": "Limite do plano gratuito atingido", "code": "QUOTA_EXCEEDED", "traceId": "…",
+  "details": { "feature": "items", "limite": "50", "contagem": "50", "upgradeUrl": "…" } }
+```
+
+Esse é o formato que **todo backend próprio do ecossistema** responde: o `ErrorHandlingPlugin` da
+backlib serializa `AppException.details` nesse campo. O caminho retrocompat (objeto raiz como
+`details`) procurava `feature` na raiz, não achava e devolvia `null` — o 402 virava
+`DomainResult.Error(402)` em vez de `DomainResult.Quota`.
+
+**O estrago não é bloquear demais, é deixar de vender.** O item continua barrado (isso vem do próprio
+código 402), mas o payload de paywall (`feature`/`limite`/`contagem`/`upgradeUrl`) se perde: o app diz
+"não pode" e não diz "assine para poder". Quem expôs: o backend novo do **Acervo**, que responde
+exatamente nesse formato no 402 de cota.
+
+### A correção
+
+Os três formatos passaram a ser candidatos avaliados **nesta ordem de precedência**, documentada no
+KDoc, e o **primeiro completo vence** — o envelope canônico continua ganhando:
+
+1. `error.details` (envelope canônico do admin-api);
+2. **`details` no topo** (`ErrorResponse` da backlib) — o caso novo;
+3. o objeto raiz como `details` (retrocompat).
+
+Um candidato presente porém **incompleto** (ex.: `error.details` sem `feature`) não impede os
+seguintes de responderem: descartar o corpo inteiro por causa de um envelope pela metade custaria o
+CTA de assinatura, e nenhum corpo real tem os dois preenchidos com conteúdo diferente. `error` como
+**string** (e não objeto) já era tolerado e segue sendo — agora sem atrapalhar a leitura do `details`
+do topo.
+
+Continuam valendo: `limite`/`contagem` como **string ou número** (o `details` da backlib é
+`Map<String, String>`), corpo ausente/ilegível ⇒ `null`, nunca lança.
+
+### Testes
+
+`EntitlementModelTest` foi de 17 para **21** casos, cobrindo os três formatos e o negativo:
+`ErrorResponse` da backlib com números em string; `details` de topo com números e `error` string;
+**precedência** (os dois presentes ⇒ vence o envelope); e 402 **sem** payload de paywall (`code`
+apenas, `details` sem `feature`, `error.details` incompleto, JSON que não é objeto) ⇒ `null`.
+
+**Controle negativo:** revertendo a lista de candidatos para o `details ?: obj` anterior, **2 dos 4**
+testes novos falham.
+
+### Ação para quem consome
+
+Nenhuma mudança de código. Apps cujo backend responde 402 no formato da backlib passam a receber
+`DomainResult.Quota` (e o paywall com contexto) só bumpando. **Não** virou aviso no Monitoramento:
+é aditivo e nenhum app em produção depende hoje do formato novo.
+
+---
+
 ## 2.105.0 — o dado local não vaza para a nuvem nem sobra no disco (ago/2026)
 
 **Aditiva** (nenhuma quebra de assinatura; nenhuma migração de schema). Três correções vindas de um

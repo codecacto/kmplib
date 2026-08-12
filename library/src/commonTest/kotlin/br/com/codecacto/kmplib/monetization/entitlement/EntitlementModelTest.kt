@@ -120,6 +120,56 @@ class EntitlementModelTest {
     }
 
     @Test
+    fun parseQuotaExceeded_parsesBacklibErrorResponse_withTopLevelDetails() {
+        // Formato do ErrorResponse da backlib (todo backend proprio do ecossistema): `details` no
+        // TOPO do corpo, com os numeros como STRING (details e um Map<String, String>).
+        val body = """
+            {"message":"Limite do plano gratuito atingido","code":"QUOTA_EXCEEDED",
+             "timestamp":"2026-08-11T12:00:00Z","path":"/v1/items","traceId":"abc-123",
+             "details":{"feature":"items","limite":"50","contagem":"50",
+                        "upgradeUrl":"https://acervo.codecacto.com.br/premium"}}
+        """.trimIndent()
+        val q = parseQuotaExceeded(body)
+        assertEquals("items", q?.feature)
+        assertEquals(50, q?.limite)
+        assertEquals(50, q?.contagem)
+        assertEquals("https://acervo.codecacto.com.br/premium", q?.upgradeUrl)
+    }
+
+    @Test
+    fun parseQuotaExceeded_topLevelDetails_numericValues_andErrorAsString() {
+        // `error` como STRING (nao objeto) nao pode atrapalhar a leitura do `details` do topo.
+        val body = """{"error":"QUOTA_EXCEEDED","details":{"feature":"fotos","limite":3,"contagem":3}}"""
+        val q = parseQuotaExceeded(body)
+        assertEquals("fotos", q?.feature)
+        assertEquals(3, q?.limite)
+        assertEquals(3, q?.contagem)
+        assertNull(q?.upgradeUrl)
+    }
+
+    @Test
+    fun parseQuotaExceeded_canonicalEnvelope_winsOverTopLevelDetails() {
+        // Precedencia explicita: com os dois presentes, o envelope canonico do admin-api ganha.
+        val body = """
+            {"details":{"feature":"do_topo","limite":1,"contagem":1},
+             "error":{"code":"QUOTA_EXCEEDED",
+                      "details":{"feature":"do_envelope","limite":9,"contagem":9}}}
+        """.trimIndent()
+        val q = parseQuotaExceeded(body)
+        assertEquals("do_envelope", q?.feature)
+        assertEquals(9, q?.limite)
+    }
+
+    @Test
+    fun parseQuotaExceeded_returnsNull_whenNoFeatureAnywhere() {
+        // Caso negativo: 402 de outro motivo (sem payload de paywall) NAO pode virar QuotaExceeded.
+        assertNull(parseQuotaExceeded("""{"message":"Pagamento pendente","code":"PAYMENT_REQUIRED"}"""))
+        assertNull(parseQuotaExceeded("""{"details":{"limite":"5","contagem":"5"}}"""))
+        assertNull(parseQuotaExceeded("""{"error":{"details":{"feature":"x"}}}"""))
+        assertNull(parseQuotaExceeded("""["nao","e","objeto"]"""))
+    }
+
+    @Test
     fun quotaExceeded_toUsageSnapshot() {
         val q = QuotaExceeded(feature = "recibos", limite = 5, contagem = 5)
         val snap = q.toUsageSnapshot()

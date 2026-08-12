@@ -23,6 +23,12 @@ import kotlinx.serialization.json.contentOrNull
  * ```
  *
  * O app usa estes dados para abrir o Paywall com contexto ("voce usou 5 de 5").
+ *
+ * **Perder este payload NAO bloqueia o usuario — deixa de OFERECER o pagamento.** O item continua
+ * barrado (isso vem do proprio codigo 402), mas sem `feature`/`limite`/`contagem`/`upgradeUrl` o
+ * paywall abre sem contexto (ou nao abre) e o CTA que levaria a assinatura morre: o app diz "nao
+ * pode" e nao diz "assine para poder". Por isso o parse aceita os tres formatos de corpo em uso no
+ * ecossistema (ver [parseQuotaExceeded]) em vez de exigir um so.
  */
 @Serializable
 data class QuotaExceeded(
@@ -56,20 +62,46 @@ suspend fun ResponseException.quotaExceededOrNull(): QuotaExceeded? {
 /**
  * Decodifica um corpo de resposta (string JSON) num [QuotaExceeded], ou `null` se nao casar.
  *
- * Le os detalhes de `error.details` do envelope canonico (admin-api), com `limite`/`contagem` como
- * string OU numero, convertendo para Int. Por retrocompatibilidade, tambem aceita o payload
- * **direto** (sem envelope) — ex.: apps Firestore-only que repassem `details` cru.
+ * `limite`/`contagem` sao lidos como **string OU numero** (o `details` do `ErrorResponse` da backlib
+ * e um `Map<String, String>`; o admin-api serializa BigDecimal como string).
+ *
+ * **Tres formatos aceitos, nesta ordem de precedencia** (o primeiro que produzir um
+ * [QuotaExceeded] completo vence — o envelope canonico continua ganhando):
+ *
+ * 1. **Envelope canonico do admin-api** — `details` aninhado em `error`:
+ *    ```json
+ *    { "ok": false, "error": { "code": "QUOTA_EXCEEDED", "details": { "feature": "...", ... } } }
+ *    ```
+ * 2. **`ErrorResponse` da backlib** — `details` no **topo** do corpo. E o que TODO backend proprio
+ *    do ecossistema responde (o `ErrorHandlingPlugin` serializa `AppException.details` neste campo):
+ *    ```json
+ *    { "message": "cota estourada", "code": "QUOTA_EXCEEDED", "traceId": "...",
+ *      "details": { "feature": "items", "limite": "50", "contagem": "50",
+ *                   "upgradeUrl": "https://.../premium" } }
+ *    ```
+ * 3. **Payload direto** (retrocompat) — o proprio objeto raiz e o `details`:
+ *    `{ "feature": "...", "limite": 5, "contagem": 5 }`.
+ *
+ * Corpo em branco, JSON invalido, objeto sem `feature`/`limite`/`contagem` em nenhum dos tres
+ * lugares ⇒ `null` (o chamador trata como erro 402 comum). Nunca lanca.
  */
 fun parseQuotaExceeded(body: String?): QuotaExceeded? {
     if (body.isNullOrBlank()) return null
     val element = runCatching { quotaJson.parseToJsonElement(body) }.getOrNull() ?: return null
     val obj = (element as? JsonObject) ?: return null
 
-    // Caminho canonico: { ok, error: { details: { ... } } }
-    val details = (obj["error"] as? JsonObject)?.get("details") as? JsonObject
-    // Retrocompat: payload direto (o proprio objeto e o details)
-    val source = details ?: obj
-    return fromDetails(source)
+    // Ordem = precedencia. O primeiro candidato COMPLETO vence; candidato presente porem incompleto
+    // (ex.: `error.details` sem `feature`) nao impede os seguintes de responderem — descartar o corpo
+    // inteiro por causa de um envelope pela metade custaria o CTA de assinatura.
+    val candidates = listOfNotNull(
+        // 1. Envelope canonico do admin-api: { ok, error: { details: { ... } } }
+        (obj["error"] as? JsonObject)?.get("details") as? JsonObject,
+        // 2. ErrorResponse da backlib: details no TOPO do corpo.
+        obj["details"] as? JsonObject,
+        // 3. Retrocompat: payload direto (o proprio objeto e o details).
+        obj,
+    )
+    return candidates.firstNotNullOfOrNull { fromDetails(it) }
 }
 
 /** Mapeia um objeto `details` (numeros como string OU number) para [QuotaExceeded]. */

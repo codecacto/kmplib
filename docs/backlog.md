@@ -3,6 +3,33 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — GAP-KM-QUOTA-PARSE-01: o 402 do backend próprio não abria o paywall (11/ago/2026, 2.106.0)
+
+`parseQuotaExceeded` cobria o envelope canônico do admin-api (`error.details`) e o payload direto (o
+objeto raiz **é** o `details`), mas **não** o `details` no **topo** do corpo — que é o formato do
+`ErrorResponse` da **backlib**, ou seja, o de **todo backend próprio do ecossistema**
+(`ErrorHandlingPlugin` serializa `AppException.details` ali). Exposto pelo backend novo do **Acervo**.
+
+O estrago não era barrar demais, era **deixar de vender**: o 402 virava `DomainResult.Error(402)` em
+vez de `DomainResult.Quota`; o item seguia bloqueado (isso vem do código HTTP) e o payload de paywall
+(`feature`/`limite`/`contagem`/`upgradeUrl`) se perdia — o app dizia "não pode" sem dizer "assine para
+poder". **Correção aditiva:** os três formatos viraram candidatos com precedência documentada no KDoc
+(envelope → topo → direto), vencendo o **primeiro completo**. `EntitlementModelTest` 17 → **21**
+(controle negativo: 2 dos 4 novos falham sem a correção).
+
+Pendências que este item deixa à vista (nenhuma bloqueia):
+
+- [ ] **GAP-KM-QUOTA-CODE — o parse não olha o `code` do erro.** Hoje um 402/429 com
+      `feature`/`limite`/`contagem` no corpo vira `QuotaExceeded` **independente** do `code`
+      (`QUOTA_EXCEEDED`, `RATE_LIMITED`, outro). Na prática nenhum backend do ecossistema emite esse
+      trio fora do paywall, e exigir o `code` reintroduziria o defeito acima em qualquer backend que
+      o escreva diferente. Reabrir só se algum produto precisar distinguir **cota de plano** de
+      **rate-limit** pelo corpo — a distinção segura hoje é o status (402 × 429), no chamador.
+- [ ] **GAP-KM-QUOTA-CONTRACT — três formatos de 402 no ecossistema é dívida de contrato, não
+      feature.** A lib os aceita para não perder receita, mas o certo é os backends convergirem para
+      **um** (o `ErrorResponse` da backlib, já que é o que o plugin padrão emite). Enquanto isso, o
+      parser tolerante fica; quando convergirem, os outros dois viram retrocompat declarada.
+
 ### GAPS — security-review do **Confere QR** (11/ago/2026; auditoria do MANIFESTO MESCLADO de um build real)
 
 > Três achados foram **entregues na 2.105.0** (abaixo). O quarto — o mais caro — está **registrado e
