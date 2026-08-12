@@ -2,9 +2,13 @@ package br.com.codecacto.kmplib.platform
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo
 import platform.Foundation.NSData
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.Foundation.dataWithContentsOfURL
 import platform.UIKit.UIApplication
@@ -17,9 +21,11 @@ import platform.posix.memcpy
 @Composable
 actual fun rememberFilePicker(
     mimeTypes: List<String>,
-    onFilePicked: (FileData?) -> Unit
+    maxBytes: Long,
+    onResult: (FilePickResult) -> Unit
 ): () -> Unit {
-    val delegate = remember { DocumentPickerDelegate(onFilePicked) }
+    val limite = resolveMaxFileBytes(maxBytes)
+    val delegate = remember { DocumentPickerDelegate(limite, onResult) }
 
     return {
         val documentPicker = UIDocumentPickerViewController(
@@ -34,7 +40,8 @@ actual fun rememberFilePicker(
 }
 
 private class DocumentPickerDelegate(
-    private val onFilePicked: (FileData?) -> Unit
+    private val maxBytes: Long,
+    private val onResult: (FilePickResult) -> Unit
 ) : NSObject(), UIDocumentPickerDelegateProtocol {
 
     override fun documentPicker(
@@ -42,32 +49,62 @@ private class DocumentPickerDelegate(
         didPickDocumentsAtURLs: List<*>
     ) {
         val url = didPickDocumentsAtURLs.firstOrNull() as? NSURL
-        onFilePicked(url?.let { readFileFromUrl(it) })
+        onResult(
+            if (url == null) FilePickResult.Cancelled else readFileFromUrl(url)
+        )
     }
 
     override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
-        onFilePicked(null)
+        onResult(FilePickResult.Cancelled)
     }
 
     @OptIn(ExperimentalForeignApi::class)
-    private fun readFileFromUrl(url: NSURL): FileData? {
+    private fun readFileFromUrl(url: NSURL): FilePickResult {
+        val fileName = url.lastPathComponent ?: "arquivo"
+        var securityScoped = false
         return try {
-            val securityScoped = url.startAccessingSecurityScopedResource()
-            val data = NSData.dataWithContentsOfURL(url) ?: return null
-            val byteArray = ByteArray(data.length.toInt())
-            memcpy(byteArray.refTo(0), data.bytes, data.length)
-            val fileName = url.lastPathComponent ?: "arquivo"
-            val mimeType = guessMimeType(fileName)
-            if (securityScoped) url.stopAccessingSecurityScopedResource()
-            FileData(
-                name = fileName,
-                mimeType = mimeType,
-                data = byteArray,
-                size = byteArray.size.toLong()
+            securityScoped = url.startAccessingSecurityScopedResource()
+
+            // Teto ANTES de materializar: no iOS o tamanho de um arquivo local é sempre conhecido,
+            // então nem se chega a criar o NSData de um arquivo grande demais.
+            val declarado = declaredSize(url)
+            if (exceedsFilePickLimit(declarado, maxBytes)) {
+                return FilePickResult.TooLarge(fileName, declarado, maxBytes)
+            }
+
+            val data = NSData.dataWithContentsOfURL(url)
+                ?: return FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
+
+            // Segunda barreira: provedor que não informou tamanho (declarado == -1).
+            val tamanho = data.length.toLong()
+            if (exceedsFilePickLimit(tamanho, maxBytes)) {
+                return FilePickResult.TooLarge(fileName, tamanho, maxBytes)
+            }
+
+            val byteArray = ByteArray(tamanho.toInt())
+            if (tamanho > 0) memcpy(byteArray.refTo(0), data.bytes, data.length)
+            FilePickResult.Picked(
+                FileData(
+                    name = fileName,
+                    mimeType = guessMimeType(fileName),
+                    data = byteArray,
+                    size = byteArray.size.toLong()
+                )
             )
         } catch (e: Exception) {
-            null
+            AppLogger.w(TAG, "não foi possível ler $fileName: ${e.message}")
+            FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
+        } finally {
+            if (securityScoped) url.stopAccessingSecurityScopedResource()
         }
+    }
+
+    /** `-1` quando o sistema não informa o tamanho. */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun declaredSize(url: NSURL): Long {
+        val path = url.path ?: return -1L
+        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, null) ?: return -1L
+        return (attrs[NSFileSize] as? NSNumber)?.longValue ?: -1L
     }
 
     private fun guessMimeType(fileName: String): String {
@@ -79,9 +116,14 @@ private class DocumentPickerDelegate(
             "png" -> "image/png"
             "gif" -> "image/gif"
             "txt" -> "text/plain"
+            "json" -> "application/json"
             "mp4" -> "video/mp4"
             "mov" -> "video/quicktime"
             else -> "application/octet-stream"
         }
+    }
+
+    private companion object {
+        const val TAG = "FilePicker"
     }
 }

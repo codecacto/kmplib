@@ -51,6 +51,29 @@ interface ShareHandler {
      *   chamador recebia sucesso indevidamente.
      */
     fun shareFile(fileBytes: ByteArray, fileName: String, mimeType: String, title: String = "")
+
+    /**
+     * Apaga os arquivos que este handler criou para compartilhar e que já passaram de
+     * [olderThanMillis] (default [DEFAULT_SHARED_FILE_TTL_MILLIS]).
+     *
+     * **Chame no bootstrap do app.** `shareImage`/`shareFile` precisam materializar um arquivo, e até
+     * a 2.104.0 essa cópia **nunca era apagada** — o app exportava o dado, o usuário depois apagava o
+     * registro dentro do app, e a cópia em texto claro continuava no armazenamento, invisível e sem
+     * nenhuma ação do app capaz de removê-la. A partir da 2.105.0 a lib purga sozinha antes de cada
+     * novo share e, no iOS, ao fim da folha de compartilhamento; este método é o complemento para o
+     * caso em que o app nunca mais compartilha nada.
+     *
+     * ```kotlin
+     * // bootstrap (Application / MainViewController)
+     * getShareHandler().clearSharedFiles()
+     * ```
+     *
+     * @param olderThanMillis idade mínima do arquivo para ser apagado. **`0` apaga tudo** — reserve
+     *   para ação explícita do usuário ("limpar dados"), porque um share disparado e ainda em leitura
+     *   pelo app receptor seria interrompido.
+     * @return quantos arquivos foram apagados (`0` também quando não havia nada a apagar).
+     */
+    fun clearSharedFiles(olderThanMillis: Long = DEFAULT_SHARED_FILE_TTL_MILLIS): Int = 0
 }
 
 /**

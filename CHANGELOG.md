@@ -6,6 +6,116 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.105.0 — o dado local não vaza para a nuvem nem sobra no disco (ago/2026)
+
+**Aditiva** (nenhuma quebra de assinatura; nenhuma migração de schema). Três correções vindas de um
+security-review que auditou o **manifesto mesclado de um build real** — todas na fundação, todas
+caminhos pelos quais dado do usuário sai do sandbox sem ninguém pedir.
+
+O produto que as expôs: **Confere QR**, app 100% offline cujo argumento de venda, publicado na landing
+**e na Política de Privacidade**, é *"o cofre nunca sai do seu aparelho"* — e cujo cofre guarda
+**chaves Pix** (CPF, e-mail ou telefone; PII, inclusive de terceiros). Não era hipótese de segurança
+abstrata: era uma frase publicada que a fundação tornava falsa.
+
+### 1. [CRÍTICO] iOS: o banco de sync ia para o backup do iCloud
+
+`SyncDatabaseFactory.ios.kt` criava o `NativeSqliteDriver` só com `schema` e `name` — sem `basePath` —,
+então o arquivo caía num diretório persistente do container. **No iOS tudo no container, exceto `tmp/`
+e `Library/Caches/`, entra no backup do iCloud e do Finder** a menos que o arquivo (ou o diretório que
+o contém) esteja marcado com `NSURLIsExcludedFromBackupKey`. `grep -rn "isExcludedFromBackup"` na lib
+inteira dava **zero**.
+
+**`createSyncDatabase(name, excludeFromBackup: Boolean = false)`**:
+
+- **iOS** — o banco passou a viver em `Library/Application Support/kmplib_databases/<name>/`, **um
+  diretório por banco**, e é o **diretório** que recebe a marcação. Diretório e não arquivo porque o
+  SQLite em WAL mantém `-wal`/`-shm` ao lado do `.db`: marcar só o `.db` deixaria as escritas mais
+  recentes viajando para a nuvem — a forma clássica de "excluí do backup" que não exclui nada. Como o
+  caminho **não** depende do flag, ligar/desligar numa versão futura do app não perde o banco.
+- **Application Support** também porque é o lugar que a Apple define para arquivo de apoio do app
+  (`Documents` é do usuário; `Caches` é purgável) — e é onde o `BlobStore` (2.104.0) já grava.
+- **Base já instalada**: se houver banco no local antigo (o default do SQLiter) e o novo ainda não
+  existir, o arquivo é **adotado** (movido, com `-wal`/`-shm`). Se o movimento falhar, a lib abre **no
+  local antigo** em vez de começar do zero — perder o espelho e a outbox do usuário seria pior que
+  ficar no diretório errado — e registra que a exclusão **não** está ativa.
+- **O default segue `false`, e isso é decisão de produto, não timidez.** Super 8, Lua Certa, Hora do
+  Remédio **querem** o dado de volta no aparelho novo; virar `true` de cima para baixo tiraria isso de
+  todos em silêncio. É **opt-in por app**, com o KDoc dizendo quem quer o quê e por quê.
+
+**Android — o review dizia "correto", e está meio correto.** O arquivo nasce em
+`/data/data/<pkg>/databases/`, privado: nenhum outro app lê. Mas **privado não é fora da nuvem**: o
+**Auto Backup** inclui `databases/` por padrão, e sair dele só se declara **no manifesto**
+(`dataExtractionRules` API 31+, `fullBackupContent` 23–30, ou `allowBackup="false"`) — a lib não pode
+impor isso a todo consumidor. Então, com `excludeFromBackup = true`, a lib **confere o que dá para
+conferir em runtime** (`FLAG_ALLOW_BACKUP`) e **avisa alto no log** quando o manifesto ainda permite
+backup, em vez de deixar a promessa falhar calada. O snippet pronto do XML está no KDoc.
+
+### 2. [MÉDIO] O arquivo compartilhado ficava no disco para sempre
+
+O destino do `ShareHandler` estava certo (diretório privado + `FileProvider` `exported="false"`, nada
+de Downloads). O problema era o que **sobrava**: o arquivo exportado — no Confere QR, o cofre inteiro
+em texto claro — **nunca era apagado**, nem depois do share, nem no boot seguinte. O usuário exporta
+hoje, amanhã apaga a plaquinha "para apagar o dado" (que é o que a Política manda fazer) e a chave Pix
+continua no armazenamento do app, numa cópia que nenhuma tela mostra e que nenhuma ação do app remove.
+
+**A semântica escolhida (o ponto técnico):** apagar logo após disparar o chooser **quebraria o
+share** — o `ACTION_SEND` é assíncrono e o app receptor lê a URI depois, às vezes minutos depois, com
+o nosso processo já em background ou morto. Então:
+
+- **Android** — purga por **idade** (`DEFAULT_SHARED_FILE_TTL_MILLIS`, 1 h) **antes** de gravar o
+  arquivo novo: o do share em curso é sempre o mais novo, logo nunca é vítima da própria limpeza.
+- **iOS** — além da purga, usa o `completionWithItemsHandler` do `UIActivityViewController`, que é o
+  sinal **oficial** de que a folha terminou (inclusive no cancelamento), e apaga ali. É o único lugar
+  onde a plataforma permite ser preciso — e "o sistema limpa o `NSTemporaryDirectory()`
+  eventualmente" não é coisa que se escreva numa política de privacidade.
+- **`ShareHandler.clearSharedFiles(olderThanMillis = 1 h): Int`** (corpo default ⇒ fakes de app seguem
+  compilando) para o app chamar no bootstrap; `0` apaga tudo (ação explícita de "limpar dados").
+- Nome de arquivo agora é **sanitizado** (`sanitizeSharedFileName`): vem do chamador, às vezes de dado
+  do usuário, e um separador escreveria fora do diretório de compartilhamento.
+
+### 3. [BAIXO] `FilePicker` lia o arquivo inteiro antes de qualquer teto
+
+`FilePicker.android.kt` fazia `readBytes()` sem limite dentro de um `catch (Exception)` que **não pega
+`OutOfMemoryError`**: escolher um arquivo de centenas de MB **derrubava o app** antes de o consumidor
+ver um byte (e o `FileData.size` existia sem ser consultado).
+
+**`rememberFilePicker(mimeTypes, maxBytes, onResult: (FilePickResult) -> Unit)`** — desfecho **tipado**
+(`Picked` / `Cancelled` / `TooLarge` / `Failed`) em vez de `FileData?`, que juntava "desistiu", "não
+cabia" e "não deu para ler" num `null` só. Duas barreiras: o tamanho declarado pelo provedor (recusa
+**sem abrir** o arquivo) e, quando o provedor não informa, leitura **com teto**
+(`BoundedByteAccumulator`) abortada ao estourar — em nenhum caminho a lib materializa o arquivo para
+descobrir depois que ele não cabia. `OutOfMemoryError` é capturado como última linha e vira
+`Failed(OutOfMemory)`. **"Sem limite" não é opção oferecida** (`maxBytes <= 0` cai no default de
+25 MiB) — era exatamente o comportamento que derrubava o app. As sobrecargas antigas continuam
+existindo e agora recusam o arquivo grande (chega `null`) em vez de crashar.
+
+### Testes
+
++30 casos em `commonTest`, todos sobre a **lógica pura** (o desfecho é decidido em commonMain e os
+`actual` só ligam o SO): `SyncDatabaseDirectoryTest` (7 — nome do app não vira caminho),
+`SharedFileCleanupTest` (11 — o share em curso não é apagado, o resíduo é, janela `0` apaga tudo, data
+desconhecida/no futuro, sanitização) e `FilePickLimitTest` (12 — teto inválido cai no default, tamanho
+desconhecido não é recusado de antemão, a leitura para de copiar ao estourar, desfechos
+distinguíveis). Suíte: **1854 testes, 0 falhas**.
+
+**Dois testes falharam na primeira execução e mudaram o código** (não o teste): `"///"` como nome de
+arquivo virava `"___"` (agora cai no fallback legível).
+
+### Pendente de macOS
+
+O item 1 é `iosMain`, e o item 2/3 também têm `actual` iOS. **Alvos Apple não compilam em Linux** — o
+código segue as APIs oficiais (`onConfiguration`/`extendedConfig.basePath` do SQLDelight,
+`NSURLIsExcludedFromBackupKey`, `completionWithItemsHandler`), mas **não foi compilado nem validado**.
+A validação é no Mac do fundador, junto da `assembleDebug`.
+
+### Migrar
+
+- **Confere QR** — `createSyncDatabase(excludeFromBackup = true)` no `offlineDataModule` +
+  `getShareHandler().clearSharedFiles()` no bootstrap + `android:allowBackup="false"` (ou
+  `dataExtractionRules` excluindo `domain="database"`). Sem a primeira linha, a frase publicada
+  continua falsa.
+- Qualquer app com dado sensível local no iOS: mesma linha.
+
 ## 2.104.0 — fila de upload DURÁVEL: `RestUploadOutbox` + `core/storage/BlobStore` (ago/2026)
 
 **Aditiva** (uma depreciação, nenhuma quebra; **sem migração de schema**). Corrige perda silenciosa de

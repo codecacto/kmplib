@@ -3,6 +3,248 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### GAPS — security-review do **Confere QR** (11/ago/2026; auditoria do MANIFESTO MESCLADO de um build real)
+
+> Três achados foram **entregues na 2.105.0** (abaixo). O quarto — o mais caro — está **registrado e
+> NÃO começado** por decisão explícita: mexe em todos os consumidores e merece rodada dedicada.
+
+- [ ] **GAP-KL-M-FIREBASE-OPTIONAL-01 — Firebase/RevenueCat/biometria são `api()` para TODO consumidor;
+      modularizar como opcionais. (P1 — NÃO COMEÇAR de carona em outra demanda.)**
+      **Diagnóstico medido**, não suposto: o security-review leu o **manifesto mesclado** de um app
+      "arquétipo A, 100% offline, sem Firebase" (Confere QR) e encontrou embarcados **Firebase
+      Analytics (`AppMeasurement`)**, **Firebase Auth (com 2 Activities exportadas)**, **Storage**,
+      **RemoteConfig**, **FCM**, **dois SDKs de billing**, **biometria** — e as permissões
+      `com.google.android.gms.permission.AD_ID`, `com.android.vending.BILLING`,
+      `POST_NOTIFICATIONS`, `WAKE_LOCK`, `c2dm.permission.RECEIVE`, `USE_BIOMETRIC`,
+      `RECEIVE_BOOT_COMPLETED`.
+      **Causa-raiz:** `library/build.gradle.kts:305` e vizinhos expõem esses SDKs como **`api()`** —
+      o consumidor não escolhe. O caso mais indefensável é o **`firebase-analytics`**: **nenhum produto
+      da casa usa Analytics** (a decisão de observabilidade é GlitchTip, `observability`/`CrashReporter`
+      desde a 2.75.0); ele entrou como "base para Auth/Config" e ficou.
+      **Impacto (por que não é cosmético):** (1) a **ficha de Data Safety da Play fica inconsistente** —
+      o app declara "não coleta nada" com `AD_ID` e AppMeasurement no binário; (2) a coleta **liga
+      sozinha** no dia em que alguém adicionar um `google-services.json` ao projeto, sem uma linha de
+      código nova; (3) 2 Activities **exportadas** de Auth num app que não tem login; (4) tamanho e
+      superfície de ataque em ~60 apps offline.
+      **Escopo esperado da rodada dedicada:** submódulos opcionais (ou `compileOnly`/`implementation` +
+      wiring por `expect/actual` de fábrica) para `firebase-auth`, `firebase-storage`,
+      `firebase-config`, FCM, RevenueCat e biometria; **remoção** do `firebase-analytics`; plano de
+      migração por consumidor (quem usa o quê está no `AppConfig` de cada app) e nota em
+      `BREAKING_CHANGES.md`. **Precisa de autorização nominal do fundador** para propagar aos apps.
+
+- [ ] **GAP-KL-M-CRASH-PII-REDACT-01 — `beforeSend` no `SentryCrashReporter` para redigir BR Code/chave
+      Pix. (P3 — avaliado e DEIXADO DE FORA da 2.105.0, de propósito.)**
+      A ideia: descartar/redigir evento cujo texto casa com padrão de BR Code ou chave Pix antes de sair
+      do aparelho para o GlitchTip. **Por que não entrou agora:** (a) o `beforeSend` teria de varrer
+      `message`, `exception.values[].value`, breadcrumbs, tags e extras — o modelo de evento do
+      `sentry-kotlin-multiplatform` **difere entre Android e Cocoa**, e o lado iOS **não compila em
+      Linux**, então entraria como código não validado no caminho de observabilidade de **todos** os
+      apps; (b) cobertura parcial de um filtro de PII é **pior que nenhuma**, porque cria falsa
+      garantia — a disciplina que funciona hoje é redigir **no ponto de chamada** (é o que o
+      `PaymentAlertReporter` faz desde a 2.82.0, com redator próprio e testado); (c) o Confere QR não
+      envia dado do cofre em nenhuma chamada de reporte — o risco é hipotético, vindo de
+      `exception.message` de terceiros. **Quando fazer:** junto de uma rodada de `observability` (bump
+      do SDK KMP), reusando o redator do `monetization/alert` como núcleo puro compartilhado.
+
+- [x] **PRIVACIDADE DO DADO LOCAL — ENTREGUE na 2.105.0** (três achados do mesmo review):
+      - **(1) [CRÍTICO] iOS: banco de sync ia para o backup do iCloud.**
+        `createSyncDatabase(name, excludeFromBackup = false)`; no iOS o banco vive em
+        `Library/Application Support/kmplib_databases/<name>/` e é o **diretório** que recebe
+        `NSURLIsExcludedFromBackupKey` (cobre `-wal`/`-shm`, que é o que se esquece). Caminho **não**
+        depende do flag ⇒ ligar/desligar não perde o banco; banco antigo é **adotado** e, se o
+        movimento falhar, a lib abre no local antigo (nunca começa vazia). **Default `false`** —
+        decisão de produto: a maioria dos apps quer restaurar no aparelho novo. No **Android** o flag
+        não muda caminho (já é privado) mas a lib **avisa alto** quando o manifesto ainda permite Auto
+        Backup, com o snippet de `dataExtractionRules` no KDoc.
+      - **(2) [MÉDIO] arquivo compartilhado ficava no disco para sempre.**
+        `ShareHandler.clearSharedFiles(olderThanMillis = 1 h)` (corpo default) + purga por idade antes
+        de cada `shareFile` + `completionWithItemsHandler` no iOS. **Não** se apaga ao disparar o
+        chooser: o `ACTION_SEND` é assíncrono e o receptor lê depois — isso quebraria o share.
+      - **(3) [BAIXO] `FilePicker` lia o arquivo inteiro antes de qualquer teto.**
+        `rememberFilePicker(mimeTypes, maxBytes, onResult: (FilePickResult) -> Unit)` com desfecho
+        tipado; recusa pelo tamanho declarado e, sem essa informação, leitura **com teto** abortada ao
+        estourar. `maxBytes <= 0` cai em 25 MiB — "sem limite" não é opção.
+      **Pendente:** os `actual` iOS não compilam em Linux (validação no Mac). **Migrar:** Confere QR
+      (`excludeFromBackup = true` + `clearSharedFiles()` no bootstrap + `allowBackup="false"`).
+
+### GAPS — Onda 0 do "Diária Certa · Quintal Certo" (11/ago/2026 — app KMP, kmplib 2.103.0, 2 flavors)
+> Fichas de origem (com API proposta e telas afetadas):
+> `/srv/CodeCacto/8-Sistemas-Portal-App/DiariaCerta/docs/design/gaps-de-lib.md`.
+> **Todos conferidos no fonte da lib** antes de entrar aqui — não são suposições. **Registro apenas:
+> nada implementado, nada versionado, nada publicado nesta rodada.**
+
+- [ ] **GAP-DC-M-01 — `buildBrCode` no módulo `pix` (MONTAR o payload, não só interpretar).
+      Prioridade ALTA.** Verificado: o `pix` (2.102.0) tem `parseBrCode`, `PixIdentity`, `comparePix`
+      e `PixCrc.sign(payloadWithoutCrc)`, mas **não tem construtor de BR Code** — o próprio KDoc do
+      `PixCrc` descreve `sign` como "é como um app geraria BR Code", ou seja, hoje cada app monta os
+      TLVs do EMV MPM à mão. É exatamente o código que produz QR que *parece* certo e **nenhum banco
+      lê**: contador de caracteres por faixa de versão, GUI `br.gov.bcb.pix` com caixa errada, campo
+      `26` aninhado malformado, CRC calculado sobre o recorte errado. Nada disso falha no build nem em
+      lint — falha no balcão, na frente da cliente.
+      **API proposta** (`br.com.codecacto.kmplib.pix`, commonMain puro): `data class BrCodeInput(key,
+      merchantName, merchantCity, amount: String? = null, txid: String? = null, description: String?
+      = null)` → `fun buildBrCode(input): BrCodeBuildResult` (+ `buildBrCodeOrNull`), com
+      `sealed interface BrCodeBuildResult { Success(payload, brCode) | Invalid(field: BrCodeField,
+      reason) }`.
+      **Requisitos inegociáveis:**
+      1. **Round-trip provado com o parser que já existe:** `parseBrCode(buildBrCode(x).payload)`
+         devolve `Pix` com os mesmos campos. O teste é barato e fecha o ciclo dentro da própria lib.
+      2. **Entrada inválida é ESTADO DE PRODUTO (`Invalid(field, reason)`), nunca exceção** — a
+         profissional pode ter digitado a chave errada, e a tela precisa dizer **qual campo**.
+      3. **`amount` como string decimal canônica** (`"250.00"`), nunca `Double` (regra da casa).
+      4. Sanitização de `merchantName`/`merchantCity` (acento/tamanho) pela mesma regra do par web.
+      5. **Funciona offline** (é aritmética).
+      6. **PARIDADE BYTE-A-BYTE COM O MÓDULO `pix` DA WEBLIB** (que ainda será criado — GAP-DC-W-02),
+         via **vetores de teste compartilhados**, como já se fez no módulo `qr` (2.103.0). Dois
+         geradores independentes para o mesmo pagamento é a receita de "no Android o QR lê e na web
+         não", e ninguém descobre pela suíte.
+      **Consumo:** Onda 3 do Diária Certa. **Reuso:** qualquer app do portfólio que exiba Pix próprio.
+
+- [ ] **GAP-DC-M-04 — canal de checkout alternativo no `PaywallScreen`. Prioridade ALTA.** Verificado
+      no fonte: `PaywallAction` tem **exatamente 8** valores (`SelectPlan`, `Restore`, `Privacy`,
+      `Terms`, `OpenDeveloper`, `ManageSubscription`, `Back`, `DismissError`) — **nenhum** abre canal
+      externo — e o `PaywallScreen` **não expõe slot de conteúdo**. Consequência: todo app que vende
+      por loja **e** por Pix no web improvisa um botão **fora** do paywall canônico, e ao sair de lá
+      perde três coisas de uma vez: o layout, o **disclosure legal de auto-renovação** (exigência
+      Apple/Google) e o `PaymentAlertReporter` (erro no caminho do dinheiro deixa de chegar ao
+      Discord).
+      **Proposta aditiva e retrocompatível:** valor novo `PaywallAction.AlternativeCheckout` + campo
+      `alternativeCheckout: PaywallAlternativeCheckout? = null` no `PaywallState` (default `null` ⇒
+      nada muda para quem já usa), com `PaywallAlternativeCheckout(label, description, icon:
+      ImageVector? = null)` e os defaults correspondentes em `PaywallTexts`. Render: bloco logo abaixo
+      do CTA principal e **antes** de "Restaurar compra" — é alternativa de pagamento, não item de
+      rodapé.
+      **O ponto que precisa nascer NA LIB, não em cada app:** a **regra de conformidade de loja**
+      (ocultar no iOS por padrão — `showOnIos = false` — ou exibir sem link, conforme a política
+      vigente). Deixar essa decisão a cargo de cada app é convite a **reprovação de review na App
+      Store**, e é o tipo de risco que a fundação existe para carregar uma vez só.
+      **Consumo:** Onda 4 do Diária Certa. **Reuso imediato:** Cardápio Digital, Meu Barbeiro,
+      LocaSys, Influencer (todos vendem por loja **e** por Asaas/Pix no web).
+
+- [ ] **GAP-DC-M-05 — `AppDateRangePicker` (intervalo de datas). Prioridade MÉDIA.** Verificado: a lib
+      tem `AppDatePicker` (data única) e `AppDayTimePicker` (hora de faixa, com `DayTimeRole`/24:00),
+      e **nenhum seletor de intervalo de datas**. É **assimetria pura** com a weblib, que tem
+      `DateRangePicker` desde a 0.32.0 — não é feature nova, é paridade em falta. Precisa de todo app
+      com filtro de período (padrão da casa: **Dia · Semana · Mês · Personalizado**) e de todo app que
+      bloqueie um intervalo (folga/férias/manutenção).
+      **API proposta:** `AppDateRangePicker(value: ClosedRange<LocalDate>?, onValueChange, modifier,
+      label = null, minDate = null, maxDate = null, enabled = true, clearable = true, formatDate:
+      (LocalDate) -> String = ::formatDateBr, texts = DateRangePickerTexts())`.
+      **Requisitos:** exibe **dd/MM/yyyy**, nunca ISO (é a memória `date-format-br-padrao`, e o
+      `AppDatePicker` já tropeçou nisso) · o 2º toque define o fim, com destaque visual do intervalo ·
+      **fim < início TROCA os dois** em vez de dar erro (o usuário quis um intervalo, e obrigá-lo a
+      recomeçar por causa da ordem é atrito puro) · alvos ≥48dp.
+
+- [ ] **GAP-DC-M-07 — `OwnAuthTexts` não é traduzível: mensagens de erro do servidor chegam em pt-BR
+      fixo. Prioridade MÉDIA.** Verificado em `auth/OwnAuthConfig.kt:76-104`: `OwnAuthTexts` é uma
+      `data class` de `String` com defaults pt-BR (`invalidCredentials`, `emailAlreadyInUse`,
+      `weakPassword`, `tooManyRequests`, `network`, `sessionExpired`, `socialRejected`, `server:
+      (Int) -> String`…). Como **mobile segue o idioma do DISPOSITIVO** (regra da casa) e a casca
+      nasce com 4 idiomas, um aparelho em espanhol recebe "E-mail ou senha incorretos." — no fluxo de
+      **login**, que é a primeira tela do app. **Não é contornável no app** sem duplicar o mapeamento
+      inteiro (o app teria de reimplementar a tradução de todo código HTTP para reescrever o texto).
+      **É furo de i18n na fundação**, não no consumidor.
+      **Duas saídas possíveis, a segunda é a preferida:**
+      (a) aceitar `StringResource` (compose-resources) além de `String` — resolve, mas amarra a lib
+          aos recursos do app e complica uso fora de composição;
+      (b) **expor o erro TIPADO** e deixar o app traduzir: o `OwnAuthException` já é tipado
+          internamente (`InvalidCredentials`/`EmailAlreadyInUse`/`WeakPassword`/`InvalidResetToken`/
+          `TooManyRequests`/`Network`/`Server`), então o que falta é **não achatar o tipo em `String`**
+          na fronteira pública — mesmo movimento que a 2.90.0 fez no `PurchaseErrorCode`
+          (`userMessage(texts)` com texto injetável por código), e que já provou funcionar.
+      **Ressalva a preservar:** onde o servidor manda `message`, ela tem prioridade hoje **de
+      propósito** (o backend sabe o mínimo real da senha, p. ex.). Se o erro virar tipado, a mensagem
+      do servidor precisa continuar acessível — traduzir por cima dela perderia informação.
+
+- [ ] **GAP-DC-M-08 — `DomainApiClient` só preserva o corpo da resposta no 402: o `code` de negócio
+      dos demais 4xx é descartado. Prioridade MÉDIA.** Verificado em
+      `sync/rest/DomainApiClient.kt:221-233` (`classify`): **só o 402** lê `bodyAsText()` (para extrair
+      `QuotaExceeded`); 401, 429 e todo o resto viram `DomainResult.Error(status, texts.<genérico>)` —
+      o corpo é **descartado sem ser lido**. No Diária Certa o backend devolve **409** com o código
+      `VERTICAL_IMMUTABLE` **no corpo**, e o app teve de ramificar pelo **status HTTP**, sem acesso ao
+      código. Funciona hoje só porque aquele 409 tem causa única; **não escala** para qualquer rota
+      com mais de um tipo de conflito (o app passaria a exibir a mesma mensagem genérica para causas
+      diferentes, ou a adivinhar pelo texto — que é localizado).
+      **Proposta:** preservar o corpo de erro (ou ao menos o `code`) para **toda a faixa 4xx** —
+      p. ex. `DomainResult.Error(code, message, apiCode: String? = null, body: String? = null)`,
+      **aditivo** (campos novos com default, ninguém quebra). O 402 mantém a semântica de Paywall
+      intacta. Cuidado a registrar na implementação: corpo de erro pode ser grande ou não-JSON —
+      leitura tolerante e truncada, `runCatching` como já se faz no 402, e **nada de logar o corpo
+      cru** (pode carregar PII).
+
+- [x] **GAP-DC-M-02 — DESCARTADA: badge no `AppBottomNavBar` JÁ EXISTE.** Verificado no fonte:
+      `BottomNavItem(icon, label, route, badge: Int? = null)` e o componente renderiza via `BadgedBox`
+      + `AppBadge`. Registrado aqui para **ninguém reabrir**. **Ressalva real, menor:** o badge é
+      **numérico** (`Int?`) — não há badge-ponto sem número. Só vira item de backlog se aparecer
+      consumidor pedindo o ponto; hoje não há.
+
+- [x] **GAP-DC-M-03 — REBAIXADA a prioridade BAIXA (parcial, não bloqueante): recibo como PNG.**
+      Verificado: `generateReciboPdf` + `PdfRasterizer.renderPdfPagesToImages` (real em Android **e**
+      iOS) **já entregam PNG hoje** — o caminho existe, ainda que passando pelo PDF. O que de fato
+      falta é um **card de compartilhamento dedicado ao recibo**: o `ShareCardSpec` atual
+      (`ui/share`) é **devocional** (`quote`/`reference`/`brand`) e não comporta emitente/pagador/
+      valor/assinatura. Continua desejável (o layout já está congelado em `ReciboPdfLayout.kt` e é
+      compartilhável entre PDF e imagem), mas **não bloqueia** nenhum MVP.
+
+### DEFEITOS DA `casca-mobile` — dono: **casca**, registrado aqui por não haver backlog na casca
+> Achados ao fazer nascer o "Diária Certa · Quintal Certo" (11/ago/2026) e **confirmados no fonte da
+> `/srv/CodeCacto/Cascas/casca-mobile`**. Estão neste arquivo apenas porque a casca não tem
+> `docs/backlog.md` — a correção é lá, não na kmplib (salvo o item 6, que é dos dois lados).
+> **Defeito na casca vira defeito em N apps**: cada um destes nasce de novo em todo projeto novo.
+
+- [ ] **CASCA-M-01 — `ProvideIsCompact` NÃO está no `App.kt`: `LocalIsCompact` fica sempre `true`.
+      Prioridade ALTA.** Confirmado por varredura: **nenhuma** ocorrência de `ProvideIsCompact` nem de
+      `LocalIsCompact` em `composeApp/src`. Sem o provider, o `CompositionLocal` serve o default e o
+      app **nunca** entra no ramo expandido — o layout de tablet/desktop simplesmente não acontece.
+      **É o pior tipo de defeito de casca:** compila, passa em lint, passa em teste, e **mente que é
+      responsivo**. Não há erro em lugar nenhum; só uma tela que nunca se adapta, invisível até
+      alguém abrir num tablet. E como a skill `compose-mvi` manda decidir layout por `LocalIsCompact`,
+      todo app novo escreve `if (isCompact)` que nunca é falso. **Correção:** envolver o conteúdo do
+      `App.kt` com `ProvideIsCompact { ... }` dentro do `AppTheme`.
+
+- [ ] **CASCA-M-02 — sem `composeResources`: todo app novo nasce sem i18n, com o mau exemplo à vista.**
+      Confirmado: não existe `composeApp/src/commonMain/composeResources` (só artefatos em `build/`), e
+      as strings do template estão **hardcoded em Kotlin** — apesar de o próprio `CLAUDE.md` da casca
+      exigir `Res.string.*`. Casca que contradiz a própria regra ensina o contrário do padrão: o dev
+      copia o que está na frente dele. **Correção:** trazer `composeResources/values/strings.xml` (+
+      `values-en`, `values-es`, `values-pt-rPT`, os 4 idiomas da casa) com as strings do template já
+      migradas — e **mobile segue o idioma do dispositivo**, sem seletor in-app.
+
+- [ ] **CASCA-M-03 — sem modal de confirmação de saída.** O baseline da casa pede confirmação ao sair
+      (memória `logout-confirm-modal-padrao`), e nem a casca nem a kmplib trazem o modal pronto — só o
+      `ConfirmationDialog` genérico. **Correção (na casca):** cablar o `ConfirmationDialog` no fluxo de
+      logout do template, com os textos no `composeResources` do CASCA-M-02.
+
+- [ ] **CASCA-M-04 — sem `testOptions { unitTests { isReturnDefaultValues = true } }`.** Confirmado:
+      `composeApp/build.gradle.kts` não tem `testOptions`. Qualquer teste que toque `AppLogger` →
+      `android.util.Log` quebra com `RuntimeException: Method d in android.util.Log not mocked`.
+      Vários projetos já adicionaram isso **à mão**, um a um — sinal claro de defeito de origem.
+      **Correção:** o bloco entra no `android { }` da casca.
+
+- [ ] **CASCA-M-05 — `LoginViewModel`/`RegisterViewModel` com pt-BR hardcoded, incluindo "Senha
+      fraca".** Confirmado:
+      `composeApp/src/commonMain/kotlin/br/com/codecacto/casca/features/auth/RegisterViewModel.kt:53`
+      → `setState { copy(passwordError = "Senha fraca") }`. Duas violações no mesmo literal: (a) texto
+      fixo em pt-BR num app que deve seguir o idioma do aparelho (CASCA-M-02); (b) **"Senha fraca" é
+      mensagem que a própria kmplib documenta como proibida** — o KDoc de `OwnAuthTexts.weakPassword`
+      diz, com todas as letras, que ela *"não diz a ninguém o que corrigir"*, e por isso o default da
+      lib é "A senha não atende aos requisitos mínimos.". A casca contradiz a lib que ela consome.
+      **Correção:** usar `PasswordValidator.errorMessage(password, rules)` (que diz o mínimo real) e
+      as strings do `composeResources`.
+
+- [ ] **CASCA-M-06 — divergência de senha mínima: kmplib valida 6, `backlib-auth-local` exige 8.**
+      Confirmado nos dois lados: `PasswordValidator.DEFAULT_MIN_LENGTH = 6`
+      (`validation/PasswordValidator.kt:62`) × `AuthLocalConfig.minPasswordLength: Int = 8`
+      (default; `require(minPasswordLength >= 6)`, ou seja, é configurável mas ninguém configura).
+      Resultado em **todo app own-auth nascido da casca**: a tela aceita 7 caracteres, o servidor
+      responde **422**, o app mapeia para `WeakPassword` e exibe uma mensagem genérica — a pessoa
+      **não descobre que o problema é o tamanho**, porque a tela acabou de dizer que estava bom. É
+      falha de cadastro no primeiro contato com o produto.
+      **Onde resolver:** ver a recomendação no handoff — resumo: **alinhar o default da kmplib a 8**
+      (a fronteira mais restritiva ganha), manter a backlib como está, e a casca passar a exibir a
+      mensagem do `PasswordValidator` com o mínimo real. Enquanto não for feito, documentar em
+      destaque no KDoc do `PasswordValidator` que **o backend own-auth exige 8**.
+
 ### GAPS — design do produto "Acervo" (ux-designer, 11/ago/2026, `/design` — arquétipo D, coleção
 pessoal via product flavors `moedas`/`cards`)
 > Levantado durante o design do MVP (`Acervo/docs/design/wireframes.md`) e revisado pelo tech-lead no

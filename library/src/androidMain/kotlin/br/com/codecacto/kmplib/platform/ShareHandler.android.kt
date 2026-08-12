@@ -53,13 +53,18 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
 
     override fun shareFile(fileBytes: ByteArray, fileName: String, mimeType: String, title: String) {
         try {
-            // Salva arquivo no cache
-            val cacheDir = File(context.cacheDir, "shared_files")
+            // Purga ANTES de gravar: o arquivo deste share é o mais novo do diretório, então nunca é
+            // vítima da própria limpeza — e o resíduo dos shares anteriores não fica para sempre.
+            clearSharedFiles()
+
+            val cacheDir = sharedFilesDir()
             if (!cacheDir.exists()) {
                 cacheDir.mkdirs()
             }
 
-            val file = File(cacheDir, fileName)
+            // Nome sanitizado: vem do chamador (às vezes de dado do usuário) e um separador
+            // escreveria fora do diretório de compartilhamento.
+            val file = File(cacheDir, sanitizeSharedFileName(fileName))
             FileOutputStream(file).use { it.write(fileBytes) }
 
             // Obtém URI via FileProvider
@@ -85,6 +90,32 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
             throw e
         }
     }
+
+    /**
+     * Apaga o resíduo dos compartilhamentos anteriores.
+     *
+     * **Não** existe no Android callback de "o app receptor terminou de ler a URI" — o `ACTION_SEND`
+     * é assíncrono e o receptor lê depois, às vezes com o nosso processo já morto. Por isso a
+     * limpeza é por **idade** (e nunca "logo depois de disparar o chooser", que quebraria o share).
+     */
+    override fun clearSharedFiles(olderThanMillis: Long): Int {
+        val dir = sharedFilesDir()
+        val arquivos = dir.listFiles() ?: return 0
+        val agora = System.currentTimeMillis()
+        var apagados = 0
+        arquivos.forEach { file ->
+            if (!file.isFile) return@forEach
+            if (!shouldPurgeSharedFile(file.lastModified(), agora, olderThanMillis)) return@forEach
+            if (file.delete()) {
+                apagados++
+            } else {
+                AppLogger.w(TAG, "não foi possível apagar o arquivo compartilhado ${file.name}")
+            }
+        }
+        return apagados
+    }
+
+    private fun sharedFilesDir(): File = File(context.cacheDir, SHARED_FILES_DIRECTORY)
 
     private fun getMimeType(fileName: String): String {
         return when (fileName.substringAfterLast(".").lowercase()) {
