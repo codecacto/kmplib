@@ -19,6 +19,10 @@ import br.com.codecacto.kmplib.core.util.AppLogger
  * retrocompatíveis**: os defaults (`1f` / `false`) preservam exatamente o comportamento anterior —
  * nenhum consumidor existente quebra.
  *
+ * Também é aqui que as `Modifier.testTag()` do app passam a ser visíveis para automação de UI de
+ * caixa-preta (Maestro/Appium), via [WithTestTagsAsResourceId] — uma vez, na raiz, para todo app da
+ * fábrica. Nada a configurar; ver o KDoc daquela função para o porquê.
+ *
  * @param darkTheme Se true, usa o tema escuro. Padrão: isSystemInDarkTheme()
  * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default
  * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default
@@ -76,8 +80,12 @@ fun AppTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
-            content = content
-        )
+        ) {
+            // Publica as `Modifier.testTag()` da árvore como `resource-id` da plataforma, para a
+            // automação de UI (Maestro/Appium) poder se ancorar por id em vez de por texto de tela.
+            // Uma vez, na raiz — ver `WithTestTagsAsResourceId`. No iOS é no-op.
+            WithTestTagsAsResourceId(content)
+        }
     }
 }
 

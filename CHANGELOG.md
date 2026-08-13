@@ -6,6 +6,91 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.107.0 — a automação de UI enxerga as `testTag`, e o teste consegue simular compra (ago/2026)
+
+**Aditiva** — nenhuma assinatura mudou, nenhum consumidor precisa tocar em código para continuar
+funcionando. Duas coisas que a plataforma de automação de QA (`AUTOMACAO-QA-PLANO-EMPRESA.md`)
+esperava da lib e que não existiam.
+
+### 1. `testTagsAsResourceId` na raiz da hierarquia (`AppTheme`)
+
+`Modifier.testTag("paywall-btn-assinar")` **não virava `resource-id`**: no Android a tag só aparece
+na árvore de acessibilidade — que é o que o `uiautomator` lê — se algum ancestral declarar
+`testTagsAsResourceId = true` na sua `semantics`. Sem isso, Maestro e Appium **não veem tag nenhuma**,
+e o flow só consegue se ancorar em **texto de tela** — que quebra no dia em que alguém melhora o copy.
+
+Agora o [`AppTheme`] embrulha o `content` com `WithTestTagsAsResourceId` (`expect/actual`; no Android
+um `Box` com a `semantics`, no iOS **no-op**, porque lá o Compose já publica a tag como
+`accessibilityIdentifier`). Uma linha na lib em vez de 28 cópias nos apps — e as tags que o Influencer
+já tinha plantadas, inertes desde então, passam a valer sem o app ser tocado.
+
+**Ligada sempre, não só em debug**, de propósito: condicionar a `BuildInfo.isDebug` faria o seletor
+por id funcionar no emulador e falhar no build da **faixa alpha** — que é justamente o build que a
+suíte de pagamento é obrigada a usar, porque o Play Billing não inicializa em app instalado de lado.
+O que se expõe são nomes de elemento de UI, não segredo; a árvore de acessibilidade do Compose já é
+legível por qualquer serviço de acessibilidade, com ou sem a flag.
+
+**Como conferir:** `maestro studio` (ou `adb shell uiautomator dump`) passa a mostrar `resource-id`
+com as tags plantadas.
+
+**Armadilha que vale para TODO paywall do portfólio:** `paywall-btn-assinar` é uma string só, mas o
+paywall tem **um botão desses por plano**. Selecionar pelo id pegaria o primeiro da tela e
+**compraria o plano errado sem o teste perceber**. Ancore no card (`childOf: paywall-plano-mensal`)
+ou dê sufixo de plano ao botão (`paywall-btn-assinar-mensal`), que é o que a `PricingTable` da weblib
+passou a emitir na 0.106.0.
+
+### 2. `br.com.codecacto:kmplib-testing` — artefato novo, só de teste
+
+Nenhum teste instrumentado do portfólio conseguia **simular uma compra** sem tocar na loja: o app lê
+`PurchaseManager.repository`, cujo campo é privado e só é escrito por um `initialize` que configura o
+SDK nativo. Era por isso que o `FakePurchaseRepository` do Super 8 existia **sem ser referenciado em
+lugar nenhum** e que a suíte `pagamento-e2e` só chegava a "o paywall abriu".
+
+O artefato novo traz:
+
+| O que | Onde | Para quê |
+|---|---|---|
+| `PurchaseTestHooks.instalar/limpar` | `androidMain` | instala a loja de teste (e zera no `@After` — `PurchaseManager` é `object`, o estado vaza entre testes) |
+| `FakePurchaseRepository` | `commonMain` | dublê com **cenários nomeados**: `comOfertas`, `compraQueDaCerto`, `compraCancelada`, `compraQueFalha(codigo)`, `jaAssinante`, `semOfertas` (paywall vazio), `ofertasQueFalham` |
+
+Consumo:
+
+```kotlin
+// composeApp/build.gradle.kts
+androidTestImplementation("br.com.codecacto:kmplib-testing:2.107.0")
+
+// TestApplication.onCreate() / @Before — antes de a tela ser composta
+PurchaseTestHooks.instalar(FakePurchaseRepository.compraQueDaCerto())
+```
+
+**Por que artefato separado, e não uma API nova na kmplib.** O gancho troca a implementação que
+decide **se alguém é assinante**. Publicado na lib de produção, seria um caminho para injetar "é
+premium para todo mundo" alcançável em build de release, por qualquer código do app ou por uma
+dependência dele. Como artefato separado, declarado só em `androidTestImplementation`, ele **não
+existe no APK/AAB de release** — e isso é verificável:
+
+```bash
+unzip -p app-release.aab "base/dex/classes.dex" | strings | grep -c PurchaseTestHooks   # 0
+```
+
+**A visibilidade da kmplib NÃO foi afrouxada.** `PurchaseManager.initializeWith` segue `internal`; o
+módulo de teste o alcança por **friend modules** (`-Xfriend-paths`, o mecanismo oficial do compilador
+para dar acesso a `internal` sem torná-lo público). O caminho amigo não é escrito à mão: é **filtrado
+do próprio classpath** de compilação ("amigo é toda entrada que vem da pasta de build da `:kmplib`"),
+o que o torna imune a mudança de layout interno do AGP.
+
+A amizade é aplicada **só às compilações Kotlin/Android**, de propósito — é onde o `androidMain` (o
+único código que usa `internal`) é compilado, e assim a release oficial, que sai do Mac com os alvos
+Apple, não depende desse ajuste. O `FakePurchaseRepository` é `commonMain` e não precisa de amizade
+nenhuma: implementa a interface pública `PurchaseRepository`.
+
+**Dívida conhecida:** o gancho é Android-only. Quando existir suíte iOS que precise instalar o dublê,
+entra o `actual` de lá junto com a amizade para as compilações nativas.
+
+15 testes novos cobrem os cenários do dublê — inclusive `pacotesComprados`, que é o assert que pega o
+pior erro silencioso da automação de paywall (clicar no card errado e comprar outro plano, com tudo
+ficando verde).
+
 ## 2.106.0 — o 402 do backend próprio volta a abrir o paywall (ago/2026)
 
 **Aditiva** (nenhuma quebra de assinatura, nenhum formato deixou de ser aceito). `GAP-KM-QUOTA-PARSE-01`.

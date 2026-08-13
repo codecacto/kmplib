@@ -34,3 +34,12 @@ rootProject.name = "kmplib-build"
 // (idêntico à 1.0.0) sem precisar mover arquivos no disco.
 include(":kmplib")
 project(":kmplib").projectDir = file("library")
+
+// `br.com.codecacto:kmplib-testing` — dublês e ganchos de teste da lib, num artefato SEPARADO que
+// nunca entra em build de produção (ver o KDoc de `PurchaseTestHooks` e o build.gradle.kts do
+// módulo). Mesmo mapeamento nome-Gradle → pasta da `:kmplib`, pelo mesmo motivo: o KMP deriva o
+// artifactId dos artefatos por-target do NOME DO PROJETO Gradle, então a pasta `library-testing/`
+// precisa ser exposta como `:kmplib-testing` para os artefatos iOS saírem como
+// `kmplib-testing-iosarm64`, e não `library-testing-iosarm64`.
+include(":kmplib-testing")
+project(":kmplib-testing").projectDir = file("library-testing")
