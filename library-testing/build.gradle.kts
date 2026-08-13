@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.107.0"
+version = "2.108.0"
 
 // =============================================================================
 // br.com.codecacto:kmplib-testing — artefato SÓ DE TESTE

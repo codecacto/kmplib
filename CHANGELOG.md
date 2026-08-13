@@ -6,6 +6,42 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.108.0 — o paywall canônico ganhou os ids de teste (ago/2026)
+
+**Aditiva.** Nenhuma assinatura mudou; só `Modifier.testTag` a mais na árvore.
+
+### O gap que a 2.107.0 deixou
+
+A 2.107.0 fez as `testTag` virarem `resource-id` — mas **o paywall canônico da lib não tinha tag
+nenhuma**. Como é a `PaywallScreen` quem renderiza o card e o CTA, o app não tinha como plantá-las: o
+teste sobrava selecionar pelo texto do rótulo, e o rótulo do CTA é **o mesmo nos três planos**. Na
+prática isso significa `onAllNodesWithText("Assinar")[0]` — tocar no primeiro da tela, que é
+**comprar o plano errado** com o teste passando.
+
+### `PaywallTestTags` (público) + tags plantadas
+
+| Id | Onde |
+|---|---|
+| `paywall-plano-<sufixo>` | card de cada plano |
+| `paywall-btn-assinar-<sufixo>` | CTA de cada plano |
+| `paywall-assinatura-ativa` | bloco "assinatura ativa" |
+| `paywall-btn-gerenciar-assinatura` | CTA de gerenciar |
+| `paywall-btn-restaurar` | restaurar compras |
+| `paywall-sem-planos` | **paywall vazio** (a suíte precisa distinguir isto de "a tela não abriu") |
+| `paywall-erro` | card de erro |
+
+**O sufixo vem da DURAÇÃO** (`mensal`/`semestral`/`anual`), não do `PaywallPlan.id` — o `id` é o
+`packageId` da loja (`$rc_monthly`) ou um id interno que varia por projeto, e id de teste com `$` e
+nome diferente em cada app não é vocabulário comum. Duração não-canônica (um `lifetime`, o
+`$rc_three_month` residual do Super 8) cai no próprio id **sanitizado**: a verdade honesta, em vez de
+um sufixo inventado que colidiria com outro plano na mesma tela.
+
+São os **mesmos nomes** que a `PricingTable` da weblib emite (0.106.0): app e portal do mesmo produto
+se automatizam com um vocabulário só. A constante é pública de propósito — teste que redigita a string
+do id quebra em silêncio no dia em que a lib mudar de nome.
+
+5 testes cobrem o contrato, inclusive "três CTAs, três ids" e "dois planos não-canônicos não colidem".
+
 ## 2.107.0 — a automação de UI enxerga as `testTag`, e o teste consegue simular compra (ago/2026)
 
 **Aditiva** — nenhuma assinatura mudou, nenhum consumidor precisa tocar em código para continuar

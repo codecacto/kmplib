@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.core.format.formatDateBrFromMillis
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.NeedHelpSection
 import br.com.codecacto.kmplib.ui.components.UsageMeter
@@ -269,7 +270,12 @@ private fun PlansSection(
                     text = texts.emptyPlans,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    // Paywall vazio tem id próprio: a suíte precisa distinguir "não há o que comprar"
+                    // (incidente) de "a tela não abriu" (outra falha, outro dono).
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(PaywallTestTags.SEM_PLANOS)
+                        .padding(vertical = 16.dp),
                     textAlign = TextAlign.Center,
                 )
             }
@@ -314,6 +320,8 @@ private fun PlanCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            // Ancoragem para automação de UI (Maestro/Appium/Compose test). Ver `PaywallTestTags`.
+            .testTag(PaywallTestTags.plano(plan))
             .clickable(enabled = !isPurchasing) { onSelect() },
         shape = RoundedCornerShape(20.dp),
         border = border,
@@ -423,7 +431,9 @@ private fun PlanCard(
                     isLoading = isThisPurchasing,
                     primaryColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(PaywallTestTags.botaoAssinar(plan)),
                 )
             } else {
                 OutlinedButton(
@@ -431,7 +441,10 @@ private fun PlanCard(
                     enabled = !isPurchasing,
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag(PaywallTestTags.botaoAssinar(plan)),
                 ) {
                     if (isThisPurchasing) {
                         CircularProgressIndicator(
@@ -493,7 +506,7 @@ private fun ActiveSubscriptionCard(
     onManage: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag(PaywallTestTags.ASSINATURA_ATIVA),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
@@ -539,6 +552,7 @@ private fun ActiveSubscriptionCard(
                 onClick = onManage,
                 enabled = !isPurchasing,
                 shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.testTag(PaywallTestTags.BOTAO_GERENCIAR),
             ) {
                 Text(texts.manageSubscription)
             }
@@ -615,7 +629,11 @@ private fun RestoreButton(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
     ) {
-        TextButton(onClick = onRestore, enabled = enabled) {
+        TextButton(
+            onClick = onRestore,
+            enabled = enabled,
+            modifier = Modifier.testTag(PaywallTestTags.BOTAO_RESTAURAR),
+        ) {
             Icon(
                 imageVector = Icons.Default.Refresh,
                 contentDescription = null,
@@ -639,7 +657,7 @@ private fun ErrorCard(
     onDismiss: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag(PaywallTestTags.ERRO),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
