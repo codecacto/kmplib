@@ -65,4 +65,19 @@ class PaywallTestTagsTest {
 
         assertTrue(a != b)
     }
+
+    @Test
+    fun `as constantes prontas batem com o que a funcao gera`() {
+        // Se as duas fontes divergirem, o teste do app procura um id que a tela não emite — e o
+        // vermelho diz "elemento não encontrado", que manda investigar a tela em vez do id.
+        assertEquals(PaywallTestTags.PLANO_MENSAL, PaywallTestTags.plano(plano("x", 1)))
+        assertEquals(PaywallTestTags.PLANO_SEMESTRAL, PaywallTestTags.plano(plano("x", 6)))
+        assertEquals(PaywallTestTags.PLANO_ANUAL, PaywallTestTags.plano(plano("x", 12)))
+        assertEquals(PaywallTestTags.BOTAO_ASSINAR_MENSAL, PaywallTestTags.botaoAssinar(plano("x", 1)))
+        assertEquals(
+            PaywallTestTags.BOTAO_ASSINAR_SEMESTRAL,
+            PaywallTestTags.botaoAssinar(plano("x", 6)),
+        )
+        assertEquals(PaywallTestTags.BOTAO_ASSINAR_ANUAL, PaywallTestTags.botaoAssinar(plano("x", 12)))
+    }
 }

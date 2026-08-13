@@ -24,6 +24,21 @@ object PaywallTestTags {
      */
     fun botaoAssinar(plan: PaywallPlan): String = "paywall-btn-assinar-${planSuffix(plan)}"
 
+    /**
+     * Os ids dos **três planos do padrão da fábrica**, prontos.
+     *
+     * Existem porque quem consome estes ids é um teste, e do lado do teste não há um [PaywallPlan]
+     * para passar a [plano]/[botaoAssinar] — o teste não constrói o estado da tela, ele lê a tela.
+     * Sem a constante, a alternativa real é redigitar `"paywall-btn-assinar-mensal"` no `@Test`, que
+     * é justamente o acoplamento por string que este objeto existe para evitar.
+     */
+    const val PLANO_MENSAL: String = "paywall-plano-mensal"
+    const val PLANO_SEMESTRAL: String = "paywall-plano-semestral"
+    const val PLANO_ANUAL: String = "paywall-plano-anual"
+    const val BOTAO_ASSINAR_MENSAL: String = "paywall-btn-assinar-mensal"
+    const val BOTAO_ASSINAR_SEMESTRAL: String = "paywall-btn-assinar-semestral"
+    const val BOTAO_ASSINAR_ANUAL: String = "paywall-btn-assinar-anual"
+
     /** Bloco "assinatura ativa" (só aparece para quem já assina). */
     const val ASSINATURA_ATIVA: String = "paywall-assinatura-ativa"
 

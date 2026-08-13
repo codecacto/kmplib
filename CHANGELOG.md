@@ -6,6 +6,19 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.108.1 — as constantes que faltavam para o id de teste ser usável (ago/2026)
+
+Aditiva, e é a segunda metade da 2.108.0. Aquela versão plantou as tags e expôs `plano(plan)` /
+`botaoAssinar(plan)` — mas **do lado do teste não existe um `PaywallPlan` para passar**: o teste não
+constrói o estado da tela, ele lê a tela. A alternativa real era redigitar
+`"paywall-btn-assinar-mensal"` dentro do `@Test`, que é exatamente o acoplamento por string que o
+objeto existe para evitar.
+
+`PaywallTestTags` ganhou os seis ids canônicos prontos: `PLANO_MENSAL`/`_SEMESTRAL`/`_ANUAL` e
+`BOTAO_ASSINAR_MENSAL`/`_SEMESTRAL`/`_ANUAL`. Um teste novo trava as constantes contra o que a função
+gera — se as duas fontes divergirem, o teste do app passa a procurar um id que a tela não emite, e o
+vermelho diz "elemento não encontrado", mandando investigar a tela em vez do id.
+
 ## 2.108.0 — o paywall canônico ganhou os ids de teste (ago/2026)
 
 **Aditiva.** Nenhuma assinatura mudou; só `Modifier.testTag` a mais na árvore.
