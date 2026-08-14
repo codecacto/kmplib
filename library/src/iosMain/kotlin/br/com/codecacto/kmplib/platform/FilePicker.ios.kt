@@ -123,7 +123,10 @@ private class DocumentPickerDelegate(
         }
     }
 
-    private companion object {
-        const val TAG = "FilePicker"
-    }
 }
+
+// Constante de ARQUIVO, e não `companion object` dentro da classe: o Kotlin/Native recusa campos em
+// companion de subclasse de tipo Obj-C ("Fields are not supported for Companion of subclass of ObjC
+// type"), e `DocumentPickerDelegate` estende `NSObject`. O padrão de pôr o TAG num companion — que é
+// o certo no resto da lib — não vale para delegates do UIKit.
+private const val TAG = "FilePicker"
