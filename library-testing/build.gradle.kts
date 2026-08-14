@@ -135,13 +135,21 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 // Mesmo princípio de antes: nada de caminho escrito à mão. Filtra-se o próprio classpath da tarefa
 // atrás do que veio da pasta de build da `:kmplib`.
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
-    val classpath = libraries
+    // Aqui NÃO dá para filtrar o classpath como na versão JVM: tocar em `libraries` numa tarefa
+    // nativa força a avaliação da distribuição do Kotlin/Native antes do download dela terminar, e o
+    // build morre com "Querying the mapped value of task 'downloadKotlinNativeDistribution' ... is
+    // not supported" — erro que não tem nada a ver com amizade de módulo e manda procurar longe.
+    //
+    // Então o caminho do KLIB é derivado do NOME DA TAREFA (`compileKotlinIosSimulatorArm64` →
+    // `iosSimulatorArm64`), que é o mesmo nome que o Gradle usa na pasta de saída. É menos elegante
+    // que filtrar, e é o que funciona sem acordar a distribuição.
+    val alvo = name.removePrefix("compileKotlin").replaceFirstChar { it.lowercase() }
+    val klibDaKmplib = "$kmplibBuildDir/classes/kotlin/$alvo/main/klib/kmplib.klib"
     compilerOptions.freeCompilerArgs.add(
         providers.provider {
-            val amigos = classpath.files
-                .filter { it.absolutePath.startsWith(kmplibBuildDir) }
-                .map { it.absolutePath }
-            if (amigos.isEmpty()) "" else "-Xfriend-modules=${amigos.joinToString(",")}"
+            // Só passa a flag se o arquivo existir: alvo sem KLIB (ou layout mudado numa versão
+            // futura do Kotlin) não pode derrubar o build com erro de sintaxe de flag.
+            if (File(klibDaKmplib).exists()) "-Xfriend-modules=$klibDaKmplib" else ""
         }.filter { it.isNotEmpty() }
     )
 }
