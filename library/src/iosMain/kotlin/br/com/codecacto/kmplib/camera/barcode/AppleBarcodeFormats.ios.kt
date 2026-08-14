@@ -38,21 +38,23 @@ import platform.Vision.VNBarcodeSymbologyUPCE
  *   fraca em SDKs anteriores); como nenhum produto do portfólio usa Codabar, preferimos declarar a
  *   ausência a arriscar um símbolo nulo em runtime.
  */
+// `listOfNotNull` pelo mesmo motivo da função de simbologias abaixo: as constantes
+// `AVMetadataObjectType*` também chegam como `String?` no Kotlin/Native.
 internal fun BarcodeFormat.toAvMetadataTypes(): List<String> = when (this) {
-    BarcodeFormat.EAN_13, BarcodeFormat.UPC_A -> listOf(AVMetadataObjectTypeEAN13Code)
-    BarcodeFormat.EAN_8 -> listOf(AVMetadataObjectTypeEAN8Code)
-    BarcodeFormat.UPC_E -> listOf(AVMetadataObjectTypeUPCECode)
-    BarcodeFormat.CODE_128 -> listOf(AVMetadataObjectTypeCode128Code)
-    BarcodeFormat.CODE_39 -> listOf(AVMetadataObjectTypeCode39Code)
-    BarcodeFormat.CODE_93 -> listOf(AVMetadataObjectTypeCode93Code)
-    BarcodeFormat.ITF -> listOf(
+    BarcodeFormat.EAN_13, BarcodeFormat.UPC_A -> listOfNotNull(AVMetadataObjectTypeEAN13Code)
+    BarcodeFormat.EAN_8 -> listOfNotNull(AVMetadataObjectTypeEAN8Code)
+    BarcodeFormat.UPC_E -> listOfNotNull(AVMetadataObjectTypeUPCECode)
+    BarcodeFormat.CODE_128 -> listOfNotNull(AVMetadataObjectTypeCode128Code)
+    BarcodeFormat.CODE_39 -> listOfNotNull(AVMetadataObjectTypeCode39Code)
+    BarcodeFormat.CODE_93 -> listOfNotNull(AVMetadataObjectTypeCode93Code)
+    BarcodeFormat.ITF -> listOfNotNull(
         AVMetadataObjectTypeITF14Code,
         AVMetadataObjectTypeInterleaved2of5Code,
     )
-    BarcodeFormat.QR_CODE -> listOf(AVMetadataObjectTypeQRCode)
-    BarcodeFormat.DATA_MATRIX -> listOf(AVMetadataObjectTypeDataMatrixCode)
-    BarcodeFormat.PDF_417 -> listOf(AVMetadataObjectTypePDF417Code)
-    BarcodeFormat.AZTEC -> listOf(AVMetadataObjectTypeAztecCode)
+    BarcodeFormat.QR_CODE -> listOfNotNull(AVMetadataObjectTypeQRCode)
+    BarcodeFormat.DATA_MATRIX -> listOfNotNull(AVMetadataObjectTypeDataMatrixCode)
+    BarcodeFormat.PDF_417 -> listOfNotNull(AVMetadataObjectTypePDF417Code)
+    BarcodeFormat.AZTEC -> listOfNotNull(AVMetadataObjectTypeAztecCode)
     BarcodeFormat.CODABAR -> emptyList()
 }
 
