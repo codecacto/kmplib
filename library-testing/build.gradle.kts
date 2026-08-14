@@ -144,7 +144,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     // `iosSimulatorArm64`), que é o mesmo nome que o Gradle usa na pasta de saída. É menos elegante
     // que filtrar, e é o que funciona sem acordar a distribuição.
     val alvo = name.removePrefix("compileKotlin").replaceFirstChar { it.lowercase() }
-    val pastaDoAlvo = File("$kmplibBuildDir/classes/kotlin/$alvo")
+    val saidaDoAlvo = File("$kmplibBuildDir/classes/kotlin/$alvo/main")
     val nomeDaTarefa = name
 
     // `addAll` com LISTA (vazia quando não há amigo), e não `add` + `filter`: um provider filtrado
@@ -152,23 +152,26 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     // 'compilerOptions.freeCompilerArgs'" — o jeito de dizer "nada a acrescentar" é uma lista vazia.
     compilerOptions.freeCompilerArgs.addAll(
         providers.provider {
-            // PROCURA o `.klib` em vez de montar o caminho: o layout de saída do Kotlin/Native já
-            // mudou entre versões (com e sem subpasta `klib/`), e caminho montado à mão falha em
-            // SILÊNCIO — a flag não é passada, e o erro que aparece é "it is internal in
-            // PurchaseManager", que manda procurar visibilidade em vez de build.
-            val amigos = if (pastaDoAlvo.isDirectory) {
-                pastaDoAlvo.walkTopDown().filter { it.extension == "klib" }.map { it.absolutePath }.toList()
-            } else {
-                emptyList()
+            // O amigo é o **diretório** `main/klib`, e essa é a pegadinha que custou várias rodadas:
+            // no Kotlin/Native atual o KLIB de saída é uma PASTA desempacotada, não um arquivo
+            // `.klib`. Procurar por extensão não achava nada, a flag não era passada, e o erro que
+            // chegava era "it is internal in PurchaseManager" — que manda investigar visibilidade
+            // quando o problema é de caminho. Aferido na máquina do fundador em 14/08/2026.
+            val klibDir = File(saidaDoAlvo, "klib")
+            val arquivoSolto = saidaDoAlvo.listFiles()?.firstOrNull { it.extension == "klib" }
+            val amigo = when {
+                klibDir.exists() -> klibDir.absolutePath
+                arquivoSolto != null -> arquivoSolto.absolutePath  // layout antigo, por segurança
+                else -> null
             }
-            if (amigos.isEmpty()) {
+            if (amigo == null) {
                 logger.lifecycle(
-                    "[kmplib-testing] $nomeDaTarefa: nenhum .klib da :kmplib em ${pastaDoAlvo.absolutePath} — " +
-                        "sem amizade de compilador, o `internal` da lib não é visível.",
+                    "[kmplib-testing] $nomeDaTarefa: não achei o KLIB da :kmplib em " +
+                        "${saidaDoAlvo.absolutePath} — sem amizade, o `internal` da lib fica invisível.",
                 )
                 emptyList()
             } else {
-                listOf("-Xfriend-modules=${amigos.joinToString(",")}")
+                listOf("-Xfriend-modules=$amigo")
             }
         }
     )
