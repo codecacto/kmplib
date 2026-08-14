@@ -144,15 +144,32 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     // `iosSimulatorArm64`), que é o mesmo nome que o Gradle usa na pasta de saída. É menos elegante
     // que filtrar, e é o que funciona sem acordar a distribuição.
     val alvo = name.removePrefix("compileKotlin").replaceFirstChar { it.lowercase() }
-    val klibDaKmplib = "$kmplibBuildDir/classes/kotlin/$alvo/main/klib/kmplib.klib"
+    val pastaDoAlvo = File("$kmplibBuildDir/classes/kotlin/$alvo")
+    val nomeDaTarefa = name
+
     // `addAll` com LISTA (vazia quando não há amigo), e não `add` + `filter`: um provider filtrado
     // que fica "sem valor" faz o Gradle abortar a tarefa com "Assign a value to
     // 'compilerOptions.freeCompilerArgs'" — o jeito de dizer "nada a acrescentar" é uma lista vazia.
     compilerOptions.freeCompilerArgs.addAll(
         providers.provider {
-            // Alvo sem KLIB (ou layout mudado numa versão futura do Kotlin) não pode derrubar o
-            // build: sem o arquivo, simplesmente não há amizade a declarar.
-            if (File(klibDaKmplib).exists()) listOf("-Xfriend-modules=$klibDaKmplib") else emptyList()
+            // PROCURA o `.klib` em vez de montar o caminho: o layout de saída do Kotlin/Native já
+            // mudou entre versões (com e sem subpasta `klib/`), e caminho montado à mão falha em
+            // SILÊNCIO — a flag não é passada, e o erro que aparece é "it is internal in
+            // PurchaseManager", que manda procurar visibilidade em vez de build.
+            val amigos = if (pastaDoAlvo.isDirectory) {
+                pastaDoAlvo.walkTopDown().filter { it.extension == "klib" }.map { it.absolutePath }.toList()
+            } else {
+                emptyList()
+            }
+            if (amigos.isEmpty()) {
+                logger.lifecycle(
+                    "[kmplib-testing] $nomeDaTarefa: nenhum .klib da :kmplib em ${pastaDoAlvo.absolutePath} — " +
+                        "sem amizade de compilador, o `internal` da lib não é visível.",
+                )
+                emptyList()
+            } else {
+                listOf("-Xfriend-modules=${amigos.joinToString(",")}")
+            }
         }
     )
 }
