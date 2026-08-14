@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
@@ -132,6 +133,7 @@ fun LoginScreen(
                 // Email/Password Login
                 if (authMethods.emailPassword) {
                     AppTextField(
+                        modifier = Modifier.testTag(LoginTestTags.INPUT_EMAIL),
                         value = state.email,
                         onValueChange = { onAction(LoginAction.Input.EmailChanged(it)) },
                         label = texts.emailLabel(),
@@ -147,6 +149,7 @@ fun LoginScreen(
                     )
 
                     AppTextField(
+                        modifier = Modifier.testTag(LoginTestTags.INPUT_SENHA),
                         value = state.password,
                         onValueChange = { onAction(LoginAction.Input.PasswordChanged(it)) },
                         label = texts.passwordLabel(),
@@ -167,6 +170,7 @@ fun LoginScreen(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(
+                            modifier = Modifier.testTag(LoginTestTags.BOTAO_ESQUECI_SENHA),
                             onClick = { onAction(LoginAction.Click.ForgotPassword) },
                             contentPadding = PaddingValues(0.dp),
                             enabled = !state.isLoading
@@ -182,7 +186,7 @@ fun LoginScreen(
                     // Mensagem de erro geral
                     if (state.errorMessage != null) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().testTag(LoginTestTags.ERRO),
                             colors = CardDefaults.cardColors(
                                 containerColor = colors.error.copy(alpha = 0.1f)
                             ),
@@ -199,6 +203,7 @@ fun LoginScreen(
 
                     // Botão de login
                     AppButton(
+                        modifier = Modifier.testTag(LoginTestTags.BOTAO_ENTRAR),
                         text = texts.loginButton(),
                         onClick = { onAction(LoginAction.Click.Login) },
                         isLoading = state.isLoading,
@@ -220,6 +225,7 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         TextButton(
+                            modifier = Modifier.testTag(LoginTestTags.BOTAO_CADASTRAR),
                             onClick = { onAction(LoginAction.Click.Register) },
                             contentPadding = PaddingValues(0.dp),
                             enabled = !state.isLoading
@@ -257,6 +263,7 @@ fun LoginScreen(
                 // Google Login
                 if (authMethods.google) {
                     GoogleLoginButton(
+                        modifier = Modifier.testTag(LoginTestTags.BOTAO_GOOGLE),
                         text = texts.googleLogin(),
                         onClick = { onAction(LoginAction.Click.GoogleLogin) },
                         isLoading = state.isGoogleLoading,
@@ -268,6 +275,7 @@ fun LoginScreen(
                 // Apple Login
                 if (authMethods.apple) {
                     AppleLoginButton(
+                        modifier = Modifier.testTag(LoginTestTags.BOTAO_APPLE),
                         text = texts.appleLogin(),
                         onClick = { onAction(LoginAction.Click.AppleLogin) },
                         isLoading = state.isAppleLoading,

@@ -6,6 +6,49 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.109.0 — login também vira fluxo automatizável (ago/2026)
+
+Aditiva. Fecha o outro lado do par: pagamento já era automatizável desde a 2.108, e login — o outro
+fluxo em que uma quebra silenciosa custa cliente — só dava para testar procurando TEXTO na tela
+("Entrar", "E-mail"), o que quebra a cada ajuste de copy e em cada idioma, fazendo o teste "achar"
+um defeito que não existe.
+
+`LoginTestTags` (mesmo desenho de `PaywallTestTags`) e as tags plantadas na `LoginScreen`:
+`login-input-email`, `login-input-senha`, `login-btn-entrar`, `login-btn-esqueci-senha`,
+`login-btn-cadastrar`, `login-btn-google`, `login-btn-apple` e `login-erro`.
+
+Duas decisões que vêm da experiência do paywall:
+
+· **um id por provedor social**, nunca um compartilhado — id único faria o teste tocar no primeiro
+  botão da tela e passar verde tendo exercitado o provedor errado, porque "entrou" é verdade nos dois
+  casos;
+· **o erro tem id próprio**, e é ele que distingue "a tela não abriu" de "a tela abriu e recusou a
+  senha". Sem isso, um teste de credencial inválida não consegue afirmar que o app AVISOU — e login
+  que falha em silêncio é o defeito que ninguém percebe até o cliente reclamar.
+
+O vocabulário é o mesmo do lado web (prefixo `login-`, minúsculo, com hífen), para um flow servir app
+e portal do mesmo produto sem tradução de seletor. Um teste trava a convenção e a unicidade.
+
+Nada muda para quem já usa a `LoginScreen`: só entram `Modifier.testTag`, que o `AppTheme` já expõe
+como `resource-id` desde a 2.107.0.
+
+### Corrigido no caminho: a lib não compilava para iOS desde a 2.105.0
+
+Três erros, invisíveis porque nada compila iOS no servidor e ninguém compilou iOS desde então —
+achados pela primeira build Apple de verdade (a captura do print de review):
+
+· `NSNumber.numberWithBool(...)` não existe no Kotlin/Native (o que existe é o inicializador);
+· as constantes `VNBarcodeSymbology*`/`AVMetadataObjectType*` chegam como `String?`, e `listOf`
+  produzia `List<String?>`;
+· campo em `companion object` de subclasse de tipo Obj-C é proibido (`FilePicker`).
+
+### kmplib-testing: o gancho de loja passa a existir no iOS
+
+`PurchaseTestHooks` ganhou par em `iosMain`, com a amizade de compilador estendida às compilações
+nativas — `-friend-modules <path>` (a forma do Kotlin/Native; a `-Xfriend-modules` da JVM é aceita
+calada e não faz nada) apontando para o KLIB, que é um **diretório**, não um arquivo `.klib`. A
+visibilidade do `initializeWith` continua `internal`.
+
 ## 2.108.1 — as constantes que faltavam para o id de teste ser usável (ago/2026)
 
 Aditiva, e é a segunda metade da 2.108.0. Aquela versão plantou as tags e expôs `plano(plan)` /
