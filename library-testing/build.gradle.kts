@@ -125,6 +125,27 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     )
 }
 
+// A MESMA amizade para as compilações Kotlin/Native (iOS), desde 14/08/2026.
+//
+// Passou a ser necessária quando o `PurchaseTestHooks` ganhou um par em `iosMain`: a captura do print
+// de review compila o app com o dublê ligado, e sem o gancho no alvo Apple o app não resolvia o
+// símbolo. O que muda é só o nome da flag — no Kotlin/Native a amizade é entre KLIBs
+// (`-Xfriend-modules`), não entre diretórios de classes.
+//
+// Mesmo princípio de antes: nada de caminho escrito à mão. Filtra-se o próprio classpath da tarefa
+// atrás do que veio da pasta de build da `:kmplib`.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
+    val classpath = libraries
+    compilerOptions.freeCompilerArgs.add(
+        providers.provider {
+            val amigos = classpath.files
+                .filter { it.absolutePath.startsWith(kmplibBuildDir) }
+                .map { it.absolutePath }
+            if (amigos.isEmpty()) "" else "-Xfriend-modules=${amigos.joinToString(",")}"
+        }.filter { it.isNotEmpty() }
+    )
+}
+
 // A release oficial sai de um Mac (mesma regra da :kmplib): sem os alvos Apple, o módulo publicado
 // seria parcial e quebraria os consumidores iOS.
 if (!appleTargetsEnabled) {
