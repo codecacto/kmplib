@@ -145,12 +145,15 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     // que filtrar, e é o que funciona sem acordar a distribuição.
     val alvo = name.removePrefix("compileKotlin").replaceFirstChar { it.lowercase() }
     val klibDaKmplib = "$kmplibBuildDir/classes/kotlin/$alvo/main/klib/kmplib.klib"
-    compilerOptions.freeCompilerArgs.add(
+    // `addAll` com LISTA (vazia quando não há amigo), e não `add` + `filter`: um provider filtrado
+    // que fica "sem valor" faz o Gradle abortar a tarefa com "Assign a value to
+    // 'compilerOptions.freeCompilerArgs'" — o jeito de dizer "nada a acrescentar" é uma lista vazia.
+    compilerOptions.freeCompilerArgs.addAll(
         providers.provider {
-            // Só passa a flag se o arquivo existir: alvo sem KLIB (ou layout mudado numa versão
-            // futura do Kotlin) não pode derrubar o build com erro de sintaxe de flag.
-            if (File(klibDaKmplib).exists()) "-Xfriend-modules=$klibDaKmplib" else ""
-        }.filter { it.isNotEmpty() }
+            // Alvo sem KLIB (ou layout mudado numa versão futura do Kotlin) não pode derrubar o
+            // build: sem o arquivo, simplesmente não há amizade a declarar.
+            if (File(klibDaKmplib).exists()) listOf("-Xfriend-modules=$klibDaKmplib") else emptyList()
+        }
     )
 }
 
