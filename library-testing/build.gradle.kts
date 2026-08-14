@@ -147,31 +147,31 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     val saidaDoAlvo = File("$kmplibBuildDir/classes/kotlin/$alvo/main")
     val nomeDaTarefa = name
 
-    // `addAll` com LISTA (vazia quando não há amigo), e não `add` + `filter`: um provider filtrado
-    // que fica "sem valor" faz o Gradle abortar a tarefa com "Assign a value to
-    // 'compilerOptions.freeCompilerArgs'" — o jeito de dizer "nada a acrescentar" é uma lista vazia.
+    // `addAll` com LISTA, e não `add` + `filter`: um provider filtrado que fica "sem valor" faz o
+    // Gradle abortar com "Assign a value to 'compilerOptions.freeCompilerArgs'". Lista vazia é o
+    // jeito de dizer "nada a acrescentar".
     compilerOptions.freeCompilerArgs.addAll(
         providers.provider {
-            // O amigo é o **diretório** `main/klib`, e essa é a pegadinha que custou várias rodadas:
-            // no Kotlin/Native atual o KLIB de saída é uma PASTA desempacotada, não um arquivo
-            // `.klib`. Procurar por extensão não achava nada, a flag não era passada, e o erro que
-            // chegava era "it is internal in PurchaseManager" — que manda investigar visibilidade
-            // quando o problema é de caminho. Aferido na máquina do fundador em 14/08/2026.
-            val klibDir = File(saidaDoAlvo, "klib")
-            val arquivoSolto = saidaDoAlvo.listFiles()?.firstOrNull { it.extension == "klib" }
-            val amigo = when {
-                klibDir.exists() -> klibDir.absolutePath
-                arquivoSolto != null -> arquivoSolto.absolutePath  // layout antigo, por segurança
-                else -> null
-            }
+            // Duas coisas aqui foram aferidas no `konanc -help` da máquina que compila (14/08/2026),
+            // depois de três rodadas perdidas adivinhando:
+            //
+            // 1. **A flag do Kotlin/Native é `-friend-modules <path>`** — sem o `-X` da forma JVM, e
+            //    com o caminho como argumento SEPARADO. `-Xfriend-modules=` é aceito calado e não
+            //    faz nada, e o erro que sobra é "it is internal in PurchaseManager", que manda
+            //    investigar visibilidade quando o problema é a flag.
+            // 2. **O KLIB é um DIRETÓRIO**: `…/main/klib/<nome-do-módulo>`. Procurar por arquivo
+            //    `.klib` não acha nada.
+            val pastaKlib = File(saidaDoAlvo, "klib")
+            val amigo = pastaKlib.listFiles()?.firstOrNull()?.absolutePath
+                ?: saidaDoAlvo.listFiles()?.firstOrNull { it.extension == "klib" }?.absolutePath
             if (amigo == null) {
                 logger.lifecycle(
                     "[kmplib-testing] $nomeDaTarefa: não achei o KLIB da :kmplib em " +
-                        "${saidaDoAlvo.absolutePath} — sem amizade, o `internal` da lib fica invisível.",
+                        "${pastaKlib.absolutePath} — sem amizade, o `internal` da lib fica invisível.",
                 )
                 emptyList()
             } else {
-                listOf("-Xfriend-modules=$amigo")
+                listOf("-friend-modules", amigo)
             }
         }
     )
