@@ -157,8 +157,12 @@ private fun legacyDirectoryCandidates(): List<String> {
 private fun applyBackupExclusion(directory: String, exclude: Boolean) {
     // Aplica nos dois sentidos: desligar o flag numa versão futura devolve o diretório ao backup.
     val url = NSURL.fileURLWithPath(directory)
+    // `NSNumber(bool = …)`, e não `NSNumber.numberWithBool(…)`: o método de CLASSE do Obj-C não é
+    // exposto por esse nome no Kotlin/Native — o que existe é o inicializador (`initWithBool:`),
+    // mapeado para construtor. Escrito como estava, o iOS parava de compilar com "Unresolved
+    // reference 'numberWithBool'", e o erro só aparecia em quem tentasse compilar iOS de verdade.
     val ok = url.setResourceValue(
-        NSNumber.numberWithBool(exclude),
+        NSNumber(bool = exclude),
         NSURLIsExcludedFromBackupKey,
         null,
     )
