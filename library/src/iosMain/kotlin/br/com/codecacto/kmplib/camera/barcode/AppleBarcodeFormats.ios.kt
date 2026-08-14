@@ -73,18 +73,23 @@ internal fun String.avMetadataTypeToBarcodeFormat(): BarcodeFormat? = when (this
 }
 
 /** [BarcodeFormat] → simbologias do Vision (imagem parada). */
+// `listOfNotNull`, e não `listOf`: as constantes `VNBarcodeSymbology*` do Vision chegam ao
+// Kotlin/Native como `String?` (a Apple as declara sem anotação de nulidade), então `listOf` produz
+// `List<String?>` e o iOS deixa de compilar com "Return type mismatch". Filtrar aqui é o certo: uma
+// simbologia ausente no SDK da versão do Xcode simplesmente não entra na lista, em vez de virar um
+// `null` que o Vision receberia.
 internal fun BarcodeFormat.toVisionSymbologies(): List<String> = when (this) {
-    BarcodeFormat.EAN_13, BarcodeFormat.UPC_A -> listOf(VNBarcodeSymbologyEAN13)
-    BarcodeFormat.EAN_8 -> listOf(VNBarcodeSymbologyEAN8)
-    BarcodeFormat.UPC_E -> listOf(VNBarcodeSymbologyUPCE)
-    BarcodeFormat.CODE_128 -> listOf(VNBarcodeSymbologyCode128)
-    BarcodeFormat.CODE_39 -> listOf(VNBarcodeSymbologyCode39)
-    BarcodeFormat.CODE_93 -> listOf(VNBarcodeSymbologyCode93)
-    BarcodeFormat.ITF -> listOf(VNBarcodeSymbologyITF14, VNBarcodeSymbologyI2of5)
-    BarcodeFormat.QR_CODE -> listOf(VNBarcodeSymbologyQR)
-    BarcodeFormat.DATA_MATRIX -> listOf(VNBarcodeSymbologyDataMatrix)
-    BarcodeFormat.PDF_417 -> listOf(VNBarcodeSymbologyPDF417)
-    BarcodeFormat.AZTEC -> listOf(VNBarcodeSymbologyAztec)
+    BarcodeFormat.EAN_13, BarcodeFormat.UPC_A -> listOfNotNull(VNBarcodeSymbologyEAN13)
+    BarcodeFormat.EAN_8 -> listOfNotNull(VNBarcodeSymbologyEAN8)
+    BarcodeFormat.UPC_E -> listOfNotNull(VNBarcodeSymbologyUPCE)
+    BarcodeFormat.CODE_128 -> listOfNotNull(VNBarcodeSymbologyCode128)
+    BarcodeFormat.CODE_39 -> listOfNotNull(VNBarcodeSymbologyCode39)
+    BarcodeFormat.CODE_93 -> listOfNotNull(VNBarcodeSymbologyCode93)
+    BarcodeFormat.ITF -> listOfNotNull(VNBarcodeSymbologyITF14, VNBarcodeSymbologyI2of5)
+    BarcodeFormat.QR_CODE -> listOfNotNull(VNBarcodeSymbologyQR)
+    BarcodeFormat.DATA_MATRIX -> listOfNotNull(VNBarcodeSymbologyDataMatrix)
+    BarcodeFormat.PDF_417 -> listOfNotNull(VNBarcodeSymbologyPDF417)
+    BarcodeFormat.AZTEC -> listOfNotNull(VNBarcodeSymbologyAztec)
     BarcodeFormat.CODABAR -> emptyList()
 }
 
