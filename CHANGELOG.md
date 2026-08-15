@@ -6,6 +6,45 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.113.0 — paywall com slots: teste grátis e Pix do portal cabem na tela canônica (ago/2026)
+
+Aditiva: dois parâmetros opcionais em `PaywallScreen`/`PaywallContent`, ambos `null` por default.
+Nenhum consumidor muda.
+
+### O problema
+
+O paywall canônico cobre a loja e só a loja. Dois pedaços do padrão da fábrica não cabiam nele:
+
+- **Teste grátis de 7 dias** (RF72 do Diária Certa, e a regra geral da casa) — não é produto de
+  loja: quem concede é o admin-api central, um por conta, para sempre. A lib não tem como conhecer
+  esse endpoint.
+- **"Assinar por Pix"** nos produtos **own-auth**, em que o pagamento web passa pelo portal e pelo
+  Asaas. É o caminho **principal** de cobrança em vários projetos BR — e no app ele não tinha onde
+  aparecer.
+
+Sem slot, o caminho que sobrava era o app **reimplementar a tela inteira** para acrescentar um
+botão. E a primeira coisa que se perde numa cópia dessas é o `LegalDisclosureSection` — o texto de
+renovação automática que a Apple e o Google **exigem** para aprovar o app.
+
+### O que entrou
+
+`beforePlansContent` e `afterPlansContent`, ambos `(@Composable () -> Unit)?`. Renderizam **só no
+estado não-premium** (oferecer teste grátis a quem já paga é ruído), em volta do `PlansSection`:
+
+```kotlin
+PaywallScreen(
+    state = state,
+    onAction = viewModel::onAction,
+    beforePlansContent = { TesteGratisCard(...) },   // antes dos preços, de propósito
+    afterPlansContent = { AssinarPorPixCard(...) },  // depois dos cards, antes do bloco legal
+)
+```
+
+**A ordem é a decisão, não o acaso.** O teste grátis vem ANTES dos preços: depois deles, quem
+decidiu não pagar hoje não rola mais até lá. O Pix vem DEPOIS dos cards, porque no app a loja é o
+caminho principal — e ACIMA do bloco legal, para não ficar embaixo do texto de renovação
+automática, que ninguém lê.
+
 ## 2.112.0 — gerar BR Code Pix: o módulo `pix` passa a cobrar, não só a ler (ago/2026)
 
 Aditiva, um arquivo novo em `pix/`, nenhum símbolo alterado. Fecha o `GAP-DC-M-01` (P0 do **Diária

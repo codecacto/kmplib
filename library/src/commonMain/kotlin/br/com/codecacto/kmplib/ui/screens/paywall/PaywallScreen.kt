@@ -74,6 +74,10 @@ import br.com.codecacto.kmplib.ui.components.UsageMeter
  * @param modifier Modificador externo.
  * @param headerIcon Icone premium opcional do topo (ex.: logo/icone do app). `null` usa um default
  *   tasteful ([Icons.Filled.WorkspacePremium]). Tematizado pelo `colorScheme.primary`.
+ * @param beforePlansContent Slot acima dos cards de plano (ex.: oferta de teste gratis). So renderiza
+ *   no estado nao-premium. Ver o KDoc de [PaywallContent].
+ * @param afterPlansContent Slot abaixo dos cards e acima do bloco legal (ex.: "assinar por Pix no
+ *   portal"). So renderiza no estado nao-premium.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +88,8 @@ fun PaywallScreen(
     snackbarHostState: SnackbarHostState? = null,
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
+    beforePlansContent: (@Composable () -> Unit)? = null,
+    afterPlansContent: (@Composable () -> Unit)? = null,
 ) {
     Scaffold(
         modifier = modifier,
@@ -115,6 +121,8 @@ fun PaywallScreen(
                 .fillMaxSize()
                 .padding(paddingValues),
             headerIcon = headerIcon,
+            beforePlansContent = beforePlansContent,
+            afterPlansContent = afterPlansContent,
         )
     }
 }
@@ -129,6 +137,21 @@ fun PaywallScreen(
  * Tema 100% via [MaterialTheme] (zero cor hardcoded); preco SEMPRE [PaywallPlan.priceLabel] (string
  * da loja). Responsivo via [BoxWithConstraints] (limita a largura do conteudo em telas largas).
  *
+ * ## Os dois slots (2.113.0) — o que a tela canônica NÃO sabe
+ *
+ * `beforePlansContent` e `afterPlansContent` renderizam **só no estado não-premium**, em volta dos
+ * cards de plano, e existem para duas coisas que a lib não tem como conhecer:
+ *
+ * - **antes:** a oferta de **teste grátis**, que não é produto de loja — quem concede é o admin-api
+ *   central (um por conta, para sempre). Ela precisa aparecer ANTES dos preços; depois deles, quem
+ *   já decidiu não pagar hoje nunca mais rola até lá.
+ * - **depois:** o **caminho alternativo de pagamento** (o Pix do portal web nos produtos own-auth).
+ *   Vem depois dos cards porque a loja é o caminho principal no app, e antes do bloco legal para
+ *   não ficar embaixo do texto de renovação automática, que ninguém lê.
+ *
+ * Sem eles, cada app reimplementava a tela inteira para acrescentar um botão — e a primeira coisa
+ * que se perde nessa cópia é o disclosure legal que a Apple e o Google exigem.
+ *
  * @param headerIcon Icone premium opcional do topo; `null` usa o default ([Icons.Filled.WorkspacePremium]).
  */
 @Composable
@@ -138,6 +161,8 @@ fun PaywallContent(
     texts: PaywallTexts = PaywallTexts(),
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
+    beforePlansContent: (@Composable () -> Unit)? = null,
+    afterPlansContent: (@Composable () -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val wide = maxWidth >= 600.dp
@@ -172,7 +197,9 @@ fun PaywallContent(
                         onManage = { onAction(PaywallAction.ManageSubscription) },
                     )
                 } else {
+                    beforePlansContent?.invoke()
                     PlansSection(state = state, onAction = onAction, texts = texts)
+                    afterPlansContent?.invoke()
                     LegalDisclosureSection(texts = texts, onAction = onAction)
                     RestoreButton(
                         isRestoring = state.isPurchasing && state.purchasingPlanId == null,
