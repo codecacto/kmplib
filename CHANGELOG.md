@@ -94,7 +94,7 @@ iOS usa a API oficial `pageZoom` e amplia a página inteira. Nenhuma das duas ex
 A regra de navegação é **uma função pura consultada pelos dois `actual`** — é o que impede Android e
 iOS de divergirem justamente na parte de segurança, onde a divergência não aparece em teste de tela.
 
-`LikertScaleTest` (23) + `HtmlDocumentTest` (19); suíte 1942/0. Controle negativo: removendo a regra
+`LikertScaleTest` (23) + `HtmlDocumentTest` (19); suíte 1943/0. Controle negativo: removendo a regra
 de âncora do `htmlLinkDecision`, 3 testes falham.
 
 **Pendente de macOS:** o `actual` iOS do `HtmlDocumentView` foi escrito conforme as APIs oficiais mas
