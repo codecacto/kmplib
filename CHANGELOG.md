@@ -6,6 +6,58 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.112.0 — gerar BR Code Pix: o módulo `pix` passa a cobrar, não só a ler (ago/2026)
+
+Aditiva, um arquivo novo em `pix/`, nenhum símbolo alterado. Fecha o `GAP-DC-M-01` (P0 do **Diária
+Certa**, Onda 3) e tem par na weblib (`GAP-DC-W-02`).
+
+### O que faltava
+
+O módulo `pix` sabia **ler** plaquinha — validar CRC, comparar recebedor, desconfiar de um QR
+trocado. Não sabia **emitir**. Todo app que precisa cobrar (a diarista mandando o QR da diária, o
+prestador anexando o Pix ao orçamento) montaria a string EMV na mão, e é o tipo de código em que um
+detalhe errado produz um QR que **abre no app do banco e falha na confirmação** — o pior desfecho,
+porque parece que funcionou.
+
+### O que entrou
+
+- **`buildPixBrCode(PixCharge): PixBrCodeResult`** — BR Code **estático** com chave, nome, cidade,
+  valor opcional, `txid` e descrição. Resultado tipado (`Ok`/`Invalid` com motivo), na mesma
+  disciplina do `parseBrCode`: a tela precisa dizer *qual* recusa aconteceu, não "erro ao gerar".
+- **`PixCharge`**, **`PixBrCodeError`**, **`PixBrCodeResult`**.
+
+O caso **dinâmico** fica de fora de propósito: exige um PSP emitindo a cobrança e devolvendo a URL
+do payload; oferecer a API sugeriria que o cliente monta isso sozinho.
+
+### As decisões que fazem o QR funcionar no banco de verdade
+
+- **Nome e cidade são normalizados para ASCII maiúsculo.** Não é estética: o tamanho do TLV é
+  contado em **caracteres** e o CRC é calculado sobre **bytes UTF-8**. "Rosângela" tem 9 caracteres
+  e 10 bytes, e emissores divergem sobre qual das contas escrever — normalizar tira a questão da
+  mesa. A tabela de acentos é explícita porque `commonMain` não tem normalização Unicode e
+  `java.text` mataria o iOS.
+- **Valor com separador único seguido de 3 dígitos é RECUSADO, não adivinhado.** `"1.234"` pode ser
+  mil duzentos e trinta e quatro ou um valor de 3 casas; chutar erra por **mil vezes** em alguma
+  direção. Um leitor de moeda de tela pode arriscar — aqui se emite instrumento de pagamento, e a
+  recusa alta tem conserto ("escreva 1234,00") enquanto a cobrança errada não tem. `"1.234,50"` (os
+  dois separadores) e `"1.234.567"` (o mesmo repetido) são inequívocos e passam.
+- **Valor zero é recusado.** `54 = "0.00"` não é "sem valor": é uma cobrança de zero real, que o
+  banco recusa na confirmação. QR sem valor se pede com `amount = null`.
+- **A descrição encolhe para caber nos 99 caracteres do template**, em vez de derrubar a geração:
+  EMV MPM não tem tamanho estendido, e recusar o pagamento por causa de um texto decorativo que
+  metade dos leitores nem exibe seria trocar um problema cosmético por um pagamento que não acontece.
+- **`txid` fora do alfabeto (A–Za–z0–9) ou acima de 25 recusa.** Um traço vindo de "PEDIDO-42" passa
+  pelo parser da lib e quebra no PSP.
+- A assinatura sai do `PixCrc.sign` — nunca concatenada à mão. O CRC cobre `"6304"`, e errar isso é
+  o modo clássico de "todo QR dá inválido".
+
+### Cobertura
+
+22 casos, e a prova principal é o **ida-e-volta**: o payload gerado é relido pelo `parseBrCode` da
+própria lib (que já é ancorado no *check value* publicado do CRC-16/CCITT-FALSE). Tamanho errado,
+campo fora de ordem ou CRC que não fecha reprovam ali. Comparar com string colada provaria só que
+ninguém mexeu no arquivo. Suíte completa da lib: **1964 testes, 0 falhas**.
+
 ## 2.111.0 — questionário e documento: os dois componentes que faltavam para o app não redesenhar nada (ago/2026)
 
 Aditiva, dois módulos novos, nenhum símbolo alterado. `GAP-NCX-M-01` e `GAP-NCX-M-02` (P0 do
