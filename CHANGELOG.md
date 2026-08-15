@@ -6,6 +6,165 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.111.0 — questionário e documento: os dois componentes que faltavam para o app não redesenhar nada (ago/2026)
+
+Aditiva, dois módulos novos, nenhum símbolo alterado. `GAP-NCX-M-01` e `GAP-NCX-M-02` (P0 do
+**NeuroCoreX**), ambos com par na weblib (`GAP-NCX-W-01` e o `<iframe sandbox>` do portal).
+
+### `LikertScaleField` — a escala de N pontos com âncoras (`ui/components`)
+
+Um instrumento repete esta fileira **dezenas de vezes na mesma sessão**, e é a repetição que decide
+se a pessoa termina de responder. O que existia na lib era o `SegmentedControl`, e ele é o componente
+errado de quatro formas ao mesmo tempo: visualmente **unido** (parece seletor de modo, não régua de
+intensidade), sem **âncoras**, sem estado **"não respondida"** (`selectedIndex: Int` obriga a inventar
+um selecionado) e com semântica de **botão** — o leitor de tela anuncia *"botão 3"*, que não
+significa nada para quem não vê a régua.
+
+Novidade: `LikertScaleField` + a lógica pura `likertPoints` / `likertColumnCount` / `likertRowRanges`
+/ `likertSlotMinSize` / `likertOptionState` / `likertOptionBorderWidth` / `likertOptionBold` /
+`likertOptionLabel` / `likertOptionDescription`, mais `LikertScaleDefaults`, `LikertScaleTexts`,
+`LikertOptionState` e `LikertScaleTestTags`.
+
+Quatro decisões que valem mais que a lista de símbolos:
+
+· **A escala é parametrizada, e nada é 1..5.** `min`/`max`/`optionLabels`/`startAnchor`/`endAnchor`
+  vêm do cadastro do instrumento. `1..5`, `1..7`, `0..10` (NPS/EVA) e `-2..2` (neutro em zero) são
+  todos reais; literal `"nunca"`/`"sempre"` no código quebra no primeiro protocolo diferente.
+· **O alvo NUNCA encolhe — a regra de quebra está escrita, não implícita.** Numa linha única com peso
+  igual, cinco alvos numa tela de 320dp viram cinco alvos de 20dp: passa em build, passa em review, e
+  só falha no dedo de quem responde. O componente mede a largura e decide quantas opções cabem por
+  linha preservando os 48dp, quebrando em linhas **equilibradas** (10 pontos viram 5 + 5, não 6 + 4).
+  No pior caso empilha uma por linha. Os números não são abreviados: são a resposta que vai para o
+  instrumento. O espaço do **anel de foco** entra na conta (`likertSlotMinSize`) — medir só o alvo
+  devolve uma coluna a mais do que cabe e o alvo encolhe em silêncio.
+· **Acessibilidade é o componente, não um adorno.** `selectableGroup()` + `Role.RadioButton` com
+  `selected` real; cada alvo anuncia *"Às vezes, opção 3 de 5"*; o grupo anuncia **"Não respondida"**
+  enquanto `value` for `null` (num formulário de 28 perguntas é a única forma de saber onde se parou);
+  estado nunca só por cor (borda do **dobro** da espessura + número em **negrito**); altura mínima,
+  nunca fixa, então o texto acompanha o `AppTheme(fontScale = ...)`.
+· **Escala impossível não some da tela.** `min >= max`, um ponto só ou mais de 15 pontos viram a
+  mensagem "Escala inválida" com aviso no log. Renderizar nada faria o defeito parecer "a pergunta não
+  carregou", e ninguém descobriria que o cadastro é que está errado.
+
+O **card** em volta continua sendo do app (uma tela põe a pergunta num `Card`, outra numa lista);
+`isError` sinaliza o campo, não a moldura. E os ids de automação são **por pergunta**
+(`testTag = "q12"` ⇒ `q12-opcao-3`): id fixo apareceria 28 vezes na mesma rolagem e o teste
+responderia a pergunta errada, ficando verde.
+
+### `HtmlDocumentView` — documento HTML do backend, na tela (`ui/components/html`)
+
+Para exibir dentro do app um documento cujo layout precisa ser **idêntico** ao do PDF (laudo,
+relatório, contrato, fatura). Quando o requisito é fidelidade, reimplementar as seções em Compose é
+justamente o que produz a divergência: o PDF nasce do mesmo HTML no servidor, e duas implementações
+do mesmo documento sempre acabam diferentes — primeiro num detalhe, depois num número.
+
+Novidade: `HtmlDocumentView` (duas sobrecargas) + `HtmlDocumentSource` (`Html` / `Url`),
+`HtmlDocumentState`, `HtmlDocumentError`, `HtmlDocumentTexts`, `HtmlLinkDecision`, `HtmlBlockReason`
+e as puras `htmlLinkDecision` / `htmlIsSameDocument` / `htmlUrlScheme` / `clampHtmlDocumentZoom` /
+`htmlDocumentZoomPercent`.
+
+**Padrão-ouro:** `android.webkit.WebView` e `WKWebView` — o componente nativo de cada plataforma,
+nenhum renderizador de HTML próprio. E as travas que separam um **visualizador de documento** de um
+navegador embutido vêm ligadas:
+
+· **JavaScript desligado** por padrão. Documento é conteúdo; conteúdo que executa código dentro do
+  app é superfície de ataque, e um relatório não precisa de script.
+· **Navegação externa interceptada:** link para fora é devolvido ao app e aberto no **navegador do
+  sistema**, com barra de endereço e botão de voltar. **Âncoras internas continuam funcionando** —
+  sem essa distinção, o índice de seções do documento (que é como se navega um relatório de 20
+  seções) pararia de funcionar, que é o defeito mais provável de um visualizador que "bloqueia links".
+· **Esquemas perigosos recusados sempre** (`javascript:`, `file:`, `content:`, `data:`, `blob:`),
+  inclusive com a navegação externa liberada.
+· **Sem rastro em disco:** `WKWebsiteDataStore` não persistente no iOS; sem storage e sem cookie de
+  terceiro no Android.
+· **Ciclo de vida:** o componente nativo é liberado com a tela (carregamento parado, delegates soltos,
+  `destroy()`). `WebView` esquecido segura o documento — que é dado pessoal — em memória.
+
+**Autenticação nas duas formas**, porque o documento é dado sensível e não vai ser público:
+`HtmlDocumentSource.Url(url, headers)` para URL assinada de curta duração, e
+`HtmlDocumentSource.Html(html, baseUrl)` — **preferível** — para o HTML buscado com o
+`DomainApiClient`, que é o que dá renovação de token, tratamento de 402 e cache local para releitura
+offline. A limitação de cabeçalho em subrecursos (nenhum dos dois WebViews o propaga) está declarada
+no KDoc em vez de virar surpresa.
+
+**Zoom acompanha o `fontScale` do app**, com a diferença de plataforma declarada: Android tem
+`textZoom` e amplia só o texto; o `WKWebView` não tem equivalente sem executar JavaScript, então o
+iOS usa a API oficial `pageZoom` e amplia a página inteira. Nenhuma das duas exige JS ligado.
+
+A regra de navegação é **uma função pura consultada pelos dois `actual`** — é o que impede Android e
+iOS de divergirem justamente na parte de segurança, onde a divergência não aparece em teste de tela.
+
+`LikertScaleTest` (23) + `HtmlDocumentTest` (19); suíte 1942/0. Controle negativo: removendo a regra
+de âncora do `htmlLinkDecision`, 3 testes falham.
+
+**Pendente de macOS:** o `actual` iOS do `HtmlDocumentView` foi escrito conforme as APIs oficiais mas
+**não compila em Linux** (`GAP-KL-M-HTMLDOC-IOS-VALIDATE`).
+
+## 2.110.0 — a grade passa a dizer o que a faixa É, não só que ela está bloqueada (ago/2026)
+
+Aditiva. `GAP-MA-M-01` (P0 do **Minha Arena**), par exato do `GAP-MA-W-01` da weblib.
+
+O `AppTimeGridScheduler` tinha **uma** camada de fundo, e ela só sabia negar: `ScheduleBlockVariant`
+é `{ OffHours, Block }` — duas variantes da mesma frase ("aqui não pode"), sem rótulo próprio e sem
+legenda. Faltava a outra metade, que é o conceito estruturante de qualquer agenda com propósito por
+horário: **o que aquela faixa daquela coluna É** (Aluguel · Clubinho · Social · Aula · Bloqueado). Sem
+ela o app só consegue dizer "indisponível", e a pergunta que o operador faz o dia inteiro — *"o que
+acontece nesta quadra às 19h?"* — não tem resposta na tela.
+
+**Novidade:** `layers: List<ScheduleLayer>` + `layerLegend: ScheduleLayerLegend` no scheduler (últimos
+parâmetros, com default — nada muda para quem já consome), o componente `ScheduleLegend` e a lógica
+pura `resolveLayerStyle` / `layerLegendEntries` / `layerAtMinute` / `flattenLayers` / `layerRange` /
+`indistinguishableLayerKinds`, mais os tipos `LayerTone`, `LayerPattern`, `ScheduleLayerStyle` e
+`ResolvedLayerStyle`.
+
+**A API foi acordada com o `lib-web` na mesma rodada** (weblib `GAP-MA-W-01`, `src/calendar/layers.ts`):
+nomes, semântica, escada de resolução, regra de sobreposição, ordem da legenda e as opacidades de
+preenchimento/textura são os mesmos nas duas plataformas. Divergir aqui condenaria o produto a duas
+grades que se comportam diferente no app e no portal.
+
+Quatro decisões que valem mais que a lista de símbolos:
+
+· **Destinação NÃO é variante de bloqueio.** `ScheduleLayer` é tipo próprio, com `kind` **aberto**
+  (o domínio declara quantos propósitos quiser) e rótulo. Modelá-la como um terceiro
+  `ScheduleBlockVariant` teria custado uma linha e devolvido o consumidor ao ponto de partida: a
+  grade voltaria a saber apenas que a faixa está indisponível. As duas camadas convivem — destinação
+  é a regra da semana (fundo), bloqueio é a exceção pontual por cima.
+· **Textura, não só cor.** `LayerPattern { Solid, Dots, Stripes, Hatch }` desenhado sobre o
+  preenchimento. Não é enfeite: a paleta é do cliente, e numa arena de marca vermelha "Aluguel" e
+  "Bloqueado" seriam o mesmo retângulo se a única diferença fosse o tom (WCAG 1.4.1). E `LayerTone`
+  é enum **próprio**, não o `StatusTone` dos selos: os cinco tons semânticos resolvem para tokens
+  semânticos do tema (nunca para a cor de marca, senão "Aluguel" numa arena vermelha voltaria a
+  colidir com "Bloqueado"), e `Primary`/`Accent` existem justamente para a destinação que **quer** a
+  cor do produto.
+· **Sobreposição é resolvida, não empilhada.** Em `flattenLayers`, **a última faixa vence** no trecho
+  comum: o app empilha *padrão semanal* e depois *exceção do dia* na mesma lista e obtém "terça é
+  Aluguel, mas nesta terça das 14h às 16h é Bloqueado — chuva", sem recortar faixas na mão. Um minuto
+  tem, portanto, **uma** destinação. (No web o empilhamento do DOM basta; no Compose duas superfícies
+  translúcidas **somam** opacidade e o trecho comum sairia manchado — achatar é o que mantém as duas
+  plataformas visualmente iguais, com a MESMA regra.)
+· **`layerAtMinute` responde pela MESMA regra que está desenhada.** É com ele que o consumidor recusa
+  uma reserva numa faixa que não é de aluguel. Com duas resoluções, o que a pessoa vê e o que o app
+  decide divergiriam exatamente na sobreposição — onde alguém já pensou no assunto e escreveu a
+  exceção.
+
+Sem legenda declarada, toda destinação sai neutra e lisa — e é **de propósito** que não há um default
+"esperto" de textura: `indistinguishableLayerKinds` acusa os `kind` que compartilham tom **e** textura
+(são o mesmo retângulo, com a legenda mentindo) e o scheduler **avisa alto** no log. Melhor o defeito
+aparecer do que a grade parecer decorada.
+
+Outra decisão que só aparece no uso: **destinação NÃO estica a janela da grade**, ao contrário de um
+evento. Evento expande a janela porque nada pode sumir da agenda; destinação é fundo, e uma arena que
+declara "Social das 00:00 às 24:00" transformaria a grade em 24 horas e destruiria a leitura das horas
+em que algo de fato acontece. Ela é **recortada** à janela (`clipToWindow`, novo em `CalendarLayout`) —
+sem isso, faixa que começa antes nasceria como uma tira grudada no topo e faixa que termina depois
+desenharia para fora da coluna.
+
+Correção de vizinho na mesma rodada: `HatchedBlock` (bloqueio) desenhava as diagonais **sem recorte**;
+elas são traçadas de propósito para fora dos limites e vazavam sobre a faixa vizinha.
+
+`CalendarLayersTest` (**33**). Controle negativo: trocando "a última vence" por "a primeira vence" em
+`flattenLayers` e `layerAtMinute`, **3** falham. Suíte da lib: 1901 testes, verde.
+
 ## 2.109.0 — login também vira fluxo automatizável (ago/2026)
 
 Aditiva. Fecha o outro lado do par: pagamento já era automatizável desde a 2.108, e login — o outro

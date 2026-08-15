@@ -3,6 +3,101 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — gaps P0 de design do **NeuroCoreX** (15/ago/2026, 2.111.0)
+> Origem: `Parcerias/NeuroCoreX/docs/design/sistema-visual.md` §8.1 (ux-designer). Telas APP-17
+> (avaliação) e APP-22 (relatório).
+
+- [x] **GAP-NCX-M-01 — `LikertScaleField`. ENTREGUE na 2.111.0.** Escala de N pontos com âncoras,
+      radiogroup de verdade, alvo ≥ 48dp com quebra em linhas equilibradas (o alvo nunca encolhe),
+      estado "não respondida" audível e redundância não-cromática. Lógica de layout e de descrição
+      100% pura e testada (`LikertScaleTest`, 23). Ver CHANGELOG 2.111.0.
+- [x] **GAP-NCX-M-02 — `HtmlDocumentView`. ENTREGUE na 2.111.0.** `WebView`/`WKWebView` com JS
+      desligado, navegação externa interceptada (âncoras internas preservadas), esquemas perigosos
+      recusados, autenticação por URL assinada **ou** header, zoom acompanhando o `fontScale` e
+      liberação do componente nativo com a tela. Política de navegação em função pura consultada
+      pelos dois `actual` (`HtmlDocumentTest`, 19). Ver CHANGELOG 2.111.0.
+
+- [ ] **GAP-KL-M-HTMLDOC-IOS-VALIDATE — validar o `HtmlDocumentView.ios` em host macOS.**
+      O `actual` usa `WKWebView` + `WKNavigationDelegateProtocol`, `WKWebpagePreferences
+      .allowsContentJavaScript` (iOS 14+), `pageZoom` (iOS 14+) e `WKWebsiteDataStore
+      .nonPersistentDataStore()` — escrito conforme as APIs oficiais, mas **Kotlin/Native para iOS não
+      compila em Linux**. Conferir no Mac: (a) que o `navigationType == .other` de fato marca a carga
+      do próprio documento (senão o primeiro `loadHTMLString` seria tratado como link e cancelado);
+      (b) `pageZoom` refletindo o `AppFontScale`; (c) que o delegate guardado em `remember` sobrevive
+      (a referência do `WKWebView` é fraca); (d) `onRelease` sem crash ao sair da tela.
+- [ ] **GAP-KL-M-HTMLDOC-IOS-PROGRESS — fração de progresso no iOS (baixa).**
+      O Android informa o progresso real (`WebChromeClient.onProgressChanged`); o `WKWebView` só
+      expõe `estimatedProgress` por **KVO**, e observador registrado sem remoção garantida derruba o
+      app no `dealloc`. Hoje o iOS reporta `Loading(progress = null)` e o indicador padrão gira. Só
+      vale mexer com o Mac à mão, e com `removeObserver` amarrado ao `onRelease`.
+- [ ] **GAP-KL-M-HTMLDOC-PRINT — imprimir/compartilhar o documento exibido (só quando um produto
+      pedir).** O par web imprime com `Ctrl+P` da própria folha. No mobile, o caminho do ecossistema
+      hoje é `DomainApiClient.getBytes` + `ShareHandler.shareFile` com o **PDF** do backend, que é o
+      que os apps já fazem — imprimir o HTML renderizado (`PrintManager` no Android,
+      `UIPrintInteractionController` no iOS) só teria sentido se algum produto **não** tiver PDF
+      equivalente. Registrar antes de implementar.
+
+### ABERTO — gaps de design do **Minha Arena** (14/08/2026, kmplib 2.109.0)
+> Origem: `8-Sistemas-Portal-App/MinhaArena/docs/design/wireframes.md` §12 (ux-designer, Fluxo A).
+> A grade do produto tem **duas camadas**: a **destinação** da faixa (*o que esta quadra faz neste
+> horário*: Aluguel · Clubinho · Social · Aula · Bloqueio) como **fundo**, e a **ocupação** por cima.
+> Registro apenas — nada implementado.
+
+- [x] **GAP-MA-M-01 — camada de DESTINAÇÃO no `AppTimeGridScheduler`. ENTREGUE na 2.110.0.**
+      Ver §"ENTREGUE — GAP-MA-M-01" abaixo.
+- [ ] **GAP-MA-M-02 — não há cliente de eventos em tempo real (SSE) em `commonMain`. (média)**
+      O `sync/rest` resolve offline-first (outro problema); para "a fila mudou agora" não há nada, e
+      cada app cairia em polling curto ou em `HttpClient` cru por plataforma. **Padrão-ouro:** plugin
+      **`SSE` oficial do Ktor Client** (já é a dependência da casa), exposto como `Flow<T>` tipado com
+      reconexão com recuo, pausa em background e desligamento no `onDispose`. **API sugerida:**
+      `createEventStream<T>(url, serializer, tokenProvider): Flow<T>` + helper Compose
+      `rememberEventStream(...)`. **Motivação:** RNF-07 do Minha Arena (fila e painel ao vivo, com
+      dois atendentes operando ao mesmo tempo). **2º consumidor:** qualquer app de operação com estado
+      compartilhado (Cardápio Digital, StatusHub).
+- [ ] **GAP-MA-M-03 — `AppWeeklyScheduleEditor` não edita VALOR por faixa. (baixa)**
+      Hoje liga/desliga o dia e define início/fim; não há como dizer *o que* a faixa é. Só vira
+      prioridade se o app precisar editar a grade além da **exceção do dia** — no design do Minha Arena
+      o planejamento semanal mora no portal, de propósito (pintar matriz no celular é pior em qualquer
+      desenho).
+
+### ENTREGUE — GAP-MA-M-01: a grade só sabia negar, não dizer o que a faixa é (14/ago/2026, 2.110.0)
+
+`AppTimeGridScheduler` tinha **uma** camada de fundo, e ela só negava (`ScheduleBlockVariant =
+{ OffHours, Block }`, duas variantes da mesma frase). Entrou a camada de **destinação**: `layers:
+List<ScheduleLayer>` + `layerLegend: ScheduleLayerLegend` (últimos params, com default), o componente
+`ScheduleLegend`, e a lógica pura `resolveLayerStyle`/`layerLegendEntries`/`layerAtMinute`/
+`flattenLayers`/`layerRange`/`indistinguishableLayerKinds` (+ `clipToWindow` em `CalendarLayout`),
+com os tipos `LayerTone`/`LayerPattern`/`ScheduleLayerStyle`/`ResolvedLayerStyle`. Detalhe e razões no
+CHANGELOG 2.110.0 e na skill `kmplib-catalog`. `CalendarLayersTest` (33); controle negativo trocando
+"a última vence" por "a primeira vence": 3 falham.
+
+**Espelhamento com a weblib (`GAP-MA-W-01`): a API foi ACORDADA na mesma rodada**, contra o
+`src/calendar/layers.ts` que o `lib-web` escreveu — nomes (`ScheduleLayer`, `ScheduleLayerStyle`,
+`ScheduleLayerLegend`, `ResolvedLayerStyle`, `LayerTone`, `LayerPattern`, `resolveLayerStyle`,
+`layerLegendEntries`, `layerAtMinute`, `layerRange`, `ScheduleLegend`), escada de resolução (faixa →
+legenda → default), regra de sobreposição (a última vence), ordem da legenda (vocabulário declarado, e
+não o que caiu na grade hoje) e as opacidades (fill 12 / ink 26; swatch 22 / 62) são os mesmos.
+Diferenças, todas registradas na nota do backlog da weblib:
+
+- **De plataforma (não é escolha):** `flattenLayers` existe só no mobile — no DOM a faixa de cima cobre
+  a de baixo, no Compose duas superfícies translúcidas **somam** opacidade e o trecho comum sairia
+  manchado. A **regra** é a mesma; muda o mecanismo. Idem `clipToWindow` (o `Box` do Compose não
+  recorta o que transborda).
+- **Extra do mobile, oferecido como paridade:** `indistinguishableLayerKinds` (acusa tom+textura
+  iguais). Aditivo, não muda renderização.
+- **Idioma:** `kind` antes de `resourceId` no construtor (obrigatório antes de opcional; construção é
+  nomeada) e `layerToneColor` resolvendo por token do tema onde o web usa hex fixo — no mobile os
+  tokens semânticos são o padrão-ouro e já existem.
+
+Pendências abertas por este item (nenhuma bloqueia):
+
+- [ ] **GAP-MA-M-01-EDIT — a lib EXIBE destinação, não edita.** Pintar a matriz recurso × faixa é o
+      `GAP-MA-W-02` (portal) e o `GAP-MA-M-03` (app); o design do Minha Arena mantém o planejamento
+      no portal de propósito.
+- [ ] **GAP-MA-M-01-VISUAL — validação visual pendente.** A lib mobile não tem teste de UI (decisão
+      jun/2026), então a aparência das 4 texturas e da legenda só se confirma rodando o app —
+      `assembleDebug` é da máquina do fundador.
+
 ### ENTREGUE — GAP-KM-QUOTA-PARSE-01: o 402 do backend próprio não abria o paywall (11/ago/2026, 2.106.0)
 
 `parseQuotaExceeded` cobria o envelope canônico do admin-api (`error.details`) e o payload direto (o
