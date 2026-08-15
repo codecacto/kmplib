@@ -282,6 +282,22 @@ fun distributeEvents(
     return EventDistribution(byColumn, orphans)
 }
 
+/**
+ * Recorta uma faixa à janela visível, ou `null` se ela não aparece nela.
+ *
+ * Existe pela camada de **destinação** ([ScheduleLayer]), que tem uma relação com a janela oposta à do
+ * evento: evento **expande** a janela (nada pode sumir da agenda), destinação **não** — a arena que
+ * declara "Social" das 00:00 às 24:00 esticaria a grade para o dia inteiro e destruiria a leitura das
+ * horas em que algo de fato acontece. A destinação é fundo: aparece onde a janela olha, e some fora
+ * dela. Sem o recorte, uma faixa que começa antes da janela nasceria como uma tira de altura mínima
+ * grudada no topo, e uma que termina depois desenharia **para fora** da coluna (o `Box` não recorta).
+ */
+fun clipToWindow(range: MinuteRange, window: BusinessWindow): MinuteRange? {
+    val start = maxOf(range.startMin, window.startMin)
+    val end = minOf(range.endMin, window.endMin)
+    return if (end > start) MinuteRange(start, end) else null
+}
+
 /** Marcas de hora (rótulos do eixo à esquerda) da janela, no passo dado. */
 fun hourTicks(window: BusinessWindow, stepMin: Int = 60): List<Int> {
     val step = if (stepMin > 0) stepMin else 60

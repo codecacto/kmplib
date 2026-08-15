@@ -89,6 +89,101 @@ data class ScheduleBlock(
     val label: String? = null,
 )
 
+/**
+ * Tom semântico de uma camada de **destinação** ([ScheduleLayer]).
+ *
+ * **Enum próprio, e não o `StatusTone` dos selos, de propósito** — é a decisão que a weblib tomou em
+ * `LayerTone` e que o mobile espelha. Dois motivos: (a) `Primary`/`Accent` não existem no vocabulário
+ * de status, e sem eles não há como pintar uma destinação com a cor do produto (o design do Minha
+ * Arena pede exatamente isso em "Social"); (b) os cinco tons semânticos resolvem para cores
+ * **semânticas** do tema (`AppColors.success/warning/info`, `error`), não para a cor de marca — se
+ * "Aluguel" saísse de `primary`, uma arena de marca vermelha teria "Aluguel" e "Bloqueado"
+ * indistinguíveis. A cor da marca fica nos CTAs e na seleção; na grade ela só entra quando o app pede
+ * por [Primary]/[Accent].
+ *
+ * Resolvido por `layerToneColor(tone)`.
+ */
+enum class LayerTone {
+    /** Ausência de tom — cinza do tema (`onSurface`), o par mobile de `var(--foreground)`. */
+    Neutral,
+    Info,
+    Success,
+    Warning,
+    Danger,
+
+    /** Cor de marca do app (`colorScheme.primary`). */
+    Primary,
+
+    /** Cor de realce do app (`colorScheme.tertiary` — o mais próximo de `var(--accent)` no Material 3). */
+    Accent,
+}
+
+/**
+ * Textura de uma camada de **destinação** ([ScheduleLayer]) — o segundo canal, além da cor, que
+ * distingue uma destinação da outra.
+ *
+ * Existe por duas razões que se somam: estado **nunca** pode depender só de cor (WCAG 1.4.1), e a
+ * paleta é do cliente. Numa arena de marca vermelha, "Aluguel" e "Bloqueado" ficariam quase idênticos
+ * se a única diferença fosse o tom — a textura é o que mantém a grade legível com **qualquer** cor de
+ * marca.
+ *
+ * Espelha `pattern: "solid" | "dots" | "stripes" | "hatch"` da weblib.
+ */
+enum class LayerPattern {
+    /** Só o preenchimento (sem textura). Reserve para a destinação mais comum da grade. */
+    Solid,
+
+    /** Pontilhado fino `∙∙∙`. */
+    Dots,
+
+    /** Listrado diagonal `///`. */
+    Stripes,
+
+    /** Hachura cruzada `▨` — a mais "densa", boa para "aqui não se opera". */
+    Hatch,
+}
+
+/**
+ * Uma faixa de **DESTINAÇÃO**: *o que aquela faixa daquela coluna **É*** (Aluguel · Clubinho · Social ·
+ * Aula · Bloqueado…), desenhada **atrás** da ocupação, sem competir com ela.
+ *
+ * **Não é [ScheduleBlock], e a diferença não é cosmética.** Bloqueio responde *"aqui não pode"* — uma
+ * negação, com duas variantes ([ScheduleBlockVariant]) que dizem a mesma coisa em intensidades
+ * diferentes. Destinação responde *"aqui é isto"*: [kind] é **aberto** (o domínio define quantos
+ * propósitos quiser), tem rótulo próprio e entra na **legenda**. Modelar destinação como mais uma
+ * variante de bloqueio devolveria o consumidor ao ponto de partida — a grade voltaria a saber apenas
+ * que a faixa está indisponível, sem saber o que ela é.
+ *
+ * As duas camadas **convivem**: a destinação é o fundo (a regra da semana), o bloqueio é a exceção
+ * pontual por cima (folga, almoço, chuva).
+ *
+ * **Sobreposição é resolvida, não empilhada:** quando duas faixas do mesmo escopo se cruzam, **a
+ * última da lista vence** no trecho comum (ver `flattenLayers`) — é o que permite a "exceção do dia"
+ * cobrir o padrão semanal sem o app ter de recortar faixas na mão. Um minuto tem, portanto, no máximo
+ * **uma** destinação, e é a mesma que o `layerAtMinute` devolve.
+ *
+ * @param id Chave estável da faixa.
+ * @param start Início (parede local).
+ * @param end Fim (parede local). Duração ≤ 0 é ignorada no desenho e no `layerAt`.
+ * @param resourceId Coluna alvo; `null` = **todas** as colunas (regra da arena/estabelecimento inteiro).
+ * @param kind Chave do domínio, **agnóstica** (ex.: `"RENTAL"`, `"CLUBINHO"`, `"AULA"`). É por ela que
+ *   a legenda e o estilo são resolvidos — a lib nunca interpreta o valor.
+ * @param label Rótulo desta faixa. `null` ⇒ cai no rótulo da legenda daquele [kind] e, faltando os
+ *   dois, no próprio [kind].
+ * @param tone Override pontual do tom. `null` (o normal) ⇒ herda da legenda daquele [kind].
+ * @param pattern Override pontual da textura. `null` (o normal) ⇒ herda da legenda daquele [kind].
+ */
+data class ScheduleLayer(
+    val id: String,
+    val start: LocalDateTime,
+    val end: LocalDateTime,
+    val kind: String,
+    val resourceId: String? = null,
+    val label: String? = null,
+    val tone: LayerTone? = null,
+    val pattern: LayerPattern? = null,
+)
+
 /** Modo de visão do calendário. */
 enum class CalendarViewMode {
     Day,

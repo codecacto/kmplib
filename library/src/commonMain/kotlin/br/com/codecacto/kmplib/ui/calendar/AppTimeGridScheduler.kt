@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -84,6 +85,11 @@ data class AppTimeGridTexts(
     val timeAxis: String = "Hora",
     val now: String = "Agora",
     val block: String = "Bloqueio",
+    /**
+     * Prefixo lido pelo leitor de tela numa faixa de destinação ("Destinação: Clubinho, 19:00–22:00").
+     * Sem ele, a faixa seria um retângulo colorido e mudo — a distinção existiria só para quem enxerga.
+     */
+    val layer: String = "Destinação",
 )
 
 /** Cores default de evento derivadas do tema (o app sobrepõe por status). */
@@ -156,6 +162,16 @@ private val GRID_BOTTOM_GUTTER = 24.dp
  * @param columnEmptyLabel Aviso curto desenhado dentro de cada coluna **sem nenhum evento**
  *   (ex.: "Sem agendamento"). Some assim que a coluna recebe o primeiro evento. Independente de
  *   [emptyState]; use um OU outro.
+ * @param layers Camada de **DESTINAÇÃO**: o que cada faixa da coluna **é** (Aluguel · Clubinho ·
+ *   Aula…), desenhada **atrás** da ocupação. Distinta de [blocks], que diz "aqui não pode" — ver
+ *   [ScheduleLayer]. Sobreposição é resolvida com "a última vence", então a exceção do dia cobre o
+ *   padrão semanal sem o app recortar faixas. Para saber o que há sob um toque (e recusar, por
+ *   exemplo, uma reserva numa faixa que não é de aluguel), consulte `layerAtMinute(layers, columnId, minute)`
+ *   dentro do [onSlotClick] — é a MESMA resolução que está desenhada.
+ * @param layerLegend Estilo por `kind` (rótulo, tom, textura). Ausente ⇒ a lib deriva um rótulo do
+ *   `kind` e usa tom neutro + textura lisa — o que faz **todas** as destinações saírem indistinguíveis
+ *   e o aviso de [indistinguishableLayerKinds] aparecer no log, em vez de a grade parecer decorada.
+ *   **Exiba a legenda na tela** com [ScheduleLegend]: fundo texturizado sem legenda é enfeite.
  */
 @Composable
 fun AppTimeGridScheduler(
@@ -185,6 +201,8 @@ fun AppTimeGridScheduler(
     texts: AppTimeGridTexts = AppTimeGridTexts(),
     emptyState: (@Composable () -> Unit)? = null,
     columnEmptyLabel: String? = null,
+    layers: List<ScheduleLayer> = emptyList(),
+    layerLegend: ScheduleLayerLegend? = null,
 ) {
     val isCompact = LocalIsCompact.current
     val fallbackColors = defaultEventColors()
@@ -274,6 +292,33 @@ fun AppTimeGridScheduler(
             }
         }
         map
+    }
+
+    // Camada de destinação (fundo). Distribuída como os bloqueios: `resourceId` nulo cobre todas as
+    // colunas. O achatamento (última vence) acontece por coluna, dentro de `ResourceColumn`.
+    val columnLayers = remember(columns, layers, isSingle) {
+        layersByColumn(
+            layers = layers,
+            columnIds = columns.map { it.id },
+            isSingle = isSingle,
+            singleColumnId = SINGLE_COLUMN.id,
+        )
+    }
+
+    // Duas destinações com o MESMO tom e a MESMA textura são o mesmo retângulo na tela: a distinção
+    // deixa de existir e a legenda passa a mentir. A lib não pode corrigir (só o app conhece o
+    // vocabulário), mas não deixa passar calado — este é o defeito que a camada existe para evitar.
+    val legendEntries = remember(layers, layerLegend) { layerLegendEntries(layers, layerLegend) }
+    val collisions = remember(legendEntries) { indistinguishableLayerKinds(legendEntries) }
+    LaunchedEffect(collisions) {
+        if (collisions.isNotEmpty()) {
+            AppLogger.w(
+                "AppTimeGridScheduler",
+                "Destinações indistinguíveis (mesmo tom e mesma textura): " +
+                    collisions.joinToString(" | ") { it.joinToString(", ") } +
+                    ". Declare tom ou textura diferentes em layerLegend.",
+            )
+        }
     }
 
     val timeAxisWidth = 52.dp
@@ -384,6 +429,8 @@ fun AppTimeGridScheduler(
                             minEventHeight = minEventHeight,
                             events = eventsByColumn[col.id].orEmpty(),
                             blocks = blocksByColumn[col.id].orEmpty(),
+                            layers = columnLayers[col.id].orEmpty(),
+                            layerLegend = layerLegend,
                             nowMin = columnNowMin,
                             isSingle = isSingle,
                             eventColors = resolveColors,
@@ -502,6 +549,8 @@ private fun ResourceColumn(
     minEventHeight: Dp,
     events: List<ScheduleEvent>,
     blocks: List<ScheduleBlock>,
+    layers: List<ScheduleLayer>,
+    layerLegend: ScheduleLayerLegend?,
     nowMin: Int?,
     isSingle: Boolean,
     eventColors: (ScheduleEvent) -> ScheduleEventColors,
@@ -521,6 +570,11 @@ private fun ResourceColumn(
 
     val laidOut = remember(events) { packEventLanes(events) }
     val offHours = remember(window, column.availableRanges) { offHoursRanges(window, column.availableRanges) }
+
+    // Fonte ÚNICA da destinação vigente: o mesmo achatamento que o `layerAtMinute` público usa para responder
+    // ao consumidor. Com dois caminhos, o que a pessoa vê e o que o app decide divergiriam justamente
+    // na sobreposição — que é onde alguém já pensou no assunto.
+    val flattened = remember(layers) { flattenLayers(layers) }
 
     Box(
         modifier = Modifier
@@ -557,6 +611,26 @@ private fun ResourceColumn(
                     y += stepPx
                 }
             }
+        }
+
+        // Camada de DESTINAÇÃO (o fundo: o que a faixa É). Vem logo depois das linhas-guia e ANTES de
+        // tudo o que é ocupação/indisponibilidade — a opacidade baixa deixa as guias visíveis através
+        // dela, então o horário continua legível sobre a faixa colorida.
+        flattened.forEach { fl ->
+            // Recortada à janela (ver `clipToWindow`): destinação NÃO estica a grade como um evento —
+            // ela é fundo, e "Social o dia inteiro" transformaria a janela em 00:00–24:00.
+            val visible = clipToWindow(fl.range, window) ?: return@forEach
+            val style = resolveLayerStyle(fl.layer, layerLegend)
+            val box = positionInWindow(visible, window, unitPerMinute, 4f)
+            LayerBand(
+                top = box.top.dp,
+                height = box.height.dp,
+                color = layerToneColor(style.tone),
+                pattern = style.pattern,
+                label = style.label,
+                contentDescription = "${texts.layer}: ${style.label}, " +
+                    "${formatTimeOfDay(fl.range.startMin)}–${formatTimeOfDay(fl.range.endMin)}",
+            )
         }
 
         // Fora-de-expediente (sombra).
@@ -673,6 +747,9 @@ private fun HatchedBlock(
             .offset(y = top)
             .fillMaxWidth()
             .height(height)
+            // As diagonais são traçadas de propósito para fora dos limites (é assim que cobrem os
+            // cantos); sem recorte elas vazam sobre a faixa vizinha.
+            .clip(RectangleShape)
             .background(baseColor)
             .clearAndSetSemantics { this.contentDescription = contentDescription },
     ) {
