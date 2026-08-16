@@ -1,7 +1,6 @@
 package br.com.codecacto.kmplib.ui.screens.register
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +50,7 @@ data class RegisterFields(
  * @param onAction Callback para todas as ações do usuário
  * @param modifier Modificador customizado
  * @param logo Logo da aplicação (opcional)
+ * @param logoModifier Dimensiona a logo — **o mesmo parâmetro (e o mesmo default) da `LoginScreen`**
  * @param colors Configuração de cores
  * @param texts Configuração de textos (suporta i18n)
  * @param fields Configuração de campos visíveis
@@ -62,6 +64,14 @@ fun RegisterScreen(
     onAction: (RegisterAction) -> Unit,
     modifier: Modifier = Modifier,
     logo: Painter? = null,
+    // Dimensiona a logo. Default = 120dp quadrado (logos-ícone). Logos LARGAS/horizontais passam,
+    // ex.: `Modifier.fillMaxWidth(0.9f)` (a `Image` usa ContentScale.Fit, então preserva o aspecto).
+    //
+    // ⚠️ Existe porque a `LoginScreen` já tinha o parâmetro e esta tela não: o app passava a MESMA
+    // logo nas duas e ela saía grande no login e espremida no cadastro — o quadrado de 120dp corta
+    // um lockup horizontal para uma fração da largura. Quem troca de tela vê a marca mudar de
+    // tamanho no meio do fluxo, que é o tipo de defeito que build verde nunca acusa.
+    logoModifier: Modifier = Modifier.size(120.dp),
     colors: LoginColors = LoginColors(),
     texts: RegisterTexts = RegisterTexts(),
     fields: RegisterFields = RegisterFields(),
@@ -92,7 +102,7 @@ fun RegisterScreen(
                     Image(
                         painter = logo,
                         contentDescription = "Logo",
-                        modifier = Modifier.size(120.dp)
+                        modifier = logoModifier
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }
@@ -212,37 +222,44 @@ fun RegisterScreen(
                                     checkedColor = colors.primary
                                 )
                             )
+                            // ⚠️ Cada trecho carrega o PRÓPRIO clique (`LinkAnnotation.Clickable`),
+                            // e não há clique no bloco inteiro.
+                            //
+                            // Antes as anotações eram `pushStringAnnotation` — que só marcam o
+                            // intervalo — e o clique morava num `Modifier.clickable` no `Text`
+                            // inteiro, disparando SEMPRE `Click.Terms`. Resultado: tocar em
+                            // "Política de Privacidade" abria os Termos de Uso, e tocar em qualquer
+                            // palavra do meio da frase abria os Termos também. É o tipo de defeito
+                            // que nenhum build acusa: a tela monta, o link pinta de azul e abre um
+                            // documento — só que o errado. O login não tinha o problema porque lá
+                            // cada link é um `Text` separado com o seu `clickable`.
+                            val estiloDeLink = TextLinkStyles(
+                                style = SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium)
+                            )
                             Text(
                                 text = buildAnnotatedString {
                                     append(texts.termsPrefix())
                                     if (termsUrl != null) {
-                                        pushStringAnnotation(tag = "terms", annotation = "terms")
-                                        withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium)) {
-                                            append(texts.termsText())
-                                        }
-                                        pop()
+                                        withLink(
+                                            LinkAnnotation.Clickable(tag = "terms", styles = estiloDeLink) {
+                                                onAction(RegisterAction.Click.Terms)
+                                            }
+                                        ) { append(texts.termsText()) }
                                     }
                                     if (termsUrl != null && privacyUrl != null) {
                                         append(" ${texts.andText()} ")
                                     }
                                     if (privacyUrl != null) {
-                                        pushStringAnnotation(tag = "privacy", annotation = "privacy")
-                                        withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium)) {
-                                            append(texts.privacyText())
-                                        }
-                                        pop()
+                                        withLink(
+                                            LinkAnnotation.Clickable(tag = "privacy", styles = estiloDeLink) {
+                                                onAction(RegisterAction.Click.Privacy)
+                                            }
+                                        ) { append(texts.privacyText()) }
                                     }
                                 },
                                 fontSize = 14.sp,
                                 color = colors.textSecondary,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        // Fallback - abre termos por padrão
-                                        if (termsUrl != null) {
-                                            onAction(RegisterAction.Click.Terms)
-                                        }
-                                    }
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }

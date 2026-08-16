@@ -6,6 +6,36 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.116.0 — cadastro: o link da política abria os TERMOS, e a logo saía menor que a do login (ago/2026)
+
+Correção de defeito + parâmetro aditivo, os dois na `RegisterScreen`. Nenhuma assinatura quebra:
+`logoModifier` tem default igual ao comportamento anterior.
+
+### O link errado (defeito real, afeta todo app que usa a tela)
+
+O texto do aceite marcava os trechos com `pushStringAnnotation` — que só delimita o intervalo — e o
+clique morava num `Modifier.clickable` no `Text` **inteiro**, disparando sempre
+`RegisterAction.Click.Terms`. Efeito para quem usa: tocar em "Política de Privacidade" abre os
+**Termos de Uso**; tocar em qualquer palavra do meio da frase abre os Termos também. A tela monta, o
+link pinta de azul e um documento abre — só que o errado, e nenhum build, lint ou teste acusa.
+
+Agora cada trecho carrega o próprio clique (`LinkAnnotation.Clickable` + `withLink`, a API oficial
+do Compose para link dentro de texto), e não há mais clique no bloco. A `LoginScreen` nunca teve o
+problema porque lá cada link é um `Text` separado com o seu `clickable`.
+
+Reportado pelo fundador em dois produtos independentes (NeuroCoreX e Minha Arena) no mesmo dia — o
+que se espera de um defeito que mora na fundação.
+
+### A logo de 120dp
+
+`RegisterScreen` fixava `Modifier.size(120.dp)` enquanto a `LoginScreen` já expunha `logoModifier`.
+O app que passa a MESMA logo nas duas telas via a marca encolher ao trocar de tela: um lockup
+horizontal cabe inteiro no login (`fillMaxWidth(0.82f)`) e é espremido no quadrado do cadastro.
+`logoModifier` agora existe nas duas, com o mesmo nome e o mesmo default.
+
+**Migração:** nenhuma. Quem usa logo-ícone não muda nada; quem usa lockup horizontal passa o mesmo
+`logoModifier` que já passa no login.
+
 ## 2.115.0 — `AppServiceGate`: manutenção programada e force update contra backend PRÓPRIO (ago/2026)
 
 Aditiva. Nada do `appupdate` existente muda: `AppUpdateGate`, `AppUpdateService` e
