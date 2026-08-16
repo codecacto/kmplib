@@ -6,6 +6,48 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.114.0 — classe de janela e chassi adaptativo: tablet deixa de ser telefone esticado (ago/2026)
+
+Aditiva. `LocalIsCompact` continua existindo e passa a **derivar** da nova classe — nenhum consumidor
+atual muda.
+
+### O problema
+
+A lib só oferecia `LocalIsCompact`: um booleano com corte em 600dp. Com ele, a única coisa que um app
+consegue fazer num tablet é **a mesma árvore de composição, mais larga** — trocar `padding` e número
+de colunas de uma grade. É a ferramenta do responsivo mal feito.
+
+Três coisas faltavam para um layout de tablet de verdade:
+
+1. **Três classes de janela**, não duas. Um tablet em retrato (~800dp) e um em paisagem (~1280dp)
+   não querem o mesmo desenho, e no booleano os dois caem no mesmo `false`.
+2. **Navegação lateral** substituindo a barra inferior. Bottom bar em tablet é o sintoma mais visível
+   de app esticado: o alvo de toque fica a 25 cm do polegar.
+3. **Mestre-detalhe** com os dois painéis compartilhando o mesmo estado — para a rotação
+   retrato↔paisagem preservar a seleção em vez de voltar para a lista.
+
+### O que entrou
+
+- `WindowSizeClass` (COMPACTA/MEDIA/EXPANDIDA) + `LocalWindowSizeClass` + `ProvideWindowSizeClass`.
+  Limiares 600/840dp — os mesmos do Material 3, **sem** a dependência `material3-window-size-class`,
+  que é Android-only: aqui é `BoxWithConstraints` puro, e funciona em Android, iOS e Desktop.
+- `windowSizeClassFor`, `gridColumnsFor` e `leituraMaxWidth`: regras PURAS, testáveis sem árvore de
+  composição. Os casos do teste são larguras de aparelho real, não números redondos — é nelas que um
+  `<=` no lugar de `<` aparece (um telefone de 600dp virando tablet).
+- `AdaptiveScaffold`: barra inferior em compacta, navigation rail em média, rail **largo com rótulo
+  ao lado do ícone** em expandida. Não é a mesma barra com outro padding: a barra inferior deixa de
+  existir e o conteúdo passa a dividir a tela na horizontal.
+- `ListDetailScaffold`: painel único em compacta/média, dois painéis em expandida — com o MESMO
+  estado de seleção nos dois casos. É isso que faz a rotação preservar o item escolhido.
+
+Tablet em **retrato** não ganha dois painéis de propósito: caberiam, mas cada um sairia com menos de
+400dp — duas colunas espremidas, que é pior que uma boa.
+
+### Origem
+
+Pedido do fundador em 16/ago/2026, literal: *"não só expandir e deixar responsivo… eu quero um layout
+próprio pra tablet e pra celulares"*. O que ele está recusando tem nome: esticar a tela do telefone.
+
 ## 2.113.0 — paywall com slots: teste grátis e Pix do portal cabem na tela canônica (ago/2026)
 
 Aditiva: dois parâmetros opcionais em `PaywallScreen`/`PaywallContent`, ambos `null` por default.
