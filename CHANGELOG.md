@@ -6,6 +6,51 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.115.0 — `AppServiceGate`: manutenção programada e force update contra backend PRÓPRIO (ago/2026)
+
+Aditiva. Nada do `appupdate` existente muda: `AppUpdateGate`, `AppUpdateService` e
+`AppUpdateConfig` seguem falando com o admin-api central, com o mesmo contrato.
+
+### O problema
+
+Duas lacunas, e as duas apareceram no mesmo lugar (NeuroCoreX, Onda 10):
+
+1. **Não havia tela de manutenção.** A lib tinha `ConnectivityGate` ("sem internet") e `ErrorState`
+   ("deu erro, tente de novo"), mas nada para o estado que o *operador declara*: "o serviço está fora
+   de propósito, volta às 8h". Sem isso, uma janela de manutenção chega ao usuário como erro de rede
+   genérico — indistinguível de defeito, e sem previsão de retorno.
+2. **O force update só sabia falar com o admin-api da fábrica.** `AppUpdateConfig` embute
+   `{adminApiBaseUrl}/public/app-version?project=…`. Projeto de **parceria** (NeuroCoreX, Clinnota,
+   StatusHub) tem backend e admin próprios: o estado mora lá, e apontar o app para o catálogo central
+   significaria manter a mesma configuração em dois lugares — sendo que um deles não é dono do
+   produto. Sem alternativa na lib, cada parceria reimplementaria a política E a UI.
+
+### O que entrou
+
+`appupdate/AppServiceGate.kt`:
+
+- **`AppServiceGate(check, key, texts, updateTexts, formatUntil, content)`** — mesma política do
+  `AppUpdateGate` (hard bloqueia, soft é dispensável), mas a consulta é do app: `check` é um
+  `suspend () -> AppServiceStatus` contra o backend que o projeto quiser. `key` permite refazer a
+  consulta.
+- **`AppServiceStatus(update, maintenance)`** e **`MaintenanceNotice(message, untilEpochMillis)`**.
+- **`MaintenanceScreen`** — tela cheia, com botão de **tentar de novo** (a `HardUpdateScreen` não tem,
+  de propósito: da atualização obrigatória só se sai atualizando; a manutenção acaba sozinha).
+- **`AppServiceTexts`** — defaults pt-BR; mensagem do servidor tem prioridade.
+
+Duas decisões que valem registrar:
+
+- **Manutenção vence atualização.** Mandar a pessoa à loja durante a janela produz um app novo que
+  também não funciona, agora sem explicação nenhuma.
+- **Falha na consulta LIBERA.** `check` é best-effort e deve devolver `AppServiceStatus()` vazio
+  quando não conseguir perguntar. Um gate que bloqueia por não conseguir consultar transforma
+  qualquer soluço de rede numa manutenção fantasma — que ninguém desliga, porque desligá-la exige a
+  mesma rede.
+
+### Consumidor
+
+NeuroCoreX (APP-42), contra `GET /public/app?versao=` do backend do projeto.
+
 ## 2.114.0 — classe de janela e chassi adaptativo: tablet deixa de ser telefone esticado (ago/2026)
 
 Aditiva. `LocalIsCompact` continua existindo e passa a **derivar** da nova classe — nenhum consumidor
