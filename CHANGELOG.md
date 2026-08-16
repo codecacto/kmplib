@@ -6,6 +6,35 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.117.0 — log de requisição LIGADO por padrão (regra da fábrica)
+
+Muda o default de `HttpClientOptions`: `enableLogging = true` e `logLevel = INFO`. Quem já passava
+as opções explicitamente não muda em nada.
+
+### O caso que originou a regra
+
+O app do NeuroCoreX apontava para `https://api.neurocorex…` quando o host real é
+`https://api-neurocorex…` — um hífen. O login ficava girando até o timeout e terminava em "erro de
+conexão", e o **logcat não mostrava uma linha sequer**. De fora, "o servidor caiu", "a senha está
+errada" e "está batendo num host que não existe" são o mesmo sintoma; sem log de rede, a
+investigação recomeça do zero toda vez.
+
+O fundador fechou a regra: **todo projeto da fábrica loga requisição, por padrão.**
+
+### Por que `INFO`, e não `HEADERS`
+
+Porque o default não pode ser o nível que vaza credencial:
+
+- `HEADERS` imprime o `Authorization` — o token de acesso inteiro no logcat;
+- `BODY` imprime o corpo do `POST /auth/login`, ou seja, **a senha em claro** (e, num produto de
+  saúde, as respostas da avaliação).
+
+`INFO` dá método, URL, status e tempo — o que a investigação precisa, e nada que não deveria estar
+ali. Quem quiser mais em depuração local sobe para `BODY` de propósito, sabendo o que imprime.
+
+**Migração:** nenhuma. Apps que montam o próprio `HttpClient` em vez de usar `createHttpClient` não
+ganham o log — e é o caso de vários; migrá-los é o passo seguinte, projeto por projeto.
+
 ## 2.116.0 — cadastro: o link da política abria os TERMOS, e a logo saía menor que a do login (ago/2026)
 
 Correção de defeito + parâmetro aditivo, os dois na `RegisterScreen`. Nenhuma assinatura quebra:

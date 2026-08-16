@@ -72,11 +72,30 @@ fun createHttpClient(
  * Opções do [createHttpClient]. Defaults servem apps offline-first (arquétipo A) que só fazem
  * toques online best-effort no apps-api central.
  *
+ * ## Log de requisição vem LIGADO (2.117.0) — e por que só no nível `INFO`
+ *
+ * **Regra da fábrica (fundador, ago/2026): todo projeto loga requisição.** O caso que originou a
+ * regra: o app do NeuroCoreX apontava para um host inexistente (`api.` em vez de `api-`), o login
+ * ficava girando até o timeout e terminava em "erro de conexão" — e o **logcat não mostrava uma
+ * linha sequer**. Sem log de rede, "não funciona" e "está apontando para o lugar errado" são
+ * indistinguíveis de fora, e a investigação começa do zero toda vez.
+ *
+ * O nível é `INFO` de propósito, e isto **não** é conservadorismo:
+ * - `HEADERS` imprimiria o `Authorization` — o token de acesso inteiro no logcat, que em aparelho
+ *   com depuração ligada é credencial exposta;
+ * - `BODY` imprimiria o corpo do `POST /auth/login` — ou seja, **a senha em claro** — e, num produto
+ *   de saúde, as respostas da avaliação.
+ *
+ * `INFO` dá o que a investigação precisa (método, URL, status, tempo) e nada que não deveria estar
+ * ali. Quem precisa de mais em depuração local sobe para `BODY` explicitamente, ciente do que isso
+ * imprime.
+ *
  * @property requestTimeoutMillis timeout total da requisição (default 30s).
  * @property connectTimeoutMillis timeout de conexão (default 15s).
  * @property socketTimeoutMillis timeout de socket/leitura (default 30s).
- * @property enableLogging liga o plugin `Logging` do Ktor (default `false`; ligar só em debug).
- * @property logLevel nível de log quando [enableLogging] (default [HttpLogLevel.HEADERS]).
+ * @property enableLogging liga o plugin `Logging` do Ktor. **Default `true`** — ver o bloco abaixo.
+ * @property logLevel nível de log quando [enableLogging]. **Default [HttpLogLevel.INFO]** — método,
+ *   URL, status e tempo. Nunca headers nem corpo por default: ver o bloco abaixo.
  * @property installJsonContentNegotiation instala `ContentNegotiation` JSON (default `false` —
  *   os serviços da kmplib usam Ktor core puro; ligar em apps que fazem REST de domínio tipado).
  * @property json [Json] usado pelo `ContentNegotiation` (default [DefaultHttpClientJson]).
@@ -85,8 +104,8 @@ data class HttpClientOptions(
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
     val connectTimeoutMillis: Long = DEFAULT_CONNECT_TIMEOUT_MILLIS,
     val socketTimeoutMillis: Long = DEFAULT_SOCKET_TIMEOUT_MILLIS,
-    val enableLogging: Boolean = false,
-    val logLevel: HttpLogLevel = HttpLogLevel.HEADERS,
+    val enableLogging: Boolean = true,
+    val logLevel: HttpLogLevel = HttpLogLevel.INFO,
     val installJsonContentNegotiation: Boolean = false,
     val json: Json = DefaultHttpClientJson,
 ) {
