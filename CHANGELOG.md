@@ -6,6 +6,29 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.118.0 — `RadarChart`: o par mobile do radar da weblib
+
+Par de `DomainRadarChart` (weblib 0.118.x). Existe porque a invariante do NeuroCoreX é que **app e
+portal do cliente são espelho**, e o radar dos 7 domínios do ICTC nasceu só no web — o app não
+desenha gráfico nenhum hoje.
+
+`RadarChart(eixos, series, maximo)` em `ui/components`, commonMain puro, sem lib de gráficos:
+Canvas + `TextMeasurer`. Uma ou **duas** séries (T0 × T1 de uma reavaliação sobre a mesma teia);
+a partir da terceira, ignora — três polígonos numa teia de sete pontas não se distinguem em tela de
+celular, e histórico maior que isso é lista.
+
+**A cor é da SÉRIE, nunca do eixo** — o erro clássico do radar. O polígono é um objeto só; sete cores
+nele não codificam nada e destroem a comparação entre duas avaliações, que é o motivo do desenho.
+Preenchimento translúcido (22%) para que a série de cima não apague a de baixo. Grade **poligonal**,
+não circular: círculo sugere continuidade entre eixos que não existe. Legenda obrigatória com duas
+séries, e `contentDescription` no Canvas, que leitor de tela não lê.
+
+A geometria mora em **`RadarChartGeometry.kt`**, provada em 18 testes sem tela — porque o que dá
+errado num radar é aritmética: valor acima do máximo **satura** em vez de estourar a caixa, negativo
+vira 0 (ponta para dentro leria como o oposto), o primeiro vértice fica no **topo** e o rótulo longo
+quebra em duas linhas no espaço mais próximo do meio, ancorado pelo lado que aponta para fora —
+"Flexibilidade Comportamental" numa linha só é mais largo que o gráfico inteiro no celular.
+
 ## 2.117.0 — log de requisição LIGADO por padrão (regra da fábrica)
 
 Muda o default de `HttpClientOptions`: `enableLogging = true` e `logLevel = INFO`. Quem já passava
