@@ -6,6 +6,21 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.119.0 — `ScoreBarRow`: o par mobile da linha "domínio → barra → valor"
+
+Fecha o segundo gap do espelhamento app ↔ portal do NeuroCoreX. A weblib tem o `ScoreBarRow` desde a
+0.100.x; no app, cada tela que mostrasse domínios teria de montar a linha à mão — e são quatro (Meu
+ICTC, evolução, resultado e o portal do profissional adiante).
+
+O cabeçalho é um **`FlowRow`**, e isso é medido: "Flexibilidade Comportamental" com o rótulo
+qualitativo ao lado não cabe em 360 dp, e sem quebra o nome do domínio é espremido até virar **uma
+letra por linha** — o defeito real que na versão web levou a página a 17.000 px de altura. O rótulo
+desce em vez de estrangular o nome; o nome para em duas linhas para não criar item de altura
+imprevisível numa lista de sete.
+
+A barra reusa o `AppProgressBar` (não redesenha trilho nem cor). Fração clampada em `0..max`: valor
+acima do máximo satura, negativo vira zero, `max = 0` não divide por zero. 4 testes.
+
 ## 2.118.0 — `RadarChart`: o par mobile do radar da weblib
 
 Par de `DomainRadarChart` (weblib 0.118.x). Existe porque a invariante do NeuroCoreX é que **app e
