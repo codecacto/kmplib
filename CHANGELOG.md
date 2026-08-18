@@ -6,6 +6,83 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.122.0 — `StepTimeline`: o "ANDAMENTO" que três projetos estavam desenhando à mão
+
+Linha do tempo **vertical de andamento**: marcadores circulares ligados por um fio, cada etapa com
+título, legenda de horário e estado (**concluída / atual / pendente / cancelada**). É o bloco
+"ANDAMENTO" do chamado à prefeitura e o "Status do pedido" do delivery — o mesmo desenho que
+Cardápio Digital e Minha Arena já montavam etapa a etapa dentro da tela.
+
+```kotlin
+StepTimeline(
+    steps = listOf(
+        TimelineStep("pub", "Publicado pelo morador", timeLabel = "hoje 09:12", state = StepState.Done),
+        TimelineStep("vis", "Prefeitura visualizou", timeLabel = "hoje 10:05", state = StepState.Current),
+        TimelineStep("fim", "Prefeitura fecha o caso", timeLabel = "aguardando"),
+    ),
+)
+```
+
+**Não substitui o `TimelineList`** — os dois respondem a perguntas diferentes. `StepTimeline` é
+*processo que caminha*: poucas etapas, conhecidas de antemão, incluindo as que ainda não
+aconteceram ("previsto 10:20"); interessa **em que ponto estamos**. `TimelineList` é *histórico*:
+marcos já ocorridos, coluna de data à esquerda e selo de status; interessa **o que aconteceu e
+quando**. Ambos estão agora documentados no catálogo (o `TimelineList` existe desde a 2.33.0 e nunca
+teve linha própria no índice — foi por isso que ele quase virou um terceiro componente copiado).
+
+**Decisões que valem a pena saber:**
+- **O estado nunca fica só na cor** (WCAG 1.4.1): preenchido × vazado, "✓" × "✕", risco no título da
+  cancelada, ênfase de peso na atual. O ícone dentro do marcador cheio é escolhido por **contraste
+  WCAG** (`ColorContrast.pickOnColor`) contra a cor do próprio marcador — um app de paleta clara
+  não recebe "branco sobre amarelo".
+- **Tom por `statusToneColor`**, a mesma fonte única de `StatusBadge`/`ChecklistItem`/`AppBanner`:
+  concluída = `SUCCESS`, atual = `WARNING`, pendente = `NEUTRAL`, cancelada = `DANGER`. Zero hex.
+- **Etapa clicável tem 48dp** de alvo (`Role.Button`) e o item inteiro é **um nó semântico**, com
+  `stateDescription` do estado (`StepTimelineTexts`, i18n).
+- A lib **não formata data**: `timeLabel` chega pronto do app, que é quem sabe fuso e idioma.
+
+**Correção no `TimelineList` (mesma rodada).** O fio era feito de dois `Box` de **altura fixa
+(40dp)**, que não acompanhavam a altura real do marco: item com título de duas ou três linhas
+deixava um **buraco visível** no meio da linha do tempo. Agora os dois componentes pintam o fio no
+`drawBehind` do próprio item (`timelineConnector`, interno), então ele acompanha qualquer conteúdo.
+O marco também ganhou altura mínima de 48dp (a lista é clicável). **Sem mudança de API.**
+
+## 2.121.0 — a bottom nav ganhou item em destaque (e item desligado)
+
+`AppBottomNavBar` só sabia desenhar cinco ícones iguais. "Ação principal em destaque no centro da
+barra" (criar, publicar, anunciar) é padrão recorrente de app — quem precisava dele copiava um
+`NavigationBar` inteiro no projeto, e junto vinha o resto: a semântica de aba, o alvo de toque, o
+estado desabilitado. Agora é da lib, e é **aditivo**: quem já consome não muda nada.
+
+**O que entrou (tudo com default que preserva o comportamento anterior):**
+
+- `BottomNavItem.emphasis: BottomNavEmphasis?` — `null` (padrão) é o item comum. Preenchido, o ícone
+  passa a ser desenhado dentro de uma **pill preenchida inline na barra** (44×34, raio 14 por
+  padrão), com o label embaixo como em qualquer outro item. **Não é FAB flutuante** — o realce ocupa
+  a mesma célula, então herda o alvo de toque dela; para FAB sobreposto continua valendo
+  `Scaffold(floatingActionButton = ...)`.
+- `BottomNavItem.enabled: Boolean = true` — item desligado não clica, esmaece (alphas de
+  desabilitado do Material 3: 0.38 conteúdo / 0.12 contêiner) e é anunciado como desabilitado pelo
+  leitor de tela. Serve para feature que ainda vai ligar numa próxima onda.
+- `BottomNavItem.contentDescription: String? = null` — `null` cai no `label` (era o comportamento
+  fixo anterior).
+- `BottomNavItemState` + `bottomNavItemState(item, selectedRoute)` — a regra de estado exposta e
+  testada: **desabilitado vence selecionado** (item desligado não parece ativo só porque a rota
+  bateu, o que acontece em navegação de volta ou quando a feature cai por flag).
+- `BottomNavDefaults` — tokens de forma (largura/altura/raio/ícone da pill), alvo de toque mínimo
+  (48dp) e os alphas de desabilitado.
+- Parâmetros novos de `AppBottomNavBar`, todos ao final da lista (compatibilidade posicional
+  preservada): `disabledContentColor`, `emphasisContainerColor` (padrão `primaryContainer`),
+  `emphasisContentColor` (padrão `onPrimaryContainer`).
+
+**Cor vem do tema, não de hex.** A pill sem cor própria usa `primaryContainer`/`onPrimaryContainer`;
+um app com cor de marca própria passa `containerColor = AppColors.current.warning` (ou outro token do
+tema) no `BottomNavEmphasis`. O indicador do Material é suprimido **só** no item com realce, para não
+empilhar dois fundos no mesmo ícone.
+
+Primeiro consumidor: Cidade Conectada / Mirassol Conectado (Início · Buscar · **Publicar** · Cidade ·
+Perfil, com "Publicar" em dourado de marca e desabilitado até a Onda 2).
+
 ## 2.120.0 — o modal de "esqueci minha senha" que piscava, e o topo do cadastro alinhado ao login
 
 Três correções da mesma tela, achadas usando o app do NeuroCoreX.

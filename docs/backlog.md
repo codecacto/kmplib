@@ -3,6 +3,19 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — item em destaque na bottom nav (18/ago/2026, 2.121.0)
+> Origem: design do **Cidade Conectada / Mirassol Conectado** (`docs/design/design-system.md` §4.7,
+> ux-designer) — bottom nav de 5 itens com "Publicar" central em pill dourada, inline na barra.
+
+- [x] **GAP-CC-M-01 — `AppBottomNavBar` sem item destacado. ENTREGUE na 2.121.0.** Aditivo:
+      `BottomNavItem.emphasis: BottomNavEmphasis?` (pill preenchida no lugar do ícone, com o label
+      embaixo como qualquer item; **não é FAB flutuante**), `BottomNavItem.enabled` (item desligado,
+      alphas de desabilitado do M3), `BottomNavItem.contentDescription`, `BottomNavItemState` +
+      `bottomNavItemState()` (desabilitado vence selecionado), `BottomNavDefaults` (tokens de forma e
+      alvo de toque) e os parâmetros de cor de realce da barra. Cor vem do tema
+      (`primaryContainer`/`onPrimaryContainer` por default), nunca hex. 16 testes puros
+      (`BottomNavEmphasisTest`). Ver CHANGELOG 2.121.0.
+
 ### ENTREGUE — gaps P0 de design do **NeuroCoreX** (15/ago/2026, 2.111.0)
 > Origem: `Parcerias/NeuroCoreX/docs/design/sistema-visual.md` §8.1 (ux-designer). Telas APP-17
 > (avaliação) e APP-22 (relatório).
