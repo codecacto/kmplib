@@ -3,6 +3,25 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ENTREGUE — linha do tempo de andamento (18/ago/2026, 2.122.0)
+> Origem: protótipo aprovado do **Cidade Conectada / Mirassol Conectado**
+> (`docs/prototipo/prints/turno07-comunidade-so-confirmacao.png`, bloco "ANDAMENTO" do post em aberto;
+> e `telas-17a19-...png` tela 19, "Status do pedido" do delivery). 3º e 4º usos do mesmo desenho já
+> existiam à mão em **Cardápio Digital** e **Minha Arena**.
+
+- [x] **GAP-CC-M-02 — sem componente de etapas com estado. ENTREGUE na 2.122.0.** `StepTimeline`
+      (`TimelineStep`, `StepState` = Done/Current/Pending/Canceled, `StepTimelineTexts`,
+      `StepTimelineDefaults`): marcadores ligados por fio, título + subtítulo + `timeLabel`, estado
+      comunicado por forma **e** cor (WCAG 1.4.1), ícone do marcador escolhido por contraste
+      (`ColorContrast.pickOnColor`), etapa clicável com 48dp e `stateDescription` i18n. 20 testes puros
+      (`StepTimelineTest`).
+- [x] **Defeito achado no caminho: o fio do `TimelineList` tinha altura FIXA (40dp)** e não
+      acompanhava marco de 2-3 linhas — buraco visível na linha do tempo. Os dois componentes passaram
+      a pintar o fio no `drawBehind` do item (`timelineConnector`, interno). Sem mudança de API.
+- [ ] **A documentar quando houver 2º caso:** o `TimelineList` existia desde a 2.33.0 **fora do
+      índice do catálogo** — foi por isso que ele quase virou um terceiro componente copiado.
+      Componente sem linha no índice é componente invisível; conferir na próxima auditoria de catálogo.
+
 ### ENTREGUE — item em destaque na bottom nav (18/ago/2026, 2.121.0)
 > Origem: design do **Cidade Conectada / Mirassol Conectado** (`docs/design/design-system.md` §4.7,
 > ux-designer) — bottom nav de 5 itens com "Publicar" central em pill dourada, inline na barra.

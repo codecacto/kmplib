@@ -8,9 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -207,6 +206,17 @@ private fun TimelineRow(
 
     val rowModifier = Modifier
         .fillMaxWidth()
+        // O fio é PINTADO atrás do item (ver [timelineConnector]): até a 2.120.0 eram dois `Box` de
+        // altura fixa (40dp), que não acompanhavam a altura real da linha — marco com título de duas
+        // ou três linhas deixava um buraco visível no meio da linha do tempo.
+        .timelineConnector(
+            color = connectorColor,
+            centerX = dateColWidth + indicatorSize / 2,
+            centerY = rowVerticalPadding + indicatorSize / 2,
+            strokeWidth = 2.dp,
+            drawAbove = !isFirst,
+            drawBelow = !isLast,
+        )
         .then(
             if (clickable && onItemClick != null) {
                 Modifier.clickable { onItemClick.invoke(item.id) }
@@ -214,6 +224,7 @@ private fun TimelineRow(
                 Modifier
             },
         )
+        .defaultMinSize(minHeight = 48.dp)
 
     Row(
         modifier = rowModifier,
@@ -236,35 +247,18 @@ private fun TimelineRow(
             }
         }
 
-        // Coluna do conector + indicador (centro).
-        Column(
-            modifier = Modifier.width(indicatorSize),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        // Indicador (ponto) do marco — o fio passa por trás dele.
+        Box(
+            modifier = Modifier
+                .width(indicatorSize)
+                .padding(top = rowVerticalPadding),
         ) {
-            // Segmento superior (oculto no primeiro item).
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .height(rowVerticalPadding)
-                    .background(if (isFirst) Color.Transparent else connectorColor),
-            )
-            // Ponto/indicador do marco.
             Box(
                 modifier = Modifier
                     .size(indicatorSize)
                     .clip(CircleShape)
                     .background(indicatorColor.copy(alpha = contentAlpha)),
             )
-            // Segmento inferior que estica até a base da linha (oculto no último item).
-            if (!isLast) {
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .heightIn(min = 24.dp)
-                        .height(40.dp)
-                        .background(connectorColor),
-                )
-            }
         }
 
         // Conteúdo (título + subtítulo + badge) à direita do conector.
