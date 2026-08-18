@@ -6,6 +6,30 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.120.0 — o modal de "esqueci minha senha" que piscava, e o topo do cadastro alinhado ao login
+
+Três correções da mesma tela, achadas usando o app do NeuroCoreX.
+
+**1. `LoginEffect.Navigate.ToForgotPassword` (novo).** O caminho padrão de "esqueci minha senha" é o
+`InputDialog` embutido, ligado por `LoginState.showForgotPasswordDialog`. Mas um app cujo fluxo
+continua em outra tela (digitar o código, definir a nova senha) não cabe num diálogo — e, sem um
+destino no contrato, a única saída era **usar o flag do diálogo como sinal de navegação**: o
+ViewModel ligava, a `Route` observava e navegava.
+
+Isso **pisca na cara do usuário**, e não é sutil: o flag é estado de UI, então o Compose recompõe e
+desenha o diálogo no mesmo frame; só depois o `LaunchedEffect` da Route roda, limpa e navega. A
+pessoa vê um modal aparecer e sumir sozinho antes da tela certa. Agora o app emite uma **navegação**
+— que é o que ele quer dizer — e nenhum diálogo chega a existir. **Quem usa o diálogo da lib não
+muda nada.**
+
+**2. O topo da `RegisterScreen` passou de 32dp para 64dp**, o mesmo da `LoginScreen`. Eram
+diferentes por descuido, e nas duas telas do mesmo fluxo isso aparece: quem toca em "criar conta" vê
+a marca pular para cima.
+
+**3. Do título ao primeiro campo, 16dp em vez de 24dp** (eram dois espaçadores em sequência, 8 + 16).
+O de 8 sobrou de quando havia subtítulo entre eles; sem ele, o cadastro abria com um vazio que
+nenhuma outra tela de formulário tem.
+
 ## 2.119.0 — `ScoreBarRow`: o par mobile da linha "domínio → barra → valor"
 
 Fecha o segundo gap do espelhamento app ↔ portal do NeuroCoreX. A weblib tem o `ScoreBarRow` desde a

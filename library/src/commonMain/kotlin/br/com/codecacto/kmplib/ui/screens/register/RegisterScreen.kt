@@ -95,7 +95,10 @@ fun RegisterScreen(
             FormContainer(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(32.dp))
+                // 64dp — o MESMO respiro do topo da `LoginScreen`. Eram 32 aqui e 64 lá, por
+                // descuido: as duas telas do mesmo fluxo abriam com a logo em alturas diferentes, e
+                // quem vinha do login via a marca "pular" para cima ao tocar em "criar conta".
+                Spacer(modifier = Modifier.height(64.dp))
 
                 // Logo
                 if (logo != null) {
@@ -116,9 +119,11 @@ fun RegisterScreen(
                         color = colors.textPrimary,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
+                // 16dp do título ao primeiro campo. Eram 24 (dois espaçadores em sequência, 8 + 16):
+                // o de 8 sobrou de quando havia um subtítulo entre os dois, e sem ele o cadastro
+                // abria com um vazio que não existe em nenhuma outra tela de formulário.
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Formulário Email/Password

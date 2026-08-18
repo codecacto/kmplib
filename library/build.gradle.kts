@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.119.0"
+version = "2.120.0"
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)

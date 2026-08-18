@@ -75,6 +75,27 @@ sealed interface LoginEffect : UiEffect {
     sealed interface Navigate : LoginEffect {
         data object ToHome : Navigate
         data object ToRegister : Navigate
+
+        /**
+         * "Esqueci minha senha" leva a uma **TELA própria** do app, em vez do diálogo desta tela.
+         *
+         * ## Por que existe (defeito real, 18/ago/2026)
+         *
+         * O caminho padrão daqui é o `InputDialog` embutido, ligado por
+         * [LoginState.showForgotPasswordDialog]. Mas um app cujo fluxo de recuperação continua em
+         * outra tela (digitar o código, definir a nova senha) não cabe num diálogo — e, sem um
+         * destino no contrato, a saída que sobrava era **usar o flag do diálogo como sinal de
+         * navegação**: o ViewModel o ligava e a `Route` observava para navegar.
+         *
+         * Isso **pisca na cara do usuário**. O flag é estado de UI: o Compose recompõe e desenha o
+         * diálogo no mesmo frame, e só depois o `LaunchedEffect` da Route roda, limpa o flag e
+         * navega. O usuário vê um modal aparecer e sumir sozinho antes da tela certa — foi o que o
+         * NeuroCoreX apresentou.
+         *
+         * Com este efeito o app emite uma **navegação**, que é o que ele quer dizer, e nenhum
+         * diálogo chega a existir. Quem usa o diálogo da lib não muda nada: continua ligando o flag.
+         */
+        data object ToForgotPassword : Navigate
     }
 
     // Social Login
