@@ -28,9 +28,10 @@ class NotificationReceiver : BroadcastReceiver() {
 
         NotificationPresenter.show(context, item)
 
-        if (item.isDaily) {
-            // Lembrete diário recorrente: reagenda o próximo disparo (amanhã, mesmo horário).
-            rescheduleDaily(context, item)
+        if (item.isRecurring) {
+            // Lembrete recorrente: reagenda o próximo disparo (amanhã no diário, na semana que vem
+            // no semanal), no mesmo horário.
+            rescheduleRecurring(context, item)
         } else {
             // Disparo único consumido: sai do registro persistente para não ser "restaurado" num
             // boot futuro (o plano de restauração o descartaria, mas registro sujo vira lixo eterno).
@@ -39,26 +40,30 @@ class NotificationReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Reagenda o lembrete diário para o próximo horário local `hour:minute`.
+     * Reagenda o lembrete recorrente para o próximo disparo — amanhã (diário) ou na semana que vem
+     * (semanal), pela regra pura [NotificationRescheduling.nextRecurringTriggerMillis], que é a mesma
+     * usada ao agendar e ao restaurar depois do boot. **O fuso vem do agendamento**, não do aparelho:
+     * um lembrete de culto agendado no fuso da cidade continuaria certo no primeiro disparo e
+     * escorregaria uma hora a partir do segundo se o reagendamento usasse o relógio local.
      *
      * O adiamento é **limpo** aqui: o disparo adiado acabou de acontecer, então o que vale a partir
      * de agora é o horário regular. Sem essa limpeza, um `snoozedUntilMillis` já vencido ficaria no
      * registro e o próximo boot mandaria o lembrete disparar no passado.
      */
-    private fun rescheduleDaily(context: Context, item: ScheduledNotification) {
+    private fun rescheduleRecurring(context: Context, item: ScheduledNotification) {
         val next = item.copy(
             snoozedUntilMillis = 0L,
-            triggerAtMillis = AndroidNotificationScheduler.nextDailyTriggerMillis(
-                hour = item.hour,
-                minute = item.minute,
+            triggerAtMillis = NotificationRescheduling.nextRecurringTriggerMillis(
+                item = item,
+                nowMillis = System.currentTimeMillis(),
             ),
         )
         NotificationAlarms.arm(context, next)
-        AppLogger.d(TAG, "Lembrete diário reagendado: id=${item.id}, proximo=${next.triggerAtMillis}")
+        AppLogger.d(TAG, "Lembrete recorrente reagendado: id=${item.id}, proximo=${next.triggerAtMillis}")
 
         // Mantém o registro persistente apontando para o PRÓXIMO disparo: é ele que o
         // BootCompletedReceiver vai ler se o aparelho reiniciar antes da próxima dose.
         runCatching { AndroidNotificationScheduleStore(context).put(next) }
-            .onFailure { AppLogger.w(TAG, "Falha ao atualizar registro do lembrete diário: ${it.message}") }
+            .onFailure { AppLogger.w(TAG, "Falha ao atualizar registro do lembrete recorrente: ${it.message}") }
     }
 }

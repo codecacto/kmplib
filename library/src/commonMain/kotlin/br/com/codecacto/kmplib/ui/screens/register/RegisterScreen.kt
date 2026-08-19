@@ -77,7 +77,24 @@ fun RegisterScreen(
     fields: RegisterFields = RegisterFields(),
     authMethods: AuthMethods = AuthMethods(emailPassword = true),
     termsUrl: String? = null,
-    privacyUrl: String? = null
+    privacyUrl: String? = null,
+    /**
+     * **Campos que só aquele produto pede**, renderizados entre o telefone e a senha.
+     *
+     * Nasceu do NeuroCoreX (19/ago/2026), que precisou pedir data de nascimento, gênero, estado
+     * civil e profissão **no cadastro** — dados que antes moravam numa tela bloqueante atravessada
+     * no caminho de quem ia responder à avaliação. Sem a fenda, a única saída era o app abandonar a
+     * tela da lib e reescrever login-e-senha inteiro: perderia a validação, a máscara, o aceite dos
+     * termos e a paridade com os outros 20 apps — para acrescentar quatro campos.
+     *
+     * **Não é um lugar para regra de auth.** O estado desses campos é do ViewModel do produto, e o
+     * `RegisterAction.Submit` continua levando só o que a lib conhece; o que o produto pediu a mais
+     * ele grava depois, com a sessão já aberta. Misturar os dois faria a lib validar campo que ela
+     * não define.
+     *
+     * Recebe `ColumnScope` para o produto usar o MESMO espaçamento vertical dos campos da lib.
+     */
+    extraFields: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
@@ -180,6 +197,10 @@ fun RegisterScreen(
                             enabled = !state.isLoading
                         )
                     }
+
+                    // Campos do PRODUTO — entre o telefone e a senha, de propósito: o que se pede
+                    // sobre a pessoa vem antes do que protege a conta.
+                    extraFields?.invoke(this)
 
                     // Senha
                     AppTextField(

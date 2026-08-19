@@ -1,9 +1,13 @@
 package br.com.codecacto.kmplib.platform
 
+import br.com.codecacto.kmplib.core.util.AppLogger
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
@@ -59,6 +63,8 @@ object NotificationRescheduling {
 
     private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
 
+    private const val TAG = "NotificationRescheduling"
+
     /**
      * Próximo instante (epoch millis) em que o relógio local marca `hour:minute`, a partir de [nowMillis].
      * Se o horário de hoje já passou, devolve o de amanhã.
@@ -90,10 +96,64 @@ object NotificationRescheduling {
     }
 
     /**
+     * Próximo instante (epoch millis) em que o relógio de [timeZone] marca `hour:minute` **no dia da
+     * semana [weekday]** (1 = segunda … 7 = domingo, ISO-8601), a partir de [nowMillis].
+     *
+     * Se hoje é o dia e o horário ainda não passou, é hoje; senão, é o mesmo dia da semana que vem.
+     *
+     * O avanço é feito em **dias de calendário** (`DatePeriod`), nunca somando 7 × 24 h ao instante:
+     * na semana da virada do horário de verão o dia tem 23 ou 25 horas, e a aritmética de instante
+     * desloca o culto de domingo em uma hora — justamente na semana em que a pessoa mais depende do
+     * lembrete para não errar.
+     */
+    fun nextWeeklyTriggerMillis(
+        weekday: Int,
+        hour: Int,
+        minute: Int,
+        nowMillis: Long,
+        timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    ): Long {
+        val safeWeekday = weekday.coerceIn(1, 7)
+        val time = LocalTime(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+        val now = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(timeZone)
+
+        // Distância em dias até o próximo (ou o de hoje) dia da semana pedido.
+        val diasAte = ((safeWeekday - now.date.dayOfWeek.isoDayNumber) + 7) % 7
+        val candidato = LocalDateTime(now.date.plus(diasAte, DateTimeUnit.DAY), time)
+            .toInstant(timeZone)
+            .toEpochMilliseconds()
+        if (candidato > nowMillis) return candidato
+
+        // Hoje é o dia, mas o horário já passou: vai para a semana que vem.
+        return LocalDateTime(now.date.plus(7, DateTimeUnit.DAY), time)
+            .toInstant(timeZone)
+            .toEpochMilliseconds()
+    }
+
+    /**
+     * Resolve o fuso de um agendamento: o [id] IANA quando ele existe e a plataforma o conhece,
+     * [fallback] em qualquer outro caso.
+     *
+     * **Nunca lança.** Um fuso que a plataforma não reconhece (base de tzdata velha, id digitado
+     * errado no cadastro da cidade) faria o lembrete deixar de ser agendado — silêncio total, do
+     * lado do usuário. Cair no fuso do aparelho com log de aviso erra no máximo o horário; não
+     * agendar erra tudo.
+     */
+    fun zoneOf(id: String?, fallback: TimeZone = TimeZone.currentSystemDefault()): TimeZone {
+        val trimmed = id?.trim().orEmpty()
+        if (trimmed.isEmpty()) return fallback
+        return runCatching { TimeZone.of(trimmed) }.getOrElse {
+            AppLogger.w(TAG, "Fuso desconhecido '$trimmed' — usando o do aparelho")
+            fallback
+        }
+    }
+
+    /**
      * Monta o plano de restauração para [stored].
      *
-     * - **Diário**: sempre volta para a fila, com o próximo horário recalculado. Se o disparo de hoje
-     *   foi perdido dentro da graça, entra também em `toShowNow`.
+     * - **Recorrente (diário ou semanal)**: sempre volta para a fila, com o próximo horário
+     *   recalculado — o semanal no fuso gravado nele ([ScheduledNotification.timeZoneId]), não no do
+     *   parâmetro. Se o disparo foi perdido dentro da graça, entra também em `toShowNow`.
      * - **Único futuro**: reagendado como está.
      * - **Único perdido dentro da graça**: exibido agora e removido do registro.
      * - **Único perdido além da graça**: só removido — notificação de medicação atrasada de ontem não
@@ -117,7 +177,7 @@ object NotificationRescheduling {
             val missedWithinGrace = missedBy in 1..graceMillis
 
             when (item.kind) {
-                NotificationScheduleKind.DAILY -> {
+                NotificationScheduleKind.DAILY, NotificationScheduleKind.WEEKLY -> {
                     if (item.isSnoozed && item.snoozedUntilMillis > nowMillis) {
                         // Adiamento ainda no futuro: reagenda como está (o horário regular fica
                         // guardado em hour/minute para depois).
@@ -126,12 +186,7 @@ object NotificationRescheduling {
                         if (missedWithinGrace) toShowNow += item
                         toSchedule += item.copy(
                             snoozedUntilMillis = 0L,
-                            triggerAtMillis = nextDailyTriggerMillis(
-                                hour = item.hour,
-                                minute = item.minute,
-                                nowMillis = nowMillis,
-                                timeZone = timeZone,
-                            ),
+                            triggerAtMillis = nextRecurringTriggerMillis(item, nowMillis, timeZone),
                         )
                     }
                 }
@@ -156,10 +211,40 @@ object NotificationRescheduling {
     }
 
     /**
+     * Próximo disparo de um agendamento **recorrente**, pela regra do seu [ScheduledNotification.kind].
+     *
+     * Fonte única do "quando é o próximo" — o receiver do Android, a restauração pós-boot e a fila do
+     * iOS chamam esta função em vez de cada um repetir o cálculo. Um agendamento não recorrente
+     * devolve o próprio `triggerAtMillis`.
+     */
+    fun nextRecurringTriggerMillis(
+        item: ScheduledNotification,
+        nowMillis: Long,
+        fallbackTimeZone: TimeZone = TimeZone.currentSystemDefault(),
+    ): Long = when (item.kind) {
+        NotificationScheduleKind.DAILY -> nextDailyTriggerMillis(
+            hour = item.hour,
+            minute = item.minute,
+            nowMillis = nowMillis,
+            timeZone = zoneOf(item.timeZoneId, fallbackTimeZone),
+        )
+
+        NotificationScheduleKind.WEEKLY -> nextWeeklyTriggerMillis(
+            weekday = item.weekday,
+            hour = item.hour,
+            minute = item.minute,
+            nowMillis = nowMillis,
+            timeZone = zoneOf(item.timeZoneId, fallbackTimeZone),
+        )
+
+        NotificationScheduleKind.ONE_SHOT -> item.triggerAtMillis
+    }
+
+    /**
      * Divide [items] entre o que cabe no teto do SO e o que fica esperando.
      *
-     * Prioridade: **diários primeiro** (um único pedido repetitivo cobre disparos infinitos, então
-     * deixá-lo de fora custaria muito mais caro), depois os únicos **mais próximos**. Itens já
+     * Prioridade: **recorrentes primeiro** (um único pedido repetitivo cobre disparos infinitos,
+     * então deixá-lo de fora custaria muito mais caro), depois os únicos **mais próximos**. Itens já
      * vencidos não entram em nenhum dos dois — quem decide o que fazer com eles é [plan].
      */
     fun selectWindow(
@@ -168,9 +253,9 @@ object NotificationRescheduling {
         limit: Int = IOS_PENDING_LIMIT,
     ): NotificationWindow {
         if (limit <= 0) return NotificationWindow(emptyList(), items)
-        val pending = items.filter { it.isDaily || it.nextTriggerMillis > nowMillis }
+        val pending = items.filter { it.isRecurring || it.nextTriggerMillis > nowMillis }
         val ordered = pending.sortedWith(
-            compareByDescending<ScheduledNotification> { it.isDaily }.thenBy { it.nextTriggerMillis },
+            compareByDescending<ScheduledNotification> { it.isRecurring }.thenBy { it.nextTriggerMillis },
         )
         return NotificationWindow(
             register = ordered.take(limit),

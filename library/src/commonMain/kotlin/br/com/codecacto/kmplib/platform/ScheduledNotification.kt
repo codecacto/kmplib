@@ -24,6 +24,13 @@ enum class NotificationScheduleKind {
 
     /** Dispara TODO dia no horário local `hour:minute`. */
     DAILY,
+
+    /**
+     * Dispara TODA semana no dia [ScheduledNotification.weekday] (1 = segunda … 7 = domingo,
+     * ISO-8601), no horário `hour:minute` — do fuso de [ScheduledNotification.timeZoneId] quando ele
+     * existe, do aparelho quando não (2.125.0).
+     */
+    WEEKLY,
 }
 
 /**
@@ -50,14 +57,33 @@ data class ScheduledNotification(
     /**
      * Próximo disparo, em epoch millis.
      *
-     * Em [NotificationScheduleKind.DAILY] é o **próximo** disparo calculado (recalculado a cada
-     * disparo e a cada boot); em [NotificationScheduleKind.ONE_SHOT] é o instante pedido.
+     * Em [NotificationScheduleKind.DAILY] e [NotificationScheduleKind.WEEKLY] é o **próximo** disparo
+     * calculado (recalculado a cada disparo e a cada boot); em [NotificationScheduleKind.ONE_SHOT] é
+     * o instante pedido.
      */
     val triggerAtMillis: Long,
-    /** Hora local do disparo diário (0..23); `-1` quando não se aplica. */
+    /** Hora local do disparo recorrente (0..23); `-1` quando não se aplica. */
     val hour: Int = -1,
-    /** Minuto local do disparo diário (0..59); `-1` quando não se aplica. */
+    /** Minuto local do disparo recorrente (0..59); `-1` quando não se aplica. */
     val minute: Int = -1,
+    /**
+     * Dia da semana do disparo [NotificationScheduleKind.WEEKLY] — **1 = segunda … 7 = domingo**
+     * (ISO-8601, o mesmo do `kotlinx.datetime.DayOfWeek.isoDayNumber`); `-1` quando não se aplica.
+     */
+    val weekday: Int = -1,
+    /**
+     * Fuso (IANA, ex.: `"America/Cuiaba"`) em que `hour:minute` deve ser lido; `null` = o do
+     * aparelho (2.125.0).
+     *
+     * Existe porque o lembrete **semanal** costuma estar preso a um LUGAR, não à pessoa: o culto de
+     * domingo às 19:00 é 19:00 na cidade da igreja, e o morador que viajou continua querendo ser
+     * avisado a tempo de assistir — não uma hora fora. O lembrete diário (dose de remédio) é o caso
+     * oposto, e por isso segue no fuso do aparelho, sem este campo.
+     *
+     * Fuso desconhecido pela plataforma **cai no do aparelho com log de aviso** — nunca deixa de
+     * agendar.
+     */
+    val timeZoneId: String? = null,
     val data: Map<String, String> = emptyMap(),
     val channelId: String? = null,
     val isCritical: Boolean = false,
@@ -82,6 +108,11 @@ data class ScheduledNotification(
     val snoozedUntilMillis: Long = 0L,
 ) {
     val isDaily: Boolean get() = kind == NotificationScheduleKind.DAILY
+
+    val isWeekly: Boolean get() = kind == NotificationScheduleKind.WEEKLY
+
+    /** Repete sozinho até ser cancelado — diário ou semanal. */
+    val isRecurring: Boolean get() = isDaily || isWeekly
 
     /** `true` quando há um adiamento pendente. */
     val isSnoozed: Boolean get() = snoozedUntilMillis > 0L

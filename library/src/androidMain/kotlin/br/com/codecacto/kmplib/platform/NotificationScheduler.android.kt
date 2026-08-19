@@ -237,6 +237,55 @@ class AndroidNotificationScheduler : NotificationScheduler {
         )
     }
 
+    override fun scheduleWeeklyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        weekday: Int,
+        hour: Int,
+        minute: Int,
+        timeZoneId: String?,
+        data: Map<String, String>,
+        channelId: String?,
+        isCritical: Boolean,
+        actions: List<NotificationAction>
+    ) {
+        val ctx = context ?: return
+        val item = ScheduledNotification(
+            id = id,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.WEEKLY,
+            triggerAtMillis = 0L,
+            hour = hour.coerceIn(0, 23),
+            minute = minute.coerceIn(0, 59),
+            weekday = weekday.coerceIn(1, 7),
+            timeZoneId = timeZoneId?.trim()?.takeIf { it.isNotEmpty() },
+            data = data,
+            channelId = channelId ?: if (isCritical) CRITICAL_CHANNEL_ID else DEFAULT_CHANNEL_ID,
+            isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
+        ).let { base ->
+            // O próximo disparo sai da MESMA regra pura que o receiver e a restauração pós-boot usam
+            // (inclusive o fuso gravado no agendamento) — duas contas do "quando é o próximo" é como
+            // se produz um lembrete que dispara certo hoje e errado depois do primeiro disparo.
+            base.copy(
+                triggerAtMillis = NotificationRescheduling.nextRecurringTriggerMillis(
+                    item = base,
+                    nowMillis = System.currentTimeMillis(),
+                ),
+            )
+        }
+
+        NotificationAlarms.arm(ctx, item)
+        store?.put(item)
+        AppLogger.d(
+            TAG,
+            "Lembrete semanal agendado: id=$id, dia=$weekday, horario=$hour:$minute, " +
+                "fuso=${item.timeZoneId ?: "aparelho"}, proximo=${item.triggerAtMillis}",
+        )
+    }
+
     override fun cancelNotification(id: Int) {
         val ctx = context ?: return
 

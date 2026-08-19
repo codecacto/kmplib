@@ -6,6 +6,66 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.125.0 — lembrete local que se repete TODA SEMANA (e no fuso do LUGAR, não do aparelho)
+
+`NotificationScheduler.scheduleWeeklyNotification(id, title, body, weekday, hour, minute,
+timeZoneId, data, channelId, isCritical, actions)` — `weekday` em **ISO-8601 (1 = segunda … 7 =
+domingo)**, o mesmo de `kotlinx.datetime`. Cancela com `cancelNotification(id)`, como os demais.
+
+Faltava o caso mais comum de lembrete que não é dose de remédio: **o compromisso semanal**. Com o
+que existia, um "culto de domingo às 18:30" só tinha dois caminhos, ambos errados —
+`scheduleDailyNotification` avisaria a pessoa **seis vezes por semana fora de hora**, e
+`scheduleNotification` (disparo único) valeria **uma vez**: na semana seguinte o lembrete
+simplesmente não vem, sem erro nenhum, e só volta se o app for aberto. Foi o que travou o RF-056 do
+Cidade Conectada, onde a preferência "me avise 30 min antes" era gravada e **nunca disparava**.
+
+**O fuso é do LUGAR quando o compromisso é de um lugar.** `timeZoneId` (IANA, ex.:
+`"America/Cuiaba"`; `null` = aparelho) existe porque o culto de domingo às 19:00 acontece às 19:00 na
+cidade da igreja — quem viajou continua querendo o aviso a tempo de assistir, não uma hora fora. O
+lembrete **diário** é o caso oposto (a dose acompanha a pessoa) e por isso segue sem o parâmetro.
+Fuso que a plataforma não conhece **cai no do aparelho com log** — errar o horário é ruim, não
+agendar é pior.
+
+- **Android:** `AlarmManager` + reagendamento da semana seguinte dentro do `NotificationReceiver`,
+  com o agendamento persistido (o `BootCompletedReceiver` restaura depois do reboot/atualização,
+  como no diário).
+- **iOS:** `UNCalendarNotificationTrigger(weekday/hour/minute, repeats = true)` — quem repete é o
+  sistema, com o app fechado. **`NSDateComponents.weekday` conta 1 = domingo**, não ISO: a conversão
+  é da lib (passar o número ISO cru desloca todo lembrete em um dia e joga o de domingo no sábado).
+  O fuso vai **dentro** dos componentes.
+- **Regras puras** (`NotificationRescheduling`, testadas em `commonTest`):
+  `nextWeeklyTriggerMillis(weekday, hour, minute, nowMillis, timeZone)`,
+  `nextRecurringTriggerMillis(item, nowMillis, fallbackTimeZone)` — fonte única do "quando é o
+  próximo", usada ao agendar, ao reagendar depois do disparo e ao restaurar pós-boot — e
+  `zoneOf(id, fallback)`. A semana avança em **dias de calendário**, nunca em 7 × 24 h: na semana da
+  virada do horário de verão a aritmética de instante desloca o culto em uma hora.
+- **Modelo:** `NotificationScheduleKind.WEEKLY` + `ScheduledNotification.weekday`/`timeZoneId`
+  (campos **com default** ⇒ registro gravado por versão anterior segue legível) e
+  `isWeekly`/`isRecurring`. `plan()` trata recorrente (diário **ou** semanal) por um caminho só e
+  `selectWindow()` dá a ambos a mesma prioridade no teto de 64 pendentes do iOS.
+- **API com corpo default** na interface ⇒ `NotificationScheduler` escrito à mão (fake de teste,
+  decorator) continua compilando.
+
+14 testes novos (`NotificationWeeklyTest`). **O caminho iOS não compila em Linux** (alvos Apple só em
+macOS, `HostManager.hostIsMac`) — revisado por inspeção, como o restante do `iosMain`.
+
+## 2.124.0 — `RegisterScreen` ganhou fenda para os campos que só aquele produto pede
+
+`extraFields: (@Composable ColumnScope.() -> Unit)?` — renderizado **entre o telefone e a senha**,
+porque o que se pede sobre a pessoa vem antes do que protege a conta.
+
+Nasceu do NeuroCoreX, que precisou pedir data de nascimento, gênero, estado civil e profissão **no
+cadastro**: eram os campos de uma tela bloqueante atravessada no caminho de quem ia responder à
+avaliação, e o fundador mandou eliminá-la. Sem a fenda, a única saída era o app abandonar a tela da
+lib e reescrever o cadastro inteiro — perdendo validação, máscara de telefone, medidor de força de
+senha, confirmação e aceite dos termos, para acrescentar quatro campos.
+
+**Não é lugar para regra de auth.** O estado dos campos extras é do ViewModel do produto, e o
+`RegisterAction.Submit` continua levando só o que a lib conhece; o que o produto pediu a mais ele
+grava depois, com a sessão já aberta. Misturar os dois faria a lib validar campo que ela não define.
+
+Recebe `ColumnScope` para o produto herdar o mesmo espaçamento vertical dos campos da lib.
+
 ## 2.123.0 — o telefone que a tela de cadastro pede finalmente sai do app
 
 `RegisterFields.showPhoneField` nasce `true` desde sempre: a `RegisterScreen` mostra o campo, com

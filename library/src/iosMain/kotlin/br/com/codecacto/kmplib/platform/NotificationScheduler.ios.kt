@@ -5,6 +5,8 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import platform.Foundation.NSDateComponents
+import platform.Foundation.NSTimeZone
+import platform.Foundation.timeZoneWithName
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
@@ -206,6 +208,45 @@ class IosNotificationScheduler : NotificationScheduler {
         pruneDeferred()
     }
 
+    override fun scheduleWeeklyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        weekday: Int,
+        hour: Int,
+        minute: Int,
+        timeZoneId: String?,
+        data: Map<String, String>,
+        channelId: String?,
+        isCritical: Boolean,
+        actions: List<NotificationAction>
+    ) {
+        val base = ScheduledNotification(
+            id = id,
+            title = title,
+            body = body,
+            kind = NotificationScheduleKind.WEEKLY,
+            triggerAtMillis = 0L,
+            hour = hour.coerceIn(0, 23),
+            minute = minute.coerceIn(0, 59),
+            weekday = weekday.coerceIn(1, 7),
+            timeZoneId = timeZoneId?.trim()?.takeIf { it.isNotEmpty() },
+            data = data,
+            channelId = channelId,
+            isCritical = isCritical,
+            actions = NotificationActionRules.distinctActions(actions),
+        )
+        // O `triggerAtMillis` do semanal não é o que dispara no iOS (quem repete é o
+        // UNCalendarNotificationTrigger) — serve à ORDENAÇÃO dentro do teto de 64 pendentes.
+        val item = base.copy(
+            triggerAtMillis = NotificationRescheduling.nextRecurringTriggerMillis(base, nowMillis()),
+        )
+        store.put(item)
+        syncCategories()
+        submit(item)
+        pruneDeferred()
+    }
+
     override fun cancelNotification(id: Int) {
         val identifiers = IosNotificationRequests.all(id)
         notificationCenter.removePendingNotificationRequestsWithIdentifiers(identifiers)
@@ -345,6 +386,12 @@ class IosNotificationScheduler : NotificationScheduler {
                 trigger = dailyTrigger(item),
             )
 
+            item.isWeekly -> submitRequest(
+                identifier = IosNotificationRequests.base(item.id),
+                item = item,
+                trigger = weeklyTrigger(item),
+            )
+
             // Disparo único adiado: a requisição regular apontaria para um instante no passado, que
             // o iOS nunca entrega — a do adiamento a substitui.
             hasPendingSnooze -> notificationCenter.removePendingNotificationRequestsWithIdentifiers(
@@ -380,6 +427,39 @@ class IosNotificationScheduler : NotificationScheduler {
         }
         return UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = true)
     }
+
+    /**
+     * Gatilho semanal nativo: `weekday` + `hour` + `minute` com `repeats = true` — o sistema repete
+     * sozinho, com o app fechado, sem alarme nem reagendamento do nosso lado.
+     *
+     * **O `weekday` do Apple não é o ISO.** `NSDateComponents.weekday` conta **1 = domingo … 7 =
+     * sábado**; a lib fala ISO-8601 (**1 = segunda … 7 = domingo**), que é o de `kotlinx.datetime`.
+     * Passar o número ISO direto desloca todo lembrete em um dia — e o de domingo cai no sábado.
+     *
+     * Quando o agendamento traz fuso ([ScheduledNotification.timeZoneId]), ele vai **dentro** dos
+     * componentes: sem isso o iOS lê `hour:minute` no fuso do aparelho, e o lembrete do culto
+     * escorrega junto com quem viajou.
+     */
+    @OptIn(ExperimentalForeignApi::class)
+    private fun weeklyTrigger(item: ScheduledNotification): UNCalendarNotificationTrigger {
+        val components = NSDateComponents().apply {
+            weekday = appleWeekday(item.weekday).toLong()
+            hour = item.hour.coerceIn(0, 23).toLong()
+            minute = item.minute.coerceIn(0, 59).toLong()
+            item.timeZoneId?.let { id ->
+                val zone = NSTimeZone.timeZoneWithName(id)
+                if (zone != null) {
+                    timeZone = zone
+                } else {
+                    AppLogger.w(TAG, "Fuso desconhecido '$id' — lembrete semanal no fuso do aparelho")
+                }
+            }
+        }
+        return UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(components, repeats = true)
+    }
+
+    /** ISO-8601 (1 = segunda … 7 = domingo) → Apple (1 = domingo … 7 = sábado). */
+    private fun appleWeekday(isoWeekday: Int): Int = (isoWeekday.coerceIn(1, 7) % 7) + 1
 
     @OptIn(ExperimentalForeignApi::class)
     private fun calendarTrigger(atMillis: Long): UNCalendarNotificationTrigger {

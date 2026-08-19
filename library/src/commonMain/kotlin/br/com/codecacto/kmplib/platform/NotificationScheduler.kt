@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.platform
 
+import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.datetime.Instant
 
 /**
@@ -103,7 +104,63 @@ interface NotificationScheduler {
     )
 
     /**
-     * Cancela uma notificação agendada (única ou diária recorrente).
+     * Agenda uma notificação local que se repete TODA semana em [weekday], no horário `hour:minute`
+     * (2.125.0).
+     *
+     * Use para lembrete preso a um **compromisso semanal** — culto, aula, treino, feira, coleta do
+     * lixo reciclável. É diferente de [scheduleDailyNotification] em mais do que a frequência:
+     * "todo domingo às 18:30" agendado como diário avisaria a pessoa **seis vezes por semana** fora
+     * de hora, e agendado como disparo único ([scheduleNotification]) valeria **uma vez só** — o
+     * lembrete morreria em silêncio na semana seguinte se o app não fosse aberto.
+     *
+     * @param id ID único do lembrete (use o mesmo para reagendar/cancelar). Um mesmo compromisso com
+     *   vários horários na semana ocupa **um id por horário**.
+     * @param weekday Dia da semana, **1 = segunda … 7 = domingo** (ISO-8601 — o mesmo número de
+     *   `kotlinx.datetime.DayOfWeek.isoDayNumber`). Fora da faixa é ajustado para dentro dela.
+     * @param hour Hora do disparo (0..23)
+     * @param minute Minuto do disparo (0..59)
+     * @param timeZoneId Fuso IANA (ex.: `"America/Cuiaba"`) em que `hour:minute` deve ser lido;
+     *   `null` = o do aparelho. Informe quando o compromisso for de um **lugar** e não da pessoa: o
+     *   culto de domingo às 19:00 acontece às 19:00 na cidade da igreja, e quem viajou continua
+     *   querendo o aviso a tempo. Fuso desconhecido cai no do aparelho, com log — nunca deixa de
+     *   agendar.
+     * @param data Dados extras para a notificação
+     * @param channelId ID do canal (Android) — usa o padrão se não informado
+     * @param isCritical Se true, tenta bypassar modo não perturbe
+     * @param actions Botões da notificação. Um [NotificationActionKind.SNOOZE] adia **só o disparo
+     *   desta semana**; a recorrência semanal continua valendo.
+     *
+     * **Android:** `AlarmManager` com reagendamento da semana seguinte dentro do receiver, e o
+     * agendamento é **persistido** — o `BootCompletedReceiver` o restaura depois do reboot ou da
+     * atualização do app. **iOS:** `UNCalendarNotificationTrigger` com `weekday/hour/minute` e
+     * `repeats = true` (o sistema repete sozinho, com o app fechado).
+     *
+     * Cancela com [cancelNotification] (mesmo [id]).
+     *
+     * O corpo default existe só para não quebrar `NotificationScheduler` escrito à mão (fake de
+     * teste, decorator): as implementações reais de Android e iOS sobrescrevem.
+     */
+    fun scheduleWeeklyNotification(
+        id: Int,
+        title: String,
+        body: String,
+        weekday: Int,
+        hour: Int,
+        minute: Int,
+        timeZoneId: String? = null,
+        data: Map<String, String> = emptyMap(),
+        channelId: String? = null,
+        isCritical: Boolean = false,
+        actions: List<NotificationAction> = emptyList()
+    ) {
+        AppLogger.w(
+            "NotificationScheduler",
+            "scheduleWeeklyNotification não implementado nesta instância (id=$id) — nada agendado",
+        )
+    }
+
+    /**
+     * Cancela uma notificação agendada (única ou recorrente — diária ou semanal).
      * @param id ID da notificação a cancelar
      */
     fun cancelNotification(id: Int)
