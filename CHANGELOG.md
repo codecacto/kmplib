@@ -6,6 +6,24 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.126.0 — copiar texto para a área de transferência (`Clipboard`)
+
+`getClipboard().copy(text, label = "Texto")` — Android (`ClipboardManager` + `ClipData`) e iOS
+(`UIPasteboard.generalPasteboard`). Só **copiar**: ler a área de transferência é o caminho por onde
+um app lê o que a pessoa copiou de outro (uma senha, um código de banco), e nenhum produto da fábrica
+precisa disso — quando algum precisar, entra com o motivo declarado.
+
+Faltava porque parecia resolvido: o Compose tem `LocalClipboardManager.setText(...)`. Só que ele está
+**depreciado**, e o substituto (`LocalClipboard` + `setClipEntry`) recebe um `ClipEntry` que é
+**específico de plataforma** (`ClipData` no Android, `UIPasteboard` no iOS) e **não tem construtor em
+`commonMain`**. Ou seja: a alternativa "oficial" não existe em código compartilhado, e cada app
+terminaria escrevendo o próprio `expect/actual` — ou ficando na API depreciada, que some no próximo
+bump do Compose. 1º consumidor: Cidade Conectada, botão "copiar a chave Pix da loja" no
+acompanhamento do pedido de delivery (Onda 7).
+
+No Android reusa o contexto do `UrlLauncherHolder` — é o mesmo `Application` context, e um segundo
+holder seria mais um passo de inicialização para o app esquecer e descobrir em produção.
+
 ## 2.125.0 — lembrete local que se repete TODA SEMANA (e no fuso do LUGAR, não do aparelho)
 
 `NotificationScheduler.scheduleWeeklyNotification(id, title, body, weekday, hour, minute,
