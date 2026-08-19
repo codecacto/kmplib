@@ -97,6 +97,92 @@ end
 
 platform :ios do
 
+  # Assinatura pelo `match`, quando disponível — senão, o comportamento de antes.
+  #
+  # A migração é por app, não de uma vez: um app que ainda não passou pelo `sync_signing … setup:true`
+  # continua compilando com a assinatura automática do chaveiro, como sempre compilou. Trocar isso por
+  # uma falha dura converteria "ainda não migrei este app" em "a trilha iOS parou", que é o oposto do
+  # que este trabalho serve para fazer.
+  #
+  # Devolve o hash de `provisioningProfiles` para o `build_app`, ou vazio.
+  def perfis_do_match(app_identifier, tipo)
+    return {} if ENV["MATCH_PASSWORD"].to_s.empty?
+    return {} if app_identifier.to_s.empty?
+
+    sync_signing(app_identifier: app_identifier, tipo: tipo)
+
+    # O `match` publica o nome do perfil instalado nesta variável — é o contrato dele com o
+    # `build_app`. Ler daqui evita fixar o nome ("match AppStore br.com.x"), que muda de formato
+    # entre versões do fastlane e quebraria em silêncio, com o Xcode caindo na assinatura automática.
+    nome = ENV["sigh_#{app_identifier}_#{tipo}_profile-name"]
+    if nome.to_s.empty?
+      UI.important("match rodou mas não publicou o nome do perfil; deixando o Xcode resolver")
+      return {}
+    end
+    { app_identifier => nome }
+  end
+
+  desc "Sincroniza certificado e provisioning profile pelo `match`"
+  desc "Parâmetros: app_identifier, tipo (appstore|development), setup (true na PRIMEIRA vez)"
+  #
+  # ## O gap que isto fecha (19/ago/2026)
+  #
+  # No Android, keystore e senha passaram a viver cifradas no git e o runner as decifra na hora. No
+  # iOS não havia equivalente: certificado de distribuição e provisioning profile moravam **só no
+  # chaveiro daquele Mac**. Mac formatado, Mac trocado, ou uma segunda máquina — e a trilha iOS
+  # inteira volta a ser reconstruída à mão no portal da Apple.
+  #
+  # O `match` é a resposta padrão do ecossistema, e é o MESMO remédio: gera os artefatos de
+  # assinatura e os guarda **cifrados num repositório git privado** (`codecacto/certificates`), de
+  # onde toda máquina decifra os mesmos. Some com o "assina na minha máquina e não no CI".
+  #
+  # ## `readonly` é o default, e isso não é detalhe
+  #
+  # Sem `readonly`, o `match` CRIA o que faltar — e, no caminho, pode **revogar** o certificado de
+  # distribuição em uso. Um certificado revogado invalida os perfis que dependem dele: build em voo
+  # no TestFlight quebra, e não há desfazer. Então:
+  #
+  #   - **build e publicação rodam sempre `readonly: true`** — se faltar artefato, a lane FALHA
+  #     dizendo o que falta, em vez de mexer na conta da Apple sozinha;
+  #   - **criar é ato explícito**, `setup: true`, feito à mão, com o Mac por perto e sem release
+  #     rodando. É a única vez que alguém digita algo.
+  #
+  # ## O que ele NÃO faz
+  #
+  # Não renova nada. Certificado da Apple vence, e renovar continua sendo trabalho manual uma vez por
+  # ano. O `match` resolve distribuição e reprodutibilidade — não validade.
+  lane :sync_signing do |options|
+    app_identifier = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
+                     CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    UI.user_error!("sync_signing precisa de app_identifier") if app_identifier.to_s.empty?
+
+    tipo = options[:tipo] || "appstore"
+    setup = options[:setup].to_s == "true"
+    git_url = options[:git_url] || ENV["MATCH_GIT_URL"] ||
+              "git@github-alt:codecacto/certificates.git"
+
+    if ENV["MATCH_PASSWORD"].to_s.empty?
+      UI.user_error!(
+        "MATCH_PASSWORD ausente. Ela mora cifrada em Ferramentas/qa-runner/secrets/" \
+        "match.properties.age e é exportada pelo `qa preparar-maquina` — rode-o antes."
+      )
+    end
+
+    match(
+      type: tipo,
+      app_identifier: [app_identifier],
+      git_url: git_url,
+      storage_mode: "git",
+      # A trava que impede o estrago descrito acima. Só cai quando alguém pede `setup: true`.
+      readonly: !setup,
+      # Sem isto o match tenta abrir o Xcode/keychain de forma interativa e trava um build headless.
+      keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
+    )
+
+    UI.success("assinatura sincronizada para #{app_identifier} (#{tipo}, readonly=#{!setup})")
+  end
+
   desc "Compila o IPA e PARA — não envia nada"
   desc "Parâmetros: scheme, xcode_project, use_workspace, workspace_path, marketing_version"
   #
@@ -123,12 +209,16 @@ platform :ios do
       )
     end
 
+    app_id = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
+             CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    perfis = perfis_do_match(app_id, "appstore")
+
     build_params = {
       scheme: scheme,
       # `app-store` e não `development`: o ponto do build-só é provar que sai o MESMO artefato que
       # o `release` mandaria. Compilar com outro export_method passaria verde e quebraria no envio.
       export_method: "app-store",
-      export_options: { provisioningProfiles: {} },
+      export_options: { provisioningProfiles: perfis },
       clean: true,
       # Combina com o `onde` do alvo `ios-ipa` no qa-runner. Mudar aqui sem mudar lá faz o verbo
       # dizer "compilou mas não deixou .ipa", que parece falha de build e é caminho errado.
@@ -206,11 +296,15 @@ platform :ios do
       xcodeproj: xcode_project
     )
 
+    app_id_release = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
+                     CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    perfis = perfis_do_match(app_id_release, "appstore")
+
     build_params = {
       scheme: scheme,
       export_method: "app-store",
       export_options: {
-        provisioningProfiles: {}
+        provisioningProfiles: perfis
       },
       clean: true,
       output_directory: "./build",
