@@ -23,6 +23,29 @@ class OwnAuthApiTest {
         assertTrue("\"acceptedTerms\":true" in body)
     }
 
+    /**
+     * O telefone que a `RegisterScreen` coleta tem de CHEGAR ao servidor.
+     *
+     * Até a 2.122.0 o `RegisterBody` não tinha o campo: o app pedia o WhatsApp, a pessoa digitava, e
+     * o valor morria no `ViewModel`. Este teste é o que impede a regressão — e trava a decisão de
+     * OMITIR a chave quando não há telefone, para o corpo não dizer "informei nada".
+     */
+    @Test
+    fun `register leva o telefone, e o omite quando nao ha`() = runTest {
+        val cap = mutableListOf<CapturedRequest>()
+        val (api, _) = mockOwnAuthApi(cap) { _, _ ->
+            HttpStatusCode.Created to tokensJson(fakeJwt("acc-1"), "r1")
+        }
+
+        api.register("Ana", "ana@x.com", "s3nha123", acceptedTerms = true, phone = "(11) 98765-4321")
+        // Vai como a pessoa digitou: a máscara é da tela, e normalizar aqui decidiria formato por
+        // todos os produtos que usam a lib.
+        assertTrue("\"phone\":\"(11) 98765-4321\"" in cap.last().body)
+
+        api.register("Bia", "bia@x.com", "s3nha123", acceptedTerms = true)
+        assertTrue("phone" !in cap.last().body)
+    }
+
     @Test
     fun `authBasePath customizado (cliente) muda a rota`() = runTest {
         val cap = mutableListOf<CapturedRequest>()

@@ -67,7 +67,8 @@ class EmailPasswordAuthRepository(
         email: String,
         password: String,
         acceptedTerms: Boolean,
-    ): Result<User> = api.register(name, email, password, acceptedTerms).mapAndAdopt(email, name)
+        phone: String?,
+    ): Result<User> = api.register(name, email, password, acceptedTerms, phone).mapAndAdopt(email, name)
 
     override suspend fun requestPasswordReset(email: String): Result<Unit> =
         api.requestPasswordReset(email).mapAuthError()

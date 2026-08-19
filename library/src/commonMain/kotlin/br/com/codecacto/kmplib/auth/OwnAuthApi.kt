@@ -26,8 +26,14 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     private val json get() = config.json
     private val texts get() = config.texts
 
-    suspend fun register(name: String, email: String, password: String, acceptedTerms: Boolean): Result<OwnAuthTokens> =
-        postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms)))
+    suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String? = null,
+    ): Result<OwnAuthTokens> =
+        postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms, phone)))
 
     suspend fun login(email: String, password: String): Result<OwnAuthTokens> {
         logCredentialShape("login", email, password)

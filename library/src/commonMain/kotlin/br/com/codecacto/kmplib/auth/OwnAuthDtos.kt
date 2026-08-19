@@ -60,6 +60,11 @@ internal data class RegisterBody(
     val email: String,
     val password: String,
     val acceptedTerms: Boolean,
+    /**
+     * Telefone/WhatsApp — omitido do JSON quando nulo, para o corpo não dizer "informei nada".
+     * O backend (backlib ≥ 0.68.0) trata ausente e em branco igual.
+     */
+    val phone: String? = null,
 )
 
 @Serializable

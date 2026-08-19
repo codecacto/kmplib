@@ -84,6 +84,33 @@ fun FeedbackScreen(
     var emailError by remember { mutableStateOf<String?>(null) }
     var whatsappError by remember { mutableStateOf<String?>(null) }
 
+    // ## Os defaults chegam DEPOIS, e os `remember` acima não os veriam
+    //
+    // Quem chama esta tela lê o perfil de forma assíncrona (`produceState`, `collectAsState`), então
+    // na primeira composição os três defaults são `null` e os `remember` capturam string vazia. Sem
+    // esta semeadura o "nome e e-mail já vêm preenchidos" era promessa de KDoc: a tela abria com os
+    // campos em branco, e a pessoa redigitava o que o app já sabia.
+    //
+    // Semeia **uma vez por campo, quando o valor aparece**, e só se a pessoa ainda não digitou nada.
+    // Reaplicar a cada recomposição voltaria por cima do que ela acabou de escrever.
+    var semeouNome by remember { mutableStateOf(false) }
+    var semeouEmail by remember { mutableStateOf(false) }
+    var semeouWhatsapp by remember { mutableStateOf(false) }
+    LaunchedEffect(defaultName, defaultEmail, defaultWhatsapp) {
+        if (!semeouNome && !defaultName.isNullOrBlank()) {
+            semeouNome = true
+            if (nome.isBlank()) nome = defaultName
+        }
+        if (!semeouEmail && !defaultEmail.isNullOrBlank()) {
+            semeouEmail = true
+            if (email.isBlank()) email = defaultEmail
+        }
+        if (!semeouWhatsapp && !defaultWhatsapp.isNullOrBlank()) {
+            semeouWhatsapp = true
+            if (whatsapp.isBlank()) whatsapp = filterPhoneInput(defaultWhatsapp)
+        }
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

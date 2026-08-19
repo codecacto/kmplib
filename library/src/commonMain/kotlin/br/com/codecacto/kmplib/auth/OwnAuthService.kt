@@ -22,6 +22,14 @@ interface OwnAuthService {
         email: String,
         password: String,
         acceptedTerms: Boolean,
+        /**
+         * Telefone/WhatsApp, quando a tela pediu — a `RegisterScreen` já traz o campo por default
+         * (`RegisterFields.showPhoneField`). Vai **como a pessoa digitou**, com máscara.
+         *
+         * Default `null` para não quebrar quem implementa esta porta: até a 2.122.0 o número era
+         * coletado na tela e descartado no `ViewModel`, porque o parâmetro não existia.
+         */
+        phone: String? = null,
     ): Result<User>
 
     /**

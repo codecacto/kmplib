@@ -6,6 +6,36 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.123.0 — o telefone que a tela de cadastro pede finalmente sai do app
+
+`RegisterFields.showPhoneField` nasce `true` desde sempre: a `RegisterScreen` mostra o campo, com
+máscara e teclado numérico, e o `RegisterViewModel` guarda o valor. O `RegisterBody` do own-auth não
+tinha a chave — então o número era coletado e **descartado**. Campo que se pede e se joga fora é pior
+que campo ausente: quem preenche acredita que a empresa tem como retornar.
+
+- `OwnAuthService.register(..., phone: String? = null)` — default para não quebrar quem implementa a
+  porta.
+- `OwnAuthApi.register(..., phone)` e `RegisterBody.phone: String?` — a chave é **omitida** do JSON
+  quando não há telefone, para o corpo não dizer "informei nada".
+- Vai **como a pessoa digitou**, com máscara. Normalizar na lib decidiria formato de telefone por
+  todos os produtos, e a máscara de digitação já é a decisão da fábrica.
+
+Par de servidor: backlib **0.68.0** (`AuthLocalRegisterRequest.phone`). Sem ela o campo viaja e o
+backend ignora — nada quebra, mas nada chega. Descoberto no NeuroCoreX, ao igualar o cadastro do
+portal web ao do app.
+
+### E o `FeedbackScreen` não preenchia nada, apesar do KDoc
+
+`defaultName`/`defaultEmail`/`defaultWhatsapp` eram lidos só dentro de `remember { }`. Quem chama a
+tela lê o perfil de forma assíncrona (`produceState`, `collectAsState`), então na primeira composição
+os três são `null`, o `remember` captura string vazia — e o valor que chega depois **nunca entra**. O
+"nome e e-mail já vêm preenchidos" era promessa de documentação: na tela, a pessoa redigitava o que o
+app já sabia.
+
+Agora a semeadura acontece num `LaunchedEffect`, **uma vez por campo, quando o valor aparece**, e só
+se o campo ainda estiver vazio — reaplicar a cada recomposição voltaria por cima do que ela acabou de
+escrever. Mesma correção que a weblib 0.131.0 fez no `FeedbackForm`.
+
 ## 2.122.0 — `StepTimeline`: o "ANDAMENTO" que três projetos estavam desenhando à mão
 
 Linha do tempo **vertical de andamento**: marcadores circulares ligados por um fio, cada etapa com
