@@ -108,10 +108,30 @@ jobs:
             -PMARKETING_VERSION="${{ steps.version.outputs.marketing_version }}" \
             -PANDROID_VERSION_CODE="${{ steps.version.outputs.version_code }}"
         env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # NOMES CANÔNICOS (docs/15 §7-A). A migração de jul/2026 trocou `ANDROID_KEYSTORE_*` por
+          # estes nos 105 `build.gradle.kts` — "troca, não acúmulo", sem alias de compatibilidade.
+          # Este workflow ficou para trás e continuava exportando os nomes antigos: o Gradle não os
+          # lê, `temKeystore` dá false, o bloco `signingConfigs` nem é criado e o **AAB sai NÃO
+          # ASSINADO** — com o build verde. O secret do GitHub mantém o nome antigo de propósito
+          # (renomeá-lo exigiria recriar o segredo em cada repo, sem ganho nenhum).
+          KEYSTORE_PATH: ${{ github.workspace }}/android.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # A trava que faltava. Sem ela, "saiu sem assinatura" só aparece lá na frente, como uma recusa
+      # do Play cuja mensagem fala de upload — e a caçada vai para credencial e permissão de service
+      # account, não para o build. O AGP AVISA no log e continua; um aviso no meio de 3.000 linhas de
+      # Gradle é o mesmo que silêncio.
+      - name: Conferir que o AAB está assinado
+        run: |
+          AAB=$(ls ${{ inputs.app_module }}/build/outputs/bundle/release/*.aab | head -1)
+          if ! unzip -l "$AAB" | grep -qE 'META-INF/.*\.(RSA|DSA|EC)$'; then
+            echo "::error::$AAB saiu SEM ASSINATURA — o Play recusaria o envio."
+            echo "Confira os secrets ANDROID_KEYSTORE_B64/_PASSWORD/ANDROID_KEY_ALIAS deste repo."
+            exit 1
+          fi
+          echo "AAB assinado: $AAB"
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
