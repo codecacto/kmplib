@@ -97,6 +97,56 @@ end
 
 platform :ios do
 
+  desc "Compila o IPA e PARA — não envia nada"
+  desc "Parâmetros: scheme, xcode_project, use_workspace, workspace_path, marketing_version"
+  #
+  # Existe desde 19/ago/2026 porque o iOS era a única plataforma sem build-só: a lane `release`
+  # compila E envia, então "quero ver se o iOS compila" custava um upload para o TestFlight — e
+  # queimava um build number na Apple, que não se recupera. O verbo `build` do qa-runner
+  # (`alvo: ios-ipa`) chama esta lane.
+  #
+  # NÃO pede credencial da App Store de propósito. Compilar não precisa falar com a Apple, e exigir
+  # `ASC_KEY_ID` aqui faria o build-só herdar o bloqueio do envio — que é exatamente o que esta lane
+  # existe para separar. O build number também não é tocado: sem upload não há duplicata a evitar, e
+  # incrementá-lo sujaria o repositório a cada tentativa de compilação.
+  lane :build do |options|
+    scheme = options[:scheme] || "iosApp"
+    marketing_version = options[:marketing_version] || ENV["MARKETING_VERSION"]
+    use_workspace = options[:use_workspace].to_s == "true"
+    workspace_path = options[:workspace_path] || "iosApp/iosApp.xcworkspace"
+    xcode_project = options[:xcode_project] || "iosApp/iosApp.xcodeproj"
+
+    if marketing_version
+      increment_version_number_in_xcodeproj(
+        version_number: marketing_version,
+        xcodeproj: xcode_project
+      )
+    end
+
+    build_params = {
+      scheme: scheme,
+      # `app-store` e não `development`: o ponto do build-só é provar que sai o MESMO artefato que
+      # o `release` mandaria. Compilar com outro export_method passaria verde e quebraria no envio.
+      export_method: "app-store",
+      export_options: { provisioningProfiles: {} },
+      clean: true,
+      # Combina com o `onde` do alvo `ios-ipa` no qa-runner. Mudar aqui sem mudar lá faz o verbo
+      # dizer "compilou mas não deixou .ipa", que parece falha de build e é caminho errado.
+      output_directory: "iosApp/build/ipa",
+      output_name: "#{scheme}.ipa"
+    }
+
+    if use_workspace
+      build_params[:workspace] = workspace_path
+    else
+      build_params[:project] = xcode_project
+    end
+
+    build_app(**build_params)
+
+    UI.success("IPA gerado em iosApp/build/ipa — nada foi enviado. Envio é a lane `release`.")
+  end
+
   desc "Build e upload para TestFlight"
   desc "Parâmetros: scheme, xcode_project, use_workspace, workspace_path, marketing_version, build_number, asc_key_id, asc_issuer_id, submit_for_review"
   lane :release do |options|
