@@ -122,6 +122,19 @@ platform :ios do
     { app_identifier => nome }
   end
 
+  # ---------------------------------------------------------------------------------------------
+  # NÃO existe lane de METADADOS aqui, e não deve existir (19/ago/2026).
+  #
+  # A ficha de loja (textos, prints, Data Safety) é publicada pelo `provisioner app apply|
+  # screenshots|datasafety`, que lê o `loja.yaml` do projeto e roda NO SERVIDOR — pronto desde
+  # 30/jul/2026, disparado pelo painel via `Monitoramento/fabrica/publicar-ficha.sh`.
+  #
+  # Uma lane `upload_metadata` (fastlane `deliver`) chegou a existir por algumas horas neste dia e
+  # foi revertida: além de duplicar a fonte do conteúdo, ela devolveria a publicação da vitrine para
+  # dentro de uma dependência de macOS. O fastlane aqui existe para o que EXIGE Mac — assinar e
+  # compilar o IPA. Ficha não exige.
+  # ---------------------------------------------------------------------------------------------
+
   desc "Sincroniza certificado e provisioning profile pelo `match`"
   desc "Parâmetros: app_identifier, tipo (appstore|development), setup (true na PRIMEIRA vez)"
   #
@@ -337,44 +350,6 @@ platform :ios do
     end
 
     UI.success("iOS deploy concluído: TestFlight upload OK")
-  end
-
-  desc "Sobe SÓ a ficha (textos), sem binário e sem screenshot"
-  desc "Parâmetros: asc_key_id, asc_issuer_id, submit_for_review"
-  #
-  # O par do `publishListing` do gradle-play-publisher. O `gerar-arvore-de-ficha.py` projeta o
-  # `loja.yaml` em `fastlane/metadata/<locale>/*.txt`, e esta lane sobe aquilo.
-  #
-  # **`submit_for_review` nasce FALSE, e isso é o ponto.** Na Apple, alterar a ficha de um app
-  # publicado **reabre revisão** — o app fica "Waiting for Review" até alguém da Apple olhar, e uma
-  # correção de vírgula na descrição pode segurar a próxima versão por dias. Subir sem submeter
-  # deixa o texto pronto na App Store Connect, para ir junto com o próximo release, que é o momento
-  # em que a revisão aconteceria de qualquer jeito.
-  #
-  # `skip_screenshots` porque screenshot é outra história (e outro gap): subir metadados não pode
-  # depender de existir print para todo idioma e todo tamanho de aparelho.
-  lane :upload_metadata do |options|
-    asc_key_id = options[:asc_key_id] || ENV["ASC_KEY_ID"]
-    asc_issuer_id = options[:asc_issuer_id] || ENV["ASC_ISSUER_ID"]
-
-    api_key = app_store_connect_api_key(
-      key_id: asc_key_id,
-      issuer_id: asc_issuer_id,
-      key_filepath: "private_keys/AuthKey_#{asc_key_id}.p8"
-    )
-
-    upload_to_app_store(
-      api_key: api_key,
-      skip_binary_upload: true,
-      skip_screenshots: true,
-      submit_for_review: options[:submit_for_review].to_s == "true",
-      # Sem isto o deliver ABRE UM EDITOR para você conferir o texto, e trava para sempre num
-      # processo sem terminal — que é exatamente como esta lane roda.
-      force: true,
-      precheck_include_in_app_purchases: false
-    )
-
-    UI.success("ficha enviada (sem binário, sem screenshot)")
   end
 
   desc "Submeter build existente para App Store com phased release"
