@@ -6,6 +6,18 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.127.0 — `OnboardingPager`: o slide pode ocupar a largura toda
+
+`contentPadding: PaddingValues? = null` no `OnboardingPager`. `null` mantém o que sempre foi
+(24.dp compacto / 64.dp expandido, com uma fatia do slide vizinho aparecendo nas bordas — a dica de
+"arrasta para o lado"); `PaddingValues(0.dp)` faz o slide ocupar a largura inteira.
+
+O recuo era fixo, e para abertura com ilustração ou cartão de fundo ele não é dica: a fatia vizinha
+vira um retalho colorido no canto da tela, e o efeito é de tela quebrada. Quem reclamou foi o
+fundador, olhando a abertura do Cidade Conectada num aparelho.
+
+Aditivo: nenhum consumidor muda de comportamento sem passar o parâmetro novo.
+
 ## 2.126.0 — copiar texto para a área de transferência (`Clipboard`)
 
 `getClipboard().copy(text, label = "Texto")` — Android (`ClipboardManager` + `ClipData`) e iOS

@@ -124,6 +124,16 @@ fun OnboardingPager(
     onSkip: (() -> Unit)? = null,
     showIndicators: Boolean = true,
     showSkip: Boolean = true,
+    /**
+     * Recuo lateral do slide. `null` = o padrão da lib (24.dp compacto / 64.dp expandido), que
+     * deixa **uma fatia do slide vizinho aparecendo** nas bordas — é a dica visual de "arrasta para
+     * o lado".
+     *
+     * Passe `PaddingValues(0.dp)` para o slide ocupar a largura toda: em abertura com ilustração
+     * ou cartão de fundo, a fatia vizinha vira um retalho colorido no canto, e o efeito é de tela
+     * quebrada, não de carrossel.
+     */
+    contentPadding: PaddingValues? = null,
     pagerState: PagerState = rememberPagerState(pageCount = { pages.size }),
 ) {
     if (pages.isEmpty()) return
@@ -150,7 +160,8 @@ fun OnboardingPager(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = if (compact) 24.dp else 64.dp),
+            contentPadding = contentPadding
+                ?: PaddingValues(horizontal = if (compact) 24.dp else 64.dp),
         ) { pageIndex ->
             OnboardingSlide(page = pages[pageIndex], accent = accent, compact = compact)
         }
