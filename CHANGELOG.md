@@ -6,6 +6,25 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.128.0 — `OnboardingPager`: slide full-bleed e bullets no slide
+
+Duas coisas que a abertura do Cidade Conectada pediu, e que o componente não tinha:
+
+- **`OnboardingPager(edgeToEdge: Boolean = false)`** — `true` faz o slide ocupar a largura toda, sem
+  a fatia do vizinho aparecendo nas bordas, e move o respiro lateral do pager para dentro do slide.
+  O default preserva o recuo de sempre, em que o pedaço do próximo slide é dica de "arrasta". A dica
+  só funciona com slide de texto sobre o fundo: com ilustração ou cor, a fatia vira retalho no canto.
+- **`OnboardingPage(bullets: List<String> = emptyList())`** — 2 ou 3 linhas de detalhe com marca de
+  conferido, abaixo da descrição, alinhadas à esquerda (lista centralizada obriga o olho a procurar
+  onde cada linha começa). Vazio = slide como sempre foi.
+
+**Supersede o `contentPadding: PaddingValues?` que a 2.127.0 introduziu**, e que viveu uma hora: era
+o knob cru (qualquer recuo horizontal reintroduz o peek, então só o valor zero fazia sentido) e não
+resolvia o respiro lateral que precisa existir junto. `edgeToEdge` diz a intenção e faz as duas
+coisas. Nenhum consumidor havia adotado o parâmetro removido.
+
+Os dois são aditivos: sem passá-los, nada muda.
+
 ## 2.127.0 — `OnboardingPager`: o slide pode ocupar a largura toda
 
 `contentPadding: PaddingValues? = null` no `OnboardingPager`. `null` mantém o que sempre foi

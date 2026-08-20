@@ -3,6 +3,31 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### PENDENTE — `OnboardingPager` sem full-bleed nem bullets (20/ago/2026)
+> Origem: redesign das telas de abertura do **Cidade Conectada / Mirassol Conectado**
+> (`docs/design/wireframes.md` §1.0, ux-designer) — o fundador reprovou a versão anterior por dois
+> motivos que batem direto no componente da lib (não é caso de tela feita à mão no projeto: é
+> exatamente o componente "carrossel de introdução" que existe pra isso, usado/duplicado em 17 apps).
+
+- [ ] **GAP-CC-M-03 — slide vizinho "espia" nas bordas.** `HorizontalPager` interno usa
+      `contentPadding = PaddingValues(horizontal = 24.dp/64.dp)` (`OnboardingPager.kt:153`), o que
+      deixa uma fatia do slide anterior/seguinte visível nas bordas — reprovado explicitamente
+      ("as outras telas aparecendo nos cantos"). Proposta: `OnboardingPager(..., edgeToEdge: Boolean =
+      false)` — `false` preserva o comportamento atual (apps que já consomem não mudam); `true` zera o
+      `contentPadding` do pager e move o respiro horizontal para dentro do `OnboardingSlide`
+      (`Modifier.padding(horizontal = 24.dp)`), eliminando o peek sem perder o espaçamento do
+      conteúdo.
+- [ ] **GAP-CC-M-04 — `OnboardingPage` sem espaço para detalhe (bullets).** Hoje só tem
+      `title`/`description` (String única); o fundador pediu slides "mais detalhados, com alguns
+      pontos". Proposta: `OnboardingPage.bullets: List<String> = emptyList()` (default vazio =
+      comportamento atual, aditivo) — quando não-vazio, `OnboardingSlide` renderiza, abaixo da
+      descrição, uma coluna de linhas `Icon(Check, 16dp, tint=accent) + Text(bodyMedium)`.
+- [ ] Observação de bônus: `OnboardingTexts.back` existe e é aceito por `OnboardingPager`, mas
+      **nunca é renderizado** (não há botão "Voltar" na UI — só Pular/Próximo/Começar). Não é bug
+      novo desta rodada; se algum consumidor esperava um botão de voltar, é aí que falta a UI. Ao
+      mexer no componente para os dois itens acima, considerar remover o parâmetro morto ou
+      implementá-lo — decisão do `lib-mobile`.
+
 ### ENTREGUE — linha do tempo de andamento (18/ago/2026, 2.122.0)
 > Origem: protótipo aprovado do **Cidade Conectada / Mirassol Conectado**
 > (`docs/prototipo/prints/turno07-comunidade-so-confirmacao.png`, bloco "ANDAMENTO" do post em aberto;

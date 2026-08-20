@@ -20,6 +20,8 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
 import kotlinx.coroutines.launch
@@ -57,6 +60,15 @@ class OnboardingPage(
     val description: String,
     val icon: ImageVector? = null,
     val illustration: (@Composable (Modifier) -> Unit)? = null,
+    /**
+     * Detalhes do slide, um por linha, com marca de conferido — o "e o que mais isso me dá?" que
+     * uma frase só não responde.
+     *
+     * Vazio (default) = slide como sempre foi: ilustração, título e descrição. Use 2 ou 3: a lista
+     * existe para dar concretude, e a partir da quarta linha ela vira texto corrido com marcador,
+     * que é o que ninguém lê numa tela de abertura.
+     */
+    val bullets: List<String> = emptyList(),
 )
 
 /**
@@ -125,15 +137,16 @@ fun OnboardingPager(
     showIndicators: Boolean = true,
     showSkip: Boolean = true,
     /**
-     * Recuo lateral do slide. `null` = o padrão da lib (24.dp compacto / 64.dp expandido), que
-     * deixa **uma fatia do slide vizinho aparecendo** nas bordas — é a dica visual de "arrasta para
-     * o lado".
+     * `true` = o slide ocupa a **largura toda**, sem a fatia do vizinho aparecendo nas bordas.
      *
-     * Passe `PaddingValues(0.dp)` para o slide ocupar a largura toda: em abertura com ilustração
-     * ou cartão de fundo, a fatia vizinha vira um retalho colorido no canto, e o efeito é de tela
-     * quebrada, não de carrossel.
+     * O default (`false`) mantém o recuo de sempre (24.dp compacto / 64.dp expandido), em que o
+     * pedaço do próximo slide funciona como dica de "arrasta para o lado". A dica só funciona
+     * quando o slide é texto sobre o fundo da tela: com ilustração, cartão ou cor, a fatia vizinha
+     * lê como retalho no canto — tela quebrada, não carrossel.
+     *
+     * Ligado, o respiro lateral não some: ele passa do pager para dentro do próprio slide.
      */
-    contentPadding: PaddingValues? = null,
+    edgeToEdge: Boolean = false,
     pagerState: PagerState = rememberPagerState(pageCount = { pages.size }),
 ) {
     if (pages.isEmpty()) return
@@ -160,10 +173,20 @@ fun OnboardingPager(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = contentPadding
-                ?: PaddingValues(horizontal = if (compact) 24.dp else 64.dp),
+            contentPadding = if (edgeToEdge) {
+                PaddingValues(horizontal = 0.dp)
+            } else {
+                PaddingValues(horizontal = if (compact) 24.dp else 64.dp)
+            },
         ) { pageIndex ->
-            OnboardingSlide(page = pages[pageIndex], accent = accent, compact = compact)
+            OnboardingSlide(
+                page = pages[pageIndex],
+                accent = accent,
+                compact = compact,
+                // Sem o recuo do pager, o respiro lateral tem de existir aqui — senão o texto
+                // encosta na borda da tela.
+                horizontalPadding = if (edgeToEdge) 24.dp else 8.dp,
+            )
         }
 
         if (showIndicators) {
@@ -193,9 +216,14 @@ fun OnboardingPager(
 }
 
 @Composable
-private fun OnboardingSlide(page: OnboardingPage, accent: Color, compact: Boolean) {
+private fun OnboardingSlide(
+    page: OnboardingPage,
+    accent: Color,
+    compact: Boolean,
+    horizontalPadding: Dp = 8.dp,
+) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = horizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -226,6 +254,33 @@ private fun OnboardingSlide(page: OnboardingPage, accent: Color, compact: Boolea
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (page.bullets.isNotEmpty()) {
+            Spacer(Modifier.height(if (compact) 20.dp else 28.dp))
+            Column(
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                page.bullets.forEach { linha ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = linha,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // Alinhado à ESQUERDA, ao contrário do título e da descrição: lista
+                            // centralizada obriga o olho a procurar onde cada linha começa.
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
