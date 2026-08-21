@@ -57,7 +57,8 @@ actual class ImagePickerLauncher(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 actual fun rememberImagePickerLauncher(
-    onImageSelected: (ByteArray) -> Unit
+    onImageSelected: (ByteArray) -> Unit,
+    onError: (ImagePickerError) -> Unit,
 ): ImagePickerLauncher {
     val context = LocalContext.current
     var showChooser by remember { mutableStateOf(false) }
@@ -67,14 +68,15 @@ actual fun rememberImagePickerLauncher(
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        uri?.let { processImageUri(context, it, onImageSelected) }
+        // `null` = a pessoa fechou a galeria sem escolher. Desistir NAO e erro.
+        uri?.let { processImageUri(context, it, onImageSelected, onError) }
     }
 
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         if (success) {
-            photoUri?.let { uri -> processImageUri(context, uri, onImageSelected) }
+            photoUri?.let { uri -> processImageUri(context, uri, onImageSelected, onError) }
         }
     }
 
@@ -91,7 +93,10 @@ actual fun rememberImagePickerLauncher(
             photoUri = uri
             takePicture.launch(uri)
         } catch (e: Exception) {
+            // Ate 2.131.0 isto era so `printStackTrace()`: a camera nao abria e a tela nao dizia
+            // nada. Falha de camera vira AVISO no app, sempre.
             e.printStackTrace()
+            onError(ImagePickerError.CAMERA_UNAVAILABLE)
         }
     }
 
@@ -100,6 +105,11 @@ actual fun rememberImagePickerLauncher(
     ) { granted: Boolean ->
         if (granted) {
             launchCamera()
+        } else {
+            // Negada pela pessoa — ou o app nao declarou `CAMERA` no manifest, e ai o sistema nega
+            // sem nem mostrar o dialogo. O `if` sem `else` que havia aqui transformava os dois
+            // casos em "o botao nao faz nada".
+            onError(ImagePickerError.CAMERA_PERMISSION_DENIED)
         }
     }
 
@@ -186,13 +196,21 @@ actual fun rememberImagePickerLauncher(
     }
 }
 
-private fun processImageUri(context: Context, uri: Uri, onImageSelected: (ByteArray) -> Unit) {
+private fun processImageUri(
+    context: Context,
+    uri: Uri,
+    onImageSelected: (ByteArray) -> Unit,
+    onError: (ImagePickerError) -> Unit,
+) {
     try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
         val bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
 
-        if (bitmap != null) {
+        if (bitmap == null) {
+            onError(ImagePickerError.IMAGE_UNREADABLE)
+        } else {
             val corrected = correctOrientation(context, uri, bitmap)
             val scaled = scaleBitmap(corrected, 1024)
             val outputStream = ByteArrayOutputStream()
@@ -205,6 +223,7 @@ private fun processImageUri(context: Context, uri: Uri, onImageSelected: (ByteAr
         }
     } catch (e: Exception) {
         e.printStackTrace()
+        onError(ImagePickerError.IMAGE_UNREADABLE)
     }
 }
 

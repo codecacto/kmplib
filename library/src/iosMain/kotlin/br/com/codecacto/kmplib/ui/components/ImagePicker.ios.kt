@@ -46,9 +46,10 @@ actual class ImagePickerLauncher(
 @OptIn(ExperimentalForeignApi::class)
 @Composable
 actual fun rememberImagePickerLauncher(
-    onImageSelected: (ByteArray) -> Unit
+    onImageSelected: (ByteArray) -> Unit,
+    onError: (ImagePickerError) -> Unit,
 ): ImagePickerLauncher {
-    return remember {
+    return remember(onImageSelected, onError) {
         ImagePickerLauncher {
             val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
                 ?: return@ImagePickerLauncher
@@ -63,11 +64,11 @@ actual fun rememberImagePickerLauncher(
                     picker.dismissViewControllerAnimated(true, null)
                     val image = (didFinishPickingMediaWithInfo[UIImagePickerControllerEditedImage]
                         ?: didFinishPickingMediaWithInfo[UIImagePickerControllerOriginalImage]) as? UIImage
-                        ?: return
+                        ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
 
                     val scaledImage = scaleImage(image, 1024.0)
                     val jpegData = UIImageJPEGRepresentation(scaledImage, 0.85)
-                        ?: return
+                        ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
                     val bytes = jpegData.toByteArray()
                     onImageSelected(bytes)
                 }
@@ -81,18 +82,27 @@ actual fun rememberImagePickerLauncher(
                 override fun picker(picker: PHPickerViewController, didFinishPicking: List<*>) {
                     picker.dismissViewControllerAnimated(true, null)
 
+                    // Lista vazia = fechou sem escolher. Desistir NAO e erro.
                     val result = didFinishPicking.firstOrNull() as? PHPickerResult ?: return
-                    val provider = result.itemProvider ?: return
+                    val provider = result.itemProvider
+                        ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
 
                     if (provider.hasItemConformingToTypeIdentifier("public.image")) {
                         provider.loadDataRepresentationForTypeIdentifier("public.image") { data, error ->
-                            if (error != null || data == null) return@loadDataRepresentationForTypeIdentifier
+                            if (error != null || data == null) {
+                                onError(ImagePickerError.IMAGE_UNREADABLE)
+                                return@loadDataRepresentationForTypeIdentifier
+                            }
                             val image = UIImage(data = data)
-                                ?: return@loadDataRepresentationForTypeIdentifier
+                                ?: return@loadDataRepresentationForTypeIdentifier onError(
+                                    ImagePickerError.IMAGE_UNREADABLE,
+                                )
 
                             val scaledImage = scaleImage(image, 1024.0)
                             val jpegData = UIImageJPEGRepresentation(scaledImage, 0.85)
-                                ?: return@loadDataRepresentationForTypeIdentifier
+                                ?: return@loadDataRepresentationForTypeIdentifier onError(
+                                    ImagePickerError.IMAGE_UNREADABLE,
+                                )
 
                             val bytes = jpegData.toByteArray()
                             onImageSelected(bytes)

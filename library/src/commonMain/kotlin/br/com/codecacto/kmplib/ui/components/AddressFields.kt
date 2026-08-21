@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.brdata.Address
+import br.com.codecacto.kmplib.brdata.BrazilianCities
 import br.com.codecacto.kmplib.brdata.BrazilianStates
 import br.com.codecacto.kmplib.brdata.CepLookupResult
 import br.com.codecacto.kmplib.brdata.filterUfInput
@@ -91,8 +93,12 @@ fun AddressFields(
         }
     }
 
+    // `padding(vertical = 8.dp)`: o bloco precisa se DESTACAR dos campos vizinhos. Entre os sete
+    // campos daqui há 12dp, o mesmo respiro que o formulário usa entre um campo e outro — sem esta
+    // folga, o campo logo abaixo de "Estado / Cidade" (a senha, no cadastro) parece a última linha
+    // do endereço, e quem preenche não percebe que o bloco acabou.
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (title != null) {
@@ -169,13 +175,10 @@ fun AddressFields(
             errorMessage = errors.bairro,
             enabled = enabled,
         )
-        AppTextField(
-            value = value.cidade,
-            onValueChange = { onValueChange(value.copy(cidade = it)) },
-            label = "Cidade",
-            errorMessage = errors.cidade,
-            enabled = enabled,
-        )
+        // **O ESTADO vem antes da cidade**, e não o contrário. A cidade depende dele: é o estado que
+        // decide quais nomes existem, então perguntar a cidade primeiro é pedir a resposta antes da
+        // pergunta — e era o que esta ordem fazia, com o agravante de a cidade ser campo livre.
+        //
         // UF em PICKER, não em campo livre: valor fora da lista é 400 no servidor, e digitar duas
         // letras é o tipo de campo em que o erro só aparece na hora de salvar. Trocar de estado
         // **limpa a cidade** — deixá-la faria "Santos/BA" existir sem ninguém notar.
@@ -193,6 +196,27 @@ fun AddressFields(
             errorMessage = errors.uf,
             enabled = enabled,
             sheetTitle = "Estado",
+        )
+
+        // A cidade é **escolhida de uma lista com BUSCA**, não digitada. São os municípios do IBGE
+        // daquela UF (até 853, em MG) — rolar isso atrás de um nome não é escolher, é procurar
+        // agulha; e digitar livre traz de volta o que o picker da UF existe para impedir: grafia
+        // divergente ("Sao Paulo", "S. Paulo", "sao paulo") no mesmo campo, para o mesmo lugar.
+        AppPickerField(
+            value = value.cidade,
+            onValueChange = { onValueChange(value.copy(cidade = it)) },
+            options = remember(value.uf) {
+                BrazilianCities.getByState(value.uf).map { PickerOption(it.name, it.name) }
+            },
+            label = "Cidade",
+            // Sem UF escolhida não há lista, e o placeholder diz por quê em vez de abrir um sheet
+            // vazio.
+            placeholder = if (value.uf.isBlank()) "Escolha o estado primeiro" else "Escolha a cidade",
+            errorMessage = errors.cidade,
+            enabled = enabled && value.uf.isNotBlank(),
+            sheetTitle = "Cidade",
+            searchable = true,
+            searchPlaceholder = "Buscar cidade",
         )
     }
 }

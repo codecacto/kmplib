@@ -6,6 +6,66 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.131.0 — vídeo que toca DENTRO do app, endereço que pergunta o estado antes da cidade, e o fim de três silêncios
+
+Rodada de correções vinda da leitura do app do NeuroCoreX pelo fundador em 21/ago/2026. O fio comum
+de metade delas: **a lib falhava calada** e o app parecia quebrado.
+
+### `VideoPlayer` — o vídeo para de jogar a pessoa para fora do app
+
+Novo, em `ui.components.video`. O que os apps faziam era `UrlLauncher.openUrl(url)`: o toque no vídeo
+mandava a pessoa ao navegador ou ao app do YouTube, fora do produto — num app cujo vídeo **é** a peça
+que explica o instrumento, sair para assistir é perder a pessoa no meio da explicação.
+
+- `videoSourceOf(url)` classifica em `YouTube` · `File` · `External` (função pura, 6 testes): as
+  quatro formas de link do YouTube (watch, youtu.be, embed, shorts), arquivo nosso (`.mp4`/`.m3u8`) e
+  o que não sabemos tocar — que continua abrindo fora, de propósito.
+- **YouTube toca no IFrame Player API oficial**, em `WebView`/`WKWebView`. Não é atalho: a *YouTube
+  Android Player API* foi descontinuada pelo Google e o IFrame API é o caminho que ele mantém —
+  extrair a URL da mídia para um player nativo viola os Termos e quebra a cada mudança deles.
+- **Tela cheia funciona.** No Android é preciso atender `WebChromeClient.onShowCustomView`: sem isso o
+  botão de expandir aparece, a pessoa toca e nada acontece. A orientação volta ao que era no
+  `onHideCustomView` — é o detalhe que costuma ficar preso e deixa o app deitado depois do vídeo.
+- **Para no descarte** nas duas plataformas: WebView solto continua **tocando** depois de a tela sair.
+- Arquivo nosso usa o player da plataforma (`VideoView` / `AVPlayerViewController`) — sem trazer o
+  Media3 inteiro para dentro de todo app da fábrica.
+
+### `AddressFields` — estado antes de cidade, cidade com busca, bloco com folga
+
+Três correções no mesmo componente:
+
+- **A ordem inverteu:** o **Estado** vem primeiro. A cidade depende dele, então perguntá-la antes era
+  pedir a resposta antes da pergunta — com o agravante de ser campo de texto livre.
+- **A cidade virou escolha com BUSCA**, dos municípios do IBGE daquela UF (`BrazilianCities`, que a
+  lib já tinha). Digitar livre trazia de volta o que o picker da UF existe para impedir: "Sao Paulo",
+  "S. Paulo" e "sao paulo" no mesmo campo, para o mesmo lugar. Sem UF escolhida, o campo fica
+  desabilitado e o placeholder diz por quê.
+- **8dp de folga** em cima e embaixo: entre os sete campos internos há 12dp, o mesmo respiro que o
+  formulário usa entre um campo e outro, então o bloco não terminava em lugar nenhum e o campo logo
+  abaixo de "Estado / Cidade" parecia a última linha do endereço. O par web saiu na weblib 0.134.0.
+
+### `AppPickerField` — `searchable`
+
+Campo de busca no topo do sheet, filtrando por rótulo, **ignorando acento e caixa** ("sao" acha "São
+Paulo"). Ligue quando a lista passar de umas três dezenas: rolar 853 municípios atrás de um nome é
+conferência, não escolha. Reabrir limpa o filtro — filtro preso é o que faz a pessoa concluir que a
+cidade dela "não está aí". Lista vazia depois de filtrar diz isso, em vez de um vão branco.
+
+### `rememberImagePickerLauncher` — `onError`, porque câmera negada era SILÊNCIO
+
+Novo parâmetro `onError: (ImagePickerError) -> Unit` (com sobrecarga de um parâmetro só, para quem já
+chama). Antes, permissão negada caía num `if (granted)` **sem `else`** e falha de câmera num
+`printStackTrace()`: o toque em "Tirar foto" não produzia efeito nenhum na tela. Foi o que aconteceu
+no NeuroCoreX, onde o app não declarava `android.permission.CAMERA` — permissão não declarada é
+negada pelo sistema na hora, sem nem mostrar o diálogo.
+
+Três motivos tipados: `CAMERA_PERMISSION_DENIED`, `CAMERA_UNAVAILABLE`, `IMAGE_UNREADABLE`. Desistir
+(fechar a galeria, cancelar a câmera) **não** é erro e não chama o callback.
+
+⚠️ **Requisito de manifest** que o KDoc agora declara: a opção "Tirar foto" exige
+`<uses-permission android:name="android.permission.CAMERA" />` **no app**. O `FileProvider` já vem da
+lib — não redeclarar, dois `FILE_PROVIDER_PATHS` na mesma authority param o merge do manifest.
+
 ## 2.130.0 — o spinner que faltava, e o fim da parede de chips
 
 `AppDropdownField` e `AppMultiDropdownField` (`ui.components`): menu suspenso **ancorado no campo**,

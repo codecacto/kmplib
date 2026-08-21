@@ -11,11 +11,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,9 +66,34 @@ fun AppPickerField(
     enabled: Boolean = true,
     /** Título do sheet. Em branco, repete o [label]. */
     sheetTitle: String? = null,
+    /**
+     * Campo de busca no topo do sheet, filtrando por [PickerOption.label] — **acento e caixa não
+     * contam**, e o pedaço basta ("mar" acha "Marabá" e "Santa Maria").
+     *
+     * Ligue quando a lista passar de umas três dezenas: rolar 850 municípios atrás de um nome é
+     * conferência, não escolha. Para as 27 UFs, deixe desligado — o campo de busca ali seria um
+     * toque a mais para uma lista que cabe em duas telas.
+     */
+    searchable: Boolean = false,
+    /** Placeholder do campo de busca. */
+    searchPlaceholder: String = "Buscar",
 ) {
     var aberto by remember { mutableStateOf(false) }
+    var busca by remember { mutableStateOf("") }
     val selecionada = options.firstOrNull { it.value == value }
+
+    // Reabrir é começar de novo: o filtro da consulta anterior escondendo três quartos da lista é
+    // o tipo de estado preso que faz a pessoa concluir que "a cidade dela não está aí".
+    LaunchedEffect(aberto) { if (!aberto) busca = "" }
+
+    val visiveis = remember(options, busca, searchable) {
+        if (!searchable || busca.isBlank()) {
+            options
+        } else {
+            val alvo = busca.semAcento()
+            options.filter { it.label.semAcento().contains(alvo) }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -103,9 +130,28 @@ fun AppPickerField(
                 textAlign = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             )
+            if (searchable) {
+                AppTextField(
+                    value = busca,
+                    onValueChange = { busca = it },
+                    placeholder = searchPlaceholder,
+                    leadingIcon = Icons.Default.Search,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+            }
             HorizontalDivider()
+            if (visiveis.isEmpty()) {
+                // Lista vazia depois de filtrar diz o que houve. Sem isto, o sheet abre num vão
+                // branco e a leitura é "quebrou".
+                Text(
+                    text = "Nada encontrado para “$busca”.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
+                )
+            }
             LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                items(options, key = { it.value }) { opcao ->
+                items(visiveis, key = { it.value }) { opcao ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -130,4 +176,22 @@ fun AppPickerField(
             }
         }
     }
+}
+
+
+/**
+ * Minúsculas e sem acento — a forma em que duas grafias da mesma palavra se encontram.
+ *
+ * "Sao" precisa achar "São" e "TAUBATE" precisa achar "Taubaté": quem digita num teclado de celular
+ * não põe acento, e uma busca que exige o til é uma busca que não acha nada.
+ */
+private fun String.semAcento(): String {
+    val comAcento = "áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ"
+    val sem = "aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN"
+    return buildString(length) {
+        for (c in this@semAcento) {
+            val i = comAcento.indexOf(c)
+            append(if (i >= 0) sem[i] else c)
+        }
+    }.lowercase()
 }
