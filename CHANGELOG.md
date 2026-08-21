@@ -6,6 +6,28 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.130.0 — o spinner que faltava, e o fim da parede de chips
+
+`AppDropdownField` e `AppMultiDropdownField` (`ui.components`): menu suspenso **ancorado no campo**,
+com a largura medida dele, escolha única ou múltipla.
+
+A lib tinha duas formas de escolher e nenhuma servia a uma lista média e **já ordenada**:
+`AppPickerField` abre um sheet que cobre o formulário — certo para as 27 UFs, exagero para os
+bairros de uma cidade —, e `AppMultiSelect` desenha um chip por opção, o que em vinte opções vira um
+bloco alto onde a ordem alfabética se perde no empacotamento das linhas. Foi o que o fundador
+apontou na tela de endereço do Cidade Conectada, em 20/ago/2026: *"aqui poderia ser um spinner"* e
+*"esse chip aqui ficou muito feio"*.
+
+Quando usar cada um está na tabela do KDoc de `AppDropdownField`: lista curta ou média e em ordem
+conhecida → spinner; lista longa, em que a pessoa **procura** → sheet.
+
+Detalhes que o componente resolve e que cada app resolveria de um jeito: o menu nasce com a largura
+do campo (medida em runtime — o `DropdownMenu` do M3 se dimensiona pelo conteúdo e abriria estreito
+e deslocado); no múltiplo, o menu **não fecha** a cada marcação; `lockedValues` mantém marcado e sem
+alvo de toque o item que a regra do produto já inclui (o bairro onde a pessoa mora, entre os que ela
+acompanha) — some da lista quem não existe, não quem já está garantido. O resumo do campo fechado
+("Centro, Jardim Aurora +2") é `dropdownFieldSummary`, função pura e testada.
+
 ## 2.129.0 — bloco de endereço, seletor de lista longa e a dica que não é erro
 
 Três lacunas que apareceram juntas quando o NeuroCoreX pôs endereço no cadastro do app: a kmplib
