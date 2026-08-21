@@ -61,6 +61,14 @@ fun AppTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     errorMessage: String? = null,
+    /**
+     * Dica **neutra** embaixo do campo — o que ele não teria como adivinhar, e nunca o óbvio.
+     *
+     * Existe porque só havia [errorMessage]: quem precisava mostrar "Buscando endereço…" ou
+     * "Válido até o fim do mês" usava o campo de erro e **pintava o controle de vermelho** durante
+     * uma operação normal. [errorMessage] vence quando os dois vêm — erro é mais urgente que dica.
+     */
+    helperText: String? = null,
     enabled: Boolean = true,
     singleLine: Boolean = true,
     maxLength: Int? = null,
@@ -71,9 +79,11 @@ fun AppTextField(
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
-    // Supporting text (error ou contador)
+    // Supporting text: erro > dica > contador. Só um por vez — três linhas sob o campo é ruído.
     val supportingText: (@Composable () -> Unit)? = when {
         errorMessage != null -> {{ Text(errorMessage) }}
+        // Depois do erro, e antes do contador: dica é informação do campo, contador é acessório.
+        helperText != null -> {{ Text(helperText) }}
         showCharCounter && maxLength != null -> {{
             Text(
                 text = "${value.length}/$maxLength",
@@ -174,15 +184,25 @@ fun AppTextArea(
     maxLines: Int? = null,
     showCharCounter: Boolean = true,
     errorMessage: String? = null,
+    /**
+     * Dica **neutra** embaixo do campo — o que ele não teria como adivinhar, e nunca o óbvio.
+     *
+     * Existe porque só havia [errorMessage]: quem precisava mostrar "Buscando endereço…" ou
+     * "Válido até o fim do mês" usava o campo de erro e **pintava o controle de vermelho** durante
+     * uma operação normal. [errorMessage] vence quando os dois vêm — erro é mais urgente que dica.
+     */
+    helperText: String? = null,
     enabled: Boolean = true,
     height: Dp? = null,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
-    // Supporting text (error ou contador)
+    // Supporting text: erro > dica > contador. Só um por vez — três linhas sob o campo é ruído.
     val supportingText: (@Composable () -> Unit)? = when {
         errorMessage != null -> {{ Text(errorMessage) }}
+        // Depois do erro, e antes do contador: dica é informação do campo, contador é acessório.
+        helperText != null -> {{ Text(helperText) }}
         showCharCounter && maxLength != null -> {{
             Text(
                 text = "${value.length}/$maxLength",

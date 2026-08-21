@@ -6,6 +6,43 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.129.0 — bloco de endereço, seletor de lista longa e a dica que não é erro
+
+Três lacunas que apareceram juntas quando o NeuroCoreX pôs endereço no cadastro do app: a kmplib
+tinha as **peças** (`CepVisualTransformation`, `BrazilianStates`, `BrazilianCities`, `AppTextField`)
+e não a montagem, e o produto teve de compor um bloco próprio. Isso é o começo de sete campos
+divergindo em N apps.
+
+**`AddressFields`** (`ui.components`) — CEP, logradouro, número, complemento, bairro, cidade e UF,
+com máscara, autopreenchimento e a lista de estados. Par do `AddressFields` da weblib 0.133.0, campo
+a campo: app e portal do mesmo produto falam com a MESMA rota, e um campo com nome diferente grava
+`null` sem nenhum erro de compilação denunciando.
+
+- **`Address`** (`brdata`) com `completo`, `temAlgumCampo`, `normalized()` e `cepDigits`.
+  `complemento` fica fora do `completo` — é o único campo que um endereço válido pode não ter.
+- **O autopreenchimento é conveniência e nunca trava.** `onCepLookup` é **opcional e o transporte é
+  do consumidor**: a lib não escolhe o serviço nem embute cliente HTTP, porque um fornecedor embutido
+  só se troca publicando na loja — e loja leva semanas. Falha, demora e "não achei" deixam os campos
+  editáveis. Exceção lançada no callback é engolida de propósito.
+- **`Address.mergedWith(lookup)`** é função pura, fora do composable, e é o que os testes cobrem
+  (a fábrica não escreve teste de UI em KMP): **o que já está preenchido vence** — quem corrigiu o
+  nome da rua não vê a correção sumir porque o CEP genérico do bairro devolveu outro — e valor vazio
+  no resultado **não apaga** o que estava lá. O número nunca vem da busca; por isso ele ganha o foco
+  quando ela volta.
+- **UF é picker, e trocar de estado limpa a cidade** — senão "Santos/BA" existe sem ninguém notar.
+
+**`AppPickerField`** (`ui.components`) — escolha única em lista **longa**, em bottom sheet. A lib
+tinha três formas de escolher e nenhuma servia a 27 itens num formulário: `FilterChipRow` é `LazyRow`
+e **rola de lado**, escondendo o que não coube (a pessoa escolhe entre as três que enxerga sem saber
+que havia outras), e `AppMultiSelect`/`MultiSelectList` são múltipla escolha. O campo é
+somente-leitura — deixar digitar traria de volta o valor livre que o servidor recusa.
+
+**`AppTextField(helperText = …)`** — dica **neutra** sob o campo. Só havia `errorMessage`, então quem
+precisava mostrar "Buscando endereço…" usava o campo de erro e **pintava o controle de vermelho**
+durante uma operação normal. Erro vence dica, que vence contador: um por vez.
+
+- 15 testes novos (2.067 na suíte). Tudo aditivo — nenhum consumidor precisa mudar.
+
 ## 2.128.0 — `OnboardingPager`: slide full-bleed e bullets no slide
 
 Duas coisas que a abertura do Cidade Conectada pediu, e que o componente não tinha:
