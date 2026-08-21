@@ -30,6 +30,22 @@ que explica o instrumento, sair para assistir é perder a pessoa no meio da expl
 - Arquivo nosso usa o player da plataforma (`VideoView` / `AVPlayerViewController`) — sem trazer o
   Media3 inteiro para dentro de todo app da fábrica.
 
+### `VideoPlayerDialog` — o vídeo em TELA CHEIA (correção do mesmo dia)
+
+O `VideoPlayer` embutido no meio de uma tela **não funciona**, e o modo de falhar é específico:
+dentro de uma coluna com `verticalScroll`, a view nativa divide a árvore de composição com o
+conteúdo que rola por cima. O relato do fundador, horas depois do release: *"pisca, aparece uma tela
+toda preta, parece que dá play por baixo, e não dá para parar"* — os controles do player estão
+dentro do retângulo que não está sendo desenhado.
+
+`VideoPlayerDialog(source, onDismiss)`: fundo preto, vídeo centrado em 16:9 e um **X** que garante a
+saída mesmo que o player não desenhe nada. O gatilho continua sendo um cartão com a capa — que não
+custa um processo de renderização a quem talvez nem vá assistir.
+
+Junto, o WebView do YouTube deixou de pedir composição por camada (`setBackgroundColor` preto em vez
+de transparente) e perdeu as barras de rolagem próprias: as duas coisas contribuíam para o quadro
+sumir dentro de um container rolável do Compose.
+
 ### `AddressFields` — estado antes de cidade, cidade com busca, bloco com folga
 
 Três correções no mesmo componente:

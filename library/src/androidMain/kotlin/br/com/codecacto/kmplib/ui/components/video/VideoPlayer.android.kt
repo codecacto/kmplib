@@ -84,7 +84,15 @@ private fun criarWebViewDoYouTube(context: Context, videoId: String, autoPlay: B
         settings.javaScriptEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.domStorageEnabled = true
-        setBackgroundColor(0x00000000)
+        // Fundo PRETO, não transparente. Com `0x00000000` o WebView pede composição por camada, e
+        // dentro de uma árvore Compose o vídeo desapareceu por trás do conteúdo — o sintoma é
+        // "pisca, fica preto e o áudio toca por baixo".
+        setBackgroundColor(0xFF000000.toInt())
+        // Sem isto, um WebView aninhado num container rolável do Compose fica com a rolagem
+        // disputada e o player pisca a cada gesto.
+        isVerticalScrollBarEnabled = false
+        isHorizontalScrollBarEnabled = false
+        overScrollMode = WebView.OVER_SCROLL_NEVER
 
         // `WebViewClient` vazio, mas presente: sem ele todo clique dentro do player (o "assistir no
         // YouTube", o card de fim de vídeo) sai do WebView e abre o navegador do sistema.
