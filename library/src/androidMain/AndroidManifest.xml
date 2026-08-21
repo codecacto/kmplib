@@ -43,6 +43,22 @@
       authority que o ShareHandler já usava — não é introdução nova.
     -->
     <application>
+        <!--
+          A tela de vídeo (`VideoLauncher`/`KmplibVideoActivity`).
+
+          Declarada pela LIB, e não por cada app: player embutido no Compose não funciona (pisca,
+          fica preto, o áudio toca por baixo), então o vídeo precisa da própria janela do sistema —
+          e uma Activity que o consumidor tem de lembrar de declarar é uma que alguém vai esquecer,
+          com falha só em runtime.
+
+          `configChanges` cobre giro e teclado: recriar a Activity recomeçaria o vídeo do zero.
+        -->
+        <activity
+            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

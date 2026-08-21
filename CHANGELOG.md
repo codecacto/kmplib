@@ -30,7 +30,29 @@ que explica o instrumento, sair para assistir é perder a pessoa no meio da expl
 - Arquivo nosso usa o player da plataforma (`VideoView` / `AVPlayerViewController`) — sem trazer o
   Media3 inteiro para dentro de todo app da fábrica.
 
-### `VideoPlayerDialog` — o vídeo em TELA CHEIA (correção do mesmo dia)
+### `VideoLauncher` — o vídeo ganha a PRÓPRIA janela do sistema (segunda correção do mesmo dia)
+
+O diálogo não bastou. O relato voltou igual — *"ainda está bugado"* —, e a razão é que um `Dialog`
+do Compose **continua sendo uma janela com árvore de composição**: a view nativa de vídeo disputa
+camada com ela do mesmo jeito.
+
+O que funciona está em produção no app de Roteiros desde antes disto existir, e agora é da lib:
+**`VideoLauncher` + `KmplibVideoActivity`** — uma Activity sem Compose nenhum dentro (no iOS, um
+`UIViewController` modal). Lá o `WebChromeClient` consegue entregar tela cheia de verdade, a
+orientação vira paisagem, o botão de fechar é view nativa que sempre responde, e o áudio para no
+`onDestroy`.
+
+Três detalhes decidem se o embed carrega, e faltavam nas tentativas anteriores: **`origin=` na URL**,
+**base igual ao pacote do app** (não ao domínio do YouTube) e **`referrerpolicy`**. Sem eles o IFrame
+API recusa a origem e o player abre preto, sem erro nenhum.
+
+A Activity é declarada **no manifest da lib**: uma que o consumidor tivesse de lembrar de declarar é
+uma que alguém vai esquecer, com falha só em runtime.
+
+`VideoPlayer` e `VideoPlayerDialog` **saíram** — API que não funciona é armadilha, não legado.
+`videoSourceOf`/`youTubeIdOf` ficam, com os 6 testes.
+
+### ~~`VideoPlayerDialog`~~ — a tentativa anterior, mantida aqui como registro do modo de falhar
 
 O `VideoPlayer` embutido no meio de uma tela **não funciona**, e o modo de falhar é específico:
 dentro de uma coluna com `verticalScroll`, a view nativa divide a árvore de composição com o
