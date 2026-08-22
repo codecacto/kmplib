@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.auth.TEMPORARY_PASSWORD
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,7 +53,7 @@ fun ForcePasswordChangeDialog(
     modifier: Modifier = Modifier,
     userName: String? = null,
     minLength: Int = 8,
-    temporaryPassword: String = "123456",
+    temporaryPassword: String = TEMPORARY_PASSWORD,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     title: String = "Defina a sua senha",

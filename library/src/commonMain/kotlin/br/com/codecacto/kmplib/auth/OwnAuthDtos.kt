@@ -3,6 +3,22 @@ package br.com.codecacto.kmplib.auth
 import kotlinx.serialization.Serializable
 
 /**
+ * A **senha temporária da fábrica** — a que toda conta criada por um administrador recebe, e que o
+ * titular troca no primeiro acesso. Mesmo valor do `AuthLocalConfig.DEFAULT_TEMPORARY_PASSWORD` da
+ * backlib e do `TEMPORARY_PASSWORD` da weblib.
+ *
+ * Existe exportada porque a tela de **quem cadastra** precisa dizer qual é a senha ("passe `123456`
+ * para a pessoa"), e sem uma constante cada app escreveria o literal na mão — foi o que começou a
+ * acontecer em dois projetos desta rodada, cada um com o seu `private const val`.
+ *
+ * ⚠️ **Não é segredo, e não deve ser tratada como um.** O que sustenta a senha pública é a trava do
+ * SERVIDOR (403 `PASSWORD_CHANGE_REQUIRED` em toda rota do produto enquanto ela valer), nunca o
+ * sigilo dela. Projeto que configure outra temporária no backend passa a dela ao
+ * `ForcePasswordChangeDialog` pela prop `temporaryPassword`.
+ */
+const val TEMPORARY_PASSWORD: String = "123456"
+
+/**
  * Par de tokens devolvido pelo backend own-auth em `register`/`login`/`refresh`.
  *
  * Espelha o contrato `AuthTokens` do `backlib-auth-local` (issuer próprio do projeto): o `accessToken`

@@ -6,6 +6,20 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.133.0 — a senha temporária vira constante exportada
+
+**`TEMPORARY_PASSWORD`** (`br.com.codecacto.kmplib.auth`) — o `"123456"` que só existia como default
+de parâmetro do `ForcePasswordChangeDialog` agora é público, e o componente passa a lê-lo de lá.
+
+Existe porque a tela de **quem cadastra** precisa dizer qual é a senha ("passe isto para a pessoa"),
+e sem a constante cada app escreve o literal na mão — foi o que começou a acontecer em dois projetos
+da rodada do primeiro acesso, cada um com o seu `private const val`. A weblib já exportava o
+equivalente desde a 0.139.0; a kmplib estava atrás.
+
+⚠️ Não é segredo: o que sustenta a senha pública é a trava do SERVIDOR, nunca o sigilo dela.
+
+Aditivo.
+
 ## 2.132.0 — o primeiro acesso obrigatório, e o login que aceita usuário
 
 Metade mobile da decisão do fundador (21/ago/2026; backend em `backlib-auth-local` 0.80.0): conta
