@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import br.com.codecacto.kmplib.auth.AuthIdentifierMode
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
@@ -33,6 +35,16 @@ data class LoginTexts(
     val title: @Composable (() -> String)? = null,
     val emailLabel: @Composable () -> String = { "Email" },
     val emailPlaceholder: @Composable () -> String = { "seu@email.com" },
+    /**
+     * Rótulo e exemplo quando o sistema aceita **e-mail ou usuário** — o padrão da fábrica desde
+     * 22/ago/2026. Ficam separados de [emailLabel] para o app traduzir os dois; o servidor ainda pode
+     * mandar um rótulo próprio (`identifierLabel`), que vence estes.
+     */
+    val identifierLabel: @Composable () -> String = { "E-mail ou usuário" },
+    val identifierPlaceholder: @Composable () -> String = { "seu@email.com ou seu.usuario" },
+    /** Rótulo e exemplo quando o sistema aceita **só** nome de usuário. */
+    val usernameLabel: @Composable () -> String = { "Usuário" },
+    val usernamePlaceholder: @Composable () -> String = { "seu.usuario" },
     val passwordLabel: @Composable () -> String = { "Senha" },
     val passwordPlaceholder: @Composable () -> String = { "••••••••" },
     val loginButton: @Composable () -> String = { "Entrar" },
@@ -132,14 +144,37 @@ fun LoginScreen(
 
                 // Email/Password Login
                 if (authMethods.emailPassword) {
+                    // O que o campo pede vem do SERVIDOR (`state.identifierMode`), não de uma
+                    // decisão congelada aqui. `KeyboardType.Email` só quando é e-mail mesmo: no modo
+                    // usuário, o teclado de e-mail e a correção automática atrapalham quem digita
+                    // `joao.silva` — e o rótulo passaria a mentir.
+                    val rotuloLocal = when (state.identifierMode) {
+                        AuthIdentifierMode.EMAIL -> texts.emailLabel()
+                        AuthIdentifierMode.USERNAME -> texts.usernameLabel()
+                        AuthIdentifierMode.BOTH -> texts.identifierLabel()
+                    }
                     AppTextField(
                         modifier = Modifier.testTag(LoginTestTags.INPUT_EMAIL),
                         value = state.email,
                         onValueChange = { onAction(LoginAction.Input.EmailChanged(it)) },
-                        label = texts.emailLabel(),
-                        placeholder = texts.emailPlaceholder(),
-                        leadingIcon = Icons.Default.Email,
-                        keyboardType = KeyboardType.Email,
+                        // O rótulo do servidor vence: num sistema configurado como "Matrícula", o app
+                        // tem de dizer "Matrícula".
+                        label = state.identifierLabel.ifBlank { rotuloLocal },
+                        placeholder = when (state.identifierMode) {
+                            AuthIdentifierMode.EMAIL -> texts.emailPlaceholder()
+                            AuthIdentifierMode.USERNAME -> texts.usernamePlaceholder()
+                            AuthIdentifierMode.BOTH -> texts.identifierPlaceholder()
+                        },
+                        leadingIcon = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
+                            Icons.Default.Email
+                        } else {
+                            Icons.Default.Person
+                        },
+                        keyboardType = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
+                            KeyboardType.Email
+                        } else {
+                            KeyboardType.Text
+                        },
                         imeAction = ImeAction.Next,
                         errorMessage = state.emailError,
                         primaryColor = colors.primary,

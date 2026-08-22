@@ -6,6 +6,29 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.134.0 — o app parava de mentir sobre o que o campo de login aceita
+
+**`AuthIdentifierMode`**, **`OwnAuthIdentifierConfig`**, **`OwnAuthApi.identifierConfig()`** e
+`LoginState.identifierMode`/`identifierLabel`.
+
+⚠️ **Era um defeito real, não uma capacidade que faltava.** O `LoginScreen` tinha rótulo e teclado
+**fixos em e-mail**, e a lib não lia o `GET {authBasePath}/config`. No Meu Barbeiro o portal já dizia
+"E-mail ou usuário" e o app dizia "E-mail", com teclado de e-mail, para quem precisava digitar
+`joao.silva`. O login **funcionava** (a API aceita os dois) — a TELA é que estava errada, e é a tela
+que a pessoa vê.
+
+Agora o campo obedece ao modo: rótulo, exemplo, ícone e `keyboardType`. O **rótulo do servidor
+vence** o texto local (sistema configurado como "Matrícula" mostra "Matrícula"), e `LoginTexts` ganhou
+`identifierLabel`/`identifierPlaceholder`/`usernameLabel`/`usernamePlaceholder` para o app traduzir.
+
+`identifierConfig()` **nunca lança**: rede fora, backend anterior à 0.80.0 (404) ou corpo inesperado
+caem em `EMAIL` — uma tela de login que não abre porque o endpoint do *rótulo* caiu seria trocar um
+inconveniente por uma porta trancada. Pelo mesmo motivo o default de `LoginState.identifierMode` é
+`EMAIL`: app que não consulta o servidor não muda de aparência sozinho.
+
+É o que mantém **app e portal em sincronia sem republicar nada na loja**: os dois leem a mesma
+configuração do mesmo backend.
+
 ## 2.133.0 — a senha temporária vira constante exportada
 
 **`TEMPORARY_PASSWORD`** (`br.com.codecacto.kmplib.auth`) — o `"123456"` que só existia como default

@@ -50,3 +50,55 @@ class LoginContractTest {
         assertFalse(estado.showForgotPasswordDialog)
     }
 }
+
+/**
+ * O modo do identificador no estado da tela — o que faz o app parar de mentir quando o sistema
+ * aceita nome de usuário.
+ *
+ * Antes disto o rótulo e o teclado eram **fixos em e-mail**: no Meu Barbeiro, o portal já dizia
+ * "E-mail ou usuário" e o app dizia "E-mail", com teclado de e-mail, para quem precisava digitar
+ * `joao.silva`. O login funcionava (a API aceita os dois) — a TELA é que estava errada.
+ */
+class LoginIdentifierModeTest {
+
+    @kotlin.test.Test
+    fun `default e EMAIL, para app que nao consulta o servidor nao mudar de aparencia sozinho`() {
+        kotlin.test.assertEquals(
+            br.com.codecacto.kmplib.auth.AuthIdentifierMode.EMAIL,
+            LoginState().identifierMode,
+        )
+        kotlin.test.assertEquals("", LoginState().identifierLabel)
+    }
+
+    @kotlin.test.Test
+    fun `o rotulo do servidor vence o texto local`() {
+        // Num sistema que a empresa configurou como "Matrícula", o app tem de dizer "Matrícula".
+        val state = LoginState(
+            identifierMode = br.com.codecacto.kmplib.auth.AuthIdentifierMode.BOTH,
+            identifierLabel = "Matrícula",
+        )
+        kotlin.test.assertEquals("Matrícula", state.identifierLabel.ifBlank { "E-mail ou usuário" })
+    }
+
+    @kotlin.test.Test
+    fun `config do servidor desserializa, e corpo estranho cai no default`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val lido = json.decodeFromString(
+            br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),
+            """{"identifierMode":"BOTH","identifierLabel":"E-mail ou usuário","extra":1}""",
+        )
+        kotlin.test.assertEquals(
+            br.com.codecacto.kmplib.auth.AuthIdentifierMode.BOTH,
+            lido.identifierMode,
+        )
+        // Backend anterior à 0.80.0 não manda o campo: EMAIL, o comportamento de sempre.
+        val vazio = json.decodeFromString(
+            br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),
+            "{}",
+        )
+        kotlin.test.assertEquals(
+            br.com.codecacto.kmplib.auth.AuthIdentifierMode.EMAIL,
+            vazio.identifierMode,
+        )
+    }
+}

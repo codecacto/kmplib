@@ -88,6 +88,23 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
      * O nonce **nunca** é gerado no aparelho: ele só prova alguma coisa se quem verifica for quem
      * emitiu. Ver [SocialNonce].
      */
+    /**
+     * `GET {authBasePath}/config` — **o que o campo de login deve pedir, e com que rótulo.**
+     *
+     * Público de propósito: a tela precisa disso antes de existir qualquer token. E **nunca falha
+     * para o usuário** — rede fora, backend anterior à 0.80.0 (404) ou corpo inesperado devolvem
+     * [OwnAuthIdentifierConfig.Default] (`EMAIL`), que é o comportamento de sempre. Uma tela de login
+     * que não abre porque o endpoint do *rótulo* caiu seria trocar um inconveniente por uma porta
+     * trancada.
+     *
+     * É o que mantém app e portal **em sincronia sem republicar nada**: os dois falam com o mesmo
+     * backend e leem a mesma configuração.
+     */
+    suspend fun identifierConfig(): OwnAuthIdentifierConfig =
+        executeGet("config")
+            .mapCatching { json.decodeFromString(OwnAuthIdentifierConfig.serializer(), it.bodyAsText()) }
+            .getOrDefault(OwnAuthIdentifierConfig.Default)
+
     suspend fun socialNonce(): Result<SocialNonce> =
         executeGet(config.socialNonceSuffix).mapCatching { response ->
             json.decodeFromString(SocialNonce.serializer(), response.bodyAsText())

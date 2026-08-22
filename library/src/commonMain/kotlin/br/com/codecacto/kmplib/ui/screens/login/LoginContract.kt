@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.screens.login
 
+import br.com.codecacto.kmplib.auth.AuthIdentifierMode
 import br.com.codecacto.kmplib.ui.mvi.UiAction
 import br.com.codecacto.kmplib.ui.mvi.UiEffect
 import br.com.codecacto.kmplib.ui.mvi.UiState
@@ -14,6 +15,18 @@ import br.com.codecacto.kmplib.ui.mvi.UiState
 data class LoginState(
     // Campos
     val email: String = "",
+    /**
+     * O que o campo de identificação aceita — vem do servidor (`OwnAuthApi.identifierConfig()`), não
+     * de uma decisão congelada no app.
+     *
+     * Default [AuthIdentifierMode.EMAIL] de propósito: um app que **não** consulta o servidor
+     * continua com a aparência de sempre. Sem isto, o rótulo do app **mente** — foi o que aconteceu
+     * no Meu Barbeiro, com o portal dizendo "E-mail ou usuário" e o app dizendo "E-mail", teclado de
+     * e-mail e tudo, para quem precisava digitar `joao.silva`.
+     */
+    val identifierMode: AuthIdentifierMode = AuthIdentifierMode.EMAIL,
+    /** Rótulo pronto vindo do servidor. Vazio = usar o texto local do modo. */
+    val identifierLabel: String = "",
     val password: String = "",
 
     // Estados de loading
