@@ -28,6 +28,10 @@ de login no toque seguinte, o que lê exatamente como falha.
 ausente na resposta de um backend anterior desserializa como `false`, que é o correto. Nulável
 convidaria ao `!= null` no ViewModel, que devolve `true` para "não veio".
 
+**`OwnAuthSession.passwordChangeRequired`** — a marca chega até a sessão persistida, que é o que o
+app observa para abrir o diálogo. Default `false` e não-nulável: sessão gravada por uma versão
+anterior desserializa como `false`, que é o correto — quem já usava o app tem senha própria.
+
 **`OwnAuthApi.login(identifier, password)`** — o parâmetro deixa de se chamar `email` e o corpo manda
 `identifier` **e** `email` juntos quando o valor tem `@`. Os dois de propósito: um app atualizado
 contra um backend ainda não bumpado receberia "usuário ou senha inválidos" para credencial correta.

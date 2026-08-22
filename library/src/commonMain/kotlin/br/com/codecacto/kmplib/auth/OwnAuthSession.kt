@@ -31,6 +31,17 @@ data class OwnAuthSession(
     val email: String = "",
     val name: String = "",
     val providerId: String = DEFAULT_PROVIDER_ID,
+    /**
+     * `true` enquanto a conta estiver com a **senha temporária** posta pelo administrador — o
+     * titular precisa definir a dele antes de usar o app (`backlib-auth-local` ≥ 0.80.0).
+     *
+     * O app observa isto para abrir o `ForcePasswordChangeDialog`. **Não é a trava**: quem obriga é
+     * o servidor, que recusa toda rota do produto com `403 PASSWORD_CHANGE_REQUIRED`.
+     *
+     * Default `false` e não-nulável: sessão gravada por uma versão anterior desserializa como
+     * `false`, que é o correto — quem já usava o app tem senha própria.
+     */
+    val passwordChangeRequired: Boolean = false,
 ) {
     companion object {
         /** Login por e-mail e senha — mesmo valor que o `User.providerId` default. */

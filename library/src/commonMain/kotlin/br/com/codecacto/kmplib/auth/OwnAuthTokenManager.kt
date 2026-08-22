@@ -133,6 +133,7 @@ class OwnAuthTokenManager(
             email = email,
             name = name,
             providerId = providerId,
+            passwordChangeRequired = passwordChangeRequired,
         )
     }
 
