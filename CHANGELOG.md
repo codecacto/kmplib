@@ -6,6 +6,25 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.138.0 — em own-auth, o wipe já leva a credencial
+
+**`AccountDeletionService(credencialSaiNoWipe = true)`** — o segundo passo da exclusão deixa de
+existir onde ele não faz sentido.
+
+O serviço nasceu para app com **Firebase**: apaga os dados (`DELETE /v1/me/data`) e depois a conta no
+IdP. Em projeto **own-auth** (`backlib-auth-local`) não há IdP externo: a senha mora na MESMA base
+que o wipe apagou. O `deleteAccount()` do `EmailPasswordAuthRepository` responde
+`UnsupportedOperation` — de propósito —, e o serviço traduzia essa recusa em
+`DataWipedAccountPending`, fazendo o app dizer *"entre novamente para remover o login"* de um login
+que **já não existe**. A conta era apagada corretamente e a pessoa saía achando que sobrou alguma
+coisa.
+
+Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Completed`. Default
+`false` — ninguém que use Firebase muda de comportamento.
+
+Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
+(auditoria de 22/ago/2026).
+
 ## 2.137.0 — o player DENTRO da página, e o toast com cara de banner
 
 **`VideoPlayerInline`** — o vídeo toca no lugar onde ele está, rolando junto com o texto. A capa

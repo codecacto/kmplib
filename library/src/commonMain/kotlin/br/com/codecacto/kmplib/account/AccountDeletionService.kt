@@ -30,6 +30,7 @@ import br.com.codecacto.kmplib.sync.rest.DomainResult
  * @param dataPath rota do wipe atômico. Default `"/v1/me/data"`.
  * @param exportPath rota de exportação. Default `"/v1/me/export"`.
  * @param texts mensagens amigáveis (i18n; defaults pt-BR).
+ * @param credencialSaiNoWipe **`true` em projeto own-auth** — ver o KDoc do parâmetro.
  */
 class AccountDeletionService(
     private val api: DomainApiClient,
@@ -37,6 +38,20 @@ class AccountDeletionService(
     private val dataPath: String = DEFAULT_DATA_PATH,
     private val exportPath: String = DEFAULT_EXPORT_PATH,
     private val texts: AccountDeletionTexts = AccountDeletionTexts(),
+    /**
+     * **A credencial de login já sai no próprio wipe?** `true` em projeto **own-auth**
+     * (`backlib-auth-local`), onde a senha mora na MESMA base que o `DELETE {dataPath}` apaga —
+     * então não há segundo passo a dar: o serviço só encerra a sessão local e devolve
+     * [AccountDeletionResult.Completed].
+     *
+     * Existe porque o default (`false`, Firebase) **mente em own-auth**: o
+     * [IAuthRepository.deleteAccount] do `EmailPasswordAuthRepository` responde
+     * `UnsupportedOperation` — de propósito, já que não há IdP externo a chamar —, e o serviço
+     * traduzia essa recusa em [AccountDeletionResult.DataWipedAccountPending], fazendo o app dizer
+     * *"entre novamente para remover o login"* de um login que **já não existe**. A pessoa
+     * apagava a conta e saía achando que sobrou alguma coisa.
+     */
+    private val credencialSaiNoWipe: Boolean = false,
 ) {
 
     /**
@@ -60,6 +75,12 @@ class AccountDeletionService(
         }
 
         // 2. Conta de autenticação por ÚLTIMO — dados pessoais já removidos neste ponto.
+        //    Em own-auth a credencial saiu junto no passo 1: resta encerrar a sessão local, e o
+        //    resultado é COMPLETO (nada ficou pendente).
+        if (credencialSaiNoWipe) {
+            auth.signOut()
+            return Result.success(AccountDeletionResult.Completed)
+        }
         auth.deleteAccount().onFailure {
             if (it is AuthException.RequiresRecentLogin) {
                 AppLogger.w(TAG, "Dados removidos; exclusão da conta exige re-login recente (resíduo benigno)")

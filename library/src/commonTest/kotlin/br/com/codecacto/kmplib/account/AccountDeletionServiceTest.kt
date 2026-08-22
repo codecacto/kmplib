@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AccountDeletionServiceTest {
@@ -43,7 +44,8 @@ class AccountDeletionServiceTest {
         override suspend fun sendPasswordResetEmail(email: String): Result<Unit> = Result.success(Unit)
         override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> = Result.success(Unit)
         override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> = Result.success(Unit)
-        override suspend fun signOut() {}
+        var signOutCalled = false
+        override suspend fun signOut() { signOutCalled = true }
         override suspend fun sendEmailVerification(): Result<Unit> = Result.success(Unit)
         override suspend fun getIdToken(forceRefresh: Boolean): Result<String> = Result.success("tok")
     }
@@ -115,5 +117,27 @@ class AccountDeletionServiceTest {
         )
         val r = service.exportData()
         assertEquals("""{"tomadores":[]}""", r.getOrNull())
+    }
+
+    /**
+     * **own-auth**: a credencial mora na mesma base que o wipe apaga. O `deleteAccount` do
+     * `EmailPasswordAuthRepository` responde `UnsupportedOperation` de propósito — e traduzir isso
+     * em `DataWipedAccountPending` fazia o app pedir um segundo login para remover um login que já
+     * não existe.
+     */
+    @Test
+    fun `own-auth - wipe apaga a credencial, encerra a sessao e retorna Completed`() = runTest {
+        val auth = FakeAuth(user, deleteResult = Result.failure(AuthException.UnknownError("unsupported")))
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = auth,
+            credencialSaiNoWipe = true,
+        )
+
+        val r = service.deleteAccountAndData()
+
+        assertEquals(AccountDeletionResult.Completed, r.getOrNull())
+        assertTrue(auth.signOutCalled, "a sessão local precisa cair")
+        assertFalse(auth.deleteCalled, "não há IdP externo a chamar em own-auth")
     }
 }
