@@ -35,12 +35,31 @@ enum class ToastType {
 }
 
 /**
+ * A **aparência** do toast.
+ *
+ * [PILL] é o desenho original: pílula sólida colorida com texto branco. [BANNER] desenha o
+ * [AppBanner] correspondente ao tipo — o mesmo cartão informativo que as telas já usam para dizer
+ * "salvo", só que flutuando e sumindo sozinho.
+ *
+ * A opção existe porque as duas coisas são pedidas juntas o tempo todo: *"quero um toast, mas com o
+ * layout daquele cartãozinho"* (fundador, NeuroCoreX, 22/ago/2026). Sem ela, a saída era um
+ * `AppBanner` no meio da coluna, que ocupa espaço permanente para uma confirmação de dois segundos —
+ * ou uma pílula que não parece com o resto do produto.
+ */
+enum class ToastStyle {
+    PILL,
+    BANNER,
+}
+
+/**
  * Dados de configuração do toast
  */
 data class ToastData(
     val message: String,
     val type: ToastType = ToastType.INFO,
-    val duration: Long = 3000L
+    val duration: Long = 3000L,
+    /** Um título curto acima da mensagem. Só o estilo [ToastStyle.BANNER] o desenha. */
+    val title: String? = null,
 )
 
 /**
@@ -59,20 +78,20 @@ class ToastState {
     }
 
     // Helpers
-    fun showSuccess(message: String, duration: Long = 3000L) {
-        showToast(ToastData(message, ToastType.SUCCESS, duration))
+    fun showSuccess(message: String, duration: Long = 3000L, title: String? = null) {
+        showToast(ToastData(message, ToastType.SUCCESS, duration, title))
     }
 
-    fun showError(message: String, duration: Long = 3000L) {
-        showToast(ToastData(message, ToastType.ERROR, duration))
+    fun showError(message: String, duration: Long = 3000L, title: String? = null) {
+        showToast(ToastData(message, ToastType.ERROR, duration, title))
     }
 
-    fun showWarning(message: String, duration: Long = 3000L) {
-        showToast(ToastData(message, ToastType.WARNING, duration))
+    fun showWarning(message: String, duration: Long = 3000L, title: String? = null) {
+        showToast(ToastData(message, ToastType.WARNING, duration, title))
     }
 
-    fun showInfo(message: String, duration: Long = 3000L) {
-        showToast(ToastData(message, ToastType.INFO, duration))
+    fun showInfo(message: String, duration: Long = 3000L, title: String? = null) {
+        showToast(ToastData(message, ToastType.INFO, duration, title))
     }
 }
 
@@ -95,7 +114,9 @@ fun rememberToastState(): ToastState {
 fun ToastHost(
     toastState: ToastState,
     modifier: Modifier = Modifier,
-    topPadding: Dp = 16.dp
+    topPadding: Dp = 16.dp,
+    /** [ToastStyle.PILL] (padrão, o desenho de sempre) ou [ToastStyle.BANNER]. */
+    style: ToastStyle = ToastStyle.PILL,
 ) {
     val toast = toastState.currentToast.value
 
@@ -125,13 +146,29 @@ fun ToastHost(
             ) + fadeOut(animationSpec = tween(300))
         ) {
             toast?.let {
-                ToastContent(
-                    message = it.message,
-                    type = it.type
-                )
+                when (style) {
+                    ToastStyle.PILL -> ToastContent(message = it.message, type = it.type)
+                    // O MESMO componente das telas, com a largura contida: esticado de ponta a
+                    // ponta ele deixa de parecer um aviso flutuante e passa a parecer parte da
+                    // página, que é justamente o que o toast não é.
+                    ToastStyle.BANNER -> AppBanner(
+                        message = it.message,
+                        title = it.title,
+                        tone = it.type.paraTom(),
+                        modifier = Modifier.padding(horizontal = 16.dp).widthIn(max = 560.dp),
+                    )
+                }
             }
         }
     }
+}
+
+/** O tom do `AppBanner` equivalente — o mapa entre os dois vocabulários, num lugar só. */
+private fun ToastType.paraTom(): StatusTone = when (this) {
+    ToastType.SUCCESS -> StatusTone.SUCCESS
+    ToastType.ERROR -> StatusTone.DANGER
+    ToastType.WARNING -> StatusTone.WARNING
+    ToastType.INFO -> StatusTone.INFO
 }
 
 /**

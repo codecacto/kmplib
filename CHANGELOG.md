@@ -6,6 +6,31 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.137.0 — o player DENTRO da página, e o toast com cara de banner
+
+**`VideoPlayerInline`** — o vídeo toca no lugar onde ele está, rolando junto com o texto. A capa
+vira player no primeiro toque, no mesmo retângulo; a tela cheia continua sendo o botão do próprio
+player.
+
+⚠️ **Isto já falhou duas vezes** (`VideoPlayer`/`VideoPlayerDialog`, removidos: piscava, ficava
+preto, o áudio tocava por baixo). Três coisas eram a causa, e as três estão resolvidas: a view nasce
+**só depois do play** (antes disso é uma imagem, sem processo de renderização nenhum); é memoizada e
+**liberada explicitamente** no `onRelease`, que é o que interrompe o áudio ao sair; e **não pode ir
+dentro de item de `LazyColumn`** — lista preguiçosa recicla, e o vídeo recomeçaria ao rolar. Quem
+usa numa tela rolável usa `Column` + `verticalScroll`.
+
+O `VideoLauncher` continua para quando **assistir é a tarefa** (um curso, uma aula) — e o modo
+compacto da 2.136.0 segue valendo.
+
+**`ToastHost(style = ToastStyle.BANNER)`** — o toast com o layout do `AppBanner`, em vez da pílula
+sólida. Nasceu de um pedido que se repete: *"quero um toast, mas com o layout daquele cartãozinho"*.
+Sem a opção, a saída era um banner fixo no meio da coluna — espaço permanente para uma confirmação
+de dois segundos — ou uma pílula que não se parece com nada mais no produto. `ToastData` ganhou
+`title`, que só o estilo BANNER desenha.
+
+⚠️ **iOS não compilado**: `compileKotlinIosSimulatorArm64` roda SKIPPED em Linux. O código das duas
+plataformas é simétrico e o Android está verde; a validação Apple é do Mac.
+
 ## 2.136.0 — o vídeo abre PEQUENO: `play(source, compact = true)`
 
 O `VideoLauncher` ganhou um segundo tamanho. `compact = true` abre a **mesma janela do sistema**,
