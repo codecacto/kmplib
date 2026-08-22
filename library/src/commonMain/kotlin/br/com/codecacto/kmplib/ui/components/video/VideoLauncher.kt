@@ -27,19 +27,42 @@ import androidx.compose.runtime.Composable
  * 2. **A base é o pacote do app** (`https://<packageName>`), não o domínio do YouTube.
  * 3. **`referrerpolicy="strict-origin-when-cross-origin"`**, no `<meta>` e no `<iframe>`.
  *
+ * ## Dois tamanhos: cheio e COMPACTO (2.136.0)
+ *
+ * O padrão (`compact = false`) é a janela cheia: fundo preto, paisagem forçada, imersivo. É o certo
+ * quando assistir É a tarefa — um curso, uma aula.
+ *
+ * `compact = true` abre a MESMA janela do sistema, translúcida: o player aparece em 16:9 no meio da
+ * tela, a tela de onde a pessoa veio continua visível por trás, e tocar fora fecha. O botão de tela
+ * cheia do próprio player continua lá — quem quiser o modo cheio pede.
+ *
+ * Ele nasceu de um pedido do fundador sobre o vídeo de apresentação do protocolo (22/ago/2026): um
+ * vídeo de dois minutos que explica a tela em que a pessoa está não deveria tomar o aparelho inteiro
+ * e virar a orientação. *"Queria que ele abrisse pequeno... pode abrir até uma tela nova, só que
+ * pequena. Se a pessoa escolher deixar em tela cheia, deixa."*
+ *
+ * O que ele **não** é: player embutido na árvore de composição. Isso continua não funcionando, pelo
+ * motivo do parágrafo acima — e é justamente por a janela ser do sistema que o modo compacto
+ * funciona sem piscar.
+ *
  * ## Uso
  *
  * ```kotlin
  * val video = rememberVideoLauncher()
  *
- * CapaDoVideo(onClick = { videoSourceOf(url)?.let(video::play) })
+ * CapaDoVideo(onClick = { videoSourceOf(url)?.let { video.play(it, compact = true) } })
  * ```
  *
  * [VideoSource.External] não é tocada aqui: quem chama abre no navegador — ver `videoSourceOf`.
  */
 expect class VideoLauncher {
-    /** Abre a tela do vídeo. `External` é ignorada de propósito. */
-    fun play(source: VideoSource)
+    /**
+     * Abre a tela do vídeo. `External` é ignorada de propósito.
+     *
+     * @param compact `true` = janela translúcida com o player em 16:9 no meio da tela, sobre o
+     *   conteúdo de onde se veio. `false` (padrão) = janela cheia, em paisagem.
+     */
+    fun play(source: VideoSource, compact: Boolean = false)
 }
 
 /** O launcher da plataforma corrente, preso à composição atual. */

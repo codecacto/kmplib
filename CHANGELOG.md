@@ -6,6 +6,61 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.136.0 — o vídeo abre PEQUENO: `play(source, compact = true)`
+
+O `VideoLauncher` ganhou um segundo tamanho. `compact = true` abre a **mesma janela do sistema**,
+agora translúcida: o player fica em **16:9 no meio da tela**, o conteúdo de onde a pessoa veio
+continua visível por trás, tocar fora fecha, e nada de paisagem forçada nem modo imersivo. O botão
+de expandir do próprio player continua ali — quem quiser o modo cheio pede.
+
+**Por que existe** (pedido do fundador no NeuroCoreX, 22/ago/2026): o vídeo de apresentação do
+protocolo tem dois minutos e explica a tela em que a pessoa está. Abrir isso em tela cheia, virando o
+aparelho e engolindo as barras do sistema, tira a pessoa do lugar onde ela estava lendo. *"Queria que
+ele abrisse pequeno... pode abrir até uma tela nova, só que pequena. Se a pessoa escolher deixar em
+tela cheia, deixa."*
+
+⚠️ **Isto NÃO é o player embutido na composição** — aquilo continua não funcionando, e é por isso que
+o modo compacto é uma janela do sistema e não um `Box` na tela. View nativa de vídeo dentro de uma
+árvore Compose (coluna rolável ou `Dialog`) pisca, fica preta e toca áudio por baixo, com os
+controles inalcançáveis. O que muda aqui é o **tamanho e a transparência da janela**, nunca o lugar
+onde o vídeo vive.
+
+**Duas Activities no Android, de propósito.** `KmplibVideoCompactActivity` existe só para carregar um
+`android:theme` translúcido no manifest: translucidez é resolvida quando o sistema cria a janela,
+antes do `onCreate` — ligá-la por um extra do Intent daria uma janela opaca com layout compacto, ou
+seja, moldura preta em volta do player. No iOS o equivalente é `UIModalPresentationOverFullScreen`
+(e não `FullScreen`, que remove a view de baixo da hierarquia e faria o fundo translúcido mostrar
+preto).
+
+Aditivo: `compact` tem default `false`, e quem já chamava `play(source)` não muda de comportamento.
+
+## 2.135.0 — "Perto de mim" era um botão mudo: `AppPermission.LOCATION`
+
+**`AppPermission.LOCATION`** (Android `ACCESS_COARSE_LOCATION` · iOS `CLLocationManager` when-in-use)
+e o **`LocationProvider` do Android consertado em dois pontos**.
+
+⚠️ **Eram dois defeitos somados, e o sintoma dos dois é o mesmo: nada acontece.**
+
+1. `AndroidLocationProvider.hasPermissionSync()` conferia **só `ACCESS_FINE_LOCATION`**. Um app que
+   declara apenas `ACCESS_COARSE_LOCATION` no manifesto — o que a fábrica recomenda para ordenar por
+   distância — nunca satisfazia a conferência: a pessoa **permitia**, e `getCurrentLocation()`
+   devolvia `null` assim mesmo. A tela então dizia "não foi possível obter sua localização" logo
+   depois de o usuário ter concedido. Agora **COARSE ou FINE serve**.
+2. `createLocationProvider()` — o que o Koin resolve — nascia **sem `PermissionRequester`**, e só o
+   helper Compose `rememberLocationProvider()` tinha um. Provider injetado, portanto, **nunca abria
+   o diálogo**: dependia de outra tela já ter pedido. Agora ele pede pelo `PermissionManager` da
+   própria lib.
+
+Junto veio o pedido em si como permissão de primeira classe: `rememberPermissionState(
+AppPermission.LOCATION)` funciona nas duas plataformas, com negação permanente → `openAppSettings()`,
+como as outras quatro. E o `CurrentLocationRequest` passou a `PRIORITY_BALANCED_POWER_ACCURACY` — com
+COARSE o Fused não entrega precisão de GPS de qualquer forma, e pedir alta precisão só gastava
+bateria e alongava o fix.
+
+**O app continua responsável pela declaração**: `ACCESS_COARSE_LOCATION` no manifesto (Android) e
+`NSLocationWhenInUseUsageDescription` no `Info.plist` (iOS). Sem ela o sistema nega **sem mostrar
+diálogo** — o mesmo modo de falhar da `CAMERA`.
+
 ## 2.134.0 — o app parava de mentir sobre o que o campo de login aceita
 
 **`AuthIdentifierMode`**, **`OwnAuthIdentifierConfig`**, **`OwnAuthApi.identifierConfig()`** e

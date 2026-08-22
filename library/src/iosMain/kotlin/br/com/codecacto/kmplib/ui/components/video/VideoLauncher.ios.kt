@@ -13,6 +13,7 @@ import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 import platform.UIKit.UIColor
 import platform.UIKit.UIModalPresentationFullScreen
+import platform.UIKit.UIModalPresentationOverFullScreen
 import platform.UIKit.UIViewController
 import platform.WebKit.WKAudiovisualMediaTypeNone
 import platform.WebKit.WKWebView
@@ -28,10 +29,10 @@ import platform.WebKit.WKWebViewConfiguration
  */
 actual class VideoLauncher {
 
-    actual fun play(source: VideoSource) {
+    actual fun play(source: VideoSource, compact: Boolean) {
         val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return
         val controller: UIViewController = when (source) {
-            is VideoSource.YouTube -> ControladorDeYouTube(source.videoId)
+            is VideoSource.YouTube -> ControladorDeYouTube(source.videoId, compact)
             is VideoSource.File -> AVPlayerViewController().apply {
                 player = AVPlayer(uRL = NSURL(string = source.url))
                 player?.play()
@@ -39,7 +40,14 @@ actual class VideoLauncher {
 
             is VideoSource.External -> return
         }
-        controller.modalPresentationStyle = UIModalPresentationFullScreen
+        // `OverFullScreen` e não `FullScreen`: é o que mantém a tela de baixo NA HIERARQUIA. Com
+        // `FullScreen` o iOS remove a view de trás depois da animação, e o fundo translúcido passa a
+        // mostrar preto — o modo compacto viraria o modo cheio com um retângulo escuro em volta.
+        controller.modalPresentationStyle = if (compact) {
+            UIModalPresentationOverFullScreen
+        } else {
+            UIModalPresentationFullScreen
+        }
         raiz.presentViewController(controller, animated = true, completion = null)
     }
 }
@@ -48,13 +56,21 @@ actual class VideoLauncher {
 actual fun rememberVideoLauncher(): VideoLauncher = remember { VideoLauncher() }
 
 /** O `WKWebView` do YouTube em tela cheia, com um botão nativo de fechar por cima. */
-private class ControladorDeYouTube(private val videoId: String) : UIViewController(null, null) {
+private class ControladorDeYouTube(
+    private val videoId: String,
+    private val compact: Boolean,
+) : UIViewController(null, null) {
 
     private var web: WKWebView? = null
 
     override fun viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor.blackColor
+        // Compacto: o preto vira véu, e o que estava na tela continua legível em volta do player.
+        view.backgroundColor = if (compact) {
+            UIColor.blackColor.colorWithAlphaComponent(0.75)
+        } else {
+            UIColor.blackColor
+        }
 
         val config = WKWebViewConfiguration().apply {
             // Sem isto o iOS assume o vídeo em tela cheia sozinho e o `playsinline` é ignorado —

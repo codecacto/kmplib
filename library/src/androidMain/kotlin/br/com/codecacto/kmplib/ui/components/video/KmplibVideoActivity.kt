@@ -35,7 +35,18 @@ import androidx.core.view.WindowInsetsControllerCompat
  * completo para o giro não recriar a tela — recriar significa recomeçar o vídeo do zero — e
  * `exported="false"`, porque ninguém de fora tem o que abrir aqui.
  */
-class KmplibVideoActivity : ComponentActivity() {
+open class KmplibVideoActivity : ComponentActivity() {
+
+    /**
+     * `true` na variante compacta ([KmplibVideoCompactActivity]): janela translúcida, player em 16:9
+     * no meio da tela, sem forçar paisagem e sem modo imersivo.
+     *
+     * É uma propriedade sobrescrita, e não um extra do Intent, porque quem decide o TAMANHO é a
+     * janela — e a janela é escolhida no manifest, pelo tema. Ler um extra aqui daria um layout
+     * compacto dentro de uma janela opaca de tela cheia: um cartão de vídeo com uma moldura preta
+     * do tamanho do aparelho.
+     */
+    protected open val compacto: Boolean get() = false
 
     private var webView: WebView? = null
     private var viewEmTelaCheia: View? = null
@@ -54,13 +65,26 @@ class KmplibVideoActivity : ComponentActivity() {
             return
         }
 
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        entrarEmImersivo()
+        if (!compacto) {
+            // Paisagem e imersivo são do modo CHEIO: lá assistir é a tarefa. No compacto, virar o
+            // aparelho e engolir as barras do sistema para tocar dois minutos de apresentação é
+            // exatamente o que o fundador pediu para não acontecer.
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            entrarEmImersivo()
+        } else {
+            // Tocar fora fecha — é o gesto que todo mundo tenta primeiro num cartão sobre a tela.
+            setFinishOnTouchOutside(true)
+        }
 
-        val raiz = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val raiz = FrameLayout(this).apply {
+            // No compacto o fundo é um VÉU: a tela de onde a pessoa veio continua visível em volta
+            // do player, que é o ponto do modo. Preto opaco aqui apagaria o contexto e o modo
+            // compacto viraria o cheio com bordas.
+            setBackgroundColor(if (compacto) Color.argb(190, 0, 0, 0) else Color.BLACK)
+        }
 
         containerDoConteudo = FrameLayout(this)
-        raiz.addView(containerDoConteudo, ocuparTudo())
+        raiz.addView(containerDoConteudo, if (compacto) quadroCompacto() else ocuparTudo())
 
         // Container da tela cheia do PRÓPRIO player (o botão de expandir do YouTube). Nasce oculto:
         // é o `onShowCustomView` que o preenche.
@@ -166,6 +190,12 @@ class KmplibVideoActivity : ComponentActivity() {
                     containerDeTelaCheia.addView(view, ocuparTudo())
                     containerDeTelaCheia.visibility = View.VISIBLE
                     containerDoConteudo.visibility = View.GONE
+                    // **Aqui o compacto vira cheio, e é o único lugar em que isso acontece.** Quem
+                    // tocou no botão de expandir do player pediu a tela toda — inclusive a
+                    // paisagem, que no compacto não é forçada na abertura.
+                    if (compacto) {
+                        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
                     entrarEmImersivo()
                 }
 
@@ -196,6 +226,12 @@ class KmplibVideoActivity : ComponentActivity() {
     }
 
     private fun sairDaTelaCheia() {
+        if (compacto) {
+            // Volta ao cartão: a orientação destrava e as barras do sistema voltam, porque a tela
+            // de baixo — que continua visível em volta — é retrato.
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            sairDoImersivo()
+        }
         viewEmTelaCheia?.let { containerDeTelaCheia.removeView(it) }
         viewEmTelaCheia = null
         callbackDeTelaCheia?.onCustomViewHidden()
@@ -222,6 +258,27 @@ class KmplibVideoActivity : ComponentActivity() {
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT,
     )
+
+    /**
+     * O quadro do modo compacto: largura cheia menos um respiro, altura **16:9**, centrado.
+     *
+     * A altura é calculada e não deixada em `WRAP_CONTENT` porque quem está dentro é um `WebView` —
+     * ele não tem altura natural, e sem medida vira uma faixa de poucos pixels ou a tela inteira,
+     * conforme o momento em que o HTML termina de carregar.
+     */
+    private fun quadroCompacto(): FrameLayout.LayoutParams {
+        val respiro = (16 * resources.displayMetrics.density).toInt()
+        val largura = resources.displayMetrics.widthPixels - respiro * 2
+        return FrameLayout.LayoutParams(largura, largura * 9 / 16).apply {
+            gravity = Gravity.CENTER
+        }
+    }
+
+    private fun sairDoImersivo() {
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+    }
 
     private fun entrarEmImersivo() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -254,4 +311,16 @@ class KmplibVideoActivity : ComponentActivity() {
             "youtube.com/@",
         )
     }
+}
+
+/**
+ * A variante **compacta** — a mesma tela, noutra janela.
+ *
+ * Ela existe só para carregar um `android:theme` translúcido no manifest: translucidez é resolvida
+ * quando o sistema cria a janela, antes do `onCreate`, então não há como ligá-la em runtime a partir
+ * de um extra do Intent. Todo o comportamento está em [KmplibVideoActivity]; aqui só se diz qual dos
+ * dois modos é.
+ */
+class KmplibVideoCompactActivity : KmplibVideoActivity() {
+    override val compacto: Boolean get() = true
 }

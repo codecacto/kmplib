@@ -59,6 +59,22 @@
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
 
+        <!--
+          A MESMA tela, na janela COMPACTA (2.136.0): translúcida, com o player em 16:9 no meio e a
+          tela de onde a pessoa veio visível por trás.
+
+          Ela existe como segunda Activity só por causa do `android:theme`. Não dava para ligar a
+          translucidez por um extra do Intent: o sistema resolve isso ao criar a janela, antes do
+          `onCreate` — ligada depois, a janela sai opaca e o modo compacto vira o cheio com bordas.
+
+          `windowSoftInputMode` não entra aqui: não há campo nenhum nesta tela.
+        -->
+        <activity
+            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoCompactActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@style/KmplibVideoCompactTheme" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

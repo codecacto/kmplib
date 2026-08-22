@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      O tema da tela de vídeo COMPACTA (2.136.0).
+
+      Translucidez é atributo da JANELA e é resolvida quando o sistema a cria — antes do `onCreate`.
+      Por isso ela vem daqui, do manifest, e não de um `setTheme()` em runtime: ligada tarde demais,
+      o resultado é uma janela opaca com um tema translúcido declarado, ou seja, moldura preta em
+      volta do player e o contexto da tela apagado — que é exatamente o que o modo compacto existe
+      para evitar.
+
+      `windowBackground` transparente porque quem pinta o véu é o `FrameLayout` raiz da Activity:
+      um véu no tema e outro na view empilhariam duas camadas escuras.
+
+      `windowIsFloating` fica FALSE de propósito. Verdadeiro, a janela ganharia medida de diálogo do
+      sistema e a tela cheia do próprio player (`onShowCustomView`) não teria para onde crescer.
+    -->
+    <style name="KmplibVideoCompactTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
+
+</resources>
