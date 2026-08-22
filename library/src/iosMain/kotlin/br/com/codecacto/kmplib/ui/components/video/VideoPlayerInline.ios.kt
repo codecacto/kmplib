@@ -56,6 +56,11 @@ actual fun VideoPlayerInline(
                     allowsInlineMediaPlayback = true
                     mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone
                 }
+                // ⚠️ **A tela cheia aqui NÃO precisa de `onShowCustomView`** (o equivalente Android,
+                // 2.138.0). No iOS o WebKit atende o botão de expandir sozinho, promovendo o vídeo
+                // ao player nativo em tela cheia — é `allowsInlineMediaPlayback` que decide onde
+                // ele COMEÇA, não onde ele pode chegar. Não há o que implementar deste lado; se um
+                // dia o comportamento mudar, o caminho é `WKPreferences.elementFullscreenEnabled`.
                 val bundleId = NSBundle.mainBundle.bundleIdentifier ?: "app"
                 val base = "https://$bundleId"
                 WKWebView(frame = CGRectZero.readValue(), configuration = config).apply {

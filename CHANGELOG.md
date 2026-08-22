@@ -25,6 +25,30 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.138.0 — o botão de tela cheia do player inline passa a FUNCIONAR
+
+`VideoPlayerInline` no Android agora atende `onShowCustomView`/`onHideCustomView`. Antes o
+`WebChromeClient` era vazio: o controle de expandir aparecia e **não fazia nada**, porque o pedido
+do player caía no chão.
+
+A view vai para o **decorView da Activity**, e não para a árvore do Compose — aqui dentro o player
+está confinado ao retângulo de 16:9, que é justamente de onde ele quer sair. No decor ela fica por
+cima de tudo, sem disputar camada com composição nenhuma (o mesmo motivo de a tela cheia do
+`VideoLauncher` ser uma Activity). Junto vão as três coisas que a tela cheia exige e que ninguém
+lembra na primeira versão: **paisagem**, **modo imersivo** e a **orientação anterior guardada** para
+ser restaurada na saída — sem ela a página volta deitada depois do vídeo.
+
+**Voltar sai da tela cheia, não da tela**: `BackHandler` ativo só enquanto expandido. Sem ele o
+gesto navegaria para trás com o player ainda por cima do decor, e a pessoa sairia da página
+continuando a ver o vídeo.
+
+`Context.activity()` percorre a cadeia de `ContextWrapper`: o `LocalContext` do Compose quase nunca
+é a Activity direto, e um `as? Activity` seco devolveria `null` — a tela cheia simplesmente não
+abriria, de novo em silêncio.
+
+**iOS não mudou, e é de propósito:** o WebKit atende o botão sozinho, promovendo o vídeo ao player
+nativo em tela cheia.
+
 ## 2.137.0 — o player DENTRO da página, e o toast com cara de banner
 
 **`VideoPlayerInline`** — o vídeo toca no lugar onde ele está, rolando junto com o texto. A capa
