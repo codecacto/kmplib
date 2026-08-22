@@ -1,21 +1,10 @@
 package br.com.codecacto.kmplib.ui.components.video
 
 import android.annotation.SuppressLint
-import androidx.compose.runtime.DisposableEffect
-import android.view.Gravity
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowCompat
-import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.BackHandler
-import android.view.View
-import android.content.pm.ActivityInfo
-import android.content.ContextWrapper
-import android.content.Context
-import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -28,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -51,24 +41,37 @@ actual fun VideoPlayerInline(
     // no mesmo lugar em que ela estava.
     var tocando by remember(source) { mutableStateOf(false) }
 
-    // A tela cheia do player. `remember` sem chave: ela precisa sobreviver às recomposições do
-    // vídeo, e o que a encerra é o `onHideCustomView` — nunca uma troca de estado do Compose.
-    val contexto = LocalContext.current
-    var telaCheia by remember { mutableStateOf(TelaCheia()) }
-    val emTelaCheia = telaCheia.container != null
-
-    // **Voltar SAI da tela cheia, e não da tela.** Sem isto o gesto de voltar navegaria para trás
-    // com o vídeo ainda expandido por cima do decor — a pessoa sairia da página e continuaria
-    // vendo o player.
-    BackHandler(enabled = emTelaCheia) {
-        telaCheia = telaCheia.encerrar(contexto.activity())
-    }
-
-    // Sair da tela com o player expandido não pode deixar o container pendurado no `content` nem o
-    // aparelho travado em paisagem — e é fácil acontecer: basta o gesto do sistema, ou uma
-    // notificação que leva a outra tela.
-    DisposableEffect(Unit) {
-        onDispose { telaCheia.encerrar(contexto.activity()) }
+    // ── A TELA CHEIA É OUTRA TELA — e a 2.139.0 existe por causa disto ──────────────────────────
+    //
+    // A 2.138.x tentou promover a custom view do player para dentro da própria janela do app
+    // (decorView, depois `android.R.id.content`), com paisagem forçada e imersivo. **Não funciona,
+    // e o modo de falhar é violento:** `NullPointerException` em `FrameLayout.onMeasure`, com um
+    // filho `null` no `content`.
+    //
+    // A causa não está no fullscreen: está no fato de o app ser RESPONSIVO. Telefone em paisagem
+    // passa de `COMPACTA` para `MEDIA`, e um chassi que troca de composição por classe de janela
+    // **reconstrói a árvore inteira** ao girar. O `AndroidView` do WebView é descartado (o
+    // `onRelease` destrói a view que alimenta o vídeo), o composable sai da composição — e a custom
+    // view, que estava pendurada fora da árvore, fica órfã no meio de um layout pass.
+    //
+    // Ou seja: promover tela cheia dentro da árvore do Compose só é seguro em app que não muda de
+    // layout com a largura, que é o oposto do que a fábrica faz. O caminho certo é o que a lib já
+    // tinha e que funciona há meses — a **janela do sistema** do [VideoLauncher], onde não há
+    // composição nenhuma para disputar nem para desmontar.
+    //
+    // **O vídeo recomeça do zero**, e isso foi decidido com o fundador (22/ago/2026): *"se não tiver
+    // como continuar o vídeo de onde parou, pode colocar do zero, não tem problema"*. Retomar a
+    // posição exigiria falar com o player pelo IFrame API e devolver o instante à outra janela —
+    // custo alto para um segundo de diferença.
+    val player = rememberVideoLauncher()
+    // `rememberUpdatedState` porque o `factory` do `AndroidView` roda UMA vez e captura o que
+    // enxerga naquele instante: sem ele, o `WebChromeClient` ficaria preso à primeira `source`.
+    val abrirEmTelaCheia by rememberUpdatedState<() -> Unit> {
+        // Desliga o player de dentro da página ANTES de abrir a outra tela. Sem isto o WebView
+        // continua vivo por baixo e os dois áudios tocam juntos — `tocando = false` descarta a
+        // view pelo `onRelease`, que é quem interrompe a mídia.
+        tocando = false
+        source?.let { player.play(it) }
     }
 
     if (!tocando || source == null) {
@@ -120,69 +123,18 @@ actual fun VideoPlayerInline(
                         }
                     }
 
-                    // **A TELA CHEIA do player, atendida de verdade** (2.138.0).
-                    //
-                    // O botão de expandir do YouTube pede `onShowCustomView`, entregando uma view
-                    // que precisa ocupar a tela toda. Um `WebChromeClient` vazio faz o controle
-                    // aparecer e **não fazer nada** — o pedido cai no chão.
-                    //
-                    // ⚠️ **Esconder o conteúdo original NÃO é detalhe: é o que evita a tela preta**
-                    // (2.138.1). A primeira versão só empilhava a custom view sobre o `decorView`,
-                    // e o resultado foi vídeo com ÁUDIO e imagem preta — o `WebView` de 16:9
-                    // continuava vivo e visível por baixo, e as duas superfícies de vídeo disputam
-                    // a mesma composição de hardware. Quem ganha é a de baixo, que está recortada.
-                    //
-                    // O desenho abaixo é o mesmo da `KmplibVideoActivity`, que funciona há meses:
-                    // um container preto ocupando tudo, a custom view dentro dele, e **os irmãos
-                    // escondidos** enquanto durar. Ir para `android.R.id.content` (e não para o
-                    // decor) é o que torna esses irmãos alcançáveis — no decor eles são as barras
-                    // do sistema, não a tela do app.
+                    // O botão de expandir do player desemboca AQUI, e a resposta é abrir a janela
+                    // do sistema. `onCustomViewHidden()` é chamado no mesmo instante, e não é
+                    // opcional: sem ele o embed fica achando que está expandido, e o controle
+                    // aparece invertido quando a pessoa volta.
                     webChromeClient = object : WebChromeClient() {
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                            val activity = ctx.activity() ?: return
-                            if (view == null || telaCheia.container != null) return
-
-                            val content = activity.findViewById<ViewGroup>(android.R.id.content)
-                            val escondidos = (0 until content.childCount)
-                                .map { content.getChildAt(it) }
-                                .filter { it.visibility == View.VISIBLE }
-                            escondidos.forEach { it.visibility = View.INVISIBLE }
-
-                            val container = FrameLayout(activity).apply {
-                                setBackgroundColor(Color.BLACK)
-                                addView(
-                                    view,
-                                    FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ).apply { gravity = Gravity.CENTER },
-                                )
-                            }
-                            content.addView(
-                                container,
-                                FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                ),
-                            )
-
-                            telaCheia = TelaCheia(
-                                container = container,
-                                callback = callback,
-                                escondidos = escondidos,
-                                orientacaoAnterior = activity.requestedOrientation,
-                            )
-                            activity.requestedOrientation =
-                                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                            activity.entrarEmImersivo()
-                        }
-
-                        override fun onHideCustomView() {
-                            telaCheia = telaCheia.encerrar(ctx.activity())
+                            callback?.onCustomViewHidden()
+                            abrirEmTelaCheia()
                         }
                     }
 
-                                        loadDataWithBaseURL(base, htmlDoEmbed(source.videoId, base), "text/html", "UTF-8", null)
+                    loadDataWithBaseURL(base, htmlDoEmbed(source.videoId, base), "text/html", "UTF-8", null)
                 }
             },
             // **Sem isto o áudio continua tocando depois de a tela sair.** O WebView sobrevive à
@@ -242,76 +194,3 @@ private fun htmlDoEmbed(videoId: String, base: String): String = """
     </body>
     </html>
 """.trimIndent()
-
-/**
- * O que precisa ser lembrado enquanto o player está expandido.
- *
- * A **orientação anterior** entra aqui porque restaurá-la é o que devolve o aparelho ao retrato
- * quando a pessoa sai da tela cheia — fixar `SENSOR_LANDSCAPE` e não desfazer deixaria a página
- * deitada depois do vídeo.
- */
-private data class TelaCheia(
-    /** O container preto que embrulha a custom view. `null` = não está em tela cheia. */
-    val container: FrameLayout? = null,
-    val callback: WebChromeClient.CustomViewCallback? = null,
-    /**
-     * Os irmãos que estavam visíveis no `content` e foram escondidos — para devolvê-los ao sair.
-     *
-     * Guardar a LISTA, e não um "escondi tudo", é o que evita acender ao sair algo que já estava
-     * apagado antes de o vídeo expandir.
-     */
-    val escondidos: List<View> = emptyList(),
-    val orientacaoAnterior: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
-) {
-
-    /** Desfaz tudo, na ordem inversa. Idempotente: chamar sem tela cheia não faz nada. */
-    fun encerrar(activity: Activity?): TelaCheia {
-        val atual = container ?: return this
-        (atual.parent as? ViewGroup)?.removeView(atual)
-        escondidos.forEach { it.visibility = View.VISIBLE }
-        // Avisar o player que a tela cheia acabou: sem o callback ele continua achando que está
-        // expandido, e o botão inverte de sentido.
-        callback?.onCustomViewHidden()
-
-        // **A orientação volta ao que ERA, e `UNSPECIFIED` vira `USER`.** Restaurar o valor cru
-        // funciona quando a Activity tinha uma orientação fixa (um app retrato-só volta ao
-        // retrato). Quando ela era `UNSPECIFIED` — o caso de quem não declara nada no manifest —
-        // devolver `UNSPECIFIED` deixa a decisão num estado indefinido logo depois de um
-        // `SENSOR_LANDSCAPE` forçado, e o aparelho fica deitado. `USER` diz explicitamente "quem
-        // manda daqui em diante é o usuário e o sensor", que é o que a pessoa espera ao fechar o
-        // vídeo.
-        activity?.requestedOrientation = when (orientacaoAnterior) {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED -> ActivityInfo.SCREEN_ORIENTATION_USER
-            else -> orientacaoAnterior
-        }
-        activity?.sairDoImersivo()
-        return TelaCheia()
-    }
-}
-
-/**
- * A `Activity` por trás de um `Context` do Compose.
- *
- * O `LocalContext` costuma ser um `ContextWrapper` (tema aplicado), e não a Activity direto — por
- * isso a cadeia. Um `as? Activity` seco devolve `null` na maioria dos apps, e a tela cheia
- * silenciosamente não abriria.
- */
-private tailrec fun Context.activity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.activity()
-    else -> null
-}
-
-private fun Activity.entrarEmImersivo() {
-    WindowCompat.setDecorFitsSystemWindows(window, false)
-    WindowInsetsControllerCompat(window, window.decorView).apply {
-        hide(WindowInsetsCompat.Type.systemBars())
-        systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    }
-}
-
-private fun Activity.sairDoImersivo() {
-    WindowCompat.setDecorFitsSystemWindows(window, true)
-    WindowInsetsControllerCompat(window, window.decorView)
-        .show(WindowInsetsCompat.Type.systemBars())
-}

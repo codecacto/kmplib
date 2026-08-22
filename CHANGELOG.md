@@ -25,6 +25,37 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.139.0 — a tela cheia do player inline é OUTRA TELA (e as 2.138.x foram um beco)
+
+O botão de expandir do `VideoPlayerInline` passa a abrir a **janela do sistema** do `VideoLauncher`.
+O player de dentro da página não muda em nada — ele continua onde está, do jeito que está.
+
+### Por que as duas tentativas anteriores estavam erradas
+
+A 2.138.0 promoveu a custom view para o `decorView`; a 2.138.1 mudou para `android.R.id.content` e
+escondeu os irmãos. As duas partiam da ideia de expandir o vídeo **dentro da janela do app**, e as
+duas quebraram — a segunda com `NullPointerException` em `FrameLayout.onMeasure`, um filho `null` no
+`content`.
+
+**A causa não é o fullscreen: é o app ser RESPONSIVO.** Telefone em paisagem passa de `COMPACTA`
+para `MEDIA`, e um chassi que troca de composição por classe de janela **reconstrói a árvore inteira**
+ao girar. O `AndroidView` do WebView é descartado (o `onRelease` destrói justamente a view que
+alimenta o vídeo), o composable sai da composição — e a custom view, pendurada fora da árvore, fica
+órfã no meio de um layout pass. O rastro no logcat entrega a sequência: `sairDoImersivo` aparece
+**ao ENTRAR** em tela cheia, porque o `onDispose` disparou.
+
+Ou seja: promover tela cheia dentro da árvore do Compose só seria seguro num app que não muda de
+layout com a largura — o oposto do que a fábrica faz.
+
+### O vídeo recomeça do zero
+
+Decidido com o fundador: *"se não tiver como continuar o vídeo de onde parou, pode colocar do zero,
+não tem problema"*. Retomar a posição exigiria conversar com o player pelo IFrame API e devolver o
+instante à outra janela — custo alto para um segundo de diferença.
+
+Ao pedir a tela cheia, o player de dentro da página é **desligado antes** de a outra abrir: sem
+isso, os dois áudios tocam juntos.
+
 ## 2.138.1 — a tela cheia ficava PRETA (com áudio): faltava esconder o conteúdo de baixo
 
 A 2.138.0 fez o botão de expandir responder, mas o resultado era **vídeo tocando com a tela preta**.
