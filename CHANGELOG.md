@@ -25,6 +25,31 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.138.1 — a tela cheia ficava PRETA (com áudio): faltava esconder o conteúdo de baixo
+
+A 2.138.0 fez o botão de expandir responder, mas o resultado era **vídeo tocando com a tela preta**.
+A custom view era empilhada sobre o `decorView` e o `WebView` de 16:9 **continuava vivo e visível
+por baixo** — duas superfícies de vídeo disputando a mesma composição de hardware, e quem ganha é a
+de baixo, que está recortada no retângulo original.
+
+O conserto é o desenho que a `KmplibVideoActivity` usa há meses: um container preto ocupando tudo, a
+custom view dentro dele, e **os irmãos escondidos** enquanto durar. E ele vai para
+`android.R.id.content`, não para o decor: é ali que os irmãos são a tela do app — no decor eles são
+as barras do sistema.
+
+A lista de escondidos é guardada, e não um "escondi tudo": ao sair, só volta a aparecer o que
+estava visível antes de expandir.
+
+Junto veio um `DisposableEffect` que encerra a tela cheia ao sair da tela — sem ele, um gesto do
+sistema no meio do vídeo deixava o container pendurado no `content` e o aparelho travado em paisagem.
+
+**E a orientação volta de verdade ao sair.** Restaurar o `requestedOrientation` cru só funciona
+quando a Activity tinha orientação FIXA (um app retrato-só volta ao retrato). Quando ela era
+`UNSPECIFIED` — o caso de quem não declara `screenOrientation` no manifest, que é a maioria —
+devolver `UNSPECIFIED` logo depois de um `SENSOR_LANDSCAPE` forçado deixa a decisão num estado
+indefinido, e o aparelho continua deitado. Agora `UNSPECIFIED` vira `SCREEN_ORIENTATION_USER`, que
+diz explicitamente "quem manda daqui em diante é o usuário e o sensor".
+
 ## 2.138.0 — o botão de tela cheia do player inline passa a FUNCIONAR
 
 `VideoPlayerInline` no Android agora atende `onShowCustomView`/`onHideCustomView`. Antes o
