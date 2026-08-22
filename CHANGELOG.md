@@ -6,6 +6,37 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.132.0 — o primeiro acesso obrigatório, e o login que aceita usuário
+
+Metade mobile da decisão do fundador (21/ago/2026; backend em `backlib-auth-local` 0.80.0): conta
+criada pelo painel nasce com a senha temporária da fábrica e o titular define a dele antes de usar o
+app.
+
+**`ForcePasswordChangeDialog`** — o diálogo que não fecha. `dismissOnClickOutside` e
+`dismissOnBackPress` em `false`, e `onDismiss` vazio: as duas saídas vêm **abertas por default**, e
+qualquer uma delas transformaria "obrigatório" em sugestão — a pessoa ficaria num app cujas telas
+todas respondem 403, sem nada explicando o motivo. Campo + confirmação (com o olho, que o
+`AppTextField` já traz em `isPassword`), erro do servidor **junto do botão**, e vermelho só depois do
+primeiro toque em salvar.
+
+**`OwnAuthApi.firstAccessPasswordChange(newPassword, accessToken)`** — troca a temporária pela senha
+do titular. Responde com **tokens novos e plenos**: a troca revoga todas as sessões, então quem chama
+é obrigado a substituir o par no `AuthSessionStore`. Sem isso, a pessoa define a senha e cai na tela
+de login no toque seguinte, o que lê exatamente como falha.
+
+**`OwnAuthTokens.passwordChangeRequired`** — `Boolean` com default `false`, **nunca nulável**: campo
+ausente na resposta de um backend anterior desserializa como `false`, que é o correto. Nulável
+convidaria ao `!= null` no ViewModel, que devolve `true` para "não veio".
+
+**`OwnAuthApi.login(identifier, password)`** — o parâmetro deixa de se chamar `email` e o corpo manda
+`identifier` **e** `email` juntos quando o valor tem `@`. Os dois de propósito: um app atualizado
+contra um backend ainda não bumpado receberia "usuário ou senha inválidos" para credencial correta.
+Chamada posicional não sente a renomeação.
+
+⚠️ **A trava é do servidor, não do diálogo.** O access token da sessão restrita carrega uma claim e o
+backend recusa toda rota do produto com `403 PASSWORD_CHANGE_REQUIRED`. O diálogo existe para a
+pessoa entender o que fazer.
+
 ## 2.131.0 — vídeo que toca DENTRO do app, endereço que pergunta o estado antes da cidade, e o fim de três silêncios
 
 Rodada de correções vinda da leitura do app do NeuroCoreX pelo fundador em 21/ago/2026. O fio comum

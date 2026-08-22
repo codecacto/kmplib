@@ -16,6 +16,19 @@ data class OwnAuthTokens(
     val refreshToken: String,
     val expiresInSeconds: Long,
     val tokenType: String = "Bearer",
+    /**
+     * `true` quando a conta ainda está com a **senha temporária** que o administrador não digitou —
+     * o titular precisa escolher a dele antes de usar o app (`backlib-auth-local` ≥ 0.80.0).
+     *
+     * **Booleano com default `false`, nunca nulável:** campo ausente na resposta de um backend
+     * anterior desserializa como `false`, que é o comportamento correto. Nulável convidaria ao
+     * `!= null` no ViewModel, que devolve `true` para "não veio" — a armadilha que a fábrica já
+     * pagou uma vez.
+     *
+     * ⚠️ Isto é **conveniência de UI**. Quem obriga a troca é o servidor, que recusa toda rota do
+     * produto com `403 PASSWORD_CHANGE_REQUIRED` enquanto a senha for a temporária.
+     */
+    val passwordChangeRequired: Boolean = false,
 )
 
 /**
@@ -67,8 +80,24 @@ internal data class RegisterBody(
     val phone: String? = null,
 )
 
+/**
+ * Corpo do login. Manda **`identifier`** (campo novo, que serve para e-mail ou nome de usuário) e
+ * **`email`** (campo histórico) — os dois, de propósito.
+ *
+ * Um app atualizado conversando com um backend ainda não bumpado desserializaria `identifier` como
+ * vazio e receberia "usuário ou senha inválidos" para credencial correta. Mandar os dois custa uma
+ * chave a mais no JSON e evita o pior sintoma que existe: credencial certa recusada.
+ */
 @Serializable
-internal data class LoginBody(val email: String, val password: String)
+internal data class LoginBody(
+    val identifier: String,
+    val password: String,
+    val email: String? = null,
+)
+
+/** Corpo do `POST {authBasePath}/password/first-access`. Sem senha atual — ver [OwnAuthApi]. */
+@Serializable
+internal data class FirstAccessBody(val newPassword: String)
 
 @Serializable
 internal data class RefreshBody(val refreshToken: String)

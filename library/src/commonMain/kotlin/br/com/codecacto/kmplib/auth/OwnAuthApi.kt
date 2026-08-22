@@ -3,9 +3,11 @@ package br.com.codecacto.kmplib.auth
 import br.com.codecacto.kmplib.core.util.AppLogger
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.header
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.json.contentOrNull
@@ -35,10 +37,46 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     ): Result<OwnAuthTokens> =
         postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms, phone)))
 
-    suspend fun login(email: String, password: String): Result<OwnAuthTokens> {
-        logCredentialShape("login", email, password)
-        return postForTokens("login", json.encodeToString(LoginBody(email, password)))
+    /**
+     * Login por **e-mail ou nome de usuário** — o que o campo aceita é decidido pelo servidor
+     * (`GET {authBasePath}/config`), e quem resolve onde procurar é o `@`.
+     *
+     * O parâmetro se chama `identifier` desde a 2.132.0; chamadas posicionais existentes não sentem.
+     */
+    suspend fun login(identifier: String, password: String): Result<OwnAuthTokens> {
+        logCredentialShape("login", identifier, password)
+        val body = LoginBody(
+            identifier = identifier,
+            password = password,
+            // O campo histórico vai junto quando é um e-mail: backend anterior à 0.80.0 só entende
+            // `email`, e sem ele o login responderia "inválido" para credencial correta.
+            email = identifier.takeIf { it.contains('@') },
+        )
+        return postForTokens("login", json.encodeToString(body))
     }
+
+    /**
+     * `password/first-access` — o titular troca a **senha temporária** pela dele, no primeiro acesso.
+     *
+     * Não manda a senha atual: quem chega aqui acabou de apresentá-la no login, e é o **access token
+     * da sessão restrita** que autoriza a chamada. Responde com **tokens novos e plenos** — a troca
+     * revoga todas as sessões, então o par antigo morre no mesmo instante e precisa ser substituído
+     * no [AuthSessionStore]. Guardar os novos é obrigação de quem chama; sem isso o usuário define a
+     * senha e é jogado para a tela de login no toque seguinte.
+     */
+    suspend fun firstAccessPasswordChange(
+        newPassword: String,
+        accessToken: String,
+    ): Result<OwnAuthTokens> =
+        send("password/first-access", "POST") {
+            client.post(config.url("password/first-access")) {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                setBody(json.encodeToString(FirstAccessBody(newPassword)))
+            }
+        }.mapCatching { response ->
+            json.decodeFromString(OwnAuthTokens.serializer(), response.bodyAsText())
+        }
 
     suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
         postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
