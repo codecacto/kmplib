@@ -17,6 +17,15 @@ import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.authorizationStatusForMediaType
 import platform.AVFoundation.requestAccessForMediaType
+import platform.CoreLocation.CLAuthorizationStatus
+import platform.CoreLocation.CLLocationManager
+import platform.CoreLocation.CLLocationManagerDelegateProtocol
+import platform.CoreLocation.kCLAuthorizationStatusAuthorizedAlways
+import platform.CoreLocation.kCLAuthorizationStatusAuthorizedWhenInUse
+import platform.CoreLocation.kCLAuthorizationStatusDenied
+import platform.CoreLocation.kCLAuthorizationStatusNotDetermined
+import platform.CoreLocation.kCLAuthorizationStatusRestricted
+import platform.darwin.NSObject
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
@@ -32,6 +41,8 @@ import platform.UserNotifications.UNUserNotificationCenter
  * - [AppPermission.MICROPHONE] → `AVAudioSession.recordPermission` (Info.plist `NSMicrophoneUsageDescription`).
  * - [AppPermission.CAMERA] → `AVCaptureDevice` (Info.plist `NSCameraUsageDescription`).
  * - [AppPermission.NOTIFICATIONS] → `UNUserNotificationCenter`.
+ * - [AppPermission.LOCATION] → `CLLocationManager` "when in use" (Info.plist
+ *   `NSLocationWhenInUseUsageDescription`).
  * - [AppPermission.PHONE_STATE] / [AppPermission.CALL_LOG] → sem equivalente no iOS → [PermissionStatus.GRANTED].
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -52,6 +63,8 @@ class IosPermissionManager : PermissionManager {
         // Notifications checa de forma assíncrona; aqui devolvemos NOT_REQUESTED como
         // fallback síncrono. Use requestPermission() para o status real.
         AppPermission.NOTIFICATIONS -> PermissionStatus.NOT_REQUESTED
+
+        AppPermission.LOCATION -> mapLocationStatus(CLLocationManager.authorizationStatus())
 
         AppPermission.PHONE_STATE, AppPermission.CALL_LOG -> PermissionStatus.GRANTED
     }
@@ -81,6 +94,33 @@ class IosPermissionManager : PermissionManager {
             awaitClose { }
         }
 
+        // O `CLLocationManager` responde pelo DELEGATE, e o delegate é uma referência fraca: sem
+        // manter o manager vivo dentro do `callbackFlow`, o ARC o coleta antes de o usuário decidir
+        // e o diálogo some sem resposta nenhuma — o botão parece não fazer nada.
+        AppPermission.LOCATION -> callbackFlow {
+            val atual = mapLocationStatus(CLLocationManager.authorizationStatus())
+            if (atual != PermissionStatus.NOT_REQUESTED) {
+                trySend(atual)
+                close()
+                awaitClose { }
+                return@callbackFlow
+            }
+            val manager = CLLocationManager()
+            val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
+                override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
+                    val status = mapLocationStatus(manager.authorizationStatus)
+                    // `notDetermined` ainda chega uma vez, ao instalar o delegate: só o status
+                    // terminal encerra o fluxo.
+                    if (status == PermissionStatus.NOT_REQUESTED) return
+                    trySend(status)
+                    close()
+                }
+            }
+            manager.delegate = delegate
+            manager.requestWhenInUseAuthorization()
+            awaitClose { manager.delegate = null }
+        }
+
         AppPermission.NOTIFICATIONS -> callbackFlow {
             val center = UNUserNotificationCenter.currentNotificationCenter()
             center.getNotificationSettingsWithCompletionHandler { settings ->
@@ -107,6 +147,16 @@ class IosPermissionManager : PermissionManager {
             }
             awaitClose { }
         }
+    }
+
+    private fun mapLocationStatus(status: CLAuthorizationStatus): PermissionStatus = when (status) {
+        kCLAuthorizationStatusAuthorizedWhenInUse, kCLAuthorizationStatusAuthorizedAlways ->
+            PermissionStatus.GRANTED
+        // No iOS, negado é definitivo: o único caminho de volta são os Ajustes do sistema.
+        kCLAuthorizationStatusDenied, kCLAuthorizationStatusRestricted ->
+            PermissionStatus.PERMANENTLY_DENIED
+        kCLAuthorizationStatusNotDetermined -> PermissionStatus.NOT_REQUESTED
+        else -> PermissionStatus.NOT_REQUESTED
     }
 
     private fun mapAvStatus(status: platform.AVFoundation.AVAuthorizationStatus): PermissionStatus =

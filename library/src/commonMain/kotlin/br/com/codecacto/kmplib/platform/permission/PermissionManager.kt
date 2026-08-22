@@ -29,13 +29,28 @@ enum class PermissionStatus {
  * - [CALL_LOG]: Android `READ_CALL_LOG`; **iOS não tem equivalente** → [PermissionStatus.GRANTED].
  * - [NOTIFICATIONS]: Android `POST_NOTIFICATIONS` (API 33+); iOS `UNUserNotificationCenter`.
  * - [CAMERA]: Android `CAMERA`; iOS `AVCaptureDevice` (Info.plist `NSCameraUsageDescription`).
+ * - [LOCATION]: Android `ACCESS_COARSE_LOCATION`; iOS `CLLocationManager` "when in use"
+ *   (Info.plist `NSLocationWhenInUseUsageDescription`).
  */
 enum class AppPermission {
     MICROPHONE,
     PHONE_STATE,
     CALL_LOG,
     NOTIFICATIONS,
-    CAMERA
+    CAMERA,
+
+    /**
+     * Localização aproximada, para "perto de mim" / ordenar por distância.
+     *
+     * **COARSE, e não FINE**, de propósito: ordenar uma lista por distância não guia ninguém até a
+     * porta, e o Android mostra ao usuário qual das duas o app pediu — pedir a precisa "por
+     * precaução" é pedir mais do que o produto usa, e é motivo de recusa.
+     *
+     * O app que a usa precisa declarar `ACCESS_COARSE_LOCATION` no manifesto (Android) e
+     * `NSLocationWhenInUseUsageDescription` no `Info.plist` (iOS). Sem a declaração, o sistema
+     * **nega sem mostrar diálogo** e o botão vira um controle mudo.
+     */
+    LOCATION
 }
 
 /**

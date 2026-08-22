@@ -90,6 +90,9 @@ class AndroidPermissionManager : PermissionManager {
         AppPermission.PHONE_STATE -> Manifest.permission.READ_PHONE_STATE
         AppPermission.CALL_LOG -> Manifest.permission.READ_CALL_LOG
         AppPermission.CAMERA -> Manifest.permission.CAMERA
+        // COARSE, e não FINE: quem ordena por distância não precisa da precisa, e o Android mostra
+        // ao usuário qual das duas foi pedida. Ver o KDoc de `AppPermission.LOCATION`.
+        AppPermission.LOCATION -> Manifest.permission.ACCESS_COARSE_LOCATION
         AppPermission.NOTIFICATIONS ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 Manifest.permission.POST_NOTIFICATIONS
