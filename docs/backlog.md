@@ -3,6 +3,35 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### PENDENTE — 2 gaps do design do **Torneio de Pênalti** (23/ago/2026)
+> Origem: `2-Apps-Offline-Freemium-Ads/TorneioDePenalti/docs/design/wireframes.md` §"Gaps de lib"
+> (ux-designer). Projeto sem protótipo aprovado — telas montadas com componentes da kmplib onde
+> existiam; os dois itens abaixo são o que faltou.
+
+- [ ] **GAP-TP-M-01 — `AppOptionCard`/`SelectableOptionCard` (cartão de opção com descrição,
+      selecionável).** Tela "Criar Torneio" precisa que o organizador escolha entre 2–4 sistemas de
+      disputa **comparando** título + uma linha de explicação de cada, lado a lado na tela — nem
+      `AppPickerField` (esconde as opções num bottom sheet, uma de cada vez) nem
+      `SegmentedControl`/`FilterChipRow` (sem espaço pra descrição) servem. Proposta:
+      `AppOptionCard(title, description, selected, onClick, modifier)` — alvo = cartão inteiro,
+      indicador tipo rádio, acessibilidade nos moldes do `ChecklistItem` (nó semântico único,
+      `Role.RadioButton`). Prioridade média — padrão de formulário genérico (escolher modo/plano/tipo
+      de configuração com poucas opções), não específico de torneio.
+- [ ] **GAP-TP-M-02 — tabela de classificação (leaderboard/standings) no mobile.** Não existe hoje
+      nenhum componente de tabela/ranking no lado mobile da kmplib (o par já existe na weblib:
+      `Table`/`DataTable`). Usado no Painel do Torneio para grupos e pontos corridos (posição, nome,
+      pontos, V/D/E, saldo/cobranças). Proposta: `AppStandingsTable`/`LeaderboardTable(columns, rows,
+      highlightTopN?)`. **Antes de implementar do zero:** conferir se o **Super 8** (app-molde deste
+      projeto, também um torneio) já tem uma tabela de classificação local a promover — se sim, isso
+      já configura duplicação em ≥2 projetos (gatilho da constituição), prioridade sobe para alta.
+
+> **Não viraram gap:** os dois botões grandes "GOL"/"PERDEU" e o indicador de sequência de cobranças
+> (✓/✗/⭘/—, incluindo morte súbita) da tela de Disputa ficam como componentes **do projeto**
+> (`TorneioDePenalti`) — mecânica específica de pênalti sem 2º consumidor hoje. Reavaliar só se outro
+> produto pedir o mesmo desenho. Também não há gap de "chave/bracket visual": a tela ao vivo foca só
+> a fase corrente (`FilterChipRow` + `Card`/`StatusBadge`) e a chave "inteira" é resolvida como imagem
+> de compartilhamento vista com `ZoomableBox`/`FullScreenImageViewer`, ambos já existentes.
+
 ### PENDENTE — `OnboardingPager` sem full-bleed nem bullets (20/ago/2026)
 > Origem: redesign das telas de abertura do **Cidade Conectada / Mirassol Conectado**
 > (`docs/design/wireframes.md` §1.0, ux-designer) — o fundador reprovou a versão anterior por dois
