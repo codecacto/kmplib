@@ -67,11 +67,13 @@ actual fun VideoPlayerInline(
     // `rememberUpdatedState` porque o `factory` do `AndroidView` roda UMA vez e captura o que
     // enxerga naquele instante: sem ele, o `WebChromeClient` ficaria preso à primeira `source`.
     val abrirEmTelaCheia by rememberUpdatedState<() -> Unit> {
-        // Desliga o player de dentro da página ANTES de abrir a outra tela. Sem isto o WebView
-        // continua vivo por baixo e os dois áudios tocam juntos — `tocando = false` descarta a
-        // view pelo `onRelease`, que é quem interrompe a mídia.
-        tocando = false
+        // **Abre PRIMEIRO, desliga depois.** A ordem inversa parecia mais limpa (parar o áudio
+        // antes de sair), mas põe uma recomposição — que destrói o WebView de onde este callback
+        // está sendo chamado — entre a decisão e a abertura. Abrir primeiro garante que o clique
+        // sempre produz a outra tela; o áudio do embed morre em seguida, no `onRelease`, e a
+        // sobreposição dura o tempo de um frame.
         source?.let { player.play(it) }
+        tocando = false
     }
 
     if (!tocando || source == null) {
@@ -123,15 +125,27 @@ actual fun VideoPlayerInline(
                         }
                     }
 
-                    // O botão de expandir do player desemboca AQUI, e a resposta é abrir a janela
-                    // do sistema. `onCustomViewHidden()` é chamado no mesmo instante, e não é
-                    // opcional: sem ele o embed fica achando que está expandido, e o controle
-                    // aparece invertido quando a pessoa volta.
+                    // ⚠️ **OS DOIS métodos, sempre — é o que HABILITA o botão** (2.139.1).
+                    //
+                    // O WebView só considera que a página sabe fazer tela cheia quando o
+                    // `WebChromeClient` implementa `onShowCustomView` **e** `onHideCustomView`.
+                    // Com um só, o controle de expandir aparece no player e **o toque não produz
+                    // efeito nenhum** — nem callback, nem erro, nem log. Foi o que aconteceu na
+                    // 2.139.0, que tinha só o primeiro.
+                    //
+                    // O que o `onShowCustomView` faz aqui é recusar a promoção e abrir a janela do
+                    // sistema: `onCustomViewHidden()` devolve o embed ao estado inline (sem isso o
+                    // player fica achando que está expandido, e o botão inverte de sentido), e a
+                    // tela cheia de verdade acontece no `VideoLauncher`.
                     webChromeClient = object : WebChromeClient() {
                         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                             callback?.onCustomViewHidden()
                             abrirEmTelaCheia()
                         }
+
+                        // Nada a desfazer: nenhuma view foi promovida. O método existe porque a
+                        // PRESENÇA dele é o que faz o WebView oferecer o botão — não o corpo.
+                        override fun onHideCustomView() = Unit
                     }
 
                     loadDataWithBaseURL(base, htmlDoEmbed(source.videoId, base), "text/html", "UTF-8", null)

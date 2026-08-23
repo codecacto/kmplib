@@ -25,6 +25,19 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.139.1 — o botão de tela cheia não fazia NADA: faltava o `onHideCustomView`
+
+O WebView só considera que a página sabe fazer tela cheia quando o `WebChromeClient` implementa
+**`onShowCustomView` E `onHideCustomView`**. Com um só — que foi o que a 2.139.0 entregou — o
+controle de expandir aparece no player e **o toque não produz efeito nenhum**: nem callback, nem
+erro, nem uma linha de log. A presença do segundo método é o que habilita o botão, não o corpo dele;
+aqui ele é `= Unit`, porque nenhuma view chega a ser promovida.
+
+Junto, a ordem dentro do `onShowCustomView` foi invertida: **abre a outra tela primeiro, desliga o
+embed depois**. O contrário parecia mais limpo (parar o áudio antes de sair), mas colocava uma
+recomposição — que destrói o próprio WebView de onde o callback está sendo chamado — entre a decisão
+e a abertura.
+
 ## 2.139.0 — a tela cheia do player inline é OUTRA TELA (e as 2.138.x foram um beco)
 
 O botão de expandir do `VideoPlayerInline` passa a abrir a **janela do sistema** do `VideoLauncher`.
