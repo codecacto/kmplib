@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -53,7 +52,10 @@ fun CustomBannerAd(
         return
     }
 
-    LaunchedEffect(ad.id, ad.imageUrl) {
+    // Impressao VIEWABLE: 1 registro por anuncio de fato VISTO — >=50% na tela por >=1 s continuo.
+    // Antes isto era um `LaunchedEffect(ad.id, ad.imageUrl)`, que disparava a cada entrada na
+    // composicao: troca de tela, volta do background, rotacao. Ver `rememberViewableImpressionModifier`.
+    val viewableModifier = rememberViewableImpressionModifier(key = ad.id) {
         CustomAdManager.notifyImpression(ad)
         AdStats.recordImpression(AdProviderTag.CUSTOM, StatAdFormat.BANNER, ad.id)
     }
@@ -65,6 +67,7 @@ fun CustomBannerAd(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            .then(viewableModifier)
             .clickable {
                 CustomAdManager.notifyClick(ad)
                 AdStats.recordClick(AdProviderTag.CUSTOM, StatAdFormat.BANNER, ad.id)

@@ -6,6 +6,34 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.140.0 — impressão de anúncio passa a contar o que foi VISTO
+
+**`CustomBannerAd` só registra impressão quando o anúncio fica ≥50% na tela por ≥1 segundo
+contínuo** — o critério MRC/IAB para display, o mesmo que a weblib já usava desde a 0.93.0.
+
+Até aqui o gatilho era `LaunchedEffect(ad.id, ad.imageUrl)`, ou seja, **toda entrada na
+composição**: troca de tela, volta do background, rotação, retorno pela pilha de navegação. Sem
+critério de visibilidade nem de tempo. Um app com banner em cinco telas contava cinco impressões
+de uma navegação normal.
+
+**O que isso custava, medido:** no Super 8, em 21/ago/2026, **164 impressões de banner em três
+minutos** (16:47–16:50), espalhadas por 3 anúncios. Era uma sessão de teste sendo contada por
+render. O número inflava sozinho e o CTR (cliques ÷ impressões) afundava junto — a métrica errava
+na direção que faz decidir mal, e o app respondia por metade das impressões do portfólio inteiro.
+
+- **Novo:** `rememberViewableImpressionModifier(key, enabled, onViewable)` (interno ao módulo
+  `ads/custom`) e `visibleFractionOf(...)`, a aritmética de visibilidade coberta por teste.
+- **Relógio contínuo:** sair da tela antes de completar 1 s zera a contagem — rolar rápido pelo
+  anúncio não conta. Depois de contabilizado não dispara de novo enquanto o `ad.id` não mudar.
+- **`CustomInterstitialAd` não muda:** ele só existe enquanto `show = true`, então já contava uma
+  vez por exibição. Os dados batem — 315 impressões de banner contra 11 de interstitial no mesmo app.
+
+**Não é breaking:** a API pública do `CustomBannerAd` é a mesma. O que muda é o *número* que chega
+em `monitoramento.ad_stats` — ele cai, e passa a ser comparável com o do site.
+
+⚠️ **Leitura de dados históricos:** impressão de app anterior a esta versão é **limite superior**,
+não contagem. Ao comparar períodos, separar antes/depois.
+
 ## 2.138.0 — em own-auth, o wipe já leva a credencial
 
 **`AccountDeletionService(credencialSaiNoWipe = true)`** — o segundo passo da exclusão deixa de
