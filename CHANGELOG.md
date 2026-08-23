@@ -25,6 +25,22 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.139.2 — na tela cheia, "minimizar" agora FECHA (e o X nunca some)
+
+Dois pontos da mesma armadilha: dentro da janela do vídeo, o player já ocupa tudo.
+
+**Sair do fullscreen do embed não fazia nada de visível.** Ao tocar em expandir, o player entra no
+seu próprio fullscreen e o tamanho não muda — era tudo, continua tudo; só o ícone vira "minimizar".
+Tocar nele devolvia ao container de baixo, do mesmo tamanho: nada acontecia, e a pessoa ficava
+presa procurando a saída. Agora `onHideCustomView` **fecha a tela** no modo cheio — quem pede para
+minimizar uma tela que É o vídeo está pedindo para sair do vídeo. No modo **compacto** o
+comportamento antigo continua: lá o player é um cartão, e sair do fullscreen tem para onde voltar.
+
+**O X passou para a RAIZ.** Ele era filho do container de conteúdo, e o `onShowCustomView` esconde
+esse container inteiro: dentro do fullscreen do player, a única saída visível era o controle do
+próprio embed. Se ele falhasse — ou se a pessoa não o encontrasse — não sobrava nada. Na raiz, o
+fechar está sempre lá.
+
 ## 2.139.1 — o botão de tela cheia não fazia NADA: faltava o `onHideCustomView`
 
 O WebView só considera que a página sabe fazer tela cheia quando o `WebChromeClient` implementa

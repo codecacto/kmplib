@@ -110,7 +110,11 @@ open class KmplibVideoActivity : ComponentActivity() {
             contentDescription = "Fechar o vídeo"
             setOnClickListener { finish() }
         }
-        containerDoConteudo.addView(
+        // **O X vive na RAIZ, acima dos dois containers** (2.139.2) — antes ele era filho do
+        // conteúdo, e o `onShowCustomView` escondia o conteúdo inteiro: dentro do fullscreen do
+        // player, a única saída visível era o controle do próprio embed. Se ele falhasse, ou se a
+        // pessoa não o encontrasse, não sobrava nada. Na raiz, o fechar está sempre lá.
+        raiz.addView(
             fechar,
             FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -199,7 +203,26 @@ open class KmplibVideoActivity : ComponentActivity() {
                     entrarEmImersivo()
                 }
 
-                override fun onHideCustomView() = sairDaTelaCheia()
+                /**
+                 * **Sair do fullscreen do player FECHA esta tela** — no modo cheio (2.139.2).
+                 *
+                 * Aqui a Activity JÁ é a tela cheia: o player ocupa tudo desde que ela abriu. Ao
+                 * tocar em expandir, o embed entra no seu próprio fullscreen e nada muda de tamanho
+                 * (era tudo, continua tudo) — só o ícone vira "minimizar". Tocar nele devolvia ao
+                 * container de baixo, do mesmo tamanho: **visualmente, nada acontecia**, e a pessoa
+                 * ficava presa procurando a saída. Relato do fundador, palavra por palavra: *"se eu
+                 * clico de novo no botão de tela cheia para minimizar, ele não faz nada; o ícone até
+                 * volta"*.
+                 *
+                 * Fechar é a leitura certa do gesto: quem pede para minimizar uma tela que É o vídeo
+                 * está pedindo para sair do vídeo.
+                 *
+                 * No modo **compacto** a conta é outra e o comportamento antigo continua: lá o
+                 * player é um cartão no meio da tela, então sair do fullscreen tem para onde voltar.
+                 */
+                override fun onHideCustomView() {
+                    if (compacto) sairDaTelaCheia() else finish()
+                }
             }
 
             loadDataWithBaseURL(base, html, "text/html", "UTF-8", null)
