@@ -135,8 +135,23 @@ open class KmplibVideoActivity : ComponentActivity() {
         // origem de quem pede: com uma base que ele não reconhece (ou `null`, que vira
         // `about:blank`), o player carrega e fica PRETO, sem erro nenhum.
         val base = "https://$packageName"
+        // ⚠️ **`fs=0` no modo CHEIO — o botão de tela cheia do player SAI** (2.139.3).
+        //
+        // Esta janela já É a tela cheia. Mas o YouTube não sabe disso: para ele o player está num
+        // WebView grande, e não em fullscreen — então ele continua oferecendo "expandir". O
+        // resultado era um passo a mais que não leva a lugar nenhum: tocar no ícone mudava o
+        // desenho das setas e **o tamanho continuava o mesmo**, porque já era tudo. Só no segundo
+        // toque, agora com o ícone de "sair", a tela fechava.
+        //
+        // `fs=0` é o parâmetro oficial do IFrame Player API para não desenhar esse botão. Sem ele,
+        // a saída fica sendo o X — que desde a 2.139.2 vive na raiz e nunca some — e o gesto de
+        // voltar do aparelho.
+        //
+        // No modo **compacto** o botão FICA (`fs=1`, o default): lá o player é um cartão no meio da
+        // tela, e expandir tem para onde ir.
         val embed = "https://www.youtube-nocookie.com/embed/$videoId" +
-            "?autoplay=1&rel=0&playsinline=1&origin=$base"
+            "?autoplay=1&rel=0&playsinline=1&origin=$base" +
+            (if (compacto) "" else "&fs=0")
 
         val html = """
             <!DOCTYPE html>

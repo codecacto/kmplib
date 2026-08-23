@@ -25,6 +25,21 @@ Com a flag, o serviço encerra a sessão local (`auth.signOut()`) e devolve `Com
 Achado ao dar ao MinhaFrota o botão de excluir a conta, que ele não tinha em superfície nenhuma
 (auditoria de 22/ago/2026).
 
+## 2.139.3 — o botão de tela cheia SAI da janela que já é tela cheia (`fs=0`)
+
+A janela do vídeo já é a tela cheia — mas o YouTube não sabe disso: para ele o player está num
+WebView grande, não em fullscreen. Então ele continuava oferecendo "expandir", e o toque **não mudava
+o tamanho** (já era tudo): só trocava o desenho das setas. A saída aparecia no segundo toque, agora
+com o ícone de "sair". Um passo a mais que não leva a lugar nenhum.
+
+`fs=0` é o parâmetro oficial do IFrame Player API — *"Setting this parameter to 0 prevents the
+fullscreen button from displaying in the player"* — e resolve pela raiz: o botão redundante deixa de
+existir. A saída passa a ser o **X**, que desde a 2.139.2 vive na raiz e nunca some, e o gesto de
+voltar do aparelho.
+
+No modo **compacto** o botão FICA (o default `fs=1`): lá o player é um cartão no meio da tela, e
+expandir tem para onde ir.
+
 ## 2.139.2 — na tela cheia, "minimizar" agora FECHA (e o X nunca some)
 
 Dois pontos da mesma armadilha: dentro da janela do vídeo, o player já ocupa tudo.
