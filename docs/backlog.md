@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### PENDENTE — `ToastHost` sem CompositionLocal (23/ago/2026)
+> Origem: implementação das telas do **Torneio de Pênalti** (Onda 2). Não é gap de design: apareceu
+> escrevendo o app.
+
+- [ ] **`LocalToast` — CompositionLocal para o `ToastState`.** A lib entrega `ToastHost`/`ToastState`,
+      mas não o `CompositionLocal` que dá acesso a ele de qualquer tela: sem isso **cada tela precisa
+      do próprio host**, ou cada projeto escreve as mesmas ~5 linhas (foi o que o Torneio de Pênalti
+      fez, em `core/ui/LocalToast.kt`). Confirmação curta é toast na tela onde a ação aconteceu
+      (padrão da casa), então isso se repete em todo app. Baixo custo, consumidor imediato: ao
+      promover, o `LocalToast` do projeto vira import.
+
 ### PENDENTE — 2 gaps do design do **Torneio de Pênalti** (23/ago/2026)
 > Origem: `2-Apps-Offline-Freemium-Ads/TorneioDePenalti/docs/design/wireframes.md` §"Gaps de lib"
 > (ux-designer). Projeto sem protótipo aprovado — telas montadas com componentes da kmplib onde
