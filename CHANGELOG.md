@@ -6,6 +6,47 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.141.0 — "não falei com a loja" deixa de chegar como "a loja não tem plano"
+
+**`EntitlementProvider.loadOfferings(): OfferingsOutcome`** — a leitura do catálogo passa a dizer o
+que aconteceu, em vez de devolver sempre uma `List`.
+
+Até aqui, `offerings()` fazia `repo.getOfferings().getOrDefault(emptyList())`: a falha do `Result`
+era **engolida** e chegava ao app **idêntica** a um catálogo vazio. Quem lia a lista não tinha como
+distinguir *"a loja respondeu e não há nada para vender"* de *"não consegui falar com a loja"* —
+nem de *"este build não tem billing"* (repositório nulo também virava lista vazia).
+
+**O que isso custava, medido (Torneio de Pênalti, 23/ago/2026):** abrir a tela de assinatura **sem
+rede** — situação normal num app usado em campo — disparava `PaymentAlertKind.PaywallSemPlano`,
+severidade **Fatal**, título "impossível vender". Pior que o ruído: o `PaymentAlertReporter` envia
+**um alerta por tipo por sessão**, então o falso positivo **queimava o alerta verdadeiro** daquela
+sessão. No dia em que a loja realmente devolvesse zero pacote depois de publicado, o canal poderia
+estar mudo.
+
+- **Novo:** `OfferingsOutcome` (pacote `monetization.entitlement`) — `Disponivel(pacotes)` ·
+  `Vazio` · `Falha(mensagem, code)` · `Indisponivel`, com `pacotes`, `catalogoVazioConfirmado` e
+  `Falha.incidente` (atalho de `PurchaseErrorCode.isPaymentIncident`).
+- **Novo:** `EntitlementProvider.loadOfferings()`, sobrescrito pelos dois providers da lib.
+  `RevenueCatEntitlementProvider` mapeia a falha do SDK com o **motivo tipado**; repositório ausente
+  vira `Indisponivel`, não `Vazio`. `StubEntitlementProvider` devolve **sempre** `Indisponivel`.
+- **Fábricas:** `OfferingsOutcome.dePacotes(lista)` (vazia ⇒ `Vazio`) e
+  `OfferingsOutcome.deResultado(Result<List<PurchasePackage>>)` — use esta última também nos apps
+  que falam com `PurchaseRepository.getOfferings()` direto, no lugar de `getOrDefault(emptyList())`.
+
+**A régua do consumidor:** só **`Vazio`** autoriza alertar paywall sem plano. `Falha` alerta apenas
+quando `code.isPaymentIncident` (`NETWORK_ERROR` **não** é); `Indisponivel` é defeito de build
+(chave ausente), que se pega no release, não em alerta de runtime.
+
+**Não é breaking.** `offerings(): List<PurchasePackage>` continua existindo, com o **mesmo
+comportamento** — é o caminho certo para quem só desenha a lista. `loadOfferings()` tem
+implementação default que delega a `offerings()` (vazia ⇒ `Vazio`), então provider próprio de app
+segue compilando e mantendo o que já fazia; para ganhar a distinção, sobrescreva `loadOfferings()`
+e deixe `offerings()` como `loadOfferings().pacotes`.
+
+**Migração de quem alerta (5 linhas):** trocar `val pacotes = provider.offerings()` por
+`when (val r = provider.loadOfferings())` e mover o alerta de `pacotes.isEmpty()` para o ramo
+`OfferingsOutcome.Vazio`.
+
 ## 2.140.0 — impressão de anúncio passa a contar o que foi VISTO
 
 **`CustomBannerAd` só registra impressão quando o anúncio fica ≥50% na tela por ≥1 segundo

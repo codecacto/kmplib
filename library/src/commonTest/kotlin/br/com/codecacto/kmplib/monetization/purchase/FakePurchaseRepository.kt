@@ -38,8 +38,11 @@ class FakePurchaseRepository(
 
     override suspend fun isPremium(): Boolean = _subscriptionState.value.isActive
 
+    /** Falha deterministica da leitura de catalogo (`null` = sucesso com [cachedOfferings]). */
+    var offeringsFailure: Throwable? = null
+
     override suspend fun getOfferings(): Result<List<PurchasePackage>> =
-        Result.success(cachedOfferings)
+        offeringsFailure?.let { Result.failure(it) } ?: Result.success(cachedOfferings)
 
     override suspend fun purchasePackage(packageId: String): PurchaseResult =
         PurchaseResult.Error("fake", PurchaseErrorCode.UNKNOWN)

@@ -29,7 +29,12 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * **Fail-closed:** sem credenciais RevenueCat, use o [StubEntitlementProvider] (via
  * [createEntitlementProvider] com `purchaseConfig = null`): reporta **sempre Free**, devolve offerings
- * vazio ("em breve") e recusa compra/restauração — nunca abre premium grátis nem fabrica preço.
+ * vazio ("em breve", [OfferingsOutcome.Indisponivel]) e recusa compra/restauração — nunca abre premium
+ * grátis nem fabrica preço.
+ *
+ * **Leitura do catálogo: use [EntitlementProvider.loadOfferings]** (2.141.0) sempre que o resultado
+ * puder virar alerta. [EntitlementProvider.offerings] devolve lista, e lista vazia não diz se a loja
+ * está vazia ou se a leitura falhou.
  */
 interface EntitlementProvider {
     /** Estado atual: `true` = premium vigente (loja). */
@@ -41,8 +46,27 @@ interface EntitlementProvider {
     /**
      * Pacotes de assinatura da camada uniforme (Offering configurado → Packages). Stub/sem
      * credenciais ⇒ lista vazia (o paywall mostra "planos em breve", sem preços fabricados).
+     *
+     * ⚠️ **Lista vazia aqui não tem causa.** "A loja não tem plano" e "não consegui falar com a
+     * loja" chegam idênticas — então **nunca decida alerta de pagamento por este retorno**. Use
+     * [loadOfferings], que devolve [OfferingsOutcome] e separa os dois casos (2.141.0). Este método
+     * continua sendo o caminho certo para quem só **desenha a lista**.
      */
     suspend fun offerings(): List<PurchasePackage>
+
+    /**
+     * **Lê o catálogo dizendo o que aconteceu** — [OfferingsOutcome]: `Disponivel` · `Vazio` (a
+     * loja respondeu sem pacote) · `Falha` (não deu para ler, com motivo tipado) · `Indisponivel`
+     * (build sem billing). É o caminho recomendado desde a 2.141.0 para qualquer app que **alerte**
+     * paywall vazio; ver a tabela de decisão em [OfferingsOutcome].
+     *
+     * **Implementação default (compatibilidade):** delega a [offerings] e mapeia lista vazia →
+     * [OfferingsOutcome.Vazio]. Ou seja, um provider próprio do app que só implementa [offerings]
+     * segue compilando e **mantém exatamente o comportamento que já tinha** — mas continua sem
+     * distinguir falha de catálogo vazio. Para ganhar a distinção, sobrescreva ESTE método
+     * (os dois providers da lib sobrescrevem) e faça [offerings] devolver `loadOfferings().pacotes`.
+     */
+    suspend fun loadOfferings(): OfferingsOutcome = OfferingsOutcome.dePacotes(offerings())
 
     /** Info da assinatura ativa (data de expiração/renovação) — `null`/inativa sem billing. */
     suspend fun subscriptionInfo(): SubscriptionInfo?
@@ -117,9 +141,21 @@ class RevenueCatEntitlementProvider(
             .onFailure { AppLogger.w(TAG, "Falha ao sincronizar assinatura: ${it.message}") }
     }
 
-    override suspend fun offerings(): List<PurchasePackage> {
-        val repo = PurchaseManager.repository ?: return emptyList()
-        return repo.getOfferings().getOrDefault(emptyList())
+    override suspend fun offerings(): List<PurchasePackage> = loadOfferings().pacotes
+
+    /**
+     * Até a 2.140.0 este caminho era `repo.getOfferings().getOrDefault(emptyList())`: a falha do
+     * `Result` era **engolida** e chegava ao app como catálogo vazio. Agora ela chega como
+     * [OfferingsOutcome.Falha], com o motivo tipado do SDK — e repositório ausente (build sem
+     * billing) vira [OfferingsOutcome.Indisponivel], não "a loja não tem plano".
+     */
+    override suspend fun loadOfferings(): OfferingsOutcome {
+        val repo = PurchaseManager.repository ?: return OfferingsOutcome.Indisponivel
+        val outcome = OfferingsOutcome.deResultado(repo.getOfferings())
+        if (outcome is OfferingsOutcome.Falha) {
+            AppLogger.w(TAG, "Falha ao ler offerings (${outcome.code.name}): ${outcome.mensagem}")
+        }
+        return outcome
     }
 
     override suspend fun subscriptionInfo(): SubscriptionInfo? {
@@ -164,6 +200,9 @@ class StubEntitlementProvider : EntitlementProvider {
     }
 
     override suspend fun offerings(): List<PurchasePackage> = emptyList()
+
+    /** Sem billing neste build — **nunca** [OfferingsOutcome.Vazio] (a loja não foi consultada). */
+    override suspend fun loadOfferings(): OfferingsOutcome = OfferingsOutcome.Indisponivel
 
     override suspend fun subscriptionInfo(): SubscriptionInfo? = null
 

@@ -22,6 +22,10 @@
       no app (foi o que o Torneio de Pênalti fez, `trialDaLojaAtivo`), e flag manual erra: ou promete
       trial que não existe, ou esconde o que existe. O trial é padrão inegociável da fábrica (7 dias),
       então isso vale para todo projeto monetizado.
+      **Fonte (padrão-ouro):** o dado já vem do SDK — o `StoreProduct` por trás do `Package` carrega a
+      oferta introdutória (fase gratuita da opção de assinatura no Android, *introductory offer* no
+      iOS). O item é **expor** isso em `PurchasePackage` (ex.: `trialDias: Int?` + elegibilidade,
+      quando o SDK a informar) e alimentar `toPaywallPlans`, nunca declarar o trial no app.
 
 ### PENDENTE — `ToastHost` sem CompositionLocal (23/ago/2026)
 > Origem: implementação das telas do **Torneio de Pênalti** (Onda 2). Não é gap de design: apareceu
@@ -3518,6 +3522,18 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
 - [ ] [item] — onde aparece — esforço estimado
 
 ## Concluído
+- [x] **2.141.0 — `EntitlementProvider.loadOfferings()`: falha de leitura deixou de virar "catálogo
+      vazio".** Achado do security-review do **Torneio de Pênalti** (23/ago/2026): `offerings()` fazia
+      `getOfferings().getOrDefault(emptyList())`, então "não falei com a loja" chegava ao app idêntico a
+      "a loja não tem plano" — abrir o paywall **sem rede** disparava `PaymentAlertKind.PaywallSemPlano`
+      (Fatal, "impossível vender") e, como o `PaymentAlertReporter` manda um alerta por tipo por sessão,
+      o falso positivo **queimava o alerta verdadeiro**. Entregue: `OfferingsOutcome`
+      (`Disponivel`/`Vazio`/`Falha(mensagem, code)`/`Indisponivel` + `pacotes`,
+      `catalogoVazioConfirmado`, `Falha.incidente`, fábricas `dePacotes`/`deResultado`) e
+      `EntitlementProvider.loadOfferings()`, sobrescrito nos dois providers da lib (repositório ausente
+      ⇒ `Indisponivel`, nunca `Vazio`). **Aditivo:** `offerings()` intacto, `loadOfferings()` com default
+      delegando a ele. 13 testes novos (`OfferingsOutcomeTest`). Migração dos apps que alertam: mover o
+      alerta de `pacotes.isEmpty()` para o ramo `OfferingsOutcome.Vazio`.
 - [x] **2.26.0 — Preparação adiantada das Ondas 3/4 do MinhaObra (galeria/upload/compressão + PDF de obra).**
       Entregue durante a Onda 2 (sem bloquear) para reduzir risco de cronograma. **(a) Par PDF de obra
       (GAP-MO-M-09, prioridade máxima):** novo template no módulo `pdf/` — `WorkReportPdfData` (shape do C-5,
