@@ -6,6 +6,29 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.142.0 — o botão para de CORTAR o texto que não coube
+
+**`AppButton`, `AppOutlinedButton`, `AppSecondaryButton`, `GoogleLoginButton` e `AppleLoginButton`
+passam de altura FIXA para altura MÍNIMA** (`heightIn(min = height)` no lugar de `height(height)`),
+e o rótulo ganha `textAlign = TextAlign.Center`.
+
+Os cinco travavam a altura em 56.dp. Rótulo que ocupasse duas linhas era **cortado no meio da
+segunda** — sem erro de build, sem aviso, sem log: o botão simplesmente aparecia com meia letra na
+borda de baixo. E, quando quebrava, a segunda linha alinhava à **esquerda** dentro de um botão
+simétrico, o que fazia o rótulo parecer torto mesmo onde cabia.
+
+**Onde isso aparece, e por que não é caso raro:** dois botões dividindo uma `Row` com
+`Modifier.weight(1f)` — o padrão de ações secundárias lado a lado. Com metade da largura, "Ver meu
+último resultado" quebra em qualquer telefone. Foi assim que apareceu, no cartão de acesso do
+NeuroCoreX (24/ago/2026).
+
+O `height` continua existindo e continua sendo 56.dp: rótulo de uma linha desenha exatamente como
+antes. A mudança é **aditiva** — o botão passa a poder crescer, e só cresce quem precisava.
+
+⚠️ Num `Row` de botões lado a lado, um que cresça deixa o vizinho mais baixo. Quem quiser as duas
+alturas iguais usa `Row(Modifier.height(IntrinsicSize.Min))` com `Modifier.fillMaxHeight()` nos
+botões — ou, melhor, encurta o rótulo.
+
 ## 2.141.0 — "não falei com a loja" deixa de chegar como "a loja não tem plano"
 
 **`EntitlementProvider.loadOfferings(): OfferingsOutcome`** — a leitura do catálogo passa a dizer o

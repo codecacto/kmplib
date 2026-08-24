@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -45,7 +46,13 @@ fun AppButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(height),
+            // ALTURA MÍNIMA, não fixa (2.142.0). Com `.height()` o botão recusava crescer e o texto
+            // de duas linhas era CORTADO no meio da segunda — sem aviso, sem erro, e só em quem
+            // tinha rótulo longo ou tela estreita. Botão de meia largura numa `Row` é o caso comum,
+            // e era exatamente onde o corte aparecia. Rótulo de uma linha continua nos 56.dp.
+            //
+            // Vale para os cinco botões deste arquivo: o defeito era do padrão, não de um deles.
+            .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
@@ -65,7 +72,10 @@ fun AppButton(
             Text(
                 text = text,
                 fontSize = fontSize,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
+                // torto dentro de um botão que é simétrico.
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -100,7 +110,7 @@ fun AppOutlinedButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(height),
+            .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(borderWidth, primaryColor),
@@ -118,7 +128,10 @@ fun AppOutlinedButton(
             Text(
                 text = text,
                 fontSize = fontSize,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
+                // torto dentro de um botão que é simétrico.
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -170,7 +183,7 @@ fun GoogleLoginButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(height),
+            .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(borderWidth, primaryColor),
@@ -234,7 +247,7 @@ fun AppleLoginButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(height),
+            .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(borderWidth, primaryColor),
@@ -298,7 +311,7 @@ fun AppSecondaryButton(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(height),
+            .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, borderColor),
@@ -317,7 +330,10 @@ fun AppSecondaryButton(
             Text(
                 text = text,
                 fontSize = fontSize,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
+                // torto dentro de um botão que é simétrico.
+                textAlign = TextAlign.Center
             )
         }
     }
