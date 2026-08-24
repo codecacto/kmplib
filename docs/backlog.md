@@ -3,6 +3,26 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### PENDENTE — 3 lacunas expostas pela i18n do **Torneio de Pênalti** (23/ago/2026)
+> Origem: Onda 5 do Torneio de Pênalti (paywall + 4 idiomas). As três têm o mesmo formato: a lib
+> entrega a tela pronta, mas com o TEXTO em pt-BR fixo em Kotlin — então todo app multi-idioma
+> reescreve a mesma tradução.
+
+- [ ] **`DeveloperTexts` / `ContactTexts` / `FeedbackTexts` com defaults pt-BR hardcoded.** São as
+      telas que a constituição **obriga** em todo produto ("Desenvolvido por CodeCacto" + contato +
+      feedback): num app em 4 idiomas, elas são as únicas que respondem em português a quem lê o
+      resto em inglês. ~57 strings reescritas **por app**, e já são ≥2 consumidores copiando a mesma
+      tradução (Super 8 e Torneio de Pênalti) — gatilho de promoção da constituição. Certo: a
+      kmplib trazer as próprias `composeResources` traduzidas nos 4 idiomas, e o app não passar nada.
+- [ ] **`PurchaseErrorTexts` — 13 strings de erro de compra por app.** Mesma classe do item acima, na
+      tela em que se cobra: sem traduzir, o cartão recusado é explicado em português a um comprador
+      espanhol.
+- [ ] **`PurchasePackage` não expõe a oferta introdutória (free trial) do produto da loja.** Sem isso
+      nenhum app consegue derivar "7 dias grátis" do que a loja realmente oferece — sobra flag manual
+      no app (foi o que o Torneio de Pênalti fez, `trialDaLojaAtivo`), e flag manual erra: ou promete
+      trial que não existe, ou esconde o que existe. O trial é padrão inegociável da fábrica (7 dias),
+      então isso vale para todo projeto monetizado.
+
 ### PENDENTE — `ToastHost` sem CompositionLocal (23/ago/2026)
 > Origem: implementação das telas do **Torneio de Pênalti** (Onda 2). Não é gap de design: apareceu
 > escrevendo o app.
