@@ -6,6 +6,46 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.143.0 — login social pelo NAVEGADOR, contra o nosso backend
+
+**`SocialBrowserLogin`** (Android + iOS), **`PkcePair`/`PkceCrypto`**, `OwnAuthApi.socialStartUrl()` e
+`OwnAuthApi.socialExchange()`. Aditivo: `GoogleAuthProvider`/`AppleAuthProvider` (fluxo nativo)
+continuam existindo, e um app pode manter o caminho antigo.
+
+**Por que existe.** No fluxo nativo, o Google identifica o aplicativo pelo par *package + SHA-1* e
+exige **um cliente OAuth para cada par**; o projeto do Google Cloud tem teto, e uma família de apps
+sobre a mesma base de código bate nele. O sintoma é mudo: o console mostra a impressão digital
+cadastrada, o `google-services.json` sai sem o cliente, e o botão do Google devolve
+`DEVELOPER_ERROR` num app aparentemente configurado. Com a autorização acontecendo no backend
+(backlib 0.84.0), o provedor conversa com **um cliente web só** e nunca vê o aplicativo. Desenho em
+`docs/27` do studio.
+
+**Como o app usa:**
+```kotlin
+val pkce = PkcePair.generate()
+val url = api.socialStartUrl(SocialProvider.GOOGLE, appId = "inss-negou", codeChallenge = pkce.challenge)
+val codigo = SocialBrowserLogin().authenticate(url, redirectScheme = "brcodecacto.inssnegou")
+val tokens = api.socialExchange(codigo, pkce.verifier).getOrThrow()
+```
+
+**Navegador do sistema, nunca WebView** (RFC 8252): Custom Tabs no Android,
+`ASWebAuthenticationSession` no iOS. WebView embutida enxerga o que a pessoa digita, não compartilha
+a sessão do navegador — obrigando a digitar a senha do Google a cada login — e é recusada pelos
+provedores.
+
+**PKCE é obrigatório, e o motivo é concreto:** em Android e iOS um esquema de URL pode ser
+reivindicado por **mais de um aplicativo instalado**. Sem o `code_verifier`, quem interceptasse o
+*deep link* de volta trocaria o código pela sessão. O `verifier` tem 43 caracteres base64url (piso da
+RFC 7636 §4.1), e o backend cobra o tamanho.
+
+**Android exige uma Activity de callback** no aplicativo, com `intent-filter` do esquema, chamando
+`SocialBrowserRedirect.handleRedirect(uri)` — passo a passo no KDoc de `SocialBrowserLogin.android`.
+Ela precisa de `launchMode="singleTask"` e `noHistory="true"`: sem eles, o gesto de voltar joga a
+pessoa de novo para dentro do login que ela acabou de concluir.
+
+**iOS não foi validado em host macOS** — alvos Apple não compilam no servidor Linux. O código segue
+as APIs oficiais e espelha o `AppleAuthProvider.ios.kt`, mas compilar e testar em aparelho é do Mac.
+
 ## 2.142.0 — o botão para de CORTAR o texto que não coube
 
 **`AppButton`, `AppOutlinedButton`, `AppSecondaryButton`, `GoogleLoginButton` e `AppleLoginButton`

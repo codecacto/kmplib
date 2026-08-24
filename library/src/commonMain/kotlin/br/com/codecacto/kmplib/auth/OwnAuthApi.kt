@@ -10,6 +10,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -140,6 +141,45 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             )
         ),
     )
+
+    /**
+     * URL do `GET {authBasePath}/social/start` — para **abrir no navegador do sistema**, não para
+     * chamar pelo cliente HTTP (o backend responde com um redirecionamento para o provedor, e quem
+     * precisa segui-lo é o navegador, com a sessão do usuário).
+     *
+     * @param appId qual aplicativo está pedindo o login. Numa família de flavors é o que decide para
+     *   onde o usuário volta — e o backend confere contra a allowlist dele.
+     * @param codeChallenge desafio PKCE gerado por [br.com.codecacto.kmplib.auth.social.PkcePair].
+     */
+    fun socialStartUrl(
+        provider: SocialProvider,
+        appId: String,
+        codeChallenge: String,
+        loginHint: String? = null,
+    ): String {
+        val params = buildList {
+            add("app" to appId)
+            add("provider" to provider.wire)
+            add("codeChallenge" to codeChallenge)
+            loginHint?.trim()?.takeIf { it.isNotEmpty() }?.let { add("loginHint" to it) }
+        }
+        val query = params.joinToString("&") { (k, v) -> "$k=${v.encodeURLParameter()}" }
+        return config.url(config.socialStartSuffix) + "?" + query
+    }
+
+    /**
+     * `POST {authBasePath}/social/exchange` — troca o código que voltou no *deep link* pelo par de
+     * tokens, no MESMO shape de `login`/`register`/`refresh`.
+     *
+     * @param codeVerifier o par do desafio enviado no [socialStartUrl]. Sem ele o backend recusa: é
+     *   o que impede que outro aplicativo, capaz de reivindicar o mesmo esquema de URL, troque um
+     *   código interceptado pela sessão.
+     */
+    suspend fun socialExchange(code: String, codeVerifier: String): Result<OwnAuthTokens> =
+        postForTokens(
+            config.socialExchangeSuffix,
+            json.encodeToString(SocialExchangeBody.serializer(), SocialExchangeBody(code, codeVerifier)),
+        )
 
     /** `logout` revoga a família do refresh. Best-effort e idempotente (204). */
     suspend fun logout(refreshToken: String): Result<Unit> =

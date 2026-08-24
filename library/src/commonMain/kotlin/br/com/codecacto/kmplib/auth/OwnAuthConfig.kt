@@ -37,6 +37,8 @@ class OwnAuthConfig(
     val diagnostics: Boolean = false,
     socialSuffix: String = DEFAULT_SOCIAL_SUFFIX,
     socialNonceSuffix: String = DEFAULT_SOCIAL_NONCE_SUFFIX,
+    socialStartSuffix: String = DEFAULT_SOCIAL_START_SUFFIX,
+    socialExchangeSuffix: String = DEFAULT_SOCIAL_EXCHANGE_SUFFIX,
 ) {
     /** Base normalizada (sem barra final). */
     val baseUrl: String = baseUrl.trimEnd('/')
@@ -49,6 +51,12 @@ class OwnAuthConfig(
 
     /** Sufixo de `GET .../social/nonce` (emissão do nonce). Normalizado sem barras nas pontas. */
     val socialNonceSuffix: String = socialNonceSuffix.trim('/')
+
+    /** Sufixo de `GET .../social/start` — abre o login social conduzido pelo backend. */
+    val socialStartSuffix: String = socialStartSuffix.trim('/')
+
+    /** Sufixo de `POST .../social/exchange` — troca o código do *deep link* pela sessão. */
+    val socialExchangeSuffix: String = socialExchangeSuffix.trim('/')
 
     init {
         // Sufixo em branco casaria com TODA rota no roteamento de erro (`"login".startsWith("")`),
@@ -69,6 +77,17 @@ class OwnAuthConfig(
 
         /** `GET {authBasePath}/social/nonce` — nonce de uso único emitido pelo servidor. */
         const val DEFAULT_SOCIAL_NONCE_SUFFIX: String = "social/nonce"
+
+        /**
+         * `GET {authBasePath}/social/start` — o login social **conduzido pelo backend**.
+         *
+         * Esta URL não é chamada pelo cliente HTTP: ela é **aberta no navegador do sistema**, e o
+         * backend responde com um redirecionamento para o provedor.
+         */
+        const val DEFAULT_SOCIAL_START_SUFFIX: String = "social/start"
+
+        /** `POST {authBasePath}/social/exchange` — o código do *deep link* vira sessão. */
+        const val DEFAULT_SOCIAL_EXCHANGE_SUFFIX: String = "social/exchange"
     }
 }
 

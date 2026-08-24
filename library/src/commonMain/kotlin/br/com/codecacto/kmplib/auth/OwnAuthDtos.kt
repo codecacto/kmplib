@@ -126,3 +126,12 @@ internal data class PasswordForgotBody(val email: String)
 
 @Serializable
 internal data class PasswordResetBody(val token: String, val newPassword: String)
+
+/**
+ * Corpo do `POST .../social/exchange` — o código do *deep link* mais o `code_verifier` do PKCE.
+ *
+ * Sem o verifier o backend recusa: em Android e iOS um esquema de URL pode ser reivindicado por mais
+ * de um aplicativo instalado, e o código sozinho seria suficiente para quem o interceptasse.
+ */
+@Serializable
+internal data class SocialExchangeBody(val code: String, val codeVerifier: String)
