@@ -194,7 +194,7 @@ class HandleApiCallTest {
         }
         assertIs<ApiResult.Error>(result)
         assertEquals(-1, result.code)
-        assertEquals("Sem conexão com a internet.", result.message)
+        assertEquals("Não foi possível encontrar o servidor. Verifique sua conexão e tente novamente.", result.message)
     }
 
     @Test
@@ -250,7 +250,7 @@ class HandleApiCallTest {
     @Test
     fun `mapGenericNetworkMessage caso insensitive`() {
         assertEquals(
-            "Sem conexão com a internet.",
+            "Não foi possível encontrar o servidor. Verifique sua conexão e tente novamente.",
             mapGenericNetworkMessage(RuntimeException("UNABLE TO RESOLVE HOST"))
         )
         assertEquals(

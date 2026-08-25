@@ -37,6 +37,9 @@ class ApiResultTest {
     fun mapsDefaultMessages() {
         assertEquals("Recurso não encontrado.", defaultHttpErrorMessage(404, null))
         assertEquals("Falha", defaultHttpErrorMessage(418, "Falha"))
-        assertEquals("Sem conexão com a internet.", mapGenericNetworkMessage(RuntimeException("Unable to resolve host")))
+        assertEquals(
+            "Não foi possível encontrar o servidor. Verifique sua conexão e tente novamente.",
+            mapGenericNetworkMessage(RuntimeException("Unable to resolve host")),
+        )
     }
 }

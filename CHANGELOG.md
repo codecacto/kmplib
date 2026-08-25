@@ -1,5 +1,27 @@
 # Changelog — kmplib
 
+## 2.146.0 — o erro de rede que culpava a internet do usuário
+
+`mapGenericNetworkMessage`: **"Unable to resolve host" não diz mais "Sem conexão com a internet."**
+Agora diz **"Não foi possível encontrar o servidor. Verifique sua conexão e tente novamente."** O
+`ConnectTimeoutException` também parou de mandar "Verifique sua internet".
+
+Falha de DNS acontece nos **dois** casos — aparelho offline **e** endereço que não existe (host
+errado no build, domínio novo que ainda não propagou, subdomínio de nível a mais que o curinga do
+Cloudflare não cobre). A frase antiga escolhia um dos dois e mandava a pessoa conferir o wi-fi
+enquanto o problema estava no app.
+
+Motivo do release: o Mirassol Conectado trocou de domínio, o app foi compilado apontando para
+`api.mirassolconectado.com.br` antes de a delegação propagar, e a tela disse **"sem conexão com a
+internet"** — com o celular online, o backend `healthy` e respondendo 200 no host antigo. Mesmo
+sintoma do NeuroCoreX (`api.neurocorex…` em vez de `api-neurocorex…`), que originou a regra de log
+de requisição. O fundador leu a tela e perguntou se o servidor tinha caído.
+
+Quem sabe de verdade se há internet é o `ConnectivityObserver`, e quem avisa é o `ConnectivityGate`
+— que cobre a tela quando o aparelho está offline, e cujos textos continuam dizendo "Sem conexão com
+a internet" porque ali é verdade. Se o gate não está aparecendo, contradizê-lo na mensagem de erro
+era o furo.
+
 Histórico de versões. Fonte de verdade viva da superfície de APIs = skill `kmplib-catalog`;
 breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 
