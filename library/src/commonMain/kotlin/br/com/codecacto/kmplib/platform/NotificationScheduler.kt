@@ -186,6 +186,44 @@ interface NotificationScheduler {
     )
 
     /**
+     * Uma notificação **FIXA** — a que não se dispensa deslizando (2.144.0).
+     *
+     * É a faixa que os apps de entrega mantêm na bandeja enquanto o pedido está a caminho: ela
+     * substitui a si mesma a cada atualização (mesmo [id]) e só sai quando o app chama
+     * [cancelNotification]. Foi pedida assim, nominalmente: *"eu queria que tivesse a notificação
+     * fixa, igual tenho no iFood"* (Cidade Conectada, 25/ago/2026).
+     *
+     * ## Por que não é o [showNotificationNow] com um parâmetro a mais
+     * As duas têm ciclos de vida opostos. A comum é um AVISO: aparece, a pessoa toca ou desliza, e
+     * acabou (`autoCancel`). Esta é um ESTADO: enquanto durar, ela tem de estar lá — inclusive
+     * depois de a pessoa ter tocado nela e voltado. Um booleano numa função só faria o chamador
+     * escolher entre dois comportamentos que não se parecem, e o `autoCancel` errado é o tipo de
+     * default que só se descobre com o pedido do cliente já na rua.
+     *
+     * ## O que ela NÃO faz sozinha
+     * Não sobrevive ao app ser encerrado pelo sistema com a informação **atualizada**: quem a
+     * mantém em dia é o app (a cada leitura do estado) ou um push. Sem nenhum dos dois, ela congela
+     * no último texto — que continua sendo melhor que sumir, mas não é acompanhamento em tempo real.
+     *
+     * No iOS não existe equivalente direto: a bandeja não tem notificação persistente, e o que se
+     * aproxima disso é a Live Activity (ActivityKit), que é outra API e outra entrega. Lá esta
+     * função exibe uma notificação comum — melhor que silêncio, e declarado.
+     *
+     * @param id o MESMO em toda atualização: é o que faz a faixa se substituir em vez de empilhar.
+     */
+    fun showOngoingNotification(
+        id: Int,
+        title: String,
+        body: String,
+        data: Map<String, String> = emptyMap(),
+        channelId: String? = null,
+        actions: List<NotificationAction> = emptyList(),
+    ) {
+        // Default conservador: quem não implementou cai na notificação comum, que ao menos avisa.
+        showNotificationNow(id, title, body, data, channelId, actions)
+    }
+
+    /**
      * Adia um agendamento **existente** em [minutes] minutos, a partir de agora (2.100.0).
      *
      * É o mesmo caminho que o botão de [NotificationActionKind.SNOOZE] executa — exposto aqui para o

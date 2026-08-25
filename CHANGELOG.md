@@ -6,6 +6,29 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.144.0 — notificação FIXA (a faixa do pedido em curso)
+
+**`NotificationScheduler.showOngoingNotification(id, title, body, …)`** — a notificação que não sai
+ao deslizar nem ao ser tocada, e só desaparece com `cancelNotification`. É a faixa que os apps de
+entrega mantêm na bandeja enquanto o pedido está a caminho.
+
+**Por que existe.** Pedida nominalmente no Cidade Conectada (*"eu queria que tivesse a notificação
+fixa, igual tenho no iFood"*, 25/ago/2026). A lib tinha `showNotificationNow`, que é um AVISO:
+aparece, a pessoa toca ou desliza, e acabou. A faixa do pedido é um ESTADO — enquanto durar, tem de
+estar lá, inclusive depois de a pessoa ter tocado nela e voltado.
+
+**Não é um booleano no `showNotificationNow`.** As duas têm ciclos de vida opostos, e um parâmetro
+faria o chamador escolher entre dois comportamentos que não se parecem. No Android, o par é
+`setOngoing(true)` **com** `setAutoCancel(false)`: o primeiro sozinho ainda some quando a pessoa toca
+— e o sintoma seria a faixa desaparecer exatamente para quem a usou.
+
+**Limites, declarados.** Ela não se atualiza sozinha: quem a mantém em dia é o app (a cada leitura
+do estado) ou um push; sem nenhum dos dois ela congela no último texto — melhor que sumir, mas não é
+acompanhamento em tempo real. No **iOS** não há equivalente na bandeja (o que se aproxima é a Live
+Activity, outra API e outra entrega): lá o default do contrato exibe uma notificação comum.
+
+Aditivo: implementação padrão no `interface`, então nenhum consumidor precisa mudar nada.
+
 ## 2.143.0 — login social pelo NAVEGADOR, contra o nosso backend
 
 **`SocialBrowserLogin`** (Android + iOS), **`PkcePair`/`PkceCrypto`**, `OwnAuthApi.socialStartUrl()` e

@@ -364,6 +364,37 @@ class AndroidNotificationScheduler : NotificationScheduler {
         )
     }
 
+    override fun showOngoingNotification(
+        id: Int,
+        title: String,
+        body: String,
+        data: Map<String, String>,
+        channelId: String?,
+        actions: List<NotificationAction>
+    ) {
+        val ctx = context ?: return
+
+        if (!hasPermission()) {
+            AppLogger.w(TAG, "Sem permissão para exibir notificação")
+            return
+        }
+
+        NotificationPresenter.show(
+            fixa = true,
+            ctx = ctx,
+            item = ScheduledNotification(
+                id = id,
+                title = title,
+                body = body,
+                kind = NotificationScheduleKind.ONE_SHOT,
+                triggerAtMillis = System.currentTimeMillis(),
+                data = data,
+                channelId = channelId ?: DEFAULT_CHANNEL_ID,
+                actions = NotificationActionRules.distinctActions(actions),
+            ),
+        )
+    }
+
     override fun scheduledNotifications(): List<ScheduledNotification> = store?.all().orEmpty()
 
     /**

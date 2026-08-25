@@ -22,7 +22,12 @@ internal object NotificationPresenter {
     /** Esquema da URI que torna cada `PendingIntent` de ação distinto — ver [actionPendingIntent]. */
     private const val ACTION_URI_SCHEME = "kmplib"
 
-    fun show(ctx: Context, item: ScheduledNotification) {
+    /**
+     * @param fixa `true` = notificação PERSISTENTE (2.144.0): não sai ao deslizar nem ao ser
+     *   tocada, e só desaparece com `cancel`. Ver o KDoc de `NotificationScheduler
+     *   .showOngoingNotification`.
+     */
+    fun show(ctx: Context, item: ScheduledNotification, fixa: Boolean = false) {
         val channelId = item.channelId ?: AndroidNotificationScheduler.DEFAULT_CHANNEL_ID
         val builder = NotificationCompat.Builder(ctx, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -36,7 +41,11 @@ internal object NotificationPresenter {
                     NotificationCompat.PRIORITY_DEFAULT
                 },
             )
-            .setAutoCancel(true)
+            // ⚠️ Os dois JUNTOS, e é o par que importa. `setOngoing` sozinho ainda some quando a
+            // pessoa toca na notificação, porque quem a remove nesse caso é o `autoCancel` — e o
+            // sintoma seria a faixa desaparecer exatamente para quem a usou.
+            .setOngoing(fixa)
+            .setAutoCancel(!fixa)
 
         NotificationActionRules.distinctActions(item.actions).forEach { action ->
             builder.addAction(
