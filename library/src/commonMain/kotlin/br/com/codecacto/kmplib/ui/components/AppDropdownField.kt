@@ -218,8 +218,15 @@ private fun AncoraDeMenu(
                 placeholder = placeholder,
                 helperText = helperText,
                 errorMessage = errorMessage,
-                // Desabilitado de propósito: é o que impede o teclado de abrir e a digitação livre.
-                enabled = false,
+                // ⚠️ **`readOnly`, e não `enabled = false`** (2.145.0). O campo é só a vitrine da
+                // seleção — quem recebe o toque é o `Box` externo, e a digitação tem de estar
+                // bloqueada. Mas `enabled = false` o pintava com as cores de DESABILITADO (texto e
+                // borda cinza), e o dropdown inteiro parecia desligado — foi o que o fundador viu
+                // no cadastro (25/ago/2026). `readOnly` bloqueia a edição e o teclado mantendo as
+                // cores de campo ativo. Quando o `AncoraDeMenu` está de fato desabilitado, o
+                // `enabled` do clique externo já barra a abertura; aqui o campo herda esse estado.
+                enabled = enabled,
+                readOnly = true,
             )
             Icon(
                 imageVector = Icons.Default.ArrowDropDown,

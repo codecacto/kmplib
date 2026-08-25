@@ -70,6 +70,16 @@ fun AppTextField(
      */
     helperText: String? = null,
     enabled: Boolean = true,
+    /**
+     * Campo **só de leitura**, mas com aparência de HABILITADO (2.145.0).
+     *
+     * Diferente de `enabled = false`, que pinta tudo com as cores de desabilitado (o texto e a
+     * borda cinza que fazem o campo parecer desligado). `readOnly` mantém as cores normais e só
+     * impede a edição e o teclado — é o que um campo-vitrine precisa: o valor está lá, ativo à
+     * vista, e a escrita acontece por outro caminho (um seletor, um mapa, um dropdown que embrulha
+     * este campo).
+     */
+    readOnly: Boolean = false,
     singleLine: Boolean = true,
     maxLength: Int? = null,
     showCharCounter: Boolean = false,
@@ -141,6 +151,7 @@ fun AppTextField(
         isError = errorMessage != null,
         supportingText = supportingText,
         enabled = enabled,
+        readOnly = readOnly,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = primaryColor,

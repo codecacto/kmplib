@@ -6,6 +6,23 @@ breaking curados = `BREAKING_CHANGES.md`; decisões = `docs/adr/`.
 > Nota: este arquivo foi (re)criado na 2.78.0 (auditoria — não havia `CHANGELOG.md` de raiz; a
 > história pré-2.78 está no catálogo por versão e no `docs/legacy/CHANGELOG_UI_COMPONENTS.md`).
 
+## 2.145.0 — o dropdown deixa de parecer desabilitado (`readOnly` no AppTextField)
+
+**`AppTextField` ganhou `readOnly: Boolean`** — campo só de leitura, mas com aparência de
+HABILITADO. E o **`AppDropdownField`** passou a usá-lo no lugar de `enabled = false`.
+
+**Por que existe.** O campo-vitrine do dropdown (o que mostra a seleção; o toque vai para o `Box`
+que abre o menu) era um `AppTextField` com `enabled = false`. Isso o pintava com as cores de
+DESABILITADO — texto e borda cinza —, e o dropdown inteiro parecia desligado. Reportado no cadastro
+do Cidade Conectada (25/ago/2026): o spinner de bairro "parece estar desabilitado".
+
+`enabled = false` bloqueia a edição PELAS cores de disabled; `readOnly = true` bloqueia a edição e o
+teclado **mantendo as cores de campo ativo**. É a distinção certa para qualquer campo cuja escrita
+acontece por outro caminho — um seletor, um mapa, um dropdown que o embrulha. Vale para as duas
+variantes do dropdown (single e multi), que compartilham o mesmo `AncoraDeMenu`.
+
+Aditivo: `readOnly` nasce `false`, ninguém que já usa `AppTextField` muda.
+
 ## 2.144.0 — notificação FIXA (a faixa do pedido em curso)
 
 **`NotificationScheduler.showOngoingNotification(id, title, body, …)`** — a notificação que não sai
