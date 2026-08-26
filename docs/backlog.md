@@ -4210,3 +4210,13 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       Sem SDK oficial da Apple; só o fluxo web (Custom Tabs + Services ID + domínio verificado + deep
       link), que traz superfície de ataque própria para um caso que nenhum app do portfólio tem. Fica
       o erro explícito. Reabrir só se um produto exigir nominalmente.
+
+- [ ] **GAP-KL-M-PREFS-OBSERVEFLOAT — `AppPreferences` não tem `observeFloat`.**
+      A interface expõe `getFloat`/`setFloat` e os observadores de `String`/`Boolean`/`Int`/`Long`,
+      mas **não** o de `Float` — então toda preferência decimal que precise chegar reativa a uma
+      tela fica sem caminho direto. Encontrado no **Decibelímetro Simples** (offset de calibração em
+      dB, passo de 0,5), que contornou guardando **décimos num `Int`** e dividindo na leitura
+      (`core/prefs/AppSettings.kt` daquele app). O contorno é exato e barato; o problema é que ele
+      precisa ser redescoberto por consumidor, e quem não notar a ausência tende a cair no
+      `observeString` + `toFloat()`, que perde precisão na volta. Aditivo: acrescentar
+      `observeFloat(key, default)` às três implementações (Android/iOS/fake) não quebra ninguém.
