@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
 import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
+import br.com.codecacto.kmplib.platform.BatteryMonitorHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
+import br.com.codecacto.kmplib.platform.ShakeDetectorHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import br.com.codecacto.kmplib.platform.UrlLauncherHolder
 import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
+import br.com.codecacto.kmplib.torch.TorchControllerHolder
 import br.com.codecacto.kmplib.voice.SpeechRecognizerHolder
 
 /**
@@ -35,6 +38,9 @@ fun KmpLib.init(context: Context) {
     BlobStoreHolder.init(context)
     TtsControllerHolder.init(context)
     SpeechRecognizerHolder.init(context)
+    TorchControllerHolder.init(context)
+    BatteryMonitorHolder.init(context)
+    ShakeDetectorHolder.init(context)
 }
 
 /**

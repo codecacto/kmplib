@@ -3,6 +3,46 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.147.0 — os 6 gaps do **Minha Lanterna** (25/ago/2026)
+> Origem: wireframes do Minha Lanterna (ux-designer) + PRD do app. Cinco dos seis eram fundação e
+> entraram na 2.147.0; o sexto fica no app, de propósito.
+
+- [x] **G1 — lanterna (torch) autônoma.** Módulo novo `torch`: acender/apagar/alternar sem montar
+      sessão de câmera, estado observável que reflete o hardware, intensidade real onde existe,
+      capacidades consultáveis e erros tipados. Até aqui, o único flash da lib vivia **dentro** do
+      `CameraView`/`BarcodeScannerView` — um app de lanterna teria de subir um leitor de código de
+      barras para acender uma luz. Serve ≥2 apps: Minha Lanterna e qualquer tela que hoje só
+      consegue lanterna junto do scanner.
+- [x] **G2 — slider temático (`AppSlider`).** Faltava o par do `AppSwitch`/`AppCheckbox` para
+      grandeza contínua; cada tela reescrevia as cores e o cabeçalho "rótulo à esquerda / valor à
+      direita". `AppSliderDefaults.stepsFor` fecha o off-by-one clássico do `steps` do Material 3.
+- [x] **G3 — leitura de bateria (`BatteryMonitor`).** Nível + carregando, observável, com a regra do
+      corte crítico (`isCritical`) em código comum: no carregador, 4% não é emergência, e leitura
+      indisponível nunca corta.
+- [x] **G4 — gesto de chacoalhar (`ShakeDetector`/`ShakeAnalyzer`).** Sensibilidade ajustável,
+      decisão em `commonMain` (mesmo gesto dispara igual nas duas plataformas) e capacidade
+      reportada ausente no aparelho sem acelerômetro.
+- [x] **G5 — manter a tela acesa (`KeepScreenOn`).** Composable com liberação garantida no
+      `onDispose`; **sem** versão imperativa, de propósito — `acquire()`/`release()` soltos são como
+      se esquece a tela acesa a viagem inteira.
+- [ ] **G6 — overlay "segurar para desbloquear": NÃO vai para a lib (decisão registrada).** É regra
+      de produto (quanto tempo segurar, o que a trava cobre, o que ela deixa passar), não capacidade
+      de plataforma. Fica no Minha Lanterna. Reabrir só se ≥2 apps pedirem a MESMA trava.
+
+#### Pendências que sobraram dos 5 atendidos
+- [ ] **GAP-KL-M-TORCH-IOS-VALIDATE — validar em host macOS o `actual` iOS de `torch`, `platform/
+      BatteryMonitor`, `platform/KeepScreenOn` e `platform/ShakeDetector`.** Escritos conforme as
+      APIs oficiais (AVCaptureDevice + KVO de `torchActive`; UIDevice + notificações de bateria;
+      `isIdleTimerDisabled`; CMMotionManager), mas Kotlin/Native iOS **não compila em Linux**. O
+      ponto de maior risco é o **KVO**: o observador é uma subclasse de `NSObject` que sobrescreve
+      `observeValueForKeyPath:` — se o binding recusar a sobrescrita, o plano B é reler
+      `device.isTorchActive()` na volta do segundo plano (`UIApplicationDidBecomeActive`) + no
+      `refresh()`, que já existe.
+- [ ] **GAP-KL-M-TORCH-STROBE — estroboscópio/Morse NÃO entram na lib (decisão registrada).** O
+      `TorchController` entrega o controle do hardware; o padrão de piscar é do produto. Só promover
+      se ≥2 apps quiserem o mesmo padrão — e ainda assim como agendador puro em `commonMain`, nunca
+      como simulação de intensidade por PWM (aquece e desgasta o LED).
+
 ### PENDENTE — 3 lacunas expostas pela i18n do **Torneio de Pênalti** (23/ago/2026)
 > Origem: Onda 5 do Torneio de Pênalti (paywall + 4 idiomas). As três têm o mesmo formato: a lib
 > entrega a tela pronta, mas com o TEXTO em pt-BR fixo em Kotlin — então todo app multi-idioma

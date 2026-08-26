@@ -1,5 +1,104 @@
 # Changelog — kmplib
 
+## 2.147.0 — a lanterna sai de dentro da câmera (módulo `torch`) + 4 peças de fundação
+
+**Módulo novo `torch`**, e mais quatro itens de plataforma que o app de lanterna expôs. Tudo
+**aditivo**: nenhuma assinatura existente mudou.
+
+### `torch` — controle de hardware da lanterna, sem sessão de câmera
+
+Até aqui o único flash da kmplib vivia **dentro** do `CameraView` (OCR de placa) e do
+`BarcodeScannerView`: para acender uma luz, o app teria de montar um leitor de código de barras
+inteiro — preview, permissão de câmera, analisador de frames. É o que travava o **Minha Lanterna**.
+
+`createTorchController()` devolve um `TorchController` com:
+
+- **`turnOn(level)` / `turnOff()` / `toggle()` / `setLevel()`** — síncronos de propósito: o tempo
+  entre o toque e a luz é a métrica do produto.
+- **`state: StateFlow<TorchState>` que reflete o HARDWARE**, não a última intenção do app. Quando o
+  SO apaga a luz sozinho (outro app pegou a câmera, aparelho esquentou, Central de Controle do iOS),
+  o estado muda sem ninguém pedir. Botão preso em "aceso" com o LED apagado é o defeito clássico dos
+  apps de lanterna.
+- **`TorchCapabilities` consultável ANTES de desenhar a tela**: tem flash? tem intensidade? quantos
+  níveis? (`sliderSteps` já sai pronto para o `Slider`). Sem isso, o slider vira um controle que
+  mexe e não muda nada.
+- **`TorchOutcome` + `TorchError`** (`NoTorch`, `PermissionDenied`, `InUse`, `Unavailable`,
+  `Unknown`) — nada de exceção crua chegando à UI. A lib **não** traz texto de usuário aqui: a frase
+  é do produto, e o idioma vem do aparelho.
+- **`release()`** apaga a luz e solta o recurso; `rememberTorchController()` faz isso no `onDispose`.
+
+**Padrão-ouro, com o porquê:**
+- **Android** — `CameraManager.setTorchMode` (não abre a câmera, não pede permissão `CAMERA`, não
+  bloqueia outros apps) + **`registerTorchCallback`** para o estado real. Intensidade por
+  `turnOnTorchWithStrengthLevel` a partir da **API 33**, com o teto lido de
+  `FLASH_INFO_STRENGTH_MAXIMUM_LEVEL`.
+- **iOS** — `AVCaptureDevice` com `lockForConfiguration`/`unlockForConfiguration`, `torchMode` e
+  `setTorchModeOn(level:)` (faixa contínua 0..1), com **KVO de `torchActive`** para o estado real.
+
+**A capacidade de intensidade é uma conjunção, não uma versão de SO.** No Android ela exige API 33+
+**E** teto maior que 1 — aparelho com `FLASH_INFO_STRENGTH_MAXIMUM_LEVEL == 1` no Android 14 é
+liga/desliga, e prometer slider ali é um controle morto. A decisão mora em `commonMain`
+(`androidTorchCapabilities`) e é coberta por teste, sem aparelho.
+
+**PWM é PROIBIDO.** Onde não há suporte nativo a nível de força, a capacidade é reportada
+**ausente** e ponto — simular intensidade piscando o LED em alta frequência aquece e desgasta o
+componente. Pelo mesmo motivo, **estroboscópio e Morse ficam FORA da lib**: a lib entrega o
+hardware, o padrão de piscar é regra de produto.
+
+### `ui/components` — `AppSlider`
+
+Par do `AppSwitch`/`AppCheckbox` para grandeza contínua: cores do `AppTheme` (zero `Color(0x…)`),
+cabeçalho **rótulo à esquerda / valor à direita**, ícones opcionais nas pontas e
+`onValueChangeFinished` para persistir só ao soltar. **`AppSliderDefaults.stepsFor(range, increment)`**
+fecha o off-by-one clássico: `steps` no Material 3 conta os pontos **intermediários** (0..10 de 1 em
+1 são 11 posições e `steps = 9`), e errar isso faz o slider parar em valores que não existem.
+
+### `platform` — `BatteryMonitor`
+
+Nível + "está carregando", observável. Android via `ACTION_BATTERY_CHANGED` (sticky broadcast — só
+registrável em runtime, nunca no manifesto); iOS via `UIDevice` com `isBatteryMonitoringEnabled` e as
+notificações de nível/estado (o `release()` **desliga** a flag, que é global do processo).
+
+A regra do corte crítico é comum e testada: `isCritical(threshold)` só é verdadeira **sem
+carregador** — 2% no carregador não é emergência, e cortar a lanterna ali seria um defeito. Leitura
+indisponível **nunca** é crítica: `fromLevelAndScale` usa a `scale` reportada (nem sempre 100) e
+`fromIosLevel` trata o `-1` do iOS como *desconhecido*, não como bateria zerada.
+
+### `platform` — `KeepScreenOn`
+
+Composable que impede a tela de apagar enquanto estiver na composição. Android: `View.keepScreenOn`
+(recomendado pelo próprio Android, preferível a um `PowerManager.WakeLock`, que exige permissão e é
+a origem clássica do "a tela nunca mais apagou"). iOS: `isIdleTimerDisabled`. **Não existe versão
+imperativa, de propósito** — `acquire()`/`release()` soltos são exatamente como se esquece a tela
+acesa a viagem inteira; aqui a liberação é do `onDispose`.
+
+### `platform` — `ShakeDetector`
+
+Gesto de chacoalhar com sensibilidade ajustável (`ShakeSensitivity.fromFraction`, direção intuitiva:
+1 = mais sensível). Android: `SensorManager` + `TYPE_ACCELEROMETER` a `SENSOR_DELAY_GAME`; iOS: Core
+Motion (`CMMotionManager`) a 50 Hz — o *shake* de graça do UIKit não serve porque não tem
+sensibilidade ajustável.
+
+A decisão fica no **`ShakeAnalyzer`, em `commonMain`**: os `actual` só entregam amostras **já
+normalizadas em g** (o Android divide por `GRAVITY_EARTH`, o iOS já reporta em g), então o mesmo
+gesto dispara igual nas duas plataformas. O `cooldown` é o que impede um chacoalhão de virar 25
+eventos — a 50 Hz, meio segundo de movimento passa do limiar o tempo todo. Aparelho sem
+acelerômetro reporta `isAvailable = false`, e a opção some da tela em vez de virar um ajuste que
+nunca dispara.
+
+### Testes
+
+67 novos em `commonTest` (2.176 no total, 0 falhas): capacidade por versão de SO e por teto de
+níveis, clamp/alinhamento de intensidade ao degrau do hardware, máquina de estado (inclusive "o SO
+apagou sozinho"), mapeamento de `CameraAccessException.reason` para erro tipado, escala de bateria,
+regra do corte crítico, rajada do acelerômetro e `stepsFor`.
+
+### Origem
+
+Minha Lanterna (`1-Apps-Offline-Ads`): PRD + wireframes levantaram 6 gaps. Cinco eram fundação e
+entraram aqui; o sexto (overlay "segurar para desbloquear") **fica no app** — é regra de produto,
+não capacidade de plataforma. Registro em `docs/backlog.md`.
+
 ## 2.146.0 — o erro de rede que culpava a internet do usuário
 
 `mapGenericNetworkMessage`: **"Unable to resolve host" não diz mais "Sem conexão com a internet."**
