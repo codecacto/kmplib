@@ -47,6 +47,39 @@
 
 > **GAP-CDV-M-02 foi ATENDIDO na 2.149.0** — ver a seção logo abaixo.
 
+### ATENDIDO na 2.150.0 — captura de áudio + nível sonoro (`platform/audio`), Onda 1 do **Decibelímetro Simples** (26/ago/2026)
+> Origem: `docs/prd.md` §10 e `docs/roadmap.md` (Onda 1) do Decibelímetro Simples — o gap
+> **bloqueava o projeto inteiro**, não só uma tela.
+
+- [x] **Captura de microfone com medição de nível.** A lib tinha `media` (reprodução) e `voice`
+      (fala): **nenhum dos dois expõe buffer de áudio nem RMS/dB**. Sem isto, o app teria de
+      escrever `expect/actual` dentro do projeto — exatamente o que a lib existe para concentrar.
+      **Dois consumidores desde o primeiro dia**, e é o que decidiu a forma da API: o
+      Decibelímetro quer o **nível em dB**; o **afinador por microfone do Tom Certo** (registrado
+      no PRD dele como feature futura) vai querer as **amostras cruas** para detecção de
+      frequência. Entregar só o dB faria o afinador reimplementar a captura do zero.
+      Entrou: `AudioCapture` (`levels` + `frames` opt-in), `createAudioCapture`/
+      `rememberAudioCapture`, `AudioLevel`/`AudioFrame`, `AudioCaptureState`/`AudioCaptureError`,
+      `AudioWeighting`/`AudioTimeWeighting`/`AudioInputSource`, `AudioLevelAnalyzer`,
+      `AWeightingFilter`, `TimeWeightingIntegrator`, `SplCalibration`.
+
+**Decisões registradas (não reabrir sem consumidor novo):**
+- **Curva C ficou FORA.** Z e A cobrem os dois consumidores; C só serve a pico impulsivo/ruído
+  industrial e **não tem dono** — módulo novo não nasce com opção sem consumidor.
+- **Sem FFT/detecção de pitch.** A lib entrega o buffer; o algoritmo do afinador é do produto.
+- **Sem estéreo e sem gravação.** Nível sonoro não tem estéreo, e gravar em disco é justamente o
+  que o produto promete não fazer (NFR-05 do PRD).
+- **A lib não observa ciclo de vida do app** (quem pausa é o `enabled` do helper Compose), **mas
+  trata interrupção e mudança de rota no iOS** — essas o app não tem como tratar.
+- **A unidade é dBFS.** A conversão para SPL é `SplCalibration` (função pura na lib); **persistir
+  o offset e desenhar a tela é do app**.
+
+**Pendência conhecida:** o `actual` iOS (`AudioCapture.ios.kt`) **não compila no servidor Linux** —
+alvos Apple só sob `HostManager.hostIsMac`. Entra como código pronto e revisado; a compilação e o
+teste em dispositivo são do fundador, no Mac. Pontos de maior risco de compilação lá:
+`setMode(AVAudioSessionModeMeasurement, error = null)`, `AVAudioApplication` (iOS 17+, com gate por
+`NSProcessInfo`) e as constantes de interrupção (`AVAudioSessionInterruptionType`).
+
 ### ATENDIDO na 2.149.0 — efeito sonoro curto (`media/SoundEffect`), GAP-CDV-M-02 do **Contador de Voltas** (26/ago/2026)
 > Origem: `docs/design/flows.md` do Contador de Voltas (ux-designer), tela "Sessão ativa".
 

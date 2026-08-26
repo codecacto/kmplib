@@ -1,5 +1,130 @@
 # Changelog — kmplib
 
+## 2.150.0 — captura de microfone e nível sonoro (`platform/audio`)
+
+**Aditivo**: nenhuma assinatura existente mudou, **nenhuma permissão nova no manifesto da lib**, e
+`media`/`voice` ficaram intocados.
+
+A lib não tinha **como ler o microfone**. `media/AudioPlayer` é reprodução; `voice/SpeechRecognizer`
+é fala — e **nenhum dos dois expõe buffer de áudio nem nível**. Um decibelímetro ou um afinador
+teriam de escrever `expect/actual` **dentro do projeto**, que é exatamente o que a lib existe para
+concentrar. O gap bloqueava a Onda 1 inteira do **Decibelímetro Simples**.
+
+**Dois consumidores desde o primeiro dia, e é o que decidiu a forma da API:** o Decibelímetro quer o
+**nível em dB**; o **afinador por microfone do Tom Certo** (registrado no PRD dele como feature
+futura) vai querer as **amostras cruas** para detecção de frequência. Por isso a API entrega
+**nível E buffer** — entregar só o dB faria o segundo consumidor reimplementar a captura do zero, e
+a promoção para a lib não teria valido nada.
+
+### O que entrou
+
+- **`AudioCapture`** — `isAvailable`, `state: StateFlow<AudioCaptureState>`,
+  `levels: Flow<AudioLevel>`, `frames: Flow<AudioFrame>`, `start()`/`stop()`/`release()` e
+  **`updateProcessing(weighting?, timeWeighting?, emitIntervalMillis?)`**, que troca o processamento
+  **sem reiniciar a captura** (a tela de Configurações não pode fechar e reabrir o microfone a cada
+  toque).
+- **`createAudioCapture(config)`** (`expect`/`actual`) e **`rememberAudioCapture(enabled, config)`**,
+  que libera o recurso no `onDispose`.
+- **`AudioLevel`** (`rmsDbfs`, `peakDbfs`, `isClipping`, `sampleRate`, `weighting`,
+  `timestampMillis`) e **`AudioFrame`** (PCM 16-bit mono cru, opt-in).
+- **`AudioCaptureConfig`**, **`AudioWeighting`** (`Z`/`A`), **`AudioTimeWeighting`**
+  (`FAST`/`SLOW`/`NONE`), **`AudioInputSource`**, **`AudioCaptureState`**, **`AudioCaptureError`**.
+- **DSP puro e testável, em `commonMain`:** **`AudioLevelAnalyzer`**, **`AWeightingFilter`**,
+  **`TimeWeightingIntegrator`** — os `actual` **só leem o hardware**; não há aritmética de dB dentro
+  de nenhum deles, de propósito (se houvesse, o mesmo som daria números diferentes nas duas
+  plataformas e ninguém descobriria sem dois aparelhos na mão).
+- **`SplCalibration`** — `toSpl(dbfs)`/`toDbfs(spl)` e `DEFAULT_OFFSET_DB = 90.0`.
+
+### Padrão-ouro, com o porquê
+
+- **Android — `AudioRecord`** (PCM 16-bit mono, `AudioRecord.Builder`), **nunca
+  `MediaRecorder.getMaxAmplitude()`**: o atalho **grava um arquivo em disco** só para devolver um
+  inteiro de pico, com resolução grosseira, sem RMS, sem ponderação e **sem acesso ao buffer** — um
+  medidor feito assim escreve áudio no armazenamento do usuário a cada leitura, e um afinador não
+  teria como existir sobre ele.
+- **Fonte de entrada: `UNPROCESSED` quando o aparelho declara suporte
+  (`AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED`), senão `VOICE_RECOGNITION`.** O motivo é
+  medição, não qualidade: ganho automático, supressão de ruído e cancelamento de eco **destroem a
+  relação amplitude → SPL** — o AGC "conserta" exatamente aquilo que estamos medindo. `MIC` costuma
+  vir com AGC/NS em OEM. A fonte efetiva vai em `Running.source`, porque **trocar de fonte invalida a
+  calibração**.
+- **iOS — `AVAudioEngine`** com tap no `inputNode` + `AVAudioSession` categoria `record` e **modo
+  `measurement`**, que a Apple documenta como o que minimiza o processamento do sistema sobre a
+  entrada: é o par do `UNPROCESSED` do Android. `AVAudioRecorder` foi descartado — grava arquivo e só
+  expõe `averagePower`.
+- **Thread dedicada com `THREAD_PRIORITY_URGENT_AUDIO`** e emissão `DROP_OLDEST`: o laço de áudio
+  **nunca espera coletor**. Tela lenta atrasaria a leitura do driver e corromperia a medição.
+
+### As decisões que o número da tela depende
+
+- **A unidade é dBFS, não dB SPL.** dBFS é a verdade do que o hardware entregou; SPL depende da
+  sensibilidade do microfone **daquele modelo**, que nenhuma API expõe. A conversão fica na lib como
+  **função pura** (`SplCalibration`) porque a *constante de referência* é conhecimento compartilhado
+  — deixar cada app inventar a sua é como a fórmula se perde. **Persistir o offset e desenhar a tela
+  é do app.** O offset é **por aparelho E por fonte de entrada**, e **isto não é instrumento de
+  medição**.
+- **A curva A é DERIVADA da `sampleRate`, em runtime** (transformada bilinear sobre os polos da IEC
+  61672-1, com normalização de 0 dB em 1 kHz calculada sobre a cascata digital). **Hardcodar
+  coeficientes de 44.100 Hz é proibido:** o aparelho que abrir em 48 kHz — muito comum — mediria
+  **errado em silêncio**, e nada no log denunciaria. Há **pré-warp seletivo** dos polos (só abaixo de
+  `0,45·fs`): sem ele o erro em 10 kHz é de **-1,5 dB**; com ele, +0,7 dB. Aplicá-lo a polo acima de
+  Nyquist é pior que não aplicar — medido: **-5,5 dB** de erro em 4 kHz numa captura de 16 kHz.
+  Erro máximo contra a tabela da norma: **0,2 dB em 44,1 e 48 kHz**.
+- **A integração temporal (Fast 125 ms / Slow 1 s) é sobre a POTÊNCIA, nunca sobre o dB.** Média de
+  decibéis não é média de energia: suavizar em dB achata o transiente e mostra um estouro menor do
+  que ele foi, no exato caso em que o número importa. Sem integração nenhuma, o valor pula a cada
+  150 ms e a tela fica ilegível.
+- **Piso de silêncio `SILENCE_DBFS = -120.0`.** Janela em silêncio digital tem potência zero, e
+  `log10(0)` é `-Infinity`, que vira `NaN` na animação e **some com o número da tela** — falha muda,
+  sem erro no log. Nenhum campo em dB emite `Infinity`/`NaN`, e há teste explícito para isso.
+- **Saturação:** `isClipping` quando alguma amostra encosta no teto (`|sample| >= 32767`) **ou**
+  `peakDbfs >= -0.1`. O pico é medido no sinal **cru** — ponderar antes de medir pico esconderia
+  justamente a saturação que ele existe para denunciar.
+- **Curva C ficou de fora**, e é decisão: ela só serve a pico impulsivo/ruído industrial e **não tem
+  consumidor**. Módulo novo não nasce com opção sem dono. Pelo mesmo motivo **não há FFT nem detecção
+  de pitch** (é do produto), nem estéreo, nem gravação.
+
+### O que a lib NÃO faz (de propósito)
+
+- **Não pede permissão** — só **confere**, e falha com `AudioCaptureError.PermissionDenied`. Pedir é
+  do app, via `PermissionManager` + `AppPermission.MICROPHONE`, depois da tela que explica o porquê.
+  A conferência existe porque **sem ela o `AudioRecord` abre normalmente e entrega silêncio
+  digital**: o app mostraria -120 dB para sempre, sem exceção, sem log e sem nenhuma pista da causa.
+- **Não declara `RECORD_AUDIO` no manifesto da lib** — mesma régua do `SCHEDULE_EXACT_ALARM`: é
+  permissão perigosa, e impô-la a **todo** app da lib (inclusive os que nem gravam) transfere um
+  risco de revisão de loja para quem não pediu. O app declara a sua, e o
+  `NSMicrophoneUsageDescription` do `Info.plist`.
+- **Não observa o ciclo de vida do app.** Quem pausa em segundo plano é o `enabled` do helper
+  Compose (mesmo desenho do `rememberShakeDetector`). **Mas interrupção e mudança de rota no iOS são
+  obrigação do `actual`**: ligação/Siri levam a `Interrupted` e a captura **volta sozinha** no
+  `shouldResume`; fone plugado e `AVAudioEngineConfigurationChange` reinstalam o tap e **recalculam
+  os coeficientes da curva A** (a taxa pode ter mudado junto). Sem isso, o app volta da ligação com a
+  tela viva e o número congelado.
+- **Não grava nada em disco**, em hipótese alguma. Só buffer em memória.
+
+### Armadilha registrada no código (iOS)
+
+O tap **tem de usar `inputNode.outputFormatForBus(0)`**. Instalar tap com formato diferente do
+hardware **derruba o app em runtime** (`required condition is false:
+format.sampleRate == hwFormat.sampleRate`) — não é erro de compilação e não aparece em teste de
+unidade. Por isso `preferredSampleRate` é **ignorado no iOS**, e as amostras `Float32` são
+convertidas no cálculo, nunca na instalação do tap.
+
+### Testes
+
+44 casos novos em `commonTest`, com **vetores conhecidos e sem hardware**: seno de amplitude plena =
+**-3,01 dBFS**, contínua em fundo de escala = **0 dBFS**, silêncio = piso exato e **nunca
+`NaN`/`Infinity`**, saturação em ±32767 vs. -6 dBFS, pico ≥ RMS, curva A contra a tabela da norma
+**em 44.100 E 48.000 Hz** (é o teste que prova que os coeficientes são derivados da taxa), degrau
+chegando a 63% em 1τ, Slow atrás do Fast, `NONE` sem suavizar, máquina de estados e `release`
+idempotente. Suíte da lib: **2271 testes, 0 falhas**.
+
+### Pendência
+
+O `actual` iOS **não compila no servidor Linux** (alvos Apple só sob `HostManager.hostIsMac`).
+Entra como código pronto e revisado — **não** como verificado. Compilação e teste em dispositivo
+saem no Mac.
+
 ## 2.149.0 — efeito sonoro curto empacotado (`media/SoundEffect`)
 
 **Aditivo**: nenhuma assinatura existente mudou, nenhuma permissão nova no manifesto, o
