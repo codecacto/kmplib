@@ -3,6 +3,60 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (26/ago/2026) — origem: design do Conversor de Temperatura
+
+- [ ] **GAP-CT-M-01 — campo numérico assinado/decimal com toggle de sinal
+      (`SignedDecimalField`).** Nem `AppTextField` nem `NumberField` documentam suporte a valor
+      **negativo** com separador decimal **por locale** — o teclado numérico padrão de
+      Android/iOS normalmente não expõe tecla de sinal de menos, e o separador decimal do
+      teclado do sistema segue o locale do APARELHO. Todo app que precise de negativo
+      (conversores, calculadoras científicas/financeiras) reimplementaria à mão o botão "±" e a
+      normalização vírgula/ponto. Proposta de API:
+      ```kotlin
+      @Composable
+      fun SignedDecimalField(
+          value: String, onValueChange: (String) -> Unit, label: String,
+          modifier: Modifier = Modifier, allowNegative: Boolean = true,
+          decimalSeparator: Char = defaultDecimalSeparatorForLocale(),
+          isError: Boolean = false, errorMessage: String? = null,
+          trailing: (@Composable () -> Unit)? = null,
+      )
+      ```
+      Internamente: `appKeyboardOptions(KeyboardType.Number, …)` + `leadingIcon` com toggle "±"
+      (só quando `allowNegative`) + `VisualTransformation` que formata pelo `decimalSeparator` e
+      devolve ao chamador em formato canônico (ponto). 1º consumidor real: **Conversor de
+      Temperatura** (as 3 escalas do Conversor, Forno e Febre). Origem: `docs/design/wireframes.md`
+      §5/§6 daquele projeto (ux-designer).
+
+### Registrado nesta rodada (26/ago/2026) — origem: design do Contador de Voltas
+> **Nenhum dos dois bloqueia o MVP** — ambos têm contorno funcional dentro do que a lib já oferece
+> hoje; registrados para avaliação de promoção quando/se um segundo consumidor pedir o mesmo.
+> Origem: `docs/design/flows.md` e `docs/design/wireframes.md` daquele projeto (ux-designer), tela
+> "Sessão ativa".
+
+- [ ] **GAP-CDV-M-01 — vibração/haptics sem padrão nem intensidade configuráveis.** Hoje só existe
+      `LocalHapticFeedback` do Compose puro (não é símbolo da kmplib), com dois tipos fixos
+      (`LongPress`, `TextHandleMove`) e sem controle de intensidade/duração/padrão. Suficiente para
+      confirmar "volta registrada" (um pulso por toque válido), mas não permite diferenciar
+      taticamente um evento de outro (ex.: "meta atingida" vs. "volta normal" usariam o mesmo
+      pulso) — no Contador de Voltas isso é coberto por som+cor do flash, então não bloqueia.
+      Módulo proposto: `platform/Haptics` (expect/actual — Android `VibrationEffect.createOneShot/
+      createWaveform`; iOS `UIImpactFeedbackGenerator`/`CHHapticEngine`) com padrão e intensidade
+      configuráveis. Reuso plausível em qualquer app de contagem/exercício/jogo, mas sem 2º
+      consumidor concreto hoje — **não promover ainda**, só registrar.
+- [ ] **GAP-CDV-M-02 — som curto e repetido sem `SoundEffect`/pool dedicado.** `media/AudioPlayer`
+      foi desenhado para mídia com posição/duração/seek (um arquivo, uma reprodução por vez), não
+      para bipes curtos disparados repetidamente e às vezes próximos entre si. Contorno usado no
+      Contador de Voltas: um único `AudioPlayer` pré-carregado no início da sessão, com `seekTo(0)`
+      + `play()` a cada volta — na pior hipótese um toque muito próximo do anterior corta o som em
+      andamento e reinicia (perde-se o eco, não a confirmação, que também tem vibração e flash
+      visual). Como o intervalo mínimo padrão do produto (0,3s) é maior que a duração de um bipe
+      curto (~80-150ms), o corte deve ser raro na prática. Módulo proposto: `media/SoundEffect`
+      (SoundPool-like — Android `SoundPool`; iOS pool de `AVAudioPlayer` ou `AVAudioEngine` com
+      buffer), múltiplos streams simultâneos, latência mínima. Reuso plausível em qualquer app com
+      feedback sonoro repetitivo (cronômetros, jogos, apps de exercício) — **promover só se um
+      segundo projeto pedir o mesmo**.
+
 ### ATENDIDO na 2.148.0 — brilho da tela (`platform/ScreenBrightness`), G7 do **Minha Lanterna** (26/ago/2026)
 > Origem: tech-lead do Minha Lanterna, bloqueando o modo "tela como luz".
 
