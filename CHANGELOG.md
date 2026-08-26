@@ -1,6 +1,42 @@
 # Changelog — kmplib
 
 
+
+## 2.155.0 — o arrasto que a galeria comia: deslizar entre fotos NÃO funcionava
+
+Defeito da 2.153.0, reportado pelo fundador ao usar a galeria de espaço de festa:
+*"quando clico em uma foto da galeria ela abre em tela cheia — quero arrastar para o lado para ir
+vendo as próximas ou anteriores"*. E não ia: o dedo arrastava e não acontecia nada.
+
+### A causa
+`ZoomableBox` usava `detectTransformGestures`, que **consome todo arrasto** que passa do touch
+slop — inclusive o de UM dedo, e inclusive com a imagem em escala 1. Num visualizador de imagem
+sozinha isso não se nota (não há quem receberia o gesto). Dentro de um `HorizontalPager` é o
+defeito inteiro: o dedo arrasta, a foto fica parada (escala 1, offset zerado) e o pager nunca vê o
+evento.
+
+O `userScrollEnabled = !ampliada` que a 2.153.0 tinha era correto e **inútil sozinho**: ele libera
+o pager, mas o gesto já tinha sido comido antes de chegar lá.
+
+### A correção
+Laço de gesto próprio (`awaitEachGesture`) no lugar do `detectTransformGestures`, consumindo
+**só o que é do zoom** — `gestoEDoZoom(dedos, escalaAtual)`:
+
+- **dois dedos é sempre pinça** (ninguém usa dois dedos para virar página);
+- **um dedo só é nosso com a imagem ampliada** — aí o arrasto move a imagem, que é a única coisa
+  que faz sentido; em escala 1 não há para onde mover.
+
+Fora disso os eventos passam adiante e o pager vira a página.
+
+O corte é `1.01`, e não `1f` exato: a pinça deixa resíduo de ponto flutuante (1.0000001), e comparar
+com igualdade faria a imagem "de volta ao normal" continuar capturando o arrasto para sempre.
+
+### O que muda para quem já usava `ZoomableBox`
+Nada visível. Com imagem única e escala 1, o arrasto deixa de ser consumido — mas não havia ninguém
+para recebê-lo. Ampliada, continua panorâmica como antes.
+
+Cinco testes novos (`ZoomableBoxGestoTest`), e o primeiro é exatamente o caso que estava quebrado.
+
 ## 2.154.0 — o microfone que diz onde é o silêncio, e a permissão que finalmente abre
 
 Duas correções de comportamento no mesmo release. Nenhuma assinatura sumiu; as duas **mudam o que o

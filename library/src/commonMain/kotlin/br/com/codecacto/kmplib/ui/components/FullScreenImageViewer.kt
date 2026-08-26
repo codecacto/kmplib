@@ -5,7 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,22 +74,43 @@ fun ZoomableBox(
 
     Box(
         modifier = modifier
+            // ⚠️ **Laco de gesto proprio, e nao `detectTransformGestures`** (2.155.0).
+            //
+            // O `detectTransformGestures` CONSOME todo arrasto que passa do touch slop — inclusive
+            // o de UM dedo, e inclusive com a imagem em escala 1. Num visualizador de imagem
+            // sozinha isso nao se nota (nao ha quem receberia o gesto); dentro de um pager, e o
+            // defeito inteiro: o dedo arrasta, a foto nao anda (esta em escala 1, o offset e
+            // zerado) e o pager nunca ve o evento. Resultado: **deslizar nao faz nada**.
+            //
+            // Aqui o gesto so e consumido quando ele e NOSSO — ver [gestoEDoZoom]. Fora disso os
+            // eventos passam adiante, e quem estiver por fora (o `HorizontalPager`) vira a pagina.
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val newScale = (scale * zoom).coerceIn(minScale, maxScale)
-                    scale = newScale
-                    onScaleChange?.invoke(newScale)
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val evento = awaitPointerEvent()
+                        val dedos = evento.changes.count { it.pressed }
+                        if (gestoEDoZoom(dedos = dedos, escalaAtual = scale)) {
+                            val newScale = (scale * evento.calculateZoom()).coerceIn(minScale, maxScale)
+                            scale = newScale
+                            onScaleChange?.invoke(newScale)
 
-                    if (newScale > 1f) {
-                        // Limitar o pan para nao sair da tela
-                        val maxOffsetX = (newScale - 1f) * size.width / 2f
-                        val maxOffsetY = (newScale - 1f) * size.height / 2f
-                        offsetX = (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
-                        offsetY = (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
-                    } else {
-                        offsetX = 0f
-                        offsetY = 0f
-                    }
+                            if (newScale > 1f) {
+                                // Limitar o pan para nao sair da tela
+                                val pan = evento.calculatePan()
+                                val maxOffsetX = (newScale - 1f) * size.width / 2f
+                                val maxOffsetY = (newScale - 1f) * size.height / 2f
+                                offsetX = (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                offsetY = (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            } else {
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                            // Consome so o que a gente usou. Sem isto o pager tambem viraria a
+                            // pagina durante a pinca, e a foto sairia da tela enquanto amplia.
+                            evento.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (evento.changes.any { it.pressed })
                 }
             }
             .pointerInput(Unit) {
@@ -206,8 +231,14 @@ fun FullScreenImageViewer(
  * ## Duas coisas que este componente resolve e que a versão caseira sempre erra
  *
  * **O zoom briga com o deslizar.** Com a foto ampliada, arrastar tem de mover a IMAGEM, não virar
- * a página — senão é impossível olhar o canto de uma foto. O `HorizontalPager` só aceita o gesto
- * quando a página está em escala 1, e é [ZoomableBox] quem informa isso.
+ * a página — senão é impossível olhar o canto de uma foto. Em escala 1 é o contrário: o arrasto tem
+ * de virar a página.
+ *
+ * ⚠️ Isso NÃO sai de graça, e a 2.153.0 saiu errada por supor que sim: o `detectTransformGestures`
+ * que o [ZoomableBox] usava **consumia todo arrasto**, inclusive o de um dedo em escala 1 — o dedo
+ * arrastava, a foto não andava e o pager nunca via o evento. Deslizar simplesmente não fazia nada.
+ * Desde a 2.155.0 o [ZoomableBox] só consome o gesto que é dele (ver `gestoEDoZoom`), e o
+ * `userScrollEnabled` abaixo é a segunda tranca.
  *
  * **O contador não é enfeite.** Sem "3 / 12" ninguém sabe quantas faltam, e a pessoa desliza até
  * bater na última para descobrir que acabou.
@@ -311,3 +342,29 @@ fun FullScreenGallery(
  */
 internal fun paginaInicialDaGaleria(indiceInicial: Int, total: Int): Int =
     if (total <= 0) 0 else indiceInicial.coerceIn(0, total - 1)
+
+/**
+ * Este gesto e do ZOOM (e portanto deve ser consumido), ou de quem esta por fora?
+ *
+ * ⚠️ **A pergunta que a 2.153.0 nao fazia.** O `detectTransformGestures` consome tudo, e num pager
+ * isso significa que deslizar nao faz nada: o dedo arrasta, a foto fica parada (escala 1, offset
+ * zerado) e a pagina nunca vira.
+ *
+ * Duas regras, e as duas sao sobre INTENCAO:
+ * - **Dois dedos e sempre pinca.** Ninguem usa dois dedos para virar pagina.
+ * - **Um dedo so e nosso com a imagem AMPLIADA** — ai o arrasto move a imagem, que e a unica coisa
+ *   que faz sentido: em escala 1 nao ha para onde mover.
+ *
+ * @param dedos quantos ponteiros estao pressionados neste evento.
+ * @param escalaAtual a escala em que a imagem esta agora.
+ */
+internal fun gestoEDoZoom(dedos: Int, escalaAtual: Float): Boolean =
+    dedos > 1 || escalaAtual > ESCALA_NEUTRA
+
+/**
+ * Acima disto a imagem conta como ampliada.
+ *
+ * Nao e `1f` exato de proposito: a pinca deixa residuo de ponto flutuante (1.0000001), e comparar
+ * com igualdade faria a imagem "voltar ao normal" continuar capturando o arrasto para sempre.
+ */
+private const val ESCALA_NEUTRA = 1.01f

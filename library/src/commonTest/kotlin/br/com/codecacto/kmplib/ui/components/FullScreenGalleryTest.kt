@@ -41,3 +41,45 @@ class FullScreenGalleryTest {
         assertEquals(0, paginaInicialDaGaleria(indiceInicial = 9, total = 1))
     }
 }
+
+/**
+ * Quem fica com o arrasto: o zoom, ou o pager por fora (2.155.0)?
+ *
+ * ⚠️ Estes casos são o defeito que a 2.153.0 tinha em produção. O `detectTransformGestures`
+ * consumia TODO arrasto — inclusive o de um dedo com a imagem em escala 1 —, então dentro da
+ * galeria o dedo arrastava, a foto ficava parada e a página nunca virava: **deslizar não fazia
+ * nada**. O primeiro teste abaixo é exatamente esse caso.
+ */
+class ZoomableBoxGestoTest {
+
+    @Test
+    fun `um dedo em escala 1 NAO e do zoom — o pager vira a pagina`() {
+        assertEquals(false, gestoEDoZoom(dedos = 1, escalaAtual = 1f))
+    }
+
+    @Test
+    fun `um dedo com a imagem ampliada e do zoom — arrastar move a IMAGEM`() {
+        assertEquals(true, gestoEDoZoom(dedos = 1, escalaAtual = 2.5f))
+    }
+
+    // Ninguém usa dois dedos para virar página: pinça é sempre do zoom, mesmo partindo da escala 1.
+    @Test
+    fun `dois dedos sao sempre do zoom, mesmo em escala 1`() {
+        assertEquals(true, gestoEDoZoom(dedos = 2, escalaAtual = 1f))
+    }
+
+    // Resíduo de ponto flutuante da pinça (1.0000001). Comparar com igualdade faria a imagem
+    // "de volta ao normal" continuar capturando o arrasto para sempre.
+    @Test
+    fun `residuo de ponto flutuante nao conta como ampliada`() {
+        assertEquals(false, gestoEDoZoom(dedos = 1, escalaAtual = 1.0000001f))
+        assertEquals(false, gestoEDoZoom(dedos = 1, escalaAtual = 1.009f))
+        assertEquals(true, gestoEDoZoom(dedos = 1, escalaAtual = 1.02f))
+    }
+
+    // Nenhum dedo pressionado é o fim do gesto; sem zoom, não há o que consumir.
+    @Test
+    fun `sem dedo e sem zoom nao e do zoom`() {
+        assertEquals(false, gestoEDoZoom(dedos = 0, escalaAtual = 1f))
+    }
+}
