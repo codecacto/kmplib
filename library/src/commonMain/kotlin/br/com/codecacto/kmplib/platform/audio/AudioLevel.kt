@@ -19,12 +19,23 @@ package br.com.codecacto.kmplib.platform.audio
  * @param peakDbfs maior amostra do intervalo, **sem** ponderação e **sem** integração — a verdade
  *   crua do conversor. Ponderar antes de medir o pico esconderia a saturação, que é justamente o
  *   que ele existe para denunciar. Vale sempre `peakDbfs >= rmsDbfs`.
- * @param noiseFloorDbfs **menor [rmsDbfs] observado nesta sessão** (desde o `start()` ou desde o
+ * @param noiseFloorDbfs **menor [rmsDbfs] observado NESTA SESSÃO** (desde o `start()` ou desde o
  *   último `reset()` do analisador). Enquanto nada foi medido — e em silêncio digital, quando não
- *   há sinal nenhum a observar — vale [SILENCE_DBFS]. É o ruído próprio do conjunto
- *   microfone + pré-amplificador **daquele aparelho**, e existe para o app poder dizer "abaixo
- *   disto seu aparelho não distingue" em vez de apresentar ruído próprio como medição — a
- *   reclamação nº 1 da categoria (ver `references/platform-audio-capture.md`).
+ *   há sinal nenhum a observar — vale [SILENCE_DBFS].
+ *
+ *   ⚠️ **Isto NÃO é o ruído próprio do aparelho, e a diferença muda o que se pode dizer na tela.**
+ *   É o menor nível que aconteceu de passar pelo microfone: numa rua movimentada, é o ruído da rua.
+ *   Ele só converge para o piso real do hardware se a sessão passar por um silêncio quase absoluto,
+ *   o que é raro fora de um ambiente preparado. Some-se que ele **zera a cada sessão** e que, nos
+ *   primeiros segundos, é simplesmente a primeira leitura.
+ *
+ *   **Use como diagnóstico técnico** — "ruído de fundo desta sessão: −62 dBFS", numa tela de
+ *   calibração, em dBFS, para quem compara com uma referência perceber que está medindo num lugar
+ *   barulhento demais. **Não** o converta em afirmação absoluta ao usuário ("seu aparelho não
+ *   distingue abaixo de X dB"): seria um número específico, com ar de precisão, e errado — ainda por
+ *   cima passando pelo offset de calibração, que por padrão é arbitrado
+ *   ([SplCalibration.DEFAULT_OFFSET_DB]). Para comunicar o limite inferior ao usuário, o caminho é
+ *   uma **nota fixa e qualitativa**, não este número.
  * @param isClipping a janela saturou: a **fração** de amostras no fundo de escala
  *   ([clippedSampleRatio]) passou de [AudioLevelAnalyzer.CLIPPING_RATIO_THRESHOLD]. Quando `true`,
  *   o número **não é confiável**: o app deve trocá-lo por um aviso de saturação em vez de exibir um
