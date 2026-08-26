@@ -7,6 +7,7 @@ import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
 import br.com.codecacto.kmplib.platform.BatteryMonitorHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
+import br.com.codecacto.kmplib.platform.ScreenBrightnessHolder
 import br.com.codecacto.kmplib.platform.ShakeDetectorHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import br.com.codecacto.kmplib.platform.UrlLauncherHolder
@@ -73,6 +74,7 @@ fun KmpLib.initSync(context: Context) {
  */
 fun KmpLib.setActivity(activity: FragmentActivity) {
     BiometricAuthHolder.setActivity(activity)
+    ScreenBrightnessHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
     GoogleAuthHolder.setActivity(activity)
 }
@@ -83,6 +85,7 @@ fun KmpLib.setActivity(activity: FragmentActivity) {
  */
 fun KmpLib.clearActivity() {
     BiometricAuthHolder.clearActivity()
+    ScreenBrightnessHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
     GoogleAuthHolder.clearActivity()
 }

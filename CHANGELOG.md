@@ -1,5 +1,53 @@
 # Changelog — kmplib
 
+## 2.148.0 — brilho da tela do app (`platform/ScreenBrightness`)
+
+**Aditivo**: nenhuma assinatura existente mudou, nenhuma permissão nova no manifesto.
+
+A 2.147.0 trouxe o `KeepScreenOn`, e faltava a outra metade: **manter a tela acesa não é aumentar a
+luz dela**. No modo "tela como luz", pintar a tela de branco no máximo só ilumina se o brilho
+**físico** subir — sem isso a tela *parece* certa e não funciona (opacidade de pixel não gera lúmen).
+Era o que bloqueava o Minha Lanterna, e serve a qualquer tela que precise subir o brilho por um
+instante: QR code no caixa, cartão de embarque, leitura no escuro.
+
+### O que entrou
+
+- **`ScreenBrightness(level, enabled)`** — a forma recomendada, no espírito do `KeepScreenOn`: o
+  brilho vale enquanto o componente estiver na composição e **o valor de antes volta no `onDispose`**
+  (navegou, fechou o modo, o app foi para trás).
+- **`ScreenBrightnessController`** (`current()`, `setBrightness()`, `restore()`, `release()`) +
+  `createScreenBrightnessController()` / `rememberScreenBrightnessController()`, para quando o dono
+  do brilho não é uma composição. Quem cria, libera.
+- **`ScreenBrightnessState`** (`overrideLevel`, `systemLevel`, `isOverridden`, `effective`) e
+  **`ScreenBrightnessLevel`** (`MIN`/`MAX`/`SYSTEM`/`UNKNOWN`, `clamp`, `isOverride`, `percent`).
+
+### Padrão-ouro, com o porquê
+
+- **Android — `WindowManager.LayoutParams.screenBrightness` na janela da Activity**, com
+  `BRIGHTNESS_OVERRIDE_NONE` para devolver o comando ao sistema. O escopo é a **janela do app**: sai
+  do app, acaba o efeito. **`Settings.System.SCREEN_BRIGHTNESS` é usado só para LER** — escrever ali
+  mudaria o brilho do **aparelho inteiro**, exigiria `WRITE_SETTINGS` (uma tela de sistema, não um
+  diálogo) e deixaria o aparelho alterado depois de o app fechar. Ler não pede permissão nenhuma, e é
+  por isso que este módulo não acrescenta **uma linha** ao manifesto.
+- **iOS — `UIScreen.brightness`**, com restauração **explícita**: o brilho é do aparelho e o iOS
+  **não** devolve o valor anterior sozinho.
+
+### A invariante que a suíte protege
+
+O valor anterior é capturado **uma única vez**, na primeira aplicação. Recapturá-lo a cada `set`
+faria o segundo movimento do slider guardar o brilho **já forçado** — e "restaurar" viraria "deixar
+no talo". É esse o defeito que a pessoa sente na bateria e não consegue atribuir a nenhum app. A
+regra inteira (captura, restauração por plataforma, faixa, ciclo de vida) mora em `commonMain`
+(`ScreenBrightnessSession`) e tem **22 testes**; os `actual` só sabem ler e escrever o brilho.
+
+Duas decisões de borda, também testadas: **`0f` é um override válido** ("no mínimo", para modo
+noturno), não "sem override"; e número inválido (negativo/`NaN`) **devolve o controle ao sistema** em
+vez de apagar a tela ou forçá-la ao máximo.
+
+**PENDÊNCIA (host macOS):** o `actual` iOS não compila em Linux — ver
+`GAP-KL-M-BRIGHTNESS-IOS-VALIDATE` em `docs/backlog.md`.
+
+
 ## 2.147.0 — a lanterna sai de dentro da câmera (módulo `torch`) + 4 peças de fundação
 
 **Módulo novo `torch`**, e mais quatro itens de plataforma que o app de lanterna expôs. Tudo

@@ -3,6 +3,37 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.148.0 — brilho da tela (`platform/ScreenBrightness`), G7 do **Minha Lanterna** (26/ago/2026)
+> Origem: tech-lead do Minha Lanterna, bloqueando o modo "tela como luz".
+
+- [x] **G7 — controle do brilho da tela do app.** A 2.147.0 entregou `KeepScreenOn`, e **manter a
+      tela acesa não é aumentar a luz dela**: no "tela como luz", pintar branco no máximo só ilumina
+      se o brilho **físico** subir — sem isso a tela *parece* certa e não funciona. Entraram
+      `ScreenBrightness(level, enabled)` (declarativo, restaura no `onDispose`),
+      `ScreenBrightnessController` (`current`/`setBrightness`/`restore`/`release`),
+      `ScreenBrightnessState` e `ScreenBrightnessLevel`. Serve ≥2 apps: Minha Lanterna e qualquer
+      tela de leitura/QR/cartão de embarque que precise subir o brilho por um instante.
+      **Padrão-ouro:** Android = `WindowManager.LayoutParams.screenBrightness` na janela da Activity
+      (+ `BRIGHTNESS_OVERRIDE_NONE` para devolver ao sistema); `Settings.System.SCREEN_BRIGHTNESS`
+      só para **ler** — escrever ali mudaria o aparelho inteiro e exigiria `WRITE_SETTINGS`. iOS =
+      `UIScreen.brightness`, com o valor anterior guardado e reposto (o iOS não devolve sozinho).
+      **Nenhuma permissão nova no manifesto.**
+      A regra de restauração mora em `commonMain` (`ScreenBrightnessSession`) e é coberta por
+      22 testes — inclusive a invariante que mata o defeito clássico: o valor anterior é capturado
+      **uma vez**, senão o segundo `setBrightness` guardaria o brilho já forçado e "restaurar"
+      viraria "deixar no talo".
+
+#### Pendências do G7
+- [ ] **GAP-KL-M-BRIGHTNESS-IOS-VALIDATE — validar em host macOS o `actual` iOS de
+      `platform/ScreenBrightness`.** Kotlin/Native iOS não compila em Linux (mesma situação do KVO
+      de `torchActive` na 2.147.0). Dois pontos a conferir no Mac: (a) `UIScreen.mainScreen.brightness`
+      como **var** no binding (a escrita é `UIScreen.mainScreen.brightness = valor`; se o binding só
+      expuser `setBrightness(...)`, trocar a linha); (b) **multi-cena/iPad** — `UIScreen.mainScreen`
+      está deprecado desde o iOS 16 em favor de `windowScene.screen`, e num app com duas cenas o
+      brilho lido/escrito pode não ser o da cena ativa. Plano B, se aparecer: resolver a screen pela
+      `UIWindowScene` ativa em `connectedScenes`, com fallback para `mainScreen`. Não foi feito já
+      porque cada símbolo novo é risco de compilação que não dá para checar daqui.
+
 ### ATENDIDO na 2.147.0 — os 6 gaps do **Minha Lanterna** (25/ago/2026)
 > Origem: wireframes do Minha Lanterna (ux-designer) + PRD do app. Cinco dos seis eram fundação e
 > entraram na 2.147.0; o sexto fica no app, de propósito.
