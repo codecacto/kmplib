@@ -15,13 +15,15 @@ import kotlin.math.log10
  * que desacopla o tamanho do buffer do aparelho da cadência que a tela pede.
  *
  * O que ele faz, na ordem:
- * 1. **pico no sinal cru**, antes de qualquer filtro — ponderar antes de medir pico esconderia a
- *    saturação, que é justamente o que o pico existe para denunciar;
+ * 1. **pico e contagem de amostras saturadas no sinal cru**, antes de qualquer filtro — ponderar
+ *    antes de medir esconderia a saturação, que é justamente o que essa medida existe para
+ *    denunciar;
  * 2. **ponderação em frequência** ([AudioWeighting.A] pela [AWeightingFilter], ou nada em
  *    [AudioWeighting.Z]);
  * 3. **soma dos quadrados** da amostra ponderada (a potência da janela);
  * 4. **integração temporal** sobre a potência ([TimeWeightingIntegrator]);
- * 5. conversão para dBFS, **uma vez**, com grampo no piso de silêncio.
+ * 5. conversão para dBFS, **uma vez**, **sem grampo** — o número que sai é o do conversor (ver
+ *    [AudioLevel.SILENCE_DBFS], que é sentinela de silêncio digital, não piso de exibição).
  *
  * @param sampleRate taxa efetiva da captura. Se a plataforma trocar de taxa no meio da sessão (o
  *   iOS troca quando um fone é plugado), o `actual` cria um analisador novo — os coeficientes da
@@ -45,6 +47,16 @@ class AudioLevelAnalyzer(
     private var sumOfSquares: Double = 0.0
     private var accumulatedSamples: Int = 0
     private var peakAmplitude: Double = 0.0
+    private var clippedSamples: Int = 0
+    /**
+     * Menor RMS já observado na sessão, ou `null` enquanto **nada** foi observado.
+     *
+     * `null` e não [AudioLevel.SILENCE_DBFS]: um acumulador de mínimo inicializado no menor valor
+     * possível nunca é atualizado — `rms < -120` é falso para qualquer leitura real, e o piso
+     * ficaria preso na sentinela pelo resto da sessão. O `null` diz "ainda não sei", que é
+     * diferente de "é -120".
+     */
+    private var observedNoiseFloor: Double? = null
 
     /**
      * Ponderação corrente. Trocá-la **zera a memória do filtro**: sem isso, a primeira janela
@@ -85,6 +97,7 @@ class AudioLevelAnalyzer(
             val raw = samples[i].toInt()
             val magnitude = abs(raw) / FULL_SCALE
             if (magnitude > peakAmplitude) peakAmplitude = magnitude
+            if (magnitude >= CLIPPING_AMPLITUDE) clippedSamples++
             accumulateNormalized(raw / FULL_SCALE)
         }
         accumulatedSamples += limit
@@ -102,6 +115,7 @@ class AudioLevelAnalyzer(
             if (!value.isFinite()) continue
             val magnitude = abs(value)
             if (magnitude > peakAmplitude) peakAmplitude = magnitude
+            if (magnitude >= CLIPPING_AMPLITUDE) clippedSamples++
             accumulateNormalized(value)
         }
         accumulatedSamples += limit
@@ -113,8 +127,9 @@ class AudioLevelAnalyzer(
     }
 
     /**
-     * Fecha a janela: devolve a leitura e zera os acumuladores (a memória do filtro e a da
-     * integração **continuam**, que é o que dá continuidade entre janelas).
+     * Fecha a janela: devolve a leitura e zera os acumuladores (a memória do filtro, a da
+     * integração e o **piso de ruído da sessão** [AudioLevel.noiseFloorDbfs] **continuam** — é o que
+     * dá continuidade entre janelas; só [reset] os apaga).
      */
     fun buildLevel(timestampMillis: Long): AudioLevel {
         val samples = accumulatedSamples
@@ -122,12 +137,25 @@ class AudioLevelAnalyzer(
         val elapsedSeconds = if (samples > 0) samples.toDouble() / sampleRate else 0.0
         val integratedPower = integrator.process(meanPower, elapsedSeconds)
 
-        val peak = peakAmplitude
-        val peakDbfs = amplitudeToDbfs(peak).coerceAtMost(0.0)
+        val peakDbfs = amplitudeToDbfs(peakAmplitude).coerceAtMost(0.0)
+        val rmsDbfs = powerToDbfs(integratedPower)
+        val clippedRatio =
+            if (samples > 0) (clippedSamples.toDouble() / samples).toFloat() else 0f
+
+        // Só janela com sinal de verdade move o piso de ruído: silêncio digital (potência zero) é
+        // ausência de sinal — microfone tomado por outro app, permissão negada —, e adotá-lo como
+        // piso travaria o valor na sentinela pelo resto da sessão, sem nada a observar.
+        if (samples > 0 && integratedPower > 0.0) {
+            val pisoAtual = observedNoiseFloor
+            if (pisoAtual == null || rmsDbfs < pisoAtual) observedNoiseFloor = rmsDbfs
+        }
+
         val level = AudioLevel(
-            rmsDbfs = powerToDbfs(integratedPower),
+            rmsDbfs = rmsDbfs,
             peakDbfs = peakDbfs,
-            isClipping = peak >= CLIPPING_AMPLITUDE || peakDbfs >= CLIPPING_PEAK_DBFS,
+            noiseFloorDbfs = observedNoiseFloor ?: AudioLevel.SILENCE_DBFS,
+            isClipping = clippedRatio >= CLIPPING_RATIO_THRESHOLD,
+            clippedSampleRatio = clippedRatio,
             sampleRate = sampleRate,
             weighting = weighting,
             timestampMillis = timestampMillis,
@@ -136,6 +164,7 @@ class AudioLevelAnalyzer(
         sumOfSquares = 0.0
         accumulatedSamples = 0
         peakAmplitude = 0.0
+        clippedSamples = 0
         return level
     }
 
@@ -147,6 +176,8 @@ class AudioLevelAnalyzer(
         sumOfSquares = 0.0
         accumulatedSamples = 0
         peakAmplitude = 0.0
+        clippedSamples = 0
+        observedNoiseFloor = null
         filter.reset()
         integrator.reset()
     }
@@ -160,39 +191,67 @@ class AudioLevelAnalyzer(
         const val FULL_SCALE: Double = 32_768.0
 
         /**
-         * Amplitude a partir da qual a amostra encostou no teto do conversor: `32767/32768`, ou
-         * seja, `|sample| >= 32767` no PCM 16-bit.
+         * Amplitude a partir da qual **uma amostra** encostou no fundo de escala do conversor:
+         * `32767/32768`, ou seja, `|sample| >= 32767` no PCM 16-bit.
+         *
+         * Isto define **amostra saturada**, não janela saturada — quem decide a janela é
+         * [CLIPPING_RATIO_THRESHOLD].
          */
         const val CLIPPING_AMPLITUDE: Double = 32_767.0 / FULL_SCALE
 
         /**
-         * Segundo critério de saturação, mais conservador: pico a menos de 0,1 dB do fundo de
-         * escala. Um sinal que chega tão perto do teto **já está deformado** na prática (o
-         * pré-amplificador do celular comprime antes do conversor), mesmo que nenhuma amostra tenha
-         * batido exatamente em 32767.
+         * **Fração de amostras no fundo de escala a partir da qual a janela é dada como saturada:
+         * 0,1%.**
+         *
+         * O critério é por **fração**, e não por "houve alguma amostra no teto", porque uma amostra
+         * isolada não é saturação: uma porta batendo, um toque no aparelho ou um clique do próprio
+         * conversor marcariam a janela inteira como suspeita e o app gritaria "pode estar saturado"
+         * numa medição perfeitamente válida — falso positivo na tela principal, que é onde ele
+         * custa mais caro.
+         *
+         * O número separa bem os dois mundos, com folga dos dois lados:
+         * - **ruído isolado não dispara** — na janela default (150 ms ≈ 6.600 amostras em 44,1 kHz)
+         *   são precisas ~7 amostras no teto; num bloco de 2.048, 3. Uma amostra em 2.048 dá
+         *   0,049%, menos da metade do limiar;
+         * - **saturação real dispara** — quando o AGC/limitador do aparelho encosta no teto, o sinal
+         *   fica **achatado** e o topo permanece lá por milhares de amostras. Uma senoide em fundo
+         *   de escala, que é o caso mais brando, já mantém **0,35%** das amostras no teto.
+         *
+         * ⚠️ **Não existe limiar de saturação em dB, e é decisão.** Até a 2.150.0 havia um segundo
+         * critério (`peakDbfs >= -0,1`), que foi **removido**: o teto de captação **não é fixo** —
+         * varia por aparelho entre **82 e 100 dB SPL** (Smart Tools publica Moto G4 = 94, Galaxy
+         * S6 = 85, Nexus 5 = 82), porque quem corta antes não é o elemento MEMS (aguentaria
+         * ~120 dB SPL) e sim o **AGC que cada fabricante ajustou para voz**. Uma constante em dB
+         * acerta um aparelho e erra todos os outros. A fração de amostras no fundo de escala, ao
+         * contrário, é a mesma verdade em qualquer hardware.
          */
-        const val CLIPPING_PEAK_DBFS: Double = -0.1
+        const val CLIPPING_RATIO_THRESHOLD: Float = 0.001f
 
-        /** Converte amplitude (0..1) para dBFS, com grampo no piso de silêncio. */
+        /**
+         * Converte amplitude (0..1) para dBFS.
+         *
+         * Devolve [AudioLevel.SILENCE_DBFS] **apenas** quando a entrada é zero ou não-finita — o
+         * caso em que `log10` produziria `-Infinity`/`NaN`, que vira `NaN` na animação da UI e
+         * **some com o número da tela**. Fora disso o valor calculado sai **como é**, sem grampo
+         * inferior: a lib não inventa piso.
+         */
         fun amplitudeToDbfs(amplitude: Double): Double {
             if (!amplitude.isFinite() || amplitude <= 0.0) return AudioLevel.SILENCE_DBFS
             val db = 20.0 * log10(amplitude)
-            return if (db.isFinite()) db.coerceAtLeast(AudioLevel.SILENCE_DBFS)
-            else AudioLevel.SILENCE_DBFS
+            return if (db.isFinite()) db else AudioLevel.SILENCE_DBFS
         }
 
         /**
-         * Converte **potência** (RMS², escala linear) para dBFS, com grampo no piso de silêncio.
+         * Converte **potência** (RMS², escala linear) para dBFS.
          *
-         * O grampo é o que impede `log10(0) = -Infinity` de virar `NaN` na animação da UI e
-         * **sumir com o número da tela** — falha muda, que só aparece quando o ambiente fica em
-         * silêncio digital (fone plugado, microfone tomado por outro app).
+         * Mesma regra de [amplitudeToDbfs]: [AudioLevel.SILENCE_DBFS] é **sentinela** de silêncio
+         * digital (potência exatamente zero, ou entrada não-finita), não mínimo de exibição. Toda
+         * leitura com sinal sai sem grampo.
          */
         fun powerToDbfs(power: Double): Double {
             if (!power.isFinite() || power <= 0.0) return AudioLevel.SILENCE_DBFS
             val db = 10.0 * log10(power)
-            return if (db.isFinite()) db.coerceAtLeast(AudioLevel.SILENCE_DBFS)
-            else AudioLevel.SILENCE_DBFS
+            return if (db.isFinite()) db else AudioLevel.SILENCE_DBFS
         }
     }
 }

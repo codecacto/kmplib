@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
+import br.com.codecacto.kmplib.platform.permission.PermissionHostHolder
 import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
 import br.com.codecacto.kmplib.media.SoundEffectPlayerHolder
 import br.com.codecacto.kmplib.platform.BatteryMonitorHolder
@@ -81,6 +82,14 @@ fun KmpLib.setActivity(activity: FragmentActivity) {
     ScreenBrightnessHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
     GoogleAuthHolder.setActivity(activity)
+    // **Permissão de runtime entrou aqui em 2.154.0, e a ausência dela era muda:** sem esta linha,
+    // `PermissionManager.requestPermission` não abre diálogo nenhum — registra um aviso e devolve o
+    // status que já tinha. O botão "Permitir" existe, é tocável, e não acontece nada, com build
+    // verde. Levantamento de 26/ago/2026: dos 26 apps do portfólio que pedem permissão, **9 já
+    // registravam este holder por conta própria** — nove equipes descobriram o mesmo furo e
+    // escreveram o mesmo contorno. Chamar duas vezes é inofensivo (o holder só guarda a referência),
+    // então quem já contorna não precisa remover nada para subir de versão.
+    PermissionHostHolder.setActivity(activity)
 }
 
 /**
@@ -92,4 +101,5 @@ fun KmpLib.clearActivity() {
     ScreenBrightnessHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
     GoogleAuthHolder.clearActivity()
+    PermissionHostHolder.clearActivity()
 }

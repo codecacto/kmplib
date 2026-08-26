@@ -1,6 +1,62 @@
 # Changelog — kmplib
 
 
+## 2.154.0 — o microfone que diz onde é o silêncio, e a permissão que finalmente abre
+
+Duas correções de comportamento no mesmo release. Nenhuma assinatura sumiu; as duas **mudam o que o
+código faz**, e é por isso que estão descritas em detalhe.
+
+### 1. `platform/audio`: piso de ruído medido, saturação por fração, e o fim de um grampo que mentia
+
+- **`AudioLevel.noiseFloorDbfs` (novo)** — o **menor RMS observado na sessão**, que é o ruído próprio
+  do conjunto microfone + pré-amplificador **daquele aparelho**. Existe para o app poder dizer
+  "abaixo disto o seu aparelho não distingue" em vez de apresentar ruído próprio como medição — a
+  reclamação nº 1 da categoria. Enquanto nada foi observado, vale `SILENCE_DBFS`.
+- **`AudioLevel.clippedSampleRatio` (novo)** e **`isClipping` por fração** — satura a janela em que a
+  fração de amostras no fundo de escala passa de `CLIPPING_RATIO_THRESHOLD` (0,1%). O critério
+  anterior era um **limiar fixo em dB**, e limiar fixo é impossível de acertar: o teto de captação
+  varia de **82 a 100 dB SPL** conforme o AGC que cada fabricante ajustou para voz. A fração é a
+  mesma verdade em qualquer hardware.
+- **`rmsDbfs` deixou de ser grampeado em `SILENCE_DBFS`.** O grampo era materialmente inócuo (nenhum
+  microfone de celular chega perto de -120 dBFS) mas mentia no contrato: quem lia o código concluía
+  que existia um mínimo de exibição. Agora o número é o do conversor — se o cálculo dá -97, sai -97.
+  `SILENCE_DBFS` continua, e passou a ser **só o que sempre deveria ter sido**: a sentinela do
+  silêncio digital (RMS zero), para `log10(0)` não virar `NaN` e sumir com o número da tela.
+
+⚠️ **Um defeito de uma linha foi corrigido junto**, e ele anulava o piso de ruído inteiro: o
+acumulador de mínimo nascia em `SILENCE_DBFS` e a condição era `rms < piso` — como nenhuma leitura
+real fica abaixo de -120, **o piso nunca era observado**. É o clássico mínimo inicializado com o
+menor valor possível em vez do maior. Hoje o acumulador nasce "não observado" (`null`), o que é
+diferente de "é -120".
+
+### 2. Permissão de runtime no Android: o diálogo que nunca abria
+
+**`KmpLib.setActivity` não registrava o `PermissionHostHolder`.** Registrava os outros quatro
+holders (biometria, brilho, notificação, Google Sign-In) e deixava a permissão de fora — então
+`requestPermission` **não abria diálogo nenhum**: registrava um aviso no log e devolvia o status que
+já tinha. O botão "Permitir" existia, era tocável, e não acontecia nada, com build verde.
+
+Levantamento de 26/ago/2026 no portfólio: **26 apps pedem permissão de runtime e 9 já registravam o
+holder por conta própria** — nove equipes descobriram o mesmo furo e escreveram o mesmo contorno.
+Chamar `setActivity` duas vezes é inofensivo, então **quem contorna não precisa remover nada** para
+subir de versão.
+
+- **O `onRequestPermissionsResult` deixou de ser necessário.** O pedido passou a usar o
+  `ActivityResultRegistry` — a via recomendada pelo AndroidX (`requestPermissions` +
+  `onRequestPermissionsResult` está depreciado na `Activity`). Era a outra metade do furo: quem não
+  sabia do repasse via o diálogo abrir e a resposta nunca chegar. `handlePermissionResult` continua
+  existindo e virou no-op para quem ainda o chama.
+- **`checkPermission` passou a distinguir `NOT_REQUESTED` de `DENIED` no Android.** O sistema não
+  expõe esse bit — `shouldShowRequestPermissionRationale` é `false` nos dois extremos (antes do
+  primeiro pedido e depois da negação definitiva) —, então a lib **lembra** que já pediu, num arquivo
+  de preferências próprio. Sem isso, o app cai num de dois defeitos: ou nunca mostra a tela de
+  contexto que as lojas exigem antes do diálogo, ou oferece para sempre um botão que não abre nada.
+  A marca é gravada **antes** de abrir o diálogo, para sobreviver ao processo morrer com ele na tela.
+
+⚠️ **Mudança de comportamento:** quem tratava `DENIED` como "primeira vez" passa a receber
+`NOT_REQUESTED` nessa situação. É a semântica que o enum sempre prometeu e que o iOS já entregava.
+
+
 ## 2.153.0 — `FullScreenGallery`: a galeria em tela cheia que PASSA de foto
 
 O `FullScreenImageViewer` abre **uma** foto. Quem tem doze precisa fechar, tocar na seguinte e abrir

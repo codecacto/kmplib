@@ -14,13 +14,24 @@ package br.com.codecacto.kmplib.platform.audio
  * por aparelho. **Isto não é um instrumento de medição.**
  *
  * @param rmsDbfs nível RMS da janela, **com** a ponderação de [weighting] e **com** a integração
- *   temporal configurada. É o número que vai para a tela.
+ *   temporal configurada. É o número que vai para a tela. **Sem grampo**: o valor é o que o
+ *   conversor entregou (ver [SILENCE_DBFS]).
  * @param peakDbfs maior amostra do intervalo, **sem** ponderação e **sem** integração — a verdade
  *   crua do conversor. Ponderar antes de medir o pico esconderia a saturação, que é justamente o
  *   que ele existe para denunciar. Vale sempre `peakDbfs >= rmsDbfs`.
- * @param isClipping o sinal encostou no teto do conversor nesta janela (ver [AudioLevelAnalyzer]).
- *   Quando `true`, o número **não é confiável**: o app deve trocá-lo por um aviso de saturação em
- *   vez de exibir um valor exato que já não significa nada.
+ * @param noiseFloorDbfs **menor [rmsDbfs] observado nesta sessão** (desde o `start()` ou desde o
+ *   último `reset()` do analisador). Enquanto nada foi medido — e em silêncio digital, quando não
+ *   há sinal nenhum a observar — vale [SILENCE_DBFS]. É o ruído próprio do conjunto
+ *   microfone + pré-amplificador **daquele aparelho**, e existe para o app poder dizer "abaixo
+ *   disto seu aparelho não distingue" em vez de apresentar ruído próprio como medição — a
+ *   reclamação nº 1 da categoria (ver `references/platform-audio-capture.md`).
+ * @param isClipping a janela saturou: a **fração** de amostras no fundo de escala
+ *   ([clippedSampleRatio]) passou de [AudioLevelAnalyzer.CLIPPING_RATIO_THRESHOLD]. Quando `true`,
+ *   o número **não é confiável**: o app deve trocá-lo por um aviso de saturação em vez de exibir um
+ *   valor exato que já não significa nada.
+ * @param clippedSampleRatio fração das amostras da janela que encostaram no fundo de escala
+ *   (`0f`..`1f`), medida no sinal **cru**, antes de qualquer ponderação. Uma amostra isolada não
+ *   satura janela nenhuma — é por isso que a decisão é por fração e não por "houve pico".
  * @param sampleRate taxa **efetivamente** aberta pela plataforma (pode não ser a preferida, e pode
  *   mudar no meio da sessão no iOS, quando um fone é plugado).
  * @param weighting ponderação que produziu [rmsDbfs].
@@ -29,22 +40,30 @@ package br.com.codecacto.kmplib.platform.audio
 data class AudioLevel(
     val rmsDbfs: Double,
     val peakDbfs: Double,
+    val noiseFloorDbfs: Double,
     val isClipping: Boolean,
+    val clippedSampleRatio: Float,
     val sampleRate: Int,
     val weighting: AudioWeighting,
     val timestampMillis: Long,
 ) {
     companion object {
         /**
-         * **Piso de silêncio, em dBFS.**
+         * **Sentinela de silêncio DIGITAL, em dBFS — não um piso de exibição.**
          *
-         * Uma janela em silêncio digital tem potência zero, e `log10(0)` é `-Infinity` — que vira
-         * `NaN` na primeira animação ou formatação da UI e **some com o número da tela**, sem erro
-         * nenhum no log. Por isso todo campo em dB desta classe é grampeado neste piso, e
-         * `Infinity`/`NaN` **nunca** são emitidos.
+         * Vale exatamente para um caso: a janela não tem sinal nenhum (RMS matematicamente zero —
+         * microfone tomado por outro app, permissão negada com o `AudioRecord` aberto, buffer de
+         * zeros). `log10(0)` é `-Infinity`, que vira `NaN` na primeira animação ou formatação da UI
+         * e **some com o número da tela**, sem erro nenhum no log; este valor existe para que
+         * `Infinity`/`NaN` **nunca** sejam emitidos.
          *
-         * -120 dBFS é bem abaixo do ruído próprio de qualquer microfone de celular (que fica na
-         * casa de -60 a -80 dBFS), então o piso nunca esconde sinal real.
+         * ⚠️ **Fora desse caso a lib NÃO inventa piso nenhum.** Toda leitura sai como o conversor
+         * a entregou, sem grampo inferior: se o cálculo dá -97 dBFS, é -97 que sai. Grampear toda
+         * leitura neste valor (como se fazia até a 2.150.0) era materialmente inócuo — nenhum
+         * microfone de celular chega perto de -120, o ruído próprio deles fica em -60/-70 dBFS —,
+         * mas mentia no **contrato**: quem lia o código concluía que existe um mínimo de exibição.
+         * Não existe. O número é o do conversor, e o que houver abaixo do ruído próprio do aparelho
+         * é [noiseFloorDbfs], medido, não arbitrado.
          */
         const val SILENCE_DBFS: Double = -120.0
     }
