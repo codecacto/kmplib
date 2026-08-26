@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -262,6 +263,35 @@ private fun corDoItem(ativo: Boolean) = if (ativo) {
 }
 
 /**
+ * O que um painel do [ListDetailScaffold] sabe sobre **onde** está sendo desenhado.
+ *
+ * Escopo de receptor (`ColumnScope`, `LazyItemScope`, `ThreePaneScaffoldScope` do próprio AndroidX)
+ * é a forma que o Compose usa para um container informar seus slots — e aqui ela é a **única**
+ * forma que não quebra ninguém: um parâmetro `(Boolean) -> Unit` numa sobrecarga nova deixaria toda
+ * chamada existente (`lista = { … }`, sem parâmetro declarado) **ambígua**, e ~20 apps parariam de
+ * compilar. O escopo entra sem tocar em nenhuma chamada.
+ */
+@Immutable
+interface ListDetailPaneScope {
+
+    /**
+     * `true` quando este painel é a **tela inteira** — em [WindowSizeClass.COMPACTA] e em
+     * [WindowSizeClass.MEDIA].
+     *
+     * É aí, e só aí, que o detalhe precisa oferecer o caminho de volta.
+     */
+    val emPainelUnico: Boolean
+}
+
+private object PainelUnicoScope : ListDetailPaneScope {
+    override val emPainelUnico: Boolean = true
+}
+
+private object DoisPaineisScope : ListDetailPaneScope {
+    override val emPainelUnico: Boolean = false
+}
+
+/**
  * Mestre-detalhe adaptativo — **dois painéis** quando cabe, uma pilha de navegação quando não cabe.
  *
  * ## O ponto que faz isto funcionar
@@ -271,38 +301,67 @@ private fun corDoItem(ativo: Boolean) = if (ativo) {
  * detalhe". É isso que faz a rotação retrato↔paisagem preservar a seleção em vez de voltar para a
  * lista, que é o defeito clássico de mestre-detalhe feito com duas rotas.
  *
+ * ## Por que os slots ganharam [ListDetailPaneScope] (GAP-NCX-T-04, 2.151.0)
+ *
+ * O componente **sabe** se está em painel único; até a 2.150.x ele não contava. Quem consome
+ * precisava recalcular a regra por fora só para decidir se o detalhe leva seta de voltar — e a
+ * regra tem duas formas parecidas, uma certa e uma errada:
+ *
+ * - `!classe.temDoisPaineis` ✅ (COMPACTA **e** MÉDIA são painel único)
+ * - `classe == WindowSizeClass.COMPACTA` ❌ (esquece o tablet em RETRATO)
+ *
+ * Com a segunda, o detalhe de um tablet em retrato nasce **sem seta de voltar** e a pessoa fica
+ * presa nele ao girar o aparelho — foi o que aconteceu no NeuroCoreX. Todo app com mestre-detalhe
+ * reescreveria essa linha, com uma chance em duas de errar igual; agora o valor chega pronto, em
+ * [ListDetailPaneScope.emPainelUnico].
+ *
+ * **Nada muda para quem já consumia**: os slots continuam sendo lambdas sem parâmetro, e quem não
+ * lê `emPainelUnico` não precisa saber que ele existe.
+ *
  * ```kotlin
  * ListDetailScaffold(
  *     temSelecao = idSelecionado != null,
  *     lista = { ListaDeItens(onSelecionar = { idSelecionado = it }) },
- *     detalhe = { Detalhe(idSelecionado) },
+ *     detalhe = {
+ *         Detalhe(
+ *             item = idSelecionado,
+ *             // A seta de voltar só existe quando o detalhe SUBSTITUIU a lista.
+ *             onVoltar = if (emPainelUnico) ({ idSelecionado = null }) else null,
+ *         )
+ *     },
  *     vazio = { EmptyState(...) },   // só aparece em dois painéis, quando nada foi escolhido
  * )
  * ```
+ *
+ * @param lista o painel mestre.
+ * @param detalhe o painel de detalhe.
+ * @param vazio o que mostrar no painel de detalhe antes de escolher algo. Só existe em dois
+ *   painéis — logo o `emPainelUnico` dele é sempre `false`.
+ * @param fracaoDaLista fração da largura que a lista ocupa em dois painéis.
  */
 @Composable
 fun ListDetailScaffold(
     temSelecao: Boolean,
-    lista: @Composable () -> Unit,
-    detalhe: @Composable () -> Unit,
+    lista: @Composable ListDetailPaneScope.() -> Unit,
+    detalhe: @Composable ListDetailPaneScope.() -> Unit,
     modifier: Modifier = Modifier,
-    /** O que mostrar no painel de detalhe antes de escolher algo. Só existe em dois painéis. */
-    vazio: @Composable () -> Unit = {},
-    /** Fração da largura que a lista ocupa em dois painéis. */
+    vazio: @Composable ListDetailPaneScope.() -> Unit = {},
     fracaoDaLista: Float = 0.38f,
     windowSizeClass: WindowSizeClass = LocalWindowSizeClass.current,
 ) {
+    // Painel único é `!temDoisPaineis` — COMPACTA **e** MÉDIA. Escrever `== COMPACTA` aqui é o
+    // defeito que este parâmetro existe para nunca mais ser reescrito por quem chama.
     if (!windowSizeClass.temDoisPaineis) {
-        // Painel único: o detalhe SUBSTITUI a lista. Quem controla a volta é o chamador (o botão
-        // "voltar" da tela ou o gesto do sistema), porque só ele sabe o que "voltar" significa ali.
+        // O detalhe SUBSTITUI a lista. Quem controla a volta continua sendo o chamador (só ele sabe
+        // o que "voltar" significa ali) — o que a lib faz é dizer QUANDO ela é necessária.
         Box(modifier = modifier.fillMaxSize()) {
-            if (temSelecao) detalhe() else lista()
+            if (temSelecao) PainelUnicoScope.detalhe() else PainelUnicoScope.lista()
         }
         return
     }
 
     Row(modifier = modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxHeight().weight(fracaoDaLista)) { lista() }
+        Box(modifier = Modifier.fillMaxHeight().weight(fracaoDaLista)) { DoisPaineisScope.lista() }
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -310,7 +369,7 @@ fun ListDetailScaffold(
                 .background(MaterialTheme.colorScheme.outlineVariant),
         )
         Box(modifier = Modifier.fillMaxHeight().weight(1f - fracaoDaLista)) {
-            if (temSelecao) detalhe() else vazio()
+            if (temSelecao) DoisPaineisScope.detalhe() else DoisPaineisScope.vazio()
         }
     }
 }

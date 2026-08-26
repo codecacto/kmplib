@@ -2,6 +2,8 @@ package br.com.codecacto.kmplib.ui.screens.feedback
 
 import androidx.compose.foundation.background
 import br.com.codecacto.kmplib.ui.components.appKeyboardOptions
+import br.com.codecacto.kmplib.ui.components.FormDefaults
+import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -121,7 +123,12 @@ fun FeedbackScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = paddingValues.calculateBottomPadding())
-                .background(backgroundColor)
+                .background(backgroundColor),
+            // O FUNDO vai de borda a borda (é este Column que o pinta); quem ganha teto é o
+            // conteúdo abaixo. Centralizar aqui é o que impede o formulário limitado de ficar
+            // colado na borda esquerda de um tablet. Mesma decisão do `FormContainer` (2.151.0) —
+            // esta tela não usa o container e por isso não herdava a correção de graça.
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Header — vai até o topo (atrás da status bar); o inset entra como padding interno,
             // uma única vez (antes havia padding duplo: paddingValues no Column + top fixo de 48dp).
@@ -163,7 +170,9 @@ fun FeedbackScreen(
                 // Success Screen
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxHeight()
+                        .widthIn(max = FormDefaults.maxContentWidth(LocalWindowSizeClass.current))
+                        .fillMaxWidth()
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -213,7 +222,11 @@ fun FeedbackScreen(
             // Form Content
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    // `widthIn` antes de `fillMaxWidth`: na ordem inversa a largura já chega fixa e
+                    // o teto não tem efeito nenhum.
+                    .widthIn(max = FormDefaults.maxContentWidth(LocalWindowSizeClass.current))
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
  * @param descriptionSize Tamanho da descrição
  * @param descriptionColor Cor da descrição
  * @param verticalArrangement Espaçamento vertical entre elementos
+ * @param maxTextWidth Teto de largura do bloco título + descrição + ação (GAP-NCX-T-02).
  */
 @Composable
 fun EmptyState(
@@ -47,7 +48,12 @@ fun EmptyState(
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     descriptionSize: TextUnit = 14.sp,
     descriptionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(16.dp)
+    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(16.dp),
+    // O texto tem teto; a Column externa NÃO (ela continua fillMaxWidth, e é ela que centraliza).
+    // Num painel de 888dp o título saía numa linha de ~820dp — e centralizado, o que faz o olho
+    // percorrer a largura inteira para achar onde a frase começa. 420dp nunca morde num telefone
+    // (a coluna útil é ~354dp), então a mudança é invisível onde já estava certo.
+    maxTextWidth: Dp = 420.dp
 ) {
     Column(
         modifier = modifier
@@ -64,30 +70,39 @@ fun EmptyState(
             tint = iconTint
         )
 
-        // Título
-        Text(
-            text = title,
-            fontSize = titleSize,
-            fontWeight = FontWeight.Medium,
-            color = titleColor,
-            textAlign = TextAlign.Center
-        )
-
-        // Descrição (opcional)
-        description?.let {
+        Column(
+            // `widthIn` antes de `fillMaxWidth`: na ordem inversa o teto não tem efeito.
+            modifier = Modifier
+                .widthIn(max = maxTextWidth)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = verticalArrangement
+        ) {
+            // Título
             Text(
-                text = it,
-                fontSize = descriptionSize,
-                color = descriptionColor,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                text = title,
+                fontSize = titleSize,
+                fontWeight = FontWeight.Medium,
+                color = titleColor,
+                textAlign = TextAlign.Center
             )
-        }
 
-        // Ação (opcional)
-        action?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            it()
+            // Descrição (opcional)
+            description?.let {
+                Text(
+                    text = it,
+                    fontSize = descriptionSize,
+                    color = descriptionColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            // Ação (opcional)
+            action?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                it()
+            }
         }
     }
 }
@@ -108,7 +123,8 @@ fun FullScreenEmptyState(
     titleSize: TextUnit = 20.sp,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     descriptionSize: TextUnit = 16.sp,
-    descriptionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    descriptionColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    maxTextWidth: Dp = 420.dp
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -124,7 +140,8 @@ fun FullScreenEmptyState(
             titleSize = titleSize,
             titleColor = titleColor,
             descriptionSize = descriptionSize,
-            descriptionColor = descriptionColor
+            descriptionColor = descriptionColor,
+            maxTextWidth = maxTextWidth
         )
     }
 }

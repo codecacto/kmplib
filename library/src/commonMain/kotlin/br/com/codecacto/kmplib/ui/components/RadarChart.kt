@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
@@ -83,6 +85,7 @@ data class RadarSeries(
  * @param eixos rótulos dos vértices (mínimo 3 — com 2 não há área, e o desenho vira uma linha).
  * @param series 1 ou 2 séries; a partir da terceira, as demais são ignoradas.
  * @param maximo topo da escala. 100 para percentual, 5 para a escala Likert crua.
+ * @param tamanhoMaximo lado máximo do quadrado do gráfico (GAP-NCX-T-03).
  * @param emptyMessage exibido quando não há eixos suficientes ou nenhuma série.
  */
 @Composable
@@ -93,6 +96,11 @@ fun RadarChart(
     maximo: Double = 100.0,
     aneisDaGrade: Int = 4,
     mostrarLegenda: Boolean = true,
+    // O desenho é `fillMaxWidth().aspectRatio(1f)`: sem teto, um painel de 888dp vira um quadrado de
+    // 888 × 888dp — MAIS ALTO que a tela de um tablet em paisagem (800dp). O gráfico não cabe na
+    // própria tela e a legenda nasce fora dela. Em qualquer telefone a largura já é menor que 420dp,
+    // então o teto não muda nada onde o desenho estava certo.
+    tamanhoMaximo: Dp = 420.dp,
     emptyMessage: String = "Sem dados para exibir.",
 ) {
     val seriesValidas = series.filter { it.valores.size == eixos.size }.take(2)
@@ -120,6 +128,9 @@ fun RadarChart(
     Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
             modifier = Modifier
+                // `widthIn` ANTES de `fillMaxWidth`: invertido, a largura já chega fixa e o teto
+                // não tem efeito nenhum. A `Column` centraliza (horizontalAlignment).
+                .widthIn(max = tamanhoMaximo)
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 // Um leitor de tela não lê um Canvas. A tabela do resultado continua sendo a fonte

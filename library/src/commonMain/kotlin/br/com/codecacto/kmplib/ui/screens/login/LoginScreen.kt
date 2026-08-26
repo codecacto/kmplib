@@ -23,6 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.ui.components.*
+import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
+import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import br.com.codecacto.kmplib.ui.screens.LoginColors
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
 import br.com.codecacto.kmplib.validation.EmailValidator
@@ -81,6 +83,7 @@ data class LoginTexts(
  * @param privacyUrl URL da política (se null, não mostra)
  * @param onGoogleSignInSuccess Callback quando Google Sign-In retorna sucesso
  * @param onAppleSignInSuccess Callback quando Apple Sign-In retorna sucesso
+ * @param brandPanel Painel de marca lateral, só em janela EXPANDIDA (GAP-NCX-T-01)
  */
 @Composable
 fun LoginScreen(
@@ -97,7 +100,17 @@ fun LoginScreen(
     termsUrl: String? = null,
     privacyUrl: String? = null,
     onGoogleSignInSuccess: ((GoogleSignInResult) -> Unit)? = null,
-    onAppleSignInSuccess: ((AppleSignInResult) -> Unit)? = null
+    onAppleSignInSuccess: ((AppleSignInResult) -> Unit)? = null,
+    /**
+     * Painel de marca ao lado do formulário, **só em janela EXPANDIDA** (tablet em paisagem,
+     * desktop). Em qualquer outra classe é ignorado.
+     *
+     * É o que separa um login desenhado para tablet de um login de telefone esticado: sem ele, a
+     * tela inteira é um formulário de 480dp boiando no meio de 1280dp de fundo vazio. O conteúdo é
+     * do app (lockup, cor da marca, frase de posicionamento) — a lib só reserva o lugar, com
+     * [FormDefaults.BrandPanelFraction] da largura.
+     */
+    brandPanel: (@Composable () -> Unit)? = null
 ) {
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
@@ -112,265 +125,294 @@ fun LoginScreen(
             modifier = modifier.fillMaxSize(),
             color = colors.background
         ) {
-            FormContainer(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Mais respiro no topo (logo não colada no topo da tela).
-                Spacer(modifier = Modifier.height(64.dp))
+            // O formulário é o MESMO nas duas formas — o que muda é o que existe ao lado dele.
+            // Extraído para lambda porque uma segunda cópia dentro do `Row` seria duas telas de
+            // login para manter, e elas divergiriam no primeiro ajuste.
+            val formulario: @Composable () -> Unit = {
+                FormContainer(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Mais respiro no topo (logo não colada no topo da tela).
+                    Spacer(modifier = Modifier.height(64.dp))
 
-                // Logo
-                if (logo != null) {
-                    Image(
-                        painter = logo,
-                        contentDescription = "Logo",
-                        modifier = logoModifier
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                // Título
-                texts.title?.let { titleComposable ->
-                    Text(
-                        text = titleComposable(),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Email/Password Login
-                if (authMethods.emailPassword) {
-                    // O que o campo pede vem do SERVIDOR (`state.identifierMode`), não de uma
-                    // decisão congelada aqui. `KeyboardType.Email` só quando é e-mail mesmo: no modo
-                    // usuário, o teclado de e-mail e a correção automática atrapalham quem digita
-                    // `joao.silva` — e o rótulo passaria a mentir.
-                    val rotuloLocal = when (state.identifierMode) {
-                        AuthIdentifierMode.EMAIL -> texts.emailLabel()
-                        AuthIdentifierMode.USERNAME -> texts.usernameLabel()
-                        AuthIdentifierMode.BOTH -> texts.identifierLabel()
-                    }
-                    AppTextField(
-                        modifier = Modifier.testTag(LoginTestTags.INPUT_EMAIL),
-                        value = state.email,
-                        onValueChange = { onAction(LoginAction.Input.EmailChanged(it)) },
-                        // O rótulo do servidor vence: num sistema configurado como "Matrícula", o app
-                        // tem de dizer "Matrícula".
-                        label = state.identifierLabel.ifBlank { rotuloLocal },
-                        placeholder = when (state.identifierMode) {
-                            AuthIdentifierMode.EMAIL -> texts.emailPlaceholder()
-                            AuthIdentifierMode.USERNAME -> texts.usernamePlaceholder()
-                            AuthIdentifierMode.BOTH -> texts.identifierPlaceholder()
-                        },
-                        leadingIcon = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
-                            Icons.Default.Email
-                        } else {
-                            Icons.Default.Person
-                        },
-                        keyboardType = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
-                            KeyboardType.Email
-                        } else {
-                            KeyboardType.Text
-                        },
-                        imeAction = ImeAction.Next,
-                        errorMessage = state.emailError,
-                        primaryColor = colors.primary,
-                        borderColor = colors.border,
-                        labelColor = colors.textSecondary,
-                        enabled = !state.isLoading
-                    )
-
-                    AppTextField(
-                        modifier = Modifier.testTag(LoginTestTags.INPUT_SENHA),
-                        value = state.password,
-                        onValueChange = { onAction(LoginAction.Input.PasswordChanged(it)) },
-                        label = texts.passwordLabel(),
-                        placeholder = texts.passwordPlaceholder(),
-                        leadingIcon = Icons.Default.Lock,
-                        isPassword = true,
-                        imeAction = ImeAction.Done,
-                        errorMessage = state.passwordError,
-                        primaryColor = colors.primary,
-                        borderColor = colors.border,
-                        labelColor = colors.textSecondary,
-                        enabled = !state.isLoading
-                    )
-
-                    // Esqueci minha senha
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(
-                            modifier = Modifier.testTag(LoginTestTags.BOTAO_ESQUECI_SENHA),
-                            onClick = { onAction(LoginAction.Click.ForgotPassword) },
-                            contentPadding = PaddingValues(0.dp),
-                            enabled = !state.isLoading
-                        ) {
-                            Text(
-                                text = texts.forgotPassword(),
-                                color = colors.primary,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-
-                    // Mensagem de erro geral
-                    if (state.errorMessage != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().testTag(LoginTestTags.ERRO),
-                            colors = CardDefaults.cardColors(
-                                containerColor = colors.error.copy(alpha = 0.1f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = state.errorMessage,
-                                modifier = Modifier.padding(12.dp),
-                                color = colors.error,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-
-                    // Botão de login
-                    AppButton(
-                        modifier = Modifier.testTag(LoginTestTags.BOTAO_ENTRAR),
-                        text = texts.loginButton(),
-                        onClick = { onAction(LoginAction.Click.Login) },
-                        isLoading = state.isLoading,
-                        enabled = !state.isLoading,
-                        primaryColor = colors.primary,
-                        contentColor = colors.onPrimary
-                    )
-
-                    // Link para cadastro
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = texts.registerPrompt(),
-                            fontSize = 14.sp,
-                            color = colors.textSecondary
+                    // Logo
+                    if (logo != null) {
+                        Image(
+                            painter = logo,
+                            contentDescription = "Logo",
+                            modifier = logoModifier
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        TextButton(
-                            modifier = Modifier.testTag(LoginTestTags.BOTAO_CADASTRAR),
-                            onClick = { onAction(LoginAction.Click.Register) },
-                            contentPadding = PaddingValues(0.dp),
-                            enabled = !state.isLoading
-                        ) {
-                            Text(
-                                text = texts.registerLink(),
-                                color = colors.primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
-                }
 
-                // Divider se tiver métodos sociais
-                if ((authMethods.google || authMethods.apple) && authMethods.emailPassword) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = colors.border)
+                    // Título
+                    texts.title?.let { titleComposable ->
                         Text(
-                            text = texts.orContinueWith(),
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            fontSize = 12.sp,
-                            color = colors.textSecondary
-                        )
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = colors.border)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                // Google Login
-                if (authMethods.google) {
-                    GoogleLoginButton(
-                        modifier = Modifier.testTag(LoginTestTags.BOTAO_GOOGLE),
-                        text = texts.googleLogin(),
-                        onClick = { onAction(LoginAction.Click.GoogleLogin) },
-                        isLoading = state.isGoogleLoading,
-                        enabled = !state.isLoading && !state.isGoogleLoading,
-                        primaryColor = colors.primary
-                    )
-                }
-
-                // Apple Login
-                if (authMethods.apple) {
-                    AppleLoginButton(
-                        modifier = Modifier.testTag(LoginTestTags.BOTAO_APPLE),
-                        text = texts.appleLogin(),
-                        onClick = { onAction(LoginAction.Click.AppleLogin) },
-                        isLoading = state.isAppleLoading,
-                        enabled = !state.isLoading && !state.isAppleLoading,
-                        primaryColor = colors.primary
-                    )
-                }
-
-                // Links de termos e privacidade — prefixo + links com espaçamento de linha NORMAL.
-                // Antes os links eram TextButton (altura mínima ~48dp), o que abria um vão grande
-                // entre a linha do prefixo e a dos links; agora são Text clicável (tight, com um
-                // padding pequeno só para o alvo de toque).
-                if (termsUrl != null || privacyUrl != null) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = texts.termsPrefix(),
-                            fontSize = 12.sp,
-                            color = colors.textSecondary,
+                            text = titleComposable(),
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
                             textAlign = TextAlign.Center
                         )
-                        Row(horizontalArrangement = Arrangement.Center) {
-                            if (termsUrl != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Email/Password Login
+                    if (authMethods.emailPassword) {
+                        // O que o campo pede vem do SERVIDOR (`state.identifierMode`), não de uma
+                        // decisão congelada aqui. `KeyboardType.Email` só quando é e-mail mesmo: no modo
+                        // usuário, o teclado de e-mail e a correção automática atrapalham quem digita
+                        // `joao.silva` — e o rótulo passaria a mentir.
+                        val rotuloLocal = when (state.identifierMode) {
+                            AuthIdentifierMode.EMAIL -> texts.emailLabel()
+                            AuthIdentifierMode.USERNAME -> texts.usernameLabel()
+                            AuthIdentifierMode.BOTH -> texts.identifierLabel()
+                        }
+                        AppTextField(
+                            modifier = Modifier.testTag(LoginTestTags.INPUT_EMAIL),
+                            value = state.email,
+                            onValueChange = { onAction(LoginAction.Input.EmailChanged(it)) },
+                            // O rótulo do servidor vence: num sistema configurado como "Matrícula", o app
+                            // tem de dizer "Matrícula".
+                            label = state.identifierLabel.ifBlank { rotuloLocal },
+                            placeholder = when (state.identifierMode) {
+                                AuthIdentifierMode.EMAIL -> texts.emailPlaceholder()
+                                AuthIdentifierMode.USERNAME -> texts.usernamePlaceholder()
+                                AuthIdentifierMode.BOTH -> texts.identifierPlaceholder()
+                            },
+                            leadingIcon = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
+                                Icons.Default.Email
+                            } else {
+                                Icons.Default.Person
+                            },
+                            keyboardType = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
+                                KeyboardType.Email
+                            } else {
+                                KeyboardType.Text
+                            },
+                            imeAction = ImeAction.Next,
+                            errorMessage = state.emailError,
+                            primaryColor = colors.primary,
+                            borderColor = colors.border,
+                            labelColor = colors.textSecondary,
+                            enabled = !state.isLoading
+                        )
+
+                        AppTextField(
+                            modifier = Modifier.testTag(LoginTestTags.INPUT_SENHA),
+                            value = state.password,
+                            onValueChange = { onAction(LoginAction.Input.PasswordChanged(it)) },
+                            label = texts.passwordLabel(),
+                            placeholder = texts.passwordPlaceholder(),
+                            leadingIcon = Icons.Default.Lock,
+                            isPassword = true,
+                            imeAction = ImeAction.Done,
+                            errorMessage = state.passwordError,
+                            primaryColor = colors.primary,
+                            borderColor = colors.border,
+                            labelColor = colors.textSecondary,
+                            enabled = !state.isLoading
+                        )
+
+                        // Esqueci minha senha
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                modifier = Modifier.testTag(LoginTestTags.BOTAO_ESQUECI_SENHA),
+                                onClick = { onAction(LoginAction.Click.ForgotPassword) },
+                                contentPadding = PaddingValues(0.dp),
+                                enabled = !state.isLoading
+                            ) {
                                 Text(
-                                    text = texts.termsText(),
-                                    fontSize = 12.sp,
+                                    text = texts.forgotPassword(),
                                     color = colors.primary,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier
-                                        .clickable { onAction(LoginAction.Click.Terms) }
-                                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                                    fontSize = 14.sp
                                 )
                             }
-                            if (termsUrl != null && privacyUrl != null) {
+                        }
+
+                        // Mensagem de erro geral
+                        if (state.errorMessage != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().testTag(LoginTestTags.ERRO),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = colors.error.copy(alpha = 0.1f)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
                                 Text(
-                                    text = " e ",
-                                    fontSize = 12.sp,
-                                    color = colors.textSecondary,
-                                    modifier = Modifier.padding(vertical = 4.dp)
+                                    text = state.errorMessage,
+                                    modifier = Modifier.padding(12.dp),
+                                    color = colors.error,
+                                    fontSize = 14.sp
                                 )
                             }
-                            if (privacyUrl != null) {
+                        }
+
+                        // Botão de login
+                        AppButton(
+                            modifier = Modifier.testTag(LoginTestTags.BOTAO_ENTRAR),
+                            text = texts.loginButton(),
+                            onClick = { onAction(LoginAction.Click.Login) },
+                            isLoading = state.isLoading,
+                            enabled = !state.isLoading,
+                            primaryColor = colors.primary,
+                            contentColor = colors.onPrimary
+                        )
+
+                        // Link para cadastro
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = texts.registerPrompt(),
+                                fontSize = 14.sp,
+                                color = colors.textSecondary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            TextButton(
+                                modifier = Modifier.testTag(LoginTestTags.BOTAO_CADASTRAR),
+                                onClick = { onAction(LoginAction.Click.Register) },
+                                contentPadding = PaddingValues(0.dp),
+                                enabled = !state.isLoading
+                            ) {
                                 Text(
-                                    text = texts.privacyText(),
-                                    fontSize = 12.sp,
+                                    text = texts.registerLink(),
                                     color = colors.primary,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier
-                                        .clickable { onAction(LoginAction.Click.Privacy) }
-                                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                    // Divider se tiver métodos sociais
+                    if ((authMethods.google || authMethods.apple) && authMethods.emailPassword) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = colors.border)
+                            Text(
+                                text = texts.orContinueWith(),
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                fontSize = 12.sp,
+                                color = colors.textSecondary
+                            )
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = colors.border)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Google Login
+                    if (authMethods.google) {
+                        GoogleLoginButton(
+                            modifier = Modifier.testTag(LoginTestTags.BOTAO_GOOGLE),
+                            text = texts.googleLogin(),
+                            onClick = { onAction(LoginAction.Click.GoogleLogin) },
+                            isLoading = state.isGoogleLoading,
+                            enabled = !state.isLoading && !state.isGoogleLoading,
+                            primaryColor = colors.primary
+                        )
+                    }
+
+                    // Apple Login
+                    if (authMethods.apple) {
+                        AppleLoginButton(
+                            modifier = Modifier.testTag(LoginTestTags.BOTAO_APPLE),
+                            text = texts.appleLogin(),
+                            onClick = { onAction(LoginAction.Click.AppleLogin) },
+                            isLoading = state.isAppleLoading,
+                            enabled = !state.isLoading && !state.isAppleLoading,
+                            primaryColor = colors.primary
+                        )
+                    }
+
+                    // Links de termos e privacidade — prefixo + links com espaçamento de linha NORMAL.
+                    // Antes os links eram TextButton (altura mínima ~48dp), o que abria um vão grande
+                    // entre a linha do prefixo e a dos links; agora são Text clicável (tight, com um
+                    // padding pequeno só para o alvo de toque).
+                    if (termsUrl != null || privacyUrl != null) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = texts.termsPrefix(),
+                                fontSize = 12.sp,
+                                color = colors.textSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                            Row(horizontalArrangement = Arrangement.Center) {
+                                if (termsUrl != null) {
+                                    Text(
+                                        text = texts.termsText(),
+                                        fontSize = 12.sp,
+                                        color = colors.primary,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier
+                                            .clickable { onAction(LoginAction.Click.Terms) }
+                                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                                    )
+                                }
+                                if (termsUrl != null && privacyUrl != null) {
+                                    Text(
+                                        text = " e ",
+                                        fontSize = 12.sp,
+                                        color = colors.textSecondary,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                }
+                                if (privacyUrl != null) {
+                                    Text(
+                                        text = texts.privacyText(),
+                                        fontSize = 12.sp,
+                                        color = colors.primary,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier
+                                            .clickable { onAction(LoginAction.Click.Privacy) }
+                                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
+
+            // Painel de marca só em EXPANDIDA (GAP-NCX-T-01). Em telefone e tablet-retrato ele é
+            // IGNORADO, não empilhado: um lockup em cima do formulário empurraria os campos para
+            // fora da tela justamente onde a tela é escassa.
+            if (brandPanel != null && LocalWindowSizeClass.current == WindowSizeClass.EXPANDIDA) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(FormDefaults.BrandPanelFraction),
+                    ) {
+                        brandPanel()
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(1f - FormDefaults.BrandPanelFraction),
+                    ) {
+                        formulario()
+                    }
+                }
+            } else {
+                formulario()
             }
 
             // Dialog esqueci senha

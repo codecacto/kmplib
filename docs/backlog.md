@@ -3,6 +3,29 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.151.0 — os quatro gaps de TABLET (26/ago/2026)
+> Origem: `docs/design/tablet-spec.md` §E do **NeuroCoreX** (ux-designer). Nenhum dos quatro é
+> layout daquele produto: os quatro atingem **qualquer app da fábrica** num tablet, e os três
+> primeiros **não tinham conserto do lado do app**.
+
+- [x] **GAP-NCX-T-01 — `FormContainer` sem teto + painel de marca no login (P0).** Em 1280dp o campo
+      de e-mail nascia com **1184dp**, em todo app. O app não corrigia de fora: o `modifier` da
+      `LoginScreen` vai para o `Surface` de FUNDO, e limitar por lá deixaria uma faixa de 480dp de
+      cor no meio de um fundo de outra cor. Entrou `FormDefaults.maxContentWidth(classe)`
+      (`Unspecified` / **480dp**), o parâmetro `maxContentWidth` do `FormContainer` e o `brandPanel`
+      de `LoginScreen`/`RegisterScreen` (37% da largura, **só** em EXPANDIDA). A `FeedbackScreen`,
+      que não usa o container, ganhou o mesmo teto na mão.
+- [x] **GAP-NCX-T-02 — `EmptyState(…, maxTextWidth = 420.dp)` (P1).** Título numa linha de ~820dp,
+      centralizado, em 100% das telas de todo app — porque a correção por fora depende de lembrar.
+- [x] **GAP-NCX-T-03 — `RadarChart(…, tamanhoMaximo = 420.dp)` (P1).** `fillMaxWidth().aspectRatio(1f)`
+      num painel de 888dp = quadrado de 888dp, **mais alto que a tela do tablet em paisagem**.
+      Conferido: `LineChart`/`BarChart` **não** têm o defeito (altura fixa, não proporção).
+- [x] **GAP-NCX-T-04 — o `ListDetailScaffold` conta quem está em painel único (P2).** Entrou como
+      **`ListDetailPaneScope.emPainelUnico`** (escopo de receptor nos slots `lista`/`detalhe`/`vazio`)
+      e **não** como `(Boolean) -> Unit`: a sobrecarga com parâmetro de lambda foi escrita e o
+      compilador a recusou — `Overload resolution ambiguity` com `lista = { … }` —, o que quebraria a
+      compilação de todo app que já usa o componente.
+
 ### Registrado nesta rodada (26/ago/2026) — origem: design do Conversor de Temperatura
 
 - [ ] **GAP-CT-M-01 — campo numérico assinado/decimal com toggle de sinal

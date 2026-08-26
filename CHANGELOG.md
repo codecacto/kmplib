@@ -1,5 +1,79 @@
 # Changelog — kmplib
 
+## 2.151.0 — o tablet para de esticar formulário, texto e gráfico
+
+**Aditivo**: nenhuma assinatura existente quebra, nenhuma chamada precisa mudar. Origem: a §E do
+`docs/design/tablet-spec.md` do **NeuroCoreX**, que mediu quatro coisas que **nenhum app da fábrica
+consegue corrigir de fora** — e as quatro atingem qualquer app num tablet, não só aquele produto.
+
+### O que estava errado
+
+- **`FormContainer` não tinha teto nenhum** (`fillMaxSize().padding(horizontal = 24.dp)`). Num
+  tablet em paisagem (1280dp) o campo de e-mail do login nascia com **1184dp de largura**, em todo
+  app da fábrica. E o app **não conseguia consertar de fora**: o `modifier` da `LoginScreen` vai
+  para o `Surface` de FUNDO, então limitar por lá encolheria o fundo junto — a tela ganharia uma
+  faixa de 480dp de cor no meio de um fundo de outra cor.
+- **`EmptyState` esticava o texto.** Num painel de 888dp o título saía numa linha de ~820dp,
+  centralizado. Cada tela *podia* passar `Modifier.widthIn(...)` — e é justamente por isso que
+  estava errado em 100% das telas: correção que depende de lembrar, num componente usado dezenas de
+  vezes por app.
+- **`RadarChart` não cabia na própria tela.** O `Canvas` era `fillMaxWidth().aspectRatio(1f)`: num
+  painel de 888dp, um quadrado de **888 × 888dp — mais alto que a tela de um tablet em paisagem
+  (800dp)**. A legenda das séries nascia fora da tela.
+- **`ListDetailScaffold` sabia que estava em painel único e não contava.** Cada consumidor
+  recalculava a regra por fora para decidir a seta de voltar, e ela tem duas formas parecidas:
+  `!classe.temDoisPaineis` (certa) e `classe == COMPACTA` (errada, esquece o tablet em RETRATO). O
+  NeuroCoreX escreveu a segunda, e a pessoa ficava **presa no detalhe** ao girar o tablet para
+  retrato. Todo app com mestre-detalhe reescreveria a mesma linha, com uma chance em duas de errar
+  igual.
+
+### O que entrou
+
+- **`FormDefaults`** — regra pura, testável sem árvore de composição:
+  `maxContentWidth(classe)` (`Dp.Unspecified` em COMPACTA, **480dp** em MEDIA e EXPANDIDA),
+  `MaxContentWidth` e `BrandPanelFraction` (0.37f).
+- **`FormContainer(..., maxContentWidth: Dp = FormDefaults.maxContentWidth(LocalWindowSizeClass.current))`**
+  — o container **continua** `fillMaxSize` (o fundo é de borda a borda); quem ganha teto é só a
+  `Column` interna, centrada. Todas as telas de formulário da lib herdam.
+- **`LoginScreen(..., brandPanel: (@Composable () -> Unit)? = null)`** e o mesmo em
+  **`RegisterScreen`** — quando não nulo **e** a janela é EXPANDIDA, a tela vira `Row` com o painel
+  de marca em 37% e o formulário no resto. Em qualquer outra classe o painel é **ignorado**, não
+  empilhado: num telefone ele empurraria os campos para fora da tela.
+- **`EmptyState(..., maxTextWidth: Dp = 420.dp)`** (e o mesmo em `FullScreenEmptyState`) — a
+  `Column` externa continua `fillMaxWidth` e continua centralizando; só o bloco
+  título + descrição + ação ganha teto. Em telefone (coluna útil ~354dp) o valor nunca morde.
+- **`RadarChart(..., tamanhoMaximo: Dp = 420.dp)`** — `widthIn` no `Canvas`, centrado na `Column`.
+- **`ListDetailPaneScope`** com **`emPainelUnico`**, recebido pelos slots `lista`, `detalhe` e
+  `vazio` do **`ListDetailScaffold`**.
+- **`FeedbackScreen`** ganhou o mesmo teto de 480dp (formulário e tela de sucesso), centrado — ela
+  **não** usa o `FormContainer`, então não herdaria a correção de graça. É uma tela que a fábrica
+  entrega em todo app: sem isto, o formulário de feedback continuaria com 1280dp de largura.
+
+### Por que o `emPainelUnico` chega por ESCOPO e não por parâmetro de lambda
+
+A forma pedida no desenho — `detalhe: @Composable (emPainelUnico: Boolean) -> Unit` numa sobrecarga
+nova, mantendo a antiga — foi escrita, compilada e **reprovada pelo compilador**:
+`Overload resolution ambiguity`, porque uma chamada existente (`lista = { … }`, lambda sem parâmetro
+declarado) casa com as **duas** assinaturas. Publicar assim quebraria a compilação de todo app que
+já usa o componente.
+
+O escopo de receptor entrega a mesma informação **sem tocar em nenhuma chamada existente** — e é a
+forma que o próprio Compose usa para um container informar seus slots (`ColumnScope`,
+`LazyItemScope`, `ThreePaneScaffoldScope` do AndroidX). O caso está travado em
+`ListDetailScaffoldApiTest`, que chama a forma antiga: se um dia alguém reintroduzir a ambiguidade,
+o arquivo de teste **não compila**.
+
+### Teste
+
+`FormDefaultsTest` prova a regra pura com **larguras de aparelho real** (360/393/412, 599/600,
+744/820/839, 840/1180/1280/1440), não números redondos — é neles que um `<=` no lugar de um `<`
+aparece. A comparação com `Dp.Unspecified` usa `isUnspecified`, e não `==`: `Dp.Unspecified` é
+`NaN`, e `NaN == NaN` é falso. Dois testes de invariante fecham o resto: o teto de **formulário** é
+mais estreito que o de **leitura** (`leituraMaxWidth`), e a fração do painel de marca deixa, na
+menor janela EXPANDIDA (840dp), largura suficiente para os 480dp de conteúdo mais o padding.
+
+Suíte: **2.279 testes, 0 falhas** (`:kmplib:testDebugUnitTest`), `koverVerify` verde.
+
 ## 2.150.0 — captura de microfone e nível sonoro (`platform/audio`)
 
 **Aditivo**: nenhuma assinatura existente mudou, **nenhuma permissão nova no manifesto da lib**, e
