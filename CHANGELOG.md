@@ -1,5 +1,45 @@
 # Changelog — kmplib
 
+
+## 2.153.0 — `FullScreenGallery`: a galeria em tela cheia que PASSA de foto
+
+O `FullScreenImageViewer` abre **uma** foto. Quem tem doze precisa fechar, tocar na seguinte e abrir
+de novo — doze vezes. Este é o irmão dele para quando há um conjunto: abre na foto tocada, desliza
+para os lados, e cada uma continua com o pinch-to-zoom e o duplo toque do `ZoomableBox`.
+
+```kotlin
+FullScreenGallery(
+    fotos = urls,
+    indiceInicial = tocada,
+    onDismiss = { aberta = false },
+)
+```
+
+Veio do perfil de **espaço de festa** no Cidade Conectada (fundador, 26/ago/2026: *"queria uma aba,
+talvez galeria, que aí você clicava, abria em tela cheia e podia passar"*) — mas não tem nada
+daquele produto: é o gesto que qualquer galeria de app precisa.
+
+### As duas coisas que a versão caseira sempre erra
+
+**O zoom briga com o deslizar.** Com a foto ampliada, arrastar tem de mover a IMAGEM, não virar a
+página — senão é impossível olhar o canto de uma foto: o primeiro arrasto some com ela. Por isso
+`ZoomableBox` ganhou **`onScaleChange`** e o pager desliga o `userScrollEnabled` enquanto há zoom.
+A escala é do PAGER, não de cada página, e zera ao trocar de foto: o zoom da anterior não vale para
+a nova.
+
+**O contador não é enfeite.** Sem "3 / 12" ninguém sabe quantas faltam, e a pessoa desliza até bater
+na última para descobrir que acabou.
+
+### E uma que derruba a tela
+
+`rememberPagerState` **estoura** com `initialPage` fora da faixa — e o índice vem de uma lista que
+pode ter encolhido entre o toque e a abertura (uma foto apagada, uma recarga do perfil). A conta é
+`paginaInicialDaGaleria`, testada nos cinco casos, e ancora na primeira: abrir a galeria vale mais
+que abrir na foto exata.
+
+Fechar por toque no fundo está **desligado** de propósito: numa galeria o dedo passa o tempo todo
+sobre a imagem, e o toque que "erra" a foto fecharia a tela no meio de quem só queria deslizar.
+
 ## 2.152.0 — o painel de marca não deixa a logo aparecer duas vezes (ago/2026)
 
 Correção de comportamento no caminho que nasceu na 2.151.0. Afeta **só** quem passa `brandPanel` — a
