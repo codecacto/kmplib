@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
+import br.com.codecacto.kmplib.platform.DeviceLocaleHolder
 import br.com.codecacto.kmplib.platform.permission.PermissionHostHolder
 import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
 import br.com.codecacto.kmplib.media.SoundEffectPlayerHolder
@@ -47,6 +48,7 @@ fun KmpLib.init(context: Context) {
     ShakeDetectorHolder.init(context)
     SoundEffectPlayerHolder.init(context)
     AudioCaptureHolder.init(context)
+    DeviceLocaleHolder.init(context)
 }
 
 /**

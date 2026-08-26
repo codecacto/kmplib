@@ -1,6 +1,36 @@
 # Changelog — kmplib
 
 
+## 2.155.0 — `platform/DeviceLocale`: a região do aparelho, que não é o idioma dele
+
+Aditivo. Nada existente mudou.
+
+**`deviceRegion(): String?`** devolve a região configurada no sistema em ISO 3166-1 alfa-2
+(`"BR"`, `"US"`, `"PT"`), ou `null` quando a plataforma não sabe dizer.
+
+**Por que não dá para usar o idioma no lugar disto.** Idioma responde "em que língua escrever";
+região responde "que regras valem aqui". Um brasileiro morando em Portugal costuma ter o aparelho em
+português **com região PT**; um americano estudando espanhol pode ter idioma `es` **com região US**.
+Escolher conteúdo regional pelo idioma erra os dois. O caso que motivou: o **Decibelímetro Simples**
+traduzido para quatro idiomas continuava exibindo NBR 10151 e NR-15 — normas brasileiras — para
+quem abrisse o app em Nova York.
+
+- **Android:** lê a configuração **da aplicação** antes do `Locale.getDefault()`, porque desde o
+  Android 13 o usuário pode escolher idioma só para um app, e o default do processo continua sendo o
+  do sistema. `DeviceLocaleHolder` entrou no `KmpLib.init` — nada a fazer no app.
+- **iOS:** `NSLocale.currentLocale.countryCode`, que é a região de Ajustes → Idioma e Região —
+  no iOS, uma configuração separada do idioma.
+- **`null` é um caso real**, não teórico: emulador recém-criado, aparelho sem região definida, ou um
+  valor que não é país. **Nunca assuma um país de default** — é assim que um app brasileiro passa a
+  mostrar a CLT para um americano. Caia no conteúdo internacional.
+- A normalização (`normalizeRegion`) recusa o que não for duas letras: o Android devolve **`"419"`**
+  nessa posição para o "espanhol da América Latina", que é código de **área** (UN M.49), não de país.
+
+**Não é geolocalização:** é configuração do sistema, sem permissão e sem rede. Quem viaja com o
+aparelho no país de origem continua vendo as regras de lá — e, para escolher tabela de referência,
+é o comportamento desejável. Quem precisa de posição real usa `location`.
+
+
 
 ## 2.155.0 — o arrasto que a galeria comia: deslizar entre fotos NÃO funcionava
 
