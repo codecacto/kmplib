@@ -44,18 +44,34 @@
       createWaveform`; iOS `UIImpactFeedbackGenerator`/`CHHapticEngine`) com padrão e intensidade
       configuráveis. Reuso plausível em qualquer app de contagem/exercício/jogo, mas sem 2º
       consumidor concreto hoje — **não promover ainda**, só registrar.
-- [ ] **GAP-CDV-M-02 — som curto e repetido sem `SoundEffect`/pool dedicado.** `media/AudioPlayer`
-      foi desenhado para mídia com posição/duração/seek (um arquivo, uma reprodução por vez), não
-      para bipes curtos disparados repetidamente e às vezes próximos entre si. Contorno usado no
-      Contador de Voltas: um único `AudioPlayer` pré-carregado no início da sessão, com `seekTo(0)`
-      + `play()` a cada volta — na pior hipótese um toque muito próximo do anterior corta o som em
-      andamento e reinicia (perde-se o eco, não a confirmação, que também tem vibração e flash
-      visual). Como o intervalo mínimo padrão do produto (0,3s) é maior que a duração de um bipe
-      curto (~80-150ms), o corte deve ser raro na prática. Módulo proposto: `media/SoundEffect`
-      (SoundPool-like — Android `SoundPool`; iOS pool de `AVAudioPlayer` ou `AVAudioEngine` com
-      buffer), múltiplos streams simultâneos, latência mínima. Reuso plausível em qualquer app com
-      feedback sonoro repetitivo (cronômetros, jogos, apps de exercício) — **promover só se um
-      segundo projeto pedir o mesmo**.
+
+> **GAP-CDV-M-02 foi ATENDIDO na 2.149.0** — ver a seção logo abaixo.
+
+### ATENDIDO na 2.149.0 — efeito sonoro curto (`media/SoundEffect`), GAP-CDV-M-02 do **Contador de Voltas** (26/ago/2026)
+> Origem: `docs/design/flows.md` do Contador de Voltas (ux-designer), tela "Sessão ativa".
+
+- [x] **GAP-CDV-M-02 — som curto, empacotado e repetido.** Promovido **antes** de um segundo
+      consumidor pedir, e por um motivo que muda a conta: **o contorno registrado aqui não
+      existia**. `media/AudioPlayer` toca `play(filePath)` com caminho **absoluto** de arquivo
+      local — no Android via `MediaPlayer.setDataSource(String)`, que **não abre**
+      `file:///android_asset/...` (asset exige `AssetFileDescriptor`) —, e `core/storage/BlobStore`
+      é chave → bytes e **não devolve caminho de arquivo** ("não é um sistema de arquivos", diz o
+      KDoc dele). Ou seja: o "AudioPlayer pré-carregado com `seekTo(0)`" **não tocaria recurso
+      empacotado de jeito nenhum**, e o app teria de escrever `expect/actual` dentro do projeto —
+      o que a regra de escopo proíbe. Isto é infra de plataforma, não regra de negócio: cronômetro,
+      app de exercício, contador, jogo e leitor de código de barras usam o mesmo recurso.
+      **Entraram:** `SoundEffectPlayer` (`load(key, bytes)` suspenso, `play(key)` não bloqueante,
+      `isLoaded`, `loadedKeys`, `unload`, `release`), `createSoundEffectPlayer(maxStreams)`,
+      `rememberSoundEffectPlayer`, `SoundEffectOutcome`/`SoundEffectError`, `SoundEffectFormat` +
+      `detectSoundEffectFormat`, `SoundEffectDefaults`.
+      **Padrão-ouro:** Android = `SoundPool` (decodifica uma vez no `load`, 4 vozes simultâneas — o
+      default `1` cortaria o bipe anterior) com `USAGE_ASSISTANCE_SONIFICATION`; iOS = *System Sound
+      Services*, recusando o pool de `AVAudioPlayer` porque ele exigiria ativar uma categoria de
+      `AVAudioSession` e **interromperia a música do usuário a cada bipe**.
+      **Sem volume por disparo** de propósito (o iOS não tem como, e parâmetro ignorado em silêncio é
+      pior que ausência); se um produto precisar, o caminho é `AVAudioEngine` + buffer PCM, troca
+      interna. **`media/AudioPlayer` ficou intocado** — continua sendo o caminho de mídia.
+      **Pendente:** validação dos alvos iOS no Mac.
 
 ### ATENDIDO na 2.148.0 — brilho da tela (`platform/ScreenBrightness`), G7 do **Minha Lanterna** (26/ago/2026)
 > Origem: tech-lead do Minha Lanterna, bloqueando o modo "tela como luz".

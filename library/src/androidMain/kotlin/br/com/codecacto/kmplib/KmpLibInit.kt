@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
 import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
+import br.com.codecacto.kmplib.media.SoundEffectPlayerHolder
 import br.com.codecacto.kmplib.platform.BatteryMonitorHolder
 import br.com.codecacto.kmplib.platform.BiometricAuthHolder
 import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
@@ -42,6 +43,7 @@ fun KmpLib.init(context: Context) {
     TorchControllerHolder.init(context)
     BatteryMonitorHolder.init(context)
     ShakeDetectorHolder.init(context)
+    SoundEffectPlayerHolder.init(context)
 }
 
 /**

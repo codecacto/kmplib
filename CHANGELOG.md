@@ -1,5 +1,101 @@
 # Changelog — kmplib
 
+## 2.149.0 — efeito sonoro curto empacotado (`media/SoundEffect`)
+
+**Aditivo**: nenhuma assinatura existente mudou, nenhuma permissão nova no manifesto, o
+`media/AudioPlayer` ficou intocado.
+
+O bipe de confirmação — o som curto disparado no instante do toque e repetido à vontade — **não
+tinha caminho** na lib, e o contorno que os projetos imaginavam não existia:
+
+- **`media/AudioPlayer` é mídia**, não efeito: `play(filePath)` exige caminho **absoluto** de
+  arquivo local, o Android usa `MediaPlayer.setDataSource(String)` (que **não abre**
+  `file:///android_asset/...` — asset pede `AssetFileDescriptor`), o preparo é assíncrono e a
+  reprodução é **uma por vez**. Um bipe a cada 300 ms por ali recria o player a cada volta e **corta
+  o som anterior**.
+- **`core/storage/BlobStore` não devolve caminho de arquivo** ("não é um sistema de arquivos", diz o
+  próprio KDoc): é chave → bytes. Então nem materializar o recurso para alimentar o `AudioPlayer`
+  era possível.
+
+Resultado prático: para tocar um bipe empacotado, um app teria de escrever `expect/actual` **dentro
+do projeto** — exatamente o que a lib existe para concentrar. Primeiro consumidor: **Contador de
+Voltas** (som + vibração + sinal visual como as três vias de confirmação da volta). Serve igual a
+cronômetro, app de exercício, jogo e leitor de código de barras.
+
+### O que entrou
+
+- **`SoundEffectPlayer`** — `load(key, bytes)` (suspenso, volta só quando dá para tocar),
+  `play(key)` (síncrono, não bloqueia, não corta o disparo anterior), `isLoaded`, `loadedKeys`,
+  `unload`, `release`.
+- **`createSoundEffectPlayer(maxStreams)`** (`expect`/`actual`) e
+  **`rememberSoundEffectPlayer(maxStreams)`**, que faz o `release` no `onDispose`.
+- **`SoundEffectOutcome`** (`Success`/`Failure`) + **`SoundEffectError`** (`NotInitialized`,
+  `InvalidAudio`, `StorageFailure`, `NotLoaded`, `Released`, `InvalidKey`, `Unknown`).
+- **`SoundEffectFormat`** + `detectSoundEffectFormat(bytes)` e **`SoundEffectDefaults`**
+  (`MAX_STREAMS`, `RECOMMENDED_MAX_BYTES`, `fileNameFor`, `isValidKey`, `isOversized`).
+
+O app entrega **bytes** (`Res.readBytes("files/beep.wav")`), nunca caminho de arquivo e nunca
+`Context` — é o que o Compose Resources sabe dar em código comum. A lib materializa o áudio no
+diretório temporário do próprio app (é o que as duas APIs nativas recebem) e apaga no
+`unload`/`release`.
+
+### Padrão-ouro, com o porquê
+
+- **Android — `SoundPool`**, a API que a documentação do Android indica para efeitos curtos e
+  repetidos: decodifica **uma vez** no `load` e mantém o PCM em memória, então cada disparo é só
+  despachar para o mixer. `maxStreams = 4` (o default do `SoundPool` é **1**, que cortaria o bipe
+  anterior a cada toque). `AudioAttributes` com `USAGE_ASSISTANCE_SONIFICATION` +
+  `CONTENT_TYPE_SONIFICATION` — a classificação de som de interface, que evita o efeito se
+  apresentar como mídia e **abaixar a música do usuário por *audio focus* a cada bipe**.
+- **iOS — *System Sound Services*** (`AudioServicesCreateSystemSoundID` no `load`,
+  `AudioServicesPlaySystemSound` no disparo), o caminho que a Apple documenta para *short sounds*
+  (≤ 30 s). A razão que decidiu contra um pool de `AVAudioPlayer`: ele exigiria **ativar uma
+  categoria de `AVAudioSession`** para o som sair de forma previsível, e ativar sessão de mídia por
+  causa de um clique **interrompe a música que o usuário está ouvindo** — a cada volta contada.
+  Além disso o `SystemSoundID` é pré-carregado de verdade (o disparo não decodifica nem prepara) e
+  chamadas consecutivas são mixadas pelo sistema, enquanto `AVAudioPlayer.play()` sobre uma
+  instância ainda tocando **reinicia** o som. O preço é não haver controle de volume nem laço — e a
+  API comum **não promete** nenhum dos dois, de propósito, para não expor parâmetro que uma
+  plataforma ignoraria em silêncio. Se um produto vier a precisar de volume por disparo, o
+  padrão-ouro é `AVAudioEngine` + `AVAudioPlayerNode` com buffer PCM, troca interna sem quebrar a
+  API.
+
+### Formato e modo silencioso (o app precisa saber)
+
+- **WAV PCM 16-bit, mono, 44.1 kHz** é o formato recomendado, e o **único multiplataforma**: o
+  *System Sound Services* aceita só Linear PCM/IMA4 em `.wav`/`.caf`/`.aif`. **MP3, M4A e OGG
+  carregam no Android e falham no iPhone** — daí o aviso no log já no `load`
+  (`SoundEffectFormat.isCrossPlatform`).
+- **Android:** com `USAGE_ASSISTANCE_SONIFICATION` o efeito segue o **stream de sistema** — no
+  Silencioso/Vibrar e sob "Não perturbe" o som **não sai**, e o volume é o do toque.
+- **iOS:** som de sistema segue o interruptor **Silencioso**. O módulo **não** reconfigura a
+  `AVAudioSession` (ver acima); se o app já ativou `Playback` por outro motivo — o `AudioPlayer` da
+  lib, por exemplo —, o efeito passa a seguir aquela categoria.
+- Em nenhuma das duas o app controla o volume. **Nada disso é falha:** é a razão de o produto
+  confirmar a ação também por vibração e por sinal visual.
+
+### Degradar em silêncio é contrato, não descuido
+
+Nenhuma operação lança. Bytes inválidos, disco cheio, chave desconhecida, `KmpLib.init` esquecido —
+tudo volta como `SoundEffectOutcome.Failure` com log. O som é **uma** das vias de confirmação;
+derrubar a contagem porque o áudio falhou seria pior do que ficar mudo.
+
+### A invariante que a suíte protege
+
+Recarregar uma chave já carregada **tem** de devolver o identificador nativo anterior para quem o
+criou descarregá-lo (`sampleId` no Android, `SystemSoundID` no iOS). Perder essa devolução é
+vazamento silencioso — o áudio continua tocando certo e a memória só aparece depois de N recargas.
+Por isso o índice `chave → identificador` mora em `commonMain` (`SoundEffectRegistry`) e é testado
+sem aparelho, junto com a detecção de formato e a derivação do nome de arquivo (`"a/b"` e `"a b"`
+não podem colidir no mesmo arquivo de cache).
+
+### Validação
+
+`:kmplib:compileDebugKotlinAndroid` e `:kmplib:testDebugUnitTest` verdes no servidor Linux (29
+testes novos; suíte com 2227 testes, 0 falhas). **Pendente de validação no Mac:** o `actual` iOS foi
+escrito conforme as APIs oficiais, mas Kotlin/Native de iOS não compila fora do macOS (alvos Apple
+sob `HostManager.hostIsMac`).
+
 ## 2.148.0 — brilho da tela do app (`platform/ScreenBrightness`)
 
 **Aditivo**: nenhuma assinatura existente mudou, nenhuma permissão nova no manifesto.
