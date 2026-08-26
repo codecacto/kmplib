@@ -1,6 +1,43 @@
 # Changelog — kmplib
 
 
+## 2.156.0 — a tela que girava para sempre: ler o corpo estava FORA do try (ago/2026)
+
+Correção. Atinge **todo consumidor** de `DomainApiClient` da fábrica — `getJson`, `postJson`,
+`putJson`, `patchJson`, os multipart e `getBytes`.
+
+### O problema
+
+O `try/catch` do `execute` cobre a requisição. Mas o corpo era lido **depois** que ele retornou:
+
+```kotlin
+suspend fun getJson(path: String): DomainResult<String> =
+    execute(path) { … }.map { it.bodyAsText() }   // ← o download acontece AQUI, fora do catch
+```
+
+Uma conexão derrubada no meio da leitura — o caso comum num payload grande e demorado — lançava, a
+exceção subia pelo repositório e caía no `launch` do `BaseViewModel`, **que não captura nada**. A
+corrotina morria em silêncio: sem log, sem erro na tela, com o `carregando` aceso. A tela girava
+para sempre, e nenhuma linha do app estava errada.
+
+Diagnosticado no relatório de 10 páginas do NeuroCoreX, gerado sob demanda: o defeito só aparecia na
+PRIMEIRA abertura, que é a mais lenta. Foi reportado como "abri e ficou carregando, não sumia".
+
+### O que mudou
+
+- `texto()` / `bytes()` leem o corpo sob a mesma proteção do `execute`, devolvendo o
+  `DomainResult.Error` de sempre em vez de lançar. `Error` e `Quota` atravessam intactos — não têm
+  corpo a ler, e reler o do 402 consumiria um corpo já consumido em `classify`.
+- **`CancellationException` volta a propagar**, nos dois pontos. O `catch (Exception)` do `execute`
+  a engolia: sair da tela no meio de uma chamada cancela o escopo, e isso virava
+  `DomainResult.Error` — a tela seguinte podia nascer com "sem conexão" sem ter feito chamada
+  nenhuma. Cancelamento não é falha de rede.
+
+### Para quem consome
+
+Nada muda na API. O que muda é que o erro passa a **chegar** ao `when` que o app já escreveu — os
+ramos `else`/`is Error` que existiam e nunca eram alcançados agora executam.
+
 ## 2.155.0 — `platform/DeviceLocale`: a região do aparelho, que não é o idioma dele
 
 Aditivo. Nada existente mudou.

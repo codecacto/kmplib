@@ -17,6 +17,7 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.CancellationException
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
@@ -82,28 +83,28 @@ class DomainApiClient(
     // ---- JSON ------------------------------------------------------------
 
     suspend fun getJson(path: String): DomainResult<String> =
-        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.map { it.bodyAsText() }
+        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.texto()
 
     suspend fun postJson(path: String, body: String): DomainResult<String> =
         execute(path) { token ->
             httpClient.post(url(path)) {
                 bearer(token); contentType(ContentType.Application.Json); setBody(body)
             }
-        }.map { it.bodyAsText() }
+        }.texto()
 
     suspend fun putJson(path: String, body: String): DomainResult<String> =
         execute(path) { token ->
             httpClient.put(url(path)) {
                 bearer(token); contentType(ContentType.Application.Json); setBody(body)
             }
-        }.map { it.bodyAsText() }
+        }.texto()
 
     suspend fun patchJson(path: String, body: String): DomainResult<String> =
         execute(path) { token ->
             httpClient.patch(url(path)) {
                 bearer(token); contentType(ContentType.Application.Json); setBody(body)
             }
-        }.map { it.bodyAsText() }
+        }.texto()
 
     suspend fun delete(path: String): DomainResult<Unit> =
         execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.map { }
@@ -135,7 +136,7 @@ class DomainApiClient(
                 bearer(token)
                 setBody(multipartBody(parts))
             }
-        }.map { it.bodyAsText() }
+        }.texto()
 
     /**
      * Upload multipart via **PUT** — para recursos que já existem e cujo binário é *substituído*
@@ -161,7 +162,7 @@ class DomainApiClient(
                 bearer(token)
                 setBody(multipartBody(parts))
             }
-        }.map { it.bodyAsText() }
+        }.texto()
 
     private fun multipartBody(parts: List<MultipartPart>) = MultiPartFormDataContent(
         formData {
@@ -183,12 +184,55 @@ class DomainApiClient(
 
     /** Stream autenticado dos bytes de um binário — ex.: `GET /v1/anexos/{id}/bytes`. */
     suspend fun getBytes(path: String): DomainResult<ByteArray> =
-        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.map { it.readRawBytes() }
+        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.bytes()
 
     // ---- Núcleo ----------------------------------------------------------
 
     private fun HttpRequestBuilder.bearer(token: String?) {
         token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+    }
+
+    /**
+     * Lê o CORPO da resposta sob a mesma proteção do [execute].
+     *
+     * ## O furo que isto fecha
+     *
+     * O `try/catch` do [execute] cobre a requisição — mas o corpo só é lido **depois** que ele
+     * retornou. Escrito como `execute(...).map { it.bodyAsText() }`, o download acontecia FORA de
+     * qualquer proteção: uma conexão derrubada no meio da leitura (o caso comum num payload grande
+     * e demorado) lançava, a exceção subia pelo repositório e caía no `launch` do `BaseViewModel`,
+     * que não captura nada. A corrotina morria em silêncio — sem log, sem erro na tela, com o
+     * `carregando` aceso. **A tela girava para sempre.**
+     *
+     * Diagnosticado em 26/ago/2026 no relatório de 10 páginas do NeuroCoreX, gerado sob demanda: o
+     * defeito só aparecia na PRIMEIRA abertura, que é a mais lenta. Todo consumidor de
+     * `getJson`/`postJson`/`getBytes` da fábrica estava exposto ao mesmo travamento mudo.
+     */
+    private suspend fun DomainResult<HttpResponse>.texto(): DomainResult<String> =
+        corpo { it.bodyAsText() }
+
+    /** Par de [texto] para binário — mesma proteção, ver o KDoc acima. */
+    private suspend fun DomainResult<HttpResponse>.bytes(): DomainResult<ByteArray> =
+        corpo { it.readRawBytes() }
+
+    private suspend fun <T> DomainResult<HttpResponse>.corpo(
+        ler: suspend (HttpResponse) -> T,
+    ): DomainResult<T> = when (this) {
+        is DomainResult.Success -> try {
+            DomainResult.Success(ler(data))
+        } catch (e: CancellationException) {
+            // Encerramento normal do escopo (a pessoa saiu da tela). Engolir isto pintaria erro de
+            // rede toda vez que uma tela fosse fechada no meio de uma chamada.
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao ler o corpo da resposta: ${e.message}")
+            DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = texts.offline)
+        }
+        // `Error` e `Quota` não têm corpo a ler — atravessam intactos. O `Quota` é o 402 do
+        // paywall, cujo contexto já foi extraído em `classify`; relê-lo aqui consumiria um corpo
+        // que já acabou.
+        is DomainResult.Error -> this
+        is DomainResult.Quota -> this
     }
 
     /**
@@ -212,6 +256,11 @@ class DomainApiClient(
             } else {
                 classify(response)
             }
+        } catch (e: CancellationException) {
+            // Sair da tela cancela o escopo, e o `catch (Exception)` abaixo capturaria isso como se
+            // fosse falha de rede — a tela seguinte nasceria com "sem conexão" sem nunca ter feito
+            // uma chamada.
+            throw e
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha de transporte em requisição de domínio: ${e.message}")
             DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = texts.offline)
