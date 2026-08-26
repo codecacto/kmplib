@@ -1,6 +1,37 @@
 # Changelog — kmplib
 
 
+## 2.157.0 — o giro que ficava POR CIMA do documento já carregado (ago/2026)
+
+Correção no `HtmlDocumentView` (Android). O iOS não tem o defeito — lá o progresso é indeterminado.
+
+### O sintoma, nas palavras de quem viu
+
+"Cliquei em ver o relatório. Ele apareceu, eu consigo rolar o documento — e o carregando fica em
+cima, eterno, não some por nada."
+
+É a descrição exata do bug: o indicador é desenhado **por cima** do WebView, no mesmo `Box`. Com o
+documento já renderizado embaixo, um estado `Loading` que não termina não parece um carregamento
+travado — parece a tela pronta com um giro grudado nela.
+
+### A corrida
+
+`onPageFinished` e `onProgressChanged` **não têm ordem garantida**. Num documento grande — muitas
+seções, fontes, imagens — o progresso oscila e chega a cair depois do `onPageFinished`. Como
+qualquer valor de 0..99 emitia `Loading`, o estado voltava de `Ready` para `Loading` e ficava lá:
+`onPageFinished` já tinha passado e não dispara de novo.
+
+Quanto maior o documento, mais provável — por isso batia no relatório de 20 seções e não nas telas
+curtas, e por isso parecia "só na primeira vez".
+
+### O que mudou
+
+- Uma trava por carga: depois de pronto, **progresso não regride o estado**. Ela é rearmada quando
+  uma carga nova começa (fonte trocada ou recarga pedida).
+- `onProgressChanged(100)` passou a **concluir** também. `onPageFinished` é o caminho normal, mas
+  não é garantido em todo conteúdo servido por `loadDataWithBaseURL`; sem esse segundo caminho, um
+  documento em que ele não dispare ficaria no indicador para sempre.
+
 ## 2.156.0 — a tela que girava para sempre: ler o corpo estava FORA do try (ago/2026)
 
 Correção. Atinge **todo consumidor** de `DomainApiClient` da fábrica — `getJson`, `postJson`,

@@ -52,6 +52,19 @@ internal actual fun HtmlDocumentWebView(
     val currentOnState by rememberUpdatedState(onState)
     val currentOnDecision by rememberUpdatedState(onDecision)
 
+    // ┌ A TRAVA QUE IMPEDE O INDICADOR ETERNO ────────────────────────────────────────────────────┐
+    // │ `onPageFinished` e `onProgressChanged` NÃO têm ordem garantida no WebView. Num documento    │
+    // │ grande — muitas seções, fontes, imagens — o progresso oscila e chega a cair DEPOIS do       │
+    // │ `onPageFinished`. Como o progresso emitia `Loading` para qualquer valor de 0..99, o estado  │
+    // │ voltava de `Ready` para `Loading` e ficava lá: `onPageFinished` já tinha passado e não      │
+    // │ dispara de novo.                                                                            │
+    // │                                                                                             │
+    // │ O sintoma é cruel de diagnosticar porque o documento JÁ ESTÁ NA TELA: o indicador é         │
+    // │ desenhado por cima, no `Box` do `HtmlDocumentView`, então a pessoa vê o conteúdo, consegue  │
+    // │ rolar — e um giro eterno em cima. "Carrega e não sai nunca."                                │
+    // └─────────────────────────────────────────────────────────────────────────────────────────────┘
+    val pronto = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+
     val client = remember {
         object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
@@ -73,6 +86,7 @@ internal actual fun HtmlDocumentWebView(
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                pronto.set(true)
                 currentOnState(HtmlDocumentState.Ready)
             }
 
@@ -115,9 +129,17 @@ internal actual fun HtmlDocumentWebView(
     val chromeClient = remember {
         object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress in 0..99) {
-                    currentOnState(HtmlDocumentState.Loading(newProgress / 100f))
+                // Depois de pronto, progresso não regride o estado — ver a nota da trava acima.
+                if (pronto.get()) return
+                if (newProgress >= 100) {
+                    // Segundo caminho para concluir. `onPageFinished` é o normal, mas não é garantido
+                    // em todo conteúdo carregado por `loadDataWithBaseURL`; sem isto, um documento em
+                    // que ele não dispare ficaria no indicador para sempre.
+                    pronto.set(true)
+                    currentOnState(HtmlDocumentState.Ready)
+                    return
                 }
+                currentOnState(HtmlDocumentState.Loading(newProgress / 100f))
             }
         }
     }
@@ -161,6 +183,8 @@ internal actual fun HtmlDocumentWebView(
     // Carrega quando o documento aparece, quando a fonte muda e quando o usuário pede recarga.
     LaunchedEffect(webViewRef, source, reloadKey) {
         val webView = webViewRef ?: return@LaunchedEffect
+        // Rearma: daqui para a frente há carga em curso de novo, e o progresso volta a valer.
+        pronto.set(false)
         currentOnState(HtmlDocumentState.Loading())
         loadHtmlDocument(webView, source)
     }
