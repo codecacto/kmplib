@@ -75,7 +75,9 @@ data class LoginTexts(
  * @param state Estado atual da tela (email, password, loading, erros, etc)
  * @param onAction Callback para todas as ações do usuário
  * @param modifier Modificador customizado
- * @param logo Logo da aplicação (opcional)
+ * @param logo Logo da aplicação (opcional). **Ignorado quando o [brandPanel] está em cena**
+ *   (janela EXPANDIDA): ali a marca é o painel lateral, e desenhar o lockup também no topo do
+ *   formulário mostra a mesma logo duas vezes, lado a lado.
  * @param colors Configuração de cores
  * @param texts Configuração de textos (suporta i18n)
  * @param authMethods Métodos de autenticação habilitados
@@ -128,7 +130,11 @@ fun LoginScreen(
             // O formulário é o MESMO nas duas formas — o que muda é o que existe ao lado dele.
             // Extraído para lambda porque uma segunda cópia dentro do `Row` seria duas telas de
             // login para manter, e elas divergiriam no primeiro ajuste.
-            val formulario: @Composable () -> Unit = {
+            // `comPainelDeMarca`: quando o painel navy está ao lado, ele JÁ é a marca da tela.
+            // Repetir o lockup no topo do formulário põe a mesma logo duas vezes lado a lado — e
+            // era o que acontecia, porque quem chama passa o `logo` sem saber em que ramo vai cair.
+            // Decidir aqui, e não no app, é o que impede o próximo consumidor de herdar o defeito.
+            val formulario: @Composable (comPainelDeMarca: Boolean) -> Unit = { comPainelDeMarca ->
                 FormContainer(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -136,7 +142,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(64.dp))
 
                     // Logo
-                    if (logo != null) {
+                    if (logo != null && !comPainelDeMarca) {
                         Image(
                             painter = logo,
                             contentDescription = "Logo",
@@ -408,11 +414,11 @@ fun LoginScreen(
                             .fillMaxHeight()
                             .weight(1f - FormDefaults.BrandPanelFraction),
                     ) {
-                        formulario()
+                        formulario(true)
                     }
                 }
             } else {
-                formulario()
+                formulario(false)
             }
 
             // Dialog esqueci senha

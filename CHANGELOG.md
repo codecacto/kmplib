@@ -1,5 +1,32 @@
 # Changelog — kmplib
 
+## 2.152.0 — o painel de marca não deixa a logo aparecer duas vezes (ago/2026)
+
+Correção de comportamento no caminho que nasceu na 2.151.0. Afeta **só** quem passa `brandPanel` — a
+API tem um consumidor, e nele o defeito era visível na primeira tela do app.
+
+### O problema
+
+`LoginScreen`/`RegisterScreen` recebem `logo` e `brandPanel` por parâmetros independentes, e quem
+chama passa os dois **sem saber em que ramo vai cair**: o `logo` é desenhado no topo do formulário
+em qualquer classe de janela, e o `brandPanel` só aparece em EXPANDIDA. Resultado num tablet em
+paisagem: o painel navy com o lockup claro à esquerda e, imediatamente à direita, **o mesmo lockup
+outra vez**, em tinta escura, no topo do formulário.
+
+Não era erro de quem consumiu. A tela é que oferecia duas fontes de marca e não dizia que elas se
+excluem — e a única forma de o app acertar seria escrever ele mesmo
+`if (LocalWindowSizeClass.current == EXPANDIDA) null else painter`, isto é, recalcular por fora uma
+regra que a tela já decide por dentro. É a mesma classe de defeito que o `GAP-NCX-T-04` documentou:
+componente que sabe algo e não conta a quem chama.
+
+### O que mudou
+
+O lambda interno do formulário passa a receber `comPainelDeMarca: Boolean`, e o bloco do `logo` só
+desenha quando ele é `false`. Onde o painel está em cena, a marca é o painel.
+
+`logo` continua com o mesmo tipo e o mesmo default — nenhuma assinatura pública mudou, e quem não
+usa `brandPanel` não vê diferença nenhuma.
+
 ## 2.151.0 — o tablet para de esticar formulário, texto e gráfico
 
 **Aditivo**: nenhuma assinatura existente quebra, nenhuma chamada precisa mudar. Origem: a §E do
