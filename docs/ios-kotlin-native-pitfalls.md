@@ -298,6 +298,22 @@ nao funciona mais.
 
 ---
 
+## ⚠️ O que a correção de 27/ago/2026 DESLIGOU e precisa voltar
+
+Quatro dos doze itens acima foram resolvidos removendo funcionalidade. Isso compila, e é o tipo de
+dívida que ninguém lembra de pagar — então fica escrito aqui, com a hipótese de correção de cada um.
+Todas precisam de um `compileKotlinIosSimulatorArm64` no Mac para valer.
+
+| O que se perdeu | Sintoma para quem usa | Hipótese |
+|---|---|---|
+| **Headers do `WKWebView`** (item 11) | `HtmlDocumentSource.Url(headers = …)` é API PÚBLICA e virou no-op no iOS: documento protegido por `Authorization` carrega sem o header e devolve 401 | O conflito é com `import androidx.compose.runtime.setValue`, não com o `NSMutableURLRequest` — é o item 4 deste mesmo doc. **Alias de import quebra a delegação `by`**; a saída é montar o request num ARQUIVO SEPARADO, sem nenhum import do Compose |
+| **`didFailProvisionalNavigation`** (item 5) | Falha de rede, DNS e TLS acontece na navegação *provisional*: sem esse método, "sem internet" **nunca** vira `Failed` e a tela fica carregando para sempre | `@ObjCSignatureOverride` (`kotlin.native.ObjCSignatureOverride`) — é a anotação oficial do K/N para métodos ObjC que colidem em Kotlin por nome de parâmetro. `@HidesFromObjC`, sugerido no item 5, é outra coisa |
+| **KVO de `torchActive`** (item 12) | O estado da lanterna deixa de acompanhar o hardware: o iOS apaga o LED (superaquecimento, outro app, Central de Controle) e o botão do app continua dizendo "ligada" | KVO de fato não se sobrescreve em K/N. Reconciliar por **notificação**: `UIApplicationDidBecomeActiveNotification` via `NSNotificationCenter.addObserverForName` (o padrão que o `AudioCapture.ios.kt` já usa) mais o `refresh()` que já existe |
+| **`accessibilityLabel` do botão de fechar** (item 3) | O VoiceOver lê "✕" | Propriedade de CATEGORIA em K/N vira extensão com **import de membro**: `import platform.UIKit.setAccessibilityLabel`. O mesmo padrão de `import platform.UIKit.drawInRect`, que já está no código |
+
+`AVAudioSession.inputAvailable` (item 9) entra na mesma lista com prioridade menor: o que se perdeu é
+uma verificação, e o `start()` ainda falha depois. A hipótese é a mesma — import de membro.
+
 ## Checklist antes de commitar codigo iOS
 
 - [ ] Arquivo compila em macOS (`./gradlew :kmplib:compileKotlinIosSimulatorArm64`)
