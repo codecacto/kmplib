@@ -59,4 +59,29 @@ interface OwnAuthSocialService {
         name: String? = null,
         email: String? = null,
     ): Result<User>
+
+    /**
+     * `POST {authBasePath}/social/exchange` — o par do [signInWithSocial] no fluxo **conduzido pelo
+     * backend**: troca o código que voltou no *deep link* pela sessão, e **adota** a sessão (o
+     * usuário sai logado daqui).
+     *
+     * Sem ele havia uma assimetria calada entre os dois modos: no nativo a lib adotava a sessão, no
+     * fluxo pelo navegador o app recebia tokens crus e tinha de adotá-los na mão — e um app que
+     * esquecesse esse passo terminava o login com o usuário ainda deslogado, sem erro nenhum.
+     *
+     * @param codeVerifier o par do desafio enviado em `socialStartUrl`. Sem ele o backend recusa: é
+     *   o que impede que outro aplicativo capaz de reivindicar o mesmo esquema de URL troque um
+     *   código interceptado pela sessão.
+     *
+     * **Implementação default recusa**, de propósito: a interface é pública e os apps mantêm fakes
+     * dela em `commonTest` — método abstrato novo quebraria todos de uma vez. Quem usa o fluxo pelo
+     * backend recebe a implementação real (a da lib), não este default.
+     */
+    suspend fun signInWithSocialCode(code: String, codeVerifier: String): Result<User> =
+        Result.failure(
+            IllegalStateException(
+                "Este OwnAuthSocialService não implementa a troca do código do login social " +
+                    "pelo backend (POST .../social/exchange)."
+            )
+        )
 }

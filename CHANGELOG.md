@@ -1,6 +1,61 @@
 # Changelog — kmplib
 
 
+## 2.160.0 — os DOIS modos de login social, declarados (ago/2026)
+
+**`SocialLoginMode`** (`NATIVE` | `BACKEND`), a fachada **`SocialSignIn`** e
+**`OwnAuthSocialService.signInWithSocialCode(code, codeVerifier)`**.
+
+### O que muda de fato
+
+A lib já tinha os dois caminhos desde a 2.143.0 — o nativo (`GoogleAuthProvider`/`AppleAuthProvider`)
+e o do navegador (`SocialBrowserLogin`). O que não existia era **a escolha declarada**: cada app
+reescrevia um dos dois roteiros na própria tela de login, e é no meio deles que moram os erros que
+passam pelo build — pular o nonce do servidor, guardar o `verifier` no lugar errado, mandar o
+`accessToken` no lugar do `idToken`, tratar cancelamento como falha.
+
+```kotlin
+val socialSignIn = SocialSignIn(
+    mode = SocialLoginMode.NATIVE,          // ou BACKEND — é a única linha que muda
+    api = ownAuth.api,
+    social = ownAuth.social,
+    nativeWebClientId = AppConfig.googleWebClientId,   // modo NATIVE
+    // backendAppId = "mirassol", redirectScheme = "brcodecacto.mirassol",  // modo BACKEND
+)
+
+socialSignIn.signIn(SocialProvider.GOOGLE)
+    .onSuccess { irParaHome() }
+    .onFailure { if (!it.foiCancelado()) mostrarErro(it.message) }
+```
+
+A tela **não sabe qual modo o projeto usa**. Trocar de modo é trocar um argumento.
+
+### A assimetria que isto fecha
+
+No fluxo nativo a lib adotava a sessão; no fluxo pelo navegador o `socialExchange` devolvia tokens
+crus e cada app tinha de adotá-los na mão. Um app que esquecesse esse passo terminava o login com o
+usuário **ainda deslogado, sem erro nenhum**. Agora os dois caminhos terminam em `Result<User>` com
+a sessão adotada.
+
+`signInWithSocialCode` entra na interface com **implementação default que recusa** — os apps mantêm
+fakes de `OwnAuthSocialService` em `commonTest`, e método abstrato novo quebraria todos de uma vez.
+
+### Cancelamento não é erro
+
+Nos dois modos, desistir chega como `SocialBrowserException(reason = "cancelado")`, e
+`Throwable.foiCancelado()` responde isso sem a tela comparar strings de erro — era assim que
+"cancelado" virava "falha no login" na primeira tradução que mudasse.
+
+### Nenhum modo é "o certo"
+
+`BACKEND` é o default de projeto interno da empresa: o provedor nunca vê o app, então **um cliente
+OAuth serve o portfólio inteiro** e app novo entra só na allowlist do backend. `NATIVE` continua
+sendo a experiência que a plataforma desenha, e é a escolha natural de projeto de **parceria ou de
+cliente**, que publica na conta dele e traz o próprio projeto no Google Cloud — ali o teto de
+clientes OAuth não é problema. **A escolha é do fundador, por projeto** (decisão de 27/ago/2026).
+
+Aditivo: quem já chamava `GoogleAuthProvider`/`SocialBrowserLogin` direto continua compilando igual.
+
 ## 2.159.0 — a porta em que ninguém se cadastra (ago/2026)
 
 `AuthMethods` ganhou **`showRegister`** (default `true`). Em `false`, a `LoginScreen` não desenha o

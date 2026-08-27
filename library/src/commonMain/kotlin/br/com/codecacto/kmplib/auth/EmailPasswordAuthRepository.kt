@@ -117,6 +117,16 @@ class EmailPasswordAuthRepository(
         )
 
     /**
+     * O par do [signInWithSocial] no fluxo conduzido pelo backend: o código do *deep link* vira
+     * sessão adotada, exatamente como no nativo.
+     *
+     * O `providerId` fica no default porque, aqui, quem sabe qual provedor a pessoa usou é o
+     * **servidor** — o app só carregou um código opaco. Ele chega na sessão devolvida pelo backend.
+     */
+    override suspend fun signInWithSocialCode(code: String, codeVerifier: String): Result<User> =
+        api.socialExchange(code, codeVerifier).mapAndAdopt(email = "")
+
+    /**
      * Login com Google. **O parâmetro [accessToken] é IGNORADO de propósito** — access token não é
      * prova de identidade (qualquer app obtém um para o próprio projeto e o apresenta a um servidor
      * terceiro); só o `idToken` viaja para o backend.
