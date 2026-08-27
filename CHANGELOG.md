@@ -1,6 +1,42 @@
 # Changelog — kmplib
 
 
+## 2.158.0 — a segunda porta de entrada do login (ago/2026)
+
+`LoginScreen` ganhou **`footerSlot`**: conteúdo do app abaixo dos links legais, no fim do formulário.
+
+### Para que serve
+
+Produto com duas populações tem duas portas: quem comprou entra pelo login comum, e quem foi
+convidado por uma empresa (ou por um profissional) entra por outra — "Entrar com login corporativo",
+"sou colaborador", "acesso da clínica". A autenticação é a MESMA; o que muda é para onde a pessoa vai
+depois e o que ela vê lá dentro. Isso é decisão do app, não da lib — mas até agora não havia onde
+pendurar o botão, e o único caminho era o app reescrever a tela de login inteira, perdendo tema,
+acessibilidade e o painel de tablet junto.
+
+### Por que no FIM, e não acima do botão de entrar
+
+Acima, ele disputa com a ação principal e confunde quem tem conta comum, que é a maioria. No fim,
+quem procura acha e quem não procura não tropeça. Aparece nas duas formas (telefone e tablet com
+painel de marca) porque é parte do formulário — ao contrário do `brandPanel`, que só existe em janela
+expandida.
+
+```kotlin
+LoginScreen(
+    state = state,
+    onAction = viewModel::onAction,
+    // …
+    footerSlot = {
+        TextButton(onClick = { navController.navigate(Route.LoginCorporativo) }) {
+            Text("Entrar com login corporativo")
+        }
+    },
+)
+```
+
+Aditivo: `footerSlot` é opcional e o default é `null`. Quem não passa nada vê a tela como antes.
+
+
 ## 2.157.0 — o giro que ficava POR CIMA do documento já carregado (ago/2026)
 
 Correção no `HtmlDocumentView` (Android). O iOS não tem o defeito — lá o progresso é indeterminado.

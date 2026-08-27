@@ -112,7 +112,20 @@ fun LoginScreen(
      * do app (lockup, cor da marca, frase de posicionamento) — a lib só reserva o lugar, com
      * [FormDefaults.BrandPanelFraction] da largura.
      */
-    brandPanel: (@Composable () -> Unit)? = null
+    brandPanel: (@Composable () -> Unit)? = null,
+    /**
+     * Conteúdo do app **abaixo dos links legais**, no fim do formulário.
+     *
+     * Existe para a segunda porta de entrada que alguns produtos têm — "entrar com login
+     * corporativo", "sou colaborador", "acesso da clínica" —, que é uma decisão do app e não da lib:
+     * o que muda depois dela é para onde a pessoa vai, não como ela autentica.
+     *
+     * Fica no fim de propósito. Acima do botão de entrar, ele disputa com a ação principal e
+     * confunde quem tem conta comum, que é a maioria; embaixo, quem procura por ele acha, e quem não
+     * procura não tropeça. Aparece nas duas formas (telefone e tablet com painel de marca), porque é
+     * parte do formulário — ao contrário do [brandPanel], que só existe em janela expandida.
+     */
+    footerSlot: (@Composable () -> Unit)? = null
 ) {
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
@@ -391,6 +404,11 @@ fun LoginScreen(
                                 }
                             }
                         }
+                    }
+
+                    if (footerSlot != null) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        footerSlot()
                     }
 
                     Spacer(modifier = Modifier.height(32.dp))
