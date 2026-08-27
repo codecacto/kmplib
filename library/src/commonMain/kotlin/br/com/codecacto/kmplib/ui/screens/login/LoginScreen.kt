@@ -283,30 +283,33 @@ fun LoginScreen(
                             contentColor = colors.onPrimary
                         )
 
-                        // Link para cadastro
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = texts.registerPrompt(),
-                                fontSize = 14.sp,
-                                color = colors.textSecondary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            TextButton(
-                                modifier = Modifier.testTag(LoginTestTags.BOTAO_CADASTRAR),
-                                onClick = { onAction(LoginAction.Click.Register) },
-                                contentPadding = PaddingValues(0.dp),
-                                enabled = !state.isLoading
+                        // Link para cadastro — some inteiro quando a tela é a porta em que
+                        // ninguém se cadastra (`AuthMethods.showRegister = false`).
+                        if (authMethods.showRegister) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = texts.registerLink(),
-                                    color = colors.primary,
+                                    text = texts.registerPrompt(),
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
+                                    color = colors.textSecondary
                                 )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                TextButton(
+                                    modifier = Modifier.testTag(LoginTestTags.BOTAO_CADASTRAR),
+                                    onClick = { onAction(LoginAction.Click.Register) },
+                                    contentPadding = PaddingValues(0.dp),
+                                    enabled = !state.isLoading
+                                ) {
+                                    Text(
+                                        text = texts.registerLink(),
+                                        color = colors.primary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }

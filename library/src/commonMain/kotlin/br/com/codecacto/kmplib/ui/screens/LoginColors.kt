@@ -37,5 +37,14 @@ data class LoginColors(
 data class AuthMethods(
     val emailPassword: Boolean = true,
     val google: Boolean = false,
-    val apple: Boolean = false
+    val apple: Boolean = false,
+    /**
+     * Mostra o "Não tem uma conta? Cadastre-se" no fim do formulário. Default `true`.
+     *
+     * `false` na tela em que **ninguém se cadastra**: a porta corporativa, em que a conta é
+     * CONCEDIDA por um RH ou por um profissional. Ali o convite a se cadastrar manda a pessoa
+     * exatamente para onde ela não deve ir — e o cadastro que ela criar sozinha não vai estar ligado
+     * à empresa nem ao profissional, então o resultado dela não aparece em lugar nenhum.
+     */
+    val showRegister: Boolean = true
 )

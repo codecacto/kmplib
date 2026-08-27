@@ -1,6 +1,26 @@
 # Changelog — kmplib
 
 
+## 2.159.0 — a porta em que ninguém se cadastra (ago/2026)
+
+`AuthMethods` ganhou **`showRegister`** (default `true`). Em `false`, a `LoginScreen` não desenha o
+"Não tem uma conta? Cadastre-se".
+
+Companheiro do `footerSlot` da 2.158.0: a segunda porta de entrada é para quem recebeu a conta de um
+RH ou de um profissional, e ali o convite a se cadastrar manda a pessoa exatamente para onde ela não
+deve ir. Pior: a conta que ela criar sozinha **não fica ligada** à empresa nem ao profissional, então
+o resultado dela não aparece para quem a convidou — e o suporte recebe "respondi e sumiu".
+
+```kotlin
+LoginScreen(
+    // …
+    authMethods = AuthMethods(emailPassword = true, showRegister = false),
+)
+```
+
+Aditivo: default `true`, quem não passa nada vê a tela como antes.
+
+
 ## 2.158.0 — a segunda porta de entrada do login (ago/2026)
 
 `LoginScreen` ganhou **`footerSlot`**: conteúdo do app abaixo dos links legais, no fim do formulário.
