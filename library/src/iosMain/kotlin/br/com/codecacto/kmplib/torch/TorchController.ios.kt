@@ -6,7 +6,6 @@
 package br.com.codecacto.kmplib.torch
 
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -20,19 +19,11 @@ import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.hasTorch
 import platform.AVFoundation.isTorchAvailable
 import platform.AVFoundation.isTorchActive
-import platform.AVFoundation.lockForConfiguration
 import platform.AVFoundation.setTorchModeOnWithLevel
 import platform.AVFoundation.torchMode
-import platform.AVFoundation.unlockForConfiguration
 import platform.Foundation.NSError
-import platform.Foundation.NSKeyValueObservingOptionInitial
-import platform.Foundation.NSKeyValueObservingOptionNew
-import platform.Foundation.addObserver
-import platform.Foundation.removeObserver
-import platform.darwin.NSObject
 
 private const val TAG = "Torch"
-private const val KEY_PATH_TORCH_ACTIVE = "torchActive"
 
 /** Cria o controlador de lanterna do iOS. Sem LED no aparelho, devolve o controlador inerte. */
 actual fun createTorchController(): TorchController {
@@ -65,19 +56,6 @@ internal class IosTorchController(
     private val machine = TorchStateMachine(iosTorchCapabilities(device.hasTorch))
 
     private var released = false
-
-    private val observer = TorchActiveObserver { active ->
-        machine.onHardwareTorchChanged(active)
-    }
-
-    init {
-        device.addObserver(
-            observer = observer,
-            forKeyPath = KEY_PATH_TORCH_ACTIVE,
-            options = NSKeyValueObservingOptionNew or NSKeyValueObservingOptionInitial,
-            context = null,
-        )
-    }
 
     override val state: StateFlow<TorchState> = machine.state
 
@@ -113,7 +91,6 @@ internal class IosTorchController(
         if (released) return
         released = true
         if (machine.current.isOn) applyTorch(on = false, level = machine.current.level)
-        device.removeObserver(observer, forKeyPath = KEY_PATH_TORCH_ACTIVE)
     }
 
     // -------------------------------------------------------------------------------------------
@@ -158,28 +135,5 @@ internal class IosTorchController(
     private fun fail(error: TorchError): TorchOutcome {
         machine.onError(error)
         return TorchOutcome.Failure(error)
-    }
-}
-
-/**
- * Observador de KVO de `torchActive`. Precisa ser uma subclasse de `NSObject` com o método
- * `observeValueForKeyPath:` sobrescrito — é assim que o KVO entrega a mudança.
- *
- * O dicionário `change` é ignorado de propósito: ler `torchActive` direto do dispositivo é mais
- * simples e não depende do formato do valor empacotado.
- */
-private class TorchActiveObserver(
-    private val onChange: (Boolean) -> Unit,
-) : NSObject() {
-
-    override fun observeValueForKeyPath(
-        keyPath: String?,
-        ofObject: Any?,
-        change: Map<Any?, *>?,
-        context: COpaquePointer?,
-    ) {
-        if (keyPath != KEY_PATH_TORCH_ACTIVE) return
-        val device = ofObject as? AVCaptureDevice ?: return
-        onChange(device.isTorchActive())
     }
 }

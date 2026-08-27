@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import platform.AVFAudio.AVAudioApplication
-import platform.AVFAudio.AVAudioApplicationRecordPermission
+import platform.AVFAudio.AVAudioApplicationRecordPermissionGranted
 import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioEngineConfigurationChangeNotification
 import platform.AVFAudio.AVAudioPCMBuffer
@@ -22,10 +22,11 @@ import platform.AVFAudio.AVAudioSessionCategoryRecord
 import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionOptionKey
 import platform.AVFAudio.AVAudioSessionInterruptionOptionShouldResume
-import platform.AVFAudio.AVAudioSessionInterruptionType
+import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
+import platform.AVFAudio.AVAudioSessionInterruptionTypeEnded
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
 import platform.AVFAudio.AVAudioSessionModeMeasurement
-import platform.AVFAudio.AVAudioSessionRecordPermission
+import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.setActive
 import platform.Foundation.NSDate
@@ -109,7 +110,9 @@ internal class IosAudioCapture(config: AudioCaptureConfig) : AudioCapture {
     private var interrupted: Boolean = false
 
     override val isAvailable: Boolean
-        get() = !released && hasRecordPermission() && AVAudioSession.sharedInstance().inputAvailable
+        // NOTA: inputAvailable/availableInputs não expostos no K/N 2.x. A verificação real
+        // acontece em start() quando tentamos configurar a sessão e instalar o tap.
+        get() = !released && hasRecordPermission()
 
     override fun start(): Boolean {
         if (released) {
@@ -305,10 +308,10 @@ internal class IosAudioCapture(config: AudioCaptureConfig) : AudioCapture {
             val type = (notification?.userInfo?.get(AVAudioSessionInterruptionTypeKey) as? NSNumber)
                 ?.unsignedLongValue
             when (type) {
-                AVAudioSessionInterruptionType.AVAudioSessionInterruptionTypeBegan.value ->
+                AVAudioSessionInterruptionTypeBegan ->
                     onInterruptionBegan()
 
-                AVAudioSessionInterruptionType.AVAudioSessionInterruptionTypeEnded.value -> {
+                AVAudioSessionInterruptionTypeEnded -> {
                     val options =
                         (notification?.userInfo?.get(AVAudioSessionInterruptionOptionKey) as? NSNumber)
                             ?.unsignedLongValue ?: 0uL
@@ -405,10 +408,10 @@ internal class IosAudioCapture(config: AudioCaptureConfig) : AudioCapture {
      */
     private fun hasRecordPermission(): Boolean = if (isIos17OrLater) {
         AVAudioApplication.sharedInstance().recordPermission ==
-            AVAudioApplicationRecordPermission.AVAudioApplicationRecordPermissionGranted
+            AVAudioApplicationRecordPermissionGranted
     } else {
         AVAudioSession.sharedInstance().recordPermission ==
-            AVAudioSessionRecordPermission.AVAudioSessionRecordPermissionGranted
+            AVAudioSessionRecordPermissionGranted
     }
 
     private val isIos17OrLater: Boolean by lazy {

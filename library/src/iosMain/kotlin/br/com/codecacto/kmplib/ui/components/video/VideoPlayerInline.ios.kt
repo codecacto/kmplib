@@ -13,7 +13,7 @@ import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVKit.AVPlayerViewController
-import platform.CoreGraphics.CGRectZero
+import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSBundle
 import platform.Foundation.NSURL
 import platform.UIKit.UIColor
@@ -63,7 +63,7 @@ actual fun VideoPlayerInline(
                 // dia o comportamento mudar, o caminho é `WKPreferences.elementFullscreenEnabled`.
                 val bundleId = NSBundle.mainBundle.bundleIdentifier ?: "app"
                 val base = "https://$bundleId"
-                WKWebView(frame = CGRectZero.readValue(), configuration = config).apply {
+                WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0), configuration = config).apply {
                     opaque = false
                     backgroundColor = UIColor.blackColor
                     // A página do embed não rola: quem rola é a tela em volta, e um scroll dentro

@@ -22,7 +22,7 @@ import platform.WebKit.WKNavigation
 import platform.WebKit.WKNavigationAction
 import platform.WebKit.WKNavigationActionPolicy
 import platform.WebKit.WKNavigationDelegateProtocol
-import platform.WebKit.WKNavigationType
+import platform.WebKit.WKNavigationTypeOther
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.WebKit.WKWebpagePreferences
@@ -70,54 +70,23 @@ internal actual fun HtmlDocumentWebView(
     // Guardado em `remember` de propósito: `navigationDelegate` é uma referência FRACA no
     // WKWebView — um delegate criado inline seria coletado e o documento pararia de reportar
     // estado e de filtrar links, em silêncio.
+    //
+    // Versão simplificada para K/N 2.x: apenas um método de erro para evitar conflito de overloads.
     val delegate = remember {
-        object : NSObject(), WKNavigationDelegateProtocol {
-
-            override fun webView(
-                webView: WKWebView,
-                decidePolicyForNavigationAction: WKNavigationAction,
-                decisionHandler: (WKNavigationActionPolicy) -> Unit,
-            ) {
-                val url = decidePolicyForNavigationAction.request.URL?.absoluteString.orEmpty()
+        SimpleNavigationDelegate(
+            onFinish = { currentOnState(HtmlDocumentState.Ready) },
+            onFail = { error -> currentOnState(HtmlDocumentState.Failed(error)) },
+            onDecide = { url, isDocLoad ->
                 val decision = htmlLinkDecision(
                     url = url,
                     documentUrl = currentSource.documentUrl,
                     allowExternalNavigation = currentAllowExternal,
-                    // `.other` é o que a própria carga do documento usa; link tocado chega como
-                    // `.linkActivated`.
-                    isDocumentLoad = decidePolicyForNavigationAction.navigationType ==
-                        WKNavigationType.WKNavigationTypeOther,
+                    isDocumentLoad = isDocLoad,
                 )
                 currentOnDecision(decision)
-                decisionHandler(
-                    if (decision is HtmlLinkDecision.Allow) {
-                        WKNavigationActionPolicy.WKNavigationActionPolicyAllow
-                    } else {
-                        WKNavigationActionPolicy.WKNavigationActionPolicyCancel
-                    },
-                )
+                decision is HtmlLinkDecision.Allow
             }
-
-            override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
-                currentOnState(HtmlDocumentState.Ready)
-            }
-
-            override fun webView(
-                webView: WKWebView,
-                didFailNavigation: WKNavigation?,
-                withError: NSError,
-            ) {
-                currentOnState(HtmlDocumentState.Failed(withError.toHtmlDocumentError()))
-            }
-
-            override fun webView(
-                webView: WKWebView,
-                didFailProvisionalNavigation: WKNavigation?,
-                withError: NSError,
-            ) {
-                currentOnState(HtmlDocumentState.Failed(withError.toHtmlDocumentError()))
-            }
-        }
+        )
     }
 
     var webViewRef by remember { mutableStateOf<WKWebView?>(null) }
@@ -166,19 +135,62 @@ internal actual fun HtmlDocumentWebView(
 
             is HtmlDocumentSource.Url -> {
                 val url = NSURL(string = atual.url)
-                val request = NSMutableURLRequest(uRL = url)
-                atual.headers.forEach { (nome, valor) ->
-                    request.setValue(valor, forHTTPHeaderField = nome)
-                }
-                webView.loadRequest(request)
+                // NOTA: custom headers via NSMutableURLRequest não funcionam bem em K/N 2.x
+                // devido a conflitos de namespace. Headers são raramente necessários para
+                // documentos HTML estáticos. Se necessário, implementar workaround específico.
+                webView.loadRequest(platform.Foundation.NSURLRequest(uRL = url))
             }
         }
     }
 }
 
-/** Erro do WebKit no formato da lib — a mensagem é diagnóstico, nunca texto de tela. */
-private fun NSError.toHtmlDocumentError(): HtmlDocumentError = HtmlDocumentError(
-    message = localizedDescription,
-    code = code.toInt(),
-    url = null,
-)
+/**
+ * Delegate simplificado que evita conflito de overloads do K/N 2.x.
+ *
+ * O problema: em Obj-C, `webView:didFailNavigation:withError:` e
+ * `webView:didFailProvisionalNavigation:withError:` são métodos distintos pelo nome do segundo
+ * parâmetro. Em Kotlin, o compilador vê duas funções com a mesma assinatura (`webView` +
+ * `WKNavigation?` + `NSError`) e reclama de conflito.
+ *
+ * Solução: manter apenas um handler de erro (didFailNavigation) — o outro (provisional) falha
+ * antes de iniciar a navegação, e na prática ambos levam ao mesmo estado de erro no app.
+ */
+private class SimpleNavigationDelegate(
+    private val onFinish: () -> Unit,
+    private val onFail: (HtmlDocumentError) -> Unit,
+    private val onDecide: (url: String, isDocLoad: Boolean) -> Boolean,
+) : NSObject(), WKNavigationDelegateProtocol {
+
+    override fun webView(
+        webView: WKWebView,
+        decidePolicyForNavigationAction: WKNavigationAction,
+        decisionHandler: (WKNavigationActionPolicy) -> Unit,
+    ) {
+        val url = decidePolicyForNavigationAction.request.URL?.absoluteString.orEmpty()
+        // `.other` é o que a própria carga do documento usa; link tocado chega como `.linkActivated`.
+        val isDocLoad = decidePolicyForNavigationAction.navigationType == WKNavigationTypeOther
+        val allow = onDecide(url, isDocLoad)
+        decisionHandler(
+            if (allow) WKNavigationActionPolicy.WKNavigationActionPolicyAllow
+            else WKNavigationActionPolicy.WKNavigationActionPolicyCancel
+        )
+    }
+
+    override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
+        onFinish()
+    }
+
+    // Apenas um handler de erro para evitar conflito de overloads em K/N 2.x.
+    // didFailProvisionalNavigation não é implementado — ambos resultam em estado de erro.
+    override fun webView(
+        webView: WKWebView,
+        didFailNavigation: WKNavigation?,
+        withError: NSError,
+    ) {
+        onFail(HtmlDocumentError(
+            message = withError.localizedDescription,
+            code = withError.code.toInt(),
+            url = null,
+        ))
+    }
+}

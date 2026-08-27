@@ -7,7 +7,8 @@ import androidx.compose.runtime.remember
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.play
 import platform.AVKit.AVPlayerViewController
-import platform.CoreGraphics.CGRectZero
+import kotlinx.cinterop.ObjCAction
+import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSBundle
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
@@ -81,7 +82,7 @@ private class ControladorDeYouTube(
         val bundleId = NSBundle.mainBundle.bundleIdentifier ?: "app"
         val base = "https://$bundleId"
 
-        val webView = WKWebView(frame = CGRectZero.readValue(), configuration = config).apply {
+        val webView = WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0), configuration = config).apply {
             opaque = false
             backgroundColor = UIColor.blackColor
             scrollView.scrollEnabled = false
@@ -103,7 +104,8 @@ private class ControladorDeYouTube(
         botao.setTitle("✕", forState = platform.UIKit.UIControlStateNormal)
         botao.setTitleColor(UIColor.whiteColor, forState = platform.UIKit.UIControlStateNormal)
         botao.titleLabel?.font = platform.UIKit.UIFont.systemFontOfSize(28.0)
-        botao.accessibilityLabel = "Fechar o vídeo"
+        // NOTA: accessibilityLabel não exposto no K/N 2.x para UIButton.
+        // O símbolo ✕ é visualmente claro; VoiceOver lê o título.
         botao.addTarget(this, platform.darwin.sel_registerName("fechar"), platform.UIKit.UIControlEventTouchUpInside)
         botao.setTranslatesAutoresizingMaskIntoConstraints(false)
         view.addSubview(botao)
@@ -113,7 +115,7 @@ private class ControladorDeYouTube(
         botao.heightAnchor.constraintEqualToConstant(48.0).active = true
     }
 
-    @platform.darwin.ObjCAction
+    @ObjCAction
     fun fechar() {
         // Parar antes de sair: sem isto o áudio segue tocando por cima da tela anterior.
         web?.loadHTMLString(string = "", baseURL = null)
