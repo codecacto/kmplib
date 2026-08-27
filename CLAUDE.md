@@ -2,6 +2,12 @@
 
 Este arquivo fornece orientações para Claude Code (claude.ai/code) ao trabalhar com o código neste repositório.
 
+> ⚠️ **REGRA ZERO desta biblioteca — [`NUNCA_DESLIGUE_FUNCIONALIDADE.md`](NUNCA_DESLIGUE_FUNCIONALIDADE.md).**
+> Nenhuma funcionalidade se desliga, comenta ou vira no-op para fazer compilar. A lib é a fundação de
+> dezenas de apps: a decisão de remover algo daqui **não é local**, mesmo quando o arquivo parece
+> isolado. Travou de verdade (falta de Mac, API não exposta, limitação do K/N)? Pare, reporte e
+> proponha a solução correta — não entregue o recorte em silêncio.
+
 ## Visão Geral
 
 KmpLib é a biblioteca compartilhada Kotlin Multiplatform (KMP) da CodeCacto, usada por todos os projetos mobile (Android + iOS):

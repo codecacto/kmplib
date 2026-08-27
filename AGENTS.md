@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+> ⚠️ **ANTES DE QUALQUER COISA, leia [`NUNCA_DESLIGUE_FUNCIONALIDADE.md`](NUNCA_DESLIGUE_FUNCIONALIDADE.md).**
+> Esta lib é a fundação de dezenas de apps, e quem mexe nela quase nunca vê a lista inteira do que
+> ela afeta. Nenhuma funcionalidade pode ser removida, comentada ou virar no-op para fazer o build
+> passar — nem em correção de compilação de iOS. Sem saída? **Pare e reporte ao fundador**, com o
+> plano da solução correta.
+
 ## Project Structure and Module Organization
 This is a Kotlin Multiplatform library. The main module is `library/`.
 - `library/src/commonMain/`: shared Kotlin code (core utilities, Firebase wrappers, masks, validators).

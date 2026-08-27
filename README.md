@@ -2,6 +2,9 @@
 
 Biblioteca Kotlin Multiplatform (Android + iOS) que centraliza codigo reutilizavel entre todos os apps da CodeCacto. Usar esta lib ao criar um novo app economiza semanas de desenvolvimento.
 
+> ⚠️ **Vai mexer nesta lib? Leia antes: [`NUNCA_DESLIGUE_FUNCIONALIDADE.md`](NUNCA_DESLIGUE_FUNCIONALIDADE.md).**
+> Nenhuma funcionalidade é desligada para fazer o build passar.
+
 **Coordenadas Maven:** `br.com.codecacto:kmplib:2.78.0`
 
 > **Fonte de verdade viva = skill `kmplib-catalog`** (`.claude/skills/kmplib-catalog`). Este README é
