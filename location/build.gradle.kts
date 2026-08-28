@@ -8,7 +8,6 @@ kotlin {
             api(project(":kmplib-core"))
             // Permissão de localização passa pelo host de permissões do platform.
             api(project(":kmplib-platform"))
-            api(libs.compose.ui)
         }
 
         androidMain.dependencies {

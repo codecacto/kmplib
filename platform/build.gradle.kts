@@ -11,12 +11,6 @@ kotlin {
             // Notificação agendada, biometria, permissões, áudio, TTS, lanterna, assinatura e
             // checagem de versão. Tudo isso tem superfície Compose (o host de permissão, o pad de
             // assinatura, o diálogo de atualização), daí o convention plugin com Compose.
-            api(libs.compose.ui)
-            api(libs.compose.foundation)
-            api(libs.compose.material3)
-            implementation(compose.components.uiToolingPreview)
-            @Suppress("DEPRECATION")
-            implementation(compose.materialIconsExtended)
 
             api(libs.kotlinx.datetime)
             api(libs.kotlinx.serialization.json)

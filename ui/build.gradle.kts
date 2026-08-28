@@ -19,16 +19,7 @@ kotlin {
             api(project(":kmplib-mask"))
             api(project(":kmplib-platform"))
 
-            // A kmplib É uma biblioteca de UI: todo composable público dela nomeia tipos do
-            // Compose, então api() — mesmo padrão do androidx.compose.material3, que declara
-            // `api` para ui e foundation.
-            api(libs.compose.ui)
-            api(libs.compose.foundation)
-            api(libs.compose.material3)
             api(libs.compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
-            @Suppress("DEPRECATION")
-            implementation(compose.materialIconsExtended)
 
             // ViewModel é SUPERTIPO público do BaseViewModel, a classe-base de todo ViewModel de
             // todo app do ecossistema.

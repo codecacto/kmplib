@@ -13,7 +13,10 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.162.0"
+// Versão ÚNICA do conjunto, em gradle.properties — a mesma que o convention plugin dá aos outros
+// 21 módulos. Enquanto ela morava aqui, o umbrella podia sair com um número e os módulos com
+// outro, e o app que combinasse os dois não teria como perceber.
+version = providers.gradleProperty("kmplib.version").get()
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)
@@ -149,6 +152,16 @@ kotlin {
             // que hoje declaram `br.com.codecacto:kmplib` sigam compilando sem tocar em uma linha.
             // Quem quiser o ganho de build/binário troca a coordenada única pelos módulos que usa.
             api(project(":kmplib-core"))
+            api(project(":kmplib-ads"))
+            api(project(":kmplib-media"))
+            api(project(":kmplib-pdf"))
+            api(project(":kmplib-camera"))
+            api(project(":kmplib-map"))
+            api(project(":kmplib-qr"))
+            api(project(":kmplib-central"))
+            api(project(":kmplib-sync"))
+            api(project(":kmplib-monetization"))
+            api(project(":kmplib-auth"))
             api(project(":kmplib-ui"))
             api(project(":kmplib-location"))
             api(project(":kmplib-platform"))

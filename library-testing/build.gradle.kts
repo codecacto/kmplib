@@ -64,7 +64,10 @@ kotlin {
             // `api`, e não `implementation`: TODO tipo desta lib aparece na API pública daqui
             // (`PurchaseRepository`, `PurchaseResult`, `PurchasePackage`…). Com `implementation`, o
             // consumidor não conseguiria nem nomear o que este módulo devolve.
-            api(project(":kmplib"))
+            // `api`, e o módulo é o `:kmplib-monetization` — não mais o umbrella. Este artefato
+            // dubla a LOJA, e é o `PurchaseManager` dele que precisa ser amigo (abaixo). Depender
+            // do umbrella traria a lib inteira para um artefato que só existe para builds de QA.
+            api(project(":kmplib-monetization"))
         }
 
         commonTest.dependencies {
@@ -83,7 +86,7 @@ kotlin {
 // testes da própria kmplib e é invisível para outro módulo Gradle — foi exatamente por isso que o
 // `FakePurchaseRepository` do Super 8 nunca pôde ser ligado a nada.
 //
-// `-Xfriend-paths` é a resposta oficial do compilador: declara que as classes da `:kmplib` são de um
+// `-Xfriend-paths` é a resposta oficial do compilador: declara que as classes da `:kmplib-monetization` são de um
 // "módulo amigo", cujo `internal` este módulo pode ver. Nada é tornado público — a API publicada da
 // `:kmplib` fica idêntica.
 //
@@ -104,11 +107,11 @@ kotlin {
 // de build da `:kmplib`" — verdadeiro em qualquer versão do AGP, e imune a mudança de layout.
 // Avaliado só na execução da tarefa (`providers.provider`), quando o classpath já está resolvido.
 //
-// A dependência de tarefa vem de graça pelo `api(project(":kmplib"))`: as classes já precisam
+// A dependência de tarefa vem de graça pelo `api(project(":kmplib-monetization"))`: as classes já precisam
 // existir para compilar contra elas.
 //
 val kmplibBuildDir: String =
-    project(":kmplib").layout.buildDirectory.get().asFile.absolutePath
+    project(":kmplib-monetization").layout.buildDirectory.get().asFile.absolutePath
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     val classpath = libraries
@@ -119,7 +122,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
                 .map { it.absolutePath }
             // Sem amigo encontrado, NÃO passa a flag vazia: `-Xfriend-paths=` sem valor é erro de
             // argumento no compilador, e o build morreria dizendo algo sobre sintaxe de flag em vez
-            // de "não achei a :kmplib no classpath".
+            // de "não achei a :kmplib-monetization no classpath".
             if (amigos.isEmpty()) "" else "-Xfriend-paths=${amigos.joinToString(",")}"
         }.filter { it.isNotEmpty() }
     )
@@ -133,7 +136,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 // (`-Xfriend-modules`), não entre diretórios de classes.
 //
 // Mesmo princípio de antes: nada de caminho escrito à mão. Filtra-se o próprio classpath da tarefa
-// atrás do que veio da pasta de build da `:kmplib`.
+// atrás do que veio da pasta de build da `:kmplib-monetization`.
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configureEach {
     // Aqui NÃO dá para filtrar o classpath como na versão JVM: tocar em `libraries` numa tarefa
     // nativa força a avaliação da distribuição do Kotlin/Native antes do download dela terminar, e o
@@ -166,7 +169,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
                 ?: saidaDoAlvo.listFiles()?.firstOrNull { it.extension == "klib" }?.absolutePath
             if (amigo == null) {
                 logger.lifecycle(
-                    "[kmplib-testing] $nomeDaTarefa: não achei o KLIB da :kmplib em " +
+                    "[kmplib-testing] $nomeDaTarefa: não achei o KLIB da :kmplib-monetization em " +
                         "${pastaKlib.absolutePath} — sem amizade, o `internal` da lib fica invisível.",
                 )
                 emptyList()

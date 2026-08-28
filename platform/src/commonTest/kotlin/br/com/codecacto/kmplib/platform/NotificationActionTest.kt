@@ -1,7 +1,9 @@
 package br.com.codecacto.kmplib.platform
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -330,6 +332,14 @@ class NotificationActionTest {
     // -----------------------------------------------------------------------------------
 
     @Test
+    /**
+     * A espera destes testes acontece em `withContext(Dispatchers.Default)`, e não direto no
+     * `runTest`. Quem entrega o evento é o scope interno do [NotificationActions], que roda em
+     * `Dispatchers.Default` — thread de verdade —, enquanto o relógio do `runTest` é virtual: ele
+     * salta os 5 segundos do `withTimeout` no mesmo instante em que a espera começa, e o teste
+     * falha por timeout antes de a outra thread ter tido chance de rodar. Era assim que este
+     * arquivo falhava em uma execução a cada quatro, sem nada ter mudado no código.
+     */
     fun `o handler recebe id da notificacao, id da acao e o data do dominio`() = runTest {
         NotificationActions.reset()
         val recebido = CompletableDeferred<NotificationActionEvent>()
@@ -340,7 +350,7 @@ class NotificationActionTest {
         )
 
         assertTrue(entregue)
-        val evento = withTimeout(5_000) { recebido.await() }
+        val evento = withContext(Dispatchers.Default) { withTimeout(5_000) { recebido.await() } }
         assertEquals(42, evento.notificationId)
         assertEquals("MARK_TAKEN", evento.actionId)
         assertEquals("d-17", evento.data["doseId"])
@@ -359,7 +369,8 @@ class NotificationActionTest {
         val recebido = CompletableDeferred<NotificationActionEvent>()
         NotificationActions.setHandler { recebido.complete(it) }
 
-        assertEquals(7, withTimeout(5_000) { recebido.await() }.notificationId)
+        val recebidoEvento = withContext(Dispatchers.Default) { withTimeout(5_000) { recebido.await() } }
+        assertEquals(7, recebidoEvento.notificationId)
         NotificationActions.reset()
     }
 
