@@ -151,6 +151,14 @@ kotlin {
             // que hoje declaram `br.com.codecacto:kmplib` sigam compilando sem tocar em uma linha.
             // Quem quiser o ganho de build/binário troca a coordenada única pelos módulos que usa.
             api(project(":kmplib-core"))
+            api(project(":kmplib-location"))
+            api(project(":kmplib-platform"))
+            api(project(":kmplib-push"))
+            api(project(":kmplib-firebase"))
+            api(project(":kmplib-observability"))
+            api(project(":kmplib-brdata"))
+            api(project(":kmplib-astro"))
+            api(project(":kmplib-mask"))
 
             // =================================================================
             // api() vs implementation() — regra do Gradle, não preferência

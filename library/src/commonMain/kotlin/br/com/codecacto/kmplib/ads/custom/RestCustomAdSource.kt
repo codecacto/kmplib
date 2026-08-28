@@ -1,6 +1,6 @@
 package br.com.codecacto.kmplib.ads.custom
 
-import br.com.codecacto.kmplib.appupdate.currentPlatform
+import br.com.codecacto.kmplib.core.util.currentPlatform
 import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger

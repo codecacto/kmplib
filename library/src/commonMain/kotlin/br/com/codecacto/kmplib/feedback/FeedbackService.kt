@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.feedback
 import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.core.util.currentPlatform
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -180,5 +181,3 @@ object FeedbackService {
 
 /** Falha não fatal de envio de feedback (best-effort). [code] = status HTTP ou -1 para rede. */
 class FeedbackSendException(val code: Int, message: String) : Exception(message)
-
-internal expect val currentPlatform: String

@@ -2,7 +2,7 @@ package br.com.codecacto.kmplib.monetization.alert
 
 import br.com.codecacto.kmplib.observability.CrashLevel
 import br.com.codecacto.kmplib.observability.CrashReporterConfig
-import br.com.codecacto.kmplib.observability.FakeCrashReporter
+import br.com.codecacto.kmplib.observability.RecordingCrashReporter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 class PaymentAlertReporterTest {
 
-    private fun reporterAtivo() = FakeCrashReporter().apply {
+    private fun reporterAtivo() = RecordingCrashReporter().apply {
         init(CrashReporterConfig(dsn = "https://k@errors.codecacto.com.br/1", environment = "test", release = "app@1+1"))
     }
 
@@ -94,7 +94,7 @@ class PaymentAlertReporterTest {
     fun reporter_inativo_nao_envia_e_avisa_pelo_retorno() {
         // DSN ausente => CrashReporter no-op. O alerta de pagamento morre aqui, e quem chamou
         // precisa saber disso (o retorno false) em vez de achar que avisou o fundador.
-        val crash = FakeCrashReporter().apply { init(CrashReporterConfig("", "test", "app@1+1")) }
+        val crash = RecordingCrashReporter().apply { init(CrashReporterConfig("", "test", "app@1+1")) }
         val alertas = PaymentAlertReporter(crash, projeto = "super-8")
 
         assertFalse(alertas.report(PaymentAlertKind.PaywallSemPlano))

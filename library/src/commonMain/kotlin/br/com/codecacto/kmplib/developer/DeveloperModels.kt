@@ -1,6 +1,6 @@
 package br.com.codecacto.kmplib.developer
 
-import br.com.codecacto.kmplib.appupdate.currentPlatform
+import br.com.codecacto.kmplib.core.util.currentPlatform
 import kotlinx.serialization.Serializable
 
 /**

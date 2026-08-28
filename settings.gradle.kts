@@ -45,6 +45,30 @@ includeBuild("build-logic")
 include(":kmplib-core")
 project(":kmplib-core").projectDir = file("core")
 
+include(":kmplib-mask")
+project(":kmplib-mask").projectDir = file("mask")
+
+include(":kmplib-astro")
+project(":kmplib-astro").projectDir = file("astro")
+
+include(":kmplib-brdata")
+project(":kmplib-brdata").projectDir = file("brdata")
+
+include(":kmplib-observability")
+project(":kmplib-observability").projectDir = file("observability")
+
+include(":kmplib-firebase")
+project(":kmplib-firebase").projectDir = file("firebase")
+
+include(":kmplib-push")
+project(":kmplib-push").projectDir = file("push")
+
+include(":kmplib-platform")
+project(":kmplib-platform").projectDir = file("platform")
+
+include(":kmplib-location")
+project(":kmplib-location").projectDir = file("location")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO
