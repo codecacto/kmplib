@@ -44,5 +44,10 @@ kotlin {
             // Engine oficial recomendado no Android.
             implementation(libs.ktor.client.okhttp)
         }
+
+        iosMain.dependencies {
+            // Engine oficial recomendado no iOS (URLSession).
+            implementation(libs.ktor.client.darwin)
+        }
     }
 }
