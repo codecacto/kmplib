@@ -58,11 +58,9 @@ sqldelight {
     }
 }
 
-compose.resources {
-    publicResClass = true
-    packageOfResClass = "br.com.codecacto.kmplib.generated.resources"
-    generateResClass = always
-}
+// Os recursos compartilhados (traduções, logo, ícones) mudaram para o `:kmplib-ui`, que é quem
+// os desenha. `Res` é gerada por módulo: gerá-la aqui TAMBÉM criaria duas classes de mesmo nome
+// no mesmo pacote, e o consumidor não saberia qual importou.
 
 // =============================================================================
 // Kover — cobertura de testes
@@ -151,6 +149,7 @@ kotlin {
             // que hoje declaram `br.com.codecacto:kmplib` sigam compilando sem tocar em uma linha.
             // Quem quiser o ganho de build/binário troca a coordenada única pelos módulos que usa.
             api(project(":kmplib-core"))
+            api(project(":kmplib-ui"))
             api(project(":kmplib-location"))
             api(project(":kmplib-platform"))
             api(project(":kmplib-push"))

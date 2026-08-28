@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  * de UI, o Compose desenhava o diálogo antes de a navegação acontecer. O usuário via um modal
  * aparecer e sumir sozinho.
  */
-class LoginContractTest {
+class LoginContractNavigationTest {
 
     @Test
     fun `existe destino de navegacao para recuperar senha`() {

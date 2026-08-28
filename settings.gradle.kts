@@ -69,6 +69,9 @@ project(":kmplib-platform").projectDir = file("platform")
 include(":kmplib-location")
 project(":kmplib-location").projectDir = file("location")
 
+include(":kmplib-ui")
+project(":kmplib-ui").projectDir = file("ui")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO
