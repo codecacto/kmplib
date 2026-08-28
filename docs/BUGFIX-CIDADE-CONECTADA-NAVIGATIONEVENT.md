@@ -4,6 +4,32 @@
 **Projeto afetado:** cidade-conectada
 **Erro:** Build iOS falha no Xcode
 
+> ## ✅ RESOLVIDO em 28/ago/2026 — e não só no cidade-conectada
+>
+> Aplicada a **Opção 1**, com uma correção ao diagnóstico do documento: o
+> `androidx.compose.ui.backhandler.BackHandler` **está depreciado** (foi por isso que o
+> `LoginRoute` tinha escolhido o `NavigationBackHandler`). A depreciação continua, e é aceita de
+> propósito — o substituto, `NavigationEventHandler`, modela *predictive back* com progresso, que
+> estas telas não têm, e vem no artefato Android-only que causou o bug. O `@Suppress("DEPRECATION")`
+> fica isolado num wrapper privado, que é o padrão que o `CheckoutContent` deste mesmo app já usava.
+>
+> **O mesmo bug estava no `Minha Lanterna`** (`LockOverlay`, mesmo artefato, mesmo `commonMain`),
+> esperando para custar o mesmo ciclo. Corrigido junto.
+>
+> **E não precisa de Mac para verificar.** A resolução de dependência é do Gradle, não do compilador
+> Kotlin/Native:
+> ```bash
+> ./gradlew :composeApp:dependencies --configuration iosArm64CompileKlibraries \
+>   -Papp.forceAppleTargets=true -Pkmplib.forceAppleTargets=true
+> ```
+> roda em Linux, em segundos, e devolve o mesmo `No matching variant`. Depois da correção, os dois
+> alvos iOS resolvem limpos nos dois apps. O portfólio inteiro foi varrido com esse comando: nenhum
+> outro app tem artefato Android-only em `commonMain`.
+>
+> Fica valendo para todo app da fábrica: a guarda de host precisa aceitar
+> `-Papp.forceAppleTargets=true`, senão a configuração `iosArm64CompileKlibraries` nem existe e o
+> Gradle responde "configuration not found" — que não é problema de dependência.
+
 ## Erro
 
 ```
