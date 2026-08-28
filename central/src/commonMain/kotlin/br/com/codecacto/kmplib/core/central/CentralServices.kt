@@ -1,4 +1,4 @@
-package br.com.codecacto.kmplib.central
+package br.com.codecacto.kmplib.core.central
 
 import br.com.codecacto.kmplib.contact.ContactConfig
 import br.com.codecacto.kmplib.contact.ContactService
@@ -22,6 +22,12 @@ import kotlin.concurrent.Volatile
  * central só nestes toques; apps com backend próprio também reusam esta amarração para os 3 públicos.
  * Tudo é **best-effort** (falha de rede nunca derruba a UI). Um único [HttpClient] (idealmente o
  * [createHttpClient] da lib) serve os três.
+ *
+ * O pacote é `core.central`, mas o artefato é o **`kmplib-central`** — pasta e pacote divergem de
+ * propósito. O pacote não pode mudar: `br.com.codecacto.kmplib.core.central.CentralServices` está
+ * escrito em 105 arquivos do portfólio. E o `kmplib-core` não pode hospedá-lo, porque ele amarra
+ * `contact`, `developer` e `feedback`, que ficam acima da base — era esse o ciclo que impedia a
+ * lib de virar módulos.
  *
  * Uso no bootstrap do app:
  * ```kotlin
