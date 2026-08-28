@@ -9,6 +9,7 @@ import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import br.com.codecacto.kmplib.core.util.AppLogger
 
@@ -51,8 +52,18 @@ class AuthRepository : IAuthRepository {
 
     /**
      * Flow indicando se há usuário autenticado.
+     *
+     * ⚠️ **`distinctUntilChanged` não é otimização — é correção** (28/ago/2026). A fonte emite a
+     * cada mudança do usuário (renovação de token, atualização de perfil, releitura do estado), e
+     * `map { it != null }` transforma vários desses eventos no MESMO `true`. Quem observa este flow
+     * para recarregar a tela — que é o uso natural dele — dispara uma requisição por emissão: no
+     * Cidade Conectada foram **quatro chamadas da mesma rota em 300 ms**, e o app inteiro bateu no
+     * rate limit do servidor com **um único usuário** navegando.
+     *
+     * Isto é estado, não evento: "está logado?" só interessa quando a resposta MUDA.
      */
-    override val isLoggedIn: Flow<Boolean> = auth.authStateChanged.map { it != null }
+    override val isLoggedIn: Flow<Boolean> =
+        auth.authStateChanged.map { it != null }.distinctUntilChanged()
 
     /**
      * Obtém o usuário atual de forma síncrona (pode ser null).

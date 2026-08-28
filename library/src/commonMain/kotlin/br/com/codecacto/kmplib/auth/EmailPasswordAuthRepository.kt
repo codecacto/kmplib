@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
@@ -37,7 +38,10 @@ class EmailPasswordAuthRepository(
 
     override val currentUser: Flow<User?> = tokenManager.session.map { it?.toUser() }
 
-    override val isLoggedIn: Flow<Boolean> = tokenManager.session.map { it != null }
+    /** Ver a nota em `AuthRepository.isLoggedIn`: é estado, não evento — repetir `true` faz cada
+     *  observador recarregar a tela de novo. */
+    override val isLoggedIn: Flow<Boolean> =
+        tokenManager.session.map { it != null }.distinctUntilChanged()
 
     override val currentUserSync: User? get() = tokenManager.session.value?.toUser()
 

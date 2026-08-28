@@ -44,7 +44,12 @@ fun defaultHttpErrorMessage(statusCode: Int, fallback: String?): String {
         401 -> "Sessão expirada. Faça login novamente."
         403 -> "Você não tem permissão para esta ação."
         404 -> "Recurso não encontrado."
-        429 -> "Muitas requisições. Aguarde um momento."
+        // ⚠️ A frase fala do SISTEMA, não da pessoa (28/ago/2026). "Muitas requisições" era lida
+        // como acusação — o fundador do Cidade Conectada bateu no limite navegando sozinho e
+        // respondeu: "a mensagem não está certa, não só eu estou usando". Quem estourou um teto de
+        // rate limit não fez nada de errado: ou o app pediu demais, ou o teto está apertado. Os
+        // dois são problema nosso, e a frase tem de dizer isso.
+        429 -> "O aplicativo está indo rápido demais. Tente de novo em instantes."
         in 500..599 -> "Servidor temporariamente indisponível. Tente novamente."
         else -> fallback ?: "Erro na requisição"
     }

@@ -1,6 +1,38 @@
 # Changelog — kmplib
 
 
+## 2.161.0 — `isLoggedIn` para de emitir o mesmo `true` (28/ago/2026)
+
+**Correção. Toca todo app que observa a sessão para recarregar tela** — e o efeito só aparece em uso
+real, nunca no build.
+
+`isLoggedIn` era `authStateChanged.map { it != null }` (e, no own-auth,
+`tokenManager.session.map { it != null }`), **sem `distinctUntilChanged`**. A fonte emite a cada
+mudança do usuário — renovação de token, atualização de perfil, releitura do estado — e o `map`
+transforma vários desses eventos no MESMO `true`.
+
+Quem observa esse flow para recarregar a tela, que é o uso natural dele, dispara **uma requisição
+por emissão**. No Cidade Conectada isso deu **quatro chamadas da mesma rota em 300 ms** e **141
+requisições em um minuto com UM único usuário navegando** — o suficiente para o app inteiro passar
+a responder 429, em todas as famílias ao mesmo tempo, porque o balde de rate limit é por IP e não
+por rota. Nada disso quebra o build, e o log do app não acusa: as chamadas são todas legítimas,
+só repetidas.
+
+`isLoggedIn` é **estado, não evento**: "está logado?" só interessa quando a resposta muda.
+
+### Também
+
+`defaultHttpErrorMessage(429)` deixou de dizer **"Muitas requisições. Aguarde um momento."** A frase
+era lida como acusação por quem não fez nada de errado — o fundador do Cidade Conectada bateu no
+limite navegando sozinho e respondeu: *"a mensagem não está certa, não só eu estou usando"*. Quem
+estoura um teto de rate limit ou está num app que pede demais, ou num teto apertado; os dois são
+problema nosso. Agora: **"O aplicativo está indo rápido demais. Tente de novo em instantes."**
+
+### Migração
+
+Nenhuma. Quem consome por composite build já recebe; quem consome por artefato, no bump.
+
+
 ## 2.160.0 — os DOIS modos de login social, declarados (ago/2026)
 
 **`SocialLoginMode`** (`NATIVE` | `BACKEND`), a fachada **`SocialSignIn`** e
