@@ -1,5 +1,44 @@
 # Changelog — kmplib
 
+## 2.162.0 — o cliente passa a PEDIR gzip (28/ago/2026)
+
+**Correção de desempenho. Toca TODO app da fábrica** — o buraco era igual em todos, e ninguém o via.
+
+O backend comprime; o app nunca pediu. Sem `Accept-Encoding` na requisição, o servidor responde em
+texto cru — e o plugin que manda esse cabeçalho **não está no `ktor-client-core`**: mora no artefato
+`ktor-client-encoding`, que nenhum projeto declarava. Ou seja, o portfólio inteiro baixava JSON sem
+compressão porque a correção dependia de cada app lembrar de uma dependência a mais.
+
+Medido no Cidade Conectada, em produção, rota a rota:
+
+| rota | sem gzip | com gzip |
+|---|---:|---:|
+| `/v1/categories` | 26.847 B | 8.172 B |
+| `/v1/feed?size=20` | 15.065 B | 4.815 B |
+| `/v1/properties?size=6` | 9.308 B | 1.997 B |
+| leque da tela Início (20 rotas) | ~108.000 B | ~34.000 B |
+
+**−69% de todo o tráfego JSON do app**, sem tocar em uma linha de tela. Numa cidade em 4G isso é a
+diferença entre a Início abrir e a Início "estar lenta".
+
+`HttpClientOptions.installContentEncoding` (**default `true`**) instala `ContentEncoding` com `gzip()`
+e `deflate()`. É default, e não opção, pelo mesmo motivo do log de requisição da 2.117.0: o que
+depende de lembrar não acontece.
+
+Detalhe que engana quem for medir: **OkHttp (Android) e NSURLSession (iOS) já pediam gzip sozinhos**
+quando ninguém definia o cabeçalho, então parte do ganho pode já estar acontecendo nesses engines. O
+plugin torna o comportamento **determinístico e independente do engine** (CIO/Js não fazem isso) e o
+faz aparecer no log. Não há descompressão dupla: quando o cliente define o cabeçalho, as duas
+plataformas param de descomprimir sozinhas; e quando descomprimem, removem o `Content-Encoding`, que
+é justamente o que o plugin lê para decidir.
+
+### Migração
+
+Nenhuma. Quem consome por composite build já recebe; quem consome por artefato, no bump. App que
+monta o próprio `HttpClient` em vez de usar o `createHttpClient` **não ganha nada** — é mais um
+motivo para migrar para o factory.
+
+
 
 ## 2.161.0 — `isLoggedIn` para de emitir o mesmo `true` (28/ago/2026)
 

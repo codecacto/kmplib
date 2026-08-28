@@ -105,7 +105,10 @@ class HandleApiCallTest {
         val result = handleApiCall<FakeDto> { json.decodeFromString<FakeDto>(client.get("/x").bodyAsText()) }
         assertIs<ApiResult.Error>(result)
         assertEquals(429, result.code)
-        assertEquals("Muitas requisições. Aguarde um momento.", result.message)
+        // A frase mudou na 2.161.0: "Muitas requisições. Aguarde um momento." era lida como
+        // acusação por quem não fez nada de errado — quem estoura um teto de rate limit ou está num
+        // app que pede demais, ou num teto apertado, e os dois são problema nosso.
+        assertEquals("O aplicativo está indo rápido demais. Tente de novo em instantes.", result.message)
     }
 
     @Test

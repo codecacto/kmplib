@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.161.0"
+version = "2.162.0"
 
 // =============================================================================
 // Guarda de host — alvos Apple só existem em macOS (padrão-ouro KMP)
@@ -195,6 +195,12 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+            // `ContentEncoding` — o plugin que manda `Accept-Encoding` e descomprime a resposta.
+            // Artefato SEPARADO do ktor-client-core (por isso nenhum app tinha): pedir gzip era
+            // um `implementation` a mais em cada projeto, e nenhum lembrou. Medido no Cidade
+            // Conectada, rota a rota: /v1/categories 26.847 B -> 8.172 B, /v1/feed?size=20
+            // 15.065 B -> 4.815 B, /v1/properties?size=6 9.308 B -> 1.997 B. -69% do tráfego JSON.
+            implementation(libs.ktor.client.encoding)
 
             // Push Notifications
             api(libs.kmpnotifier)

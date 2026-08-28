@@ -1,9 +1,13 @@
 package br.com.codecacto.kmplib.core.network
 
+import io.ktor.client.plugins.compression.ContentEncoding
+import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.plugins.logging.LogLevel as KtorLogLevel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class HttpClientFactoryTest {
@@ -25,6 +29,34 @@ class HttpClientFactoryTest {
         // `BODY` imprime o corpo do login — a senha em claro. O default não pode ser o nível que
         // vaza credencial.
         assertEquals(HttpLogLevel.INFO, o.logLevel)
+
+        // **gzip LIGADO (2.162.0).** O servidor comprimir não basta — sem `Accept-Encoding` a
+        // resposta vem crua. Medido no Cidade Conectada: `/v1/categories` 26.847 B -> 8.172 B,
+        // e -69% do tráfego JSON do app inteiro. É default porque depender de cada app lembrar de
+        // um `implementation` a mais foi o que deixou o portfólio TODO sem pedir compressão.
+        assertTrue(o.installContentEncoding, "gzip/deflate pedidos por padrão")
+    }
+
+    @Test
+    fun client_installsContentEncoding_byDefault_andRespectsOptOut() {
+        val padrao = createHttpClient(HttpClientOptions(enableLogging = false))
+        try {
+            assertNotNull(
+                padrao.pluginOrNull(ContentEncoding),
+                "o cliente padrão precisa PEDIR gzip — é o cabeçalho que falta, não a compressão do servidor",
+            )
+        } finally {
+            padrao.close()
+        }
+
+        val semGzip = createHttpClient(
+            HttpClientOptions(enableLogging = false, installContentEncoding = false),
+        )
+        try {
+            assertNull(semGzip.pluginOrNull(ContentEncoding))
+        } finally {
+            semGzip.close()
+        }
     }
 
     @Test
