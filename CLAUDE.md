@@ -21,14 +21,22 @@ KmpLib é a biblioteca compartilhada Kotlin Multiplatform (KMP) da CodeCacto, us
 
 ```
 kmplib/
-├── library/
-│   └── src/
-│       ├── commonMain/       # Código compartilhado Android + iOS
-│       ├── androidMain/      # Implementações Android
-│       └── iosMain/          # Implementações iOS
-├── IOS_INTEGRATION.md        # Guia de integração iOS
-└── CLAUDE.md                 # Este arquivo
+├── build-logic/convention/   # convention plugins: kmplib.module e kmplib.module.compose
+├── core/  ui/  platform/  auth/  sync/  monetization/  central/  firebase/
+├── mask/  brdata/  qr/  map/  location/  push/  observability/  camera/
+├── pdf/  media/  ads/  astro/           # 21 módulos, cada um um artefato Maven
+│   └── src/{commonMain,androidMain,iosMain,commonTest}/
+├── library/                  # o UMBRELLA `br.com.codecacto:kmplib` — só KmpLib.kt e KmpLibInit.kt
+├── library-testing/          # `kmplib-testing`, dublês de loja para build de QA
+├── docs/MODULARIZACAO.md     # por que a divisão, e o que ela corrigiu
+├── IOS_INTEGRATION.md
+└── CLAUDE.md
 ```
+
+Um módulo novo é `plugins { id("kmplib.module") }` (ou `kmplib.module.compose`, se desenha tela)
+mais as suas dependências — alvos, namespace, guarda de host e publicação vêm do convention plugin.
+Registre-o no `settings.gradle.kts` **com o nome do artefato** (`:kmplib-x`, nunca `:x`: o KMP deriva
+o artifactId dos artefatos por-target do nome do projeto Gradle) e acrescente um `api()` no umbrella.
 
 ## Comandos de Build
 
@@ -69,17 +77,45 @@ Consequências a respeitar:
 
 ### Exportação para iOS
 
-Projetos que usam kmplib **devem** configurar:
+> ⚠️ **Mudou na 2.163.0.** O que está escrito abaixo substitui o `export(libs.kmplib)` +
+> `api(libs.kmplib)` que valeu até a 2.162.0. Aquele par **é a causa do OOM no link Release**:
+> `export()` declara cada símbolo público da dependência no header Obj-C e o torna **raiz do dead
+> code elimination** — nada abaixo de uma raiz pode ser eliminado, e toda raiz entra no CallGraph
+> do `DevirtualizationAnalysis`. Exportando a lib inteira, são ~1.436 raízes num app que costuma
+> falar com ela por um ou dois objetos.
 
 ```kotlin
 // build.gradle.kts do projeto consumidor
 
-// Em binaries.framework:
-export(libs.kmplib)
+// Em binaries.framework: SÓ os módulos cujos tipos o SWIFT NOMEIA.
+// Confira abrindo os .swift do projeto: normalmente é um ou dois.
+export(libs.kmplib.auth)   // GoogleSignInBridge
+export(libs.kmplib.push)   // ApplePushBridge
 
-// Em commonMain.dependencies:
-api(libs.kmplib)  // NÃO implementation()
+// Em commonMain.dependencies: os módulos que o app usa. `api()`, não `implementation()`.
+api(libs.kmplib.core)
+api(libs.kmplib.ui)
+api(libs.kmplib.auth)
+// … só os que as telas abrem
 ```
+
+O resto da lib continua no binário e continua funcionando: `api()` leva o código, `export()` só
+decide o que aparece para o Swift.
+
+**No `gradle.properties` do app**, uma linha que não é da lib e que faltava em todos:
+
+```properties
+# org.gradle.jvmargs NÃO vale para o Kotlin/Native — o link do framework roda em processo próprio.
+kotlin.native.jvmArgs=-Xmx6g
+```
+
+**Inicialização sem o umbrella:** `KmpLib.init(context)` só existe no artefato `kmplib`. Quem
+declara módulos chama os inits deles — `initKmpLibCore`, `initKmpLibPlatform`, `initKmpLibAuth`,
+`initKmpLibSync`, `initKmpLibMedia` — e `kmpLibPlatformOnResume`/`OnPause` +
+`kmpLibAuthOnResume`/`OnPause` no lugar de `setActivity`/`clearActivity`.
+
+**Quem já usa `api(libs.kmplib)` não precisa mudar nada** — o umbrella continua trazendo tudo. Mas
+não terá o ganho: um app que exporta o umbrella exporta a lib inteira.
 
 ### Tipos iOS Exportados
 
@@ -211,4 +247,4 @@ Usar `_ = callback(...)` no Swift.
 
 ---
 
-*Atualizado em 2026-07-01*
+*Atualizado em 2026-08-28 (2.163.0 — a lib em 21 módulos).*

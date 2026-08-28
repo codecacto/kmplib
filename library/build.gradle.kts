@@ -424,6 +424,28 @@ if (!appleTargetsEnabled) {
     }
 }
 
+// =============================================================================
+// Aviso de uso: este artefato traz a lib INTEIRA
+// =============================================================================
+//
+// `br.com.codecacto:kmplib` existe para que os apps anteriores à 2.163.0 continuem compilando sem
+// serem tocados — ele é uma capa com `api()` para os 21 módulos. Quem depende dele leva todos, e
+// quem o EXPORTA para o framework iOS torna a lib inteira raiz do dead code elimination: foi assim
+// que o `linkReleaseFrameworkIosArm64` passou a estourar a memória num Mac de 16GB.
+//
+// O aviso sai no log de quem consome, e não num README que ninguém abre. É o que impede o umbrella
+// de ser um caminho silencioso enquanto ele existir.
+tasks.matching { it.name.startsWith("publish") }.configureEach {
+    doFirst {
+        logger.lifecycle(
+            "[kmplib] `br.com.codecacto:kmplib` é o UMBRELLA: traz os 21 módulos de uma vez.\n" +
+                "         Em app novo, declare só os módulos que as telas abrem (kmplib-core, " +
+                "kmplib-ui, …)\n" +
+                "         e exporte ao Swift apenas os que ele nomeia. Ver CHANGELOG 2.163.0.",
+        )
+    }
+}
+
 mavenPublishing {
     publishToMavenCentral()
 

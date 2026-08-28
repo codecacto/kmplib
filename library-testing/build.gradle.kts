@@ -7,7 +7,10 @@ plugins {
 }
 
 group = "br.com.codecacto"
-version = "2.111.0"
+// Mesma versão do conjunto (gradle.properties), como os outros 21 módulos. Enquanto este número
+// era escrito à mão aqui, ele ficou parado em 2.111.0 enquanto a lib chegava à 2.16x — e o
+// catálogo de um app que aponta `kmplib-testing` para a versão da lib não resolvia nada.
+version = providers.gradleProperty("kmplib.version").get()
 
 // =============================================================================
 // br.com.codecacto:kmplib-testing — artefato SÓ DE TESTE

@@ -1,10 +1,67 @@
-# Modularizacao da KmpLib - Proposta Tecnica
+# Modularização da kmplib
 
-**Data:** 28/ago/2026
-**Autor:** Analise automatizada
-**Status:** Proposta para discussao
+**Status: FEITO em 28/ago/2026, na versão 2.163.0.** O texto abaixo da linha é a proposta original,
+mantida como registro. Esta abertura conta o que foi executado e onde ela errou — o que importa,
+porque as duas coisas que mais pesaram no resultado não estavam nela.
+
+## O que foi feito
+
+21 módulos publicáveis, `br.com.codecacto:kmplib` preservado como **umbrella** (`api()` de todos),
+nenhum pacote renomeado, nenhuma API removida, nenhum dos ~25 apps precisando ser tocado. 2.316
+testes, zero falhas. Piloto: Cidade Conectada.
+
+## As três correções à proposta
+
+**1. A causa raiz não era só o tamanho — era o `export()`.** A proposta atribui o OOM ao volume da
+lib. O multiplicador real é outro: exportar uma dependência declara cada símbolo público dela no
+header Obj-C e **a torna raiz do dead code elimination**. Nada abaixo de uma raiz pode ser
+eliminado, e toda raiz entra no CallGraph do `DevirtualizationAnalysis`. Com `export(libs.kmplib)`,
+eram ~1.436 declarações de nível superior servindo de raiz — num app cujo Swift usa **dois** objetos
+(`GoogleSignInBridge`, `ApplePushBridge`). Trocando por `export(kmplib-auth)` + `export(kmplib-push)`:
+~96 raízes, **−93%**. Modularizar sem corrigir o `export` daria uma fração disso.
+
+**2. Faltava uma linha de configuração, e ela não é da lib.** `org.gradle.jvmargs` **não vale para o
+Kotlin/Native**: o link do framework roda em processo próprio, com heap default. Os 8GB do daemon
+nunca chegaram ao compilador que estourava. `kotlin.native.jvmArgs=-Xmx6g` no `gradle.properties` do
+app.
+
+**3. A árvore de dependências da proposta está invertida.** Ela põe `auth` e `monetization`
+dependendo de `ui` ("usa telas de login", "usa telas de paywall"). O real era o contrário: era o
+`ui` que importava monetization, sync, auth, brdata, feedback, developer, qr e contact. É essa
+inversão que produz a estimativa de 8-15 dias — com a seta virada, o único caminho visível é picar o
+`ui` em pedaços.
+
+A seta certa é **feature → design system**, e aí o conserto é pequeno: **34 arquivos, de 150**,
+causavam todo o acoplamento do `ui`, e nenhum deles era design system — eram telas de login, de
+cadastro e de paywall, banners de sincronização, o medidor de uso. Cada um foi para o módulo dono, e
+o `ui` ficou com o que o nome promete.
+
+## Números medidos (não estimados)
+
+| | proposta estimava | medido |
+|---|---|---|
+| arquivos em commonMain | 153 | **422** |
+| ciclos no grafo interno | não menciona | **5** |
+| raízes do DCE, depois | — | **−93%** (1.436 → 96) |
+| código fora do binário do piloto | −74% | **−19%** (112 arquivos, 16.187 linhas) |
+
+O −19% é honesto e menor que o −74% da proposta porque aquele número supunha um app que usa "só
+core + ui + auth". O Cidade Conectada usa 15 dos 21 módulos. **O que resolve o OOM dele é o −93% das
+raízes, não o −19% do código.**
+
+## O que a proposta acertou
+
+O diagnóstico do sintoma, a leitura de que `DevirtualizationAnalysis`/`DCE` constroem um CallGraph
+da aplicação inteira, a escolha de modularizar em vez de XCFramework pré-compilado ou máquina maior,
+e a ordem de extração (do mais independente para o mais acoplado). O plano de fases também se
+sustentou — o que mudou foi que a Fase 4 (deprecar o monolítico) **não existe**: o umbrella fica.
+
+Detalhe por versão: `CHANGELOG.md` (2.163.0).
 
 ---
+
+# (registro) Proposta original — 28/ago/2026
+
 
 ## 1. O Problema
 

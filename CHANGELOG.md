@@ -1,5 +1,78 @@
 # Changelog — kmplib
 
+## 2.163.0 — a lib vira 21 módulos, e o umbrella segura os apps de pé (28/ago/2026)
+
+**Reorganização estrutural. Nenhuma API mudou, nenhum pacote mudou de nome, nenhum app precisa ser
+tocado.**
+
+### O que motivou
+
+O Cidade Conectada não conseguia fazer o `Archive` de iOS: `linkReleaseFrameworkIosArm64` morria com
+`OutOfMemoryError` no `DevirtualizationAnalysis` num Mac de 16GB. A causa não era só o tamanho da
+lib — era o `export(libs.kmplib)` no `build.gradle.kts` do app.
+
+**Exportar uma dependência não é "deixá-la disponível": é declarar cada símbolo público dela no
+header Obj-C e, com isso, torná-lo raiz do dead code elimination.** Nada abaixo de uma raiz pode ser
+eliminado, e toda raiz entra no CallGraph que o `DevirtualizationAnalysis` percorre. Com a lib
+inteira exportada, eram ~1.436 declarações de nível superior servindo de raiz — num app que fala com
+a lib por **dois** objetos (`GoogleSignInBridge` e `ApplePushBridge`). Restringindo o `export` a
+`kmplib-auth` e `kmplib-push`: ~96 raízes, **−93%**.
+
+Modularizar é a outra metade: o app deixa de carregar o que não abre. No piloto, ficaram de fora
+ads, astro, camera, pdf, media e voice — 112 arquivos, 16.187 linhas, −19%.
+
+E há uma terceira peça, que não é da lib: **`org.gradle.jvmargs` não vale para o Kotlin/Native**. O
+link do framework roda em processo próprio, com heap default, então os 8GB do Gradle daemon nunca
+chegavam ao compilador que precisava deles. `kotlin.native.jvmArgs=-Xmx6g` no `gradle.properties` do
+app.
+
+### Os módulos
+
+`kmplib-core` (core + validation) · `kmplib-mask` · `kmplib-ui` · `kmplib-platform` (+ permissions,
+torch, signature, appupdate) · `kmplib-auth` (+ account) · `kmplib-firebase` · `kmplib-sync` ·
+`kmplib-monetization` · `kmplib-central` (contact + developer + feedback) · `kmplib-observability` ·
+`kmplib-push` · `kmplib-location` · `kmplib-map` · `kmplib-brdata` (+ pix) · `kmplib-qr` ·
+`kmplib-camera` · `kmplib-pdf` · `kmplib-media` (+ voice) · `kmplib-ads` · `kmplib-astro`.
+
+### O que NÃO mudou (de propósito)
+
+- **`br.com.codecacto:kmplib` continua existindo**, agora como *umbrella*: dois arquivos e um
+  `api()` para cada módulo. Quem tem `api(libs.kmplib)` no build não precisa fazer nada — nem hoje,
+  nem depois. Não há fase de deprecação prevista.
+- **Nenhum pacote foi renomeado.** `PaywallScreen` continua em
+  `br.com.codecacto.kmplib.ui.screens.paywall` mesmo morando no módulo `monetization`; Kotlin não
+  exige pasta igual a pacote. São 56 imports espalhados pelos apps que seguem válidos por causa
+  disso.
+
+### O que muda para quem adota os módulos
+
+A inicialização deixa de ser uma função só. `KmpLib.init(context)` existe apenas no umbrella, porque
+toca holders de todos os módulos — mantê-la disponível a um app modular o obrigaria a declarar a lib
+inteira de volta só para compilar a própria `Application`. Cada módulo passa a ter o seu:
+`initKmpLibCore`, `initKmpLibPlatform`, `initKmpLibAuth`, `initKmpLibSync`, `initKmpLibMedia`, mais
+`kmpLibPlatformOnResume`/`OnPause` e `kmpLibAuthOnResume`/`OnPause` no lugar de
+`KmpLib.setActivity`/`clearActivity`.
+
+### Correções que a fronteira de módulo revelou
+
+- **`currentPlatform` estava declarado duas vezes** — um `expect/actual` em `appupdate` e outro
+  igual em `feedback`, cada um `internal` no seu pacote. Sobe para `core.util` como API pública.
+- **Quatro contratos neutros desceram para o `kmplib-core`**: `IAuthRepository`, `User`,
+  `QuotaExceeded`/`Entitlement` e `DomainApiClient`. Nenhum deles nomeia um tipo do Firebase, do
+  RevenueCat ou do SQLDelight; estavam nos módulos das implementações por acidente de história, e
+  faziam um app que só fazia login arrastar SQLDelight, Storage e o SDK de compras.
+- **`FakeAppPreferences` e `FakeCrashReporter` viram `InMemoryAppPreferences` e
+  `RecordingCrashReporter`**, em `commonMain`. Como dublês de `commonTest` eles só existiam para
+  quem compilava o mesmo módulo, e já eram usados de fora; source set de teste não é publicado.
+- **Cinco ciclos entre pacotes** que impediam a divisão: `UrlLauncherHolder` era o holder do
+  `Context` (vira `core.context.AndroidAppContext`), `CentralServices` saiu de `core` para
+  `central`, e `LatLng` desceu de `map` para `location` — `map.LatLng` segue como typealias.
+- **Um teste flaky de verdade**: `NotificationActionTest` esperava em `runTest` (relógio virtual)
+  por um evento entregue no `Dispatchers.Default` (thread real); o `withTimeout(5_000)` saltava os
+  cinco segundos no mesmo instante. Falhava 1 em 4 execuções.
+
+2.316 testes em 20 módulos, zero falhas.
+
 ## 2.162.0 — o cliente passa a PEDIR gzip (28/ago/2026)
 
 **Correção de desempenho. Toca TODO app da fábrica** — o buraco era igual em todos, e ninguém o via.

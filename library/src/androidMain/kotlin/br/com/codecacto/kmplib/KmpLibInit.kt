@@ -2,23 +2,17 @@ package br.com.codecacto.kmplib
 
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
-import br.com.codecacto.kmplib.auth.social.GoogleAuthHolder
-import br.com.codecacto.kmplib.platform.DeviceLocaleHolder
-import br.com.codecacto.kmplib.platform.permission.PermissionHostHolder
+import br.com.codecacto.kmplib.auth.initKmpLibAuth
+import br.com.codecacto.kmplib.auth.kmpLibAuthOnPause
+import br.com.codecacto.kmplib.auth.kmpLibAuthOnResume
+import br.com.codecacto.kmplib.core.initKmpLibCore
 import br.com.codecacto.kmplib.core.storage.BlobStoreHolder
-import br.com.codecacto.kmplib.media.SoundEffectPlayerHolder
-import br.com.codecacto.kmplib.platform.BatteryMonitorHolder
-import br.com.codecacto.kmplib.platform.BiometricAuthHolder
-import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
-import br.com.codecacto.kmplib.platform.ScreenBrightnessHolder
-import br.com.codecacto.kmplib.platform.ShakeDetectorHolder
-import br.com.codecacto.kmplib.platform.ShareHandlerHolder
-import br.com.codecacto.kmplib.core.context.AndroidAppContext
-import br.com.codecacto.kmplib.platform.audio.AudioCaptureHolder
-import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
+import br.com.codecacto.kmplib.media.initKmpLibMedia
+import br.com.codecacto.kmplib.platform.initKmpLibPlatform
+import br.com.codecacto.kmplib.platform.kmpLibPlatformOnPause
+import br.com.codecacto.kmplib.platform.kmpLibPlatformOnResume
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
-import br.com.codecacto.kmplib.torch.TorchControllerHolder
-import br.com.codecacto.kmplib.voice.SpeechRecognizerHolder
+import br.com.codecacto.kmplib.sync.initKmpLibSync
 
 /**
  * Inicializa a KmpLib no Android.
@@ -35,20 +29,14 @@ import br.com.codecacto.kmplib.voice.SpeechRecognizerHolder
  * ```
  */
 fun KmpLib.init(context: Context) {
-    AndroidAppContext.init(context)
-    ShareHandlerHolder.init(context)
-    NotificationSchedulerHolder.init(context)
-    GoogleAuthHolder.init(context)
-    SyncDatabaseHolder.init(context)
-    BlobStoreHolder.init(context)
-    TtsControllerHolder.init(context)
-    SpeechRecognizerHolder.init(context)
-    TorchControllerHolder.init(context)
-    BatteryMonitorHolder.init(context)
-    ShakeDetectorHolder.init(context)
-    SoundEffectPlayerHolder.init(context)
-    AudioCaptureHolder.init(context)
-    DeviceLocaleHolder.init(context)
+    // Cada módulo tem o seu init desde a 2.163.0, e este aqui é a soma deles — é o que mantém a
+    // chamada única funcionando para quem consome o artefato umbrella. Um app que declara só os
+    // módulos que usa chama os inits correspondentes e não passa por aqui.
+    initKmpLibCore(context)
+    initKmpLibPlatform(context)
+    initKmpLibAuth(context)
+    initKmpLibSync(context)
+    initKmpLibMedia(context)
 }
 
 /**
@@ -80,18 +68,8 @@ fun KmpLib.initSync(context: Context) {
  * ```
  */
 fun KmpLib.setActivity(activity: FragmentActivity) {
-    BiometricAuthHolder.setActivity(activity)
-    ScreenBrightnessHolder.setActivity(activity)
-    NotificationSchedulerHolder.setActivity(activity)
-    GoogleAuthHolder.setActivity(activity)
-    // **Permissão de runtime entrou aqui em 2.154.0, e a ausência dela era muda:** sem esta linha,
-    // `PermissionManager.requestPermission` não abre diálogo nenhum — registra um aviso e devolve o
-    // status que já tinha. O botão "Permitir" existe, é tocável, e não acontece nada, com build
-    // verde. Levantamento de 26/ago/2026: dos 26 apps do portfólio que pedem permissão, **9 já
-    // registravam este holder por conta própria** — nove equipes descobriram o mesmo furo e
-    // escreveram o mesmo contorno. Chamar duas vezes é inofensivo (o holder só guarda a referência),
-    // então quem já contorna não precisa remover nada para subir de versão.
-    PermissionHostHolder.setActivity(activity)
+    kmpLibPlatformOnResume(activity)
+    kmpLibAuthOnResume(activity)
 }
 
 /**
@@ -99,9 +77,6 @@ fun KmpLib.setActivity(activity: FragmentActivity) {
  * Deve ser chamado no `Activity.onPause()`.
  */
 fun KmpLib.clearActivity() {
-    BiometricAuthHolder.clearActivity()
-    ScreenBrightnessHolder.clearActivity()
-    NotificationSchedulerHolder.clearActivity()
-    GoogleAuthHolder.clearActivity()
-    PermissionHostHolder.clearActivity()
+    kmpLibPlatformOnPause()
+    kmpLibAuthOnPause()
 }
