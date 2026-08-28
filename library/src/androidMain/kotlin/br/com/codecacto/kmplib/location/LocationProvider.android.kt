@@ -9,8 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.map.LatLng
-import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.platform.permission.AppPermission
 import br.com.codecacto.kmplib.platform.permission.PermissionStatus
 import br.com.codecacto.kmplib.platform.permission.createPermissionManager
@@ -124,7 +124,7 @@ internal class AndroidLocationProvider(
 }
 
 actual fun createLocationProvider(): LocationProvider {
-    val context = UrlLauncherHolder.getContext()
+    val context = AndroidAppContext.get()
         ?: throw IllegalStateException(
             "KmpLib não inicializada. Chame KmpLib.init(context) no Application.onCreate() " +
                 "antes de criar o LocationProvider."

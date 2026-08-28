@@ -2,7 +2,7 @@ package br.com.codecacto.kmplib.core.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
-import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,7 +16,7 @@ actual fun appPreferences(): AppPreferences = AndroidAppPreferences()
 internal class AndroidAppPreferences : AppPreferences {
 
     private val prefs: SharedPreferences = run {
-        val context = UrlLauncherHolder.getContext()
+        val context = AndroidAppContext.get()
             ?: throw IllegalStateException(
                 "KmpLib não foi inicializado. Chame KmpLib.init(context) no Application.onCreate()."
             )

@@ -6,16 +6,13 @@ import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 
 /**
- * Coordenada geográfica (latitude/longitude).
+ * Coordenada geográfica — o tipo mora em [br.com.codecacto.kmplib.location.LatLng].
  *
- * Multiplataforma — convertida para o tipo nativo de cada SDK no `actual`
- * (Google Maps `LatLng` no Android, `CLLocationCoordinate2D` no iOS).
+ * Continua exposto aqui como alias porque `map` é onde os apps sempre o importaram; o tipo desceu
+ * para `location` para quebrar o ciclo `map` ↔ `location` (ver o KDoc de lá). Alias e tipo são a
+ * MESMA classe: `map.LatLng(-15.6, -56.1)` e `location.LatLng(-15.6, -56.1)` são intercambiáveis.
  */
-@Immutable
-data class LatLng(
-    val latitude: Double,
-    val longitude: Double
-)
+typealias LatLng = br.com.codecacto.kmplib.location.LatLng
 
 /**
  * Posição da câmera do mapa.

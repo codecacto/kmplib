@@ -3,22 +3,27 @@ package br.com.codecacto.kmplib.platform
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.core.util.AppLogger
-import java.lang.ref.WeakReference
 import java.net.URLEncoder
 
 /**
- * Holder para o contexto do Android.
- * Deve ser inicializado no Application.onCreate() ou MainActivity.
+ * Ponto de entrada HISTÓRICO do holder de contexto — hoje só delega para
+ * [AndroidAppContext], que mora em `core`.
+ *
+ * O holder saiu daqui porque `core` precisava dele (preferências, rede, `BuildInfo`) e não pode
+ * depender de `platform`: era o ciclo que travava a modularização da lib. Continua público para
+ * não quebrar quem já chama `UrlLauncherHolder.init(context)` no `Application.onCreate()`.
  */
+@Deprecated(
+    message = "Use initKmpLib(context), que já inicializa o AndroidAppContext.",
+    replaceWith = ReplaceWith(
+        "AndroidAppContext.init(context)",
+        "br.com.codecacto.kmplib.core.context.AndroidAppContext"
+    )
+)
 object UrlLauncherHolder {
-    private var contextRef: WeakReference<Context>? = null
-
-    fun init(context: Context) {
-        contextRef = WeakReference(context.applicationContext)
-    }
-
-    internal fun getContext(): Context? = contextRef?.get()
+    fun init(context: Context) = AndroidAppContext.init(context)
 }
 
 class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
@@ -155,7 +160,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
 }
 
 actual fun getUrlLauncher(): UrlLauncher {
-    val context = UrlLauncherHolder.getContext()
-        ?: throw IllegalStateException("UrlLauncherHolder não foi inicializado. Chame UrlLauncherHolder.init(context) no Application.onCreate()")
+    val context = AndroidAppContext.get()
+        ?: throw IllegalStateException("kmplib não foi inicializada. Chame initKmpLib(context) no Application.onCreate()")
     return AndroidUrlLauncher(context)
 }

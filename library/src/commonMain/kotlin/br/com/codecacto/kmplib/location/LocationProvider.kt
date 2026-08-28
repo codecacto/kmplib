@@ -1,7 +1,5 @@
 package br.com.codecacto.kmplib.location
 
-import br.com.codecacto.kmplib.map.LatLng
-
 /**
  * Provedor de localização GPS multiplataforma.
  *

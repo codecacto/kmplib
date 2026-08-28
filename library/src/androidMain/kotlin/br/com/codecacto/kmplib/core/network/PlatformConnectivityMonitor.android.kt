@@ -6,7 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 
 private const val TAG = "ConnectivityObserver"
 
@@ -23,7 +23,7 @@ internal actual class PlatformConnectivityMonitor {
     private var callback: ConnectivityManager.NetworkCallback? = null
 
     private fun connectivityManager(): ConnectivityManager? {
-        val context = UrlLauncherHolder.getContext() ?: return null
+        val context = AndroidAppContext.get() ?: return null
         return context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
     }
 

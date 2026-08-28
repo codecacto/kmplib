@@ -3,10 +3,11 @@ package br.com.codecacto.kmplib.platform
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 
 class AndroidNetworkChecker : NetworkChecker {
     override fun isAvailable(): Boolean {
-        val context = UrlLauncherHolder.getContext()
+        val context = AndroidAppContext.get()
             ?: return false
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork ?: return false

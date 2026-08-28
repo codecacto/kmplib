@@ -13,7 +13,7 @@ import br.com.codecacto.kmplib.platform.NotificationSchedulerHolder
 import br.com.codecacto.kmplib.platform.ScreenBrightnessHolder
 import br.com.codecacto.kmplib.platform.ShakeDetectorHolder
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
-import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.platform.audio.AudioCaptureHolder
 import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
@@ -35,7 +35,7 @@ import br.com.codecacto.kmplib.voice.SpeechRecognizerHolder
  * ```
  */
 fun KmpLib.init(context: Context) {
-    UrlLauncherHolder.init(context)
+    AndroidAppContext.init(context)
     ShareHandlerHolder.init(context)
     NotificationSchedulerHolder.init(context)
     GoogleAuthHolder.init(context)

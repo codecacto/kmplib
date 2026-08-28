@@ -1,7 +1,7 @@
 package br.com.codecacto.kmplib.location
 
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.map.LatLng
+
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CompletableDeferred

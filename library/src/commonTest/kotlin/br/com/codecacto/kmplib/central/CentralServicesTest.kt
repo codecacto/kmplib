@@ -1,4 +1,4 @@
-package br.com.codecacto.kmplib.core.central
+package br.com.codecacto.kmplib.central
 
 import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperInfoService

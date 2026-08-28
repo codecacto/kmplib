@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.platform.UrlLauncherHolder
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -27,7 +27,7 @@ internal class AndroidSecureTokenStorage(
 
     private val fileName = "secure_" + serviceName.replace(Regex("[^A-Za-z0-9_]"), "_")
 
-    private fun context(): Context = UrlLauncherHolder.getContext()
+    private fun context(): Context = AndroidAppContext.get()
         ?: throw IllegalStateException(
             "KmpLib não foi inicializado. Chame KmpLib.init(context) no Application.onCreate()."
         )
