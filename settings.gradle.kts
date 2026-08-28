@@ -25,6 +25,26 @@ dependencyResolutionManagement {
 // colisão sem afetar artefatos (que derivam do NOME DO SUBPROJETO `:kmplib`, não do build).
 rootProject.name = "kmplib-build"
 
+// =============================================================================
+// Convention plugins — build separado, para não repetir 400 linhas por módulo
+// =============================================================================
+includeBuild("build-logic")
+
+// =============================================================================
+// Módulos da lib
+// =============================================================================
+//
+// Cada módulo é um artefato Maven próprio, e o app importa só os que usa. O motivo é o link
+// Release do iOS: com a lib inteira exportada para o framework, o DevirtualizationAnalysis do
+// Kotlin/Native monta o CallGraph dos 422 arquivos de commonMain e estoura a memória de um Mac
+// de 16GB — mesmo num app que usa 10% da lib.
+//
+// O nome Gradle precisa ser o nome do ARTEFATO (`kmplib-core`, não `core`): o KMP deriva o
+// artifactId dos artefatos por-target do nome do projeto, e com `:core` os artefatos iOS sairiam
+// como `core-iosarm64`. Mesmo motivo do mapeamento `:kmplib` -> `library/` abaixo.
+include(":kmplib-core")
+project(":kmplib-core").projectDir = file("core")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO

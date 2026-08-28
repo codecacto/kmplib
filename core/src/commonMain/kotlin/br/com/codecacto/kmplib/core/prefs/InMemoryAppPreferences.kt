@@ -7,22 +7,26 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 
 /**
- * Implementação in-memory de [AppPreferences] para uso em testes.
+ * Implementação in-memory de [AppPreferences] — nada é gravado em disco, e o estado morre com o
+ * processo.
  *
  * Comportamento espelha [AndroidAppPreferences]/[IosAppPreferences]:
  * - `observe*` re-emite quando `set*`/`remove`/`clear` é chamado.
  * - `clear()` emite o wildcard `"*"`.
  *
- * Disponível em `commonTest` para reuso entre os testes de outros módulos
- * (ex.: features que dependem de prefs).
+ * Mora no `commonMain`, e não no `commonTest`, por uma razão de modularização: como dublê de teste
+ * ela só existia para quem compilava o mesmo módulo, e o teste de quota (`monetization`) já a usava
+ * de fora. Um source set de teste não é publicado, então cada módulo novo precisaria de uma cópia.
+ * Aqui ela serve aos três casos de uma vez — teste, `@Preview` do Compose e modo demonstração —,
+ * que é como as bibliotecas oficiais tratam suas implementações in-memory.
  *
  * ```kotlin
- * val prefs = FakeAppPreferences()
+ * val prefs = InMemoryAppPreferences()
  * prefs.setString("k", "v")
  * assertEquals("v", prefs.getString("k"))
  * ```
  */
-class FakeAppPreferences : AppPreferences {
+class InMemoryAppPreferences : AppPreferences {
 
     private val data = mutableMapOf<String, Any>()
     private val changes = MutableSharedFlow<String>(extraBufferCapacity = 64)

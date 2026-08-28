@@ -143,6 +143,16 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             // =================================================================
+            // Módulos extraídos — `:kmplib` é o UMBRELLA
+            // =================================================================
+            //
+            // A lib está sendo quebrada em artefatos publicáveis (ver settings.gradle.kts). Este
+            // módulo continua existindo e continua trazendo TUDO por `api()`, para que os ~25 apps
+            // que hoje declaram `br.com.codecacto:kmplib` sigam compilando sem tocar em uma linha.
+            // Quem quiser o ganho de build/binário troca a coordenada única pelos módulos que usa.
+            api(project(":kmplib-core"))
+
+            // =================================================================
             // api() vs implementation() — regra do Gradle, não preferência
             // =================================================================
             //

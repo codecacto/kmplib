@@ -1,7 +1,7 @@
 package br.com.codecacto.kmplib.monetization.quota
 
 import br.com.codecacto.kmplib.core.network.ApiResult
-import br.com.codecacto.kmplib.core.prefs.FakeAppPreferences
+import br.com.codecacto.kmplib.core.prefs.InMemoryAppPreferences
 import br.com.codecacto.kmplib.monetization.entitlement.AssertResult
 import br.com.codecacto.kmplib.monetization.entitlement.Entitlement
 import br.com.codecacto.kmplib.monetization.entitlement.EntitlementProvider
@@ -66,7 +66,7 @@ private class ColdStartEntitlementProvider(private val premiumAfterRefresh: Bool
 
 class OfflineQuotaGateTest {
 
-    private fun store(prefs: FakeAppPreferences, nowMillis: () -> Long = { 1_783_512_000_000L }) =
+    private fun store(prefs: InMemoryAppPreferences, nowMillis: () -> Long = { 1_783_512_000_000L }) =
         DailyQuotaStore(prefs, SLUG, FEATURE, nowMillis, TimeZone.UTC)
 
     // ---- Regras puras -----------------------------------------------------
@@ -100,7 +100,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun pro_user_never_consumes_quota_on_cold_start() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(premiumAfterRefresh = true)
         val repo = FakeEntitlementRepository()
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 5, FEATURE, store(prefs), repo)
@@ -116,7 +116,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun network_failure_allows_until_free_cap_then_blocks() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(premiumAfterRefresh = false)
         val repo = FakeEntitlementRepository { AssertResult.Failed(-1, "offline") }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 2, FEATURE, store(prefs), repo)
@@ -135,7 +135,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun network_failure_never_promotes_free_to_premium() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(premiumAfterRefresh = false)
         val repo = FakeEntitlementRepository { AssertResult.Failed(500, "boom") }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 1, FEATURE, store(prefs), repo)
@@ -149,7 +149,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun server_allowed_increments_clean_without_offline_queue() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         val repo = FakeEntitlementRepository { AssertResult.Allowed }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 5, FEATURE, store(prefs), repo)
@@ -162,7 +162,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun server_denied_overrides_local_count_and_blocks() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         val quota = QuotaExceeded(FEATURE, limite = 5, contagem = 5)
         val repo = FakeEntitlementRepository { AssertResult.Denied(quota) }
@@ -180,7 +180,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun reconcile_clears_pending_when_server_accepts() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         val repo = FakeEntitlementRepository { AssertResult.Failed(-1, "offline") }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 5, FEATURE, store(prefs), repo)
@@ -199,7 +199,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun reconcile_takes_server_balance_when_denied() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         val repo = FakeEntitlementRepository { AssertResult.Failed(-1, "offline") }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 5, FEATURE, store(prefs), repo)
@@ -214,7 +214,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun reconcile_keeps_queue_when_still_offline() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         val repo = FakeEntitlementRepository { AssertResult.Failed(-1, "offline") }
         val gate = OfflineQuotaGate(provider.asPremiumSource(), 5, FEATURE, store(prefs), repo)
@@ -229,7 +229,7 @@ class OfflineQuotaGateTest {
 
     @Test
     fun offline_only_app_gates_locally_and_resets_next_day() = runTest {
-        val prefs = FakeAppPreferences()
+        val prefs = InMemoryAppPreferences()
         val provider = ColdStartEntitlementProvider(false)
         var now = 1_783_512_000_000L // 2026-07-08T12:00Z
         val gate = OfflineQuotaGate(

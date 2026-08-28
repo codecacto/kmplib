@@ -15,11 +15,11 @@ import kotlin.test.assertTrue
 
 class AppPreferencesTest {
 
-    private lateinit var prefs: FakeAppPreferences
+    private lateinit var prefs: InMemoryAppPreferences
 
     @BeforeTest
     fun setup() {
-        prefs = FakeAppPreferences()
+        prefs = InMemoryAppPreferences()
     }
 
     @AfterTest
