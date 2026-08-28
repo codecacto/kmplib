@@ -51,6 +51,17 @@ São erros de código do próprio app (uma rota que não existe, um ícone com n
 trocado, um símbolo do módulo Koin). Cada um é meia hora de trabalho, mas é trabalho de produto,
 não de plataforma — por isso ficaram de fora deste lote.
 
+## Como o app acha a lib
+
+**Pela FONTE, sempre.** A pasta `Lib/kmplib` fica ao lado do projeto e o `settings.gradle.kts` a
+inclui por `includeBuild` + `dependencySubstitution` — no Windows/Android e no Mac/iOS igualmente.
+Não há consumo por repositório remoto, e publicar a lib em algum lugar não é pré-requisito de nada.
+
+Quando um app **não** resolve a lib, a causa é **substituição faltando**. Foi o que aconteceu na
+modularização: o `dependencySubstitution` trocava só `br.com.codecacto:kmplib` pela fonte, e os 20
+módulos novos iam parar no `mavenLocal` — invisível na máquina que acabou de publicar lá, fatal em
+qualquer outra. Os 73 repositórios já têm as 20 linhas; um projeto novo herda da casca.
+
 ## O que se aprende ao migrar o próximo
 
 **A lista de módulos não sai só dos `import`.** 34 arquivos mudaram de módulo **sem mudar de
