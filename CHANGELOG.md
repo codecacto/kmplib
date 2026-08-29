@@ -1,6 +1,29 @@
 # Changelog — kmplib
 
-## 2.164.0 — `DomainApiClient.deleteJson`: o DELETE que devolve o corpo
+## 2.164.0 — os campos que não abriam no iOS, e o DELETE que devolve o corpo
+
+### ⚠️ `AppDropdownField`, `AppPickerField` e `AppDatePicker` estavam MORTOS ao toque no iOS
+
+**No Compose Multiplatform iOS, `TextField(readOnly = true)` intercepta o toque** e o
+`Box.clickable()` que envolve o campo nunca recebe o evento. Os três componentes são construídos
+nesse desenho — campo somente-leitura servindo de vitrine, com o clique no container — então **o menu
+não abria**, e só no iPhone: no Android o clique passava normalmente.
+
+Corrigido com um `Box` transparente em `matchParentSize()` por cima do campo, capturando o toque.
+
+**Quem está abaixo da 2.164.0 tem os três componentes mortos no iOS.** Todo app iOS que use spinner,
+seletor ou calendário precisa subir — é o caso de qualquer formulário com escolha de item.
+
+O sintoma engana e custa horas: o campo aparece desenhado normal, o toque não faz nada, e a
+validação depois reclama do campo vazio. É **idêntico** a "a lista de opções está vazia", porque um
+menu sem itens também abre com altura zero — foi por aí que a investigação no Cidade Conectada foi
+parar no backend, no banco, no cache e na URL, todos certos o tempo todo. Duas provas separam os
+casos em minutos: **funciona no Android e não no iOS ⇒ é a plataforma, não o dado**; e se um host de
+configuração na raiz já montou a tela, a lista chegou.
+
+Encontrado no cadastro de endereço do Mirassol Conectado (29/ago/2026).
+
+### `DomainApiClient.deleteJson`: o DELETE que devolve o corpo
 
 `delete(path)` descarta a resposta, e continua sendo o certo quando o servidor responde 204. Faltava a
 variante para a API que responde **com o estado depois de apagar** — a lista já sem o item —, padrão
