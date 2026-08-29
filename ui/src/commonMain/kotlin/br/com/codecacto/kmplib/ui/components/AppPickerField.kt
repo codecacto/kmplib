@@ -98,9 +98,6 @@ fun AppPickerField(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            // O clique é do BOX, não do campo: `OutlinedTextField` desabilitado não recebe clique, e
-            // habilitado abriria o teclado. Este é o arranjo que dá campo somente-leitura clicável.
-            .clickable(enabled = enabled, role = Role.Button) { aberto = true }
             .semantics {
                 contentDescription = listOfNotNull(label, selecionada?.label).joinToString(": ")
             },
@@ -119,6 +116,14 @@ fun AppPickerField(
             imageVector = Icons.Default.ArrowDropDown,
             contentDescription = null,
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+        )
+        // ⚠️ **Overlay de toque para iOS** (2.164.0). No Compose Multiplatform iOS, o TextField
+        // (mesmo com `enabled = false`) pode interceptar os toques e não deixar o `Box.clickable()`
+        // pai receber o evento. Este Box transparente fica POR CIMA e captura o toque diretamente.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(enabled = enabled, role = Role.Button) { aberto = true },
         )
     }
 

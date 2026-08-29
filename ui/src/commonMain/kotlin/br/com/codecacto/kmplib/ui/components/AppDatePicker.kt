@@ -1,7 +1,9 @@
 package br.com.codecacto.kmplib.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -72,22 +74,34 @@ fun AppDatePicker(
         }
     }
 
-    OutlinedTextField(
-        value = selectedDate?.let(formatDate) ?: "",
-        onValueChange = {},
-        readOnly = true,
-        enabled = isEnabled,
-        singleLine = true,
-        label = { Text(label) },
-        placeholder = { Text(placeholder) },
-        interactionSource = interactionSource,
-        trailingIcon = {
-            IconButton(onClick = { showDialog = true }, enabled = isEnabled) {
-                Icon(imageVector = Icons.Default.DateRange, contentDescription = label)
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
-    )
+    // ⚠️ **Box + overlay para iOS** (2.164.0). No Compose Multiplatform iOS, o TextField com
+    // `readOnly = true` não produz `PressInteraction` (Issue #4087 no GitHub), então o
+    // `interactionSource` acima não dispara. O overlay transparente captura o toque diretamente.
+    // No Android funciona das duas formas (interactionSource E overlay), então não há conflito.
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = selectedDate?.let(formatDate) ?: "",
+            onValueChange = {},
+            readOnly = true,
+            enabled = isEnabled,
+            singleLine = true,
+            label = { Text(label) },
+            placeholder = { Text(placeholder) },
+            interactionSource = interactionSource,
+            trailingIcon = {
+                IconButton(onClick = { showDialog = true }, enabled = isEnabled) {
+                    Icon(imageVector = Icons.Default.DateRange, contentDescription = label)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Overlay de toque para iOS — mesmo padrão do AppDropdownField.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(enabled = isEnabled) { showDialog = true },
+        )
+    }
 
     if (showDialog) {
         val initialMillis = selectedDate
