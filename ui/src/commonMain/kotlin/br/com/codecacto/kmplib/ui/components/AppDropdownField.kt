@@ -205,7 +205,6 @@ private fun AncoraDeMenu(
                 .onGloballyPositioned {
                     larguraDoCampo = with(densidade) { it.size.width.toDp() }
                 }
-                .clickable(enabled = enabled, role = Role.DropdownList) { aberto = true }
                 .semantics {
                     contentDescription = listOfNotNull(label, texto.ifBlank { null })
                         .joinToString(": ")
@@ -232,6 +231,16 @@ private fun AncoraDeMenu(
                 imageVector = Icons.Default.ArrowDropDown,
                 contentDescription = null,
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+            )
+            // ⚠️ **Overlay de toque para iOS** (2.164.0). No Compose Multiplatform iOS, o TextField
+            // com `readOnly = true` intercepta os toques e não deixa o `Box.clickable()` pai
+            // receber o evento. Este Box transparente fica POR CIMA do TextField e captura o toque,
+            // abrindo o menu. No Android não faz diferença (o clique passaria de qualquer jeito),
+            // mas no iOS é o que faz o dropdown funcionar.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(enabled = enabled, role = Role.DropdownList) { aberto = true },
             )
         }
 
