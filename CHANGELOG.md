@@ -1,5 +1,15 @@
 # Changelog — kmplib
 
+## 2.164.0 — `DomainApiClient.deleteJson`: o DELETE que devolve o corpo
+
+`delete(path)` descarta a resposta, e continua sendo o certo quando o servidor responde 204. Faltava a
+variante para a API que responde **com o estado depois de apagar** — a lista já sem o item —, padrão
+comum e o que evita uma segunda chamada só para a tela se atualizar. Sem ela, quem precisa do corpo
+escreve o `execute` à mão dentro do projeto e perde o tratamento de token, quota e erro que mora no
+cliente.
+
+Aditivo: nada muda para quem já usa `delete`.
+
 ## 2.163.0 — a lib vira 21 módulos, e o umbrella segura os apps de pé (28/ago/2026)
 
 **Reorganização estrutural. Nenhuma API mudou, nenhum pacote mudou de nome, nenhum app precisa ser

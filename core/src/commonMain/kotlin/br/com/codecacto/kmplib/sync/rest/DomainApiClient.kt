@@ -109,6 +109,18 @@ class DomainApiClient(
     suspend fun delete(path: String): DomainResult<Unit> =
         execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.map { }
 
+    /**
+     * `DELETE` que **devolve o corpo** — para a API que responde com o estado depois de apagar.
+     *
+     * O [delete] acima descarta a resposta, e é o certo quando o servidor responde 204. Mas um
+     * `DELETE` que devolve a lista já sem o item apagado é padrão comum, e com ele a tela não precisa
+     * de uma segunda chamada para se atualizar — nem do intervalo em que o item sumiu da tela e os
+     * contadores ainda não sabem disso. Sem esta variante, quem precisa do corpo escreve o `execute`
+     * à mão no projeto e perde o tratamento de token, quota e erro que mora aqui.
+     */
+    suspend fun deleteJson(path: String): DomainResult<String> =
+        execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.texto()
+
     // ---- Binário (anexos) ------------------------------------------------
 
     /** Upload multipart (campo `file`) de um binário autenticado — ex.: `POST /v1/.../anexos`. */
