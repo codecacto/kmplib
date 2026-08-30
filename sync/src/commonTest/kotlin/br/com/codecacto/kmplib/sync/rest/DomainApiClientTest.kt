@@ -88,6 +88,38 @@ class DomainApiClientTest {
     }
 
     @Test
+    fun `o code do envelope de erro chega na tela`() = runTest {
+        // Dois 409 diferentes na mesma rota é o caso que motivou o campo: o status sozinho não
+        // distingue "ainda está sendo preparado" de "já foi enviado", e a tela precisa dizer coisas
+        // opostas em cada um.
+        val (api, _) = client {
+            HttpStatusCode.Conflict to """{"message":"Sendo preparado.","code":"RESULTADO_EM_PREPARACAO"}"""
+        }
+        val r = api.getJson("/v1/x")
+        assertTrue(r is DomainResult.Error)
+        assertEquals(409, (r as DomainResult.Error).code)
+        assertEquals("RESULTADO_EM_PREPARACAO", r.serverCode)
+    }
+
+    @Test
+    fun `corpo que nao e JSON nao derruba o tratamento do erro`() = runTest {
+        // Um proxy no meio devolve HTML em 502. Tentar ler `code` ali não pode virar um segundo
+        // erro dentro do tratamento do primeiro.
+        val (api, _) = client { HttpStatusCode.BadGateway to "<html><body>502</body></html>" }
+        val r = api.getJson("/v1/x")
+        assertTrue(r is DomainResult.Error)
+        assertEquals(502, (r as DomainResult.Error).code)
+        assertNull(r.serverCode)
+    }
+
+    @Test
+    fun `JSON de erro sem code devolve serverCode nulo`() = runTest {
+        val (api, _) = client { HttpStatusCode.BadRequest to """{"message":"Campo obrigatório."}""" }
+        val r = api.getJson("/v1/x")
+        assertNull((r as DomainResult.Error).serverCode)
+    }
+
+    @Test
     fun `sem token nao envia header Authorization`() = runTest {
         val (api, cap) = client(token = null) { HttpStatusCode.OK to "{}" }
         api.getJson("/v1/x")

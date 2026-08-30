@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.165.0 — o `code` do erro chega na tela
+
+### `DomainResult.Error` ganhou `serverCode`
+
+O cliente de domínio classificava a resposta pelo **status** e jogava fora o corpo. O envelope de
+erro da backlib (`{"message": …, "code": …, "traceId": …}`) nunca chegava ao app, e o `code` é
+justamente o que distingue dois erros diferentes com o mesmo número.
+
+O caso que forçou: no NeuroCoreX, `409` numa rota de resultado pode ser **"o resultado ainda está
+sendo preparado por quem acompanha"** — que é um ESTADO, com cartão âmbar e sem botão de tentar de
+novo — ou **"esta resposta já foi enviada"**, que é outra coisa inteira. Com o status sozinho, o app
+ou adivinhava (acertando por acaso enquanto houvesse um 409 só naquela rota) ou refazia a chamada
+para ler o corpo que este cliente tinha acabado de descartar.
+
+```kotlin
+when (val r = api.getJson("/v1/me/aplicacoes/$id/resumo")) {
+    is DomainResult.Error -> when (r.serverCode) {
+        "RESULTADO_EM_PREPARACAO" -> mostrarEmPreparacao()
+        else -> mostrarErro(r.message)
+    }
+    …
+}
+```
+
+**Aditivo e compatível:** `serverCode` tem default `null`, então `DomainResult.Error(code, message)`
+continua compilando. É `null` quando o corpo não é JSON, não tem `code`, ou o erro é de transporte —
+um proxy que devolve HTML em 502 não pode virar uma exceção dentro do tratamento do erro original.
+
+Ler o corpo só acontece em resposta de ERRO; o `Success` continua entregando a resposta intacta.
+
 ## 2.164.0 — os campos que não abriam no iOS, e o DELETE que devolve o corpo
 
 ### ⚠️ `AppDropdownField`, `AppPickerField` e `AppDatePicker` estavam MORTOS ao toque no iOS

@@ -24,6 +24,10 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.contentType
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Cliente HTTP do **backend REST-CRUD de domínio** de um app (`/v1/...`) — a base de rede da camada
@@ -287,11 +291,30 @@ class DomainApiClient(
                 val quota = parseQuotaExceeded(runCatching { response.bodyAsText() }.getOrNull())
                 if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, texts.quotaReached)
             }
-            status == 429 -> DomainResult.Error(429, texts.rateLimited)
-            status == 401 -> DomainResult.Error(401, texts.sessionExpired)
-            else -> DomainResult.Error(status, texts.serverError(status))
+            status == 429 -> DomainResult.Error(429, texts.rateLimited, codigoDoServidor(response))
+            status == 401 -> DomainResult.Error(401, texts.sessionExpired, codigoDoServidor(response))
+            else -> DomainResult.Error(status, texts.serverError(status), codigoDoServidor(response))
         }
     }
+
+    /**
+     * O `code` do envelope de erro da backlib (`{"message": ..., "code": ..., "traceId": ...}`).
+     *
+     * Ler o corpo aqui é seguro: só acontece em resposta de ERRO, e nenhum chamador consome o corpo
+     * de uma resposta que já virou [DomainResult.Error]. Qualquer falha — corpo vazio, HTML de um
+     * proxy no meio, JSON sem `code` — devolve `null`, nunca uma exceção: um erro de transporte não
+     * pode virar um segundo erro dentro do tratamento do primeiro.
+     */
+    private suspend fun codigoDoServidor(response: HttpResponse): String? = runCatching {
+        val corpo = response.bodyAsText()
+        if (!corpo.trimStart().startsWith("{")) return@runCatching null
+        Json { ignoreUnknownKeys = true }
+            .parseToJsonElement(corpo)
+            .jsonObject["code"]
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     companion object {
         private const val TAG = "DomainApi"
@@ -357,7 +380,23 @@ sealed class DomainResult<out T> {
     /** 402 — cota estourada; abre o Paywall com o contexto ([QuotaExceeded]). */
     data class Quota(val quota: QuotaExceeded) : DomainResult<Nothing>()
 
-    data class Error(val code: Int, val message: String) : DomainResult<Nothing>()
+    /**
+     * @param code o status HTTP, ou [OFFLINE_CODE] quando nem chegou a haver resposta.
+     * @param serverCode o **código de negócio** que o backend mandou no corpo (`{"code": "..."}`).
+     *
+     * `serverCode` existe porque o status sozinho não distingue dois erros diferentes com o mesmo
+     * número: um 409 pode ser "o resultado ainda está sendo preparado" e outro "esta resposta já
+     * foi enviada", e a tela precisa dizer coisas opostas em cada caso. Sem ele, cada app ou
+     * adivinhava pelo status — acertando por acaso enquanto houvesse um 409 só na rota — ou refazia
+     * a chamada para ler o corpo que este cliente tinha acabado de descartar.
+     *
+     * É `null` quando o corpo não é JSON, não tem `code`, ou o erro é de transporte.
+     */
+    data class Error(
+        val code: Int,
+        val message: String,
+        val serverCode: String? = null,
+    ) : DomainResult<Nothing>()
 
     inline fun <R> map(transform: (T) -> R): DomainResult<R> = when (this) {
         is Success -> Success(transform(data))
