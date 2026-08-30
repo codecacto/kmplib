@@ -1,5 +1,20 @@
 # Changelog — kmplib
 
+## 2.166.0 — o "X" do intersticial ganhou id, e a captura de loja deixou de fotografar anúncio
+
+### `AdsTestTags.BTN_FECHAR_INTERSTITIAL`
+
+O intersticial de abertura dispara uma vez por sessão e cobre exatamente a primeira tela que a
+vitrine precisa mostrar. E ele engana o flow de captura: a tela por baixo **continua na hierarquia**,
+então o `extendedWaitUntil` passa e a foto sai com o anúncio na frente — print que a Apple recusa.
+
+Fechar por texto ("Fechar", "X") não serve, porque a fábrica publica em quatro idiomas e o rótulo
+muda. O `IconButton` de fechar do `CustomInterstitialAd` passa a expor
+`ads-btn-fechar-interstitial`, e o mesmo flow de captura serve os 55 apps de publicidade.
+
+Mudança **aditiva**: nenhum consumidor precisa mexer em nada, e quem não automatiza não percebe.
+A tag vira `resource-id` pelo `testTagsAsResourceId` que o `AppTheme` já declara desde a 2.107.0.
+
 ## 2.165.0 — o `code` do erro chega na tela
 
 ### `DomainResult.Error` ganhou `serverCode`
