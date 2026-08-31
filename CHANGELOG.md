@@ -1,5 +1,29 @@
 # Changelog — kmplib
 
+## 2.170.0 — a altura do banner sai da PROPORÇÃO da arte, e o criativo para de ser cortado
+
+Achado ao encaixar a primeira arte 3:1 de verdade (1440×480, Piada Pronta): **altura fixa e arte de
+proporção fixa brigam**, e quem perde é o criativo.
+
+O `CustomBannerAd` desenha com `ContentScale.Crop` — ele **preenche** a caixa e corta o excedente.
+Numa tela de 360 dp, a faixa 6:1 mede 60 dp de altura naturalmente; a 2.168.0 a forçou para 90 dp,
+e o Crop passou a **cortar um terço da largura**. O que some é a borda da peça, justamente onde
+costuma estar o nome do app. Com a 3:1 em 180 dp, o mesmo: 33% fora.
+
+Agora a caixa acompanha a arte — `aspectRatio` em vez de `height`:
+
+| | Arte | 360 dp de tela | 480 dp |
+|---|---|---|---|
+| `BannerSize.STANDARD` | 6:1 | 60 dp | 80 dp |
+| `BannerSize.LARGE` | 3:1 | **120 dp** | **160 dp** |
+
+O "dobro" que separa os dois passa a ser a **proporção**, não um número — e ele se mantém em telas
+que não previmos, inclusive tablet e paisagem.
+
+`height` / `customHeight` continuam existindo, agora anuláveis: informar uma volta ao comportamento
+de altura fixa, para o layout que precisar disso. `AdDefaults.BANNER_HEIGHT` e
+`BANNER_LARGE_HEIGHT` seguem publicados como esses valores fixos.
+
 ## 2.169.0 — banner GRANDE: um formato novo, com arte própria
 
 ### `BannerSize.LARGE` + `CustomAd.FORMAT_BANNER_LARGE`

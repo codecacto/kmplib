@@ -20,13 +20,14 @@ import br.com.codecacto.kmplib.ads.custom.CustomBannerAd
  * provider for CUSTOM, tambem precisa `CustomAdManager.initialize(...)`.
  *
  * @param size tamanho do banner (define o FORMATO pedido ao backend e a altura).
- * @param customHeight altura, quando se quer uma diferente da do [size].
+ * @param customHeight altura FIXA, quando o layout exige uma. Nulo (default) = a altura sai da
+ *   proporção da arte, que é o que mantém o criativo inteiro em qualquer largura de tela.
  */
 @Composable
 fun ManagedBannerAd(
     modifier: Modifier = Modifier,
     size: BannerSize = BannerSize.STANDARD,
-    customHeight: Dp = size.height,
+    customHeight: Dp? = null,
 ) {
     val routing by AdRouter.routing.collectAsState()
     when (routing.banner) {

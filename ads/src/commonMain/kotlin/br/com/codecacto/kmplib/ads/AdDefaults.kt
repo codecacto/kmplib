@@ -7,27 +7,17 @@ import br.com.codecacto.kmplib.ads.custom.CustomAd
 /** Medidas padrão dos house ads, num lugar só. */
 object AdDefaults {
     /**
-     * Altura do banner de rodapé.
+     * Altura do banner de rodapé quando o app **fixa** uma (`height`/`customHeight`).
      *
-     * Eram **60 dp** até a 2.168.0 — o tamanho do banner clássico de rede de anúncio (50-60 dp), que
-     * numa arte própria fica apertado: a imagem chega inteira mas em miniatura, e o que deveria ser
-     * a chamada de um app da casa vira uma tarja. Como o criativo é NOSSO (house ad, sem formato
-     * imposto por rede), a altura é escolha de produto — e o fundador pediu mais.
-     *
-     * **90 dp** é o meio-termo: 50% mais alto, ainda menor que o "large banner" de 100 dp das redes,
-     * e sem comer a tela num aparelho pequeno (num Android de 640 dp de altura, ocupa ~14%).
-     * Quem precisar de outra medida passa `customHeight` — o default é só o ponto de partida.
+     * ⚠️ **O default NÃO é este** desde a 2.170.0 — é a proporção da arte
+     * ([BannerSize.aspectRatio]). Altura fixa e arte de proporção fixa brigam: numa tela de 360 dp,
+     * a faixa 6:1 mede 60 dp de altura naturalmente, e forçá-la a 90 dp faz o `ContentScale.Crop`
+     * **cortar um terço da largura** — some justamente o que fica nas bordas do criativo. Este
+     * valor continua aqui para quem precisa de uma altura fixa por decisão de layout.
      */
     val BANNER_HEIGHT: Dp = 90.dp
 
-    /**
-     * Altura do banner **grande** ([BannerSize.LARGE]) — o dobro do padrão.
-     *
-     * A arte dele é uma faixa 3:1 (1440×480), contra a 6:1 do banner comum. **Dobrar a altura sem
-     * trocar a arte não funciona**: a mesma imagem 6:1 num espaço 3:1 sai deformada ou com metade
-     * cortada. Por isso o grande é um formato próprio, com arte própria, e não um parâmetro de
-     * layout.
-     */
+    /** Idem, para o banner grande. */
     val BANNER_LARGE_HEIGHT: Dp = 180.dp
 }
 
@@ -37,11 +27,20 @@ object AdDefaults {
  *
  * Cada tamanho pede um formato diferente ao backend — e um anúncio sem a arte daquele formato
  * simplesmente não entra no sorteio.
+ *
+ * **A altura vem da PROPORÇÃO da arte, não de um número em dp.** É o que garante a peça inteira em
+ * qualquer largura de tela: num aparelho de 360 dp o padrão ocupa 60 dp e o grande 120 dp; num de
+ * 480 dp, 80 e 160. O "dobro" que separa os dois é a proporção (6:1 → 3:1), e ele se mantém em
+ * telas que não previmos.
  */
-enum class BannerSize(internal val format: String, internal val height: Dp) {
-    /** Faixa 6:1 (arte 1440×240), [AdDefaults.BANNER_HEIGHT]. */
-    STANDARD(CustomAd.FORMAT_BANNER, AdDefaults.BANNER_HEIGHT),
+enum class BannerSize(
+    internal val format: String,
+    internal val aspectRatio: Float,
+    internal val height: Dp,
+) {
+    /** Faixa 6:1 (arte 1440×240). */
+    STANDARD(CustomAd.FORMAT_BANNER, 6f, AdDefaults.BANNER_HEIGHT),
 
-    /** Faixa 3:1 (arte 1440×480), [AdDefaults.BANNER_LARGE_HEIGHT]. */
-    LARGE(CustomAd.FORMAT_BANNER_LARGE, AdDefaults.BANNER_LARGE_HEIGHT),
+    /** Faixa 3:1 (arte 1440×480) — o dobro da altura relativa. */
+    LARGE(CustomAd.FORMAT_BANNER_LARGE, 3f, AdDefaults.BANNER_LARGE_HEIGHT),
 }

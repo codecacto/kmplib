@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ads.custom
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -34,7 +35,7 @@ import coil3.compose.AsyncImage
 fun CustomBannerAd(
     modifier: Modifier = Modifier,
     size: BannerSize = BannerSize.STANDARD,
-    height: Dp = size.height,
+    height: Dp? = null,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
@@ -68,7 +69,11 @@ fun CustomBannerAd(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .fillMaxWidth()
-            .height(height)
+            // Altura pela PROPORÇÃO da arte, não por um dp fixo. Com `height` fixa, o
+            // `ContentScale.Crop` preenche a caixa e corta o que sobra na largura: uma faixa 6:1 numa
+            // caixa de 360x90 perde um terço do criativo, e o que some é a borda — onde costuma
+            // estar o nome do app. `height` continua existindo para quem precisa fixar por layout.
+            .then(if (height != null) Modifier.height(height) else Modifier.aspectRatio(size.aspectRatio))
             .then(viewableModifier)
             .clickable {
                 CustomAdManager.notifyClick(ad)
