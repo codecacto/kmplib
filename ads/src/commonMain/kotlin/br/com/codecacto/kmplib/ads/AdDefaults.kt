@@ -42,5 +42,20 @@ enum class BannerSize(
     STANDARD(CustomAd.FORMAT_BANNER, 6f, AdDefaults.BANNER_HEIGHT),
 
     /** Faixa 3:1 (arte 1440×480) — o dobro da altura relativa. */
-    LARGE(CustomAd.FORMAT_BANNER_LARGE, 3f, AdDefaults.BANNER_LARGE_HEIGHT),
+    LARGE(CustomAd.FORMAT_BANNER_LARGE, 3f, AdDefaults.BANNER_LARGE_HEIGHT);
+
+    companion object {
+        /**
+         * Proporção da arte que de fato veio — o que a caixa deve seguir.
+         *
+         * O app pede um tamanho, mas pode receber outro (o pedido cai para o banner comum quando
+         * não há arte grande). Desenhar na proporção do PEDIDO cortaria a arte recebida; desenhar
+         * na proporção DELA mantém a peça inteira nos dois casos.
+         *
+         * Formato desconhecido ou em branco (o backend pode omitir) cai no [fallback], que é o
+         * tamanho que o app pediu.
+         */
+        fun aspectRatioOf(format: String, fallback: BannerSize): Float =
+            entries.firstOrNull { it.format == format }?.aspectRatio ?: fallback.aspectRatio
+    }
 }

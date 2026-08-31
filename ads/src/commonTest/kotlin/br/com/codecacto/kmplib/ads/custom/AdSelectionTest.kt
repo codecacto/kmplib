@@ -25,9 +25,10 @@ class AdSelectionTest {
     }
 
     @Test
-    fun `banner grande nao cai no banner comum`() {
-        // O grande e uma arte 3-1; a 6-1 no lugar dele sai deformada ou cortada pela metade.
-        // Sem arte grande cadastrada, o certo e NAO mostrar banner.
+    fun `pedir o grande nao devolve o comum -- quem decide o fallback e o composable`() {
+        // selectAd continua ESTRITO: quem pede banner_large recebe banner_large ou nada. O
+        // CustomBannerAd e que, nao achando, pede o comum -- e ai desenha na proporcao DELE, sem
+        // cortar. Manter a selecao estrita e o que permite essa escolha ser explicita e testavel.
         val soComum = listOf(CustomAd(id = "1", imageUrl = "x", format = CustomAd.FORMAT_BANNER))
         assertNull(selectAd(soComum, CustomAd.FORMAT_BANNER_LARGE))
     }

@@ -1,5 +1,29 @@
 # Changelog — kmplib
 
+## 2.171.0 — o banner sai de trás da barra de gestos, e para de sumir por falta de UMA variante
+
+Dois acertos no house ad do rodapé, os dois vindos de encaixar a coisa de verdade no aparelho.
+
+### A barra de navegação cobria o rodapé do criativo
+
+Com `targetSdk` 35+ o Android desenha **edge-to-edge à força**, e o `bottomBar` do `Scaffold` **não
+recebe inset sozinho** — quem está lá precisa consumir. O banner ficava por baixo da barra de
+gestos: no criativo, some justamente a faixa de baixo, onde costuma estar o botão.
+
+`CustomBannerAd` passa a aplicar `windowInsetsPadding(WindowInsets.navigationBars)`. O modificador
+respeita o **consumo** de insets: no `bottomBar` ele aplica; no meio do conteúdo, onde o `Scaffold`
+já consumiu, vira zero. O mesmo composable serve nos dois lugares, sem parâmetro novo.
+
+### Pedir o grande não pode significar ficar sem anúncio
+
+Até a 2.170.0, `size = BannerSize.LARGE` num pool sem arte 3:1 deixava o rodapé **vazio** — a
+alternativa (esticar a 6:1) era pior. Agora a caixa segue a proporção **da arte que veio**
+(`BannerSize.aspectRatioOf`), então cair para o banner comum não corta nada: dá só um banner mais
+baixo. Um app cujo único ganho é o house ad não pode deixar de exibir por falta de uma variante.
+
+`selectAd` continua **estrito** (quem pede `banner_large` recebe `banner_large` ou nada) — o
+fallback é decisão explícita do composable, e é o que o mantém testável.
+
 ## 2.170.0 — a altura do banner sai da PROPORÇÃO da arte, e o criativo para de ser cortado
 
 Achado ao encaixar a primeira arte 3:1 de verdade (1440×480, Piada Pronta): **altura fixa e arte de

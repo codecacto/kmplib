@@ -3,8 +3,11 @@ package br.com.codecacto.kmplib.ads.custom
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,8 +49,14 @@ fun CustomBannerAd(
         return
     }
 
+    // Pede o tamanho preferido e, não havendo arte dele, ACEITA a do banner comum — a caixa segue
+    // a proporção da arte escolhida (abaixo), então cair para a 6:1 não corta nada: só resulta num
+    // banner mais baixo. Antes da 2.171.0 isto devolvia `null` e o rodapé ficava vazio, para não
+    // esticar a arte errada; com a caixa acompanhando a arte, o motivo deixou de existir — e um app
+    // cuja única receita é o house ad não pode deixar de exibir por falta de UMA variante.
     val ad = remember(ads, size) {
         selectAd(ads, format = size.format)
+            ?: selectAd(ads, format = CustomAd.FORMAT_BANNER)
     }
 
     if (ad == null) {
@@ -69,11 +78,20 @@ fun CustomBannerAd(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .fillMaxWidth()
+            // Barra de gestos / home indicator. Com `targetSdk` 35+ o Android desenha edge-to-edge
+            // à força, e o `bottomBar` do Scaffold NÃO recebe inset sozinho — sem isto, a faixa de
+            // navegação fica por cima do rodapé do criativo. `windowInsetsPadding` respeita o
+            // consumo de insets: no `bottomBar` ele aplica, no meio do conteúdo (onde o Scaffold já
+            // consumiu) vira zero, então o mesmo composable serve nos dois lugares.
+            .windowInsetsPadding(WindowInsets.navigationBars)
             // Altura pela PROPORÇÃO da arte, não por um dp fixo. Com `height` fixa, o
             // `ContentScale.Crop` preenche a caixa e corta o que sobra na largura: uma faixa 6:1 numa
             // caixa de 360x90 perde um terço do criativo, e o que some é a borda — onde costuma
             // estar o nome do app. `height` continua existindo para quem precisa fixar por layout.
-            .then(if (height != null) Modifier.height(height) else Modifier.aspectRatio(size.aspectRatio))
+            .then(
+                if (height != null) Modifier.height(height)
+                else Modifier.aspectRatio(BannerSize.aspectRatioOf(ad.format, fallback = size)),
+            )
             .then(viewableModifier)
             .clickable {
                 CustomAdManager.notifyClick(ad)
