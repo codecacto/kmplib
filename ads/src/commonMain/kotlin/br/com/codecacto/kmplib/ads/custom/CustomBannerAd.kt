@@ -11,10 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
 import br.com.codecacto.kmplib.ads.stats.AdProviderTag
 import br.com.codecacto.kmplib.ads.stats.AdStats
+import br.com.codecacto.kmplib.ads.AdDefaults
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
@@ -32,7 +32,7 @@ import coil3.compose.AsyncImage
 @Composable
 fun CustomBannerAd(
     modifier: Modifier = Modifier,
-    height: Dp = 60.dp,
+    height: Dp = AdDefaults.BANNER_HEIGHT,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()

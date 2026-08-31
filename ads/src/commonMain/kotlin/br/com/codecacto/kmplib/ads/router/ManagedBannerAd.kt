@@ -6,7 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.ads.AdDefaults
 import br.com.codecacto.kmplib.ads.custom.CustomBannerAd
 
 /**
@@ -24,7 +24,7 @@ import br.com.codecacto.kmplib.ads.custom.CustomBannerAd
 @Composable
 fun ManagedBannerAd(
     modifier: Modifier = Modifier,
-    customHeight: Dp = 60.dp,
+    customHeight: Dp = AdDefaults.BANNER_HEIGHT,
 ) {
     val routing by AdRouter.routing.collectAsState()
     when (routing.banner) {

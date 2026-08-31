@@ -1,5 +1,24 @@
 # Changelog — kmplib
 
+## 2.168.0 — o banner de rodapé cresceu, e a medida passou a morar num lugar só
+
+### `AdDefaults.BANNER_HEIGHT` = **90 dp** (era 60)
+
+O house ad usava 60 dp, o tamanho do banner clássico das redes de anúncio. Só que o criativo aqui é
+**nosso** — não há formato imposto por ninguém —, e em 60 dp a arte chega inteira mas em miniatura:
+o que deveria ser a chamada de um app da casa vira uma tarja no rodapé. Pedido do fundador, olhando
+o Piada Pronta: *"a gente não consegue fazer um banner um pouco maior? Achei pequeno."*
+
+90 dp é meio-termo: 50% mais alto, ainda **menor** que o *large banner* de 100 dp das redes, e sem
+comer a tela num aparelho pequeno (num Android de 640 dp de altura, ocupa ~14%).
+
+A medida saiu de dois defaults duplicados (`CustomBannerAd.height` e `ManagedBannerAd.customHeight`,
+cada um com o seu `60.dp`) para **uma constante só**. Enquanto eram dois, mudar um e esquecer o
+outro deixava o app com altura diferente conforme o composable escolhido — e os dois compilam.
+
+**Todo app que usa o default cresce ao rebuildar**, sem tocar em código. Quem quiser outra altura
+passa `customHeight`.
+
 ## 2.167.0 — o umbrella parou de gerar a classe `Res` que duplicava no dex do app
 
 ### `mergeLibDexDebug`: *"ActualResourceCollectorsKt is defined multiple times"*
