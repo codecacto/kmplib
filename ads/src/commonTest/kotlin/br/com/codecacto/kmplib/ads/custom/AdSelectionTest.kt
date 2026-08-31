@@ -25,6 +25,24 @@ class AdSelectionTest {
     }
 
     @Test
+    fun `banner grande nao cai no banner comum`() {
+        // O grande e uma arte 3-1; a 6-1 no lugar dele sai deformada ou cortada pela metade.
+        // Sem arte grande cadastrada, o certo e NAO mostrar banner.
+        val soComum = listOf(CustomAd(id = "1", imageUrl = "x", format = CustomAd.FORMAT_BANNER))
+        assertNull(selectAd(soComum, CustomAd.FORMAT_BANNER_LARGE))
+    }
+
+    @Test
+    fun `escolhe o banner grande quando ele existe`() {
+        val ads = listOf(
+            CustomAd(id = "comum", imageUrl = "x", format = CustomAd.FORMAT_BANNER),
+            CustomAd(id = "grande", imageUrl = "x", format = CustomAd.FORMAT_BANNER_LARGE),
+        )
+        assertEquals("grande", selectAd(ads, CustomAd.FORMAT_BANNER_LARGE)?.id)
+        assertEquals("comum", selectAd(ads, CustomAd.FORMAT_BANNER)?.id)
+    }
+
+    @Test
     fun `anuncio com format em branco casa com qualquer formato`() {
         val ads = listOf(CustomAd(id = "1", imageUrl = "x", format = ""))
         assertNotNull(selectAd(ads, CustomAd.FORMAT_BANNER))

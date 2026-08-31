@@ -49,6 +49,16 @@ data class CustomAd(
 ) {
     companion object {
         const val FORMAT_BANNER = "banner"
+
+        /**
+         * Banner GRANDE — faixa **3:1** (arte 1440×480), o dobro da altura relativa da 6:1.
+         *
+         * É um formato, **não** a mesma arte esticada: a 6:1 num espaço 3:1 sairia deformada
+         * (`Fit`) ou com metade da mensagem cortada (`Crop`). Um anúncio serve o grande só quando
+         * tem a arte dele cadastrada no Nexus; o app que pede o grande e não acha **não mostra
+         * banner**, em vez de cair na 6:1.
+         */
+        const val FORMAT_BANNER_LARGE = "banner_large"
         const val FORMAT_INTERSTITIAL = "interstitial"
 
         /** Default da contagem regressiva do interstitial TIMED quando nao configurado. */

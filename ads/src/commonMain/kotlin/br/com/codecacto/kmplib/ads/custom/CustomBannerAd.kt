@@ -15,6 +15,7 @@ import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
 import br.com.codecacto.kmplib.ads.stats.AdProviderTag
 import br.com.codecacto.kmplib.ads.stats.AdStats
 import br.com.codecacto.kmplib.ads.AdDefaults
+import br.com.codecacto.kmplib.ads.BannerSize
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import coil3.compose.AsyncImage
@@ -32,7 +33,8 @@ import coil3.compose.AsyncImage
 @Composable
 fun CustomBannerAd(
     modifier: Modifier = Modifier,
-    height: Dp = AdDefaults.BANNER_HEIGHT,
+    size: BannerSize = BannerSize.STANDARD,
+    height: Dp = size.height,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
@@ -43,8 +45,8 @@ fun CustomBannerAd(
         return
     }
 
-    val ad = remember(ads) {
-        selectAd(ads, format = CustomAd.FORMAT_BANNER)
+    val ad = remember(ads, size) {
+        selectAd(ads, format = size.format)
     }
 
     if (ad == null) {

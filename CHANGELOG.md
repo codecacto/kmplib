@@ -1,5 +1,31 @@
 # Changelog — kmplib
 
+## 2.169.0 — banner GRANDE: um formato novo, com arte própria
+
+### `BannerSize.LARGE` + `CustomAd.FORMAT_BANNER_LARGE`
+
+A 2.168.0 subiu o banner de 60 para 90 dp e ele **continuou fino** — porque altura não era o
+problema todo. A arte do banner é uma faixa **6:1** (1440×240): aumentar o espaço sem trocar a
+imagem só a estica (`Fit` deixa sobra) ou come metade da mensagem (`Crop`). Um banner "mais grosso"
+é **outro formato**, não um parâmetro de layout.
+
+```kotlin
+ManagedBannerAd(modifier = Modifier.fillMaxWidth(), size = BannerSize.LARGE)
+```
+
+- `BannerSize.STANDARD` — faixa 6:1, 90 dp (o de sempre; segue sendo o default).
+- `BannerSize.LARGE` — faixa **3:1** (arte 1440×480), **180 dp**, o dobro.
+
+Cada tamanho pede um **formato diferente** ao apps-api (`banner` / `banner_large`), e um anúncio só
+entra no sorteio do grande se tiver a arte dele cadastrada no Nexus. **Sem arte grande, o app não
+mostra banner** — em vez de cair na 6:1 deformada. É o comportamento que os testes travam.
+
+A escolha é do app: tela de leitura contínua fica no padrão; app cujo house ad é a única receita
+ganha visibilidade com o grande.
+
+Requer **apps-api com o `banner_large`** (migração `V10__banner_grande.sql`, colunas
+`banner_large_image_url`/`banner_large_web_image_url`) e o Nexus com os dois slots novos.
+
 ## 2.168.0 — o banner de rodapé cresceu, e a medida passou a morar num lugar só
 
 ### `AdDefaults.BANNER_HEIGHT` = **90 dp** (era 60)
