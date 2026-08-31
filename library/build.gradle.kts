@@ -61,9 +61,30 @@ sqldelight {
     }
 }
 
+// =============================================================================
+// Recursos: o umbrella NÃO gera classe `Res` — quem tem os recursos é o `:kmplib-ui`
+// =============================================================================
+//
 // Os recursos compartilhados (traduções, logo, ícones) mudaram para o `:kmplib-ui`, que é quem
-// os desenha. `Res` é gerada por módulo: gerá-la aqui TAMBÉM criaria duas classes de mesmo nome
-// no mesmo pacote, e o consumidor não saberia qual importou.
+// os desenha. `Res` é gerada por MÓDULO, e o `:kmplib-ui` fixa o pacote dela em
+// `br.com.codecacto.kmplib.generated.resources` — que é EXATAMENTE o pacote que o plugin daria
+// aqui por conta própria (group + nome do subprojeto `:kmplib`).
+//
+// Tirar o diretório `composeResources/` daqui não bastava: no default `auto`, o plugin gera
+// assim mesmo um `Res` vazio e os *ResourceCollectors* ao lado, porque este módulo aplica o
+// `org.jetbrains.compose` e depende de `components.resources`. O umbrella faz
+// `api(project(":kmplib-ui"))`, então TODO app que usa a kmplib recebe as duas cópias e o D8
+// para no merge:
+//
+//   Type br.com.codecacto.kmplib.generated.resources.ActualResourceCollectorsKt$$…Lambda0
+//   is defined multiple times: …/library/build/… , …/ui/build/…
+//
+// O erro é de `mergeLibDexDebug` (não compila nada errado): passa em compileKotlin e só aparece
+// na assembleDebug/assembleRelease. `never` é o mecanismo oficial do plugin para um módulo que
+// não tem recurso nenhum.
+compose.resources {
+    generateResClass = never
+}
 
 // =============================================================================
 // Kover — cobertura de testes

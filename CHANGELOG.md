@@ -1,5 +1,34 @@
 # Changelog — kmplib
 
+## 2.167.0 — o umbrella parou de gerar a classe `Res` que duplicava no dex do app
+
+### `mergeLibDexDebug`: *"ActualResourceCollectorsKt is defined multiple times"*
+
+Todo app que depende da kmplib deixou de montar APK. O erro não é de compilação — `compileKotlin`
+passa —, e só aparece na `assembleDebug`/`assembleRelease`:
+
+```
+Type br.com.codecacto.kmplib.generated.resources.ActualResourceCollectorsKt$$…Lambda0
+is defined multiple times: …/library/build/…, …/ui/build/…
+```
+
+Os recursos compartilhados (as 4 traduções, o logo, os ícones) moram no `:kmplib-ui`, que fixa o
+pacote da classe gerada em `br.com.codecacto.kmplib.generated.resources`. Só que esse é
+**exatamente** o pacote que o plugin `compose.resources` daria ao umbrella por conta própria
+(group + nome do subprojeto `:kmplib`) — e o umbrella continuava gerando um `Res` **vazio** mais os
+*ResourceCollectors* ao lado, porque no default `auto` basta aplicar o plugin do Compose e depender
+de `components.resources`. Tirar o diretório `composeResources/` de lá, como foi feito quando os
+recursos mudaram de módulo, não desligava nada.
+
+Como o umbrella faz `api(project(":kmplib-ui"))`, os dois entram no classpath de todo consumidor e
+o D8 acha a mesma classe duas vezes.
+
+O umbrella passa a declarar `compose.resources { generateResClass = never }` — o mecanismo oficial
+do plugin para um módulo sem recurso próprio. **Nada muda para o consumidor:** o `Res` do umbrella
+era `internal` e vazio; quem usa recurso da lib já importa o do `:kmplib-ui`.
+
+Provado com `:composeApp:assembleDebug` do Piadaria: falhava em `mergeLibDexDebug`, agora sobe.
+
 ## 2.166.0 — o "X" do intersticial ganhou id, e a captura de loja deixou de fotografar anúncio
 
 ### `AdsTestTags.BTN_FECHAR_INTERSTITIAL`
