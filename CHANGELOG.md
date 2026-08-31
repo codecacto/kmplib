@@ -1,5 +1,29 @@
 # Changelog — kmplib
 
+## 2.172.0 — `BannerSize.SQUARE`, o terceiro tamanho, e a queda para o menor
+
+### Banner quadrado (1:1)
+
+Depois do grande, o pedido foi um **ainda maior**, para tela que sobra espaço — a "Sobre" de um app
+deixa quase meia tela livre. No celular o banner ocupa a largura inteira, então "subir até ficar
+quadrado" é literalmente **1:1**: numa tela de 360 dp, 360 dp de altura. Arte de **1440×1440**.
+
+```kotlin
+ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.SQUARE)
+```
+
+**Não** use numa tela de leitura contínua — ali ele come metade do conteúdo. O lugar dele é onde já
+havia vazio: "Sobre", estado vazio, fim de fluxo.
+
+### A queda agora é uma cadeia, e só desce
+
+`SQUARE → LARGE → STANDARD`, `LARGE → STANDARD`. Descer é seguro porque a caixa segue a proporção da
+arte que veio: sai um banner mais baixo, inteiro. **Subir seria pedir uma peça mais alta do que o
+app reservou na tela** — por isso a cadeia nunca sobe.
+
+Requer apps-api com `banner_square` (migração `V46__banner_quadrado.sql`) e o Nexus com os dois
+slots novos.
+
 ## 2.171.0 — o banner sai de trás da barra de gestos, e para de sumir por falta de UMA variante
 
 Dois acertos no house ad do rodapé, os dois vindos de encaixar a coisa de verdade no aparelho.

@@ -19,6 +19,12 @@ object AdDefaults {
 
     /** Idem, para o banner grande. */
     val BANNER_LARGE_HEIGHT: Dp = 180.dp
+
+    /**
+     * Idem, para o quadrado. Só existe para quem fixa altura por layout — no default, 1:1 significa
+     * "a largura da tela", e é isso que a proporção entrega em qualquer aparelho.
+     */
+    val BANNER_SQUARE_HEIGHT: Dp = 360.dp
 }
 
 /**
@@ -42,7 +48,14 @@ enum class BannerSize(
     STANDARD(CustomAd.FORMAT_BANNER, 6f, AdDefaults.BANNER_HEIGHT),
 
     /** Faixa 3:1 (arte 1440×480) — o dobro da altura relativa. */
-    LARGE(CustomAd.FORMAT_BANNER_LARGE, 3f, AdDefaults.BANNER_LARGE_HEIGHT);
+    LARGE(CustomAd.FORMAT_BANNER_LARGE, 3f, AdDefaults.BANNER_LARGE_HEIGHT),
+
+    /**
+     * **1:1** (arte 1440×1440) — o maior. Ocupa a largura da tela em altura, então só cabe onde
+     * sobra espaço de verdade: uma tela "Sobre", um estado vazio, o fim de um fluxo. **Não** use
+     * numa tela de leitura contínua: aí ele come metade do conteúdo.
+     */
+    SQUARE(CustomAd.FORMAT_BANNER_SQUARE, 1f, AdDefaults.BANNER_SQUARE_HEIGHT);
 
     companion object {
         /**
@@ -57,5 +70,17 @@ enum class BannerSize(
          */
         fun aspectRatioOf(format: String, fallback: BannerSize): Float =
             entries.firstOrNull { it.format == format }?.aspectRatio ?: fallback.aspectRatio
+
+        /**
+         * Formatos a tentar, do pedido para o menor — **nunca para o maior**.
+         *
+         * Descer é seguro: a caixa segue a proporção da arte que veio, então o resultado é um
+         * banner mais baixo, inteiro. Subir seria pedir uma peça mais alta do que o app reservou.
+         */
+        internal fun fallbackChain(size: BannerSize): List<String> = when (size) {
+            SQUARE -> listOf(SQUARE.format, LARGE.format, STANDARD.format)
+            LARGE -> listOf(LARGE.format, STANDARD.format)
+            STANDARD -> listOf(STANDARD.format)
+        }
     }
 }

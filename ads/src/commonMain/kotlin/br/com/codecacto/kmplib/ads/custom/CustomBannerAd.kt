@@ -55,8 +55,7 @@ fun CustomBannerAd(
     // esticar a arte errada; com a caixa acompanhando a arte, o motivo deixou de existir — e um app
     // cuja única receita é o house ad não pode deixar de exibir por falta de UMA variante.
     val ad = remember(ads, size) {
-        selectAd(ads, format = size.format)
-            ?: selectAd(ads, format = CustomAd.FORMAT_BANNER)
+        BannerSize.fallbackChain(size).firstNotNullOfOrNull { fmt -> selectAd(ads, format = fmt) }
     }
 
     if (ad == null) {

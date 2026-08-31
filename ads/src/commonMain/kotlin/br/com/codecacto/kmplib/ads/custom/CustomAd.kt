@@ -59,6 +59,13 @@ data class CustomAd(
          * banner**, em vez de cair na 6:1.
          */
         const val FORMAT_BANNER_LARGE = "banner_large"
+
+        /**
+         * Banner QUADRADO — **1:1** (arte 1440×1440 no app), para tela com espaço sobrando: a
+         * "Sobre" de um app costuma deixar quase meia tela livre. No celular o banner ocupa a
+         * largura inteira, então 1:1 é literalmente a largura da tela de altura.
+         */
+        const val FORMAT_BANNER_SQUARE = "banner_square"
         const val FORMAT_INTERSTITIAL = "interstitial"
 
         /** Default da contagem regressiva do interstitial TIMED quando nao configurado. */
