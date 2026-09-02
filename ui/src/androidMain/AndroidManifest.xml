@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      As duas Activities de vídeo MIGRARAM do módulo umbrella (`library`) em 2.175.0, junto com o
+      `kmplib_video_styles.xml`. As classes sempre moraram AQUI, no `kmplib-ui`
+      (`ui.components.video`), mas a declaração estava no umbrella — e app que consome o módulo
+      granular (a maioria) chamava `VideoLauncher` e recebia ActivityNotFoundException em runtime,
+      com o build verde. Ver o cabeçalho do manifesto do `kmplib-platform`.
+    -->
+
+    <application>
+        <!--
+          A tela de vídeo (`VideoLauncher`/`KmplibVideoActivity`).
+
+          Declarada pela LIB, e não por cada app: player embutido no Compose não funciona (pisca,
+          fica preto, o áudio toca por baixo), então o vídeo precisa da própria janela do sistema —
+          e uma Activity que o consumidor tem de lembrar de declarar é uma que alguém vai esquecer,
+          com falha só em runtime.
+
+          `configChanges` cobre giro e teclado: recriar a Activity recomeçaria o vídeo do zero.
+        -->
+        <activity
+            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
+        <!--
+          A MESMA tela, na janela COMPACTA (2.136.0): translúcida, com o player em 16:9 no meio e a
+          tela de onde a pessoa veio visível por trás.
+
+          Ela existe como segunda Activity só por causa do `android:theme`. Não dava para ligar a
+          translucidez por um extra do Intent: o sistema resolve isso ao criar a janela, antes do
+          `onCreate` — ligada depois, a janela sai opaca e o modo compacto vira o cheio com bordas.
+
+          `windowSoftInputMode` não entra aqui: não há campo nenhum nesta tela.
+        -->
+        <activity
+            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoCompactActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:theme="@style/KmplibVideoCompactTheme" />
+    </application>
+
+</manifest>

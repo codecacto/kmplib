@@ -2,137 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      RECEIVE_BOOT_COMPLETED (2.99.0) — sobrevivência dos lembretes locais a um reboot.
+      VAZIO de propósito desde 2.175.0.
 
-      O AlarmManager do Android PERDE todos os alarmes quando o aparelho reinicia. Sem este
-      receiver, qualquer lembrete agendado pela kmplib (dose de medicação, versículo diário,
-      lembrete de tarefa) morria em silêncio no boot e só voltava se o usuário abrisse o app.
+      Tudo o que estava aqui — o FileProvider, os três receivers, a permissão RECEIVE_BOOT_COMPLETED
+      e as duas Activities de vídeo — passou para o módulo que contém a classe correspondente:
+      `kmplib-platform` (provider e receivers) e `kmplib-ui` (vídeo).
 
-      A permissão é de nível "normal": não gera prompt para o usuário, não exige declaração de
-      política na Play e não tem impacto de privacidade. Declará-la AQUI, e não em cada app, é o
-      ponto: assim todo consumidor herda a correção só bumpando a versão.
+      O motivo: este é o umbrella, e ele faz `api(project(...))` de todos os módulos. Declarar aqui
+      só entregava o manifesto a quem consome a coordenada `br.com.codecacto:kmplib` — e os apps
+      consomem os módulos granulares. Para eles, câmera, compartilhamento, notificação agendada e
+      tela de vídeo falhavam em RUNTIME, sem nenhum sinal no build. O umbrella continua recebendo
+      tudo, agora por herança das dependências.
 
-      NÃO declaramos SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM de propósito. Elas são de uso restrito
-      (a Play cobra justificativa de política e pode reprovar quem não se enquadra), e impô-las a
-      TODO app da lib — inclusive os que nem agendam nada — seria transferir um risco de revisão de
-      loja para quem não pediu. O app que precisa de alarme exato declara a sua; a lib detecta a
-      ausência (NotificationScheduler.canScheduleExactAlarms) e degrada para alarme inexato.
+      Elemento novo de manifesto vai para o módulo dono da classe. Nunca para cá.
     -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!--
-      FileProvider da kmplib (correção de bug — ShareHandler.shareFile).
-
-      O AndroidShareHandler grava o arquivo em context.cacheDir/shared_files e
-      resolve a URI via FileProvider.getUriForFile(context,
-      "${context.packageName}.fileprovider", file). Sem este <provider>
-      declarado, getUriForFile lança IllegalArgumentException em runtime e TODO
-      compartilhamento de arquivo no Android falha silenciosamente.
-
-      A authority usa o placeholder ${applicationId} para que, ao ser mesclado
-      no manifesto de cada app consumidor, bata exatamente com
-      "${context.packageName}.fileprovider" (packageName == applicationId).
-
-      O recurso é prefixado (kmplib_file_paths) para evitar colisão de nome com
-      um file_paths.xml que o app por acaso já tenha.
-
-      AVISO de colisão: se um app consumidor já declarar seu PRÓPRIO FileProvider
-      com a authority "${applicationId}.fileprovider", o manifest merger acusará
-      conflito de provider duplicado. Nesse caso o app deve remover o provider
-      próprio (passou a ser provido pela kmplib) ou usar tools:replace. Esta é a
-      authority que o ShareHandler já usava — não é introdução nova.
-    -->
-    <application>
-        <!--
-          A tela de vídeo (`VideoLauncher`/`KmplibVideoActivity`).
-
-          Declarada pela LIB, e não por cada app: player embutido no Compose não funciona (pisca,
-          fica preto, o áudio toca por baixo), então o vídeo precisa da própria janela do sistema —
-          e uma Activity que o consumidor tem de lembrar de declarar é uma que alguém vai esquecer,
-          com falha só em runtime.
-
-          `configChanges` cobre giro e teclado: recriar a Activity recomeçaria o vídeo do zero.
-        -->
-        <activity
-            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
-
-        <!--
-          A MESMA tela, na janela COMPACTA (2.136.0): translúcida, com o player em 16:9 no meio e a
-          tela de onde a pessoa veio visível por trás.
-
-          Ela existe como segunda Activity só por causa do `android:theme`. Não dava para ligar a
-          translucidez por um extra do Intent: o sistema resolve isso ao criar a janela, antes do
-          `onCreate` — ligada depois, a janela sai opaca e o modo compacto vira o cheio com bordas.
-
-          `windowSoftInputMode` não entra aqui: não há campo nenhum nesta tela.
-        -->
-        <activity
-            android:name="br.com.codecacto.kmplib.ui.components.video.KmplibVideoCompactActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
-            android:theme="@style/KmplibVideoCompactTheme" />
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/kmplib_file_paths" />
-        </provider>
-
-        <!--
-          Receiver que EXIBE a notificação agendada (alarme → notificação).
-
-          Passou a ser declarado pela própria lib na 2.99.0. Antes, cada app consumidor tinha de
-          lembrar de declará-lo à mão — e quem esquecesse tinha agendamento que nunca aparecia, sem
-          erro nenhum no build. A declaração é idêntica à que os apps já usam
-          (android:exported="false"), então o manifest merger mescla sem conflito com quem já a tem.
-        -->
-        <receiver
-            android:name="br.com.codecacto.kmplib.platform.NotificationReceiver"
-            android:exported="false" />
-
-        <!--
-          Receiver dos BOTÕES da notificação (2.100.0) — "Marcar como tomada", "Adiar 30 min".
-
-          exported="false" é o certo aqui, ao contrário do BootCompletedReceiver: quem dispara é o
-          PendingIntent que a própria lib criou, e o sistema o entrega mesmo a um receiver não
-          exportado. Nenhum outro app pode forjar uma ação.
-
-          É um BroadcastReceiver de propósito: o valor da ação está em NÃO abrir o app. Uma Activity
-          abriria a tela; um Service exigiria foreground service no Android 12+ (com notificação
-          própria — o oposto do pretendido). O broadcast sobe o processo quando o app está morto,
-          roda Application.onCreate() e só então entrega o evento ao handler registrado em
-          NotificationActions.setHandler(...).
-        -->
-        <receiver
-            android:name="br.com.codecacto.kmplib.platform.NotificationActionReceiver"
-            android:exported="false" />
-
-        <!--
-          Restaura os lembretes depois do boot e da atualização do app.
-
-          exported="true" é OBRIGATÓRIO aqui: quem envia o broadcast é o sistema operacional, e um
-          receiver não exportado nunca o receberia. Não há risco de superfície: BOOT_COMPLETED e
-          MY_PACKAGE_REPLACED são broadcasts PROTEGIDOS (só o SO pode emiti-los), e o onReceive só
-          relê o próprio registro da lib — não aceita dado nenhum do Intent.
-        -->
-        <receiver
-            android:name="br.com.codecacto.kmplib.platform.BootCompletedReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-    </application>
 
 </manifest>

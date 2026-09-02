@@ -1,5 +1,54 @@
 # Changelog — kmplib
 
+## 2.175.0 — o manifesto morava no umbrella, e quase ninguém consome o umbrella
+
+Todo o `AndroidManifest.xml` da lib estava no módulo **umbrella** (`library`, a coordenada
+`br.com.codecacto:kmplib`), que faz `api(project(...))` dos vinte módulos. Só que os apps **não
+consomem o umbrella** — eles pedem os módulos granulares (`kmplib-ui`, `kmplib-core`,
+`kmplib-push`). Para esses, o manifesto **nunca chegava**, e o preço eram três falhas de runtime com
+build verde, lint limpo e nada no log de build:
+
+- **sem o `<provider>`**, `FileProvider.getUriForFile` lança `IllegalArgumentException`: a câmera do
+  `rememberImagePickerLauncher`, o `VideoPicker` e o `ShareHandler.shareFile` falham;
+- **sem `NotificationReceiver`/`NotificationActionReceiver`**, o alarme dispara e a notificação
+  nunca aparece — nem os botões de ação;
+- **sem `BootCompletedReceiver`** (e a permissão `RECEIVE_BOOT_COMPLETED`), todo lembrete agendado
+  morre no reboot, que é exatamente o que a 2.99.0 existia para consertar;
+- **sem as duas Activities de vídeo**, o `VideoLauncher` devolve `ActivityNotFoundException`.
+
+Cada elemento foi para o módulo que contém a **classe** ou faz a **chamada**:
+
+| Elemento | Ia para o consumidor só via | Agora mora em |
+|---|---|---|
+| `<provider>` FileProvider + `res/xml/kmplib_file_paths.xml` | `kmplib` (umbrella) | **`kmplib-platform`** |
+| `NotificationReceiver`, `NotificationActionReceiver`, `BootCompletedReceiver` | idem | **`kmplib-platform`** |
+| `uses-permission RECEIVE_BOOT_COMPLETED` | idem | **`kmplib-platform`** |
+| `KmplibVideoActivity`, `KmplibVideoCompactActivity` + `res/values/kmplib_video_styles.xml` | idem | **`kmplib-ui`** |
+
+O umbrella continua entregando tudo, agora por herança das dependências — quem consome
+`br.com.codecacto:kmplib` não perde nada e não precisa mudar linha nenhuma.
+
+**A regra que fica:** elemento de manifesto mora no módulo dono da classe, **nunca** no umbrella.
+
+### ⚠️ Se o app declara o PRÓPRIO FileProvider, o build passa a parar
+
+Quem já declarava um `<provider>` na authority `${applicationId}.fileprovider` (era o jeito antigo,
+antes de a lib passar a provê-lo) agora vê o manifest merger falhar:
+
+```
+Attribute meta-data#android.support.FILE_PROVIDER_PATHS@resource value=(@xml/file_paths)
+  is also present at [:kmplib:kmplib-platform] value=(@xml/kmplib_file_paths).
+  Suggestion: add tools:replace="android:resource" ...
+```
+
+**Não siga a sugestão do merger.** `tools:replace` faz o `file_paths.xml` do app **substituir** o da
+lib, e aí câmera (`cache/photos`), vídeo (`cache/videos`) e compartilhamento (`cache/shared_files`)
+passam a lançar `IllegalArgumentException` em runtime — o conflito some do build e reaparece na mão
+do usuário.
+
+O certo é o app **remover o provider dele** e gravar dentro de um dos caminhos que a lib já expõe
+(`cacheDir/photos` para foto de câmera). Feito assim no FX Investimentos.
+
 ## 2.174.0 — o radar dizia a forma e escondia a grandeza
 
 `RadarChart` ganhou `mostrarEscala` (default `false`): o valor de cada anel da grade, escrito subindo
