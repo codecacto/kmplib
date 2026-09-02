@@ -1,5 +1,28 @@
 # Changelog — kmplib
 
+## 2.174.0 — o radar dizia a forma e escondia a grandeza
+
+`RadarChart` ganhou `mostrarEscala` (default `false`): o valor de cada anel da grade, escrito subindo
+do centro pelo eixo vertical.
+
+Sem ele o polígono comunica **forma e proporção**, nunca **grandeza** — dois radares idênticos podem
+ser 3,5 numa escala de 5 e 7 numa de 10, e nada na figura separa os dois. Fica no eixo de cima, e não
+espalhado pelos anéis, porque o polígono cobre a área: uma coluna curta de números, sempre no mesmo
+lugar, é lida sem competir com o desenho.
+
+**O rótulo do anel virou função pura testada** (`rotuloDoAnel`), e ela tem uma decisão dentro:
+escala longa (100) sai inteira, escala curta (5) ganha uma casa. Com 4 anéis numa escala de 5 cada
+anel vale 1,25, e imprimir inteiro daria "1, 3, 4, 5" — uma progressão que mente sobre onde as
+linhas da grade estão. **Meia casa arredonda para cima, explicitamente:** `kotlin.math.round` empata
+para o par (1,25 → 1,2), que é o correto em estatística e o inesperado num rótulo de escala; e com
+escala curta o empate não é caso de borda, é metade dos anéis.
+
+Default `false` porque em miniatura os números competem com o desenho — quem sabe o tamanho da caixa
+é o consumidor. Nenhum app existente muda.
+
+Par do `showScale` da weblib 0.155.0. Pedido do parceiro do NeuroCoreX na auditoria do ICTC:
+escala numérica no radar, no relatório **e** nas telas.
+
 ## 2.173.0 — "Feedback" e "Desenvolvido por" ganham rodapé, e com ele o banner
 
 Duas telas que existem em praticamente **todo** app da fábrica (a constituição manda: "Desenvolvido

@@ -85,6 +85,11 @@ data class RadarSeries(
  * @param eixos rótulos dos vértices (mínimo 3 — com 2 não há área, e o desenho vira uma linha).
  * @param series 1 ou 2 séries; a partir da terceira, as demais são ignoradas.
  * @param maximo topo da escala. 100 para percentual, 5 para a escala Likert crua.
+ * @param mostrarEscala imprime o valor de cada anel da grade, subindo do centro pelo eixo
+ *   vertical. Sem ele o polígono comunica **forma e proporção**, nunca **grandeza**: dois radares
+ *   idênticos podem ser 3,5 numa escala de 5 e 7 numa de 10, e nada na figura separa os dois.
+ *   Default `false` porque em miniatura os números competem com o desenho — quem sabe o tamanho da
+ *   caixa é o consumidor.
  * @param tamanhoMaximo lado máximo do quadrado do gráfico (GAP-NCX-T-03).
  * @param emptyMessage exibido quando não há eixos suficientes ou nenhuma série.
  */
@@ -96,6 +101,7 @@ fun RadarChart(
     maximo: Double = 100.0,
     aneisDaGrade: Int = 4,
     mostrarLegenda: Boolean = true,
+    mostrarEscala: Boolean = false,
     // O desenho é `fillMaxWidth().aspectRatio(1f)`: sem teto, um painel de 888dp vira um quadrado de
     // 888 × 888dp — MAIS ALTO que a tela de um tablet em paisagem (800dp). O gráfico não cabe na
     // própria tela e a legenda nasce fora dela. Em qualquer telefone a largura já é menor que 420dp,
@@ -155,6 +161,18 @@ fun RadarChart(
                 desenharSerie(serie.valores, maximo, raio, centroX, centroY, cores[i])
             }
 
+            if (mostrarEscala) {
+                desenharEscala(
+                    aneis = aneisDaGrade,
+                    maximo = maximo,
+                    raio = raio,
+                    centroX = centroX,
+                    centroY = centroY,
+                    medidor = medidor,
+                    estilo = estiloDoRotulo,
+                )
+            }
+
             desenharRotulos(eixos, raio, centroX, centroY, medidor, estiloDoRotulo, compacto)
         }
 
@@ -185,6 +203,55 @@ fun RadarChart(
                 }
             }
         }
+    }
+}
+
+/**
+ * O valor de cada anel, escrito subindo do centro pelo eixo vertical.
+ *
+ * Fica **no eixo de cima** e não espalhado pelos anéis porque o polígono cobre a área: uma coluna
+ * curta de números, sempre no mesmo lugar, é lida sem competir com o desenho. O anel de fora recebe
+ * o máximo; o centro não recebe nada (o zero da escala não informa e encosta no vértice de baixo).
+ */
+/**
+ * O texto de um anel da escala.
+ *
+ * **Escala longa (100) sai inteira; escala curta (5) ganha uma casa.** Com 4 anéis numa escala de 5,
+ * cada anel vale 1,25: arredondar para inteiro imprimiria "1, 2, 3, 5" — uma progressão que mente
+ * sobre onde as linhas estão. Numa escala de 100 o inteiro basta, e a casa decimal só polui.
+ *
+ * Vírgula, não ponto: o público é pt-BR e o resto do produto escreve "3,5".
+ */
+internal fun rotuloDoAnel(maximo: Double, fracao: Float): String {
+    val valor = maximo * fracao
+    if (maximo >= 10) return valor.toInt().toString()
+    // Meia casa arredonda para CIMA, e é explícito de propósito: `kotlin.math.round` empata para o
+    // par (1,25 → 1,2), que é o correto em estatística e o inesperado num rótulo de escala — a
+    // pessoa lê a régua, não uma média. Com 4 anéis numa escala de 5, o primeiro cai exatamente em
+    // 1,25, então o empate não é caso de borda: é metade das escalas curtas.
+    val umaCasa = kotlin.math.floor(valor * 10 + 0.5) / 10.0
+    return umaCasa.toString().replace('.', ',')
+}
+
+private fun DrawScope.desenharEscala(
+    aneis: Int,
+    maximo: Double,
+    raio: Float,
+    centroX: Float,
+    centroY: Float,
+    medidor: androidx.compose.ui.text.TextMeasurer,
+    estilo: TextStyle,
+) {
+    for (anel in 1..aneis) {
+        val fracao = anel.toFloat() / aneis
+        val medido = medidor.measure(rotuloDoAnel(maximo, fracao), estilo)
+        drawText(
+            textLayoutResult = medido,
+            topLeft = androidx.compose.ui.geometry.Offset(
+                x = centroX + 4f,
+                y = centroY - raio * fracao - medido.size.height / 2f,
+            ),
+        )
     }
 }
 

@@ -154,3 +154,30 @@ class RadarChartGeometryTest {
         assertEquals(AncoraDoRotulo.CENTRO, ancoraDoRotulo(PI / 2))
     }
 }
+
+class RotuloDoAnelTest {
+
+    @Test
+    fun `escala longa sai inteira`() {
+        // 100 com 4 anéis: 25, 50, 75, 100 — a casa decimal aqui só polui.
+        assertEquals("25", rotuloDoAnel(100.0, 0.25f))
+        assertEquals("50", rotuloDoAnel(100.0, 0.5f))
+        assertEquals("100", rotuloDoAnel(100.0, 1f))
+    }
+
+    @Test
+    fun `escala curta ganha uma casa, porque o anel cai em quebrado`() {
+        // 5 com 4 anéis: 1,25 · 2,5 · 3,75 · 5. Arredondar para inteiro imprimiria "1, 3, 4, 5" —
+        // uma progressão que mente sobre onde as linhas da grade estão.
+        assertEquals("1,3", rotuloDoAnel(5.0, 0.25f))
+        assertEquals("2,5", rotuloDoAnel(5.0, 0.5f))
+        assertEquals("3,8", rotuloDoAnel(5.0, 0.75f))
+        assertEquals("5,0", rotuloDoAnel(5.0, 1f))
+    }
+
+    @Test
+    fun `a virgula e decimal, nunca ponto`() {
+        assertTrue(rotuloDoAnel(5.0, 0.5f).contains(','))
+        assertTrue(!rotuloDoAnel(5.0, 0.5f).contains('.'))
+    }
+}
