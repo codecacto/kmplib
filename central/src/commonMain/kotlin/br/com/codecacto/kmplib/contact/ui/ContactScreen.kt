@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.contact.ContactService
+import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
 import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.validation.EmailValidator
@@ -68,6 +69,10 @@ import kotlinx.coroutines.launch
  * @param defaultName Nome pré-preenchido (ex.: usuário logado)
  * @param defaultEmail E-mail pré-preenchido (ex.: usuário logado)
  * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (ex.: telefone do perfil)
+ * @param bottomBar Rodapé fixo, opcional — o lugar do banner de house ad. Vai direto para o
+ *   `bottomBar` do `Scaffold` interno, e o conteúdo já desconta a altura dele (o botão de enviar
+ *   termina COLADO ao topo do rodapé, nunca por baixo). Vazio por default: quem não passa nada
+ *   continua exatamente como antes. A [DeveloperScreen] repassa o dela para cá.
  * @param onSent Callback opcional chamado após envio com sucesso
  */
 @Composable
@@ -79,6 +84,7 @@ fun ContactScreen(
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
+    bottomBar: @Composable () -> Unit = {},
     onSent: (() -> Unit)? = null,
 ) {
     var name by remember { mutableStateOf(defaultName.orEmpty()) }
@@ -97,11 +103,16 @@ fun ContactScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // A folga do rodapé entra AQUI, no contêiner, e não só no formulário: a tela de
+                // sucesso ("mensagem enviada") também é conteúdo, e sem isto o botão "Continuar"
+                // dela nascia por baixo do banner.
+                .padding(bottom = espacoAcimaDoRodape(paddingValues))
                 .background(backgroundColor)
         ) {
             // Header — o inset da status bar é aplicado UMA única vez aqui (antes havia padding
@@ -188,12 +199,7 @@ fun ContactScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            bottom = 16.dp + paddingValues.calculateBottomPadding(),
-                        ),
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Nome (obrigatório)

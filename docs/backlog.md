@@ -3,6 +3,60 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.173.0 — rodapé fixo (banner) na `FeedbackScreen` e na `DeveloperScreen` (01/set/2026)
+> Origem: reforma de layout dos 56 apps de `1-Apps-Offline-Ads` (`docs/28`). Este era o único gap da
+> lista **sem contorno local**: as duas telas montam `Scaffold` próprio, e do lado do app só restava
+> `Scaffold` aninhado (o de dentro ignora o de fora) ou copiar a tela para o projeto.
+
+- [x] **GAP-REF-M-06 — slot de `bottomBar` nas telas de Feedback e "Desenvolvido por".** As duas
+      existem em praticamente todo app da fábrica (regra da constituição), e num app cujo único
+      modelo de receita é house ad isso fechava **2 telas por app** — ~112 telas só na categoria
+      AdsOnly, por limitação da fundação. Entrou `bottomBar: @Composable () -> Unit = {}` nas TRÊS
+      telas (a `ContactScreen` junto, porque o "Entrar em contato" **substitui** a `DeveloperScreen`
+      e o banner sumiria ali — a `DeveloperScreen` repassa o dela). Aditivo, default vazio, e o
+      parâmetro entrou **antes** de `onFeedbackSent`/`onSent` para não roubar a posição de trailing
+      lambda dos ~110 arquivos que já chamam essas telas. A folga do conteúdo passou para o
+      **contêiner** (antes da rolagem) via `espacoAcimaDoRodape`, testada: o último item termina
+      colado ao topo do banner.
+
+### Aberto — a `casca-mobile` não traz house ad cablado em tela nenhuma
+- [ ] **GAP-CASCA-M-01 — `casca-mobile` sem `kmplib-ads`.** Ela tem `MonetizationMode.ADS_ONLY`, mas
+      não declara o módulo `kmplib-ads`, não inicializa o `AdRouter` e não desenha `ManagedBannerAd`
+      em lugar nenhum — todo app AdsOnly nascido dela precisa descobrir o caminho sozinho (e foi o
+      que aconteceu nos 56: cada um com o seu `HouseAdsBootstrap`/`HouseAdBar` copiado). Na 2.173.0
+      as duas rotas da casca ganharam só a **nota** de como passar o `bottomBar`; cablar de verdade
+      (dependência + bootstrap + banner nas telas) é decisão de arquitetura da casca, não desta
+      rodada. Candidato natural: promover o `HouseAdsBootstrap` duplicado nos 56 apps.
+
+### Registrado nesta rodada (01/set/2026) — origem: design da reforma de layout dos 56 apps de `1-Apps-Offline-Ads`
+> Nenhum bloqueia a reforma — todos têm contorno local dentro de `core/ui/<App>Design.kt` de cada
+> projeto. Origem: `docs/28-refor-layout-apps-adsonly-spec.md` (ux-designer) §"Gaps de lib".
+
+- [ ] **GAP-REF-M-01 — `AppGaugeDial` (medidor circular por zonas, com preenchimento/ponteiro).**
+      Hoje a lib tem `ProgressCounter` (linear "X de Y") e `RadarChart` (polígono) — nenhum dos dois
+      é um medidor circular tipo velocímetro para "valor calculado contra uma escala com zonas
+      coloridas". ≥3 consumidores identificados: Calculadora BTU (capacidade de BTU/h recomendada
+      por zona sub/adequado/superdimensionado), Tanque Cheio (km/l), Meu Pace (pace).
+- [ ] **GAP-REF-M-02 — `IconEmojiPickerField` (campo de escolha de emoji/ícone como identidade
+      visual de um item).** ≥6 consumidores identificados: Contai (cor+emoji do card), Meu Bar
+      (ícone do drink), Rega Certa (ícone/foto da planta), Minha Estante (capa do livro), Vou
+      Assistir (pôster/emoji), Não Esqueci (emoji/foto da pessoa), Vou Ganhar, Minha Gestação
+      (ilustração de fruta por semana — este último é conteúdo do projeto, não do picker). Candidato
+      forte a promoção pelo nº de consumidores.
+- [ ] **GAP-REF-M-03 — `MoonPhaseIcon` (ilustração da fase lunar).** A lib já calcula a fase via
+      `astro.MoonCalculator` (`namedPhaseOf`, `illuminationPercent`) mas não desenha — cada app
+      reimplementaria o círculo-com-sombra-proporcional-à-iluminação à mão. Par natural do módulo
+      `astro`. 2 consumidores: Lua Certa, Desparasite-se.
+- [ ] **GAP-REF-M-04 — `SwipeStack` (pilha de cards com swipe esquerda/direita, decisão binária por
+      item).** 1 consumidor concreto hoje (Nome de Bebê, modo "sim/não" a dois) — **registrar, não
+      promover** (regra de ≥2 consumidores). Contorno local: `Modifier.pointerInput` + `Animatable`
+      dentro do próprio app.
+- [ ] **GAP-REF-M-05 — `CelebrationOverlay`/`ConfettiBurst` (confete leve ao bater meta).** Par
+      visual do `Toast(style = ToastStyle.BANNER)` que já existe, mas para celebração em vez de
+      aviso. ≥4 consumidores: Minha Estante (meta anual de livros), Intervalado (treino concluído),
+      Anota Ai (vencedor da partida), Passatempo/Role Games (recorde/vitória), Ponto a Ponto (meta de
+      carreiras batida).
+
 ### ATENDIDO na 2.151.0 — os quatro gaps de TABLET (26/ago/2026)
 > Origem: `docs/design/tablet-spec.md` §E do **NeuroCoreX** (ux-designer). Nenhum dos quatro é
 > layout daquele produto: os quatro atingem **qualquer app da fábrica** num tablet, e os três

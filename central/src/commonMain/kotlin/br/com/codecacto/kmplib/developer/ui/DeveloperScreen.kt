@@ -57,6 +57,7 @@ import br.com.codecacto.kmplib.developer.resolveStoreUrl
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.codecacto_logo
 import br.com.codecacto.kmplib.platform.getUrlLauncher
+import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
 
@@ -88,6 +89,18 @@ private val WhatsAppGreen = Color(0xFF25D366)
  * @param defaultName Nome pré-preenchido no formulário de contato (ex.: usuário logado)
  * @param defaultEmail E-mail pré-preenchido no formulário de contato (ex.: usuário logado)
  * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (ex.: telefone do perfil)
+ * @param bottomBar Rodapé fixo, opcional — o lugar do banner de house ad. Vai direto para o
+ *   `bottomBar` do `Scaffold` interno, e o conteúdo já desconta a altura dele (o último card de app
+ *   termina COLADO ao topo do rodapé, nunca por baixo). Vazio por default: quem não passa nada
+ *   continua exatamente como antes. O mesmo rodapé segue para a [ContactScreen] aberta pelo botão
+ *   "Entrar em contato" — ela SUBSTITUI esta tela, e sem repassar o banner sumiria ali.
+ *
+ *   ```kotlin
+ *   DeveloperScreen(
+ *       onBack = { navController.popBackStack() },
+ *       bottomBar = { ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.STANDARD) },
+ *   )
+ *   ```
  */
 @Composable
 fun DeveloperScreen(
@@ -99,6 +112,7 @@ fun DeveloperScreen(
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     var contact by remember { mutableStateOf(DeveloperContact()) }
     var apps by remember { mutableStateOf<List<DeveloperApp>>(emptyList()) }
@@ -121,14 +135,18 @@ fun DeveloperScreen(
             defaultName = defaultName,
             defaultEmail = defaultEmail,
             defaultWhatsapp = defaultWhatsapp,
+            bottomBar = bottomBar,
         )
         return
     }
 
-    Scaffold { paddingValues ->
+    Scaffold(bottomBar = bottomBar) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // A folga do rodapé entra AQUI, no contêiner, e não como padding interno da rolagem:
+                // assim a área rolável termina no topo do banner em vez de passar por baixo dele.
+                .padding(bottom = espacoAcimaDoRodape(paddingValues))
                 .background(backgroundColor)
         ) {
             // Header — vai até o topo (atrás da status bar); o inset entra como padding interno,
@@ -171,8 +189,7 @@ fun DeveloperScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-                    .padding(bottom = paddingValues.calculateBottomPadding()),
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {

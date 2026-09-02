@@ -1,5 +1,56 @@
 # Changelog — kmplib
 
+## 2.173.0 — "Feedback" e "Desenvolvido por" ganham rodapé, e com ele o banner
+
+Duas telas que existem em praticamente **todo** app da fábrica (a constituição manda: "Desenvolvido
+por CodeCacto" + Contato em todo produto) montavam `Scaffold` próprio e **não ofereciam onde pôr o
+banner**. Num app cujo único modelo de receita é house ad, isso fechava **2 telas por app** — só na
+categoria AdsOnly, ~112 telas sem anúncio por limitação da fundação, não por decisão de produto.
+
+E não havia saída do lado do app: embrulhar a tela num `Scaffold` externo dá dois `Scaffold`
+aninhados (o de dentro ignora o de fora e o conteúdo passa por baixo do rodapé), e copiar a tela
+para o projeto joga fora a razão de ela morar na lib.
+
+### O slot
+
+`FeedbackScreen`, `DeveloperScreen` e `ContactScreen` passam a aceitar
+
+```kotlin
+bottomBar: @Composable () -> Unit = {}
+```
+
+repassado direto ao `Scaffold` interno:
+
+```kotlin
+FeedbackScreen(
+    onBack = { navController.popBackStack() },
+    bottomBar = { ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.STANDARD) },
+)
+```
+
+**Aditivo, com default vazio, e o parâmetro entrou ANTES dos callbacks finais**
+(`onFeedbackSent`/`onSent`) justamente para não roubar a posição de trailing lambda de quem já
+chama. Os ~110 arquivos que hoje abrem essas telas no monorepo continuam compilando sem tocar em
+nada.
+
+### O `ContactScreen` recebe o rodapé da `DeveloperScreen`
+
+O botão "Entrar em contato" **substitui** a tela inteira pelo formulário — sem repassar, o banner
+sumia justamente ali. A `DeveloperScreen` repassa o seu `bottomBar` para ela.
+
+### O conteúdo termina COLADO no topo do rodapé
+
+O `Scaffold` desenha o `bottomBar` por cima da área de conteúdo: quem chama `fillMaxSize()` sem
+consumir o `innerPadding` termina com o último item metade escondido atrás do banner. A altura da
+barra **já vem** no `innerPadding`; a folga agora entra no **contêiner** das três telas (antes da
+rolagem), e não como padding interno do scroll — a área rolável para no topo do banner em vez de
+passar por baixo dele. A regra virou uma função só, `espacoAcimaDoRodape`, testada: ela **soma** com
+o padding de leitura da tela, nunca substitui.
+
+Dois defeitos menores caíram junto: a tela de sucesso do `ContactScreen` ("mensagem enviada") não
+descontava rodapé nenhum — só o formulário descontava —, e o `DeveloperScreen` descontava por
+dentro da rolagem.
+
 ## 2.172.0 — `BannerSize.SQUARE`, o terceiro tamanho, e a queda para o menor
 
 ### Banner quadrado (1:1)

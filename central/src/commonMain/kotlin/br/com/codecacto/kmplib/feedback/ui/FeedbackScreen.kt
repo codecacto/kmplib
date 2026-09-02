@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.feedback.FeedbackMotivo
 import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
+import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
 import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.validation.EmailValidator
@@ -60,6 +61,17 @@ import kotlinx.coroutines.launch
  * @param defaultName Nome pré-preenchido (opcional; ex.: nome do usuário logado)
  * @param defaultEmail E-mail pré-preenchido (opcional; ex.: e-mail do usuário logado)
  * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (opcional; ex.: telefone do perfil)
+ * @param bottomBar Rodapé fixo, opcional — o lugar do banner de house ad. Vai direto para o
+ *   `bottomBar` do `Scaffold` interno, e o conteúdo já desconta a altura dele (o último campo
+ *   termina COLADO ao topo do rodapé, nunca por baixo). Vazio por default: quem não passa nada
+ *   continua exatamente como antes.
+ *
+ *   ```kotlin
+ *   FeedbackScreen(
+ *       onBack = { navController.popBackStack() },
+ *       bottomBar = { ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.STANDARD) },
+ *   )
+ *   ```
  * @param onFeedbackSent Callback opcional chamado após envio com sucesso
  */
 @Composable
@@ -72,6 +84,7 @@ fun FeedbackScreen(
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
+    bottomBar: @Composable () -> Unit = {},
     onFeedbackSent: (() -> Unit)? = null
 ) {
     var selectedMotivo by remember { mutableStateOf<FeedbackMotivo?>(null) }
@@ -117,12 +130,13 @@ fun FeedbackScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = bottomBar,
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = paddingValues.calculateBottomPadding())
+                .padding(bottom = espacoAcimaDoRodape(paddingValues))
                 .background(backgroundColor),
             // O FUNDO vai de borda a borda (é este Column que o pinta); quem ganha teto é o
             // conteúdo abaixo. Centralizar aqui é o que impede o formulário limitado de ficar
