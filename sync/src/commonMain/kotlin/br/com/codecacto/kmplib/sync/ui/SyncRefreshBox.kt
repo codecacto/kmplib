@@ -1,3 +1,16 @@
+// ⚠️ O NOME DESTE ARQUIVO É PARTE DO CONTRATO.
+//
+// Ele declara `package br.com.codecacto.kmplib.ui.components`, o mesmo do `RefreshableBox.kt` do
+// `:kmplib-ui`. Kotlin gera a classe-fachada a partir do NOME DO ARQUIVO, então dois arquivos
+// homônimos no mesmo package — ainda que em módulos diferentes — produzem duas
+// `ui/components/RefreshableBoxKt.class`. No umbrella, que traz `:kmplib-ui` e `:kmplib-sync`
+// juntos, uma esconde a outra: o app compila e reclama de `Unresolved reference 'RefreshableBox'`
+// apontando para as PRÓPRIAS telas, sem uma palavra sobre colisão. Foi o que aconteceu entre
+// 2.176.0 e 2.177.0, em 13 arquivos do NeuroCoreX de uma vez.
+//
+// Enquanto o package for compartilhado, o nome do arquivo precisa ser único. Se um dia for preciso
+// renomear a função daqui, renomeie o arquivo junto.
+
 package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.layout.BoxScope

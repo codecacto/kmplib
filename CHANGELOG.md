@@ -1,5 +1,23 @@
 # Changelog — kmplib
 
+## 2.177.0 — dois arquivos com o mesmo nome no mesmo package, e o app não acha o componente
+
+`RefreshableBox` saiu do `:kmplib-sync` para o `:kmplib-ui` na 2.176.0, mas o arquivo antigo ficou
+lá com o **mesmo nome** e o **mesmo package** (`ui.components`), agora contendo `SyncRefreshBox`.
+
+Kotlin gera a classe-fachada a partir do NOME DO ARQUIVO. Dois `RefreshableBox.kt` no mesmo package,
+ainda que em módulos diferentes, produzem duas `br/com/codecacto/kmplib/ui/components/RefreshableBoxKt.class`
+— e o umbrella traz os dois módulos juntos. No classpath do app uma esconde a outra, e o que aparece
+é `Unresolved reference 'RefreshableBox'` **apontando para as telas do app**, sem uma palavra sobre
+colisão. No NeuroCoreX foram 13 arquivos de uma vez, todos "errados" sem terem mudado.
+
+O arquivo do `:kmplib-sync` passa a se chamar `SyncRefreshBox.kt`, como a função que ele declara.
+Nada de API muda: `RefreshableBox` e `SyncRefreshBox` continuam onde estavam, com as mesmas
+assinaturas. Quem consome não precisa fazer nada.
+
+**Para quem for mexer:** enquanto os dois módulos compartilharem o package `ui.components`, o nome do
+arquivo é parte do contrato. Renomear a função sem renomear o arquivo traz a colisão de volta.
+
 ## 2.176.0 — puxar para atualizar não devia custar o SQLDelight inteiro
 
 `RefreshableBox` — o pull-to-refresh que **toda lista do ecossistema** usa — estava declarado no
