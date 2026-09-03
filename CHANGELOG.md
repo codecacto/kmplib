@@ -1,5 +1,27 @@
 # Changelog — kmplib
 
+## 2.176.0 — puxar para atualizar não devia custar o SQLDelight inteiro
+
+`RefreshableBox` — o pull-to-refresh que **toda lista do ecossistema** usa — estava declarado no
+package `br.com.codecacto.kmplib.ui.components`, mas o **arquivo** morava no módulo `kmplib-sync`.
+O package dizia uma coisa, o Gradle dizia outra, e quem pagava era o app que não sincroniza: para
+ter o gesto de puxar a lista, ele precisava declarar `kmplib-sync` e arrastar junto o SQLDelight, a
+outbox e o motor de sincronização de que não usa nada.
+
+Apareceu no bootstrap do **Backhand** (arquétipo B *online-only*, sem cache local — o dado de
+negócio vive só no banco central). Ao declarar apenas os módulos que usa, o app deixou de compilar
+por `Unresolved reference 'RefreshableBox'` — um componente de UI puro, sem uma linha de
+sincronização dentro.
+
+O arquivo foi para **`kmplib-ui`**, junto com `RefreshAction` e `resolveRefreshAction`.
+`SyncRefreshBox` **fica no `sync`**, e ali é o lugar certo: ele depende do `RestCrudSyncEngine` para
+drenar a outbox antes de reconciliar.
+
+**Ninguém precisa mudar nada.** O package é o mesmo (nenhum import muda) e `kmplib-sync` já declara
+`api(project(":kmplib-ui"))`, então quem hoje chega ao símbolo pelo módulo de sync continua
+chegando. É aditivo para todos os consumidores — Minha Arena, Diária Certa e os demais seguem
+compilando sem toque.
+
 ## 2.175.0 — o manifesto morava no umbrella, e quase ninguém consome o umbrella
 
 Todo o `AndroidManifest.xml` da lib estava no módulo **umbrella** (`library`, a coordenada
