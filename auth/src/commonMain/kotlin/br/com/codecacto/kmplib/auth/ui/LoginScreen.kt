@@ -26,6 +26,8 @@ import br.com.codecacto.kmplib.ui.components.*
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import br.com.codecacto.kmplib.ui.screens.LoginColors
+import br.com.codecacto.kmplib.auth.SocialProvider
+import br.com.codecacto.kmplib.auth.social.disponivelNestaPlataforma
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
 import br.com.codecacto.kmplib.validation.EmailValidator
 
@@ -346,8 +348,11 @@ fun LoginScreen(
                         )
                     }
 
-                    // Apple Login
-                    if (authMethods.apple) {
+                    // Apple Login — só onde a Apple EXISTE. `authMethods.apple` diz que o produto
+                    // oferece a Apple; `disponivelNestaPlataforma` diz onde ela funciona. No Android
+                    // não há Sign in with Apple (ver `AppleAuthProvider`), e o botão ali só saberia
+                    // dar erro.
+                    if (authMethods.apple && SocialProvider.APPLE.disponivelNestaPlataforma) {
                         AppleLoginButton(
                             modifier = Modifier.testTag(LoginTestTags.BOTAO_APPLE),
                             text = texts.appleLogin(),

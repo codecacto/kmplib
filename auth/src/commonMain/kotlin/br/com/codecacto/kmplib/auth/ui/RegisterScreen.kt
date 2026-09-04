@@ -31,6 +31,8 @@ import br.com.codecacto.kmplib.ui.components.*
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import br.com.codecacto.kmplib.ui.screens.LoginColors
+import br.com.codecacto.kmplib.auth.SocialProvider
+import br.com.codecacto.kmplib.auth.social.disponivelNestaPlataforma
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
 
 /**
@@ -396,8 +398,8 @@ fun RegisterScreen(
                         )
                     }
 
-                    // Apple Register
-                    if (authMethods.apple) {
+                    // Apple Register — só onde a Apple EXISTE (ver a nota igual na `LoginScreen`).
+                    if (authMethods.apple && SocialProvider.APPLE.disponivelNestaPlataforma) {
                         AppleLoginButton(
                             text = texts.appleRegister(),
                             onClick = { onAction(RegisterAction.Click.AppleRegister) },

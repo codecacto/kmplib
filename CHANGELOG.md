@@ -1,5 +1,34 @@
 # Changelog — kmplib
 
+## 2.178.0 — o botão da Apple não aparece mais no Android
+
+`Sign in with Apple` não existe no Android desde sempre (`AppleAuthProvider.android.kt` devolve erro
+explícito), mas a regra de *não desenhar o botão* vivia só em KDoc: "o app esconde o botão no
+Android". Pedir isso a cada tela de login do portfólio é pedir que 50 telas lembrem da mesma coisa —
+e a primeira que esquecer entrega ao usuário de Android um botão que **só sabe dar erro**. Foi o que
+aconteceu no Backhand, numa tela de login própria (protótipo): "Continuar com Apple" desenhado num
+aparelho Android, com build verde, lint limpo e nenhum teste vermelho.
+
+A regra passa a morar na lib, num lugar só:
+
+- **`provedoresSociaisDaPlataforma`** — `{GOOGLE}` no Android, `{GOOGLE, APPLE}` no iOS.
+- **`SocialProvider.disponivelNestaPlataforma`** — o atalho para a tela própria:
+  `if (SocialProvider.APPLE.disponivelNestaPlataforma) { BotaoDaApple() }`.
+- **`provedoresSociaisPara(plataforma)`** — a mesma regra como função pura, para o teste não
+  depender do alvo em que roda.
+
+**`LoginScreen` e `RegisterScreen` já aplicam sozinhas**: `AuthMethods(apple = true)` passou a
+significar "ofereça a Apple **onde ela existe**", e não "desenhe o botão sempre". Quem usa as telas
+prontas não precisa fazer nada — no Android o botão simplesmente deixa de ser desenhado, e no iOS
+nada muda.
+
+**Tela própria (projeto com protótipo) precisa consultar a constante** — é justamente ela que a lib
+não alcança.
+
+O modo `BACKEND` não abre exceção: negociar pelo navegador funcionaria no Android, mas o padrão de
+mercado (e da fábrica) é não oferecer Apple ali, e um botão a mais custaria Services ID, domínio
+verificado e chave `.p8` para atender ninguém. Projeto que precise pede nominalmente.
+
 ## 2.177.0 — dois arquivos com o mesmo nome no mesmo package, e o app não acha o componente
 
 `RefreshableBox` saiu do `:kmplib-sync` para o `:kmplib-ui` na 2.176.0, mas o arquivo antigo ficou
