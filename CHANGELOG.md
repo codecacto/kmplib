@@ -1,5 +1,16 @@
 # Changelog — kmplib
 
+## 2.179.0 — o ícone do WhatsApp mora aqui
+
+Todo produto da fábrica tem botão de WhatsApp, e cada um resolvia o ícone do seu jeito: o Mirassol
+Conectado desenhou o glifo oficial e deixou no próprio repositório, com um comentário dizendo
+"isto deveria morar na kmplib"; o Backhand entregava um botão escrito **"Zap"**, que ninguém
+reconhece de relance.
+
+`Res.drawable.ic_whatsapp` — glifo monocromático, `viewBox` 24×24, **sem cor própria**: quem tinge é
+o `Icon(tint = …)` da tela. Fica ao lado de `ic_google` e `ic_apple`, que já eram da lib pelo mesmo
+motivo.
+
 ## 2.178.0 — o botão da Apple não aparece mais no Android
 
 `Sign in with Apple` não existe no Android desde sempre (`AppleAuthProvider.android.kt` devolve erro
