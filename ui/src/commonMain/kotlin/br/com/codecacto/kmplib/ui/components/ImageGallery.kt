@@ -2,8 +2,12 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.AppColors
 import coil3.compose.AsyncImage
@@ -71,11 +76,29 @@ data class GalleryItem(
  * Cores 100% via tema (sem hardcode). Coil já é dependência da kmplib (mesmo motor de
  * `AsyncImage` usado em `ads/custom`).
  *
+ * ### Rolagem
+ * Por padrão a grade rola internamente (`LazyVerticalGrid`). **Dentro de uma coluna que já rola**
+ * (formulário com `verticalScroll`), passe `scrollable = false`: a grade lazy pede altura infinita
+ * ao pai, e num pai que oferece altura infinita ela **estoura em runtime** com
+ * *"Vertically scrollable component was measured with an infinity maximum height constraints"*.
+ * Não é preferência de layout, é queda de tela — e aconteceu duas vezes, em telas diferentes do
+ * mesmo app, cada uma contornando com `BoxWithConstraints` e uma conta de célula × linhas na mão.
+ * O parâmetro é o mesmo do [TimelineList], de propósito: é a régua da lib para lista dentro de
+ * lista.
+ *
+ * Com `scrollable = false` a grade vira `Column`/`Row` (não-lazy) e cresce até a altura do conteúdo
+ * — quem rola é o pai. A última linha incompleta mantém as células do mesmo tamanho das demais
+ * (o espaço que sobra fica vazio, e não esticado).
+ *
  * @param items itens a exibir.
  * @param onItemClick callback com o `id` do item tocado (navegar OU alternar seleção).
  * @param multiSelect ativa o modo seleção.
  * @param selectedIds ids atualmente selecionados (modo seleção).
  * @param columns nº de colunas fixas do grid.
+ * @param spacing espaço entre células (nos dois eixos).
+ * @param contentPadding padding em volta do conteúdo da grade.
+ * @param scrollable `true` (default) = grade lazy com rolagem própria; `false` = grade que ocupa a
+ *   altura do conteúdo, para usar dentro de um pai rolável.
  */
 @Composable
 fun ImageGallery(
@@ -85,25 +108,63 @@ fun ImageGallery(
     multiSelect: Boolean = false,
     selectedIds: Set<String> = emptySet(),
     columns: Int = 3,
-    spacing: androidx.compose.ui.unit.Dp = 4.dp,
+    spacing: Dp = 4.dp,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    scrollable: Boolean = true,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(columns.coerceAtLeast(1)),
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = contentPadding,
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing),
-    ) {
-        items(items, key = { it.id }) { item ->
-            GalleryCell(
-                item = item,
-                selected = multiSelect && item.id in selectedIds,
-                onClick = { onItemClick(item.id) },
-            )
+    val colunas = columns.coerceAtLeast(1)
+    if (scrollable) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(colunas),
+            modifier = modifier.fillMaxWidth(),
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            items(items, key = { it.id }) { item ->
+                GalleryCell(
+                    item = item,
+                    selected = multiSelect && item.id in selectedIds,
+                    onClick = { onItemClick(item.id) },
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = modifier.fillMaxWidth().padding(contentPadding),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            galeriaEmLinhas(items, colunas).forEach { linha ->
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+                    linha.forEach { item ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            GalleryCell(
+                                item = item,
+                                selected = multiSelect && item.id in selectedIds,
+                                onClick = { onItemClick(item.id) },
+                            )
+                        }
+                    }
+                    // O buraco da última linha é ESPAÇO, não célula esticada: sem isto, duas fotos
+                    // numa grade de três colunas viram dois retângulos largos, e o quadrado da foto
+                    // (que a grade lazy garante) se perde justamente na linha de baixo.
+                    repeat(colunas - linha.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
+
+/**
+ * As linhas da grade não-lazy: os itens em blocos de [colunas], na ordem em que chegaram.
+ *
+ * Fora do composable para poder ser testada — é a única conta do modo `scrollable = false`, e a
+ * que decide se a última linha fica com células do tamanho certo.
+ */
+internal fun galeriaEmLinhas(items: List<GalleryItem>, colunas: Int): List<List<GalleryItem>> =
+    if (items.isEmpty()) emptyList() else items.chunked(colunas.coerceAtLeast(1))
 
 @Composable
 private fun GalleryCell(

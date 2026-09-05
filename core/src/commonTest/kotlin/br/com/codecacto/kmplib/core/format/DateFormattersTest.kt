@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.core.format
 
+import kotlinx.datetime.FixedOffsetTimeZone
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.UtcOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -123,5 +127,43 @@ class DateFormattersTest {
     @Test
     fun formatTimeFromIso_returns_input_when_invalid() {
         assertEquals("not-a-time", formatTimeFromIso("not-a-time"))
+    }
+
+    // --- formatTimeBrFromMillis (2.181.0) ---------------------------------------------------
+
+    @Test
+    fun formatTimeBrFromMillis_extrai_apenas_a_hora() {
+        val millis = Instant.parse("2026-09-04T09:12:33Z").toEpochMilliseconds()
+        assertEquals("09:12", formatTimeBrFromMillis(millis, TimeZone.UTC))
+    }
+
+    @Test
+    fun formatTimeBrFromMillis_respeita_o_fuso_pedido() {
+        // O MESMO instante: 09:12 em UTC é 06:12 no horário de Brasília. Quem escreve "concluído às"
+        // precisa da hora do lugar do fato, não da do aparelho de quem lê.
+        val millis = Instant.parse("2026-09-04T09:12:00Z").toEpochMilliseconds()
+        assertEquals("06:12", formatTimeBrFromMillis(millis, FixedOffsetTimeZone(UtcOffset(hours = -3))))
+    }
+
+    @Test
+    fun formatTimeBrFromMillis_zero_padding_nas_duas_casas() {
+        val meiaNoiteECinco = Instant.parse("2026-09-04T00:05:00Z").toEpochMilliseconds()
+        assertEquals("00:05", formatTimeBrFromMillis(meiaNoiteECinco, TimeZone.UTC))
+        val ultimoMinuto = Instant.parse("2026-09-04T23:59:59Z").toEpochMilliseconds()
+        assertEquals("23:59", formatTimeBrFromMillis(ultimoMinuto, TimeZone.UTC))
+    }
+
+    @Test
+    fun formatTimeBrFromMillis_sem_valor_devolve_traco() {
+        // Mesma convenção dos irmãos: ausência de valor não vira "00:00" do epoch.
+        assertEquals("-", formatTimeBrFromMillis(0L, TimeZone.UTC))
+        assertEquals("-", formatTimeBrFromMillis(-1L, TimeZone.UTC))
+    }
+
+    @Test
+    fun formatTimeBrFromMillis_vira_o_dia_no_fuso_local() {
+        // 01:30 UTC do dia 5 é 22:30 do dia 4 em Brasília — a hora tem de acompanhar a virada.
+        val millis = Instant.parse("2026-09-05T01:30:00Z").toEpochMilliseconds()
+        assertEquals("22:30", formatTimeBrFromMillis(millis, FixedOffsetTimeZone(UtcOffset(hours = -3))))
     }
 }

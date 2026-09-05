@@ -73,7 +73,16 @@ enum class TimelineStatus {
  * @param status tom semântico do marco; controla a cor default do indicador e do badge.
  * @param badgeLabel texto do badge de status (ex.: "tomada", "atrasada"). Quando `null`, nenhum
  *   badge é exibido. A cor do badge deriva de [status] (ou de [badgeColor]/[indicatorColor]).
+ * @param badgeTone tom **semântico** do badge ([StatusTone]), resolvido pela lib com
+ *   [statusToneColor] — a mesma fonte do [StatusBadge]. É o caminho para quem monta a lista **fora
+ *   da composição** (o ViewModel), que é a regra e não a exceção: [badgeColor] é um
+ *   `androidx.compose.ui.graphics.Color`, e cor de TEMA só se lê dentro de um `@Composable` — na
+ *   prática o campo era inutilizável ali. Foi por isso que "concluída **com atraso**" não teve como
+ *   ganhar tom próprio numa timeline cujo `status` é [TimelineStatus.Done] (verde), e o atraso
+ *   virou texto no subtítulo. Tem **precedência** sobre [badgeColor] quando os dois vêm.
  * @param badgeColor sobrescreve a cor do badge (use tokens do tema). Default derivado de [status].
+ *   Continua valendo para quem já o usa **dentro** da composição; para montar a lista no ViewModel,
+ *   use [badgeTone].
  * @param indicatorColor sobrescreve a cor do ponto/indicador do item. Default derivado de [status].
  * @param muted quando `true`, o item é exibido esmaecido (linha "legado/não-agendável" — ex.:
  *   Aftosa no calendário sanitário do Rebanho). Reduz a opacidade e desabilita o clique.
@@ -91,6 +100,9 @@ data class TimelineItem(
     val indicatorColor: Color? = null,
     val muted: Boolean = false,
     val enabled: Boolean = true,
+    // Entra no FIM da lista de propósito: encaixado ao lado de `badgeColor` ele quebraria, em
+    // silêncio de intenção e com erro de tipo, todo consumidor que constrói o item por posição.
+    val badgeTone: StatusTone? = null,
 )
 
 /**
@@ -284,8 +296,11 @@ private fun TimelineRow(
                 )
                 item.badgeLabel?.let { label ->
                     Spacer(Modifier.width(8.dp))
-                    val badgeBg = (item.badgeColor ?: indicatorColor).copy(alpha = 0.15f)
-                    val badgeFg = item.badgeColor ?: indicatorColor
+                    // O tom é resolvido AQUI, dentro da composição — é o que o ViewModel não pode
+                    // fazer, e o motivo de `badgeTone` existir.
+                    val toneColor = item.badgeTone?.let { tone -> statusToneColor(tone) }
+                    val badgeFg = corDoBadgeDaTimeline(toneColor, item.badgeColor, indicatorColor)
+                    val badgeBg = badgeFg.copy(alpha = 0.15f)
                     StatusBadge(
                         text = label,
                         textColor = badgeFg,
@@ -331,3 +346,18 @@ private fun statusColor(status: TimelineStatus): Color = when (status) {
     TimelineStatus.Late -> MaterialTheme.colorScheme.error
     TimelineStatus.Scheduled -> br.com.codecacto.kmplib.ui.theme.AppColors.current.info
 }
+
+/**
+ * Quem pinta o badge do marco: o **tom semântico** primeiro, a cor explícita depois, e o tom do
+ * `status` como fundo de escala.
+ *
+ * A precedência é essa porque `badgeTone` é o parâmetro novo e o específico: quem o informou está
+ * dizendo o significado daquele selo ("atrasada") num item cujo `status` diz outra coisa ("feita").
+ * Fora da composição para poder ser testada — [statusToneColor] é `@Composable` e a resolução do
+ * token já aconteceu quando esta função é chamada.
+ */
+internal fun corDoBadgeDaTimeline(
+    toneColor: Color?,
+    badgeColor: Color?,
+    fallback: Color,
+): Color = toneColor ?: badgeColor ?: fallback

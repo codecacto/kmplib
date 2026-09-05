@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      ACCESS_NETWORK_STATE (2.181.0) — a permissão mora no módulo que faz a CHAMADA.
+
+      `PlatformConnectivityMonitor.android.kt` chama `registerNetworkCallback`, `getActiveNetwork` e
+      `getNetworkCapabilities` do `ConnectivityManager`, e as três exigem esta permissão. Sem ela
+      declarada aqui, o `kmplib-core` compilava, o app compilava, e o `ConnectivityObserver` lançava
+      `SecurityException` em RUNTIME em todo consumidor que não tivesse lembrado de declará-la por
+      conta própria — a mesma falha de manifesto que a 2.175.0 consertou no `kmplib-platform`
+      (câmera, compartilhar e notificação agendada), e pela mesma razão: quem consome o módulo
+      granular não herda manifesto de lugar nenhum.
+
+      É permissão de nível **normal**: sem prompt para o usuário, sem declaração de política na
+      Play, sem impacto de privacidade. O `ConnectivityGate`, o `rememberIsOnline` e o auto-sync
+      dependem dela — na prática, todo app que usa a lib.
+
+      Também é o que fazia o `lintDebug` do módulo reprovar com `MissingPermission` (3 erros),
+      derrubando o `./gradlew build` da lib inteira.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+</manifest>

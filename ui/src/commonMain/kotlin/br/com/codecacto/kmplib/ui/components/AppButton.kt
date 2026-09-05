@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -29,6 +30,13 @@ import org.jetbrains.compose.resources.painterResource
  * @param fontSize Tamanho da fonte
  * @param primaryColor Cor primária do botão
  * @param contentColor Cor do conteúdo (texto/ícone)
+ * @param icon Ícone opcional à ESQUERDA do rótulo (2.181.0). `null` = botão só com texto, como
+ *   sempre foi. É [ImageVector] porque é o tipo que a lib já usa para ícone informado de fora
+ *   (o `leadingIcon` do [AppTextField], o `navigationIcon` do [AppTopBar]); ícone de arquivo
+ *   (`DrawableResource`)
+ *   fica nos botões que trazem uma marca fixa — [GoogleLoginButton], [AppleLoginButton].
+ *   Sem `contentDescription`: o rótulo do botão já diz o que ele faz, e repetir isso no ícone faz o
+ *   leitor de tela anunciar a ação duas vezes.
  */
 @Composable
 fun AppButton(
@@ -40,7 +48,8 @@ fun AppButton(
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimary
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
+    icon: ImageVector? = null
 ) {
     Button(
         onClick = onClick,
@@ -69,15 +78,53 @@ fun AppButton(
                 strokeWidth = 2.dp
             )
         } else {
-            Text(
-                text = text,
-                fontSize = fontSize,
-                fontWeight = FontWeight.Medium,
-                // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
-                // torto dentro de um botão que é simétrico.
-                textAlign = TextAlign.Center
-            )
+            AppButtonLabel(text = text, fontSize = fontSize, icon = icon)
         }
+    }
+}
+
+/**
+ * Rótulo do botão: texto sozinho, ou ícone + texto centralizados como um bloco só.
+ *
+ * Um `Text` solto e um `Row` com ícone são a MESMA decisão em dois botões (primário e outlined) —
+ * ela mora aqui para os dois não divergirem no primeiro ajuste, como divergiram no `textAlign`.
+ */
+@Composable
+private fun AppButtonLabel(
+    text: String,
+    fontSize: TextUnit,
+    icon: ImageVector?,
+) {
+    if (icon == null) {
+        Text(
+            text = text,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Medium,
+            // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
+            // torto dentro de um botão que é simétrico.
+            textAlign = TextAlign.Center
+        )
+        return
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            // Decorativo: quem lê o botão já ouviu o rótulo.
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = text,
+            fontSize = fontSize,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            // `fill = false` mantém o par ícone+texto centralizado no botão; sem o weight, um
+            // rótulo longo empurraria o ícone para fora em vez de quebrar em duas linhas.
+            modifier = Modifier.weight(1f, fill = false)
+        )
     }
 }
 
@@ -93,6 +140,7 @@ fun AppButton(
  * @param fontSize Tamanho da fonte
  * @param primaryColor Cor da borda e do conteúdo
  * @param borderWidth Largura da borda
+ * @param icon Ícone opcional à ESQUERDA do rótulo (2.181.0) — ver [AppButton].
  */
 @Composable
 fun AppOutlinedButton(
@@ -104,7 +152,8 @@ fun AppOutlinedButton(
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    borderWidth: Dp = 1.dp
+    borderWidth: Dp = 1.dp,
+    icon: ImageVector? = null
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -125,14 +174,7 @@ fun AppOutlinedButton(
                 strokeWidth = 2.dp
             )
         } else {
-            Text(
-                text = text,
-                fontSize = fontSize,
-                fontWeight = FontWeight.Medium,
-                // Quebrando em duas linhas, sem isto a segunda alinha à ESQUERDA e o rótulo fica
-                // torto dentro de um botão que é simétrico.
-                textAlign = TextAlign.Center
-            )
+            AppButtonLabel(text = text, fontSize = fontSize, icon = icon)
         }
     }
 }

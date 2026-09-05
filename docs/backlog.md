@@ -3,6 +3,47 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.181.0 — sete gaps do **Tá Feito** (04/set/2026)
+> Origem: `5-Apps-Online-Freemium-Cota/TaFeito/docs/gaps-de-kmplib.md`, escrito onda a onda contra a
+> 2.179.0. Três dos sete faziam a **lib** violar a regra "erro de campo fica NO campo". Tudo aditivo.
+
+- [x] `AppDatePicker.errorMessage` e `AppMultiSelect.errorMessage` — borda, frase e `error()` na
+      semântica, como nos demais campos.
+- [x] `ImageGallery.scrollable` — a grade lazy estourava dentro de coluna rolável; era o único
+      componente de lista da lib sem o parâmetro que o `TimelineList` já tinha.
+- [x] `TimelineItem.badgeTone: StatusTone?` — `badgeColor` é `Color` e só se resolve na composição;
+      quem monta a lista é o ViewModel.
+- [x] `core/format.formatTimeBrFromMillis(millis, timeZone)`.
+- [x] `AppButton`/`AppOutlinedButton.icon: ImageVector?` e `AppTopBar.subtitle: String?`.
+
+### Registrado nesta rodada (04/set/2026) — origem: **Tá Feito** (NÃO implementar sem 2º consumidor)
+> Origem: mesmo documento acima. São escolhas de escopo, não conserto — entraram aqui de propósito
+> para não virarem "gap imaginado" numa próxima varredura.
+
+- [ ] **GAP-TF-M-01 (P2) — `AppDateRangePicker` (intervalo de datas).** Hoje: dois `AppDatePicker`
+      lado a lado, com a validação "fim ≥ início" na tela. Vale a pena no **terceiro** consumidor —
+      um seletor de intervalo bem-feito (mês contínuo, dois toques, atalhos "esta semana"/"este mês")
+      é bem mais componente do que parece, e dois campos resolvem sem mentir.
+- [ ] **GAP-TF-M-02 (P2) — lista reordenável com alça de arrastar.** ⚠️ **Se entrar, as setas ↑↓
+      ficam como alternativa acessível, não saem.** Arrastar dentro de uma lista que também rola é o
+      gesto mais fácil de errar no celular, e a seta continua funcionando com leitor de tela.
+- [ ] **GAP-TF-M-03 (P2) — `SectionedList` / `ListSectionHeader`** com `stickyHeader` opcional. Hoje
+      cada tela põe um `Text` dentro da `LazyColumn`. Sem 2º consumidor declarado.
+- [ ] **GAP-TF-M-04 (P3) — `ImagePickerSource(CAMERA | GALLERY | BOTH)` no
+      `rememberImagePickerLauncher`.** Hoje a folha com câmera + galeria é sempre a mesma — o que na
+      prática **foi melhor** que os dois botões do wireframe (duas portas para a mesma sala). Só
+      promover se algum produto precisar mesmo travar a origem (ex.: comprovação que exige foto na
+      hora, sem escolher da galeria).
+- [ ] **GAP-TF-M-05 (P2) — `ImageGallery`: ações por item** (só expõe `onItemClick`). O app montou um
+      `AppBottomSheet` com "Ver foto" / "Enviar de novo" / "Remover foto". Uma foto de referência
+      precisa das duas coisas: olhar de perto e sair da lista. Promover com 2º consumidor.
+- [ ] **GAP-TF-X-01 (P1, fora do `ui`) — `DomainApiClient` descarta a `message` do servidor.** O
+      `classify` preserva o `serverCode` e joga fora a frase do envelope da backlib: um 409 chega à
+      tela como "Erro do servidor (409)". Por isso cada app escreve um mapa de códigos → português,
+      que diverge da frase do backend no primeiro ajuste. **Cuidado ao atacar:** mudar o texto que
+      chega à tela **não é aditivo** — precisa de plano (campo novo com a frase do servidor, e a
+      tela decidindo qual usar), não de troca silenciosa.
+
 ### Registrado nesta rodada (04/set/2026) — origem: design do **Ponto Firme**
 > Origem: `8-Sistemas-Portal-App/PontoFirme/docs/design/gaps-de-lib.md` (ux-designer). Produto de
 > gestão para terreiros/casas de axé (arquétipo D: app 3 papéis + portal + site). O **M-01 é P0 e de

@@ -92,6 +92,30 @@ fun formatIsoDateFromMillis(
 }
 
 /**
+ * Formata epoch millis como **"HH:mm"** (24h, zero-padded) no [timeZone] pedido.
+ *
+ * Existe porque a lib já dava a data ([formatDateBrFromMillis]), a data com a hora
+ * ([formatDateTimeBrFromMillis]) e a hora a partir de hora+minuto ([formatTime]) — mas nada que
+ * desse **só a hora** a partir de um instante. Toda tela que escreve "concluído às 09:12" tinha de
+ * repetir as mesmas quatro linhas de conversão.
+ *
+ * ⚠️ **O fuso é decisão do chamador.** O default é o do aparelho, que é o certo para "o que aconteceu
+ * agora"; quando a hora pertence a um lugar (o fuso da casa, da obra, da quadra), passe o fuso de lá —
+ * senão o app de quem viajou mostra a hora do destino para um fato que aconteceu em casa.
+ *
+ * Mesma convenção dos irmãos deste arquivo: `millis <= 0` devolve `"-"` (ausência de valor, não
+ * "01/01/1970").
+ */
+fun formatTimeBrFromMillis(
+    millis: Long,
+    timeZone: TimeZone = TimeZone.currentSystemDefault(),
+): String {
+    if (millis <= 0L) return "-"
+    val dt = Instant.fromEpochMilliseconds(millis).toLocalDateTime(timeZone)
+    return formatTime(dt.hour, dt.minute)
+}
+
+/**
  * "HH:mm" zero-padded.
  */
 fun formatTime(hour: Int, minute: Int): String =

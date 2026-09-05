@@ -1,5 +1,112 @@
 # Changelog — kmplib
 
+## 2.181.0 — o erro de campo volta para dentro do campo (e mais seis buracos de tela)
+
+Sete lacunas levantadas por um app real (Tá Feito) contra a 2.179.0, escritas na hora em que
+apareceram. **Três faziam a própria lib violar uma regra inegociável da casa** — por isso o conserto
+é aqui, não nas telas. Tudo **aditivo**: nenhum parâmetro novo é obrigatório e nenhum comportamento
+atual mudou.
+
+### 1. `AppDatePicker` ganhou `errorMessage` — `kmplib-ui`
+
+"Erro de campo fica NO campo" é regra da constituição (19/ago/2026), e o `AppTextField`, o
+`AppTextArea`, o `NumberField` e o `AppPickerField` já a cumpriam. **Só o campo de data ficava de
+fora** — e "a data de fim não pode ser antes da de início" é erro de campo como qualquer outro. O
+app teve de escrever um `CampoDeData.kt` só para isso.
+
+Agora `errorMessage` faz o que faz nos irmãos: **borda e rótulo em `colorScheme.error`** (o `isError`
+do Material), **a frase embaixo** (o mesmo `supportingText`) e **`error()` na semântica** — que é o
+que o leitor de tela anuncia e o que dá ao `focusFirstInvalidField` da tela onde parar.
+
+De quebra, as duas conversões de data do seletor viraram funções puras e testadas —
+`dataParaMillisDoCalendario` / `millisDoCalendarioParaData`, ambas em **UTC de propósito**: o
+`DatePickerState` do Material trabalha em UTC, e converter no fuso do aparelho é o que faz quem está
+a oeste de Greenwich abrir o calendário no dia ANTERIOR ao que salvou.
+
+### 2. `AppMultiSelect` ganhou `errorMessage` — `kmplib-ui`
+
+Mesma regra, mesmo buraco: "marque ao menos um dia da semana" virava um `Text` vermelho solto
+embaixo dos chips — sem nada ligando a frase ao grupo, sem o leitor de tela saber que o campo está
+inválido, sem o foco ter onde parar depois de um envio recusado.
+
+Com `errorMessage`: **rótulo em `colorScheme.error`**, **frase embaixo do grupo** e **`error()` na
+semântica** do container. A "borda vermelha" aqui é uma **caixa em volta dos chips**, e **só existe
+no estado de erro** — o Material não define estado de erro para `FilterChip`, e reservar o recuo da
+caixa no estado normal empurraria o layout de todo formulário que já usa o componente.
+
+### 3. `ImageGallery` ganhou `scrollable` — `kmplib-ui`
+
+Ele era `LazyVerticalGrid` puro. Dentro de uma coluna com `verticalScroll` a grade lazy pede altura
+infinita e **estoura em runtime** ("*Vertically scrollable component was measured with an infinity
+maximum height constraints*"). **Não é preferência de layout, é queda de tela** — e aconteceu duas
+vezes, em duas telas diferentes do mesmo app, cada uma contornando com `BoxWithConstraints` e uma
+conta de célula × linhas na mão.
+
+`scrollable = false` troca a grade lazy por `Column`/`Row`, que cresce até a altura do conteúdo e
+deixa a rolagem com o pai. **O parâmetro é o mesmo do `TimelineList`, de propósito** — era o único
+componente de lista da lib sem ele. A última linha incompleta mantém as células do tamanho das
+demais (o vão vira `Spacer`, não célula esticada).
+
+### 4. `TimelineItem` ganhou `badgeTone: StatusTone?` — `kmplib-ui`
+
+`badgeColor` é um `Color`, e cor de tema só se lê dentro de um `@Composable`. Como quem monta a
+lista é o **ViewModel**, o campo era **inutilizável exatamente onde a lista nasce**: "concluída **com
+atraso**" não teve como ganhar tom próprio numa timeline cujo `status` é `Done` (verde), e o atraso
+virou texto no subtítulo.
+
+`badgeTone` diz o **significado** e a lib resolve a cor com `statusToneColor` — a mesma fonte do
+`StatusBadge`. Tem **precedência** sobre `badgeColor`, que continua funcionando para quem já o usa
+dentro da composição. O campo entrou no **fim** do construtor, para não trocar de lugar com
+`indicatorColor` na cara de quem constrói o item por posição.
+
+### 5. `formatTimeBrFromMillis(millis, timeZone)` — `kmplib-core`, `core/format`
+
+A lib dava a data, a data com a hora e a hora a partir de hora+minuto — e **nada que desse só
+"09:12" a partir de um instante**. Toda tela que escreve "concluído às" repetia as mesmas quatro
+linhas. Mesma convenção dos irmãos do arquivo: `millis <= 0` devolve `"-"`, e **o fuso é decisão do
+chamador** (quando a hora pertence a um lugar — a casa, a obra, a quadra —, passe o fuso de lá, senão
+o app de quem viajou mostra a hora do destino para um fato que aconteceu em casa).
+
+### 6. `AppButton` e `AppOutlinedButton` ganharam `icon: ImageVector?` — `kmplib-ui`
+
+Ícone à esquerda do rótulo, decorativo (sem `contentDescription`: o rótulo do botão já diz a ação, e
+repeti-la faz o leitor de tela anunciar duas vezes). É `ImageVector` porque é o tipo que a lib já usa
+para ícone informado de fora (`leadingIcon` do `AppTextField`, `navigationIcon` do `AppTopBar`);
+ícone de arquivo (`DrawableResource`) segue nos botões de marca fixa (`GoogleLoginButton`,
+`AppleLoginButton`). O rótulo dos dois botões passou a sair de um único `AppButtonLabel` privado —
+era a mesma decisão escrita duas vezes, e foi assim que o `textAlign` já divergiu uma vez.
+
+### 7. `AppTopBar` ganhou `subtitle: String?` — `kmplib-ui`
+
+Segunda linha da barra para o **contexto do que está aberto** (o período da viagem, o nome da casa, a
+placa). Sem ela, esse dado descia para o topo do conteúdo — onde some ao rolar, justamente quando a
+pessoa precisa lembrar de qual registro está vendo. Uma linha, elipse no fim; a cor sai do
+`LocalContentColor` da própria barra com opacidade reduzida, e não de um token fixo que ficaria
+ilegível numa barra colorida.
+
+### De quebra: `ACCESS_NETWORK_STATE` passou a ser declarada pelo `kmplib-core`
+
+O `PlatformConnectivityMonitor` chama `registerNetworkCallback`, `getActiveNetwork` e
+`getNetworkCapabilities`, e o módulo **não tinha manifesto nenhum** — então quem consome
+`kmplib-core` granularmente e não lembrou de declarar a permissão por conta própria levava
+`SecurityException` em **runtime**, com build verde. É a mesma falha que a 2.175.0 consertou no
+`kmplib-platform` (FileProvider, receivers), e a mesma regra: **elemento de manifesto mora no módulo
+que faz a chamada**. Permissão de nível normal — sem prompt, sem declaração na Play. Era também o
+que fazia o `lintDebug` do módulo reprovar com três `MissingPermission`.
+
+### Não entrou (registrado no `docs/backlog.md`, não implementado)
+
+`AppDateRangePicker`, lista reordenável com alça, `SectionedList`/`ListSectionHeader` e
+`ImagePickerSource` no `rememberImagePickerLauncher` — falta 2º consumidor, e a régua da lib é essa.
+
+### Consumidores
+
+Nada a migrar: os sete são aditivos. Quem quiser tirar contorno do app: `AppDatePicker`/
+`AppMultiSelect` (campo de erro escrito à mão), `ImageGallery` dentro de coluna rolável (a conta de
+altura em `BoxWithConstraints` sai), `TimelineItem` (tom de badge vindo do ViewModel) e a hora
+formatada à mão.
+
+
 ## 2.180.0 — modo discreto: o app some da multitarefa e volta pedindo a digital
 
 Um app de gestão de terreiro no celular de um membro pode ser aberto por outra pessoa, aparecer no

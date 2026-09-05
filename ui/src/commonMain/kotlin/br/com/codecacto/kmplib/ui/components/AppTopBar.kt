@@ -41,6 +41,15 @@ enum class NavigationType {
  * @param contentColor Cor do conteúdo (texto e ícones)
  * @param elevation Elevação da barra
  * @param titleSize Tamanho da fonte do título
+ * @param subtitle Segunda linha da barra, abaixo do título (2.181.0). `null` = barra de uma linha,
+ *   como sempre foi.
+ *
+ * ## Para que serve a segunda linha
+ *
+ * É o **contexto do que está aberto**, não uma explicação: o período da viagem sob "Tarefas", o
+ * nome da casa sob "Histórico", a placa sob "Vistoria". Sem ela, esse dado descia para o topo do
+ * conteúdo — onde some ao rolar, justamente quando a pessoa precisa lembrar de qual registro está
+ * vendo. Uma linha, elipse no fim: quem não couber ali não pertence à barra.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +64,8 @@ fun AppTopBar(
     backgroundColor: Color = MaterialTheme.colorScheme.surface,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     elevation: Dp = 0.dp,
-    titleSize: TextUnit = 20.sp
+    titleSize: TextUnit = 20.sp,
+    subtitle: String? = null
 ) {
     val navIcon: ImageVector? = navigationIcon ?: when (navigationType) {
         NavigationType.BACK -> Icons.AutoMirrored.Filled.ArrowBack
@@ -71,22 +81,20 @@ fun AppTopBar(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = title,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    TopBarTitle(
+                        title = title,
+                        subtitle = subtitle,
+                        titleSize = titleSize,
+                        centered = true
                     )
                 }
             } else {
                 // Título à esquerda
-                Text(
-                    text = title,
-                    fontSize = titleSize,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                TopBarTitle(
+                    title = title,
+                    subtitle = subtitle,
+                    titleSize = titleSize,
+                    centered = false
                 )
             }
         },
@@ -113,6 +121,52 @@ fun AppTopBar(
             actionIconContentColor = contentColor
         )
     )
+}
+
+/**
+ * O bloco de texto da barra: título e, quando houver, a linha de contexto embaixo dele.
+ *
+ * A cor da segunda linha sai do **conteúdo da própria barra** ([LocalContentColor], que o
+ * `TopAppBar` já preenche com o `contentColor` recebido) com opacidade reduzida — e não de um token
+ * fixo como `onSurfaceVariant`, que ficaria ilegível numa barra colorida.
+ */
+@Composable
+private fun TopBarTitle(
+    title: String,
+    subtitle: String?,
+    titleSize: TextUnit,
+    centered: Boolean
+) {
+    if (subtitle == null) {
+        Text(
+            text = title,
+            fontSize = titleSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        return
+    }
+    Column(
+        horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
+    ) {
+        Text(
+            text = title,
+            fontSize = titleSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = subtitle,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Normal,
+            color = LocalContentColor.current.copy(alpha = 0.75f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = if (centered) TextAlign.Center else TextAlign.Start
+        )
+    }
 }
 
 /**
