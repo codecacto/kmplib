@@ -50,6 +50,37 @@ interface BiometricAuth {
         onError: (String) -> Unit,
         onCancel: () -> Unit
     )
+
+    /**
+     * `true` quando existe **alguma** forma de o dono do aparelho se identificar: biometria
+     * cadastrada **ou** a trava de tela (PIN, padrão ou senha).
+     *
+     * Não confundir com [isAvailable], que responde só por biometria. Quem tranca o app precisa
+     * desta pergunta: aparelho sem digital cadastrada mas com PIN ainda dá para destravar, e
+     * recusar o acesso a essa pessoa é trancá-la para fora do próprio app.
+     */
+    fun isDeviceSecured(): Boolean = isAvailable()
+
+    /**
+     * Autentica **aceitando a trava de tela como alternativa** à biometria (`allowDeviceCredential
+     * = true`) — é a variante que o `AppLockGate` usa.
+     *
+     * A digital falha com a mão molhada, o rosto falha no escuro, e há aparelho sem sensor nenhum:
+     * sem o PIN como saída, o app fica trancado para quem tem todo o direito de entrar. Com
+     * `allowDeviceCredential = false` o comportamento é idêntico ao [authenticate] de cinco
+     * argumentos.
+     *
+     * O default delega para a versão sem alternativa, para não quebrar quem implementa esta
+     * interface fora da lib (dublê de teste, por exemplo).
+     */
+    fun authenticate(
+        title: String,
+        subtitle: String,
+        allowDeviceCredential: Boolean,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit,
+        onCancel: () -> Unit
+    ) = authenticate(title, subtitle, onSuccess, onError, onCancel)
 }
 
 /**

@@ -24,6 +24,8 @@ kotlin {
             // ViewModel é SUPERTIPO público do BaseViewModel, a classe-base de todo ViewModel de
             // todo app do ecossistema.
             api(libs.androidx.lifecycle.viewmodel)
+            // LifecycleEventEffect/LocalLifecycleOwner do AppLockGate (ui/security).
+            implementation(libs.androidx.lifecycle.runtime.compose)
             api(libs.kotlinx.datetime)
             // Carrossel e imagem remota dos componentes.
             api(libs.coil.compose)

@@ -3,6 +3,75 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (04/set/2026) — origem: design do **Ponto Firme**
+> Origem: `8-Sistemas-Portal-App/PontoFirme/docs/design/gaps-de-lib.md` (ux-designer). Produto de
+> gestão para terreiros/casas de axé (arquétipo D: app 3 papéis + portal + site). O **M-01 é P0 e de
+> fundação** — se nascer dentro do app, nasce errado e não aproveita a ninguém.
+
+- [ ] **GAP-PF-M-04 (P1) — `PixQrCard`, par mobile do `PixCheckoutCard` da weblib.** As três peças
+      existem (`buildPixBrCode`, `QrCodeView`, `Clipboard`) e **nenhuma tela pronta**: QR quadrado
+      com quiet zone, código em bloco com `[copiar]` + confirmação, valores sugeridos, nome do
+      recebedor, compartilhar via `ShareHandler`. 3 consumidores só no Ponto Firme (contribuição do
+      membro, doação do consulente, cadastro do Pix da casa) + Cidade Conectada, que hoje copia a
+      chave da loja na mão.
+- [ ] **GAP-PF-M-06 (P1) — leitura que se atualiza sozinha (`LiveResource`).** O `SyncEngine` é
+      escrita offline-first; falta leitura viva: polling adaptativo (rápido em primeiro plano, lento
+      em segundo, parado em background), `lastUpdatedAt`/`isStale` para a tela dizer "atualizado há
+      1 min", respeitando o `ConnectivityObserver`. Sem isso cada projeto escreve o loop no
+      ViewModel — e o erro clássico (loop que não pausa em background) já apareceu na fábrica.
+      Par web: `GAP-MA-W-04`, que ganhou 2º consumidor com este design.
+- [ ] **GAP-PF-M-02 (P2/P1) — `SlotAssignmentList`: N vagas de um grupo × pessoas.** "Função ×
+      médium" aqui, "posto × colaborador" numa escala de trabalho, "quadra × horário" no Minha
+      Arena. Vaga vazia como alvo, `trailing` por pessoa (contador de rodízio), limpar atribuição.
+      **A lib não decide elegibilidade nem rodízio** (regra de negócio, fica no backend).
+      Contorno hoje: `Card` + linhas montadas na tela.
+- [ ] **GAP-PF-M-03 (P2) — `RollCallRow`: linha de chamada com 4 estados de um toque.**
+      `SegmentedControl` resolve quase: falta alvo de 56 dp, ícone+letra por estado (contraste não
+      pode depender de cor), realce de quem estava escalado e não veio, e badge de **pendente de
+      envio** por linha (a chamada roda offline). Promover só com 2º consumidor.
+- [ ] **GAP-PF-M-05 (P2) — `BigDisplayScreen` (modo TV/telão).** Número escalando pela **largura da
+      janela** (nunca `sp` fixo), tema escuro forçado, `KeepScreenOn`, barras do sistema escondidas,
+      transição curta e **degradação silenciosa sem rede** (mantém o último valor + marca discreta;
+      nunca tela de erro no meio do salão). Par web: `GAP-PF-W-04`. Recorrente fora daqui: senha de
+      atendimento, pedido pronto (Cardápio Digital), placar.
+
+### ATENDIDO na 2.180.0 — modo discreto (04/set/2026)
+> Origem: `GAP-PF-M-01` do design do Ponto Firme (P0 de fundação). Aditivo — nada a migrar.
+
+- [x] **GAP-PF-M-01 (P0) — modo discreto: ocultar na multitarefa + trava ao abrir.** Entraram as
+      duas metades, independentes: `platform.privacy` (**`PrivacyScreen`**, **`getPrivacyScreen()`**,
+      **`HideFromRecents(enabled)`** com pedidos contados por referência) e `ui.security`
+      (**`AppLockGate`**, **`AppLockTexts`**), mais **`isDeviceSecured()`** e
+      **`authenticate(…, allowDeviceCredential, …)`** no `BiometricAuth` — com corpo default na
+      interface, para não quebrar dublê de teste dos apps. Android = `FLAG_SECURE` reaplicado no
+      `kmpLibPlatformOnResume` (sem isso, girar o aparelho derruba a proteção em silêncio); iOS =
+      desfoque na janela em `applicationWillResignActive`. O portão usa `ON_STOP`/`ON_START` (com
+      `ON_PAUSE` ele se trancaria por cima do próprio diálogo de biometria), guarda o estado no
+      **processo** (rotação não tranca; processo novo tranca) e mantém o conteúdo composto por baixo
+      de uma cobertura opaca — tirá-lo da composição perderia a pilha de navegação. ⚠️ `FLAG_SECURE`
+      bloqueia print e gravação de tela: documentado no catálogo e no CHANGELOG, e o app precisa
+      dizer isso na tela de ajustes. Detalhe: `references/platform-privacy.md` do `kmplib-catalog`.
+
+### Registrado nesta rodada (04/set/2026) — origem: design do Tá Feito
+> Origem: `5-Apps-Online-Freemium-Cota/TaFeito/docs/design/wireframes.md` §"Gaps de lib"
+> (ux-designer). Nenhum bloqueia o MVP — os dois têm contorno funcional com os átomos já existentes;
+> registrados para não se perder o padrão caso apareça um 2º/3º consumidor.
+
+- [ ] **GAP-TF-M-01 — `AppDateRangePicker` (seletor de intervalo de datas, início+fim numa única
+      interação).** A kmplib só tem `AppDatePicker` (data única); a weblib já tem `DateRangePicker`
+      (`/ui`, ≥ 0.150.0). Contorno atual: dois `AppDatePicker` lado a lado + validação
+      `fim > início` no ViewModel do app — funciona, mas é o mesmo par que qualquer tela de período
+      (reserva, locação, viagem) reimplementa. 1 consumidor concreto hoje (Tá Feito, tela "Cadastro
+      de lista/viagem") — **registrar, não promover** ainda (regra de ≥2 consumidores). Prioridade
+      baixa.
+- [ ] **GAP-TF-M-02 — editor de lista de horários do dia (recorrência "vários horários",
+      adicionar/remover `AppTimePicker` numa lista).** Não existe componente pronto: `AppMultiSelect`
+      é para opções finitas pré-definidas, não para valores de tempo escolhidos livremente. Contorno
+      atual: composição manual (chips de horário + botão "+ Adicionar horário" abrindo um novo
+      `AppTimePicker`) — pouco código, sem gambiarra. 1 consumidor concreto hoje (Tá Feito, tela
+      "Cadastro de tarefa"), mas o padrão tende a se repetir em qualquer app de rotina/medicação com
+      "várias vezes ao dia". **Registrar, não promover** ainda. Prioridade baixa.
+
 ### ATENDIDO na 2.173.0 — rodapé fixo (banner) na `FeedbackScreen` e na `DeveloperScreen` (01/set/2026)
 > Origem: reforma de layout dos 56 apps de `1-Apps-Offline-Ads` (`docs/28`). Este era o único gap da
 > lista **sem contorno local**: as duas telas montam `Scaffold` próprio, e do lado do app só restava

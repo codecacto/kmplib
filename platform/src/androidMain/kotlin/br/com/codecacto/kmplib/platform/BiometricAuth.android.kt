@@ -61,9 +61,25 @@ class AndroidBiometricAuth : BiometricAuth {
         }
     }
 
+    override fun isDeviceSecured(): Boolean {
+        val ctx = context ?: return false
+        return BiometricManager.from(ctx)
+            .canAuthenticate(allowedAuthenticators(allowDeviceCredential = true)) ==
+                BiometricManager.BIOMETRIC_SUCCESS
+    }
+
     override fun authenticate(
         title: String,
         subtitle: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit,
+        onCancel: () -> Unit
+    ) = authenticate(title, subtitle, false, onSuccess, onError, onCancel)
+
+    override fun authenticate(
+        title: String,
+        subtitle: String,
+        allowDeviceCredential: Boolean,
         onSuccess: () -> Unit,
         onError: (String) -> Unit,
         onCancel: () -> Unit
@@ -74,8 +90,12 @@ class AndroidBiometricAuth : BiometricAuth {
             return
         }
 
-        if (!isAvailable()) {
-            onError("Biometria não disponível")
+        val secured = if (allowDeviceCredential) isDeviceSecured() else isAvailable()
+        if (!secured) {
+            onError(
+                if (allowDeviceCredential) "Aparelho sem biometria e sem bloqueio de tela"
+                else "Biometria não disponível"
+            )
             return
         }
 
@@ -105,13 +125,35 @@ class AndroidBiometricAuth : BiometricAuth {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setNegativeButtonText("Cancelar")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setAllowedAuthenticators(allowedAuthenticators(allowDeviceCredential))
+            .apply {
+                // `setNegativeButtonText` com DEVICE_CREDENTIAL nos autenticadores faz o `build()`
+                // LANÇAR IllegalArgumentException: quem faz o papel do botão negativo, aí, é o
+                // próprio "Usar PIN" do sistema.
+                if (!allowDeviceCredential) setNegativeButtonText("Cancelar")
+            }
             .build()
 
         val biometricPrompt = BiometricPrompt(act, executor, callback)
         biometricPrompt.authenticate(promptInfo)
     }
+}
+
+/**
+ * Autenticadores permitidos no `BiometricPrompt`.
+ *
+ * `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` **não é uma combinação suportada no Android 10 (API 29)**
+ * — o `androidx.biometric` recusa a combinação e o `build()` lança. Ali a combinação documentada é
+ * `BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, aceitável porque este uso **não assina nada com
+ * `CryptoObject`**: é um portão de tela, e a alternativa (deixar o app sem trava no Android 10) é
+ * pior. Fora do 29, fica sempre a biometria forte.
+ */
+private fun allowedAuthenticators(allowDeviceCredential: Boolean): Int = when {
+    !allowDeviceCredential -> BiometricManager.Authenticators.BIOMETRIC_STRONG
+    Build.VERSION.SDK_INT == Build.VERSION_CODES.Q ->
+        BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    else ->
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
 }
 
 actual fun getBiometricAuth(): BiometricAuth = AndroidBiometricAuth()

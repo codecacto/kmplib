@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.platform
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSError
 import platform.LocalAuthentication.LAContext
+import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthentication
 import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthenticationWithBiometrics
 import platform.LocalAuthentication.LABiometryTypeFaceID
 import platform.LocalAuthentication.LABiometryTypeTouchID
@@ -43,6 +44,15 @@ class IosBiometricAuth : BiometricAuth {
         }
     }
 
+    /**
+     * `LAPolicyDeviceOwnerAuthentication` — biometria **ou** o código do aparelho. É a política que
+     * a própria Apple indica para trava de app: `...WithBiometrics` recusa quem não tem Face ID /
+     * Touch ID cadastrado, e num iPhone só com código isso tranca o dono para fora.
+     */
+    @OptIn(ExperimentalForeignApi::class)
+    override fun isDeviceSecured(): Boolean =
+        LAContext().canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)
+
     @OptIn(ExperimentalForeignApi::class)
     override fun authenticate(
         title: String,
@@ -50,19 +60,39 @@ class IosBiometricAuth : BiometricAuth {
         onSuccess: () -> Unit,
         onError: (String) -> Unit,
         onCancel: () -> Unit
+    ) = authenticate(title, subtitle, false, onSuccess, onError, onCancel)
+
+    @OptIn(ExperimentalForeignApi::class)
+    override fun authenticate(
+        title: String,
+        subtitle: String,
+        allowDeviceCredential: Boolean,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit,
+        onCancel: () -> Unit
     ) {
-        if (!isAvailable()) {
-            onError("Biometria não disponível")
+        val secured = if (allowDeviceCredential) isDeviceSecured() else isAvailable()
+        if (!secured) {
+            onError(
+                if (allowDeviceCredential) "Aparelho sem biometria e sem código de bloqueio"
+                else "Biometria não disponível"
+            )
             return
         }
 
         val context = LAContext()
-        context.localizedFallbackTitle = "" // Remove opção de fallback
+        // Com o código do aparelho permitido, a alternativa é do PRÓPRIO sistema ("Digite o
+        // código") e apagar o título do fallback esconderia a única saída de quem falhou no Face ID.
+        if (!allowDeviceCredential) context.localizedFallbackTitle = ""
+
+        val policy =
+            if (allowDeviceCredential) LAPolicyDeviceOwnerAuthentication
+            else LAPolicyDeviceOwnerAuthenticationWithBiometrics
 
         val reason = if (subtitle.isNotEmpty()) "$title\n$subtitle" else title
 
         context.evaluatePolicy(
-            LAPolicyDeviceOwnerAuthenticationWithBiometrics,
+            policy,
             localizedReason = reason
         ) { success, error ->
             when {

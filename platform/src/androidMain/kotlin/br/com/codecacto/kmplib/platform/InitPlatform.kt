@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.platform.audio.AudioCaptureHolder
 import br.com.codecacto.kmplib.platform.permission.PermissionHostHolder
+import br.com.codecacto.kmplib.platform.privacy.AndroidPrivacyScreen
 import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.torch.TorchControllerHolder
 
@@ -31,6 +32,10 @@ fun initKmpLibPlatform(context: Context) {
  *
  * Chame no `Activity.onResume()`.
  *
+ * Entrega também a janela ao `PrivacyScreen` (modo discreto): o `FLAG_SECURE` vive na janela da
+ * instância atual da `Activity`, então **sem esta chamada girar o aparelho tira a proteção** — a
+ * janela nova nasce sem o flag, e a lista de membros volta a aparecer na multitarefa.
+ *
  * A ausência do host de permissão é MUDA: sem ele, `PermissionManager.requestPermission` não abre
  * diálogo nenhum, registra um aviso e devolve o status que já tinha. O botão "Permitir" existe, é
  * tocável, e não acontece nada — com build verde. Chamar duas vezes é inofensivo (os holders só
@@ -41,6 +46,7 @@ fun kmpLibPlatformOnResume(activity: FragmentActivity) {
     ScreenBrightnessHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
     PermissionHostHolder.setActivity(activity)
+    AndroidPrivacyScreen.setActivity(activity)
 }
 
 /** Solta a referência à `Activity`. Chame no `Activity.onPause()`. */
@@ -49,4 +55,5 @@ fun kmpLibPlatformOnPause() {
     ScreenBrightnessHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
     PermissionHostHolder.clearActivity()
+    AndroidPrivacyScreen.clearActivity()
 }

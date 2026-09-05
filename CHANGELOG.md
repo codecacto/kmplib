@@ -1,5 +1,70 @@
 # Changelog — kmplib
 
+## 2.180.0 — modo discreto: o app some da multitarefa e volta pedindo a digital
+
+Um app de gestão de terreiro no celular de um membro pode ser aberto por outra pessoa, aparecer no
+seletor de apps recentes ou ser fotografado — e religião é dado pessoal **sensível** (LGPD art. 5º,
+II) num país em que 76–80% dos terreiros sofreram racismo religioso nos últimos dois anos. O mesmo
+vale, com outro nome, para o processo de um cliente, o prontuário de um paciente e o extrato de
+alguém: **Meu Advogado, NeuroCoreX e Minha Arena têm a mesma necessidade**, e cada um ia errar de um
+jeito diferente escrevendo `expect/actual` de janela dentro do app.
+
+O modo discreto tem **duas metades independentes**, e as duas entram nesta versão.
+
+**1. Sumir da multitarefa** — `kmplib-platform`, pacote `platform.privacy`:
+
+- **`PrivacyScreen`** (`isSupported`, `isHidden`, `setHidden(Boolean)`) + **`getPrivacyScreen()`** —
+  o caminho imperativo, para quem guarda a decisão numa preferência ("modo discreto" nos ajustes).
+- **`HideFromRecents(enabled)`** — o composable, que **desliga sozinho** ao sair da composição.
+  Aninhar é seguro: os pedidos são **contados por referência**, senão fechar a tela de detalhe
+  desligaria a proteção que a lista, viva atrás dela, tinha pedido.
+- **Android:** `FLAG_SECURE` na janela — a API oficial, e a única que o sistema respeita na hora de
+  tirar a miniatura de recentes. ⚠️ **O mesmo flag bloqueia print e gravação de tela**; é efeito
+  desejado aqui, mas o sistema não avisa o usuário (a captura só falha), então diga isso na sua tela
+  de ajustes. O flag é **reaplicado no `kmpLibPlatformOnResume`**: sem isso, girar o aparelho
+  derrubaria a proteção em silêncio, porque a janela nova nasce sem ele.
+- **iOS:** desfoque (`UIVisualEffectView`) sobre as janelas em `applicationWillResignActive` — o
+  instante exato em que o sistema tira a foto da multitarefa — removido em `didBecomeActive`. Não
+  existe `FLAG_SECURE` no iOS, e o truque conhecido (embutir a tela na camada de um `UITextField`
+  seguro) é uso indevido de detalhe interno do UIKit: fica de fora de propósito.
+
+**2. Trancar ao voltar** — `kmplib-ui`, pacote `ui.security`:
+
+- **`AppLockGate(enabled, graceMillis = 60_000, hideFromRecents, texts, mark, onUnlockFailed) { … }`**
+  + **`AppLockTexts`**, mais um overload com `BiometricAuth` explícito (Koin, dublê de teste).
+- **Nasce trancado** e tranca de novo quando o app volta do segundo plano depois da folga (default
+  60 s — sair para copiar um código do SMS não pode pedir digital na volta). Usa **`ON_STOP`/
+  `ON_START`**, e não `ON_PAUSE`/`ON_RESUME`: o próprio diálogo de biometria e a barra de
+  notificações pausam a tela sem o app ter saído, e com `ON_PAUSE` o portão se trancaria por cima
+  da própria digital.
+- **Rotação não tranca; processo novo tranca.** O estado vive num objeto de processo, e é o único
+  jeito de acertar os dois: `rememberSaveable` sobrevive à morte do processo (o app voltaria
+  destravado depois de o sistema matá-lo) e `remember` puro morre na recriação da `Activity`
+  (girar o aparelho trancaria na cara de quem não saiu de perto).
+- **O conteúdo continua composto por baixo** de uma cobertura opaca que engole o toque no passe
+  `Initial`. Tirar o conteúdo da composição perderia a pilha de navegação — a pessoa destravaria e
+  cairia na tela inicial, como se o app tivesse esquecido onde ela estava.
+- **A tela de bloqueio não explica nada:** só a marca (cadeado, ou a logo do app) e **Desbloquear**.
+  Quem está com o aparelho na mão pode não ser o dono, e a frase "seus dados estão protegidos"
+  entrega do que o app trata.
+
+**`BiometricAuth` ganhou a trava de tela como alternativa** (aditivo, com corpo default na interface
+— dublê de teste que já a implementa continua compilando):
+
+- **`isDeviceSecured()`** — biometria cadastrada **ou** PIN/padrão/senha. `isAvailable()` responde só
+  por biometria, e trancar um app por ela sozinha tranca para fora o dono de um aparelho sem digital.
+- **`authenticate(title, subtitle, allowDeviceCredential, …)`** — Android:
+  `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`, **exceto no Android 10 (API 29)**, onde essa combinação
+  não é suportada pelo `androidx.biometric` e o `build()` lança — ali vai `BIOMETRIC_WEAK or
+  DEVICE_CREDENTIAL`, aceitável porque não se assina nada com `CryptoObject`. E **sem**
+  `setNegativeButtonText`, que com `DEVICE_CREDENTIAL` também faz o `build()` lançar. iOS:
+  `LAPolicyDeviceOwnerAuthentication`, que é o que a Apple indica para trava de app.
+
+Aparelho **sem biometria e sem trava de tela** abre: não há o que conferir, e insistir só entregaria
+um app que não abre mais. A proteção da multitarefa continua valendo.
+
+Origem: `GAP-PF-M-01` do design do **Ponto Firme** (P0 de fundação). Aditivo — nada a migrar.
+
 ## 2.179.0 — o ícone do WhatsApp mora aqui
 
 Todo produto da fábrica tem botão de WhatsApp, e cada um resolvia o ícone do seu jeito: o Mirassol

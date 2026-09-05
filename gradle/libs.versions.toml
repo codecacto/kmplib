@@ -135,6 +135,10 @@ androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "b
 androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "androidxFragment" }
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+# Ciclo de vida DENTRO da composição (LifecycleEventEffect/LifecycleResumeEffect) — multiplataforma.
+# É o que o AppLockGate usa para saber que o app foi para segundo plano; sem ele o gate teria de
+# reimplementar observação de ciclo de vida em expect/actual.
+androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
