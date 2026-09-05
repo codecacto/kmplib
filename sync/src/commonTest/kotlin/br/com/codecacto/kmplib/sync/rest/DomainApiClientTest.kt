@@ -143,6 +143,33 @@ class DomainApiClientTest {
     }
 
     @Test
+    fun `deleteJson com corpo envia o corpo e o Bearer`() = runTest {
+        var contentType: String? = null
+        var enviado: String? = null
+        val engine = MockEngine { request ->
+            contentType = request.body.contentType?.toString()
+            // `setBody(String)` com Content-Type vira TextContent (um ByteArrayContent), não o
+            // WriteChannelContent do multipart — daí os dois ramos.
+            enviado = when (val corpo = request.body) {
+                is OutgoingContent.ByteArrayContent -> corpo.bytes().decodeToString()
+                is OutgoingContent.WriteChannelContent -> readBody(corpo)
+                else -> null
+            }
+            respond(content = "", status = HttpStatusCode.NoContent, headers = jsonHeader)
+        }
+        val provider = DomainTokenProvider { "tok-1" }
+        val api = DomainApiClient(HttpClient(engine), provider, "https://api.example.com")
+
+        val r = api.deleteJson("/v1/dispositivos", """{"token":"abc"}""")
+
+        assertTrue(r is DomainResult.Success)
+        // 204 sem corpo é sucesso legítimo aqui — quem desregistra um aparelho não recebe nada de volta.
+        assertEquals("", (r as DomainResult.Success).data)
+        assertEquals("""{"token":"abc"}""", enviado)
+        assertTrue(contentType?.startsWith("application/json") == true, "corpo saiu sem Content-Type JSON")
+    }
+
+    @Test
     fun `postMultipart de parte unica envia multipart form-data com o campo`() = runTest {
         var contentType: String? = null
         var body = ""

@@ -1,5 +1,31 @@
 # Changelog — kmplib
 
+## 2.182.0 — `DELETE` com corpo, para o segredo não viajar na URL
+
+`kmplib-core` · aditivo, nenhuma assinatura existente mudou.
+
+### `DomainApiClient.deleteJson(path, body)`
+
+O cliente tinha `delete(path)` (descarta a resposta) e `deleteJson(path)` (devolve o corpo), e
+**nenhum dos dois envia corpo**. A rota que apareceu no Tá Feito precisa disso: desregistrar o
+aparelho no logout é `DELETE /dispositivos` com `{"token": "..."}`.
+
+O token de push **é** a identidade do aparelho, e pôr um valor desses num segmento de caminho o
+entrega ao log de acesso de todo intermediário — a regra da casa é que **toda requisição registra
+método e URL** (`CLAUDE.md`, "todo projeto loga requisição"). O corpo não vai para o log; o caminho,
+vai.
+
+Sem esta variante o projeto escreve a chamada com o `HttpClient` cru e perde, de uma vez, as três
+coisas que justificam o `DomainApiClient` existir: **401 → refresh + um retry**, **402 →
+`DomainResult.Quota`** e **transporte que nunca lança**. Uma chamada fora do cliente é uma sessão
+que expira sem renovar.
+
+`DELETE` com corpo é permitido pela RFC 9110 §9.3.5 (sem semântica definida) — e é por isso que ele
+mora numa **variante explícita**, não no `delete` de sempre.
+
+Teste `DomainApiClientTest` (+1: corpo enviado, `Content-Type: application/json`, 204 vazio = sucesso).
+
+
 ## 2.181.0 — o erro de campo volta para dentro do campo (e mais seis buracos de tela)
 
 Sete lacunas levantadas por um app real (Tá Feito) contra a 2.179.0, escritas na hora em que

@@ -125,6 +125,29 @@ class DomainApiClient(
     suspend fun deleteJson(path: String): DomainResult<String> =
         execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.texto()
 
+    /**
+     * `DELETE` que **leva corpo** — para a rota que identifica o que apagar por um valor que não
+     * pode viajar na URL.
+     *
+     * O caso que a trouxe: desregistrar o aparelho no logout (`DELETE /dispositivos` com
+     * `{"token": "..."}`). O token de push é a identidade do aparelho, e pôr um segredo desses num
+     * segmento de caminho o entrega ao log de acesso de todo intermediário — a regra da fábrica é
+     * que **toda** requisição registra método e URL. O corpo não vai para o log.
+     *
+     * A alternativa que este método evita é pior: sem ele, o projeto monta o `HttpClient` na mão
+     * para uma chamada só, e perde de uma vez o 401→refresh, o 402→[DomainResult.Quota] e o
+     * transporte que nunca lança.
+     *
+     * `DELETE` com corpo é permitido pela RFC 9110 §9.3.5 (sem semântica definida, e é por isso que
+     * ela mora numa variante explícita, não no [delete] de sempre).
+     */
+    suspend fun deleteJson(path: String, body: String): DomainResult<String> =
+        execute(path) { token ->
+            httpClient.delete(url(path)) {
+                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+            }
+        }.texto()
+
     // ---- Binário (anexos) ------------------------------------------------
 
     /** Upload multipart (campo `file`) de um binário autenticado — ex.: `POST /v1/.../anexos`. */
