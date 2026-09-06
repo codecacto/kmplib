@@ -101,4 +101,24 @@ class LoginIdentifierModeTest {
             vazio.identifierMode,
         )
     }
+
+    @kotlin.test.Test
+    fun `provedores sociais vem do servidor, e a ausencia significa nenhum botao`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val comGoogle = json.decodeFromString(
+            br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),
+            """{"identifierMode":"BOTH","socialProviders":["google"]}""",
+        )
+        kotlin.test.assertTrue(comGoogle.temGoogle)
+        kotlin.test.assertFalse(comGoogle.temApple)
+
+        // Backend sem credencial (ou anterior à backlib 0.108.0) não manda o campo: nenhum botão
+        // social é desenhado — em vez de um que estoura no primeiro clique.
+        val semSocial = json.decodeFromString(
+            br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),
+            "{}",
+        )
+        kotlin.test.assertFalse(semSocial.temGoogle)
+        kotlin.test.assertFalse(semSocial.temApple)
+    }
 }

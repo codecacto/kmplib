@@ -1,5 +1,34 @@
 # Changelog — kmplib
 
+## 2.184.0 — onboarding: o slide não vaza pela borda, e o texto não salta entre páginas
+
+`kmplib-ui` · **mudança de comportamento visual** do `OnboardingPager` (nenhuma assinatura mudou).
+
+Os dois defeitos foram vistos no app rodando (Crédito na Mão, 06/set/2026) e são do componente —
+não do app. Os dois passam por build verde e só aparecem para quem arrasta a tela.
+
+### 1. `edgeToEdge` passa a ser `true` por default
+
+O `contentPadding` do pager (24.dp compacto / 64.dp expandido) deixava um pedaço do slide seguinte à
+mostra na borda, como dica de "arrasta para o lado". **Ninguém lê aquilo como dica**: com ilustração,
+ícone grande ou cor de fundo — que é todo onboarding real —, a fatia vizinha aparece como um retalho
+colado no canto, e a primeira tela do app parece quebrada. Quem quiser a dica de volta passa
+`edgeToEdge = false` de propósito.
+
+O único consumidor que já tinha visto o problema (Cidade Conectada) passava `true` explícito; o
+argumento continua válido e nada muda para ele.
+
+### 2. A arte e o título ficam no MESMO lugar em todos os slides
+
+`OnboardingSlide` usava `Arrangement.Center`: a altura do bloco depende do comprimento do texto
+daquela página, então o slide com descrição de 3 linhas desenha o ícone e o título mais acima que o
+de 2. Ao arrastar de um para o outro, os dois deslizam na horizontal **e saltam na vertical**.
+
+A disposição passa a ser por fração da altura — a arte centrada num bloco superior de 42%, o texto
+começando sempre no mesmo Y e crescendo para baixo. O bloco de texto agora **rola**
+(`verticalScroll`), que é o que faltava para a página mais longa não ter o fim cortado com fonte
+grande do sistema em tela baixa.
+
 ## 2.183.0 — `AppTimeGridScheduler` aceita clique no BLOQUEIO: a ausência se desfaz na própria grade
 
 `kmplib-ui` · aditivo — `onBlockClick: ((ScheduleBlock) -> Unit)? = null`.

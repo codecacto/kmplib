@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
@@ -137,16 +139,17 @@ fun OnboardingPager(
     showIndicators: Boolean = true,
     showSkip: Boolean = true,
     /**
-     * `true` = o slide ocupa a **largura toda**, sem a fatia do vizinho aparecendo nas bordas.
+     * `true` (**default desde 2.184.0**) = o slide ocupa a **largura toda**, sem a fatia do vizinho
+     * aparecendo nas bordas. O respiro lateral não some: ele passa do pager para dentro do slide.
      *
-     * O default (`false`) mantém o recuo de sempre (24.dp compacto / 64.dp expandido), em que o
-     * pedaço do próximo slide funciona como dica de "arrasta para o lado". A dica só funciona
-     * quando o slide é texto sobre o fundo da tela: com ilustração, cartão ou cor, a fatia vizinha
-     * lê como retalho no canto — tela quebrada, não carrossel.
-     *
-     * Ligado, o respiro lateral não some: ele passa do pager para dentro do próprio slide.
+     * O default era `false`, em que o recuo do pager (24.dp compacto / 64.dp expandido) deixava um
+     * pedaço do próximo slide à mostra como dica de "arrasta para o lado". **A dica nunca foi lida
+     * assim**: com ilustração, cartão ou cor — que é o caso de todo onboarding real — a fatia
+     * vizinha aparece como um retalho grudado na borda, e quem abre o app pela primeira vez lê isso
+     * como tela quebrada, não como convite ao gesto. Quem for reintroduzir a dica em algum produto
+     * passa `false` de propósito; o padrão é não vazar.
      */
-    edgeToEdge: Boolean = false,
+    edgeToEdge: Boolean = true,
     pagerState: PagerState = rememberPagerState(pageCount = { pages.size }),
 ) {
     if (pages.isEmpty()) return
@@ -215,6 +218,22 @@ fun OnboardingPager(
     }
 }
 
+/**
+ * Um slide.
+ *
+ * ## Por que a arte e o título NÃO são centralizados no slide
+ * Eram, e o preço aparecia no gesto: com `Arrangement.Center`, a altura do bloco inteiro depende do
+ * comprimento do texto daquela página, então o slide de 3 linhas desenha o ícone e o título mais
+ * acima que o de 2. Ao arrastar de um para o outro, os dois deslizam na horizontal **e** saltam na
+ * vertical — o app parece bugado exatamente na primeira tela que a pessoa vê.
+ *
+ * A disposição por FRAÇÃO da altura ([ARTE_FRACAO]) resolve na origem: a arte fica sempre no centro
+ * do mesmo bloco superior, e o texto sempre começa no mesmo Y, crescendo para baixo. O que varia
+ * entre páginas passa a ser só o que tem de variar — quanto texto há.
+ *
+ * O bloco de texto ROLA (`verticalScroll`). Sem isso, a página com mais linhas — fonte grande do
+ * sistema, tela baixa — cortaria o fim da descrição sem nenhum jeito de alcançá-la.
+ */
 @Composable
 private fun OnboardingSlide(
     page: OnboardingPage,
@@ -222,67 +241,95 @@ private fun OnboardingSlide(
     compact: Boolean,
     horizontalPadding: Dp = 8.dp,
 ) {
+    val temArte = page.illustration != null || page.icon != null
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = horizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
         val illustrationSize = if (compact) 160.dp else 220.dp
-        when {
-            page.illustration != null -> page.illustration.invoke(Modifier.size(illustrationSize))
-            page.icon != null -> Icon(
-                imageVector = page.icon,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(if (compact) 96.dp else 128.dp),
-            )
-        }
-        if (page.illustration != null || page.icon != null) {
-            Spacer(Modifier.height(if (compact) 32.dp else 48.dp))
-        }
-        Text(
-            text = page.title,
-            style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = page.description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        if (page.bullets.isNotEmpty()) {
-            Spacer(Modifier.height(if (compact) 20.dp else 28.dp))
-            Column(
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+        if (temArte) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(ARTE_FRACAO),
+                contentAlignment = Alignment.Center,
             ) {
-                page.bullets.forEach { linha ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = accent,
-                            modifier = Modifier.padding(top = 2.dp).size(16.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = linha,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            // Alinhado à ESQUERDA, ao contrário do título e da descrição: lista
-                            // centralizada obriga o olho a procurar onde cada linha começa.
-                            textAlign = TextAlign.Start,
-                        )
+                when {
+                    page.illustration != null -> page.illustration.invoke(Modifier.size(illustrationSize))
+                    page.icon != null -> Icon(
+                        imageVector = page.icon,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(if (compact) 96.dp else 128.dp),
+                    )
+                }
+            }
+        } else {
+            // Sem arte o texto continua não nascendo colado no topo — mas a folga é a MESMA em
+            // todas as páginas, que é o ponto.
+            Spacer(Modifier.weight(TOPO_SEM_ARTE_FRACAO))
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(if (temArte) 1f - ARTE_FRACAO else 1f - TOPO_SEM_ARTE_FRACAO)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = page.title,
+                style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = page.description,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            if (page.bullets.isNotEmpty()) {
+                Spacer(Modifier.height(if (compact) 20.dp else 28.dp))
+                Column(
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    page.bullets.forEach { linha ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = linha,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                // Alinhado à ESQUERDA, ao contrário do título e da descrição: lista
+                                // centralizada obriga o olho a procurar onde cada linha começa.
+                                textAlign = TextAlign.Start,
+                            )
+                        }
                     }
                 }
             }
+            // Respiro no fim do bloco rolável: sem ele a última linha encosta na borda do bloco
+            // quando o texto é longo o bastante para rolar.
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
+
+/**
+ * Fração da altura reservada à arte, acima do texto. `0.42` deixa a ilustração num terço superior
+ * generoso sem empurrar a descrição para fora em telefone pequeno.
+ */
+private const val ARTE_FRACAO = 0.42f
+
+/** Folga de topo quando o slide não tem arte nenhuma — o texto não nasce colado na barra. */
+private const val TOPO_SEM_ARTE_FRACAO = 0.18f
 
 @Composable
 private fun PageIndicators(total: Int, current: Int, accent: Color, modifier: Modifier = Modifier) {
