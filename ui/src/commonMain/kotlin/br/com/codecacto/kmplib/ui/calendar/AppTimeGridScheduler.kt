@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.calendar
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,8 +38,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -137,6 +140,10 @@ private val GRID_BOTTOM_GUTTER = 24.dp
  * @param eventColors Mapeia evento→cores (o app resolve status→cor AA). Default = tema.
  * @param renderEvent Conteúdo custom do bloco. `null` = rótulo + horário + descrição.
  * @param onEventClick Clique num evento.
+ * @param onBlockClick Clique numa **faixa de bloqueio** (a hachura). Ausente ⇒ a faixa segue
+ *   decorativa (é o comportamento de sempre). Existe porque quem lança a indisponibilidade NA
+ *   grade desfaz na grade: sem isto, a ausência do dia errado só sai por uma tela de configuração
+ *   que o profissional muitas vezes nem alcança, e ele conclui que não dá para remover.
  * @param onSlotClick Clique numa área livre (columnId, minuto arredondado ao `slotStepMin`).
  * @param selectedEventId Evento destacado (anel).
  * @param selectedResourceId (compacto) recurso visível; `null` = estado interno (1º recurso).
@@ -189,6 +196,7 @@ fun AppTimeGridScheduler(
     eventColors: ((ScheduleEvent) -> ScheduleEventColors)? = null,
     renderEvent: (@Composable (ScheduleEventScope) -> Unit)? = null,
     onEventClick: ((ScheduleEvent) -> Unit)? = null,
+    onBlockClick: ((ScheduleBlock) -> Unit)? = null,
     onSlotClick: ((columnId: String, minute: Int) -> Unit)? = null,
     selectedEventId: String? = null,
     selectedResourceId: String? = null,
@@ -436,6 +444,7 @@ fun AppTimeGridScheduler(
                             eventColors = resolveColors,
                             renderEvent = renderEvent,
                             onEventClick = onEventClick,
+                            onBlockClick = onBlockClick,
                             onSlotClick = onSlotClick,
                             selectedEventId = selectedEventId,
                             texts = texts,
@@ -556,6 +565,7 @@ private fun ResourceColumn(
     eventColors: (ScheduleEvent) -> ScheduleEventColors,
     renderEvent: (@Composable (ScheduleEventScope) -> Unit)?,
     onEventClick: ((ScheduleEvent) -> Unit)?,
+    onBlockClick: ((ScheduleBlock) -> Unit)?,
     onSlotClick: ((columnId: String, minute: Int) -> Unit)?,
     selectedEventId: String?,
     texts: AppTimeGridTexts,
@@ -656,6 +666,7 @@ private fun ResourceColumn(
                 lineColor = borderColor,
                 label = b.label,
                 contentDescription = texts.block + (b.label?.let { ": $it" } ?: ""),
+                onClick = onBlockClick?.let { handler -> { handler(b) } },
             )
         }
 
@@ -741,6 +752,7 @@ private fun HatchedBlock(
     lineColor: Color,
     label: String?,
     contentDescription: String,
+    onClick: (() -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier
@@ -751,7 +763,13 @@ private fun HatchedBlock(
             // cantos); sem recorte elas vazam sobre a faixa vizinha.
             .clip(RectangleShape)
             .background(baseColor)
-            .clearAndSetSemantics { this.contentDescription = contentDescription },
+            // `clickable` ANTES do semantics: `clearAndSetSemantics` apaga o papel de botão que o
+            // clickable anuncia, e o leitor de tela voltaria a ler a faixa como decoração.
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .clearAndSetSemantics {
+                this.contentDescription = contentDescription
+                if (onClick != null) this.role = Role.Button
+            },
     ) {
         if (hatched) {
             Canvas(modifier = Modifier.fillMaxSize()) {

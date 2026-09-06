@@ -1,5 +1,20 @@
 # Changelog — kmplib
 
+## 2.183.0 — `AppTimeGridScheduler` aceita clique no BLOQUEIO: a ausência se desfaz na própria grade
+
+`kmplib-ui` · aditivo — `onBlockClick: ((ScheduleBlock) -> Unit)? = null`.
+
+Com o handler, a faixa hachurada vira alvo de toque (`clickable` + `Role.Button` na semântica, para
+o leitor de tela parar de anunciá-la como decoração). Sem o handler, nada muda.
+
+Par mobile do `onBlockClick` da weblib 0.173.0, e pelo mesmo motivo de produto: a grade já é onde se
+LANÇA a indisponibilidade, mas a faixa resultante não respondia a nada — quem errava o dia só
+desfazia numa tela de configuração que o profissional às vezes nem alcança (no Meu Barbeiro,
+Horários exige `BUSINESS_HOURS_MANAGE`), e concluía que não dava para remover.
+
+O `clickable` entra ANTES do `clearAndSetSemantics` de propósito: ao contrário, o `clear` apagaria o
+papel de botão que ele anuncia.
+
 ## 2.182.0 — `DELETE` com corpo, para o segredo não viajar na URL
 
 `kmplib-core` · aditivo, nenhuma assinatura existente mudou.
