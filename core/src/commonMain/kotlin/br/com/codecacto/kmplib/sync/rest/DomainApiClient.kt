@@ -86,8 +86,26 @@ class DomainApiClient(
 
     // ---- JSON ------------------------------------------------------------
 
-    suspend fun getJson(path: String): DomainResult<String> =
-        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.texto()
+    /**
+     * `GET` que devolve o corpo como texto.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.185.0). Existe para a **capacidade de
+     *   leitura sobre UM recurso** — o token que um produto sem conta entrega ao criar um registro
+     *   e que autoriza consultar aquele registro depois. Ele não pode viajar na URL: credencial em
+     *   query entra no log de acesso de todo intermediário, no histórico do navegador e no
+     *   `Referer`. E não é `Authorization`: não há sessão nem portador de identidade, então usar
+     *   aquele header faria clientes e proxies tratarem-no como credencial de sessão.
+     */
+    suspend fun getJson(
+        path: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> =
+        execute(path) { token ->
+            httpClient.get(url(path)) {
+                bearer(token)
+                headers.forEach { (nome, valor) -> header(nome, valor) }
+            }
+        }.texto()
 
     suspend fun postJson(path: String, body: String): DomainResult<String> =
         execute(path) { token ->

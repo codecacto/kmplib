@@ -1,5 +1,18 @@
 # Changelog — kmplib
 
+## 2.185.0 — `getJson` aceita cabeçalho por chamada
+
+`kmplib-core` · aditivo — `DomainApiClient.getJson(path, headers = emptyMap())`.
+
+Existe para a **capacidade de leitura sobre UM recurso**: o token que um produto sem conta entrega
+ao criar um registro e que autoriza consultar aquele registro depois (Crédito na Mão, 06/set/2026).
+
+Sem isso, o app só tinha a URL — e credencial em query entra no log de acesso de todo intermediário
+(Cloudflare, Traefik), no histórico do navegador e no `Referer` de qualquer link que a tela abra. O
+`Authorization` também não serve: não há sessão nem portador de identidade ali, e usá-lo faria
+clientes e proxies tratarem o valor como credencial de sessão (cache, refresh, redirecionamento
+entre hosts).
+
 ## 2.184.0 — onboarding: o slide não vaza pela borda, e o texto não salta entre páginas
 
 `kmplib-ui` · **mudança de comportamento visual** do `OnboardingPager` (nenhuma assinatura mudou).
