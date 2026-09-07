@@ -1,5 +1,25 @@
 # Changelog — kmplib
 
+## 2.186.0 — o PDF de orçamento imprime quantidade fracionária
+
+`kmplib-pdf` · aditivo — `OsPdfItem.quantityLabel: String? = null`.
+
+`OsPdfItem.quantity` é `Int`, e `OsPdfData` é o modelo de **ordem de serviço, orçamento e recibo**.
+Em orçamento de prestador a quantidade é fracionária o tempo todo — "2,5 h de mão de obra", "1,5 m
+de cabo" —, e o consumidor não tinha para onde ir: arredondava, e o PDF saía com uma linha que
+**não fecha**, `2 × R$ 100,00 = R$ 250,00`, num documento que vai para o cliente do prestador. O
+total nunca esteve errado (ele vem de `subtotal`/`total`, em string); quem mentia era a coluna da
+quantidade.
+
+Com `quantityLabel`, quem tem quantidade decimal manda o rótulo pronto e o render usa
+`quantityLabel ?: quantity.toString()` — Android e iOS, mesmo layout.
+
+**É o ÚLTIMO parâmetro da `data class`, de propósito:** posto no meio, ele quebraria toda chamada
+posicional já existente — inclusive a dos próprios testes da lib, que foi como o erro apareceu.
+
+Quem não passa nada vê exatamente o mesmo PDF de antes. Origem: orçamento no app do Mirassol
+Conectado (06/set/2026).
+
 ## 2.185.0 — `getJson` aceita cabeçalho por chamada
 
 `kmplib-core` · aditivo — `DomainApiClient.getJson(path, headers = emptyMap())`.

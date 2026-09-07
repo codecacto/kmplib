@@ -120,7 +120,7 @@ private class IosOsPdfGenerator : OsPdfGenerator {
             val b = y + 14.0
             val descMax = colQty - (left + 6.0) - 40.0
             c.text(c.truncate(item.description, descMax, 10.0, false), left + 6.0, b, 10.0, bold = false, color = COLOR_TEXT)
-            c.text(item.quantity.toString(), colQty, b, 10.0, bold = false, color = COLOR_TEXT, align = PdfTextAlign.Right)
+            c.text(item.quantityLabel ?: item.quantity.toString(), colQty, b, 10.0, bold = false, color = COLOR_TEXT, align = PdfTextAlign.Right)
             c.text(OsPdfFormat.money(item.unitPrice), colUnit, b, 10.0, bold = false, color = COLOR_TEXT, align = PdfTextAlign.Right)
             c.text(OsPdfFormat.money(item.subtotal), colSub - 6.0, b, 10.0, bold = false, color = COLOR_TEXT, align = PdfTextAlign.Right)
             y += rowH

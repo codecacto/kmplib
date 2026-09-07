@@ -167,7 +167,7 @@ class AndroidOsPdfGenerator : OsPdfGenerator {
             // descrição (truncada para caber até colQty)
             val descMax = colQty - (left + 6f) - 40f
             canvas.drawText(truncate(item.description, descMax, cellPaint), left + 6f, b, cellPaint)
-            canvas.drawText(item.quantity.toString(), colQty, b, cellRight)
+            canvas.drawText(item.quantityLabel ?: item.quantity.toString(), colQty, b, cellRight)
             canvas.drawText(OsPdfFormat.money(item.unitPrice), colUnit, b, cellRight)
             canvas.drawText(OsPdfFormat.money(item.subtotal), colSub - 6f, b, cellRight)
             y += rowH

@@ -7,6 +7,29 @@ import kotlin.test.assertTrue
 
 class OsPdfTest {
 
+    // --- OsPdfItem.quantityLabel ---------------------------------------------
+
+    @Test
+    fun quantityLabel_ausentePorDefault_naoMudaNadaParaQuemJaUsava() {
+        val item = OsPdfItem(description = "Disjuntor", quantity = 2, unitPrice = "40.00", subtotal = "80.00")
+        assertEquals(null, item.quantityLabel)
+    }
+
+    @Test
+    fun quantityLabel_carregaAQuantidadeFracionaria() {
+        // Sem ele, "2,5 h × R$ 100,00 = R$ 250,00" saía como "2 × R$ 100,00 = R$ 250,00" — a linha
+        // não fecha, e é o cliente do prestador que lê o documento.
+        val item = OsPdfItem(
+            description = "Mão de obra",
+            quantity = 2,
+            quantityLabel = "2,5",
+            unitPrice = "100.00",
+            subtotal = "250.00",
+        )
+        assertEquals("2,5", item.quantityLabel)
+        assertEquals(250.0, OsPdfFormat.parseMoney(item.subtotal))
+    }
+
     // --- OsPdfFormat.parseMoney ----------------------------------------------
 
     @Test

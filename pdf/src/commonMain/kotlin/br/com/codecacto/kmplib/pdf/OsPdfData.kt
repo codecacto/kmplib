@@ -114,4 +114,16 @@ data class OsPdfItem(
     val unitPrice: String,
     /** Subtotal em string decimal (ex.: "120.00"). */
     val subtotal: String,
+    /**
+     * Como a quantidade deve APARECER, quando ela não é um inteiro.
+     *
+     * Existe porque [quantity] é `Int` e há documento em que a quantidade é fracionária — "2,5 h de
+     * mão de obra", "1,5 m de cabo". Sem isto o consumidor arredonda, e o PDF sai com uma linha que
+     * **não fecha**: `2 × R$ 100,00 = R$ 250,00`. O subtotal sempre veio de [subtotal], então o
+     * total já estava certo; quem mentia era a coluna da quantidade.
+     *
+     * `null` (default) imprime [quantity]. **Último parâmetro de propósito:** um campo com default
+     * no meio da `data class` quebraria toda chamada posicional já existente.
+     */
+    val quantityLabel: String? = null,
 )
