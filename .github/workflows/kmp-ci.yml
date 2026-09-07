@@ -23,10 +23,10 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Checkout kmplib
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: codecacto/kmplib
           ref: main
@@ -44,10 +44,10 @@ jobs:
     if: ${{ inputs.run_ios_tests }}
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Checkout kmplib
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: codecacto/kmplib
           ref: main

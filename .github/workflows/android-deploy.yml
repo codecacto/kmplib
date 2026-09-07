@@ -72,13 +72,13 @@ jobs:
   android-build-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Checkout kmplib
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: codecacto/kmplib
           ref: main
@@ -134,7 +134,7 @@ jobs:
           echo "AAB assinado: $AAB"
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-aab
           path: ${{ inputs.app_module }}/build/outputs/bundle/release/*.aab
