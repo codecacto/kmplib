@@ -48,6 +48,31 @@ internal class SentryCrashReporter : CrashReporter {
             // erros/mensagens/breadcrumbs/tags/user/release/environment.
             options.attachScreenshot = false
             options.attachViewHierarchy = false
+
+            /*
+             * Traduz a tag reservada `_fingerprint` no fingerprint DE VERDADE do evento.
+             *
+             * Por que passar por uma tag em vez de setar direto no `captureMessage`: o `Scope` do
+             * `sentry-kotlin-multiplatform` (0.13.0, a última publicada) expõe tag, contexto, user,
+             * level e breadcrumb — e NÃO expõe fingerprint. Quem expõe é o `SentryEvent`, e o único
+             * ponto comum (Android + iOS) em que se alcança o evento antes do envio é o
+             * `beforeSend`. É a via oficial do próprio Sentry para agrupar; não é contorno.
+             *
+             * Guardar o valor numa variável do reporter em vez da tag seria mais direto e ERRADO: o
+             * `beforeSend` roda fora da chamada, e dois alertas simultâneos leriam o valor um do
+             * outro. Na tag, o dado viaja DENTRO do evento — não há corrida possível.
+             *
+             * A tag é removida depois de traduzida: ela é transporte, não informação para quem lê o
+             * painel.
+             */
+            options.beforeSend = { event ->
+                event.getTag(TAG_FINGERPRINT)?.let { bruto ->
+                    val partes = bruto.split(SEPARADOR_FINGERPRINT).filter { it.isNotBlank() }
+                    if (partes.isNotEmpty()) event.fingerprint = partes.toMutableList()
+                    event.removeTag(TAG_FINGERPRINT)
+                }
+                event
+            }
         }
         active = true
     }
@@ -63,11 +88,22 @@ internal class SentryCrashReporter : CrashReporter {
         }
     }
 
-    override fun captureMessage(message: String, level: CrashLevel, tags: Map<String, String>) {
+    override fun captureMessage(
+        message: String,
+        level: CrashLevel,
+        tags: Map<String, String>,
+        fingerprint: List<String>,
+    ) {
         if (!active) return
         Sentry.captureMessage(message) { scope ->
             scope.level = level.toSentryLevel()
             tags.forEach { (key, value) -> scope.setTag(key, value) }
+            // Lista vazia NÃO é passada: `fingerprints = emptyList()` não é "sem fingerprint" para o
+            // servidor — é um fingerprint vazio, e todo evento cairia na MESMA issue.
+            // Vai como tag e o `beforeSend` a converte em fingerprint (ver o KDoc lá em cima).
+            if (fingerprint.isNotEmpty()) {
+                scope.setTag(TAG_FINGERPRINT, fingerprint.joinToString(SEPARADOR_FINGERPRINT))
+            }
         }
     }
 
@@ -100,6 +136,18 @@ internal class SentryCrashReporter : CrashReporter {
     override fun setTag(key: String, value: String) {
         if (!active) return
         Sentry.configureScope { scope -> scope.setTag(key, value) }
+    }
+
+    private companion object {
+        /**
+         * Tag reservada que carrega o fingerprint do `Scope` até o `beforeSend`. O underscore marca
+         * que é transporte interno da lib, não informação de produto — e o `beforeSend` a remove
+         * antes do evento sair.
+         */
+        const val TAG_FINGERPRINT = "_fingerprint"
+
+        /** `|` não aparece em slug de alerta (todos são `a-z_`), então nunca parte um termo ao meio. */
+        const val SEPARADOR_FINGERPRINT = "|"
     }
 }
 

@@ -1,5 +1,39 @@
 # Changelog — kmplib
 
+## 2.187.0 — o mesmo alerta para de virar DUAS issues (`fingerprint`)
+
+`CrashReporter.captureMessage` ganha o parâmetro **`fingerprint: List<String>`** (aditivo, default
+vazio = comportamento de antes), e o `PaymentAlertReporter` passa a mandar
+`listOf("pagamento", kind.slug)` em todo alerta.
+
+**O que estava acontecendo.** No Super 8, "PAGAMENTO: loja sem pacotes de assinatura" virou DUAS
+issues no GlitchTip — #303 e #304 —, iguais em mensagem, tags, `tipo`, device e release, as duas
+nascidas 19:05 de 21/ago/2026. Uma condição, duas issues: quem abre o painel conta errado e não
+sabe se está olhando dois problemas ou um.
+
+**Por que o cuidado que já existia não bastava.** O KDoc de `PaymentAlertKind` manda manter o
+`titulo` FIXO justamente para não criar issue nova a cada ocorrência — e isso está certo, mas
+resolve só o texto variável. Alerta é `captureMessage`: chega **sem stacktrace**, então o servidor
+tem pouco com que agrupar, e dois eventos idênticos no mesmo instante criam dois grupos. O
+fingerprint torna o agrupamento determinístico e a corrida deixa de importar.
+
+**Como foi implementado, e por que não é contorno.** O `Scope` do `sentry-kotlin-multiplatform`
+(0.13.0 — a ÚLTIMA publicada; conferido no Maven Central) expõe tag, contexto, user, level e
+breadcrumb, e **não** expõe fingerprint. Quem expõe é o `SentryEvent`, e o único ponto comum a
+Android e iOS em que se alcança o evento antes do envio é o **`beforeSend`** — a via oficial do
+próprio Sentry para agrupamento. O valor viaja do `Scope` até lá numa tag reservada
+(`_fingerprint`), que o `beforeSend` traduz e remove.
+
+Guardar o valor numa variável do reporter seria mais direto e **errado**: o `beforeSend` roda fora
+da chamada, e dois alertas simultâneos leriam o valor um do outro. Na tag, o dado viaja DENTRO do
+evento e não há corrida possível.
+
+O fingerprint **não** carrega `projeto` nem `detalhe`: cada app tem o seu DSN (a issue já nasce
+separada por projeto) e `detalhe` muda a cada ocorrência — incluí-lo devolveria o problema que este
+fingerprint existe para matar. Três testes travam isso.
+
+Aditivo: quem não passa `fingerprint` continua exatamente como estava.
+
 ## 2.186.0 — o PDF de orçamento imprime quantidade fracionária
 
 `kmplib-pdf` · aditivo — `OsPdfItem.quantityLabel: String? = null`.

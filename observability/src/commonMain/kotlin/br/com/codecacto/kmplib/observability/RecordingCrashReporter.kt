@@ -27,7 +27,13 @@ class RecordingCrashReporter : CrashReporter {
     var currentUserId: String? = null
         private set
 
-    data class Message(val message: String, val level: CrashLevel, val tags: Map<String, String>)
+    data class Message(
+        val message: String,
+        val level: CrashLevel,
+        val tags: Map<String, String>,
+        /** Agrupamento explícito do evento. Vazio = o servidor decide (ver `CrashReporter`). */
+        val fingerprint: List<String> = emptyList(),
+    )
 
     data class Breadcrumb(val message: String, val category: String?, val level: CrashLevel)
 
@@ -41,9 +47,14 @@ class RecordingCrashReporter : CrashReporter {
         exceptions.add(throwable to tags)
     }
 
-    override fun captureMessage(message: String, level: CrashLevel, tags: Map<String, String>) {
+    override fun captureMessage(
+        message: String,
+        level: CrashLevel,
+        tags: Map<String, String>,
+        fingerprint: List<String>,
+    ) {
         if (!active) return
-        messages.add(Message(message, level, tags))
+        messages.add(Message(message, level, tags, fingerprint))
     }
 
     override fun addBreadcrumb(message: String, category: String?, level: CrashLevel) {

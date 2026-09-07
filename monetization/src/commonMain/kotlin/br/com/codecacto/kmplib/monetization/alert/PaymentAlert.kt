@@ -185,7 +185,18 @@ class PaymentAlertReporter(
             // Tag de chamador também passa pelo redator: mesma razão do `detalhe`.
             tagsExtra.forEach { (chave, valor) -> put(chave, sanitizar(valor)) }
         }
-        reporter.captureMessage(kind.titulo, nivel, tags)
+        // Agrupamento EXPLÍCITO — `area:tipo`, os dois estáveis por construção.
+        //
+        // O título fixo (ver o KDoc de `PaymentAlertKind`) resolve o texto variável, e só isso.
+        // Alerta é `captureMessage`: chega sem stacktrace, então o servidor tem pouco com que
+        // agrupar, e dois eventos idênticos no mesmo instante criam DUAS issues. Foi o que houve no
+        // Super 8 em 21/ago/2026: "loja sem pacotes de assinatura" virou as issues #303 e #304 —
+        // mesma mensagem, mesmas tags, mesmo device, mesmo release, ambas nascidas 19:05. Uma
+        // condição, duas issues, e a leitura do painel deixa de valer.
+        //
+        // Nada de `projeto` aqui: cada app tem o seu DSN, então a issue já nasce separada por
+        // projeto. Incluí-lo só tornaria o fingerprint mais frágil sem separar mais nada.
+        reporter.captureMessage(kind.titulo, nivel, tags, listOf(AREA_PAGAMENTO, kind.slug))
         return true
     }
 

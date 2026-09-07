@@ -58,11 +58,26 @@ interface CrashReporter {
      * Reporta uma mensagem (sem exceção) no [level] informado. [tags] opcionais são anexados ao
      * evento — é assim que um alerta ganha roteamento/filtro no painel (ex.:
      * `mapOf("area" to "pagamento")`).
+     *
+     * [fingerprint] fixa em QUAL issue o evento cai. Vazio (default) = o servidor agrupa por
+     * heurística, e é aí que mora o problema: mensagem sem exceção chega **sem stacktrace**, então
+     * a heurística tem pouco com que trabalhar e dois eventos idênticos que chegam no mesmo
+     * instante criam DUAS issues. Aconteceu no Super 8 (21/ago/2026): "PAGAMENTO: loja sem pacotes
+     * de assinatura" virou as issues #303 e #304, iguais em mensagem, tags, device e release, as
+     * duas nascidas 19:05.
+     *
+     * Manter o título fixo — que a fábrica já fazia — **não basta**: resolve o texto variável, não
+     * a corrida. Com `fingerprint = listOf("pagamento", "loja_indisponivel")` o agrupamento passa a
+     * ser determinístico, e o mesmo alerta cai sempre na mesma issue, venha de onde vier.
+     *
+     * Use termos ESTÁVEIS (área + tipo do alerta). Nunca inclua id, contador, timestamp ou nome de
+     * device: cada valor distinto vira uma issue nova, que é exatamente o que se quer evitar.
      */
     fun captureMessage(
         message: String,
         level: CrashLevel = CrashLevel.Error,
         tags: Map<String, String> = emptyMap(),
+        fingerprint: List<String> = emptyList(),
     )
 
     /**

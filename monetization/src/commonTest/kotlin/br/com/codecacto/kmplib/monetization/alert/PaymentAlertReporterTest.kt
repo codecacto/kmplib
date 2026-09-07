@@ -178,6 +178,48 @@ class PaymentAlertReporterTest {
     }
 
     @Test
+    fun o_alerta_leva_fingerprint_estavel_de_area_e_tipo() {
+        val crash = reporterAtivo()
+
+        PaymentAlertReporter(crash, projeto = "super-8").report(PaymentAlertKind.LojaIndisponivel)
+
+        assertEquals(
+            listOf("pagamento", "loja_indisponivel"),
+            crash.messages.single().fingerprint,
+            "sem fingerprint o servidor agrupa por heurística, e dois eventos idênticos no mesmo " +
+                "instante viram DUAS issues (Super 8, #303 e #304, 21/ago/2026)",
+        )
+    }
+
+    @Test
+    fun o_mesmo_tipo_agrupa_igual_em_projetos_e_detalhes_diferentes() {
+        val a = reporterAtivo()
+        val b = reporterAtivo()
+
+        PaymentAlertReporter(a, projeto = "super-8")
+            .report(PaymentAlertKind.PaywallSemPlano, detalhe = "oferta=0 pacotes=0")
+        PaymentAlertReporter(b, projeto = "locaki")
+            .report(PaymentAlertKind.PaywallSemPlano, detalhe = "oferta=2 pacotes=0")
+
+        // O fingerprint NÃO carrega projeto nem detalhe: cada app tem o seu DSN (a issue já nasce
+        // separada por projeto) e `detalhe` varia a cada ocorrência — incluí-lo devolveria o
+        // problema que este fingerprint existe para matar.
+        assertEquals(a.messages.single().fingerprint, b.messages.single().fingerprint)
+    }
+
+    @Test
+    fun tipos_diferentes_nao_caem_na_mesma_issue() {
+        val crash = reporterAtivo()
+        val alertas = PaymentAlertReporter(crash, projeto = "super-8")
+
+        alertas.report(PaymentAlertKind.PaywallSemPlano)
+        alertas.report(PaymentAlertKind.LojaIndisponivel)
+
+        val fps = crash.messages.map { it.fingerprint }
+        assertEquals(fps.toSet().size, fps.size, "dois tipos distintos não podem agrupar juntos")
+    }
+
+    @Test
     fun tags_extra_do_chamador_entram_no_evento() {
         val crash = reporterAtivo()
         val alertas = PaymentAlertReporter(crash, projeto = "super-8")
