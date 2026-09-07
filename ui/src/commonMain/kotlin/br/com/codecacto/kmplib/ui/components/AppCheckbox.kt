@@ -24,6 +24,18 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Cores derivam de [MaterialTheme.colorScheme] (sem cores hardcoded).
  *
+ * ## A caixa alinha pela PRIMEIRA LINHA do rótulo, não pelo meio dele
+ *
+ * Rótulo de consentimento tem parágrafo, não três palavras — e com `CenterVertically` a caixa
+ * descia para o meio de um bloco de seis linhas, longe do começo da frase que ela governa. O olho
+ * lê de cima, e uma caixa solta no meio do texto parece pertencer à linha que está ao lado dela.
+ *
+ * O alinhamento é `Top` com **14dp** de folga no texto, e o número não é estético: o `Checkbox` do
+ * Material ocupa 48dp de alvo com o quadrado desenhado no centro (24dp), e a primeira linha de
+ * `bodyMedium` (lineHeight 20sp) tem o seu centro em ~10dp. Os 14dp fazem os dois centros
+ * coincidirem — então **rótulo de uma linha continua parecendo centralizado**, exatamente como
+ * antes, e o de várias passa a começar junto da caixa.
+ *
  * Uso típico: aceite de termos LGPD no onboarding.
  *
  * ```kotlin
@@ -55,7 +67,7 @@ fun AppCheckbox(
             role = Role.Checkbox,
             onValueChange = onCheckedChange
         ),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // onCheckedChange = null: a interação é tratada pelo Row.toggleable acima,
@@ -73,7 +85,8 @@ fun AppCheckbox(
             } else {
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             },
-            modifier = Modifier.padding(end = 4.dp)
+            // 14dp = centro do quadrado (24dp) menos o centro da primeira linha (~10dp).
+            modifier = Modifier.padding(top = 14.dp, end = 4.dp)
         )
     }
 }
@@ -87,6 +100,22 @@ private fun AppCheckboxPreview() {
             checked = true,
             onCheckedChange = {},
             label = "Li e aceito os termos de uso e a política de privacidade"
+        )
+    }
+}
+
+/** O caso que motivou o alinhamento no topo: rótulo de consentimento, com parágrafo. */
+@Suppress("DEPRECATION")
+@Preview
+@Composable
+private fun AppCheckboxRotuloLongoPreview() {
+    AppTheme {
+        AppCheckbox(
+            checked = false,
+            onCheckedChange = {},
+            label = "Autorizo o contato de um especialista autorizado pelo telefone informado e " +
+                "o compartilhamento dos meus dados com o parceiro responsável pelo atendimento, " +
+                "para que ele possa apresentar as condições disponíveis para mim."
         )
     }
 }

@@ -1,5 +1,43 @@
 # Changelog — kmplib
 
+## 2.188.0 — a caixa do consentimento alinha pelo começo do texto, e chip que não cabe DESCE
+
+Duas correções de formulário, as duas no componente — que é onde elas somem de vez, em vez de serem
+lembradas tela a tela.
+
+### `AppCheckbox` alinha pela PRIMEIRA LINHA do rótulo
+
+Era `Alignment.CenterVertically`. Com rótulo de uma linha ninguém nota; com o texto de um
+consentimento LGPD — que tem parágrafo, não três palavras — a caixa descia para o **meio** do bloco,
+longe do começo da frase que ela governa, parecendo pertencer à linha que estava ao lado dela.
+
+Agora é `Alignment.Top` com **14dp** de folga no texto, e o número não é chute: o `Checkbox` do
+Material ocupa 48dp de alvo com o quadrado desenhado no centro (24dp), e a primeira linha de
+`bodyMedium` (lineHeight 20sp) tem o centro em ~10dp. Os 14dp fazem os dois centros coincidirem —
+então **rótulo de uma linha continua exatamente como estava**, e o de várias passa a começar junto
+da caixa. Nenhum consumidor precisa mudar nada.
+
+### `ChoiceChipGroup` — escolha única que quebra linha (componente novo)
+
+Faltava na lib o terceiro comportamento possível quando a largura acaba. Os dois que existiam
+falham de jeitos diferentes, e nenhum dos dois serve para um grupo de 4 opções com rótulo de duas
+palavras:
+
+| Componente | O que faz quando não cabe |
+|---|---|
+| `SegmentedControl` | **Comprime** — linha única, os rótulos se espremem até cortar. |
+| `FilterChipRow` | **Esconde** — é `LazyRow`; o que passou da borda só aparece rolando, e ninguém rola o que não sabe que existe. |
+| **`ChoiceChipGroup`** | **Desce** — `FlowRow`, as opções continuam todas visíveis, em duas linhas. |
+
+Cada chip tem no mínimo 48dp de altura (o `FilterChip` puro nasce com 32dp) e o estado vai na
+semântica, nunca só na cor.
+
+O caso: "melhor horário para falar com você" no formulário de pedido do Crédito na Mão — quatro
+opções, uma delas "Qualquer horário". Num telefone de 320dp o segmentado espremia os quatro rótulos
+até cortar. Continua valendo `SegmentedControl` para 2–3 rótulos curtos (a linha única é mais
+legível) e `AppPickerField` quando a lista passa de umas dezenas, porque aí a tela é de **procurar**,
+não de comparar.
+
 ## 2.187.0 — o mesmo alerta para de virar DUAS issues (`fingerprint`)
 
 `CrashReporter.captureMessage` ganha o parâmetro **`fingerprint: List<String>`** (aditivo, default
