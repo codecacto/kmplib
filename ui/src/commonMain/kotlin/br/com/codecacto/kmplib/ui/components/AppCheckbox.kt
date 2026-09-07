@@ -30,11 +30,16 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * descia para o meio de um bloco de seis linhas, longe do começo da frase que ela governa. O olho
  * lê de cima, e uma caixa solta no meio do texto parece pertencer à linha que está ao lado dela.
  *
- * O alinhamento é `Top` com **14dp** de folga no texto, e o número não é estético: o `Checkbox` do
- * Material ocupa 48dp de alvo com o quadrado desenhado no centro (24dp), e a primeira linha de
- * `bodyMedium` (lineHeight 20sp) tem o seu centro em ~10dp. Os 14dp fazem os dois centros
- * coincidirem — então **rótulo de uma linha continua parecendo centralizado**, exatamente como
- * antes, e o de várias passa a começar junto da caixa.
+ * O alinhamento é `Top` com **10dp** de folga no texto, e o número não é estético: o `Checkbox` do
+ * Material desenha o seu *state layer* em **40dp** (`CheckboxTokens.StateLayerSize`), com o quadrado
+ * no centro — logo a 20dp do topo —, e a primeira linha de `bodyMedium` (lineHeight 20sp) tem o
+ * centro em ~10dp. Os 10dp fazem os dois centros coincidirem, então **rótulo de uma linha continua
+ * parecendo centralizado**, exatamente como antes, e o de várias passa a começar junto da caixa.
+ *
+ * ⚠️ **Não são 48dp.** Foi o primeiro palpite (2.188.0) e deixou a caixa visivelmente ACIMA da
+ * primeira linha: os 48dp do `minimumInteractiveComponentSize` expandem o **alvo de toque**, que é
+ * maior que o desenho — usar esse número como se fosse a altura do componente empurra o texto 4dp
+ * a mais para baixo. Quem manda aqui é o tamanho DESENHADO, não o tamanho tocável.
  *
  * Uso típico: aceite de termos LGPD no onboarding.
  *
@@ -85,8 +90,9 @@ fun AppCheckbox(
             } else {
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             },
-            // 14dp = centro do quadrado (24dp) menos o centro da primeira linha (~10dp).
-            modifier = Modifier.padding(top = 14.dp, end = 4.dp)
+            // 10dp = centro do quadrado (20dp, metade do state layer de 40dp) menos o centro da
+            // primeira linha (~10dp). NÃO usar os 48dp do alvo mínimo: ver o KDoc.
+            modifier = Modifier.padding(top = 10.dp, end = 4.dp)
         )
     }
 }

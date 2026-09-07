@@ -1,5 +1,19 @@
 # Changelog — kmplib
 
+## 2.189.0 — o recuo do `AppCheckbox` era 10dp, não 14dp
+
+Correção do número que a 2.188.0 introduziu. A caixa ficou **acima** do começo do rótulo, e o motivo
+é uma confusão que vale registrar: o `Checkbox` do Material desenha o seu *state layer* em **40dp**
+(`CheckboxTokens.StateLayerSize`), mas o `minimumInteractiveComponentSize()` reserva **48dp** de
+**alvo de toque**. Eu usei os 48 como se fossem a altura do desenho, e por isso empurrei o texto 4dp
+a mais do que devia.
+
+Quem manda no alinhamento óptico é o tamanho **desenhado**: quadrado no centro dos 40dp = 20dp do
+topo, primeira linha de `bodyMedium` com o centro em ~10dp, recuo = 10dp.
+
+Vale para qualquer alinhamento de ícone com texto: o alvo tocável de um componente Material costuma
+ser maior que ele, e alinhar pelo alvo desloca o desenho.
+
 ## 2.188.0 — a caixa do consentimento alinha pelo começo do texto, e chip que não cabe DESCE
 
 Duas correções de formulário, as duas no componente — que é onde elas somem de vez, em vez de serem
