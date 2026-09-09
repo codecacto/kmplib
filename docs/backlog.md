@@ -120,15 +120,19 @@
       fazem — e por isso este item é P2, não P0. O caminho de lib seria um
       `AVAssetResourceLoaderDelegate` reescrevendo o manifesto (o mesmo subsistema do
       `GAP-RA-M-08`); se ele um dia entrar, resolve os dois de uma vez.
-- [ ] **GAP-RA-M-10 (P1) — Google Play Billing 8 não consulta mais compra CONSUMIDA.** Vale de
+- [ ] **GAP-RA-M-10 (P2) — Google Play Billing 8 não consulta mais compra CONSUMIDA.** Vale de
       `purchases-kmp` 2.0.0 em diante, que é a versão que a lib usa. **Não afeta o não-consumível da
-      2.192.0** (ele nunca é consumido), mas afeta o `purchaseConsumable` legado — pay-per-action, hoje
-      o Meu Advogado — quando o usuário é anônimo: a compra deixa de ser recuperável em reinstalação
-      ou troca de aparelho. Duas frentes, e a primeira já resolve quase tudo: **(a)** identificar o
-      comprador (`identify`) em todo produto que venda consumível, o que a lib já oferece desde a
-      2.89.0; **(b)** garantir que o **Auto Backup do Android inclua o arquivo de preferências do
-      RevenueCat** (`RevenueCatBackupAgent.REVENUECAT_PREFS_FILE_NAME`) — é configuração de app, e o
-      lugar natural dela é a `casca-mobile`, não a lib.
+      2.192.0** (ele nunca é consumido). Sobre o `purchaseConsumable` legado — pay-per-action, hoje só
+      o **Meu Advogado**, que inicializa a monetização **sem `userId` e nunca chama `identify`**,
+      portanto com app user anônimo —, o impacto real é **menor do que parece, e por isso este item é
+      P2**: naquele produto o que a compra libera é gravado **no nosso backend**, atrelado à conta do
+      usuário, e não à conta de loja; não há restauração de consumível no fluxo. O que continua
+      irrecuperável é a compra cujo `transactionId` **nunca chegou ao nosso servidor** (app morto no
+      meio do fluxo) — e essa já era irrecuperável antes do Billing 8. Duas frentes, se algum produto
+      novo passar a depender de recuperar consumível: **(a)** `identify` no comprador, que a lib
+      oferece desde a 2.89.0; **(b)** o **Auto Backup do Android incluindo o arquivo de preferências
+      do RevenueCat** (`RevenueCatBackupAgent.REVENUECAT_PREFS_FILE_NAME`) — configuração de app, e o
+      lugar dela é a `casca-mobile`, não a lib.
 - [ ] **GAP-RA-M-11 (P2) — `syncPurchases` não exposto.** Serve para migrar recibos anteriores à
       integração com o fornecedor, e a documentação dele registra risco de *aliasing* de usuário
       anônimo. Nenhum produto nosso precisa hoje: `ownedItems()` cobre a conciliação silenciosa e

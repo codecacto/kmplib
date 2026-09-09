@@ -108,10 +108,11 @@ mesma consequência, e distingui-las só produziria um claim que **parece** conc
 ### O que FICOU, e está aqui em vez de escondido
 
 - **Google Play Billing 8 não consulta mais compra CONSUMIDA** (vale de `purchases-kmp` 2.0.0 em
-  diante, que é a nossa). Não afeta o não-consumível desta versão — ele nunca é consumido —, mas
-  **afeta o `purchaseConsumable` legado** (pay-per-action) para usuário anônimo. Registrado como
-  `GAP-RA-M-10`, com a mitigação que o fornecedor recomenda (backup do arquivo de preferências dele
-  no Android).
+  diante, que é a nossa). Não afeta o não-consumível desta versão — ele nunca é consumido. Sobre o
+  `purchaseConsumable` legado (pay-per-action, hoje só o Meu Advogado, que roda com app user
+  anônimo) o impacto foi **conferido no código e é menor do que parece**: ali o que a compra libera
+  é gravado no **nosso** backend, atrelado à conta do usuário, e não há restauração de consumível no
+  fluxo. Registrado como `GAP-RA-M-10` (P2), com a mitigação que o fornecedor recomenda.
 - **`syncPurchases` não foi exposto.** Ele serve para migrar recibos anteriores à integração com o
   fornecedor, e traz risco documentado de *aliasing* de usuário anônimo. Nenhum produto nosso precisa
   disso hoje; `ownedItems()` cobre a conciliação silenciosa. Registrado como `GAP-RA-M-11`.
