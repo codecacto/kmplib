@@ -5,9 +5,11 @@ import com.revenuecat.purchases.kmp.Purchases
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
 import com.revenuecat.purchases.kmp.models.Package
 import com.revenuecat.purchases.kmp.models.PackageType
+import com.revenuecat.purchases.kmp.models.ProductCategory
 import com.revenuecat.purchases.kmp.models.PurchasesError
 import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
 import com.revenuecat.purchases.kmp.models.StoreProduct
+import com.revenuecat.purchases.kmp.models.VerificationResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -211,6 +213,206 @@ internal class RevenueCatPurchaseRepository(
         }
     }
 
+
+    // ---------------------------------------------------------------------------------------------
+    // Venda AVULSA — item não-consumível (2.192.0).
+    // ---------------------------------------------------------------------------------------------
+
+    /** Cache dos `StoreProduct` NÃO-CONSUMÍVEIS lidos por id, para o [purchaseItem]. */
+    private var cachedItems: Map<String, StoreProduct> = emptyMap()
+
+    override suspend fun getStoreItems(productIds: List<String>): StoreItemsOutcome {
+        val pedidos = productIds.filter { it.isNotBlank() }.distinct()
+        if (pedidos.isEmpty()) return StoreItemsOutcome.Empty(emptyList())
+
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.getProducts(
+                productIds = pedidos,
+                onError = { error ->
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao ler itens da loja [$code]: ${error.message}")
+                    continuation.resume(StoreItemsOutcome.Failed(error.message, code))
+                },
+                onSuccess = { products ->
+                    // `getProducts` devolve assinatura e não-assinatura na mesma lista. Vender uma
+                    // assinatura por este caminho criaria cobrança recorrente enquanto o app acha
+                    // que vendeu acesso vitalício — por isso ela é descartada aqui e reaparece em
+                    // `missingProductIds`, que é onde a fábrica enxerga catálogo mal configurado.
+                    val naoConsumiveis = products.filter { it.category == ProductCategory.NON_SUBSCRIPTION }
+                    val descartados = products.size - naoConsumiveis.size
+                    if (descartados > 0) {
+                        AppLogger.w(
+                            TAG,
+                            "$descartados produto(s) de ASSINATURA ignorados na venda avulsa",
+                        )
+                    }
+                    // Mescla, não substitui: o [purchaseItem] recarrega um id só quando erra o
+                    // cache, e substituir ali despejaria o catálogo inteiro lido antes — a próxima
+                    // compra pagaria outra ida à loja, e assim por diante.
+                    cachedItems = cachedItems + naoConsumiveis.associateBy { it.id }
+                    val resultado = StoreItemsOutcome.from(pedidos, naoConsumiveis.map { it.toStoreItem() })
+                    if (resultado.missingProductIds.isNotEmpty()) {
+                        AppLogger.w(
+                            TAG,
+                            "loja nao tem ${resultado.missingProductIds.size} produto(s) pedido(s)",
+                        )
+                    }
+                    continuation.resume(resultado)
+                }
+            )
+        }
+    }
+
+    override suspend fun purchaseItem(productId: String): ItemPurchaseResult {
+        val product = cachedItems[productId]
+            ?: run {
+                getStoreItems(listOf(productId))
+                cachedItems[productId]
+            }
+            ?: return ItemPurchaseResult.Failed(
+                PurchaseErrorCode.PRODUCT_NOT_FOUND,
+                "item nao encontrado na loja: $productId",
+            )
+
+        if (PurchaseIdentity.isAnonymous(currentAppUserId())) {
+            // Não bloqueia (recusar a venda seria pior que vendê-la), mas some do log é como a
+            // compra vira irrecuperável: sem App User ID próprio, item avulso não volta em celular
+            // novo — é o cenário que a documentação do fornecedor marca em vermelho.
+            AppLogger.w(
+                TAG,
+                "compra avulsa com app user ANONIMO — chame identify() antes de vender",
+            )
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.purchase(
+                storeProduct = product,
+                onError = { error, userCancelled ->
+                    continuation.resume(
+                        when (val failure = error.toPurchaseFailure(userCancelled)) {
+                            is PurchaseFailure.Cancelled -> ItemPurchaseResult.Cancelled
+                            is PurchaseFailure.Failed -> ItemPurchaseResult.fromFailure(
+                                code = failure.code,
+                                message = failure.message,
+                                productId = productId,
+                            )
+                        }
+                    )
+                },
+                onSuccess = { storeTransaction, customerInfo ->
+                    val comprado = OwnedStoreItem(
+                        productId = storeTransaction.productIds.firstOrNull() ?: productId,
+                        transactionId = storeTransaction.transactionId,
+                        purchasedAtMillis = storeTransaction.purchaseTime,
+                    )
+                    continuation.resume(
+                        ItemPurchaseResult.Success(
+                            item = comprado,
+                            claim = customerInfo.toStorePurchaseClaim().incluindo(comprado),
+                        )
+                    )
+                }
+            )
+        }
+    }
+
+    override suspend fun restoreItems(): ItemRestoreResult {
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.restorePurchases(
+                onError = { error ->
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao restaurar itens [$code]: ${error.message}")
+                    continuation.resume(ItemRestoreResult.Failed(code, error.message))
+                },
+                onSuccess = { customerInfo ->
+                    // Uma restauração, os dois modelos: a loja mostra diálogo do sistema a cada
+                    // chamada, então este método também publica a assinatura em vez de obrigar o app
+                    // a chamar `restorePurchases()` logo depois e pedir a senha duas vezes.
+                    val subscription = customerInfo.toSubscriptionInfo()
+                    _subscriptionState.value = subscription
+                    val claim = customerInfo.toStorePurchaseClaim()
+                    continuation.resume(
+                        if (claim.isEmpty && !subscription.isActive) {
+                            ItemRestoreResult.NothingToRestore
+                        } else {
+                            ItemRestoreResult.Restored(claim, subscription)
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    override suspend fun ownedItems(): Result<StorePurchaseClaim> {
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.getCustomerInfo(
+                // CACHED_OR_FETCHED e não FETCH_CURRENT: este método roda na abertura do app e na
+                // tela de catálogo, e o SDK já renova o cache depois de toda compra/restauração —
+                // forçar rede aqui seria uma chamada por tela sem informação nova.
+                fetchPolicy = CacheFetchPolicy.CACHED_OR_FETCHED,
+                onError = { error ->
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao ler itens possuidos [$code]: ${error.message}")
+                    continuation.resume(Result.failure(PurchaseException(code, error.message)))
+                },
+                onSuccess = { customerInfo ->
+                    continuation.resume(Result.success(customerInfo.toStorePurchaseClaim()))
+                }
+            )
+        }
+    }
+
+    /**
+     * `customerInfo` → a alegação que o app manda ao servidor.
+     *
+     * Lê `nonSubscriptionTransactions`, que é onde o fornecedor guarda **toda compra única** (a
+     * loja não devolve não-consumível em outro lugar). O `appUserId` vai junto porque é por ele que
+     * o backend consulta o fornecedor — sem ele o claim não é conciliável, só uma lista de ids.
+     */
+    private fun com.revenuecat.purchases.kmp.models.CustomerInfo.toStorePurchaseClaim(): StorePurchaseClaim =
+        StorePurchaseClaim(
+            appUserId = currentAppUserId().orEmpty(),
+            store = PurchaseStore.fromWire(currentStore()),
+            items = nonSubscriptionTransactions.map { transacao ->
+                OwnedStoreItem(
+                    productId = transacao.productIdentifier,
+                    transactionId = transacao.transactionIdentifier,
+                    purchasedAtMillis = transacao.purchaseDateMillis,
+                )
+            },
+            verification = entitlements.verification.toStoreVerification(),
+        )
+
+    /**
+     * Garante que o item recém-comprado esteja no claim.
+     *
+     * O `customerInfo` devolvido pela compra normalmente já o traz, mas depender disso é apostar em
+     * ordem de propagação do backend do fornecedor — e o item que falta aqui é exatamente o que
+     * acabou de ser pago.
+     */
+    private fun StorePurchaseClaim.incluindo(item: OwnedStoreItem): StorePurchaseClaim =
+        if (items.any { it.transactionId == item.transactionId && it.productId == item.productId }) {
+            this
+        } else {
+            copy(items = items + item)
+        }
+
+    private fun VerificationResult.toStoreVerification(): StoreVerification = when (this) {
+        VerificationResult.NOT_REQUESTED -> StoreVerification.NOT_REQUESTED
+        VerificationResult.VERIFIED -> StoreVerification.VERIFIED
+        VerificationResult.VERIFIED_ON_DEVICE -> StoreVerification.VERIFIED_ON_DEVICE
+        VerificationResult.FAILED -> StoreVerification.FAILED
+    }
+
+    private fun StoreProduct.toStoreItem(): StoreItem = StoreItem(
+        productId = id,
+        title = title,
+        description = localizedDescription ?: title,
+        priceLabel = price.formatted,
+        priceAmountMicros = price.amountMicros,
+        currencyCode = price.currencyCode,
+    )
+
     override suspend fun identify(appUserId: String): Result<Unit> {
         val id = when (val check = PurchaseIdentity.check(appUserId)) {
             is AppUserIdCheck.Invalid -> {
@@ -290,6 +492,7 @@ internal class RevenueCatPurchaseRepository(
     ) {
         cachedPackages = emptyMap()
         cachedProducts = emptyList()
+        cachedItems = emptyMap()
         _subscriptionState.value = customerInfo.toSubscriptionInfo()
     }
 

@@ -57,6 +57,40 @@ object PurchaseManager {
                 PurchaseErrorCode.CONFIGURATION_ERROR,
             )
 
+
+    /**
+     * Catálogo de itens NÃO-CONSUMÍVEIS (venda avulsa). Sem loja configurada devolve
+     * [StoreItemsOutcome.Unavailable] — build sem billing não é "a loja está vazia".
+     */
+    internal suspend fun getStoreItems(productIds: List<String>): StoreItemsOutcome =
+        _repository?.getStoreItems(productIds) ?: StoreItemsOutcome.Unavailable
+
+    /** Compra um item NÃO-CONSUMÍVEL (ver [PurchaseRepository.purchaseItem]). */
+    internal suspend fun purchaseItem(productId: String): ItemPurchaseResult =
+        _repository?.purchaseItem(productId)
+            ?: ItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "purchase nao inicializado",
+            )
+
+    /** Restaura as compras avulsas — N itens (ver [PurchaseRepository.restoreItems]). */
+    internal suspend fun restoreItems(): ItemRestoreResult =
+        _repository?.restoreItems()
+            ?: ItemRestoreResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "purchase nao inicializado",
+            )
+
+    /** Itens que a loja já sabe que a pessoa possui, sem prompt (ver [PurchaseRepository.ownedItems]). */
+    internal suspend fun ownedItems(): Result<StorePurchaseClaim> =
+        _repository?.ownedItems()
+            ?: Result.failure(
+                PurchaseException(
+                    PurchaseErrorCode.CONFIGURATION_ERROR,
+                    "purchase nao inicializado",
+                )
+            )
+
     /** Identifica o app user na loja (ver [PurchaseRepository.identify]). */
     internal suspend fun identify(appUserId: String): Result<Unit> =
         _repository?.identify(appUserId)

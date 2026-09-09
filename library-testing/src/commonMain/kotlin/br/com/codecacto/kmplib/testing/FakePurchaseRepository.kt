@@ -2,6 +2,9 @@ package br.com.codecacto.kmplib.testing
 
 import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
+import br.com.codecacto.kmplib.monetization.purchase.OwnedStoreItem
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseException
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentity
@@ -12,7 +15,12 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchasePackageType
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseProduct
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseStore
 import br.com.codecacto.kmplib.monetization.purchase.RestoreResult
+import br.com.codecacto.kmplib.monetization.purchase.StoreItem
+import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
+import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
+import br.com.codecacto.kmplib.monetization.purchase.StoreVerification
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +58,17 @@ import kotlin.time.Instant
  * | [semOfertas] | **paywall vazio** — o pior incidente de monetização |
  * | [ofertasQueFalham] | a leitura do catálogo falha (rede/loja) |
  *
+ * E os da **venda avulsa** (item não-consumível — curso, e-book, evento), que é outro modelo e por
+ * isso outros cenários: o dublê de assinatura não serve, porque a pergunta da restauração deixa de
+ * ser "tem assinatura: sim/não" e passa a ser "quais itens esta pessoa comprou".
+ *
+ * | Cenário | O que exercita |
+ * |---|---|
+ * | [compraDeItemQueDaCerto] | `purchaseItem` → `Success` com recibo, e o item passa a constar |
+ * | [compraDeItemQueTermina] | `Pending` (em análise — **não liberar**) e `Failed`, por código |
+ * | [itensJaComprados] | o celular novo: `restoreItems` devolve **N itens** |
+ * | [catalogoDeItensQueFalha] | a leitura do catálogo de itens falha |
+ *
  * ## O que ele registra, e por que isso importa
  *
  * [pacotesComprados] guarda os `packageId` na ordem em que foram comprados. Não é enfeite: todo
@@ -79,7 +98,30 @@ class FakePurchaseRepository(
     initialAppUserId: String = PurchaseIdentity.ANONYMOUS_ID_PREFIX + "fake",
     /** Sujeitos (app user ids) que já têm assinatura ativa — usado por [identify]. */
     private val premiumFor: Set<String> = emptySet(),
+    /** Catálogo de itens NÃO-CONSUMÍVEIS que [getStoreItems] devolve (venda avulsa). */
+    private val itensDaLoja: List<StoreItem> = emptyList(),
+    /** Resultado de [purchaseItem], por `productId`. */
+    private val resultadoDaCompraDeItem: (String) -> ItemPurchaseResult = { productId ->
+        ItemPurchaseResult.Success(itemComprado(productId), StorePurchaseClaim("", PurchaseStore.UNKNOWN))
+    },
+    /** O que a "loja" já registra como possuído antes de qualquer compra. */
+    itensJaPossuidos: List<OwnedStoreItem> = emptyList(),
+    /** Quando não-nulo, [getStoreItems] falha com este código. */
+    private val falhaDoCatalogoDeItens: PurchaseErrorCode? = null,
+    /** Quando não-nulo, [restoreItems] falha com este código. */
+    private val falhaDaRestauracaoDeItens: PurchaseErrorCode? = null,
+    /** Loja simulada — vai no [StorePurchaseClaim.store]. */
+    private val lojaDoDuble: PurchaseStore = PurchaseStore.PLAY_STORE,
+    /** Resultado de verificação simulado — `FAILED` exercita o caminho de adulteração. */
+    private val verificacao: StoreVerification = StoreVerification.VERIFIED,
 ) : PurchaseRepository {
+
+    /**
+     * Este dublê vende avulso? `false` (o default, sem catálogo de itens) faz a venda avulsa
+     * responder [StoreItemsOutcome.Unavailable] — o mesmo que um build sem billing —, para que o
+     * app de assinatura não passe a "vender item" sem ninguém ter pedido.
+     */
+    private val vendeAvulso: Boolean get() = itensDaLoja.isNotEmpty() || possuidos.isNotEmpty()
 
     private val _subscriptionState = MutableStateFlow(estadoInicial)
     override val subscriptionState: Flow<SubscriptionInfo> = _subscriptionState.asStateFlow()
@@ -92,6 +134,10 @@ class FakePurchaseRepository(
 
     /** Quantas vezes [getOfferings] foi chamado (pega paywall que recarrega o catálogo em loop). */
     var leiturasDoCatalogo: Int = 0
+        private set
+
+    /** Quantas vezes [getStoreItems] foi chamado (pega catálogo de itens relido em loop). */
+    var leiturasDoCatalogoDeItens: Int = 0
         private set
 
     /** Falha determinística a devolver na próxima troca de identidade (`null` = sucesso). */
@@ -184,6 +230,82 @@ class FakePurchaseRepository(
 
     /** No-op: o dublê não tem servidor com quem sincronizar; o estado já é o que ele publicou. */
     override suspend fun syncSubscriptionState() = Unit
+
+
+    // --- Venda AVULSA (item não-consumível) ------------------------------------------------------
+
+    /** `productId` de cada item comprado com sucesso, na ordem. Ver o KDoc de [pacotesComprados]. */
+    val itensComprados: List<String> get() = _itensComprados.toList()
+    private val _itensComprados = mutableListOf<String>()
+
+    /** O que a "loja" já registra como possuído — cresce a cada compra bem-sucedida. */
+    private val possuidos = itensJaPossuidos.toMutableList()
+
+    override suspend fun getStoreItems(productIds: List<String>): StoreItemsOutcome {
+        leiturasDoCatalogoDeItens++
+        falhaDoCatalogoDeItens?.let { codigo ->
+            return StoreItemsOutcome.Failed("catálogo indisponível (dublê de teste)", codigo)
+        }
+        if (!vendeAvulso) return StoreItemsOutcome.Unavailable
+        return StoreItemsOutcome.from(productIds, itensDaLoja.filter { it.productId in productIds })
+    }
+
+    override suspend fun purchaseItem(productId: String): ItemPurchaseResult {
+        if (!vendeAvulso) {
+            return ItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "dublê sem venda avulsa configurada",
+            )
+        }
+        // Comprar item fora do catálogo é o erro que passa despercebido quando o dublê diz "sim"
+        // para qualquer id: o teste compra um curso que a loja não vende e passa.
+        if (itensDaLoja.isNotEmpty() && itensDaLoja.none { it.productId == productId }) {
+            return ItemPurchaseResult.Failed(
+                PurchaseErrorCode.PRODUCT_NOT_FOUND,
+                "productId '$productId' não está no catálogo do dublê",
+            )
+        }
+        // Item não-consumível não se compra duas vezes — a loja real recusa antes de cobrar, e o
+        // dublê que aceitasse esconderia o caminho de conciliação que o app precisa ter.
+        if (possuidos.any { it.productId == productId }) return ItemPurchaseResult.AlreadyOwned(productId)
+
+        val resultado = resultadoDaCompraDeItem(productId)
+        if (resultado !is ItemPurchaseResult.Success) return resultado
+        _itensComprados += productId
+        possuidos += resultado.item
+        // O claim reflete TUDO o que a loja simulada possui, como no repositório real — é isso que o
+        // app manda ao servidor conciliar, e um dublê que devolvesse só o item novo esconderia o
+        // reenvio idempotente que conserta compra antiga sem webhook.
+        return resultado.copy(claim = claimAtual())
+    }
+
+    override suspend fun restoreItems(): ItemRestoreResult {
+        falhaDaRestauracaoDeItens?.let { codigo ->
+            return ItemRestoreResult.Failed(codigo, "restauração falhou (dublê de teste)")
+        }
+        val assinatura = _subscriptionState.value
+        return if (possuidos.isEmpty() && !assinatura.isActive) {
+            ItemRestoreResult.NothingToRestore
+        } else {
+            ItemRestoreResult.Restored(claimAtual(), assinatura)
+        }
+    }
+
+    override suspend fun ownedItems(): Result<StorePurchaseClaim> =
+        if (vendeAvulso) {
+            Result.success(claimAtual())
+        } else {
+            Result.failure(
+                PurchaseException(PurchaseErrorCode.CONFIGURATION_ERROR, "dublê sem venda avulsa")
+            )
+        }
+
+    private fun claimAtual(): StorePurchaseClaim = StorePurchaseClaim(
+        appUserId = appUserId,
+        store = lojaDoDuble,
+        items = possuidos.toList(),
+        verification = verificacao,
+    )
 
     companion object {
         /** `packageId` padrão do RevenueCat para o plano mensal. */
@@ -305,6 +427,110 @@ class FakePurchaseRepository(
             codigo: PurchaseErrorCode = PurchaseErrorCode.NETWORK_ERROR,
         ): FakePurchaseRepository =
             FakePurchaseRepository(ofertas = emptyList(), falhaDoCatalogo = codigo)
+
+        // --- Venda AVULSA (item não-consumível) --------------------------------------------------
+
+        /** Um [StoreItem] avulso, para montar catálogo de venda única (curso, e-book, evento). */
+        fun itemDaLoja(
+            productId: String,
+            titulo: String = "Item $productId",
+            precoFormatado: String = "R$ 149,90",
+            precoEmMicros: Long = 149_900_000,
+            descricao: String = titulo,
+            moeda: String = "BRL",
+        ): StoreItem = StoreItem(
+            productId = productId,
+            title = titulo,
+            description = descricao,
+            priceLabel = precoFormatado,
+            priceAmountMicros = precoEmMicros,
+            currencyCode = moeda,
+        )
+
+        /**
+         * O recibo que a "loja" devolve para [productId].
+         *
+         * O `transactionId` é derivado do produto, e não sorteado, para o teste poder assertá-lo:
+         * ele é a **chave de idempotência** da concessão no servidor, e conciliação que manda o
+         * recibo errado concede o item errado. Item não-consumível é comprado uma vez, então um
+         * recibo por produto é fiel ao mundo real.
+         */
+        fun itemComprado(
+            productId: String,
+            transactionId: String = "txn_$productId",
+            compradoEmMillis: Long = 1_700_000_000_000,
+        ): OwnedStoreItem = OwnedStoreItem(
+            productId = productId,
+            transactionId = transactionId,
+            purchasedAtMillis = compradoEmMillis,
+        )
+
+        /**
+         * A loja **vende itens avulsos** e a compra fecha: `Success` com recibo, e o item passa a
+         * constar em [ownedItems]/[restoreItems].
+         *
+         * É o cenário do produto de curso avulso. Note que o dublê **não** libera acesso a nada —
+         * como a lib real, ele só devolve o claim para o app mandar ao servidor.
+         */
+        fun compraDeItemQueDaCerto(
+            itens: List<StoreItem>,
+            loja: PurchaseStore = PurchaseStore.PLAY_STORE,
+            appUserId: String = "aluno-1",
+        ): FakePurchaseRepository = FakePurchaseRepository(
+            ofertas = emptyList(),
+            itensDaLoja = itens,
+            initialAppUserId = appUserId,
+            lojaDoDuble = loja,
+            resultadoDaCompraDeItem = { productId ->
+                val comprado = itemComprado(productId)
+                ItemPurchaseResult.Success(
+                    item = comprado,
+                    claim = StorePurchaseClaim(appUserId, loja, listOf(comprado), StoreVerification.VERIFIED),
+                )
+            },
+        )
+
+        /**
+         * A compra do item termina em [desfecho] — use com [ItemPurchaseResult.Pending] (pagamento
+         * em análise) e [ItemPurchaseResult.Failed], que são os dois caminhos que todo app de venda
+         * avulsa erra: o primeiro liberando acesso que ainda não foi pago, o segundo mostrando a
+         * mensagem crua do SDK.
+         */
+        fun compraDeItemQueTermina(
+            desfecho: ItemPurchaseResult,
+            itens: List<StoreItem>,
+        ): FakePurchaseRepository = FakePurchaseRepository(
+            ofertas = emptyList(),
+            itensDaLoja = itens,
+            resultadoDaCompraDeItem = { desfecho },
+        )
+
+        /**
+         * O aluno **já comprou** estes itens — o cenário do celular novo, em que a restauração
+         * precisa devolver N itens e não um "sim/não".
+         */
+        fun itensJaComprados(
+            possuidos: List<OwnedStoreItem>,
+            itens: List<StoreItem> = possuidos.map { itemDaLoja(it.productId) },
+            appUserId: String = "aluno-1",
+            loja: PurchaseStore = PurchaseStore.PLAY_STORE,
+        ): FakePurchaseRepository = FakePurchaseRepository(
+            ofertas = emptyList(),
+            itensDaLoja = itens,
+            itensJaPossuidos = possuidos,
+            initialAppUserId = appUserId,
+            lojaDoDuble = loja,
+        )
+
+        /** A leitura do catálogo de ITENS falha (rede, loja fora, configuração). */
+        fun catalogoDeItensQueFalha(
+            codigo: PurchaseErrorCode = PurchaseErrorCode.NETWORK_ERROR,
+            itens: List<StoreItem> = listOf(itemDaLoja("curso_1")),
+        ): FakePurchaseRepository = FakePurchaseRepository(
+            ofertas = emptyList(),
+            itensDaLoja = itens,
+            falhaDoCatalogoDeItens = codigo,
+        )
 
         /**
          * `packageId` → id de produto na loja. O `$rc_` é convenção do RevenueCat para o pacote;

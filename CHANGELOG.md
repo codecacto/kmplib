@@ -1,5 +1,151 @@
 # Changelog — kmplib
 
+## 2.192.0 — vender ITEM, não assinatura: compra única e restauração de N itens
+
+`GAP-RA-M-05` do `docs/backlog.md`, o quinto item do desenho do **Raquete Alta**. O módulo de compra
+era **inteiro orientado a assinatura** — `Offerings` → `Package` → `PaywallScreen` → entitlement
+`premium` —, e o produto vende **curso avulso, compra única, acesso vitalício**: na loja isso é um
+**não-consumível** (App Store) / **in-app product** (Google Play), que não cabe naquele desenho sem
+gambiarra.
+
+E há um ponto que muda o desenho, não só a assinatura de um método: **restaurar precisa devolver N
+itens**. `RestoreResult` responde *"tem assinatura ativa: sim/não"*, e essa pergunta não serve ao
+aluno que comprou seis cursos e trocou de celular.
+
+Tudo **aditivo**: os quatro métodos novos têm implementação default na interface, e nada do caminho
+de assinatura mudou. Quem vende plano não sente nada.
+
+### O que entrou
+
+```kotlin
+// catálogo — por id de produto, que é o caminho oficial do fornecedor para não-assinatura
+when (val c = monetization.getStoreItems(cursos.map { it.productId })) {
+    is StoreItemsOutcome.Available -> {
+        ui.mostrar(c.items)                       // preço JÁ formatado pela loja
+        if (c.incident) alertas.report(PaymentAlertKind.ItemIndisponivelNaLoja,
+            detalhe = "faltando=${c.missingProductIds.size}")
+    }
+    is StoreItemsOutcome.Empty -> alertas.report(PaymentAlertKind.ItemIndisponivelNaLoja)
+    is StoreItemsOutcome.Failed -> ui.erro(c.code.userMessage())
+    StoreItemsOutcome.Unavailable -> ui.mostrar("em breve")   // build sem billing
+}
+
+// compra
+when (val r = monetization.purchaseItem(curso.productId)) {
+    is ItemPurchaseResult.Success     -> api.conciliar(r.claim)     // o SERVIDOR concede
+    is ItemPurchaseResult.Pending     -> ui.aviso(textos.paymentPending)  // NÃO liberar
+    is ItemPurchaseResult.AlreadyOwned-> api.conciliar(monetization.restoreItems())
+    ItemPurchaseResult.Cancelled      -> Unit
+    is ItemPurchaseResult.Failed      -> ui.erro(r.code.userMessage())
+}
+
+// celular novo — a LISTA, com o recibo de cada item
+val r = monetization.restoreItems()   // só a partir de um toque do usuário
+```
+
+`StoreItem` · `PurchaseStore` · `StoreItemsOutcome` (`Available`/`Empty`/`Failed`/`Unavailable`,
+`missingProductIds`, `incident`, `from`) · `OwnedStoreItem` · `StoreVerification` ·
+`StorePurchaseClaim` (`isAnonymousAppUser`, `productIds`, `isEmpty`) · `ItemPurchaseResult`
+(`Success`/`Pending`/`AlreadyOwned`/`Cancelled`/`Failed` + `fromFailure`) · `ItemRestoreResult`
+(`Restored`/`NothingToRestore`/`Failed`) · em `PurchaseRepository`, `PurchaseManager` e
+`MonetizationManager`: `getStoreItems`, `purchaseItem`, `restoreItems`, `ownedItems`. Mais dois
+`PaymentAlertKind`: `ItemIndisponivelNaLoja` e `VerificacaoDeCompraFalhou`.
+
+### Sete decisões que valem registro
+
+1. **A lib NÃO concede acesso, e a API foi desenhada para não conseguir.** Não existe
+   `temAcesso(item)` em lugar nenhum destes tipos — de propósito. `StorePurchaseClaim` é uma
+   **alegação de cliente**, e cliente é o aparelho de quem pode ter interesse em mentir. Quem
+   concede é o servidor (`backlib-entitlement` ≥ 0.111.0), avisado pelo **webhook** do fornecedor e,
+   como rede de segurança, por este claim — que o backend confere consultando o fornecedor pelo
+   `appUserId` antes de conceder. Um booleano aqui seria a porta que todo app acabaria usando, e ela
+   abre com um APK modificado.
+2. **O `transactionId` é a chave de idempotência da concessão**, e é por isso que ele viaja. Casa
+   direto com `EntitlementService.grant(source = IAP_APPLE|IAP_GOOGLE, sourceRef = transactionId)`:
+   o mesmo recibo entregue duas vezes concede uma vez. É também por isso que a compra devolve o
+   claim **inteiro** (tudo o que a loja diz que a pessoa possui) e não só o item novo — reenviar o
+   que já foi concedido não custa nada e **conserta de graça** a compra antiga cujo webhook se
+   perdeu.
+3. **Ler por id de produto, não por Offering.** É o caminho oficial do fornecedor para
+   não-assinatura, e aqui é o único que serve: num catálogo de cursos os produtos nascem junto com o
+   conteúdo, são dezenas e mudam toda semana. A documentação do RevenueCat admite atrelar
+   não-consumível a **um entitlement por item** ("um por região do mapa"), e é o que a lib **não**
+   faz: seria editar o painel do fornecedor a cada curso publicado. Os itens saem de
+   `customerInfo.nonSubscriptionTransactions`, que é onde ele guarda toda compra única.
+4. **Id que a loja não conhece é campo de primeira classe, não linha de log.** A loja **não erra**
+   quando um id não existe no catálogo dela: ela **omite** o produto e responde 200. O app pede 12
+   cursos, recebe 11, e a tela fica plausível — um curso a menos não parece defeito de ninguém.
+   `StoreItemsOutcome.missingProductIds` existe para isso, e `incident` já diz se aquilo merece
+   alerta. Foi a mesma lição da 2.141.0 (`OfferingsOutcome`), num lugar onde ela dói mais: no
+   paywall a tela vazia é visível, aqui a falta é invisível.
+5. **Dois desfechos que chegam do SDK como erro e não são.** `PAYMENT_PENDING` (aprovação parental,
+   boleto — a cobrança está em andamento) vira `Pending`, e `ALREADY_OWNED` vira `AlreadyOwned`.
+   Tratá-los como falha faz o app dizer *"não foi possível concluir a compra"* a quem acabou de
+   pagar — e, no segundo caso, a quem **já pagou antes** e continua sem acesso. `AlreadyOwned` pede
+   conciliação, não uma segunda cobrança. Já `ALREADY_OWNED_BY_OTHER_USER` **continua sendo falha**:
+   a compra é de outra conta de loja, restaurar não resolve, e sugerir "restaurar compras" ali só
+   produz a segunda frustração.
+6. **Produto de ASSINATURA passado para a venda avulsa é descartado, não vendido.** `getProducts`
+   devolve os dois tipos na mesma lista; comprar uma assinatura por este caminho criaria **cobrança
+   recorrente** enquanto o app acha que vendeu acesso vitalício. O filtro é
+   `ProductCategory.NON_SUBSCRIPTION`, e o produto descartado reaparece em `missingProductIds` — que
+   é onde a fábrica enxerga catálogo mal configurado, em vez de descobrir pelo extrato do cliente.
+7. **`restoreItems()` traz também a assinatura, numa chamada só.** A loja abre um diálogo do sistema
+   a cada restauração; chamar `restoreItems()` e `restorePurchases()` em sequência pede a senha da
+   Apple duas vezes. E ele é **só a partir de um toque do usuário** — a documentação do fornecedor é
+   explícita. Para conciliar sozinho na abertura do app existe `ownedItems()`, que lê o
+   `customerInfo` em cache e não incomoda ninguém.
+
+### O que a compra avulsa exige do app, e a lib avisa em vez de calar
+
+**Identifique o comprador antes de vender** (`identify(appUserId)`). Compra única feita com app user
+**anônimo** não volta: a documentação do fornecedor diz, com todas as letras, que consumível e
+não-renovável só se restauram com App User ID próprio. `purchaseItem` loga aviso alto quando o
+sujeito é anônimo (não recusa a venda — recusar seria pior), e `StorePurchaseClaim.isAnonymousAppUser`
+carrega o sinal até o servidor. Id em branco conta como anônimo: as duas situações têm exatamente a
+mesma consequência, e distingui-las só produziria um claim que **parece** conciliável e não é.
+
+### O que FICOU, e está aqui em vez de escondido
+
+- **Google Play Billing 8 não consulta mais compra CONSUMIDA** (vale de `purchases-kmp` 2.0.0 em
+  diante, que é a nossa). Não afeta o não-consumível desta versão — ele nunca é consumido —, mas
+  **afeta o `purchaseConsumable` legado** (pay-per-action) para usuário anônimo. Registrado como
+  `GAP-RA-M-10`, com a mitigação que o fornecedor recomenda (backup do arquivo de preferências dele
+  no Android).
+- **`syncPurchases` não foi exposto.** Ele serve para migrar recibos anteriores à integração com o
+  fornecedor, e traz risco documentado de *aliasing* de usuário anônimo. Nenhum produto nosso precisa
+  disso hoje; `ownedItems()` cobre a conciliação silenciosa. Registrado como `GAP-RA-M-11`.
+- **`entitlementVerificationMode` não é configurável pela lib.** O SDK recente já vem com *Trusted
+  Entitlements* ligado em modo informativo, que é o que queremos: a lib **expõe** o resultado
+  (`StoreVerification`) e o alerta (`VerificacaoDeCompraFalhou`); expor o modo só permitiria
+  desligá-lo. Registrado como `GAP-RA-M-12`.
+- **Os alvos iOS não compilam em Linux** (guarda de host, 2.69.0). Todo o código desta versão é
+  `commonMain` — não há uma linha de `iosMain` nova —, e os símbolos usados (`ProductCategory`,
+  `VerificationResult`, `nonSubscriptionTransactions`) são do `purchases-kmp-models`, multiplataforma.
+  Revisado, não compilado, como nas rodadas anteriores.
+- **`PaymentAlertKind` ganhou duas entradas.** Auditado: os 11 consumidores no monorepo apenas
+  **constroem** o enum (nenhum `when` exaustivo sobre ele), então ninguém quebra.
+
+### Testado
+
+Suíte inteira: **2.534 testes, 0 falhas** (`testDebugUnitTest` em todos os módulos; XML conferido, não
+só o "BUILD SUCCESSFUL"). Desses, **37 são novos**: `StoreItemsOutcomeTest` (8 — inclusive a ordem do
+nosso catálogo vencendo a da loja, e `Available` vazio proibido pelo tipo), `ItemPurchaseResultTest`
+(6 — com guarda de exaustividade sobre `PurchaseErrorCode`, para código novo no enum não cair em
+`Failed` sem decisão consciente), `StorePurchaseClaimTest` (6), `ItemSaleApiTest` (5 — coexistência:
+repositório só de assinatura responde "não vendo avulso" sem fingir sucesso),
+`ItemSaleAlertKindTest` (1) e `FakePurchaseRepositoryItemTest` (11 — inclusive o celular novo com
+seis cursos). `assembleDebug` verde em todos os módulos.
+
+### Dublê de loja (`kmplib-testing`)
+
+`FakePurchaseRepository` ganhou os cenários da venda avulsa, com o mesmo critério dos de assinatura
+(construtor nomeado que diz **qual estado do mundo** ele reproduz, não flag booleana):
+`compraDeItemQueDaCerto`, `compraDeItemQueTermina` (para `Pending` e `Failed`), `itensJaComprados`
+(o celular novo), `catalogoDeItensQueFalha`, mais `itemDaLoja`/`itemComprado` e o registro
+`itensComprados`. **Dublê de assinatura não passa a vender avulso sozinho**: sem catálogo de itens
+ele responde `Unavailable`, o mesmo que um build sem billing.
+
 ## 2.191.0 — a aula se BAIXA para assistir sem internet (`video.download`) e o `ProgressRing`
 
 Os dois itens seguintes do desenho do **Raquete Alta**, `GAP-RA-M-03` e `GAP-RA-M-04` do

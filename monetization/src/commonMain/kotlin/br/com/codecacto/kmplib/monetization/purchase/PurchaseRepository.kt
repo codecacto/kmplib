@@ -130,6 +130,89 @@ interface PurchaseRepository {
      */
     fun currentAppUserId(): String? = null
 
+
+    // ---------------------------------------------------------------------------------------------
+    // Venda AVULSA — item não-consumível (compra única, acesso vitalício). Aditivo desde a 2.192.0.
+    //
+    // Convive com a assinatura sem tocá-la: são catálogos diferentes (produto cru × Offering),
+    // resultados diferentes ([ItemPurchaseResult] × [PurchaseResult]) e, principalmente, perguntas
+    // diferentes — "quais itens esta pessoa possui" não cabe no "tem assinatura: sim/não" de
+    // [restorePurchases]. Todos têm implementação default para não quebrar repositório existente
+    // (dublês dos apps, stubs de build sem billing): o default é "esta loja não vende avulso".
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Lê do catálogo da loja os itens **não-consumíveis** de [productIds].
+     *
+     * Caminho oficial do fornecedor para não-assinatura (`Purchases.getProducts` por id de produto),
+     * e não a camada de Offerings — que existe para plano recorrente e obrigaria a editar o painel a
+     * cada curso publicado.
+     *
+     * **Produto de assinatura passado aqui é descartado**, não vendido: comprá-lo por este caminho
+     * criaria uma cobrança recorrente enquanto o app acha que vendeu acesso vitalício. Ele aparece
+     * em [StoreItemsOutcome.missingProductIds], que é onde a fábrica vê que o catálogo está errado.
+     *
+     * Ids que a loja **não conhece** também caem em `missingProductIds` — a loja os omite e responde
+     * com sucesso, então sem esse campo o app mostraria um curso a menos sem nada falhar.
+     */
+    suspend fun getStoreItems(productIds: List<String>): StoreItemsOutcome =
+        StoreItemsOutcome.Unavailable
+
+    /**
+     * Compra o item não-consumível [productId] (compra única, acesso vitalício).
+     *
+     * **Não concede nada.** Devolve o recibo em [ItemPurchaseResult.Success] para o app mandar ao
+     * servidor conciliar — ver [StorePurchaseClaim] §"quem decide o acesso". Não mexe em
+     * [subscriptionState]: item avulso não é assinatura, e um produto pode vender os dois.
+     *
+     * Chame [getStoreItems] antes (é o que popula o catálogo); sem cache, a implementação recarrega
+     * sozinha.
+     *
+     * **Identifique o comprador antes** ([identify]). Compra feita com app user anônimo não volta:
+     * a documentação do fornecedor é explícita de que compra única e não-renovável só se restaura
+     * com App User ID próprio, e no Google Play, do Billing Client 8 em diante, o que foi consumido
+     * não é mais consultável.
+     */
+    suspend fun purchaseItem(productId: String): ItemPurchaseResult =
+        ItemPurchaseResult.Failed(
+            PurchaseErrorCode.CONFIGURATION_ERROR,
+            "venda avulsa nao suportada por este repository",
+        )
+
+    /**
+     * **Restaura as compras avulsas — devolvendo a LISTA de itens**, não um booleano.
+     *
+     * A mesma leitura traz o estado da assinatura ([ItemRestoreResult.Restored.subscription]) e
+     * atualiza [subscriptionState]: a loja abre um diálogo do sistema a cada restauração, e chamar
+     * este método e [restorePurchases] em sequência pede a senha da Apple duas vezes.
+     *
+     * ⚠️ **Só a partir de um toque do usuário** ("Restaurar compras"). Para conciliar sozinho na
+     * abertura do app existe [ownedItems], que lê sem prompt.
+     */
+    suspend fun restoreItems(): ItemRestoreResult =
+        ItemRestoreResult.Failed(
+            PurchaseErrorCode.CONFIGURATION_ERROR,
+            "venda avulsa nao suportada por este repository",
+        )
+
+    /**
+     * O que a loja **já sabe** que a pessoa possui, **sem interação nenhuma** — leitura do
+     * `customerInfo` (cache do SDK, com busca só quando ele julga necessário).
+     *
+     * Dois usos, e nenhum deles é liberar tela: pintar "Comprado" no catálogo, e conciliar com o
+     * servidor na abertura do app. Diferente de [restoreItems], não abre diálogo do sistema — por
+     * isso é este o método que pode rodar sozinho.
+     *
+     * Falha vem em `Result.failure` com [PurchaseException] (código tipado em [PurchaseException.code]).
+     */
+    suspend fun ownedItems(): Result<StorePurchaseClaim> =
+        Result.failure(
+            PurchaseException(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "venda avulsa nao suportada por este repository",
+            )
+        )
+
     /** Retorna a info atual da assinatura. */
     suspend fun getSubscriptionInfo(): SubscriptionInfo
 

@@ -2,11 +2,15 @@ package br.com.codecacto.kmplib.monetization
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentity
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityError
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityException
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
+import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
+import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -126,6 +130,65 @@ object MonetizationManager {
      */
     suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
         PurchaseManager.purchaseConsumable(productId)
+
+
+    // ---------------------------------------------------------------------------------------------
+    // Venda AVULSA — item não-consumível (compra única, acesso vitalício). Aditivo, 2.192.0.
+    //
+    // Existe porque o resto deste módulo é inteiro orientado a ASSINATURA (Offering → Package →
+    // `PaywallScreen` → entitlement "premium"), e um catálogo de itens vendidos um a um — um curso,
+    // um e-book, um evento — não cabe nesse desenho: os produtos nascem junto com o conteúdo, são
+    // dezenas, e a pergunta da restauração deixa de ser "tem assinatura: sim/não" e passa a ser
+    // "quais dos seis itens esta pessoa comprou".
+    //
+    // A regra que atravessa todos os métodos abaixo: **a lib não concede acesso**. Ela informa a
+    // compra; quem concede é o servidor (`backlib-entitlement`), avisado pelo webhook do fornecedor
+    // e, como rede de segurança, pelo claim que estes métodos devolvem.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Lê da loja os itens não-consumíveis de [productIds] (preço já formatado por ela).
+     *
+     * O resultado diz **o que aconteceu**, não só o que veio: id que a loja não conhece sai em
+     * [StoreItemsOutcome.missingProductIds] — a loja omite o produto e responde com sucesso, então
+     * sem esse campo o app mostraria um item a menos sem nada falhar. Ver
+     * [StoreItemsOutcome.incident] para decidir o alerta de pagamento.
+     */
+    suspend fun getStoreItems(productIds: List<String>): StoreItemsOutcome =
+        PurchaseManager.getStoreItems(productIds)
+
+    /**
+     * Compra o item não-consumível [productId].
+     *
+     * **Não libera nada**: manda o [ItemPurchaseResult.Success.claim] ao nosso servidor e espere a
+     * concessão. Os cinco desfechos existem porque o app age diferente em cada um — em especial
+     * [ItemPurchaseResult.Pending] (pagamento em análise: avisar, não liberar) e
+     * [ItemPurchaseResult.AlreadyOwned] (já pagou antes: conciliar, não cobrar de novo).
+     *
+     * Chame [identify] **antes** de vender: compra feita com app user anônimo não volta em celular
+     * novo.
+     */
+    suspend fun purchaseItem(productId: String): ItemPurchaseResult =
+        PurchaseManager.purchaseItem(productId)
+
+    /**
+     * **Restaura as compras avulsas — a LISTA de itens**, com o recibo de cada um.
+     *
+     * ⚠️ Só a partir de um toque do usuário ("Restaurar compras"): pode abrir prompt de login do
+     * sistema operacional. Para conciliar sozinho na abertura do app use [ownedItems].
+     *
+     * A mesma chamada traz o estado da assinatura e atualiza [isPremium] — pedir as duas coisas em
+     * chamadas separadas pede a senha da loja duas vezes.
+     */
+    suspend fun restoreItems(): ItemRestoreResult = PurchaseManager.restoreItems()
+
+    /**
+     * O que a loja já sabe que a pessoa possui, **sem prompt nenhum** — para pintar "Comprado" no
+     * catálogo e para conciliar na abertura do app.
+     *
+     * Nunca para liberar conteúdo: ver [StorePurchaseClaim] §"quem decide o acesso".
+     */
+    suspend fun ownedItems(): Result<StorePurchaseClaim> = PurchaseManager.ownedItems()
 
     /**
      * **Identifica quem assina** na loja (`Purchases.logIn`) — chamar assim que o app souber o

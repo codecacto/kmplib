@@ -40,11 +40,11 @@
 - [x] **GAP-RA-M-04 (P1) — `ProgressRing`. ATENDIDO na 2.191.0 (`kmplib-ui`).** Anel de 44dp/traço
       4dp, animação do valor (nunca salto), marco de 100% com troca de cor e ✓, e
       `progress = null` indeterminado.
-- [ ] **GAP-RA-M-05 (P1) — compra de item NÃO-CONSUMÍVEL no `PurchaseManager`.**
-      `purchaseProduct(productId)` fora do modelo de `Package`/plano, e `restore()` que reconcilia
-      **N itens** (não "tem assinatura ativa: sim/não"). O módulo inteiro é orientado a `Offerings` e
-      ao `PaywallScreen` de assinatura, que num catálogo de cursos avulsos não se usa. Segundo
-      consumidor provável: qualquer produto que venda item digital único.
+- [x] **GAP-RA-M-05 (P1) — compra de item NÃO-CONSUMÍVEL. ATENDIDO na 2.192.0 (`monetization`).**
+      `getStoreItems(productIds)` por id de produto (fora do modelo de `Package`/plano),
+      `purchaseItem(productId)` com os cinco desfechos tratados, `restoreItems()` devolvendo a
+      **lista** de itens com recibo, e `ownedItems()` para conciliar sem prompt. A lib **não concede
+      acesso**: devolve `StorePurchaseClaim` para o servidor conferir e conceder.
 
 ### ATENDIDO na 2.190.0 — vídeo e leitura de PDF (08/set/2026)
 > `GAP-RA-M-01` e `GAP-RA-M-02` fechados. Detalhe no `CHANGELOG.md` (2.190.0) e na skill
@@ -77,7 +77,21 @@
       `ProgressRingDefaults`, `progressRingSweep`, `progressRingPercentLabel`,
       `isProgressRingComplete`.
 
-### AINDA ABERTO do mesmo desenho — o que a 2.190.0/2.191.0 NÃO fecharam
+### ATENDIDO na 2.192.0 — venda de item avulso (09/set/2026)
+> `GAP-RA-M-05` fechado. Detalhe no `CHANGELOG.md` (2.192.0) e na skill `kmplib-catalog`
+> (`references/monetization.md` §"venda avulsa").
+
+- [x] **`monetization/purchase` — item NÃO-CONSUMÍVEL** — `StoreItem`, `PurchaseStore`,
+      `StoreItemsOutcome` (com `missingProductIds`/`incident`/`from`), `OwnedStoreItem`,
+      `StoreVerification`, `StorePurchaseClaim`, `ItemPurchaseResult` (+`fromFailure`),
+      `ItemRestoreResult`, e os quatro métodos em `PurchaseRepository`/`PurchaseManager`/
+      `MonetizationManager`. Mais `PaymentAlertKind.ItemIndisponivelNaLoja` e
+      `PaymentAlertKind.VerificacaoDeCompraFalhou`. Tudo aditivo (defaults na interface).
+- [x] **`kmplib-testing`** — cenários de venda avulsa no `FakePurchaseRepository`
+      (`compraDeItemQueDaCerto`, `compraDeItemQueTermina`, `itensJaComprados`,
+      `catalogoDeItensQueFalha`, `itemDaLoja`, `itemComprado`, `itensComprados`).
+
+### AINDA ABERTO do mesmo desenho — o que a 2.190.0/2.191.0/2.192.0 NÃO fecharam
 
 - [ ] **GAP-RA-M-06 (P1) — notificação de mídia e reprodução em SEGUNDO PLANO no Android.** A
       `MediaSession` do Media3 já está criada e ativa (metadados, comandos de fone/Bluetooth/tela de
@@ -106,6 +120,24 @@
       fazem — e por isso este item é P2, não P0. O caminho de lib seria um
       `AVAssetResourceLoaderDelegate` reescrevendo o manifesto (o mesmo subsistema do
       `GAP-RA-M-08`); se ele um dia entrar, resolve os dois de uma vez.
+- [ ] **GAP-RA-M-10 (P1) — Google Play Billing 8 não consulta mais compra CONSUMIDA.** Vale de
+      `purchases-kmp` 2.0.0 em diante, que é a versão que a lib usa. **Não afeta o não-consumível da
+      2.192.0** (ele nunca é consumido), mas afeta o `purchaseConsumable` legado — pay-per-action, hoje
+      o Meu Advogado — quando o usuário é anônimo: a compra deixa de ser recuperável em reinstalação
+      ou troca de aparelho. Duas frentes, e a primeira já resolve quase tudo: **(a)** identificar o
+      comprador (`identify`) em todo produto que venda consumível, o que a lib já oferece desde a
+      2.89.0; **(b)** garantir que o **Auto Backup do Android inclua o arquivo de preferências do
+      RevenueCat** (`RevenueCatBackupAgent.REVENUECAT_PREFS_FILE_NAME`) — é configuração de app, e o
+      lugar natural dela é a `casca-mobile`, não a lib.
+- [ ] **GAP-RA-M-11 (P2) — `syncPurchases` não exposto.** Serve para migrar recibos anteriores à
+      integração com o fornecedor, e a documentação dele registra risco de *aliasing* de usuário
+      anônimo. Nenhum produto nosso precisa hoje: `ownedItems()` cobre a conciliação silenciosa e
+      `restoreItems()` cobre a explícita. Entra se algum app migrar uma base que já vendia por fora.
+- [ ] **GAP-RA-M-12 (P2) — `entitlementVerificationMode` não é configurável.** O SDK recente já vem
+      com *Trusted Entitlements* ligado em modo informativo, que é o que a fábrica quer: a 2.192.0
+      **expõe** o resultado (`StoreVerification`) e o alerta (`VerificacaoDeCompraFalhou`). Expor o
+      modo hoje só permitiria **desligá-lo** — e não há caso de uso para isso. Só entra se algum
+      produto precisar do modo `ENFORCED`, em que o próprio SDK recusa entitlement não verificado.
 
 ### ATENDIDO na 2.181.0 — sete gaps do **Tá Feito** (04/set/2026)
 > Origem: `5-Apps-Online-Freemium-Cota/TaFeito/docs/gaps-de-kmplib.md`, escrito onda a onda contra a

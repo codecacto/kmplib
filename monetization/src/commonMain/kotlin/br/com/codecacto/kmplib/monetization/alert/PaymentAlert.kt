@@ -76,6 +76,36 @@ enum class PaymentAlertKind(
         titulo = "PAGAMENTO: sem identidade para ler a oferta (401 no admin-api)",
         nivel = CrashLevel.Error,
     ),
+
+    /**
+     * **Venda avulsa (2.192.0).** A loja não conhece um id de produto que o nosso catálogo vende —
+     * ver `StoreItemsOutcome.missingProductIds`.
+     *
+     * É o incidente que **não aparece na tela**: a loja não erra, ela omite o produto e responde com
+     * sucesso. O app mostra um curso a menos, tudo continua plausível, e ninguém percebe que aquele
+     * item **não pode ser comprado por ninguém**. Causa típica: produto não criado, não aprovado,
+     * não liberado no país, ou id divergente entre o nosso catálogo e a loja.
+     */
+    ItemIndisponivelNaLoja(
+        slug = "item_indisponivel_na_loja",
+        titulo = "PAGAMENTO: item do catálogo não existe na loja — ninguém consegue comprar",
+        nivel = CrashLevel.Error,
+    ),
+
+    /**
+     * **Venda avulsa (2.192.0).** A verificação de assinatura criptográfica da resposta do
+     * fornecedor falhou (`StoreVerification.FAILED`, *Trusted Entitlements*) — indício de resposta
+     * adulterada no caminho.
+     *
+     * **Não é motivo para bloquear o usuário**, e a lib não bloqueia: quem não tem direito já não
+     * recebe nada do nosso servidor, que conversa com o fornecedor e não com o aparelho. O alerta
+     * existe porque um pico disto num app é sinal de ataque em curso, e é a única forma de saber.
+     */
+    VerificacaoDeCompraFalhou(
+        slug = "verificacao_de_compra_falhou",
+        titulo = "PAGAMENTO: verificação da resposta da loja falhou (possível adulteração)",
+        nivel = CrashLevel.Error,
+    ),
 }
 
 /**
