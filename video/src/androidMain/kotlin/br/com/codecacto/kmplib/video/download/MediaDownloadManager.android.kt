@@ -124,9 +124,13 @@ internal class Media3MediaDownloadManager(
     }
 
     init {
-        aplicarConfig(initialConfig)
-        downloadManager.addListener(listener)
+        // ⚠️ TUDO o que toca o `DownloadManager` entra pela Main, inclusive a criação dele: a Media3
+        // o amarra ao looper da thread que o construiu, e um app que crie este gerenciador dentro de
+        // um módulo Koin em thread de fundo passaria a falar com ele de duas threads — o tipo de
+        // corrida que compila, passa no teste e só aparece em aparelho lento.
         scope.launch {
+            aplicarConfig(config)
+            downloadManager.addListener(listener)
             // O índice é SQLite: lê-lo fora da Main. Depois disso, quem mantém o mapa atualizado é
             // o listener — o mesmo desenho do `DownloadTracker` da própria Media3.
             val doIndice = withContext(Dispatchers.IO) { lerIndice() }
@@ -151,8 +155,11 @@ internal class Media3MediaDownloadManager(
     // Leitura
     // -----------------------------------------------------------------------------------------
 
-    override suspend fun get(id: String): MediaDownload? =
-        _downloads.value.firstOrNull { it.id == id } ?: store.get(id)?.let { paraMediaDownload(it) }
+    override suspend fun get(id: String): MediaDownload? {
+        _downloads.value.firstOrNull { it.id == id }?.let { return it }
+        val registro = store.get(id) ?: return null
+        return withContext(Dispatchers.Main.immediate) { paraMediaDownload(registro) }
+    }
 
     override suspend fun storageUsage(): MediaStorageUsage {
         val registros = store.all()
@@ -175,7 +182,8 @@ internal class Media3MediaDownloadManager(
     ): VideoMedia? {
         val registro = store.get(id) ?: return null
         if (isMediaDownloadExpired(registro.expiresAtMillis, agora())) return null
-        val nativo = nativos[id] ?: withContext(Dispatchers.IO) { lerIndice().firstOrNull { it.request.id == id } }
+        val nativo = withContext(Dispatchers.Main.immediate) { nativos[id] }
+            ?: withContext(Dispatchers.IO) { lerIndice().firstOrNull { it.request.id == id } }
         if (nativo?.state != Download.STATE_COMPLETED) return null
         return VideoMedia(
             url = registro.url,
@@ -216,7 +224,10 @@ internal class Media3MediaDownloadManager(
             )
         }
 
-        falhas.remove(request.id)
+        naMain {
+            falhas.remove(request.id)
+            renovacoes.remove(request.id)
+        }
         val registro = (existente ?: request.toRecord(agora)).copy(
             url = request.url,
             title = request.title ?: existente?.title,
@@ -227,7 +238,6 @@ internal class Media3MediaDownloadManager(
             pausedByUser = false,
         )
         store.put(registro)
-        renovacoes.remove(request.id)
 
         return try {
             adicionarNaMedia3(request)
@@ -244,16 +254,14 @@ internal class Media3MediaDownloadManager(
 
     override suspend fun pause(id: String) = mutexDeEscrita.withLock {
         store.get(id)?.let { store.put(it.copy(pausedByUser = true)) }
-        withContext(Dispatchers.Main.immediate) {
-            downloadManager.setStopReason(id, Media3Downloads.STOP_REASON_USER_PAUSED)
-        }
+        naMain { downloadManager.setStopReason(id, Media3Downloads.STOP_REASON_USER_PAUSED) }
         publicar()
     }
 
     override suspend fun resume(id: String) = mutexDeEscrita.withLock {
-        falhas.remove(id)
         store.get(id)?.let { store.put(it.copy(pausedByUser = false)) }
-        withContext(Dispatchers.Main.immediate) {
+        naMain {
+            falhas.remove(id)
             downloadManager.setStopReason(id, Download.STOP_REASON_NONE)
             iniciarServico()
         }
@@ -270,10 +278,12 @@ internal class Media3MediaDownloadManager(
 
     override suspend fun remove(id: String) = mutexDeEscrita.withLock {
         store.remove(id)
-        renovacoes.remove(id)
-        falhas.remove(id)
-        withContext(Dispatchers.Main.immediate) { downloadManager.removeDownload(id) }
-        nativos.remove(id)
+        naMain {
+            renovacoes.remove(id)
+            falhas.remove(id)
+            downloadManager.removeDownload(id)
+            nativos.remove(id)
+        }
         publicar()
     }
 
@@ -285,10 +295,12 @@ internal class Media3MediaDownloadManager(
 
     override suspend fun removeAll() = mutexDeEscrita.withLock {
         store.clear()
-        renovacoes.clear()
-        falhas.clear()
-        withContext(Dispatchers.Main.immediate) { downloadManager.removeAllDownloads() }
-        nativos.clear()
+        naMain {
+            renovacoes.clear()
+            falhas.clear()
+            downloadManager.removeAllDownloads()
+            nativos.clear()
+        }
         publicar()
     }
 
@@ -300,8 +312,10 @@ internal class Media3MediaDownloadManager(
 
     override fun updateConfig(config: MediaDownloadConfig) {
         this.config = config
-        aplicarConfig(config)
-        scope.launch { publicar() }
+        scope.launch {
+            aplicarConfig(config)
+            publicar()
+        }
     }
 
     // -----------------------------------------------------------------------------------------
@@ -472,8 +486,11 @@ internal class Media3MediaDownloadManager(
     }
 
     private suspend fun publicar() {
+        val registros = store.all()
         val agora = agora()
-        _downloads.value = store.all().map { paraMediaDownload(it, agora) }
+        _downloads.value = withContext(Dispatchers.Main.immediate) {
+            registros.map { paraMediaDownload(it, agora) }
+        }
     }
 
     private fun paraMediaDownload(
@@ -515,6 +532,17 @@ internal class Media3MediaDownloadManager(
     }
 
     private fun agora(): Long = System.currentTimeMillis()
+
+    /**
+     * Roda o bloco na thread da aplicação.
+     *
+     * Todo acesso ao `DownloadManager` **e** aos mapas em memória (`nativos`, `renovacoes`,
+     * `falhas`) passa por aqui: quem mais os escreve é o listener da Media3, que chega sempre no
+     * looper da aplicação. Duas threads mexendo num `LinkedHashMap` é corrida que não dá erro —
+     * dá lista errada na tela, de vez em quando.
+     */
+    private suspend inline fun <T> naMain(crossinline bloco: () -> T): T =
+        withContext(Dispatchers.Main.immediate) { bloco() }
 }
 
 /** A qualidade traduzida para os parâmetros de seleção de faixa da Media3. */
