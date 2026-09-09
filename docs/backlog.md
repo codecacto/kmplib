@@ -3,6 +3,20 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Achado de passagem (08/set/2026) — o gate de cobertura da lib mede um módulo VAZIO
+
+- [ ] **GAP-LIB-M-01 (P1) — `:kmplib:koverVerify` reprova com 0,0% e ninguém vê.** O Kover está
+      aplicado **só no módulo umbrella** (`library/build.gradle.kts`), e desde a modularização da
+      2.163.0 esse módulo tem **dois arquivos** (`KmpLib.kt` e `KmpLibInit.kt`) — todo o código da
+      lib mora nos 21 módulos vizinhos. O resultado é que `./gradlew :kmplib:koverVerify` falha com
+      *"lines covered percentage is 0.000000, but expected minimum is 40"* **independentemente da
+      suíte**, que hoje tem 2.497 testes verdes. Não é regressão desta rodada (nada aqui tocou
+      `library/`), e a tarefa é não-bloqueante em CI por comentário no próprio arquivo — o que
+      significa que o **gate de cobertura da fundação está desligado na prática desde a 2.163.0**.
+      A correção é aplicar o plugin em cada módulo e agregar (`kover(project(":kmplib-core"))` …)
+      no umbrella, que é o desenho que o Kover documenta para projeto multi-módulo. Sem isso, o
+      número que a constituição chama de "threshold de ~40%" não mede nada.
+
 ### Registrado nesta rodada (08/set/2026) — origem: design do **Raquete Alta**
 > Origem: `8-Sistemas-Portal-App/RaqueteAlta/docs/design/wireframes.md` §7 (ux-designer). Plataforma
 > de cursos em vídeo (curso avulso vitalício, app + portal + site + admin). **Nenhum destes é "quase
@@ -19,15 +33,13 @@
       Android e `PDFKit` no iOS, baixar/compartilhar. O módulo `pdf` **gera**; ler existe só como
       `PdfRasterizer.renderPdfPagesToImages`, que é primitiva de rasterização para embutir
       comprovante em relatório — não é tela.
-- [ ] **GAP-RA-M-03 (P0) — `MediaDownloadManager` (download offline de mídia).** Fila, progresso por
-      item, pausa/retoma, restrição a Wi-Fi, cota de espaço, listagem/remoção e **apagar em massa
-      quando o direito de acesso cai**. Media3 `DownloadManager` no Android, `AVAssetDownloadTask` no
-      iOS. `BlobStore` guarda bytes; não gerencia fila nem retomada.
-- [ ] **GAP-RA-M-04 (P1) — `ProgressRing`.** Anel de progresso com traço configurável, animação do
-      valor (nunca salto) e marco de 100% com troca de cor/ícone. Usado em 6 telas do produto. ⚠️
-      **O par web (`ScoreRing` da weblib) NÃO serve de modelo semântico**: ele é gráfico de
-      pontuação, com outra forma — é o caso clássico de escolher componente pelo papel e herdar uma
-      forma que ninguém aprovou.
+- [x] **GAP-RA-M-03 (P0) — `MediaDownloadManager` (download offline de mídia). ATENDIDO na 2.191.0
+      (`video.download`).** Fila, progresso por item, pausa/retoma, restrição a Wi-Fi, cota de
+      espaço, listagem/remoção e **apagar em massa quando o direito de acesso cai**. Media3
+      `DownloadManager` no Android, `AVAssetDownloadTask` no iOS.
+- [x] **GAP-RA-M-04 (P1) — `ProgressRing`. ATENDIDO na 2.191.0 (`kmplib-ui`).** Anel de 44dp/traço
+      4dp, animação do valor (nunca salto), marco de 100% com troca de cor e ✓, e
+      `progress = null` indeterminado.
 - [ ] **GAP-RA-M-05 (P1) — compra de item NÃO-CONSUMÍVEL no `PurchaseManager`.**
       `purchaseProduct(productId)` fora do modelo de `Package`/plano, e `restore()` que reconcilia
       **N itens** (não "tem assinatura ativa: sim/não"). O módulo inteiro é orientado a `Offerings` e
@@ -47,7 +59,25 @@
 - [x] **`pdf.viewer`** — `PdfViewer`, `rememberPdfViewerState`, `PdfSource`, `pdfCacheIdFor`,
       `createPdfCache`. `PdfRenderer` no Android, PDFKit no iOS.
 
-### AINDA ABERTO do mesmo desenho — o que a 2.190.0 NÃO fechou
+### ATENDIDO na 2.191.0 — download offline e anel de progresso (08/set/2026)
+> `GAP-RA-M-03` e `GAP-RA-M-04` fechados. Detalhe no `CHANGELOG.md` (2.191.0) e na skill
+> `kmplib-catalog` (`references/video.md` §`video.download`, `references/ui.md`).
+
+- [x] **`video.download`** — `MediaDownloadManager`, `createMediaDownloadManager`,
+      `MediaDownloadRequest`/`MediaDownloadQuality`, `MediaDownload`/`MediaDownloadStatus`/
+      `MediaDownloadErrorKind`, `MediaDownloadOutcome`, `MediaDownloadConfig`, `MediaStorageUsage`,
+      `MediaDownloadStore`/`PreferencesMediaDownloadStore`/`InMemoryMediaDownloadStore`, as puras
+      (`mediaDownloadStatusOf`, `mediaDownloadPercent`, `checkMediaDownloadSpace`,
+      `availableStorageBytes`, `isMediaDownloadExpired`, `mediaDownloadsToResume`,
+      `shouldRenewDownloadUrl`, `selectDownloadBitrate`) e **`VideoMedia.offlineId`**. Mora dentro
+      do `kmplib-video` porque **tocar o baixado exige o mesmo cache de quem baixou**. O módulo
+      passou a trazer `AndroidManifest.xml` (serviço de download + `JobService` do agendador +
+      permissões de primeiro plano) — regra da 2.175.0.
+- [x] **`ProgressRing`** (`kmplib-ui`) — + `ProgressRingScope`, `ProgressRingLabel`,
+      `ProgressRingDefaults`, `progressRingSweep`, `progressRingPercentLabel`,
+      `isProgressRingComplete`.
+
+### AINDA ABERTO do mesmo desenho — o que a 2.190.0/2.191.0 NÃO fecharam
 
 - [ ] **GAP-RA-M-06 (P1) — notificação de mídia e reprodução em SEGUNDO PLANO no Android.** A
       `MediaSession` do Media3 já está criada e ativa (metadados, comandos de fone/Bluetooth/tela de
@@ -68,6 +98,14 @@
       para injetar a faixa no HLS remoto é um `AVAssetResourceLoaderDelegate` reescrevendo o
       manifesto; só vale se algum produto precisar do estilo de legenda que o usuário configurou no
       iOS (tamanho, contraste), que é acessibilidade que o nosso overlay não herda.
+- [ ] **GAP-RA-M-09 (P2) — iOS: renovar a URL assinada de um HLS PARCIAL sem recomeçar o download.**
+      A retomada de HLS na Apple é abrir o pacote `.movpkg` parcial como `AVURLAsset` local, e a URL
+      remota vive **dentro** dele — não existe API pública para substituí-la. Enquanto o token vale,
+      a retomada é literal; vencido, o item recomeça. **A saída correta é do lado do servidor**:
+      assinar a URL de *download* com validade longa (24 h), que é o que as plataformas do mercado
+      fazem — e por isso este item é P2, não P0. O caminho de lib seria um
+      `AVAssetResourceLoaderDelegate` reescrevendo o manifesto (o mesmo subsistema do
+      `GAP-RA-M-08`); se ele um dia entrar, resolve os dois de uma vez.
 
 ### ATENDIDO na 2.181.0 — sete gaps do **Tá Feito** (04/set/2026)
 > Origem: `5-Apps-Online-Freemium-Cota/TaFeito/docs/gaps-de-kmplib.md`, escrito onda a onda contra a

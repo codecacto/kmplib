@@ -1,5 +1,8 @@
 plugins {
     id("kmplib.module.compose")
+    // `MediaDownloadRecord` é persistido como JSON numa chave de preferências — o que o
+    // subsistema nativo NÃO guarda (a que curso a aula pertence, até quando o direito vale).
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -36,6 +39,18 @@ kotlin {
             // `MediaSession` — metadados e comandos de transporte (fone, Bluetooth, tela de
             // bloqueio). Ver o KDoc de `VideoPlayerConfig.mediaSession`.
             implementation(libs.androidx.media3.session)
+
+            // ------------------------------------------------------------------------------
+            // Download offline (2.191.0)
+            // ------------------------------------------------------------------------------
+            //
+            // `DownloadManager`, `DownloadService`, `DownloadHelper` e `PlatformScheduler` já vêm
+            // do `media3-exoplayer` acima. Os dois abaixo chegariam por transitividade, e são
+            // declarados assim mesmo porque o CÓDIGO NOMEIA os tipos deles (`SimpleCache`,
+            // `CacheDataSource`, `StandaloneDatabaseProvider`): depender de transitividade para um
+            // tipo que se escreve é o que quebra no dia em que a Media3 reorganizar os artefatos.
+            implementation(libs.androidx.media3.datasource)
+            implementation(libs.androidx.media3.database)
         }
     }
 }

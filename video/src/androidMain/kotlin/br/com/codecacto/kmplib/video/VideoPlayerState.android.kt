@@ -13,7 +13,9 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
+import br.com.codecacto.kmplib.video.download.Media3Downloads
 import br.com.codecacto.kmplib.core.util.AppLogger
 import java.lang.ref.WeakReference
 
@@ -41,7 +43,7 @@ object VideoPlayerHolder {
  */
 @OptIn(UnstableApi::class)
 private class ExoPlayerVideoPlayerState(
-    context: Context,
+    private val context: Context,
     config: VideoPlayerConfig,
     texts: VideoPlayerTexts,
 ) : VideoPlayerState(config, texts) {
@@ -125,6 +127,10 @@ private class ExoPlayerVideoPlayerState(
                 if (media.resolvedKind() == VideoStreamKind.Hls) {
                     setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
                 }
+                // A chave do cache de download é o `offlineId`, NUNCA a URL: a URL assinada muda a
+                // cada abertura da aula, e endereçar por ela faria o player não achar nada do que
+                // já está no disco. Ver `Media3Downloads`.
+                media.offlineId?.let { setCustomCacheKey(it) }
             }
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -134,7 +140,21 @@ private class ExoPlayerVideoPlayerState(
             )
             .build()
 
-        player.setMediaItem(item, media.startPositionMillis.coerceAtLeast(0L))
+        val inicio = media.startPositionMillis.coerceAtLeast(0L)
+        if (media.offlineId != null) {
+            // **Tocar o baixado é o MESMO player, mudando só a fonte.** A origem passa a ser o
+            // cache do `kmplib-video.download`, em modo somente-leitura: o vídeo abre sem rede, e o
+            // que porventura falte cai para a URL (`FLAG_IGNORE_CACHE_ON_ERROR`).
+            //
+            // O custo — abrir o `SimpleCache`, que indexa o diretório — é pago só aqui, quando o
+            // app pediu explicitamente a cópia baixada. Quem só faz streaming nunca passa por esta
+            // linha.
+            val fonte = DefaultMediaSourceFactory(Media3Downloads.playbackDataSourceFactory(context))
+                .createMediaSource(item)
+            player.setMediaSource(fonte, inicio)
+        } else {
+            player.setMediaItem(item, inicio)
+        }
         player.playWhenReady = config.autoPlay
         player.prepare()
         sincronizar()

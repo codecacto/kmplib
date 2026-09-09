@@ -177,6 +177,8 @@ androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", versi
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
+androidx-media3-datasource = { module = "androidx.media3:media3-datasource", version.ref = "media3" }
+androidx-media3-database = { module = "androidx.media3:media3-database", version.ref = "media3" }
 sqldelight-dialect-sqlite = { module = "app.cash.sqldelight:sqlite-3-38-dialect", version.ref = "sqldelight" }
 
 # --- Artefatos dos plugins, para os convention plugins de build-logic/ -----------------------

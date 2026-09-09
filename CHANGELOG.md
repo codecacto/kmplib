@@ -1,5 +1,137 @@
 # Changelog — kmplib
 
+## 2.191.0 — a aula se BAIXA para assistir sem internet (`video.download`) e o `ProgressRing`
+
+Os dois itens seguintes do desenho do **Raquete Alta**, `GAP-RA-M-03` e `GAP-RA-M-04` do
+`docs/backlog.md`. O primeiro é fundação pesada: download offline é **item obrigatório** desse
+mercado (Hotmart, Kiwify, Teachable e o concorrente direto têm), e não havia nada na lib — o
+`BlobStore` guarda bytes, não gerencia fila, retomada nem HLS.
+
+### `video.download` — `MediaDownloadManager`
+
+Mora **dentro do `kmplib-video`**, e não num módulo novo, por uma razão técnica e não de
+arrumação: **tocar o que foi baixado exige o mesmo cache de quem baixou**. No Android o player lê
+os segmentos pelo `CacheDataSource` sobre o `SimpleCache` que o `DownloadManager` escreveu; separar
+os dois em artefatos diferentes obrigaria um a expor o cache do outro, ou faria o app baixar num
+lugar e o player procurar noutro.
+
+```kotlin
+val downloads = createMediaDownloadManager(onRenewUrl = { vm.novaUrlAssinada(it.id) })
+
+downloads.enqueue(
+    MediaDownloadRequest(
+        id = aula.id,                 // a CHAVE — nunca a URL, que é assinada e muda
+        url = aula.hlsUrl,
+        title = aula.titulo,
+        groupId = curso.id,           // removeGroup(curso.id) quando o direito cai
+        estimatedBytes = aula.bytes,  // confere o espaço ANTES de começar
+        expiresAtMillis = acesso.venceEm,
+    ),
+)
+
+// Tocar o baixado é o MESMO VideoPlayer, mudando só a fonte:
+val media = downloads.offlineMediaFor(aula.id) ?: VideoMedia(url = aula.hlsUrl)
+val player = rememberVideoPlayerState(media)
+```
+
+**Android: `DownloadManager` + `DownloadService` + `DownloadHelper` do Media3. iOS:
+`AVAssetDownloadTask` (HLS) e `NSURLSessionDownloadTask` de fundo (progressivo).** É o caminho
+oficial das duas plataformas, e o único que baixa **HLS como HLS** — o `.m3u8` é um índice de
+centenas de segmentos, e guardá-lo como arquivo solto produz 2 KB de texto que não tocam em lugar
+nenhum.
+
+O que entrou: enfileirar, pausar, retomar, cancelar · **retomada que sobrevive ao app ser fechado**
+· progresso por item (bytes, percentual, estado) · escolha de faixa de qualidade
+(`MediaDownloadQuality`) · restrição a Wi-Fi · conferência de espaço **antes** de começar · apagar
+item a item, por curso e tudo · espaço ocupado (`storageUsage`) · expiração do direito de acesso ·
+renovação silenciosa da URL assinada.
+
+**Seis decisões que valem registro:**
+
+1. **A chave é o `id` do app, nunca a URL.** Aula de curso vem por URL assinada de curta duração, e
+   ela muda a cada abertura. No Android isso vira o `customCacheKey` do `DownloadRequest`: **sem
+   ele, renovar o token faz o download recomeçar do zero e ocupar o dobro do disco**, porque os
+   segmentos já baixados ficam endereçados por uma URI que ninguém mais pede. Com a chave fixa,
+   trocar a URL é trocar só *por onde buscar o que falta*.
+2. **URL vencida no meio da transferência é caso NORMAL, não erro.** Um download de aula leva
+   minutos ou dezenas de minutos; um token de 15 minutos vence no meio, sempre. `onRenewUrl` é
+   chamado quando a falha é `Expired` (401/403/410) e o item **retoma de onde parou** — mesmo
+   padrão que o player adotou na 2.190.0, com o mesmo teto de duas renovações por item (sem teto,
+   servidor que devolve sempre a mesma URL vencida põe a fila num laço que **não trava nada** e por
+   isso ninguém percebe até a conta do CDN chegar).
+3. **Reserva de 300 MB que a lib nunca ocupa.** `checkMediaDownloadSpace` não pergunta "cabe?", e
+   sim "cabe sobrando a reserva?". Abaixo de ~300 MB o Android dispara `DEVICE_STORAGE_LOW`, recusa
+   instalar app e começa a apagar o `cacheDir` de todo mundo: encher o celular do aluno com aulas e
+   deixá-lo nesse estado é pior do que não baixar a aula. Tamanho desconhecido **não** recusa o
+   download (recusar impediria de baixar de qualquer servidor sem `Content-Length`) — falha no meio
+   com `NoSpace`, e é por isso que mandar `estimatedBytes` vale.
+4. **`NoOpCacheEvictor`: nada é despejado por conta própria.** Um evictor por tamanho apagaria a
+   aula que o aluno baixou para o voo porque outra entrou depois — e a tela de Downloads continuaria
+   listando as duas. Quem apaga é o usuário ou a regra do app.
+5. **Na reprodução, o cache é SOMENTE LEITURA.** `setCacheWriteDataSinkFactory(null)`. Sem isso,
+   tudo o que o aluno assiste **em streaming** é gravado no cache de downloads — que nunca esvazia
+   (decisão 4). O app ocuparia 12 GB enquanto a tela de Downloads mostra "1,4 GB", e ninguém
+   entenderia por quê.
+6. **Expiração do direito não é DRM, e a lib não finge que é.** `expiresAtMillis` +
+   `purgeExpired()` + `removeGroup(cursoId)` são o mecanismo; a decisão é do app. O relógio é o do
+   aparelho, então atrasar a data do celular passa — está escrito no KDoc. A trava de verdade é o
+   servidor não renovar a URL; esta é a metade que funciona **sem rede**, que é justamente quando o
+   servidor não pode ser consultado. Item expirado vira estado próprio (`Expired`, que vence até
+   `Completed`) em vez de sumir da lista: quem perdeu o acesso precisa ver por que a aula não abre.
+
+**O manifesto vem no módulo.** `kmplib-video` passou a ter `AndroidManifest.xml` com o `<service>`
+do download, o `JobService` do `PlatformScheduler` (que o AAR da Media3 **não** declara) e as
+permissões de primeiro plano. É a regra da 2.175.0 aplicada de novo: sem isso, quem declara
+`kmplib-video` direto teria um download que enfileira e **para de andar** assim que o usuário troca
+de tela — sem erro nenhum no build.
+
+**O que FICOU, e está aqui em vez de escondido:**
+- **iOS — renovar a URL de um HLS parcial pode recomeçar o item.** A retomada de HLS na Apple é
+  abrir o pacote `.movpkg` parcial como `AVURLAsset` local, e a URL remota vive **dentro** dele: não
+  há API pública para substituí-la. Enquanto o token valer, a retomada é literal; quando ele vencer
+  e o pacote parcial não puder mais ser usado, o item recomeça. A saída correta é do lado do
+  servidor — assinar a URL de **download** com validade longa (é o que as plataformas do mercado
+  fazem). Registrado como `GAP-RA-M-09`.
+- **iOS — "aguardando Wi-Fi" não existe na tela.** O `NSURLSessionTask` fica parado sem dizer que
+  está esperando rede; `waitingForNetwork` é sempre `false` lá. Inventar a frase seria pior que
+  omiti-la.
+- **iOS — trocar "só no Wi-Fi" vale do próximo item em diante.** `allowsCellularAccess` é fixado na
+  criação da `NSURLSession`, e recriá-la derruba o que está baixando.
+- Os alvos **iOS não compilam em Linux** (guarda de host, 2.69.0): o código iOS está revisado, não
+  compilado — mesma regra dos 9 geradores de PDF e do player da 2.190.0.
+
+### `ProgressRing` — o anel de progresso (`kmplib-ui`)
+
+44dp, traço de 4, começa às 12h, sentido horário, número no meio e ✓ ao chegar a 100%. É o par
+circular do `AppProgressBar`, e lê a **mesma** grandeza `0f..1f` pela **mesma** `normalizeProgress`
+— senão a barra e o anel da mesma tela desenhariam a mesma fração de formas diferentes.
+
+Três detalhes que só aparecem em uso:
+
+- **O rótulo não mente.** Arredonda para **baixo**: 99,6% mostra `99`, e não `100` com uma aula
+  faltando — a reclamação clássica de plataforma de curso, a que faz o aluno procurar um
+  certificado que não existe. E fração maior que zero nunca mostra `0`.
+- **Quem começou aparece.** 1% daria 3,6° — menos que a ponta arredondada do traço, e o anel
+  ficaria idêntico ao de quem não começou. Há um piso de 6°.
+- **A animação de entrada é OPT-IN** (`animateOnAppear = false`). Animar de zero na primeira
+  composição é bonito num cabeçalho e péssimo numa `LazyColumn`: o item recomposto ao voltar
+  rolando reanima, e a lista inteira "respira" a cada rolagem.
+
+O tamanho do número sai do diâmetro **em densidade, não em `sp`**: o anel é fixo, e um número que
+cresce com a escala de fonte do aparelho transborda o círculo em vez de ajudar — quem usa leitor de
+tela recebe o percentual pela semântica (`ProgressBarRangeInfo`), que é o canal certo.
+
+⚠️ **Não é o `CircularProgressIndicator`** (indicador de atividade) **nem o `ScoreRing` da weblib**
+(gráfico de pontuação, outra forma). O KDoc traz a tabela de qual usar quando — é o caso clássico de
+escolher componente pelo **papel** e herdar uma **forma** que ninguém aprovou.
+
+### Cobertura
+40 testes novos: 31 no `kmplib-video` (a máquina de estados da fila com a ordem de precedência,
+percentual que nunca chega a 100 antes da hora, seleção de faixa por qualidade, reserva de espaço,
+expiração no instante exato, o que volta baixando depois de o app fechar, teto de renovação, o
+registro durável e o JSON ilegível que não derruba o app) e 9 no `kmplib-ui` (arco, rótulo, marco de
+100% e a normalização compartilhada com a barra). Suíte inteira: **2.497 testes, 0 falhas.**
+
 ## 2.190.0 — a lib passa a TOCAR vídeo e a LER PDF (`kmplib-video`, `pdf.viewer`)
 
 Dois buracos de fundação que apareceram juntos no desenho do **Raquete Alta** (plataforma de cursos

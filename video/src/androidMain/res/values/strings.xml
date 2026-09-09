@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nome e descrição do canal de notificação do download em primeiro plano.
+
+  São recursos ANDROID (e não strings do compose-resources) porque quem os consome é o
+  `DownloadService` do Media3, que pede @StringRes no construtor — o canal é criado pelo sistema,
+  fora de qualquer composição.
+
+  O prefixo `kmplib_` evita colisão com um recurso de mesmo nome no app consumidor.
+-->
+<resources>
+    <string name="kmplib_download_channel_name">Downloads</string>
+    <string name="kmplib_download_channel_description">Andamento dos downloads de aulas e vídeos</string>
+</resources>
