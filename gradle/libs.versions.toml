@@ -67,6 +67,12 @@ mlkitBarcodeScanning = "17.3.0"
 # SQLDelight (sync offline-first — T1a). 2.0.x suporta Kotlin 2.x / KMP Android+iOS.
 sqldelight = "2.0.2"
 
+# Media3/ExoPlayer — player de vídeo do Android. É o SDK OFICIAL do Google para reprodução
+# (o `VideoView`/`MediaPlayer` da plataforma não toca HLS de forma confiável, não tem controle
+# de velocidade nem seleção de faixa de legenda). `media3-exoplayer-hls` é o artefato SEPARADO
+# que traz o extrator de HLS: sem ele, um `.m3u8` falha com `UnrecognizedInputFormatException`.
+media3 = "1.6.1"
+
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
@@ -165,6 +171,12 @@ sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sq
 sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
 sqldelight-driver-android = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 sqldelight-driver-native = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
+
+# Media3/ExoPlayer (módulo :kmplib-video)
+androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
+androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
+androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 sqldelight-dialect-sqlite = { module = "app.cash.sqldelight:sqlite-3-38-dialect", version.ref = "sqldelight" }
 
 # --- Artefatos dos plugins, para os convention plugins de build-logic/ -----------------------

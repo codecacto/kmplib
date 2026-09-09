@@ -13,6 +13,7 @@ import br.com.codecacto.kmplib.platform.kmpLibPlatformOnPause
 import br.com.codecacto.kmplib.platform.kmpLibPlatformOnResume
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
 import br.com.codecacto.kmplib.sync.initKmpLibSync
+import br.com.codecacto.kmplib.video.initKmpLibVideo
 
 /**
  * Inicializa a KmpLib no Android.
@@ -37,6 +38,7 @@ fun KmpLib.init(context: Context) {
     initKmpLibAuth(context)
     initKmpLibSync(context)
     initKmpLibMedia(context)
+    initKmpLibVideo(context)
 }
 
 /**

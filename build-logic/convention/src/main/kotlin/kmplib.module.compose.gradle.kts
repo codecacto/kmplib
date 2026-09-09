@@ -4,7 +4,7 @@ import org.gradle.accessors.dm.LibrariesForLibs
  * Camada opcional sobre [kmplib.module] para os módulos que desenham tela.
  *
  * Fica separado porque o compilador do Compose custa tempo de build em todo módulo onde é
- * aplicado, e parte da lib (`core`, `validation`, `astro`, `pdf`) não tem um `@Composable` sequer.
+ * aplicado, e parte da lib (`core`, `validation`, `astro`, `brdata`) não tem um `@Composable` sequer.
  *
  * As dependências do Compose vêm daqui, e não do build de cada módulo, porque `implementation` não
  * é transitivo: enquanto os ícones eram declarados só no `kmplib-ui`, as telas de contato, de

@@ -3,6 +3,72 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (08/set/2026) — origem: design do **Raquete Alta**
+> Origem: `8-Sistemas-Portal-App/RaqueteAlta/docs/design/wireframes.md` §7 (ux-designer). Plataforma
+> de cursos em vídeo (curso avulso vitalício, app + portal + site + admin). **Nenhum destes é "quase
+> isso"** — a lib não tem nada de vídeo, e o que existe de PDF é geração, não leitura. Os quatro
+> primeiros já estão previstos como tarefa nominal na **Onda 3** do roadmap do projeto.
+
+- [x] **GAP-RA-M-01 (P0) — `VideoPlayer` HLS. ATENDIDO na 2.190.0 (módulo `kmplib-video`).** Media3/ExoPlayer no Android, `AVPlayer` no iOS
+      (**WebView é proibida** — padrão-ouro). Precisa de: URL assinada com **renovação transparente**
+      (o token expira no meio da aula e o player não pode mostrar erro), overlay de marca d'água
+      **composable** por cima do vídeo (nunca queimada no arquivo), velocidade, faixa de legenda,
+      `onProgress` (para conclusão automática por %), retomada em ponto salvo, PiP. Hoje o módulo
+      `media` só tem `AudioPlayer` (arquivo local) e `SoundEffectPlayer`.
+- [x] **GAP-RA-M-02 (P0) — `PdfViewer` (LER pdf). ATENDIDO na 2.190.0 (`pdf.viewer`).** Páginas roláveis com pinça, `PdfRenderer` no
+      Android e `PDFKit` no iOS, baixar/compartilhar. O módulo `pdf` **gera**; ler existe só como
+      `PdfRasterizer.renderPdfPagesToImages`, que é primitiva de rasterização para embutir
+      comprovante em relatório — não é tela.
+- [ ] **GAP-RA-M-03 (P0) — `MediaDownloadManager` (download offline de mídia).** Fila, progresso por
+      item, pausa/retoma, restrição a Wi-Fi, cota de espaço, listagem/remoção e **apagar em massa
+      quando o direito de acesso cai**. Media3 `DownloadManager` no Android, `AVAssetDownloadTask` no
+      iOS. `BlobStore` guarda bytes; não gerencia fila nem retomada.
+- [ ] **GAP-RA-M-04 (P1) — `ProgressRing`.** Anel de progresso com traço configurável, animação do
+      valor (nunca salto) e marco de 100% com troca de cor/ícone. Usado em 6 telas do produto. ⚠️
+      **O par web (`ScoreRing` da weblib) NÃO serve de modelo semântico**: ele é gráfico de
+      pontuação, com outra forma — é o caso clássico de escolher componente pelo papel e herdar uma
+      forma que ninguém aprovou.
+- [ ] **GAP-RA-M-05 (P1) — compra de item NÃO-CONSUMÍVEL no `PurchaseManager`.**
+      `purchaseProduct(productId)` fora do modelo de `Package`/plano, e `restore()` que reconcilia
+      **N itens** (não "tem assinatura ativa: sim/não"). O módulo inteiro é orientado a `Offerings` e
+      ao `PaywallScreen` de assinatura, que num catálogo de cursos avulsos não se usa. Segundo
+      consumidor provável: qualquer produto que venda item digital único.
+
+### ATENDIDO na 2.190.0 — vídeo e leitura de PDF (08/set/2026)
+> `GAP-RA-M-01` e `GAP-RA-M-02` fechados. Detalhe no `CHANGELOG.md` (2.190.0) e na skill
+> `kmplib-catalog` (`references/video.md`, `references/pdf.md`).
+
+- [x] **`kmplib-video`** — módulo novo (22º artefato). Media3/ExoPlayer no Android, AVPlayer/
+      AVFoundation no iOS. `VideoPlayer`, `rememberVideoPlayerState`, `VideoMedia`, `VideoStatus`,
+      `VideoPlayerConfig`, `VideoPlayerTexts`, `VideoPlayerColors`, as seis velocidades, legenda
+      (embutida pela plataforma, externa `.vtt`/`.srt` interpretada em `commonMain`), slot de marca
+      d'água, retomada, callback de posição e **renovação silenciosa da URL assinada**
+      (`onRenewUrl`).
+- [x] **`pdf.viewer`** — `PdfViewer`, `rememberPdfViewerState`, `PdfSource`, `pdfCacheIdFor`,
+      `createPdfCache`. `PdfRenderer` no Android, PDFKit no iOS.
+
+### AINDA ABERTO do mesmo desenho — o que a 2.190.0 NÃO fechou
+
+- [ ] **GAP-RA-M-06 (P1) — notificação de mídia e reprodução em SEGUNDO PLANO no Android.** A
+      `MediaSession` do Media3 já está criada e ativa (metadados, comandos de fone/Bluetooth/tela de
+      bloqueio). O que falta é a **notificação persistente** e o segundo plano com o app fechado, que
+      exigem um `MediaSessionService` em primeiro plano — o player passa a morar no serviço e a tela
+      fala com ele por `MediaController`. É **outra arquitetura**, não um parâmetro, e por isso não
+      entrou de carona. A API pública já está desenhada para recebê-la sem quebrar ninguém
+      (`VideoBackgroundBehavior.ContinueAudio`, hoje documentado com a ressalva). O iOS está
+      completo (`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` + `AVAudioSession .playback`).
+- [ ] **GAP-RA-M-07 (P2) — Picture-in-Picture.** Não entrou em nenhuma das duas plataformas. Android:
+      `Activity.enterPictureInPictureMode` + `PictureInPictureParams` — depende da Activity do APP,
+      então a lib precisaria de um contrato para pedi-lo, não pode fazer sozinha. iOS:
+      `AVPictureInPictureController` sobre a `AVPlayerLayer` que já existe, mais a capability de
+      background audio no target. Segundo consumidor provável: qualquer produto de aula/palestra.
+- [ ] **GAP-RA-M-08 (P2) — legenda EXTERNA renderizada pela plataforma no iOS.** Hoje o arquivo
+      lateral (`.vtt`/`.srt`) é interpretado em `commonMain` e desenhado como texto sobre o vídeo,
+      igual nas duas plataformas — que é a solução correta e testável. O caminho oficial da Apple
+      para injetar a faixa no HLS remoto é um `AVAssetResourceLoaderDelegate` reescrevendo o
+      manifesto; só vale se algum produto precisar do estilo de legenda que o usuário configurou no
+      iOS (tamanho, contraste), que é acessibilidade que o nosso overlay não herda.
+
 ### ATENDIDO na 2.181.0 — sete gaps do **Tá Feito** (04/set/2026)
 > Origem: `5-Apps-Online-Freemium-Cota/TaFeito/docs/gaps-de-kmplib.md`, escrito onda a onda contra a
 > 2.179.0. Três dos sete faziam a **lib** violar a regra "erro de campo fica NO campo". Tudo aditivo.

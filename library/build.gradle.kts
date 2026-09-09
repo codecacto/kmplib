@@ -175,6 +175,7 @@ kotlin {
             api(project(":kmplib-core"))
             api(project(":kmplib-ads"))
             api(project(":kmplib-media"))
+            api(project(":kmplib-video"))
             api(project(":kmplib-pdf"))
             api(project(":kmplib-camera"))
             api(project(":kmplib-map"))

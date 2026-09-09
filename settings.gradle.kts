@@ -99,6 +99,13 @@ project(":kmplib-pdf").projectDir = file("pdf")
 include(":kmplib-media")
 project(":kmplib-media").projectDir = file("media")
 
+// `kmplib-video` é SEPARADO do `kmplib-media` (áudio) e do `kmplib-ui` (que tem o embed de
+// YouTube) porque o Media3/ExoPlayer é uma dependência pesada: dentro do `kmplib-ui` ela cairia
+// em todo app do portfólio, inclusive nos que nunca tocam um vídeo — exatamente o que a
+// modularização da 2.163.0 existe para evitar.
+include(":kmplib-video")
+project(":kmplib-video").projectDir = file("video")
+
 include(":kmplib-ads")
 project(":kmplib-ads").projectDir = file("ads")
 

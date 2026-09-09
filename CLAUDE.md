@@ -24,7 +24,7 @@ kmplib/
 ├── build-logic/convention/   # convention plugins: kmplib.module e kmplib.module.compose
 ├── core/  ui/  platform/  auth/  sync/  monetization/  central/  firebase/
 ├── mask/  brdata/  qr/  map/  location/  push/  observability/  camera/
-├── pdf/  media/  ads/  astro/           # 21 módulos, cada um um artefato Maven
+├── pdf/  media/  video/  ads/  astro/    # 22 módulos, cada um um artefato Maven
 │   └── src/{commonMain,androidMain,iosMain,commonTest}/
 ├── library/                  # o UMBRELLA `br.com.codecacto:kmplib` — só KmpLib.kt e KmpLibInit.kt
 ├── library-testing/          # `kmplib-testing`, dublês de loja para build de QA
@@ -111,7 +111,7 @@ kotlin.native.jvmArgs=-Xmx6g
 
 **Inicialização sem o umbrella:** `KmpLib.init(context)` só existe no artefato `kmplib`. Quem
 declara módulos chama os inits deles — `initKmpLibCore`, `initKmpLibPlatform`, `initKmpLibAuth`,
-`initKmpLibSync`, `initKmpLibMedia` — e `kmpLibPlatformOnResume`/`OnPause` +
+`initKmpLibSync`, `initKmpLibMedia`, `initKmpLibVideo` — e `kmpLibPlatformOnResume`/`OnPause` +
 `kmpLibAuthOnResume`/`OnPause` no lugar de `setActivity`/`clearActivity`.
 
 **Quem já usa `api(libs.kmplib)` não precisa mudar nada** — o umbrella continua trazendo tudo. Mas

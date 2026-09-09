@@ -1,5 +1,122 @@
 # Changelog — kmplib
 
+## 2.190.0 — a lib passa a TOCAR vídeo e a LER PDF (`kmplib-video`, `pdf.viewer`)
+
+Dois buracos de fundação que apareceram juntos no desenho do **Raquete Alta** (plataforma de cursos
+em vídeo) e que estavam registrados como `GAP-RA-M-01` e `GAP-RA-M-02` no `docs/backlog.md`. Nenhum
+dos dois tinha "quase isso" na lib: de vídeo não havia nada além do embed de YouTube, e de PDF havia
+só **geração**.
+
+### `kmplib-video` — módulo novo, o 22º artefato
+
+**Media3/ExoPlayer no Android, AVPlayer/AVFoundation no iOS.** Não é escolha de conveniência: o
+`VideoView`+`MediaPlayer` da plataforma (que é o que o `KmplibVideoActivity` do `kmplib-ui` usa para
+"abrir um mp4 solto") **não toca HLS de forma confiável, não tem velocidade de reprodução, não
+seleciona faixa de legenda e não tem `MediaSession`**. Os quatro são requisito do produto.
+
+```kotlin
+val player = rememberVideoPlayerState(
+    media = VideoMedia(url = aula.hlsUrl, title = aula.titulo, startPositionMillis = aula.retomarEm),
+    onPosition = { pos, _ -> vm.salvarProgresso(pos) },
+    onRenewUrl = { vm.novaUrlAssinada(aula.id) },   // o token venceu na pausa
+)
+
+VideoPlayer(player, Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+    Text(aluno.email, color = Color.White.copy(alpha = .35f), modifier = Modifier.align(Alignment.TopEnd))
+}
+```
+
+O que entrou: HLS (`.m3u8`) e MP4 progressivo · play/pause · barra arrastável · tempo decorrido/total
+· **as seis velocidades** (0,5× … 2×) · ±10 s · tela cheia (a **decisão** é do app — a lib não gira a
+Activity de quem a embutiu) · legenda ligando/desligando · **retomada** e **callback de posição** ·
+seis estados exclusivos (`Idle`/`Loading`/`Buffering`/`Playing`/`Paused`/`Ended`/`Error`) · pausa ao
+sair do primeiro plano, liberação ao sair da tela e tela acesa só enquanto toca.
+
+**Cinco decisões que valem registro:**
+
+1. **Módulo separado, e não dentro do `kmplib-ui`.** O Media3 é dependência pesada; no `kmplib-ui`
+   ela cairia nos ~25 apps do portfólio, inclusive nos que nunca tocam um vídeo — exatamente o que a
+   modularização da 2.163.0 existe para evitar. O embed de YouTube (`ui.components.video`:
+   `VideoLauncher`, `VideoPlayerInline`) **fica onde está e não muda**: são coisas diferentes, e a
+   do YouTube tem de ser WebView por exigência do próprio Google (IFrame Player API).
+2. **Controles em Compose, superfície nativa.** A `PlayerView` entra com `useController = false` e a
+   AVKit fica de fora (usamos `AVPlayerLayer`). Os controles nativos são views/UIKit e ficariam **por
+   cima de qualquer sobreposição do app** — inclusive da marca d'água. E os dois não têm os mesmos
+   botões: um curso que parece um app diferente em cada aparelho é o que isto evita.
+3. **A marca d'água é um SLOT, não um parâmetro.** `VideoPlayer(…) { … }` recebe um `BoxScope` que
+   fica entre o vídeo e os controles, e não recebe toque. Antipirataria é regra de produto: nenhum
+   produto quer a moldura que a lib escolheria.
+4. **Legenda EXTERNA é interpretada em `commonMain`.** A embutida no HLS é da plataforma (ExoPlayer e
+   AVPlayer a acham e a desenham). Para arquivo `.vtt`/`.srt` lateral as duas divergem: o ExoPlayer
+   aceita, e o iOS **não tem API pública** para acrescentar faixa a um HLS remoto (o caminho oficial
+   é um `AVAssetResourceLoaderDelegate` reescrevendo o manifesto — um subsistema, não um parâmetro).
+   Deixar cada plataforma no seu caminho daria legenda no Android e nenhuma no iOS, **com build verde
+   nos dois**. Agora o arquivo é lido uma vez (`parseSubtitles`, WebVTT e SRT) e a fala é desenhada
+   sobre o vídeo nas duas plataformas — idêntico, determinístico e coberto por teste.
+5. **Sem `headers` na API.** Cabeçalho HTTP customizado numa `AVURLAsset` remota não tem API pública
+   no iOS. Aceitá-lo faria a lib prometer no Android o que ignoraria em silêncio no iOS — o mesmo que
+   o `SoundEffectPlayer` recusou fazer com "volume por disparo". **Assine a URL**, que é como o
+   produto protege o vídeo de qualquer forma.
+
+**A renovação da URL assinada é da lib, não do app.** `onRenewUrl` é chamado quando o erro é
+`VideoErrorKind.Expired` (401/403/410) e o player recarrega **na posição em que estava** — o aluno
+que pausou, atendeu o telefone e voltou vinte minutos depois vê um instante de espera, não uma tela
+de erro. Teto de duas tentativas por mídia: sem ele, servidor que devolve sempre a mesma URL vencida
+põe o player num laço de recarga que **não trava a tela** e por isso ninguém percebe.
+
+**O que FICOU, e está aqui em vez de escondido:**
+- **Android — notificação de mídia persistente e reprodução com o app fechado.** A `MediaSession` do
+  Media3 está criada e ativa (metadados na central de mídia, comandos de fone/Bluetooth/tela de
+  bloqueio, `handleAudioBecomingNoisy`). O que falta é a **notificação persistente** e o segundo
+  plano de verdade, que exigem um `MediaSessionService` em primeiro plano com o player morando no
+  serviço e a tela falando por `MediaController` — outra arquitetura, não um parâmetro. A API pública
+  já está desenhada para recebê-la sem quebrar ninguém (`VideoBackgroundBehavior.ContinueAudio`).
+- **iOS — completo:** `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` (play/pause/±10 s) e
+  `AVAudioSession` em `.playback`, que é o que faz o áudio sair com o silencioso ligado.
+- **Picture-in-Picture** não entrou em nenhuma das duas. Registrado no `docs/backlog.md`.
+- Os alvos **iOS não compilam em Linux** (guarda de host, 2.69.0): o código iOS está revisado, não
+  compilado. Vale a mesma regra dos 9 geradores de PDF.
+
+### `pdf.viewer` — o módulo `pdf` passa a LER, não só a gerar
+
+`PdfViewer` + `rememberPdfViewerState` + `PdfSource` (`Bytes`/`LocalFile`/`Url`). **Android:
+`android.graphics.pdf.PdfRenderer`** (API da plataforma, sem dependência de terceiro — a mesma que o
+`PdfRasterizer` já usava); **iOS: PDFKit (`PDFView`)**. Rolagem contínua, pinça, "página X de Y",
+estados de carregando e erro, e `onPageChange` para o app guardar onde o aluno parou.
+
+**Três decisões:**
+
+1. **O zoom NÃO é um `graphicsLayer` por cima da lista.** O `ZoomableBox` do `kmplib-ui` é o
+   componente certo para uma FOTO e, por isso mesmo, **consome o arrasto de um dedo quando
+   ampliado** — dentro de um documento isso prenderia o leitor na página em que ele ampliou. Aqui a
+   pinça muda a **escala de rasterização** (texto continua nítido, em vez de virar imagem esticada),
+   a vertical continua sendo da lista e a horizontal é do `horizontalScroll`. A pinça só captura
+   gesto de dois dedos.
+2. **A chave do cache ignora a QUERY.** Material de curso vem por URL assinada
+   (`…/apostila.pdf?token=…`), e o token muda a cada abertura: com a URL inteira na chave o cache
+   erraria **sempre**, e sem sinal o material simplesmente não abriria. `pdfCacheIdFor` usa o
+   caminho.
+3. **Resposta que não começa com `%PDF-` NÃO entra no cache.** Um download que falha nem sempre
+   falha: o CDN devolve `200` com página de erro, o portal cativo do wi-fi de hotel responde no lugar
+   do arquivo, o token recusado vira JSON. Guardar isso com o nome do arquivo faria o documento **não
+   abrir nunca mais**, nem com rede boa — um bug de cache que só some desinstalando o app.
+
+O download reusa o `createHttpClient` do `kmplib-core` (log de requisição e gzip por default) e o
+armazenamento é o `BlobStore`, em diretório próprio (`kmplib_pdf_cache`). Ele é **durável**, não
+purgável: material de curso é o que o aluno quer achar sem sinal, e o `cacheDir` do Android é apagado
+justamente quando o aparelho está cheio. A contrapartida é que a faxina é do app —
+`createPdfCache().ids()/delete()/totalBytes()`.
+
+⚠️ **O módulo `kmplib-pdf` passou a aplicar o Compose** (`kmplib.module.compose`). Aditivo para quem
+o consome; quem só gera PDF não precisa mudar nada.
+
+### Cobertura
+48 testes novos no `kmplib-video` (relógio, as seis velocidades, classificação de HLS com URL
+assinada, máquina de estados, mapeamento de HTTP para tipo de falha, leitor de WebVTT/SRT com busca
+binária, mescla e preferência de faixa) e 20 no `kmplib-pdf` (chave de cache, assinatura de arquivo,
+caminho remoto com `MockEngine`: cache-primeiro, 404, 5xx e HTML com 200). Suíte inteira: **2.457
+testes, 0 falhas**.
+
 ## 2.189.0 — o recuo do `AppCheckbox` era 10dp, não 14dp
 
 Correção do número que a 2.188.0 introduziu. A caixa ficou **acima** do começo do rótulo, e o motivo
