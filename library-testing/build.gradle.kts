@@ -116,6 +116,14 @@ kotlin {
 val kmplibBuildDir: String =
     project(":kmplib-monetization").layout.buildDirectory.get().asFile.absolutePath
 
+/**
+ * O nome do KLIB amigo — o Kotlin/Native nomeia a saída pelo nome do módulo Gradle
+ * (`…/classes/kotlin/<alvo>/main/klib/kmplib-monetization`).
+ *
+ * Vem do próprio projeto, e não escrito à mão, para o dia em que o módulo for renomeado.
+ */
+val NOME_DO_MODULO_AMIGO: String = project(":kmplib-monetization").name
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     val classpath = libraries
     compilerOptions.freeCompilerArgs.add(
@@ -151,7 +159,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
     // que filtrar, e é o que funciona sem acordar a distribuição.
     val alvo = name.removePrefix("compileKotlin").replaceFirstChar { it.lowercase() }
     val saidaDoAlvo = File("$kmplibBuildDir/classes/kotlin/$alvo/main")
-    val nomeDaTarefa = name
 
     // `addAll` com LISTA, e não `add` + `filter`: um provider filtrado que fica "sem valor" faz o
     // Gradle abortar com "Assign a value to 'compilerOptions.freeCompilerArgs'". Lista vazia é o
@@ -167,18 +174,20 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinNativeCompile>().configur
             //    investigar visibilidade quando o problema é a flag.
             // 2. **O KLIB é um DIRETÓRIO**: `…/main/klib/<nome-do-módulo>`. Procurar por arquivo
             //    `.klib` não acha nada.
-            val pastaKlib = File(saidaDoAlvo, "klib")
-            val amigo = pastaKlib.listFiles()?.firstOrNull()?.absolutePath
-                ?: saidaDoAlvo.listFiles()?.firstOrNull { it.extension == "klib" }?.absolutePath
-            if (amigo == null) {
-                logger.lifecycle(
-                    "[kmplib-testing] $nomeDaTarefa: não achei o KLIB da :kmplib-monetization em " +
-                        "${pastaKlib.absolutePath} — sem amizade, o `internal` da lib fica invisível.",
-                )
-                emptyList()
-            } else {
-                listOf("-friend-modules", amigo)
-            }
+            // 3. **O caminho é CALCULADO, nunca procurado no disco.** Esta era a terceira
+            //    rodada perdida (10/set/2026): com a **cache de configuração** ligada — que é o
+            //    default aqui —, o Gradle avalia este provider ao GRAVAR a entrada da cache, ou
+            //    seja ANTES de qualquer tarefa rodar. Numa árvore limpa a pasta do KLIB ainda não
+            //    existe, `listFiles()` devolve `null`, a amizade não é passada e o build morre com
+            //    "it is internal in PurchaseManager" — mandando investigar visibilidade.
+            //
+            //    E o pior: na SEGUNDA execução o KLIB já está lá do build anterior, e tudo passa.
+            //    O erro só aparece em árvore limpa (CI, clone novo, `clean`), que é justamente
+            //    onde ninguém está olhando. Calcular o caminho tira o disco da conta — quando o
+            //    compilador for lido, a tarefa amiga já rodou (a dependência vem do
+            //    `api(project(":kmplib-monetization"))`).
+            val amigo = File(saidaDoAlvo, "klib/$NOME_DO_MODULO_AMIGO").absolutePath
+            listOf("-friend-modules", amigo)
         }
     )
 }

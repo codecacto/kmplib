@@ -51,10 +51,29 @@ curso abrir o Xcode:
 | `VideoPlayerState.ios` (5×) | `MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess` | `MPRemoteCommandHandlerStatusSuccess` — mesma armadilha do PDFKit: constante de topo qualificada por um `typealias` |
 | `MediaDownloadManager.ios` | `assetDownloadTaskWithURLAsset(uRLAsset = …)` | `URLAsset = …` — o cinterop preserva a SIGLA maiúscula neste selector (o construtor `AVURLAsset(uRL = …)` minuscula, e é essa assimetria que engana) |
 
-**Estado agora: os 22 módulos da lib compilam para `iosArm64`, zero `SKIPPED`.** A única exceção é
-`:kmplib-testing`, cujo `-friend-modules` do Kotlin/Native não acha o klib amigo em
-cross-compilation (`Cannot access … it is internal in PurchaseManager`). É artefato **só de teste**,
-não vai para app nenhum, e ficou anotado no backlog — a lib de produção está inteira.
+### A linha que sustentou a crença por meses
+
+`kotlin.native.enableKlibsCrossCompilation` estava **`false`** no `gradle.properties` da lib. Era
+essa linha — não uma limitação do compilador — que fazia todo alvo Apple sair `SKIPPED` no servidor
+e alimentava o *"iOS só compila no Mac"*. Agora está `true` aqui, na `casca-mobile` e nos apps: o
+comando ficou **uma flag só** (`-Pkmplib.forceAppleTargets=true` / `-Papp.forceAppleTargets=true`).
+No Mac nada muda — lá todo alvo Apple já é nativo.
+
+### E o `:kmplib-testing`, que falhava só em ÁRVORE LIMPA
+
+`-friend-modules` do Kotlin/Native procurava o KLIB amigo com `listFiles()`. Com a **cache de
+configuração** ligada (default aqui), esse provider é avaliado ao **gravar a entrada da cache** —
+antes de qualquer tarefa rodar. Em árvore limpa a pasta ainda não existe, a amizade não é passada, e
+o erro que sobra é `it is internal in PurchaseManager`, que manda investigar visibilidade. Na
+segunda execução o KLIB já está lá do build anterior e tudo passa: **o defeito só aparece em CI, em
+clone novo e depois de `clean`** — exatamente onde ninguém está olhando.
+
+Agora o caminho é **calculado** (`…/klib/kmplib-monetization`), não procurado: quando o compilador
+lê o argumento, a tarefa amiga já rodou pela dependência de projeto.
+
+**Estado agora: os 23 alvos `iosArm64` da lib compilam, zero `SKIPPED`, em árvore limpa e com
+`--no-build-cache`** — `:kmplib-testing` incluído. O app do Mirassol também
+(`:composeApp:compileKotlinIosArm64`).
 
 ## 2.192.0 — vender ITEM, não assinatura: compra única e restauração de N itens
 

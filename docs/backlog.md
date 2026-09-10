@@ -3,16 +3,22 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
-### Achado de passagem (10/set/2026) — `:kmplib-testing` não compila para iOS em cross-compilation
+### ATENDIDO na 2.193.0 (10/set/2026) — `:kmplib-testing` não compilava para iOS em árvore limpa
 
-- [ ] **GAP-LIB-M-02 (P2) — `-friend-modules` do Kotlin/Native não acha o klib amigo fora do Mac.**
+- [x] **GAP-LIB-M-02 — `-friend-modules` do Kotlin/Native não achava o klib amigo.**
   Com o alvo iOS passando a compilar no servidor (ver `CLAUDE.md` §"O `iosMain` COMPILA no servidor
   Linux"), `:kmplib-testing:compileKotlinIosArm64` reprova com
   `Cannot access 'fun initializeWith(...)': it is internal in PurchaseManager` — o
   `PurchaseTestHooks` do `iosMain` alcança o `internal` da `:kmplib-monetization` por amizade de
   módulo, e o caminho do klib amigo não resolve em cross-compilation. **É artefato só de teste**,
   não entra em app nenhum, e os 22 módulos de produção compilam. Enquanto não for arrumado, a
-  varredura roda com `-x :kmplib-testing:compileKotlinIosArm64`.
+  varredura rodava com `-x :kmplib-testing:compileKotlinIosArm64`.
+  **Causa real e correção:** o caminho do KLIB era PROCURADO com `listFiles()`, e a cache de
+  configuração avalia esse provider ao gravar a entrada — antes de qualquer tarefa rodar. Em árvore
+  limpa a pasta não existe ainda, a amizade não é passada, e o erro sobra como "visibilidade".
+  Na 2ª execução o KLIB já está lá e tudo passa: o defeito só aparecia em CI/clone novo/`clean`.
+  Agora o caminho é **calculado** (`…/klib/kmplib-monetization`). Provado com `clean` +
+  `--no-build-cache`: 23 alvos `iosArm64`, zero `SKIPPED`.
 
 ### Achado de passagem (08/set/2026) — o gate de cobertura da lib mede um módulo VAZIO
 
