@@ -7,7 +7,7 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationDidBecomeActiveNotification
 import platform.UIKit.UIApplicationWillResignActiveNotification
 import platform.UIKit.UIBlurEffect
-import platform.UIKit.UIBlurEffectStyleSystemMaterial
+import platform.UIKit.UIBlurEffectStyle
 import platform.UIKit.UIView
 import platform.UIKit.UIViewAutoresizingFlexibleHeight
 import platform.UIKit.UIViewAutoresizingFlexibleWidth
@@ -79,7 +79,10 @@ object IosPrivacyScreen : PrivacyScreen {
     private fun cover() {
         windows().forEach { window ->
             if (overlayIn(window) != null) return@forEach
-            val overlay = UIVisualEffectView(effect = UIBlurEffect.effectWithStyle(UIBlurEffectStyleSystemMaterial))
+            // UIBlurEffectStyleRegular = 4 (enums UIKit importados como constantes separadas)
+            @Suppress("UNCHECKED_CAST")
+            val style: UIBlurEffectStyle = 4L as UIBlurEffectStyle
+            val overlay = UIVisualEffectView(effect = UIBlurEffect.effectWithStyle(style))
             overlay.tag = OVERLAY_TAG
             overlay.setFrame(window.bounds)
             overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth or UIViewAutoresizingFlexibleHeight

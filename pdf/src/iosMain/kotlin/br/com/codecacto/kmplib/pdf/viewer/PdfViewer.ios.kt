@@ -31,7 +31,7 @@ import platform.PDFKit.*
 import platform.UIKit.UIColor
 import platform.darwin.NSObjectProtocol
 
-internal actual suspend fun readLocalPdfFile(path: String): ByteArray? = withContext(Dispatchers.IO) {
+internal actual suspend fun readLocalPdfFile(path: String): ByteArray? = withContext(Dispatchers.Default) {
     val dados = NSData.dataWithContentsOfFile(path) ?: return@withContext null
     dados.paraByteArray()
 }
@@ -143,10 +143,12 @@ private fun PdfKitView(
                 setDocument(document)
                 // Rolagem contínua, uma página abaixo da outra — o modo de leitura, e não o de
                 // "virar página", que num material de estudo obriga a um gesto por página.
-                setDisplayMode(PDFDisplayMode.kPDFDisplayModeSinglePageContinuous)
-                setDisplayDirection(PDFDisplayDirection.kPDFDisplayDirectionVertical)
+                // kPDFDisplayModeSinglePageContinuous = 1
+                setDisplayMode(1L)
+                // kPDFDisplayDirectionVertical = 0
+                setDisplayDirection(0L)
                 setAutoScales(true)
-                setBackgroundColor(UIColor.systemGray5Color)
+                setBackgroundColor(UIColor.grayColor)
 
                 observador = NSNotificationCenter.defaultCenter.addObserverForName(
                     name = PDFViewPageChangedNotification,
