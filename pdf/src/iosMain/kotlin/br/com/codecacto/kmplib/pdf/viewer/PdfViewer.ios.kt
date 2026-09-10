@@ -25,13 +25,24 @@ import androidx.compose.ui.viewinterop.UIKitView
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.Foundation.*
 import platform.PDFKit.*
 import platform.UIKit.UIColor
+import platform.UIKit.systemGray5Color
 import platform.darwin.NSObjectProtocol
 
-internal actual suspend fun readLocalPdfFile(path: String): ByteArray? = withContext(Dispatchers.Default) {
+/**
+ * ⚠️ `Dispatchers.IO` **exige `import kotlinx.coroutines.IO`** aqui.
+ *
+ * No JVM/Android `IO` é membro do objeto `Dispatchers`; no Kotlin/Native (desde o coroutines 1.9)
+ * ele é uma **propriedade de extensão** declarada no pacote `kotlinx.coroutines` — sem o import, o
+ * compilador diz apenas "unresolved reference: IO", e a saída fácil é trocar por `Default`. Não é
+ * equivalente: `Default` é o pool de CPU, dimensionado pelo número de núcleos, e ler arquivo do
+ * disco ali bloqueia uma thread de cálculo.
+ */
+internal actual suspend fun readLocalPdfFile(path: String): ByteArray? = withContext(Dispatchers.IO) {
     val dados = NSData.dataWithContentsOfFile(path) ?: return@withContext null
     dados.paraByteArray()
 }
@@ -143,12 +154,20 @@ private fun PdfKitView(
                 setDocument(document)
                 // Rolagem contínua, uma página abaixo da outra — o modo de leitura, e não o de
                 // "virar página", que num material de estudo obriga a um gesto por página.
-                // kPDFDisplayModeSinglePageContinuous = 1
-                setDisplayMode(1L)
-                // kPDFDisplayDirectionVertical = 0
-                setDisplayDirection(0L)
+                //
+                // ⚠️ `PDFDisplayMode`/`PDFDisplayDirection` NÃO são enum class no Kotlin/Native: o
+                // cinterop os traz como `typealias` de `NSInteger` mais **constantes de topo**. Por
+                // isso não existe `PDFDisplayMode.kPDF…` — a constante se usa sozinha (o
+                // `import platform.PDFKit.*` já a traz). E o nome não tem "Mode" no meio:
+                // `kPDFDisplaySinglePageContinuous`, e não `kPDFDisplayModeSinglePageContinuous`.
+                setDisplayMode(kPDFDisplaySinglePageContinuous)
+                setDisplayDirection(kPDFDisplayDirectionVertical)
                 setAutoScales(true)
-                setBackgroundColor(UIColor.grayColor)
+                // Cinza CLARO do sistema, atrás de uma página branca. `UIColor.grayColor` é o cinza
+                // 50% e escurece a leitura inteira. As cores novas (`system*`) chegam como função de
+                // extensão sobre o `UIColorMeta` — daí o `Companion` e os parênteses, que as antigas
+                // (`grayColor`, `blackColor`) não precisam por terem também a forma de propriedade.
+                setBackgroundColor(UIColor.Companion.systemGray5Color())
 
                 observador = NSNotificationCenter.defaultCenter.addObserverForName(
                     name = PDFViewPageChangedNotification,

@@ -30,7 +30,9 @@ import platform.darwin.NSObjectProtocol
  * O `resignActive` cobre também a barra de controle puxada de cima e a ligação recebida; o app
  * volta descoberto sozinho.
  *
- * **PENDÊNCIA DE VALIDAÇÃO (host macOS):** o build Kotlin/Native iOS não roda no servidor Linux.
+ * **Compila no servidor** (`compileKotlinIosArm64` com `-Pkmplib.forceAppleTargets=true`
+ * `-Pkotlin.native.enableKlibsCrossCompilation=true`); o que falta validar em macOS é o VISUAL do
+ * desfoque no seletor de apps.
  */
 object IosPrivacyScreen : PrivacyScreen {
 
@@ -79,10 +81,16 @@ object IosPrivacyScreen : PrivacyScreen {
     private fun cover() {
         windows().forEach { window ->
             if (overlayIn(window) != null) return@forEach
-            // UIBlurEffectStyleRegular = 4 (enums UIKit importados como constantes separadas)
-            @Suppress("UNCHECKED_CAST")
-            val style: UIBlurEffectStyle = 4L as UIBlurEffectStyle
-            val overlay = UIVisualEffectView(effect = UIBlurEffect.effectWithStyle(style))
+            // ⚠️ `UIBlurEffectStyle` É enum class (`CEnum`) no Kotlin/Native, e a constante é
+            // **entrada do enum** — não uma constante de topo. Por isso
+            // `import …UIBlurEffectStyleSystemMaterial` não resolve, e qualificar pelo enum, sim.
+            //
+            // O que estava aqui era `4L as UIBlurEffectStyle`, com `@Suppress`. Isso **compila** (o
+            // compilador só avisa "this cast can never succeed") e estoura `ClassCastException` na
+            // primeira vez que o app perde o foco — que é exatamente quando esta função roda.
+            val overlay = UIVisualEffectView(
+                effect = UIBlurEffect.effectWithStyle(UIBlurEffectStyle.UIBlurEffectStyleSystemMaterial),
+            )
             overlay.tag = OVERLAY_TAG
             overlay.setFrame(window.bounds)
             overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth or UIViewAutoresizingFlexibleHeight

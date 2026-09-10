@@ -321,8 +321,11 @@ private class IosMediaDownloadManager(
         bitrateMinimoPara(registro.quality)?.let {
             opcoes[AVAssetDownloadTaskMinimumRequiredMediaBitrateKey] = NSNumber(int = it)
         }
+        // ⚠️ `URLAsset` em MAIÚSCULAS: o cinterop preserva a sigla do selector Objective-C neste
+        // método. Não é o mesmo do construtor `AVURLAsset(uRL = …)`, que vira minúsculo — por isso
+        // o erro sai como "None of the following candidates is applicable", e não como nome errado.
         return sessaoHls.assetDownloadTaskWithURLAsset(
-            uRLAsset = ativo,
+            URLAsset = ativo,
             assetTitle = registro.title ?: registro.id,
             assetArtworkData = null,
             options = opcoes,

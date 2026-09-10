@@ -254,28 +254,34 @@ private class AvPlayerVideoPlayerState(
         }
     }
 
-    /** Os comandos da tela de bloqueio, do fone, do relógio e do CarPlay. */
+    /**
+     * Os comandos da tela de bloqueio, do fone, do relógio e do CarPlay.
+     *
+     * ⚠️ `MPRemoteCommandHandlerStatusSuccess` é **constante de topo** — `MPRemoteCommandHandlerStatus`
+     * é só um `typealias` de `NSInteger`, não um enum class, então não se qualifica por ele.
+     * Ver `references/ios-cinterop.md` na skill `kmplib-catalog`.
+     */
     private fun registrarComandosRemotos() {
         val centro = MPRemoteCommandCenter.sharedCommandCenter()
         centro.playCommand.addTargetWithHandler {
             play()
-            MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+            MPRemoteCommandHandlerStatusSuccess
         }
         centro.pauseCommand.addTargetWithHandler {
             pause()
-            MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+            MPRemoteCommandHandlerStatusSuccess
         }
         centro.togglePlayPauseCommand.addTargetWithHandler {
             playPause()
-            MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+            MPRemoteCommandHandlerStatusSuccess
         }
         centro.skipForwardCommand.addTargetWithHandler {
             seekBy(config.seekStepMillis)
-            MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+            MPRemoteCommandHandlerStatusSuccess
         }
         centro.skipBackwardCommand.addTargetWithHandler {
             seekBy(-config.seekStepMillis)
-            MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+            MPRemoteCommandHandlerStatusSuccess
         }
     }
 

@@ -1,5 +1,61 @@
 # Changelog — kmplib
 
+## 2.193.0 — o `iosMain` volta a compilar, e passa a ser COMPILÁVEL AQUI
+
+A 2.192.0 **não compilava para iOS**. Quatro linhas, quatro suposições sobre como o cinterop expõe a
+API da Apple — nenhuma delas conferida, porque a casa acreditava que alvo Apple só compila no Mac.
+O erro apareceu no Xcode, na véspera de subir para a loja.
+
+### A correção que importa: o alvo iOS COMPILA no servidor Linux
+
+```bash
+./gradlew :kmplib-<módulo>:compileKotlinIosArm64 \
+    -Pkmplib.forceAppleTargets=true \
+    -Pkotlin.native.enableKlibsCrossCompilation=true
+```
+
+O que exige Xcode é o **link** do framework, não a compilação do Kotlin. **Sem a segunda flag a
+tarefa sai `SKIPPED` e o Gradle imprime `BUILD SUCCESSFUL` sem compilar nada** — o mesmo verde falso
+do `compileKotlinMetadata`; confira o `SKIPPED` no log. Toda a classe de erro abaixo é pega aqui, em
+minutos, antes de alguém abrir o Xcode. A regra está no `CLAUDE.md` da lib e o detalhe em
+`references/ios-cinterop.md` (skill `kmplib-catalog`).
+
+### Os quatro pontos
+
+| Onde | Estava | Está |
+|---|---|---|
+| `PdfViewer.ios` | `withContext(Dispatchers.Default)` | `Dispatchers.IO` + **`import kotlinx.coroutines.IO`** — no Native `IO` é propriedade de EXTENSÃO, não membro; `Default` é pool de CPU e ler disco ali bloqueia thread de cálculo |
+| `PdfViewer.ios` | `setDisplayMode(1L)` / `setDisplayDirection(0L)` | `kPDFDisplaySinglePageContinuous` / `kPDFDisplayDirectionVertical` — `PDFDisplayMode` é `typealias` de `NSInteger` com **constantes de topo** (e o nome não tem "Mode" no meio) |
+| `PdfViewer.ios` | `UIColor.grayColor` | `UIColor.Companion.systemGray5Color()` — cinza CLARO do sistema atrás da página; `grayColor` é 50% e escurece a leitura |
+| `PrivacyScreen.ios` | `4L as UIBlurEffectStyle` | `UIBlurEffectStyle.UIBlurEffectStyleSystemMaterial` |
+
+### ⚠️ O cast era um crash, não um estilo feio
+
+`UIBlurEffectStyle` **é enum class** (`CEnum`) no Kotlin/Native. `4L as UIBlurEffectStyle` compila —
+o compilador só avisa `this cast can never succeed` — e lança **`ClassCastException` na primeira
+execução**. `IosPrivacyScreen.cover()` roda em `UIApplicationWillResignActiveNotification`: o app
+quebraria na primeira vez que perdesse o foco. **Nenhum app da casa liga o `PrivacyScreen` hoje**
+(varrido no monorepo), então não chegou a ninguém — mas era o primeiro a ligar que descobriria.
+
+O `@Suppress("UNCHECKED_CAST")` ali calava o aviso ERRADO e deixava passar o certo. No `iosMain`,
+`@Suppress` + número mágico + cast forçado são sintoma de que ninguém foi conferir como a API chega.
+
+### E a primeira varredura já achou mais dois — no `kmplib-video`
+
+Com o alvo iOS compilando, rodou-se `compileKotlinIosArm64` na **lib inteira**. O módulo de vídeo
+(2.190.0/2.191.0), o mais novo, **não compilava para iOS** — ninguém saberia até o primeiro app de
+curso abrir o Xcode:
+
+| Arquivo | Estava | Está |
+|---|---|---|
+| `VideoPlayerState.ios` (5×) | `MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess` | `MPRemoteCommandHandlerStatusSuccess` — mesma armadilha do PDFKit: constante de topo qualificada por um `typealias` |
+| `MediaDownloadManager.ios` | `assetDownloadTaskWithURLAsset(uRLAsset = …)` | `URLAsset = …` — o cinterop preserva a SIGLA maiúscula neste selector (o construtor `AVURLAsset(uRL = …)` minuscula, e é essa assimetria que engana) |
+
+**Estado agora: os 22 módulos da lib compilam para `iosArm64`, zero `SKIPPED`.** A única exceção é
+`:kmplib-testing`, cujo `-friend-modules` do Kotlin/Native não acha o klib amigo em
+cross-compilation (`Cannot access … it is internal in PurchaseManager`). É artefato **só de teste**,
+não vai para app nenhum, e ficou anotado no backlog — a lib de produção está inteira.
+
 ## 2.192.0 — vender ITEM, não assinatura: compra única e restauração de N itens
 
 `GAP-RA-M-05` do `docs/backlog.md`, o quinto item do desenho do **Raquete Alta**. O módulo de compra

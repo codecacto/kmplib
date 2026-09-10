@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Achado de passagem (10/set/2026) — `:kmplib-testing` não compila para iOS em cross-compilation
+
+- [ ] **GAP-LIB-M-02 (P2) — `-friend-modules` do Kotlin/Native não acha o klib amigo fora do Mac.**
+  Com o alvo iOS passando a compilar no servidor (ver `CLAUDE.md` §"O `iosMain` COMPILA no servidor
+  Linux"), `:kmplib-testing:compileKotlinIosArm64` reprova com
+  `Cannot access 'fun initializeWith(...)': it is internal in PurchaseManager` — o
+  `PurchaseTestHooks` do `iosMain` alcança o `internal` da `:kmplib-monetization` por amizade de
+  módulo, e o caminho do klib amigo não resolve em cross-compilation. **É artefato só de teste**,
+  não entra em app nenhum, e os 22 módulos de produção compilam. Enquanto não for arrumado, a
+  varredura roda com `-x :kmplib-testing:compileKotlinIosArm64`.
+
 ### Achado de passagem (08/set/2026) — o gate de cobertura da lib mede um módulo VAZIO
 
 - [ ] **GAP-LIB-M-01 (P1) — `:kmplib:koverVerify` reprova com 0,0% e ninguém vê.** O Kover está

@@ -168,14 +168,45 @@ Somados a `OsPdfGenerator.ios`/`ReciboPdf.ios` (2.77.0) e `PdfRasterizer.ios` (`
 os 9 geradores são reais. Técnica: **CoreText** (`CTLine`) dentro de `UIGraphicsPDFRenderer`/`CGContext`
 (as categorias de desenho de texto do UIKit `NSString.drawAtPoint` não são exportadas no K/N 2.x).
 
-**PENDÊNCIA — validação em host macOS.** O build Kotlin/Native iOS **não roda em Linux**; o código é
-fiel ao Android mas **não foi compilado/validado em macOS**. Por isso
+**PENDÊNCIA — validação em host macOS.** O código é fiel ao Android mas **não foi validado
+visualmente em macOS**. Por isso
 `platform/PlatformCapabilities.pdfGeneration` (e `cameraCapture`) **continuam `false`** — o flip para
 `true` é o **passo final em macOS** (compilar os alvos iOS + validação visual dos PDFs; para câmera,
 testar num device). Enquanto `false`, o app **não vende/exibe** a feature no iOS:
 `"Exportar PDF" requiring PlatformCapability.PdfGeneration` + `List<CapabilityFeature<T>>.availableValues()`
 ao montar `PaywallPlan.highlights`/menus, e `CapabilityGate(PlatformCapability.PdfGeneration) { ... }`
 para UI pontual. Nenhum app precisa mudar quando o flag virar `true`.
+
+## ⚠️ O `iosMain` COMPILA no servidor Linux — e compilar é obrigatório antes de commitar
+
+**"Alvo Apple só compila no Mac" é MEIA verdade, e a metade errada custou uma rodada inteira de
+Xcode** (10/set/2026). O que exige Xcode é o **link final** — o `.framework`, o binário, o `.ipa`.
+A **compilação do Kotlin** para `iosArm64` (que é onde mora todo erro de `unresolved reference`,
+todo enum ObjC escrito errado e todo cast impossível) roda **aqui, no Linux**:
+
+```bash
+./gradlew :kmplib-<módulo>:compileKotlinIosArm64 \
+    -Pkmplib.forceAppleTargets=true \
+    -Pkotlin.native.enableKlibsCrossCompilation=true
+```
+
+**As DUAS flags, sempre.** A primeira faz a convenção declarar os alvos Apple fora do Mac; a segunda
+liga a *cross-compilation de klib* do Kotlin (2.0.20+). **Sem a segunda, a tarefa aparece como
+`SKIPPED` e o Gradle diz `BUILD SUCCESSFUL` sem ter compilado nada** — o mesmo verde falso do
+`compileKotlinMetadata`. **Confira o `SKIPPED` no log**, nunca só a última linha.
+
+Para conferir uma construção solta, sem Gradle, o compilador está em
+`~/.konan/kotlin-native-prebuilt-linux-x86_64-*/bin/konanc -target ios_arm64 -p library`, e os
+bindings de UIKit/PDFKit/etc. dão para inspecionar com `bin/klib dump-metadata
+klib/platform/ios_arm64/org.jetbrains.kotlin.native.platform.<Framework>` — é assim que se descobre
+o nome e a FORMA exata de uma constante ObjC sem abrir o Xcode.
+
+O que continua sendo do Mac: `linkDebugFrameworkIos*`, o `.xcodeproj`, o simulador, o device e a
+publicação (`publishToMavenCentral`). **Validação VISUAL continua sendo de lá.** O que não é mais
+desculpa é entregar `iosMain` sem nunca ter passado pelo compilador.
+
+**Como os enums e constantes do Objective-C chegam ao Kotlin — as duas formas, e elas não se
+misturam:** ver `references/ios-cinterop.md` na skill `kmplib-catalog`.
 
 ## Câmera / OCR (iOS)
 
@@ -184,7 +215,7 @@ para UI pontual. Nenhum app precisa mudar quando o flag virar `true`.
 usa **AVFoundation** (`AVCaptureSession` + `AVCaptureVideoDataOutput` + `AVCaptureVideoPreviewLayer` via
 `UIKitView`) + Vision no `CVPixelBuffer` dos frames (com throttle) e codifica o frame reconhecido em
 **JPEG** na variante `onCapture`. Padrão-ouro (APIs oficiais Apple, sem WebView). Info.plist exige
-`NSCameraUsageDescription`. **Pendente de validação em host macOS** (não compila em Linux).
+`NSCameraUsageDescription`. **Pendente de validação em host macOS** (device real).
 
 ## Push own-stack (2.76.0 — sem cerimônia Firebase por app)
 
