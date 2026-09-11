@@ -1,5 +1,79 @@
 # Changelog — kmplib
 
+## 2.196.0 — Vídeo de FEED: toca mudo ao aparecer, um por vez, em laço, com som global
+
+O `VideoPlayer` (2.191.0) é de aula: controles, velocidade, legenda, retomada. Faltava o vídeo **de
+feed** — o post de vídeo no meio de uma lista, estilo Instagram. Primeiro consumidor: a Início do
+Mirassol Conectado (`docs/feed-moderno-spec.md` do projeto). Pacote novo
+`br.com.codecacto.kmplib.video.feed`, no mesmo artefato `kmplib-video`.
+
+- **`FeedVideoHost(modifier, controller) { LazyColumn(…) }`** — a área do feed. Provê o controller
+  (`LocalFeedVideoController`) e marca o retângulo contra o qual a visibilidade é medida
+  (`Modifier.layoutBounds`, Compose 1.9+).
+- **`FeedVideo(url, posterUrl, aspectRatio, …, onClick, onRenewUrl, error)`** — o item. Mede a
+  própria visibilidade com **`onLayoutRectChanged`** (a API oficial de visibilidade do Compose, com
+  throttle de 100 ms e debounce de 64 ms), mostra a **capa** (Coil) até o primeiro quadro e, em erro,
+  mantém a capa com um aviso discreto (slot `error`). `onClick` abre a publicação; o botão de som
+  **não** propaga o toque. `onRenewUrl` renova URL assinada vencida (teto `MAX_RENOVACOES_DE_URL`).
+  Fora de um host, **falha alto** (`checkNotNull`): sem coordenador, todos tocariam juntos.
+- **`FeedVideoController`** (`rememberFeedVideoController(config, sound)`): quem toca é o **mais
+  visível acima de 60%**, com margem de troca de 10% (sem ela, dois vídeos se cruzando na rolagem
+  trocariam de dono a cada quadro); empate sem ninguém tocando → o de cima. **Pool** de no máximo
+  `maxPlayers` players nativos (default 2: o da vez + o próximo, já no primeiro quadro), criados sob
+  demanda e **reciclados** entre itens; item que sai da composição devolve o player esvaziado;
+  **`ON_STOP` destrói todos** (recria no `ON_START`); `setPlaybackEnabled(false)` pausa o feed sem
+  sair da tela (sheet por cima, aba escondida).
+- **`FeedVideoSoundState`** — o som do feed, um estado só. Default `FeedVideoSoundState.Shared` (o
+  processo inteiro: Início e detalhe concordam; app morto volta mudo). Nasce **mudo**.
+- **`FeedVideoSoundButton`** — alto-falante / alto-falante riscado, alvo de **48 dp** com desenho de
+  32 dp, cores em `FeedVideoColors`, descrição e estado para leitor de tela em `FeedVideoTexts`.
+- Funções puras: `pickFeedVideoToPlay`, `feedVideoVisibleFraction` (por ÁREA), `feedMediaAspectRatio`
+  (a régua 4:5…1,91:1 do Instagram, 4:5 sem medida), `FeedVideoCandidate`, constantes
+  `FEED_VIDEO_PLAY_THRESHOLD`, `FEED_VIDEO_SWITCH_MARGIN`, `FEED_MEDIA_MIN/MAX_ASPECT_RATIO`.
+
+### Decisões de plataforma (padrão-ouro)
+
+- **Android — Media3 com a integração Compose oficial** (`media3-ui-compose`, dependência nova):
+  `PlayerSurface` em **`TextureView`** (o `SurfaceView` não é recortado pelo clip do Compose, e no
+  modo Crop a superfície é maior que a caixa — sairia por cima do post vizinho),
+  `rememberPresentationState` (a capa sai no primeiro quadro) e `resizeWithContentScale`. Laço por
+  `REPEAT_MODE_ONE`; buffer curto (máx. 15 s — com 2 players, o default de 50 s seguraria o vídeo
+  inteiro por um post que a pessoa pula).
+- **Som × foco de áudio (Android):** mudo **não pede foco** (`handleAudioFocus = false`, volume 0) —
+  a música de outro app continua. Com som, pede (`USAGE_MEDIA`); perda definitiva do foco ou fone
+  desconectado **não param o feed**: ele volta a mudo e segue.
+- **iOS — `AVQueuePlayer` + `AVPlayerLooper`** (o laço sem emenda que a Apple indica) e
+  `AVPlayerLayer` num `UIKitView` **não interativo** (o toque segue para o Compose). Primeiro quadro
+  = `readyForDisplay` da camada. Troca de frame da camada sem animação implícita.
+- **Sessão de áudio (iOS):** mudo → **`.ambient`** (mistura: a música de fundo continua; o
+  `.soloAmbient` default a interromperia no primeiro vídeo, mesmo mudo). Com som → **`.playback`,
+  modo `moviePlayback`** — foi um toque explícito, então o som sai mesmo com o interruptor de
+  silencioso ligado; o feed continua **nascendo** mudo, que é como o interruptor é respeitado. A
+  categoria anterior do app é restaurada quando o último feed sai. Interrupção (ligação/Siri) e rota
+  perdida (fone) com som → o feed volta a mudo e segue.
+- **Tela acesa só com som**, nas duas plataformas (`KeepScreenOn` do `kmplib-platform`): mudo, vale o
+  tempo de tela do sistema — vídeo de feed é laço e, com a tela presa, tocaria para sempre num
+  celular largado. No iOS isso exige `preventsDisplaySleepDuringVideoPlayback = false` (o default do
+  AVPlayer prende a tela até com o vídeo mudo).
+
+### De passagem
+
+- `PlaybackException.paraVideoErrorKind()` (androidMain) passou de `private` a `internal`, para o feed
+  usar a mesma tradução de erro do player de aula.
+- Os testes do módulo **não compilavam para iOS**: 15 nomes de teste entre crases tinham vírgula, que
+  o Kotlin/Native recusa (`Name contains illegal characters: ","`). Trocadas por travessão; nenhum
+  teste mudou de conteúdo. `compileTestKotlinIosArm64` agora passa.
+
+Testes: `FeedVideoPolicyTest` (30), `FeedVideoControllerTest` (22, com player falso: um de cada vez,
+teto do pool, reciclagem, som global, perda de áudio, `ON_STOP`/`ON_START`, pausa do feed) e
+`FeedVideoSoundStateTest` (4). Compilado no servidor: `compileDebugKotlinAndroid`,
+`compileKotlinIosArm64` e `compileTestKotlinIosArm64` do `kmplib-video` (conferido: executados, não
+`SKIPPED`). **Não validado em aparelho** — a parte visual e de áudio é do fundador (backlog
+`GAP-CC-M-07`).
+
+Aditiva. Nenhum app precisa mudar; o `kmplib-video` ganhou `media3-ui-compose` e Coil como
+dependências de implementação.
+
 ## 2.195.0 — "Compartilhar app" com link rastreável (UTM), e o share sheet do iOS corrigido
 
 Compartilhar é o único canal de aquisição que cresce com o uso — e até aqui cada app que o tinha

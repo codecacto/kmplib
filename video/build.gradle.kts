@@ -17,6 +17,11 @@ kotlin {
             api(libs.ktor.client.core)
             // LifecycleEventEffect — pausar ao ir para o segundo plano, liberar ao sair da tela.
             implementation(libs.androidx.lifecycle.runtime.compose)
+            // A CAPA do vídeo de feed (2.196.0): a imagem remota que fica por cima da superfície
+            // até o primeiro quadro — é o que evita a tela preta. Mesmo carregador do `kmplib-ui`,
+            // então o cache de imagem é o mesmo do resto do app.
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor)
         }
 
         androidMain.dependencies {
@@ -39,6 +44,10 @@ kotlin {
             // `MediaSession` — metadados e comandos de transporte (fone, Bluetooth, tela de
             // bloqueio). Ver o KDoc de `VideoPlayerConfig.mediaSession`.
             implementation(libs.androidx.media3.session)
+            // Vídeo de FEED (2.196.0): `PlayerSurface` em `TextureView` + `rememberPresentationState`
+            // (a capa sai no primeiro quadro) + `resizeWithContentScale` (corte/encaixe). É a
+            // integração Compose oficial da Media3 — ver `FeedVideoSurface.android.kt`.
+            implementation(libs.androidx.media3.ui.compose)
 
             // ------------------------------------------------------------------------------
             // Download offline (2.191.0)

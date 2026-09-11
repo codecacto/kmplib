@@ -3,6 +3,25 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.196.0 (11/set/2026) — vídeo de FEED (Mirassol Conectado, `docs/feed-moderno-spec.md`)
+
+- [x] **GAP-CC-M-05 — não havia vídeo de feed.** O `VideoPlayer` é de aula (controles, velocidade,
+      legenda). Entrou `FeedVideoHost` + `FeedVideo` + `FeedVideoController` (`kmplib-video`, pacote
+      `video.feed`): toca mudo a ~60% visível, pausa ao sair, um por vez, laço, som global, capa até o
+      1º quadro, pool de players (default 2). Serve a todo app com feed (Cidade Conectada, e os que
+      vierem com posts de vídeo).
+- [ ] **GAP-CC-M-06 (P2) — cache de disco para o vídeo de feed no Android.** Com `REPEAT_MODE_ONE`, o
+      progressivo que não coube no buffer (15 s) é **rebaixado a cada volta**; e o pré-carregamento
+      é só do "próximo" (pool de 2). O caminho da Media3 para vídeo curto é `SimpleCache` +
+      `CacheDataSource` (e, para feed longo, `DefaultPreloadManager`). Não entrou porque o cache do
+      `video.download` é o de download (somente-leitura no player) e misturar os dois exige decidir
+      teto e expurgo do cache de feed. Medir antes: vídeo de feed do Mirassol é até 60 s.
+- [ ] **GAP-CC-M-07 (P1) — validação em aparelho do vídeo de feed.** Compilado nos dois alvos
+      (`compileDebugKotlinAndroid`, `compileKotlinIosArm64`), lógica coberta por teste; a parte que só
+      aparece na tela — capa→1º quadro sem piscar, corte do `TextureView` na rolagem, `UIKitView`
+      dentro da `LazyColumn`, foco de áudio e sessão `.ambient`/`.playback` com música de outro app —
+      é do fundador, no primeiro build do Mirassol com a 2.196.0.
+
 ### ATENDIDO na 2.195.0 (11/set/2026) — "Compartilhar app" com UTM (plano `docs/31`, Onda 0 item 5)
 
 - [x] **GAP-LIB-M-03 — nenhum link que saía de dentro de um app levava origem.** `AppShareLink` +

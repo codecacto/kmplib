@@ -23,7 +23,7 @@ class MediaDownloadStoreTest {
     )
 
     @Test
-    fun `grava, le e apaga`() = runTest {
+    fun `grava - le e apaga`() = runTest {
         val store = store()
         store.put(aula)
         assertEquals(aula, store.get("aula-1"))
@@ -33,7 +33,7 @@ class MediaDownloadStoreTest {
     }
 
     @Test
-    fun `regravar o mesmo id substitui, nao duplica`() = runTest {
+    fun `regravar o mesmo id substitui - nao duplica`() = runTest {
         val store = store()
         store.put(aula)
         store.put(aula.copy(url = "https://cdn.exemplo/aula-1.m3u8?token=NOVO"))

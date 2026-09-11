@@ -48,7 +48,7 @@ class MediaDownloadPolicyTest {
     // -----------------------------------------------------------------------------------------
 
     @Test
-    fun `sem data, nao expira`() {
+    fun `sem data - nao expira`() {
         assertEquals(false, isMediaDownloadExpired(null, nowMillis = Long.MAX_VALUE))
     }
 
@@ -74,7 +74,7 @@ class MediaDownloadPolicyTest {
     // -----------------------------------------------------------------------------------------
 
     @Test
-    fun `volta baixando o que estava na fila, e so isso`() {
+    fun `volta baixando o que estava na fila - e so isso`() {
         val registros = listOf(
             registro("na-fila"),
             registro("concluida", completa = true),

@@ -13,7 +13,7 @@ class SubtitleSelectionTest {
         VideoSubtitleOption(id = id, label = label, language = lang, embedded = false)
 
     @Test
-    fun `embutidas na frente, externas depois`() {
+    fun `embutidas na frente - externas depois`() {
         val juntas = mergeSubtitleOptions(
             embedded = listOf(embutida("text-0", "Português", "pt-BR")),
             external = listOf(externa("u1", "English", "en")),

@@ -58,7 +58,7 @@ class SubtitleParserTest {
     }
 
     @Test
-    fun `bloco malformado e pulado, nao derruba o arquivo`() {
+    fun `bloco malformado e pulado - nao derruba o arquivo`() {
         val quebrado = """
             WEBVTT
 
@@ -87,7 +87,7 @@ class SubtitleParserTest {
     }
 
     @Test
-    fun `fracao curta e completada, nao truncada`() {
+    fun `fracao curta e completada - nao truncada`() {
         // ".5" é meio segundo. Truncar em três dígitos sem completar daria 5 ms, e a fala piscaria.
         assertEquals(500, parseSubtitleTimestamp("00:00:00.5"))
         assertEquals(50, parseSubtitleTimestamp("00:00:00.05"))
@@ -102,7 +102,7 @@ class SubtitleParserTest {
     }
 
     @Test
-    fun `a fala em vigor sai pela posicao, e o silencio devolve nulo`() {
+    fun `a fala em vigor sai pela posicao - e o silencio devolve nulo`() {
         val cues = parseSubtitles(webvtt)
         assertNull(cueAt(cues, 0))
         assertEquals(cues[0], cueAt(cues, 1_000))

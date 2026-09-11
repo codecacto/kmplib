@@ -34,7 +34,7 @@ class MediaDownloadStatusTest {
     }
 
     @Test
-    fun `pausa vence fila e falha, e sobrevive ao reinicio`() {
+    fun `pausa vence fila e falha - e sobrevive ao reinicio`() {
         assertEquals(MediaDownloadStatus.Paused, estado(pausedByUser = true))
         assertEquals(MediaDownloadStatus.Paused, estado(pausedByUser = true, failure = falha))
         assertEquals(MediaDownloadStatus.Paused, estado(pausedByUser = true, running = true))
@@ -46,13 +46,13 @@ class MediaDownloadStatusTest {
     }
 
     @Test
-    fun `sem nada, esta na fila`() {
+    fun `sem nada - esta na fila`() {
         assertEquals(MediaDownloadStatus.Queued, estado())
         assertEquals(MediaDownloadStatus.Downloading, estado(running = true))
     }
 
     @Test
-    fun `isActive cobre fila e transferencia, e nada mais`() {
+    fun `isActive cobre fila e transferencia - e nada mais`() {
         fun ativo(s: MediaDownloadStatus) = MediaDownload(id = "a", url = "u", status = s).isActive
         assertEquals(true, ativo(MediaDownloadStatus.Queued))
         assertEquals(true, ativo(MediaDownloadStatus.Downloading))

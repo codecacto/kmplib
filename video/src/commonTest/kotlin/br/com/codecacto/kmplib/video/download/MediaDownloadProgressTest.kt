@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 class MediaDownloadProgressTest {
 
     @Test
-    fun `total desconhecido devolve nulo, nao zero`() {
+    fun `total desconhecido devolve nulo - nao zero`() {
         // `null` é o que faz a tela desenhar um anel indeterminado. Zero mentiria: uma barra parada
         // em 0% com o download andando é o jeito mais rápido de o usuário concluir que travou.
         assertNull(mediaDownloadPercent(downloadedBytes = 1_000, totalBytes = 0))

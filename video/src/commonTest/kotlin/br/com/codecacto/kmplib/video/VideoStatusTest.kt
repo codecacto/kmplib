@@ -17,7 +17,7 @@ class VideoStatusTest {
     }
 
     @Test
-    fun `sem dado e PARADO e pausa, nao buffering`() {
+    fun `sem dado e PARADO e pausa - nao buffering`() {
         // O player só espera rede quando quer andar. Sem esta distinção, um vídeo pausado numa
         // conexão ruim mostraria a roda de espera para sempre.
         assertEquals(VideoStatus.Paused, videoStatusOf(preparado = true, querTocar = false, semDados = true))
@@ -29,7 +29,7 @@ class VideoStatusTest {
     }
 
     @Test
-    fun `isPlaying cobre tocar e bufferizar, e nada mais`() {
+    fun `isPlaying cobre tocar e bufferizar - e nada mais`() {
         // O botão central mostra "pausar" enquanto o vídeo espera rede: quem está bufferizando
         // mandou tocar, e oferecer "reproduzir" ali daria dois plays em sequência.
         assertEquals(true, VideoStatus.Playing.contaComoTocando())
@@ -48,7 +48,7 @@ class VideoStatusTest {
     }
 
     @Test
-    fun `404 e video que nao existe, 5xx e servidor fora`() {
+    fun `404 e video que nao existe - 5xx e servidor fora`() {
         assertEquals(VideoErrorKind.NotFound, videoErrorKindForHttpStatus(404))
         assertEquals(VideoErrorKind.Network, videoErrorKindForHttpStatus(500))
         assertEquals(VideoErrorKind.Network, videoErrorKindForHttpStatus(503))

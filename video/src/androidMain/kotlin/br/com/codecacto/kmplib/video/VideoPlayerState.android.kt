@@ -269,8 +269,9 @@ private fun Tracks.legendasEmbutidas(): List<VideoSubtitleOption> =
 /** Prefixo do id das faixas embutidas — ver [legendasEmbutidas]. */
 private const val TEXT_TRACK_ID_PREFIX = "text-"
 
+/** A falha do ExoPlayer no vocabulário da lib. Também usada pelo vídeo de feed (`feed/`). */
 @OptIn(UnstableApi::class)
-private fun PlaybackException.paraVideoErrorKind(): VideoErrorKind {
+internal fun PlaybackException.paraVideoErrorKind(): VideoErrorKind {
     (cause as? HttpDataSource.InvalidResponseCodeException)?.let {
         return videoErrorKindForHttpStatus(it.responseCode)
     }
