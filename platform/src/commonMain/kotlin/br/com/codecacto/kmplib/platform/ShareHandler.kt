@@ -53,6 +53,25 @@ interface ShareHandler {
     fun shareFile(fileBytes: ByteArray, fileName: String, mimeType: String, title: String = "")
 
     /**
+     * Compartilha um **link** com uma mensagem, pelo share sheet nativo (Android `ACTION_SEND` +
+     * chooser do sistema; iOS `UIActivityViewController`). Desde 2.195.0.
+     *
+     * Mensagem e link vão num **texto único** ([composeShareText]) — ver lá o porquê. Para o link do
+     * próprio app, com UTM, monte [url] com [AppShareLink]; a tela pronta é o `ShareAppMenuItem`
+     * (`kmplib-ui`).
+     *
+     * @param url link absoluto (idealmente já com UTM).
+     * @param message texto que antecede o link. Em branco = só o link.
+     * @param title título do compartilhamento: no Android vira o `EXTRA_TITLE` (a prévia no topo da
+     *   folha do Android 10+) e o `EXTRA_SUBJECT` (assunto, quando o destino é e-mail); no iOS não
+     *   tem onde aparecer, igual ao [shareText].
+     * @throws Exception se o compartilhamento não puder ser iniciado.
+     */
+    fun shareLink(url: String, message: String = "", title: String = "") {
+        shareText(composeShareText(message, url), title)
+    }
+
+    /**
      * Apaga os arquivos que este handler criou para compartilhar e que já passaram de
      * [olderThanMillis] (default [DEFAULT_SHARED_FILE_TTL_MILLIS]).
      *

@@ -13,4 +13,7 @@
     <string name="kmplib_barcode_manual_entry">Enter the code manually</string>
     <string name="kmplib_barcode_torch_on">Turn on flashlight</string>
     <string name="kmplib_barcode_torch_off">Turn off flashlight</string>
+    <!-- "Compartilhar app" (ui/share/ShareApp.kt, 2.195.0). %1$s = nome do app. -->
+    <string name="kmplib_share_app_label">Share app</string>
+    <string name="kmplib_share_app_message">I’m using %1$s. Get it too:</string>
 </resources>

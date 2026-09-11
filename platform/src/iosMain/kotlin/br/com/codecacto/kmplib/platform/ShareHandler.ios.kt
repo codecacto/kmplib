@@ -13,9 +13,16 @@ import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.writeToFile
+import kotlinx.cinterop.useContents
+import platform.CoreGraphics.CGRectMake
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
 import platform.UIKit.UIImage
+import platform.UIKit.UISceneActivationStateForegroundActive
+import platform.UIKit.UIViewController
+import platform.UIKit.UIWindow
+import platform.UIKit.UIWindowScene
+import platform.UIKit.popoverPresentationController
 import br.com.codecacto.kmplib.core.util.AppLogger
 
 class IosShareHandler : ShareHandler {
@@ -46,14 +53,15 @@ class IosShareHandler : ShareHandler {
                 NSData.create(bytes = pinned.addressOf(0), length = imageBytes.size.toULong())
             }
 
+            // Bytes que não decodificam como imagem LANÇAM (contrato do ShareHandler, paridade com o
+            // Android): antes o método voltava calado, e o chamador registrava um share que não houve.
             val image = UIImage.imageWithData(nsData)
-            if (image != null) {
-                val activityController = UIActivityViewController(
-                    activityItems = listOf(image),
-                    applicationActivities = null
-                )
-                presentActivityController(activityController)
-            }
+                ?: throw IllegalArgumentException("os bytes de '$fileName' não são uma imagem decodificável")
+            val activityController = UIActivityViewController(
+                activityItems = listOf(image),
+                applicationActivities = null
+            )
+            presentActivityController(activityController)
         } catch (e: Exception) {
             // Loga E RELANÇA (paridade com Android).
             AppLogger.e(TAG, "Erro ao compartilhar imagem", e)
@@ -153,22 +161,59 @@ class IosShareHandler : ShareHandler {
         return (data.timeIntervalSince1970 * 1000.0).toLong()
     }
 
+    /**
+     * Apresenta a folha de compartilhamento a partir do controlador **no topo** da janela-chave.
+     *
+     * Três correções de 2.195.0 sobre o que havia:
+     * 1. **Janela** pelas `connectedScenes` (cena ativa em primeiro plano, `keyWindow` dela) — o
+     *    `UIApplication.windows` está obsoleto desde o iOS 15, e o primeiro da lista nem sempre é a
+     *    janela que o usuário vê.
+     * 2. **Controlador do topo** (seguindo `presentedViewController`): apresentar a partir do
+     *    `rootViewController` quando já há algo apresentado por cima (uma sheet, um diálogo) não
+     *    abre nada — o UIKit só loga "already presenting" e o toque em "Compartilhar" morre.
+     * 3. **Âncora de popover no iPad**: lá o `UIActivityViewController` é um popover, e sem
+     *    `sourceView` o UIKit lança exceção na apresentação — app universal fechava ao compartilhar.
+     *    Ancoramos no centro da tela, sem seta (não há botão nativo para apontar numa tela Compose).
+     *
+     * Sem janela ou controlador para apresentar, **lança** — é o contrato do [ShareHandler]: falha
+     * de compartilhamento propaga, em vez de parecer sucesso.
+     */
     @OptIn(ExperimentalForeignApi::class)
     private fun presentActivityController(controller: UIActivityViewController) {
-        try {
-            // Get the topmost view controller
-            val application = UIApplication.sharedApplication
-            val windows = application.windows as List<*>
-            val window = windows.firstOrNull() as? platform.UIKit.UIWindow
+        val presenter = topViewController()
+            ?: throw IllegalStateException("nenhuma janela ativa para apresentar o compartilhamento")
 
-            window?.let { w ->
-                @Suppress("UNCHECKED_CAST")
-                val rootVC = w.rootViewController
-                rootVC?.presentViewController(controller, animated = true, completion = null)
+        controller.popoverPresentationController?.let { popover ->
+            val anchor = presenter.view
+            popover.sourceView = anchor
+            anchor.bounds.useContents {
+                popover.sourceRect = CGRectMake(
+                    origin.x + size.width / 2.0,
+                    origin.y + size.height / 2.0,
+                    0.0,
+                    0.0,
+                )
             }
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao apresentar share controller", e)
+            popover.permittedArrowDirections = 0uL
         }
+        presenter.presentViewController(controller, animated = true, completion = null)
+    }
+
+    private fun topViewController(): UIViewController? {
+        val scenes = UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>()
+        val scene = scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
+            ?: scenes.firstOrNull()
+        val window = scene?.keyWindow
+            ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull { it.isKeyWindow() }
+            ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull()
+        var top = window?.rootViewController ?: return null
+        while (true) {
+            val next = top.presentedViewController ?: break
+            // Não empilha em cima de um controlador que está saindo de cena.
+            if (next.isBeingDismissed()) break
+            top = next
+        }
+        return top
     }
 }
 

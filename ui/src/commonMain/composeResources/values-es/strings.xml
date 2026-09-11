@@ -13,4 +13,7 @@
     <string name="kmplib_barcode_manual_entry">Escribir el código manualmente</string>
     <string name="kmplib_barcode_torch_on">Encender linterna</string>
     <string name="kmplib_barcode_torch_off">Apagar linterna</string>
+    <!-- "Compartilhar app" (ui/share/ShareApp.kt, 2.195.0). %1$s = nome do app. -->
+    <string name="kmplib_share_app_label">Compartir app</string>
+    <string name="kmplib_share_app_message">Estoy usando la app %1$s. Descárgala tú también:</string>
 </resources>

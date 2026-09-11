@@ -28,7 +28,8 @@ fun initKmpLibPlatform(context: Context) {
 
 /**
  * Entrega a `Activity` em foco ao que precisa dela: biometria, brilho de tela, o agendador de
- * notificação e — desde a 2.154.0 — o host de permissão de runtime.
+ * notificação, o host de permissão de runtime (2.154.0) e o compartilhamento (2.195.0 — o chooser
+ * passa a abrir na tarefa do app).
  *
  * Chame no `Activity.onResume()`.
  *
@@ -43,6 +44,7 @@ fun initKmpLibPlatform(context: Context) {
  */
 fun kmpLibPlatformOnResume(activity: FragmentActivity) {
     BiometricAuthHolder.setActivity(activity)
+    ShareHandlerHolder.setActivity(activity)
     ScreenBrightnessHolder.setActivity(activity)
     NotificationSchedulerHolder.setActivity(activity)
     PermissionHostHolder.setActivity(activity)
@@ -52,6 +54,7 @@ fun kmpLibPlatformOnResume(activity: FragmentActivity) {
 /** Solta a referência à `Activity`. Chame no `Activity.onPause()`. */
 fun kmpLibPlatformOnPause() {
     BiometricAuthHolder.clearActivity()
+    ShareHandlerHolder.clearActivity()
     ScreenBrightnessHolder.clearActivity()
     NotificationSchedulerHolder.clearActivity()
     PermissionHostHolder.clearActivity()

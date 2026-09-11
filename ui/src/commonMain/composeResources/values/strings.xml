@@ -5,7 +5,7 @@
   Estas strings seguem o IDIOMA DO DISPOSITIVO (mecanismo oficial Compose Multiplatform Resources).
   Não há seletor de idioma no mobile — o usuário troca nas Configurações do celular.
 
-  Elas são apenas os DEFAULTS do BarcodeScannerTexts: qualquer app pode sobrescrever passando o
+  Elas são apenas os DEFAULTS dos objetos `*Texts` (BarcodeScannerTexts, ShareAppTexts…): qualquer app pode sobrescrever passando o
   próprio objeto de textos, como no restante da lib.
 -->
 <resources>
@@ -22,4 +22,7 @@
     <string name="kmplib_barcode_manual_entry">Digitar código manualmente</string>
     <string name="kmplib_barcode_torch_on">Ligar lanterna</string>
     <string name="kmplib_barcode_torch_off">Desligar lanterna</string>
+    <!-- "Compartilhar app" (ui/share/ShareApp.kt, 2.195.0). %1$s = nome do app. -->
+    <string name="kmplib_share_app_label">Compartilhar app</string>
+    <string name="kmplib_share_app_message">Estou usando o app %1$s. Baixe também:</string>
 </resources>

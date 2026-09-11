@@ -3,6 +3,21 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.195.0 (11/set/2026) — "Compartilhar app" com UTM (plano `docs/31`, Onda 0 item 5)
+
+- [x] **GAP-LIB-M-03 — nenhum link que saía de dentro de um app levava origem.** `AppShareLink` +
+      `appendShareUtm` (platform), `ShareHandler.shareLink`, `ShareAppMenuItem`/`rememberShareApp`
+      (ui/share). Casca cablada no menu.
+- [x] **De passagem — o `ShareHandler` do iOS não ancorava a folha no iPad** (UIKit lança exceção sem
+      `sourceView`) e apresentava no `rootViewController` (morria com sheet aberta por cima).
+      Corrigido para todo share.
+- [ ] **Aberto (weblib/casca-site, lib-web)** — o site ainda não LÊ a UTM: nada na weblib guarda o
+      `utm_*` da visita nem o repassa ao `POST /contact/v1` (o `central.contact` tem a coluna
+      `source`, conferido em 11/set/2026). A metade "o lead chega com a origem" da invariante 6
+      depende disso.
+- [ ] **Aberto** — os ~40 apps universais (iPhone+iPad) que já compartilham algo só recebem o
+      conserto do iPad ao bumpar; entram quando forem tocados (baseline).
+
 ### ATENDIDO na 2.193.0 (10/set/2026) — `:kmplib-testing` não compilava para iOS em árvore limpa
 
 - [x] **GAP-LIB-M-02 — `-friend-modules` do Kotlin/Native não achava o klib amigo.**

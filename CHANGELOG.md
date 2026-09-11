@@ -1,5 +1,52 @@
 # Changelog — kmplib
 
+## 2.195.0 — "Compartilhar app" com link rastreável (UTM), e o share sheet do iOS corrigido
+
+Compartilhar é o único canal de aquisição que cresce com o uso — e até aqui cada app que o tinha
+mandava a URL crua: a visita chegava ao site como "direto", sem dizer que veio de dentro do app. A
+regra do ecossistema é que todo canal tem UTM (`docs/30`, invariante 6).
+
+- **Novo `AppShareLink(landingUrl, campaign)`** (`kmplib-platform`, pacote `platform`): `url(content)`
+  e `urlFor(pageUrl, content)` devolvem o link do site do produto com `utm_source=app`,
+  `utm_medium=share`, `utm_campaign=<slug do projeto>` e `utm_content` opcional (a tela). Função pura
+  `appendShareUtm(url, campaign, content, source, medium)`, com o `URLBuilder` do Ktor: preserva
+  caminho, query e fragmento; **substitui** `utm_*` que o link já tinha (reenviar um link recebido
+  não carrega a origem de quem mandou antes); normaliza campaign/content (minúsculas, espaço → `-`,
+  porque o analytics diferencia caixa); recusa URL que não seja `http(s)` absoluta e campaign vazio.
+- **Novo `ShareHandler.shareLink(url, message, title)`** — corpo default (quem implementa a interface
+  não quebra). Mensagem + link num **texto único** (`composeShareText`): com itens separados, há app
+  de destino que aproveita só um dos dois. Android: `ACTION_SEND` com `EXTRA_TEXT`, `EXTRA_TITLE`
+  (a prévia da folha do Android 10+) e `EXTRA_SUBJECT` (e-mail).
+- **Novo `ShareAppMenuItem(appName, link, …)`** (`kmplib-ui`, `ui/share`) — a entrada padrão
+  "Compartilhar app" para o menu, com ícone e rótulo **no idioma do aparelho** (Compose Resources:
+  pt-BR, pt-PT, en, es); `utm_content` default `menu` (`SHARE_APP_CONTENT_MENU`). Para outro gatilho,
+  `rememberShareApp(link, texts, content, onError): () -> Unit`; textos em `ShareAppTexts` /
+  `rememberShareAppTexts(appName)`; regra testável `ShareHandler.shareApp(link, texts, content)`. O
+  `ShareHandler` é resolvido **no toque**: init ausente vira `onError`, não a tela inteira caindo.
+
+### Correções no `ShareHandler` que valem para todo compartilhamento
+
+- **iOS — iPad.** Lá o `UIActivityViewController` é apresentado como popover, e o UIKit exige
+  `sourceView` (ou `barButtonItem`) — sem ele, **lança exceção na apresentação**. Nenhum dos métodos
+  ancorava. Agora a folha ancora no centro da tela, sem seta. Afeta app **universal** (iPhone+iPad);
+  app só-iPhone rodando no iPad em modo de compatibilidade não era atingido.
+- **iOS — apresentação.** A janela saía de `UIApplication.windows.first` (obsoleto desde o iOS 15) e
+  a folha era apresentada no `rootViewController`: com uma sheet ou diálogo já aberto por cima, o
+  UIKit recusava ("already presenting") e o toque não fazia nada. Agora: cena ativa das
+  `connectedScenes` → `keyWindow` → controlador do topo. Sem janela, **lança** (antes engolia e
+  parecia sucesso — o contrato do `ShareHandler` desde 2.31.0 é propagar).
+- **iOS — `shareImage`** com bytes que não decodificam como imagem passa a lançar (antes voltava
+  calado).
+- **Android — o chooser abre na tarefa do app.** `kmpLibPlatformOnResume`/`OnPause` passam a entregar
+  a `Activity` ao `ShareHandlerHolder`; com ela o chooser sai da Activity (como a documentação manda),
+  e só sem ela cai no `applicationContext` + `FLAG_ACTIVITY_NEW_TASK` de antes.
+
+Testes: `AppShareLinkTest` (14) e `ShareAppTest` (4). Compilado `compileDebugKotlinAndroid` e
+`compileKotlinIosArm64` (platform e ui) no servidor.
+
+Aditiva na API. Nenhum app precisa mudar; quem tem app universal e compartilha algo ganha o
+conserto do iPad ao subir.
+
 ## 2.194.0 — `Modifier.dismissKeyboardOnTapOutside()`: tocar fora fecha o teclado
 
 No iPhone o teclado **não tem** botão de fechar: o que sobe para um comentário só desce quando a
