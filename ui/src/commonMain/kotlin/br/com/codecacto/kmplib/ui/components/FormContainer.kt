@@ -1,7 +1,5 @@
 package br.com.codecacto.kmplib.ui.components
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -13,10 +11,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
@@ -93,19 +89,15 @@ fun FormContainer(
     maxContentWidth: Dp = FormDefaults.maxContentWidth(LocalWindowSizeClass.current),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .imePadding()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                focusManager.clearFocus()
-            }
+            // Não é `clickable { clearFocus() }`: aquilo consumia o toque e anunciava o formulário
+            // inteiro como um botão no leitor de tela. Ver `dismissKeyboardOnTapOutside`.
+            .dismissKeyboardOnTapOutside()
             .verticalScroll(scrollState),
         // Centraliza a coluna de conteúdo quando ela tem teto. Sem isto o formulário limitado
         // ficaria colado na borda esquerda de um tablet.

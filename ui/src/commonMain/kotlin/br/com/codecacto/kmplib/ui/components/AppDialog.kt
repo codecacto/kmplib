@@ -49,7 +49,9 @@ fun AppDialog(
             )
         ) {
             Surface(
-                modifier = modifier.fillMaxWidth(),
+                // O diálogo é outra janela: o `dismissKeyboardOnTapOutside` da raiz do app não o
+                // alcança, e o `AppInputDialog` tem campo.
+                modifier = modifier.fillMaxWidth().dismissKeyboardOnTapOutside(),
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp

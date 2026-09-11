@@ -5,6 +5,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 
 /**
  * Bottom sheet modal baseado no [ModalBottomSheet] do Material3.
@@ -31,6 +32,9 @@ fun AppBottomSheet(
         )
         ModalBottomSheet(
             onDismissRequest = onDismiss,
+            // A folha é outra janela: o `dismissKeyboardOnTapOutside` da raiz do app não a alcança,
+            // e folha com campo (contato, orçamento) é comum.
+            modifier = Modifier.dismissKeyboardOnTapOutside(),
             sheetState = sheetState,
             content = content
         )

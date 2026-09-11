@@ -1,5 +1,30 @@
 # Changelog — kmplib
 
+## 2.194.0 — `Modifier.dismissKeyboardOnTapOutside()`: tocar fora fecha o teclado
+
+No iPhone o teclado **não tem** botão de fechar: o que sobe para um comentário só desce quando a
+pessoa sai da tela. Cada app resolvia tela a tela com `clickable { focusManager.clearFocus() }` (o
+Super 8 fez assim), e a tela que esquecia ficava sem.
+
+- **Novo `Modifier.dismissKeyboardOnTapOutside()`** (`ui/components`). Aplicado **uma vez, na raiz**
+  do app, vale para todas as telas. Observa o gesto no passe `Final` — depois de todos os filhos — e
+  **não consome nada**. Fecha o teclado quando o toque é **livre**: um dedo, sem passar do *touch
+  slop*, e que **nenhum filho consumiu**. Isso separa sozinho, sem lista de exceções: o próprio campo
+  (o `BasicTextField` consome o toque — conferido no fonte do Compose 1.10.3, Android
+  `detectTapAndPress` e iOS `cupertinoTextFieldPointer`), botões/`clickable` (o "Enviar" não derruba
+  o teclado de quem vai continuar escrevendo) e rolagem (passa do slop). `Modifier.Node`, não
+  `composed`.
+- **`FormContainer` troca o `clickable { clearFocus() }` por ele.** O `clickable` consumia o toque e
+  publicava um nó de semântica clicável do tamanho do formulário — o leitor de tela anunciava a tela
+  inteira como um botão.
+- **`AppDialog` (e por ele `AppInputDialog`) e `AppBottomSheet` já trazem o modifier**: diálogo e
+  folha são outra janela, e a raiz do app não os alcança.
+- Regra do gesto pura e testada (`KeyboardDismissTap`, `KeyboardDismissTapTest`, 8 casos).
+
+Aditiva. Quem não aplica na raiz não muda de comportamento, exceto o `FormContainer` (mesmo efeito,
+sem o nó de semântica) e diálogo/folha da lib, que passam a fechar o teclado ao tocar num espaço
+vazio deles.
+
 ## 2.193.0 — o `iosMain` volta a compilar, e passa a ser COMPILÁVEL AQUI
 
 A 2.192.0 **não compilava para iOS**. Quatro linhas, quatro suposições sobre como o cinterop expõe a
