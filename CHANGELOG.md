@@ -1,5 +1,75 @@
 # Changelog — kmplib
 
+## 2.199.0 — O pré-carregamento do feed mirava o vídeo errado; e o delegate que uma chamada roubava da outra
+
+Correção de duas coisas entregues nas duas versões anteriores. Nenhuma API pública muda.
+
+### 1. `video.feed`: a escada de pré-carregamento respondia por um vídeo em nome de outro
+
+**Afeta quem está na 2.197.0 ou 2.198.0 e usa `FeedVideo`/`FeedVideoHost`.** Sintoma: o próximo
+vídeo do feed às vezes abre **sem nada pré-carregado** (primeiro quadro lento, que é justamente o
+que a feature existe para evitar), enquanto um vídeo **já passado** consome os 3 s de dado. Não
+trava, não erra em tela, não aparece em log — só gasta o plano de dados de quem usa no vizinho
+errado e entrega menos do que promete.
+
+A causa, confirmada com `javap` no `media3-exoplayer-1.11.1` (não por leitura de documentação):
+
+- `BasePreloadManager$MediaSourceHolder.rankingData` é **`public final`** — fixado na construção do
+  holder. Quem responde "quanto pré-carregar deste item?" recebe o valor **do dia em que o item
+  entrou**.
+- O valor que estávamos passando era o índice **na janela composta**, que muda a cada rolagem. O
+  item somado na posição 3 continuava perguntando por 3 para sempre, e a posição 3 já era de outro
+  vídeo.
+- O mapa `posição → URL` que traduzia isso também **nunca era podado** (só no `reset()`): numa
+  lista de 200 posts ele terminava com 200 entradas para uma janela de 4.
+
+A correção é dar a cada URL uma **posição estável** enquanto ela estiver no manager
+(`FeedPreloadPositions`, em `commonMain` e coberta por teste), contígua e na ordem da tela. Com
+isso o `rankingData` congelado continua verdadeiro e a distância vira **subtração** — o mapa
+auxiliar deixou de existir, e com ele a possibilidade de envelhecer.
+
+⚠️ **As duas saídas "óbvias" estão erradas, e o artefato mostra por quê** — fica registrado para
+quem for mexer aqui:
+
+| Saída | Por que não |
+|---|---|
+| Re-`add` a cada `update` | `add` cria `MediaSource` + `PreloadMediaSource` + holder novos e grava com `HashMap.put`, que **substitui sem liberar** o holder anterior (não há `release()` no caminho). Vazaria um por item por rolagem, jogando fora a fonte já preparada para prepará-la de novo. |
+| Chave estável que não seja posição | `SimpleRankingDataComparator` ordena por `abs(rankingData − currentPlayingIndex)`: o campo **é lido como posição**. Um id qualquer acertaria o alvo e embaralharia a **ordem** em que os vizinhos são adiantados. |
+
+Trocar a posição de um item (reordenação, feed novo) é `remove` + `add` — aí sim o holder antigo é
+liberado. Rolar não reordena, então esse caminho é raro.
+
+### 2. iOS: duas chamadas simultâneas derrubavam o delegate uma da outra
+
+A 2.198.0 prendeu os delegates de `CLLocationManager` a referências fortes, mas em **um lugar só**:
+um campo do provider (`LocationProvider.ios.kt`) e um `var` de módulo
+(`PermissionManager.ios.kt`), limpos incondicionalmente ao terminar. Isso está certo **enquanto
+houver um pedido por vez** — e nada impunha isso. Com duas chamadas em curso, a primeira a terminar
+anulava a referência da **outra**: o ARC podia liberar o delegate de quem ainda esperava, e voltava
+o defeito da 2.198.0 (localização que devolve `null` no fim de 10 s; permissão concedida que nunca
+chega à tela).
+
+A referência agora é **por requisição**, amarrada ao quadro da corrotina (`finally`) ou à closure do
+`awaitClose` — não há mais estado compartilhado, nem contador de referências, nem a disputa entre
+threads que um `var` global de Kotlin/Native traria. O KDoc dos dois arquivos diz qual foi a escolha
+e por quê.
+
+### ⚠️ Duas coisas que mudaram de comportamento SEM opt-in (2.196.0–2.198.0, registradas aqui)
+
+Nenhuma é regressão, mas quem só sobe a versão precisa saber:
+
+- **O feed liga cache de disco e pré-carregamento por default.** `FeedVideoConfig.preloadEnabled =
+  true` e `diskCacheBytes = 128 MB`: subir para 2.197.0+ passa a instanciar um `DefaultPreloadManager`
+  e um `SimpleCache` de até 128 MB no `cacheDir`. É proposital (o feed em laço rebaixava da rede a
+  cada volta), e é mitigado — rede medida/Data Saver **não** pré-carregam por default
+  (`preloadOnMeteredNetwork = false`), e `cacheDir` é recuperável pelo sistema. Para desligar:
+  `FeedVideoConfig(preloadEnabled = false)`; para outro teto, `diskCacheBytes`.
+- **A sobrecarga `@Deprecated` `rememberVideoPickerLauncher(onVideoSelected)` virou assíncrona e
+  engole erro.** Desde a 2.197.0 ela é uma ponte sobre o seletor novo: os bytes chegam num
+  `launch`, e falha de leitura vira `onError = {}` — silêncio. Nenhum app do portfólio a usa hoje,
+  mas é mudança de contrato numa API que ainda existe. Migre para
+  `rememberVideoPickerLauncher(source, onVideoPicked, onError)`.
+
 ## 2.198.0 — O seletor de foto devolve a MEDIDA; e a varredura dos delegates que o iOS solta
 
 Três frentes. A primeira é um bug ao vivo; a segunda é o mesmo defeito da 2.197.0 encontrado em mais

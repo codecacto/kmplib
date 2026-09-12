@@ -35,14 +35,30 @@ import platform.UserNotifications.UNAuthorizationStatusNotDetermined
 import platform.UserNotifications.UNUserNotificationCenter
 
 /**
- * O delegate do pedido de localização em curso, preso a uma referência **forte**.
+ * O manager e o delegate de **um** pedido de permissão de localização, presos juntos.
  *
- * ⚠️ `CLLocationManager.delegate` é **weak**, e reter só o manager (o que a closure do `awaitClose`
- * fazia) não segura o delegate: sem dono, o ARC pode liberá-lo antes de a pessoa responder ao
- * diálogo do sistema. Aí a resposta não chega a ninguém, o `callbackFlow` nunca emite e a tela fica
- * esperando uma permissão que já foi concedida. Um pedido por vez, então uma referência basta.
+ * ⚠️ `CLLocationManager.delegate` é **weak**: quem tem de segurar o delegate é quem o criou. Reter
+ * só o manager (o que a closure do `awaitClose` fazia até a 2.197.0) não segura o delegate — sem
+ * dono, o ARC pode liberá-lo antes de a pessoa responder ao diálogo do sistema, o `callbackFlow`
+ * nunca emite e a tela fica esperando uma permissão **que já foi concedida**.
+ *
+ * ### Por que um objeto por pedido, e não uma referência de módulo (2.199.0)
+ * A 2.198.0 fechou o buraco com um `var` de módulo, limpo no `awaitClose`. Isso só está certo
+ * enquanto houver **um pedido por vez** — e nada impõe isso: duas telas compostas ao mesmo tempo,
+ * ou um recompose que recoleta o fluxo, bastam. Aí o primeiro a fechar anula a referência do
+ * **outro**, que ainda está esperando, e volta exatamente o defeito acima.
+ *
+ * A referência agora vive na closure do `awaitClose` deste fluxo: ela existe enquanto o fluxo
+ * existir, morre quando ele fecha, e um pedido não enxerga o outro. Sem contador de referências e
+ * sem estado compartilhado — portanto sem disputa entre threads, que num `var` global de
+ * Kotlin/Native seria o próximo problema.
  */
-private var delegateDePermissaoEmUso: NSObject? = null
+@OptIn(ExperimentalForeignApi::class)
+private class PedidoDeLocalizacao(
+    val manager: CLLocationManager,
+    /** Não é lido: existe para manter o delegate vivo enquanto o pedido durar. */
+    val delegate: NSObject,
+)
 
 /**
  * Implementação iOS do [PermissionManager].
@@ -105,8 +121,8 @@ class IosPermissionManager : PermissionManager {
         }
 
         // O `CLLocationManager` responde pelo DELEGATE, e o delegate é uma referência fraca: sem
-        // manter o manager vivo dentro do `callbackFlow`, o ARC o coleta antes de o usuário decidir
-        // e o diálogo some sem resposta nenhuma — o botão parece não fazer nada.
+        // manter o par manager+delegate vivo enquanto o fluxo existir, o ARC os coleta antes de o
+        // usuário decidir e o diálogo some sem resposta nenhuma — o botão parece não fazer nada.
         AppPermission.LOCATION -> callbackFlow {
             val atual = mapLocationStatus(CLLocationManager.authorizationStatus())
             if (atual != PermissionStatus.NOT_REQUESTED) {
@@ -126,16 +142,14 @@ class IosPermissionManager : PermissionManager {
                     close()
                 }
             }
-            // ⚠️ Guardar o MANAGER não basta: `delegate` é weak, e o `awaitClose` abaixo só retinha
-            // o manager (é o que a closure captura). O delegate ficava sem dono e o ARC podia
-            // liberá-lo antes de a pessoa responder ao diálogo — o fluxo nunca emitia e a tela
-            // ficava esperando para sempre. A referência forte de módulo fecha o buraco.
-            delegateDePermissaoEmUso = delegate
+            // A referência forte DESTE pedido — é a closure do `awaitClose` que a segura, e ela
+            // vive tanto quanto o fluxo. Ver [PedidoDeLocalizacao]: guardar o delegate num `var`
+            // de módulo quebraria dois pedidos simultâneos, um anulando a referência do outro.
+            val pedido = PedidoDeLocalizacao(manager, delegate)
             manager.delegate = delegate
             manager.requestWhenInUseAuthorization()
             awaitClose {
-                manager.delegate = null
-                delegateDePermissaoEmUso = null
+                pedido.manager.delegate = null
             }
         }
 

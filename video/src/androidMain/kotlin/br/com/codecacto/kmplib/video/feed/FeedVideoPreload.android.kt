@@ -25,6 +25,18 @@ import br.com.codecacto.kmplib.video.videoStreamKindOf
  * bytes não produz nada disso: em HLS baixaria um índice de 2 KB.
  *
  * A escada de quanto pré-carregar é [feedPreloadTargetFor], em `commonMain` e coberta por teste.
+ *
+ * ### ⚠️ A posição de um item é ESTÁVEL, e isso não é detalhe (2.199.0)
+ * O manager identifica cada item por um `rankingData`, e esse campo é **`public final`**: fica
+ * congelado na construção do holder. Quem responde [Escada] recebe o valor **do dia em que o item
+ * entrou**. Usar o índice da janela composta — que muda a cada rolagem — fazia a escada devolver a
+ * distância de um item **para outro**, e o resultado é mudo: o próximo vídeo ficava sem
+ * pré-carregamento nenhum (primeiro quadro lento) enquanto um já visto consumia os 3 s de dado.
+ *
+ * Por isso a posição vem do [FeedPreloadPositions], que a mantém fixa enquanto o item estiver no
+ * manager — e a distância vira **subtração**, sem mapa auxiliar para envelhecer. O KDoc de lá tem
+ * a medição feita no artefato (`javap` no `media3-exoplayer-1.11.1`) e as duas saídas que **não**
+ * funcionam.
  */
 @OptIn(UnstableApi::class)
 internal class Media3FeedPreloader(
@@ -32,43 +44,48 @@ internal class Media3FeedPreloader(
     private val config: FeedVideoConfig,
 ) : FeedPreloader {
 
-    /** A posição de cada item na tela, na última atualização. É o `rankingData` do manager. */
-    private var indiceAtual: Int = -1
     private var pausado: Boolean = true
+
+    /**
+     * A posição de cada URL no espaço de coordenadas do feed — o `rankingData` que vai ao manager.
+     * Estável por construção; ver [FeedPreloadPositions].
+     */
+    private val posicoes = FeedPreloadPositions()
+
+    /** A posição do vídeo da vez, no MESMO espaço. `null` = ninguém tocando (nada pré-carrega). */
+    private var posicaoAtual: Int? = null
 
     /** URL → o `MediaItem` entregue ao manager. A identidade dele é a chave de tudo lá dentro. */
     private val itensPorUrl = LinkedHashMap<String, MediaItem>()
-
-    /** URL → distância do que toca agora. Lido pela [Escada] a cada `invalidate()`. */
-    private val distancias = HashMap<String, Int>()
-
-    /** Posição no manager → URL. O `rankingData` é um `Int`, então a ponte é esta. */
-    private val urlPorRanking = HashMap<Int, String>()
 
     private val manager: DefaultPreloadManager? by lazy { criarManager() }
 
     override fun update(items: List<FeedPreloadItem>, currentIndex: Int, paused: Boolean) {
         val gerente = manager ?: return
-        indiceAtual = currentIndex
         pausado = paused || !preloadPermitido()
 
-        val urlsVivas = items.map { it.url }.toSet()
-        // Item que saiu da lista sai do manager: senão a fila cresce com a rolagem e o pré-carregamento
-        // passaria a disputar banda em nome de posts que nem estão mais compostos.
-        itensPorUrl.keys.toList()
-            .filter { it !in urlsVivas }
-            .forEach { url -> itensPorUrl.remove(url)?.let { gerente.remove(it) }; distancias.remove(url) }
+        val atualizacao = posicoes.update(items.map { it.url })
+        val itemPorUrl = items.associateBy { it.url }
 
-        items.forEachIndexed { indice, item ->
-            distancias[item.url] = if (currentIndex < 0) Int.MAX_VALUE else indice - currentIndex
-            urlPorRanking[indice] = item.url
-            if (itensPorUrl.containsKey(item.url)) return@forEachIndexed
-            val mediaItem = mediaItemDe(item, indice)
-            itensPorUrl[item.url] = mediaItem
-            gerente.add(mediaItem, indice)
+        // Sai do manager quem deixou a janela E quem mudou de posição de verdade (reordenação,
+        // feed novo). Recolocar um item noutra posição EXIGE remove + add, porque o `rankingData`
+        // do holder não é editável — e é o `remove` que libera o holder antigo
+        // (`releaseMediaSourceHolderInternal`). Um `add` por cima apenas o substituiria no mapa,
+        // sem liberar nada: vazaria um `PreloadMediaSource` por rolagem e jogaria fora a fonte já
+        // preparada. Rolar não reordena, então este caminho é raro.
+        (atualizacao.removed + atualizacao.moved.map { it.url }).forEach { url ->
+            itensPorUrl.remove(url)?.let { gerente.remove(it) }
         }
 
-        gerente.setCurrentPlayingIndex(if (currentIndex < 0) C_INDICE_NENHUM else currentIndex)
+        (atualizacao.added + atualizacao.moved).forEach { slot ->
+            val item = itemPorUrl[slot.url] ?: return@forEach
+            val mediaItem = mediaItemDe(item)
+            itensPorUrl[slot.url] = mediaItem
+            gerente.add(mediaItem, slot.position)
+        }
+
+        posicaoAtual = items.getOrNull(currentIndex)?.let { posicoes.positionOf(it.url) }
+        gerente.setCurrentPlayingIndex(posicaoAtual ?: C_INDICE_NENHUM)
         // `invalidate()` é o gatilho: ele reavalia TODOS os itens pela [Escada]. É por aqui que o
         // cancelamento acontece — com `pausado`, a escada devolve "não pré-carregado" para todos, e
         // o manager solta o que estava buscando.
@@ -77,8 +94,8 @@ internal class Media3FeedPreloader(
 
     override fun reset() {
         pausado = true
-        distancias.clear()
-        urlPorRanking.clear()
+        posicaoAtual = null
+        posicoes.clear()
         itensPorUrl.clear()
         runCatching { manager?.reset() }
     }
@@ -122,7 +139,7 @@ internal class Media3FeedPreloader(
         AppLogger.w(FEED_TAG, "Pré-carregamento de feed indisponível: ${it.message}")
     }.getOrNull()
 
-    private fun mediaItemDe(item: FeedPreloadItem, indice: Int): MediaItem {
+    private fun mediaItemDe(item: FeedPreloadItem): MediaItem {
         val forma = if (item.kind == VideoStreamKind.Auto) videoStreamKindOf(item.url) else item.kind
         return MediaItem.Builder()
             .setUri(item.url)
@@ -136,6 +153,11 @@ internal class Media3FeedPreloader(
     /**
      * A tradução da escada comum para o vocabulário da Media3.
      *
+     * A distância é **aritmética** — a posição congelada do item menos a posição de quem toca, as
+     * duas no mesmo espaço de coordenadas ([FeedPreloadPositions]). Não há mapa a consultar aqui, e
+     * é de propósito: era um mapa `posição → URL`, reescrito a cada rolagem, que fazia esta função
+     * responder por um vídeo em nome de outro.
+     *
      * O "não pré-carregue" é `PRELOAD_STATUS_NOT_PRELOADED`, e **não `null`**: a interface é Java e
      * declara o retorno como não-nulo, então devolver `null` daqui compilaria no Kotlin e explodiria
      * na thread de reprodução da Media3. A constante existe exatamente para este caso.
@@ -144,9 +166,8 @@ internal class Media3FeedPreloader(
         TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {
 
         override fun getTargetPreloadStatus(rankingData: Int): DefaultPreloadManager.PreloadStatus {
-            val url = urlPorRanking[rankingData] ?: return NAO_PRE_CARREGAR
-            val distancia = distancias[url] ?: return NAO_PRE_CARREGAR
-            return when (val alvo = feedPreloadTargetFor(distancia, pausado)) {
+            val atual = posicaoAtual ?: return NAO_PRE_CARREGAR
+            return when (val alvo = feedPreloadTargetFor(rankingData - atual, pausado)) {
                 FeedPreloadTarget.None -> NAO_PRE_CARREGAR
                 is FeedPreloadTarget.Loaded ->
                     DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(alvo.millis)

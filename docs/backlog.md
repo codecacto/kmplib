@@ -3,6 +3,56 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.199.0 (12/set/2026) — a escada do feed mirava o vídeo errado; delegate por requisição
+
+- [x] **O pré-carregamento do feed respondia por um vídeo em nome de outro (2.197.0/2.198.0).**
+      `MediaSourceHolder.rankingData` é **`public final`** (conferido com `javap` no
+      `media3-exoplayer-1.11.1`), e estávamos passando o índice **da janela composta**, que muda a
+      cada rolagem: o item somado na posição 3 perguntava por 3 para sempre, e a posição 3 já era de
+      outro vídeo. O próximo vídeo podia abrir sem nada pré-carregado enquanto um já passado
+      consumia os 3 s — **gasto de plano de dados no vizinho errado**, sem sintoma em tela. O mapa
+      `posição → URL` também nunca era podado (crescia com a rolagem). Corrigido com
+      `FeedPreloadPositions` (posição **estável** por URL, `commonMain`, 12 testes): a distância
+      virou subtração e o mapa auxiliar deixou de existir. **Registrado para quem for mexer:** as
+      duas saídas óbvias estão erradas — re-`add` a cada `update` substitui o holder **sem liberar**
+      (vaza e descarta a fonte preparada), e chave estável que não seja posição embaralha a ordem,
+      porque o `SimpleRankingDataComparator` lê o campo como `abs(rank − currentPlayingIndex)`.
+- [x] **Delegate do iOS agora é POR REQUISIÇÃO, não por objeto/módulo.** A 2.198.0 prendeu os
+      delegates de `CLLocationManager` a um campo do provider e a um `var` de módulo, limpos
+      incondicionalmente: com duas chamadas ao mesmo tempo, a primeira a terminar anulava a
+      referência da outra e o defeito voltava. Hoje a referência vive no quadro da corrotina
+      (`finally`) ou na closure do `awaitClose` — sem estado compartilhado e sem contador.
+- [ ] **Aberto — validação em aparelho.** O ganho do pré-carregamento (troca de post instantânea,
+      consumo em rede móvel) e as duas correções de delegate **só se veem rodando**. Mac/aparelho do
+      fundador.
+- [ ] **Aberto — `VideoPicker.ios.kt` ainda usa referência de MÓDULO para o delegate.** Mesmo defeito
+      que esta versão corrigiu em `LocationProvider.ios` e `PermissionManager.ios`: um
+      `private var delegateEmUso` global, escrito em **dois** pontos (câmera e galeria). Dois
+      seletores apresentados ao mesmo tempo — ou um recompose que reapresenta — fazem o segundo
+      anular a referência do primeiro, e o ARC pode soltar o delegate de quem ainda está escolhendo:
+      a foto/vídeo **não volta para a tela**, sem erro nenhum. Não foi corrigido junto porque ali não
+      há quadro de corrotina nem `awaitClose` onde ancorar: a referência precisa viver enquanto o
+      `UIImagePickerController` estiver apresentado, então o certo é o delegate soltar a si mesmo no
+      próprio callback de conclusão/cancelamento. Fazer isso na mesma rodada da correção do feed
+      misturaria dois assuntos num release que não dá para validar visualmente aqui.
+- [ ] **Aberto — `./gradlew test --rerun-tasks --no-build-cache` (agregado) estoura a memória.**
+      Recompilar os 22 módulos de uma vez com `--rerun-tasks` derruba o daemon do Kotlin com
+      `OutOfMemoryError: GC overhead limit exceeded`, e o efeito colateral **engana**: o compilador
+      passa a emitir erro de leitura de `.class` (`Could not read file: …material-icons-extended…`) e
+      erros de referência não resolvida em módulos que estão perfeitamente sãos. Rodar módulo a
+      módulo (`:kmplib-ui:test :kmplib-video:test`) passa. Conserto de verdade: subir
+      `org.gradle.jvmargs`/`kotlin.daemon.jvmargs` no `gradle.properties` da lib, ou não usar
+      `--rerun-tasks` no agregado. **Antes de acreditar num "unresolved reference" vindo do agregado,
+      reproduza no módulo isolado.**
+- [ ] **Aberto — `:kmplib-qr` não compila os testes para Kotlin/Native.** Descoberto de passagem:
+      `./gradlew :kmplib-qr:compileTestKotlinIosArm64 -Pkmplib.forceAppleTargets=true` falha com
+      `Name contains illegal characters: ","` em 6 arquivos de `qr/src/commonTest` — nomes de teste
+      em crase com vírgula/parênteses são identificadores ilegais no K/N. **Não afeta a suíte que
+      roda hoje** (`./gradlew test` = alvos Android, verde) nem o código de produção, mas significa
+      que o `qr` não teria suíte num release feito do Mac. Conserto: renomear os métodos para
+      camelCase, como o resto da lib já faz. Não foi feito aqui para não misturar com a correção do
+      feed.
+
 ### ATENDIDO na 2.198.0 (11/set/2026) — medida da foto, varredura de delegates do iOS, capa de vídeo
 
 - [x] **A foto voltava SEM MEDIDA — bug ao vivo no Cidade Conectada.** `rememberImagePickerLauncher`
