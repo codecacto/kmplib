@@ -3,6 +3,35 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.198.0 (11/set/2026) — medida da foto, varredura de delegates do iOS, capa de vídeo
+
+- [x] **A foto voltava SEM MEDIDA — bug ao vivo no Cidade Conectada.** `rememberImagePickerLauncher`
+      devolvia só `ByteArray`, então o app publicava sem `mediaWidth`/`mediaHeight` e o feed caía no
+      4:5 com corte central: **a mesma foto saía inteira pelo site e cortada pelo app**. Agora devolve
+      `PickedImage(bytes, widthPx, heightPx, mimeType)`, com a medida **da imagem reduzida** (1024 px
+      no maior lado) e a **orientação já aplicada e gravada nos bytes** — a medida devolvida é a mesma
+      que o backend lê do arquivo. Veio junto `ImagePickerSource.GALLERY_ONLY` (que é também o que
+      mantém as chamadas antigas sem ambiguidade) e a conta da redução virou pura e testada
+      (`scaledImageSize`). Aditivo: as sobrecargas de `ByteArray` seguem funcionando, `@Deprecated`.
+- [x] **Varredura de delegate `weak` no `iosMain` inteiro — o defeito da 2.197.0 estava em mais 4.**
+      `ImagePicker.ios.kt` (o item aberto abaixo), `LocationProvider.ios.kt` (manager e delegate eram
+      locais que não sobrevivem ao `await` — a localização voltava `null` no fim do timeout),
+      `PermissionManager.ios.kt` LOCATION (o `awaitClose` retinha o *manager*, nunca o delegate: a
+      permissão era concedida e o fluxo nunca emitia) e
+      `installNotificationActionDelegate()` (instância sem dono: tocar na notificação parava de abrir
+      a tela). Todos com KDoc dizendo por que a referência não pode voltar a ser local. Auditados e
+      corretos: `AppleAuthProvider`, `SocialBrowserLogin`, `FilePicker`, `HtmlDocumentView`,
+      `AudioPlayer`, `TtsController`, `CameraView`, `BarcodeCameraPreview`, `MediaDownloadManager`.
+- [x] **`PickedVideo.captureFrame(atMillis = 500)` — a capa sai do próprio vídeo.** Sem ela, todo app
+      com post de vídeo repetia o plano B de pedir uma foto de capa à mão.
+      `MediaMetadataRetriever` / `AVAssetImageGenerator` com a rotação aplicada; devolve `null` em vez
+      de lançar (capa é acessório, não pode derrubar a publicação).
+- [ ] **Aberto — validação em aparelho das quatro correções de delegate.** Compiladas em
+      `iosArm64` aqui, mas o defeito que elas consertam **só se vê rodando** (escolher a foto e ela
+      voltar; a localização responder; a permissão destravar a tela; a notificação abrir ao toque).
+      É do Mac/aparelho do fundador. Idem a conferência visual da proporção publicada pelo app contra
+      a publicada pelo site.
+
 ### ATENDIDO na 2.197.0 (11/set/2026) — cache + pré-carregamento do feed, e seletor de vídeo por REFERÊNCIA
 
 - [x] **GAP-CC-M-06 — cache de disco e pré-carregamento do vídeo de feed (Android).** `FeedVideoCache`

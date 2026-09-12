@@ -11,6 +11,7 @@ import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import platform.AVFoundation.*
 import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.*
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
@@ -23,6 +24,8 @@ import platform.UIKit.UIAlertActionStyleDefault
 import platform.UIKit.UIAlertController
 import platform.UIKit.UIAlertControllerStyleActionSheet
 import platform.UIKit.UIApplication
+import platform.UIKit.UIImage
+import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIImagePickerController
 import platform.UIKit.UIImagePickerControllerDelegateProtocol
 import platform.UIKit.UIImagePickerControllerMediaURL
@@ -308,6 +311,33 @@ private fun NSData.paraByteArray(): ByteArray {
         destino.usePinned { fixado -> memcpy(fixado.addressOf(0), this.bytes, this.length) }
     }
     return destino
+}
+
+/**
+ * O quadro da capa, via `AVAssetImageGenerator` — a API oficial da Apple para tirar imagem de vídeo.
+ *
+ * ⚠️ **`appliesPreferredTrackTransform = true` é o ponto todo.** Sem ele o gerador entrega os pixels
+ * crus da faixa, e vídeo de iPhone gravado em pé vira uma capa deitada — o mesmo cuidado de rotação
+ * que [lerMetadados] já toma para a medida.
+ */
+actual suspend fun PickedVideo.captureFrame(atMillis: Long): ByteArray? {
+    return try {
+        val asset = AVURLAsset(uRL = NSURL.fileURLWithPath(reference), options = null)
+        val gerador = AVAssetImageGenerator(asset).apply {
+            appliesPreferredTrackTransform = true
+        }
+        val instante = CMTimeMakeWithSeconds(atMillis.coerceAtLeast(0) / 1000.0, preferredTimescale = 600)
+        val quadro = gerador.copyCGImageAtTime(instante, actualTime = null, error = null)
+        if (quadro == null) {
+            AppLogger.w(TAG, "Nenhum quadro extraído do vídeo para a capa.")
+            return null
+        }
+        UIImageJPEGRepresentation(UIImage.imageWithCGImage(quadro), 0.85)?.paraByteArray()
+    } catch (e: Exception) {
+        // Capa é acessório: falhar aqui não pode derrubar a publicação do vídeo.
+        AppLogger.w(TAG, "Capa não extraída do vídeo: ${e.message}")
+        null
+    }
 }
 
 private const val PASTA_DE_VIDEOS = "kmplib_videos/"

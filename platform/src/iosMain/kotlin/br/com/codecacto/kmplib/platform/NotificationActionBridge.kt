@@ -163,6 +163,17 @@ class KmpLibNotificationDelegate : NSObject(), UNUserNotificationCenterDelegateP
  * Quando o app já tem delegate próprio (caso de quem usa push), esta função **não faz nada** e o
  * caminho correto é chamar o [NotificationActionBridge] de dentro do delegate Swift.
  */
+/**
+ * O delegate instalado pela lib, preso a uma referência **forte**.
+ *
+ * ⚠️ `UNUserNotificationCenter.delegate` é **weak**. Instalar uma instância recém-criada sem dono
+ * (`center.delegate = KmpLibNotificationDelegate()`) faz o ARC liberá-la logo em seguida: a
+ * propriedade volta a `nil` sozinha, e a partir daí **tocar na notificação não faz mais nada** — a
+ * ação agendada não abre a tela e a notificação nem aparece com o app em primeiro plano. Falha muda,
+ * e num caminho que só se percebe horas depois, quando o lembrete dispara.
+ */
+private var delegateDeNotificacaoInstalado: KmpLibNotificationDelegate? = null
+
 fun installNotificationActionDelegate(): Boolean {
     val center = UNUserNotificationCenter.currentNotificationCenter()
     if (center.delegate != null) {
@@ -172,6 +183,8 @@ fun installNotificationActionDelegate(): Boolean {
         )
         return false
     }
-    center.delegate = KmpLibNotificationDelegate()
+    val delegate = KmpLibNotificationDelegate()
+    delegateDeNotificacaoInstalado = delegate
+    center.delegate = delegate
     return true
 }

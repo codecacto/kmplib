@@ -29,6 +29,19 @@ private const val LOCATION_TIMEOUT_MS = 10_000L
 @OptIn(ExperimentalForeignApi::class)
 internal class IosLocationProvider : LocationProvider {
 
+    /**
+     * O manager e o delegate da consulta em curso, presos a referências **fortes**.
+     *
+     * ⚠️ **Não devolva isto a variáveis locais.** `CLLocationManager.delegate` é **weak**, e as duas
+     * locais de [getCurrentLocation] não sobrevivem ao `deferred.await()`: a máquina de estados da
+     * corrotina só preserva o que é usado **depois** da suspensão, e nada aqui é. O ARC libera os
+     * dois enquanto se espera, o `requestLocation()` fica sem quem responda, e a função devolve
+     * `null` no fim do timeout de 10 s — "não consegui achar sua localização", sem erro nenhum no
+     * caminho. É o mesmo defeito de delegate frouxo já corrigido no `VideoPicker`/`ImagePicker`.
+     */
+    private var managerEmUso: CLLocationManager? = null
+    private var delegateEmUso: NSObject? = null
+
     override suspend fun hasLocationPermission(): Boolean {
         val status = CLLocationManager.authorizationStatus()
         return status.isAuthorized()
@@ -73,15 +86,25 @@ internal class IosLocationProvider : LocationProvider {
                 }
             }
 
+            managerEmUso = manager
+            delegateEmUso = delegate
             manager.delegate = delegate
 
-            if (CLLocationManager.authorizationStatus().isAuthorized()) {
-                manager.requestLocation()
-            } else {
-                manager.requestWhenInUseAuthorization()
-            }
+            try {
+                if (CLLocationManager.authorizationStatus().isAuthorized()) {
+                    manager.requestLocation()
+                } else {
+                    manager.requestWhenInUseAuthorization()
+                }
 
-            deferred.await()
+                deferred.await()
+            } finally {
+                // Roda também quando o `withTimeoutOrNull` cancela: sem isto, o manager da consulta
+                // que expirou continuaria vivo até a próxima.
+                manager.delegate = null
+                managerEmUso = null
+                delegateEmUso = null
+            }
         }
     }
 }

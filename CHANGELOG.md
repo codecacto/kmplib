@@ -1,5 +1,65 @@
 # Changelog — kmplib
 
+## 2.198.0 — O seletor de foto devolve a MEDIDA; e a varredura dos delegates que o iOS solta
+
+Três frentes. A primeira é um bug ao vivo; a segunda é o mesmo defeito da 2.197.0 encontrado em mais
+quatro lugares; a terceira aposenta um plano B que todo app com vídeo estava repetindo.
+
+### 1. `rememberImagePickerLauncher` devolve `PickedImage` — bytes **e** medida
+
+Até aqui o seletor devolvia só `ByteArray`. Sem largura e altura, o app publica a foto sem
+`mediaWidth`/`mediaHeight`, o feed cai no padrão (4:5 com corte central) e **a mesma foto sai inteira
+pelo site e cortada pelo aplicativo** — porque o navegador lê a medida sozinho, num `<canvas>`, e o
+app não tinha de onde. Confirmado no Cidade Conectada (11/set/2026).
+
+- **`PickedImage(bytes, widthPx, heightPx, mimeType)`** — a medida é a **da imagem que sai** (JPEG
+  reduzido a `PICKED_IMAGE_MAX_DIMENSION` = 1024 px no maior lado, qualidade 85), não a do original.
+  Devolver a medida do arquivo escolhido erraria a proporção de outro jeito.
+- **Orientação aplicada nos dois lados, e gravada nos bytes.** Foto de celular chega deitada com a
+  rotação num campo à parte; quem lê a medida crua conclui que **todo retrato é paisagem**. No
+  Android o bitmap é girado pelo EXIF e recodificado (o `Bitmap.compress` não escreve tag de
+  orientação); no iOS a imagem é **sempre redesenhada** antes de codificar, porque
+  `UIImageJPEGRepresentation` grava os pixels crus **mais** a tag — e aí a medida devolvida poderia
+  não bater com a que o backend lê. Depois disso, a medida daqui é a mesma que qualquer
+  decodificador encontra nos bytes.
+- **A conta da redução virou pura e comum** (`scaledImageSize`, testada): era a mesma fórmula escrita
+  duas vezes, e duas escritas é como Android e iOS passam a divergir na proporção publicada.
+- **`ImagePickerSource.GALLERY_ONLY`** — abre a galeria direto, sem folha e sem exigir
+  `android.permission.CAMERA` (publicar foto ≠ tirar foto), igual ao que a 2.197.0 fez no vídeo. Ele
+  é também o que **mantém compatível** a assinatura antiga: como o primeiro parâmetro da nova não é
+  uma lambda, nenhuma chamada existente fica ambígua.
+- **Aditivo.** As duas sobrecargas de `ByteArray` seguem funcionando, implementadas sobre a nova, e
+  agora `@Deprecated` com o motivo.
+
+### 2. Delegate de UIKit é `weak` — e havia mais QUATRO lugares soltando o objeto
+
+A 2.197.0 corrigiu isto no `VideoPicker.ios.kt`. O mesmo erro estava em mais quatro pontos, e todos
+falham do mesmo jeito: **compilam, não lançam, não logam — a ação simplesmente não acontece.**
+
+| Onde | O que a pessoa vê |
+|---|---|
+| `ImagePicker.ios.kt` (`cameraDelegate`/`galleryDelegate`) | Escolhe a foto e **nada volta para a tela** |
+| `LocationProvider.ios.kt` | "Não consegui achar sua localização" no fim de 10 s — o manager e o delegate eram locais que **não sobrevivem ao `await`** (a corrotina só preserva o que é usado depois da suspensão) |
+| `PermissionManager.ios.kt` (LOCATION) | Concede a permissão e **a tela continua esperando** — o `awaitClose` retinha o *manager*, nunca o delegate |
+| `NotificationActionBridge.installNotificationActionDelegate()` | `center.delegate = KmpLibNotificationDelegate()` sem dono: tocar na notificação para de abrir a tela, e ela nem aparece com o app aberto |
+
+Em todos, a correção é a mesma: referência **forte** enquanto a operação existe, mais um KDoc
+dizendo **por que** ela não pode ser "simplificada" de volta para uma variável local.
+
+Auditados e **corretos** (não mexidos): `AppleAuthProvider`, `SocialBrowserLogin`, `FilePicker`,
+`HtmlDocumentView`, `AudioPlayer`, `TtsController`, `CameraView`, `BarcodeCameraPreview`,
+`MediaDownloadManager`.
+
+### 3. `PickedVideo.captureFrame(atMillis = 500)` — a capa sai do vídeo
+
+Sem isto, todo produto com post de vídeo repete o plano B: uma tela a mais pedindo que a pessoa
+escolha uma foto de capa **para algo que o vídeo já tem**. `MediaMetadataRetriever` no Android,
+`AVAssetImageGenerator` (com `appliesPreferredTrackTransform`) no iOS. Devolve `null` em vez de
+lançar — capa é acessório e não pode derrubar a publicação. O default de 500 ms evita a capa preta
+do instante `0` (fade de entrada, autofoco). No Android a rotação é **conferida**, não presumida: o
+`getFrameAtTime` já devolve o quadro girado na maioria dos aparelhos, e um `postRotate` cego giraria
+duas vezes.
+
 ## 2.197.0 — Vídeo de feed: cache de disco e pré-carregamento medido; seletor de vídeo por REFERÊNCIA
 
 Duas frentes, as duas no vídeo. A primeira fecha o `GAP-CC-M-06`; a segunda conserta um seletor que

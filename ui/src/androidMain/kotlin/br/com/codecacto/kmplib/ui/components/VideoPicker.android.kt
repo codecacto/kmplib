@@ -3,6 +3,8 @@ package br.com.codecacto.kmplib.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -45,6 +47,7 @@ import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 actual class VideoPickerLauncher(
@@ -267,6 +270,66 @@ actual suspend fun PickedVideo.readChunks(
                 if (lidos <= 0) break
                 onChunk(buffer, lidos)
             }
+        }
+    }
+}
+
+/**
+ * O quadro da capa, via `MediaMetadataRetriever`.
+ *
+ * ⚠️ **A rotação é conferida, não presumida.** O `getFrameAtTime` devolve o quadro **já girado** na
+ * maioria dos aparelhos — mas não em todos, e um `postRotate` cego giraria duas vezes o que já veio
+ * certo. A comparação com a medida crua do cabeçalho diz qual dos dois casos é este: se o quadro
+ * saiu com a mesma medida do arquivo (sem troca de lados) num vídeo marcado como 90°/270°, então
+ * ninguém girou nada e a matriz é nossa.
+ */
+actual suspend fun PickedVideo.captureFrame(atMillis: Long): ByteArray? {
+    val context = AndroidAppContext.get() ?: run {
+        AppLogger.w(TAG, "Sem contexto: chame KmpLib.init(context) antes de extrair a capa.")
+        return null
+    }
+    return withContext(Dispatchers.IO) {
+        val leitor = MediaMetadataRetriever()
+        try {
+            leitor.setDataSource(context, Uri.parse(reference))
+            val quadro = leitor.getFrameAtTime(
+                atMillis.coerceAtLeast(0) * 1000L,
+                MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            ) ?: leitor.frameAtTime
+            if (quadro == null) {
+                AppLogger.w(TAG, "Nenhum quadro extraído do vídeo para a capa.")
+                return@withContext null
+            }
+
+            val rotacao = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                ?.toIntOrNull() ?: 0
+            val larguraCrua = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull()
+            val alturaCrua = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull()
+            val deitadoNoArquivo = rotacao == 90 || rotacao == 270
+            val aindaNaoGirado = deitadoNoArquivo &&
+                larguraCrua != null && alturaCrua != null &&
+                quadro.width == larguraCrua && quadro.height == alturaCrua
+
+            val emPe = if (aindaNaoGirado) {
+                val matriz = Matrix().apply { postRotate(rotacao.toFloat()) }
+                Bitmap.createBitmap(quadro, 0, 0, quadro.width, quadro.height, matriz, true)
+            } else {
+                quadro
+            }
+
+            val saida = ByteArrayOutputStream()
+            emPe.compress(Bitmap.CompressFormat.JPEG, 85, saida)
+            if (emPe != quadro) emPe.recycle()
+            quadro.recycle()
+            saida.toByteArray()
+        } catch (e: Exception) {
+            // Capa é acessório: falhar aqui não pode derrubar a publicação do vídeo.
+            AppLogger.w(TAG, "Capa não extraída do vídeo: ${e.message}")
+            null
+        } finally {
+            runCatching { leitor.release() }
         }
     }
 }

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import br.com.codecacto.kmplib.core.util.AppLogger
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -57,7 +58,8 @@ actual class ImagePickerLauncher(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 actual fun rememberImagePickerLauncher(
-    onImageSelected: (ByteArray) -> Unit,
+    source: ImagePickerSource,
+    onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ): ImagePickerLauncher {
     val context = LocalContext.current
@@ -69,15 +71,19 @@ actual fun rememberImagePickerLauncher(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         // `null` = a pessoa fechou a galeria sem escolher. Desistir NAO e erro.
-        uri?.let { processImageUri(context, it, onImageSelected, onError) }
+        uri?.let { processImageUri(context, it, onImagePicked, onError) }
     }
 
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         if (success) {
-            photoUri?.let { uri -> processImageUri(context, uri, onImageSelected, onError) }
+            photoUri?.let { uri -> processImageUri(context, uri, onImagePicked, onError) }
         }
+    }
+
+    fun openGallery() {
+        pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     fun launchCamera() {
@@ -95,7 +101,7 @@ actual fun rememberImagePickerLauncher(
         } catch (e: Exception) {
             // Ate 2.131.0 isto era so `printStackTrace()`: a camera nao abria e a tela nao dizia
             // nada. Falha de camera vira AVISO no app, sempre.
-            e.printStackTrace()
+            AppLogger.w(TAG, "Câmera de foto indisponível: ${e.message}")
             onError(ImagePickerError.CAMERA_UNAVAILABLE)
         }
     }
@@ -164,9 +170,7 @@ actual fun rememberImagePickerLauncher(
                 TextButton(
                     onClick = {
                         showChooser = false
-                        pickMedia.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
+                        openGallery()
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -189,17 +193,28 @@ actual fun rememberImagePickerLauncher(
         }
     }
 
-    return remember(pickMedia, takePicture) {
+    return remember(source, pickMedia, takePicture) {
         ImagePickerLauncher {
-            showChooser = true
+            when (source) {
+                // Sem folha de escolha: uma folha com uma opção só é um toque a mais para nada.
+                ImagePickerSource.GALLERY_ONLY -> openGallery()
+                ImagePickerSource.GALLERY_AND_CAMERA -> showChooser = true
+            }
         }
     }
 }
 
+/**
+ * Decodifica, **gira pelo EXIF**, reduz e recodifica em JPEG — e mede o resultado.
+ *
+ * A medida sai do bitmap FINAL, depois da rotação e da redução, porque é ele que vira os bytes. E o
+ * `Bitmap.compress` não escreve tag de orientação: os bytes que saem daqui já estão em pé, sem
+ * depender de o leitor do outro lado interpretar EXIF.
+ */
 private fun processImageUri(
     context: Context,
     uri: Uri,
-    onImageSelected: (ByteArray) -> Unit,
+    onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
     try {
@@ -212,17 +227,22 @@ private fun processImageUri(
             onError(ImagePickerError.IMAGE_UNREADABLE)
         } else {
             val corrected = correctOrientation(context, uri, bitmap)
-            val scaled = scaleBitmap(corrected, 1024)
+            val scaled = scaleBitmap(corrected, PICKED_IMAGE_MAX_DIMENSION)
             val outputStream = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-            onImageSelected(outputStream.toByteArray())
+            // Lido ANTES do recycle: depois dele, `width`/`height` de um bitmap reciclado não valem.
+            val largura = scaled.width
+            val altura = scaled.height
+            val bytes = outputStream.toByteArray()
 
             if (scaled != corrected) scaled.recycle()
             if (corrected != bitmap) corrected.recycle()
             bitmap.recycle()
+
+            onImagePicked(PickedImage(bytes = bytes, widthPx = largura, heightPx = altura))
         }
     } catch (e: Exception) {
-        e.printStackTrace()
+        AppLogger.w(TAG, "Foto escolhida não pôde ser lida: ${e.message}")
         onError(ImagePickerError.IMAGE_UNREADABLE)
     }
 }
@@ -249,14 +269,10 @@ private fun correctOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitm
 }
 
 private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
-    val width = bitmap.width
-    val height = bitmap.height
-
-    if (width <= maxSize && height <= maxSize) return bitmap
-
-    val ratio = minOf(maxSize.toFloat() / width, maxSize.toFloat() / height)
-    val newWidth = (width * ratio).toInt()
-    val newHeight = (height * ratio).toInt()
+    val (newWidth, newHeight) = scaledImageSize(bitmap.width, bitmap.height, maxSize)
+    if (newWidth == bitmap.width && newHeight == bitmap.height) return bitmap
 
     return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
 }
+
+private const val TAG = "KmpLibImagePicker"

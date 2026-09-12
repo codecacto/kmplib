@@ -35,6 +35,16 @@ import platform.UserNotifications.UNAuthorizationStatusNotDetermined
 import platform.UserNotifications.UNUserNotificationCenter
 
 /**
+ * O delegate do pedido de localização em curso, preso a uma referência **forte**.
+ *
+ * ⚠️ `CLLocationManager.delegate` é **weak**, e reter só o manager (o que a closure do `awaitClose`
+ * fazia) não segura o delegate: sem dono, o ARC pode liberá-lo antes de a pessoa responder ao
+ * diálogo do sistema. Aí a resposta não chega a ninguém, o `callbackFlow` nunca emite e a tela fica
+ * esperando uma permissão que já foi concedida. Um pedido por vez, então uma referência basta.
+ */
+private var delegateDePermissaoEmUso: NSObject? = null
+
+/**
  * Implementação iOS do [PermissionManager].
  *
  * Mapeamentos:
@@ -116,9 +126,17 @@ class IosPermissionManager : PermissionManager {
                     close()
                 }
             }
+            // ⚠️ Guardar o MANAGER não basta: `delegate` é weak, e o `awaitClose` abaixo só retinha
+            // o manager (é o que a closure captura). O delegate ficava sem dono e o ARC podia
+            // liberá-lo antes de a pessoa responder ao diálogo — o fluxo nunca emitia e a tela
+            // ficava esperando para sempre. A referência forte de módulo fecha o buraco.
+            delegateDePermissaoEmUso = delegate
             manager.delegate = delegate
             manager.requestWhenInUseAuthorization()
-            awaitClose { manager.delegate = null }
+            awaitClose {
+                manager.delegate = null
+                delegateDePermissaoEmUso = null
+            }
         }
 
         AppPermission.NOTIFICATIONS -> callbackFlow {

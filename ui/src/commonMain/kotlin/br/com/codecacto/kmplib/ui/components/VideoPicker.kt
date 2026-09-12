@@ -143,6 +143,30 @@ expect suspend fun PickedVideo.readChunks(
 /** 256 KB — pedaço grande o bastante para não picotar a rede e pequeno para caber em qualquer aparelho. */
 const val DEFAULT_VIDEO_CHUNK_BYTES: Int = 256 * 1024
 
+/**
+ * Extrai **um quadro** do vídeo e devolve como JPEG — a capa, sem pedir foto a ninguém.
+ *
+ * Sem isto, todo produto com post de vídeo repete o mesmo plano B: uma segunda tela pedindo que a
+ * pessoa **escolha uma foto de capa à mão**, para algo que o vídeo já tem. É o que o portal web faz
+ * num `<canvas>` aos 0,5 s, e é o que passa a existir aqui nas duas plataformas.
+ *
+ * ```kotlin
+ * val capa = video.captureFrame()            // ~0,5 s, onde já há imagem
+ * val bytes = capa ?: pedirCapaAoUsuario()   // vídeo raro em que não dá: caia no caminho manual
+ * ```
+ *
+ * ⚠️ **A rotação é aplicada** (`preferredTransform` no iOS, `METADATA_KEY_VIDEO_ROTATION` no
+ * Android): vídeo gravado em pé geraria uma capa deitada, e a capa é justamente o que se olha antes
+ * de tocar.
+ *
+ * @param atMillis onde tirar o quadro. O default de **500 ms** não é arbitrário: no instante `0` é
+ *   comum o vídeo ainda estar preto (fade de entrada, autofoco), e uma capa preta parece um vídeo
+ *   quebrado. Aproxima-se do quadro-chave mais próximo — o valor exato não é garantido.
+ * @return o JPEG do quadro, ou `null` quando não deu para extrair (formato sem quadro no instante
+ *   pedido, arquivo ilegível). **Nunca lança**: capa é acessório, e não pode derrubar a publicação.
+ */
+expect suspend fun PickedVideo.captureFrame(atMillis: Long = 500): ByteArray?
+
 // =================================================================================================
 // Legado — a API de bytes. Mantida para não quebrar compilação; não use em código novo.
 // =================================================================================================
