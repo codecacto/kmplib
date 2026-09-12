@@ -11,6 +11,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.video.VideoPlayerHolder
 import br.com.codecacto.kmplib.video.VideoStatus
@@ -33,27 +35,33 @@ import br.com.codecacto.kmplib.video.videoStreamKindOf
  * ligação o pausa e retoma depois. Se outro app **tomar** o foco de vez, ou o fone for desconectado,
  * o ExoPlayer para — e aí o feed não fica parado: [onAudioLost] devolve o feed a mudo e o vídeo segue.
  *
- * ### Buffer curto
- * O `DefaultLoadControl` padrão guarda até 50 s à frente — pensado para um player por tela. Com dois
- * players vivos no feed, cada um guardaria um vídeo de 60 s quase inteiro na memória e no plano de
- * dados, por um post que talvez a pessoa pule em dois segundos. Aqui: 15 s no máximo, e a
- * reprodução começa com 1 s em mãos.
+ * ### Cache de disco (2.197.0)
+ * A origem de dados é a do [FeedVideoCache], que **lê e escreve** em disco. Sem ela, o laço
+ * (`REPEAT_MODE_ONE`) rebaixava da rede, a cada volta, tudo o que não coubesse nos 15 s de buffer —
+ * um vídeo de 60 s em laço baixava 60 s de vídeo por minuto, para sempre.
+ *
+ * A chave é [feedVideoCacheKey] (a URL **sem a query**), nunca a URL crua: a URL de feed é assinada
+ * e muda a cada abertura da tela.
  */
 @OptIn(UnstableApi::class)
-internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
+internal class ExoFeedVideoEngine(
+    context: Context,
+    config: FeedVideoConfig,
+    private val preloader: Media3FeedPreloader?,
+) : FeedVideoEngine() {
 
-    val player: ExoPlayer = ExoPlayer.Builder(context)
-        .setLoadControl(
-            DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    /* minBufferMs = */ 5_000,
-                    /* maxBufferMs = */ 15_000,
-                    /* bufferForPlaybackMs = */ 1_000,
-                    /* bufferForPlaybackAfterRebufferMs = */ 2_000,
-                )
-                .build(),
-        )
-        .build()
+    val player: ExoPlayer = run {
+        val builder = ExoPlayer.Builder(context)
+            .setLoadControl(feedLoadControl())
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(
+                    FeedVideoCache.dataSourceFactory(context, config.diskCacheBytes),
+                ),
+            )
+        // Construído pelo builder do `DefaultPreloadManager` quando ele existe: é assim que o player
+        // e o pré-carregamento dividem a thread de reprodução e o cache (ver `Media3FeedPreloader`).
+        preloader?.buildPlayer(builder) ?: builder.build()
+    }
 
     private val atributos = AudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA)
@@ -62,6 +70,9 @@ internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
 
     /** `null` até o primeiro [setMuted] — força a primeira aplicação. */
     private var mudo: Boolean? = null
+
+    /** `null` até o primeiro [setPreloadMode]. */
+    private var preparando: Boolean? = null
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) = sincronizar()
@@ -90,12 +101,30 @@ internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
         player.repeatMode = Player.REPEAT_MODE_ONE
         player.addListener(listener)
         setMuted(true)
+        setPreloadMode(true)
     }
 
     override fun load(url: String, kind: VideoStreamKind) {
+        loadedUrl = url
+        status = VideoStatus.Loading
+
+        // A fonte que o pré-carregamento já preparou, quando existe: o player a adota no estado em
+        // que está, sem reabrir o manifesto. É o que faz a troca de vídeo ser instantânea.
+        val preparada = preloader?.mediaSourceFor(url)
+        if (preparada != null) {
+            player.setMediaSource(preparada)
+        } else {
+            player.setMediaItem(mediaItemDe(url, kind))
+        }
+        player.prepare()
+    }
+
+    private fun mediaItemDe(url: String, kind: VideoStreamKind): MediaItem {
         val forma = if (kind == VideoStreamKind.Auto) videoStreamKindOf(url) else kind
-        val item = MediaItem.Builder()
+        return MediaItem.Builder()
             .setUri(url)
+            // Sem a chave estável, cada renovação de token gravaria o MESMO vídeo de novo no cache.
+            .setCustomCacheKey(feedVideoCacheKey(url))
             .apply {
                 // URL assinada esconde o `.m3u8` do sniffer da Media3 (a extensão vem antes do
                 // `?token=`): sem o MIME explícito o HLS cairia no extrator progressivo e falharia
@@ -103,10 +132,6 @@ internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
                 if (forma == VideoStreamKind.Hls) setMimeType(MimeTypes.APPLICATION_M3U8)
             }
             .build()
-        loadedUrl = url
-        status = VideoStatus.Loading
-        player.setMediaItem(item)
-        player.prepare()
     }
 
     override fun play() {
@@ -125,6 +150,25 @@ internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
         player.setAudioAttributes(atributos, /* handleAudioFocus = */ !muted)
         // Fone desconectado só importa com som: mudo, não há o que sair no alto-falante.
         player.setHandleAudioBecomingNoisy(!muted)
+    }
+
+    /**
+     * Quem perde o decodificador quando o aparelho aperta.
+     *
+     * `setPriority` alimenta o `KEY_IMPORTANCE` do `MediaCodec` (API 35+; abaixo disso é inócuo, não
+     * é erro). Com dois players vivos e um aparelho que só garante um decodificador de vídeo, é esta
+     * linha que faz o sistema derrubar o que está **adiantando** em vez do que está na tela.
+     */
+    override fun setPreloadMode(preloading: Boolean) {
+        if (preparando == preloading) return
+        preparando = preloading
+        player.setPriority(if (preloading) C.PRIORITY_PLAYBACK_PRELOAD else C.PRIORITY_PLAYBACK)
+    }
+
+    override fun bufferedAheadMillis(): Long? {
+        val bufferizado = player.bufferedPosition
+        if (bufferizado == C.TIME_UNSET || bufferizado < 0L) return null
+        return (bufferizado - player.currentPosition).coerceAtLeast(0L)
     }
 
     override fun clear() {
@@ -157,13 +201,38 @@ internal class ExoFeedVideoEngine(context: Context) : FeedVideoEngine() {
     }
 }
 
-internal actual fun createFeedVideoEngine(): FeedVideoEngine {
+/**
+ * O `LoadControl` do feed — **o mesmo para os players do pool e para o pré-carregamento**.
+ *
+ * O `DefaultLoadControl` padrão guarda até 50 s à frente, pensado para um player por tela. Com dois
+ * players vivos no feed, cada um guardaria um vídeo de 60 s quase inteiro na memória e no plano de
+ * dados, por um post que talvez a pessoa pule em dois segundos.
+ *
+ * **`bufferForPlaybackMs` = 500 ms**, e não 1 s: é o teto direto do tempo até o primeiro quadro — o
+ * player não começa antes de ter esse tanto em mãos. É o valor do demo oficial de vídeo curto do
+ * Google, e a diferença é sentida em toda troca de post. (29% das sessões de vídeo curto são
+ * abandonadas nos 3 primeiros segundos; meio segundo aqui não é detalhe.)
+ */
+@OptIn(UnstableApi::class)
+internal fun feedLoadControl(): LoadControl = DefaultLoadControl.Builder()
+    .setBufferDurationsMs(
+        /* minBufferMs = */ 5_000,
+        /* maxBufferMs = */ 15_000,
+        /* bufferForPlaybackMs = */ 500,
+        /* bufferForPlaybackAfterRebufferMs = */ 2_000,
+    )
+    .build()
+
+internal actual fun createFeedVideoEngine(
+    config: FeedVideoConfig,
+    preloader: FeedPreloader,
+): FeedVideoEngine {
     val context = VideoPlayerHolder.getContext()
         ?: error(
             "kmplib-video: chame initKmpLibVideo(context) no Application.onCreate() " +
                 "(ou KmpLib.init(context), se usa o artefato umbrella).",
         )
-    return ExoFeedVideoEngine(context)
+    return ExoFeedVideoEngine(context, config, preloader as? Media3FeedPreloader)
 }
 
 internal const val FEED_TAG = "KmpLibFeedVideo"

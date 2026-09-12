@@ -429,7 +429,11 @@ internal class Media3MediaDownloadManager(
             )
             cont.invokeOnCancellation { runCatching { helper.release() } }
             helper.prepare(object : DownloadHelper.Callback {
-                override fun onPrepared(helper: DownloadHelper) {
+                // `hasPreparedTracks` chegou na Media3 1.9 (a assinatura de 1.6 tinha só o helper).
+                // Ele diz se houve seleção de faixa — `false` em conteúdo de faixa única. Não muda o
+                // que fazemos: `getDownloadRequest` devolve o pedido nos dois casos, e o teto de
+                // qualidade já foi aplicado nos parâmetros acima.
+                override fun onPrepared(helper: DownloadHelper, hasPreparedTracks: Boolean) {
                     val resultado = runCatching { helper.getDownloadRequest(request.id, null) }
                     helper.release()
                     resultado.fold(

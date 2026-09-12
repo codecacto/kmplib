@@ -3,6 +3,43 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.197.0 (11/set/2026) — cache + pré-carregamento do feed, e seletor de vídeo por REFERÊNCIA
+
+- [x] **GAP-CC-M-06 — cache de disco e pré-carregamento do vídeo de feed (Android).** `FeedVideoCache`
+      (`SimpleCache` singleton no `cacheDir`, `LeastRecentlyUsedCacheEvictor`, teto em
+      `FeedVideoConfig.diskCacheBytes` = 128 MB, chave = URL **sem a query**) e `Media3FeedPreloader`
+      (`DefaultPreloadManager`, Media3 **1.11.1**): escada 3 s no próximo · 1 s no 2º/3º · 5 s **em
+      disco** até o 5º, **só para frente**, cancelada inteira quando o vídeo da vez passa fome
+      (< 5 s de buffer ou `Buffering`). `bufferForPlaybackMs` 1000 → **500**. `ExoPlayer.setPriority`
+      separa quem toca de quem adianta (é o que decide quem perde o decodificador). Rede medida e
+      Data Saver cortam **o pré-carregamento**, nunca a reprodução.
+- [x] **iOS: `AVPlayerLooper` saiu.** Ele **ignora** `preferredForwardBufferDuration` e
+      `preferredMaximumResolution` (gerencia réplicas do item por dentro) e tem bug de seek em HLS —
+      ou seja, ia anular a configuração de buffer exatamente quando o feed migrasse para HLS
+      (Bunny Stream). Laço agora é `AVPlayerItemDidPlayToEndTime` + `seek(.zero)` com
+      `actionAtItemEnd = .none`.
+- [x] **iOS: `AVPlayerLayer` anexada ANTES de o item virar `currentItem`** (WWDC16-503). A camada
+      passou a nascer dentro do engine; a superfície só a **adota**. Antes, o `load()` do `SideEffect`
+      rodava antes de a superfície compor, e a AVFoundation montava o pipeline **só de áudio** para
+      depois reconfigurar — em todo item do feed.
+- [x] **GAP-LIB-M-04 — o `VideoPicker` carregava o vídeo INTEIRO num `ByteArray`.** Com o teto de
+      100 MB de upload, isso é `OutOfMemoryError` em aparelho de entrada (e `OutOfMemoryError` não é
+      `Exception`: o `try/catch` da tela não pega). Agora devolve `PickedVideo` (referência + nome +
+      mime + tamanho + **duração** + medida já com a rotação aplicada) e transmite por `readChunks`.
+      Ganhou `VideoPickerSource.GALLERY_ONLY` (publicar vídeo não é gravar vídeo — decisão do
+      fundador, 11/set/2026) e `VideoPickerError` (antes, câmera negada era `printStackTrace()`).
+- [x] **De passagem — o `VideoPicker` do iOS perdia o delegate.** `PHPickerViewController.delegate` é
+      **weak**: o delegate criado dentro do bloco de lançamento era liberado, e escolher um vídeo não
+      produzia efeito nenhum, sem erro. Agora há referência forte de módulo.
+- [ ] **Aberto (mesmo defeito, outro arquivo) — `ImagePicker.ios.kt` também segura os delegates só
+      pelo closure.** `cameraDelegate`/`galleryDelegate` nascem dentro do bloco e o `delegate` do
+      UIKit é weak: a foto pode não voltar, sem erro. Não foi tocado nesta rodada (fora do escopo
+      pedido); a correção é a mesma do `VideoPicker` — uma referência forte de módulo.
+- [ ] **Aberto — validação em aparelho do cache/pré-carregamento.** Compilado nos dois alvos e com a
+      lógica coberta por teste; o que só aparece rodando (o vídeo em laço **não** rebaixando na 2ª
+      volta, a troca de post instantânea, o consumo de dados em rede móvel) é do fundador. Junta-se ao
+      `GAP-CC-M-07`.
+
 ### ATENDIDO na 2.196.0 (11/set/2026) — vídeo de FEED (Mirassol Conectado, `docs/feed-moderno-spec.md`)
 
 - [x] **GAP-CC-M-05 — não havia vídeo de feed.** O `VideoPlayer` é de aula (controles, velocidade,
@@ -10,12 +47,11 @@
       `video.feed`): toca mudo a ~60% visível, pausa ao sair, um por vez, laço, som global, capa até o
       1º quadro, pool de players (default 2). Serve a todo app com feed (Cidade Conectada, e os que
       vierem com posts de vídeo).
-- [ ] **GAP-CC-M-06 (P2) — cache de disco para o vídeo de feed no Android.** Com `REPEAT_MODE_ONE`, o
-      progressivo que não coube no buffer (15 s) é **rebaixado a cada volta**; e o pré-carregamento
-      é só do "próximo" (pool de 2). O caminho da Media3 para vídeo curto é `SimpleCache` +
-      `CacheDataSource` (e, para feed longo, `DefaultPreloadManager`). Não entrou porque o cache do
-      `video.download` é o de download (somente-leitura no player) e misturar os dois exige decidir
-      teto e expurgo do cache de feed. Medir antes: vídeo de feed do Mirassol é até 60 s.
+- [x] **GAP-CC-M-06 (P2) — cache de disco para o vídeo de feed no Android.** ATENDIDO na 2.197.0 (ver
+      a seção acima). A dúvida registrada aqui — "misturar com o cache do `video.download` exige
+      decidir teto e expurgo" — resolveu-se **não misturando**: são dois caches com políticas opostas
+      (feed = `cacheDir` + LRU + escrita ligada; download = `filesDir` + `NoOpCacheEvictor` + leitura
+      apenas), dividindo só o `DatabaseProvider`.
 - [ ] **GAP-CC-M-07 (P1) — validação em aparelho do vídeo de feed.** Compilado nos dois alvos
       (`compileDebugKotlinAndroid`, `compileKotlinIosArm64`), lógica coberta por teste; a parte que só
       aparece na tela — capa→1º quadro sem piscar, corte do `TextureView` na rolagem, `UIKitView`

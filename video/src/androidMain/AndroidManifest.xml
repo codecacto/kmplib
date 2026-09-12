@@ -27,6 +27,18 @@
       sem ela, um download interrompido pela queda do Wi-Fi só volta se o usuário abrir o app.
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!--
+      ACCESS_NETWORK_STATE (2.197.0) — o vídeo de FEED só adianta os vizinhos em rede não medida.
+
+      É o que `ConnectivityManager.isActiveNetworkMetered` e `getRestrictBackgroundStatus`
+      (Data Saver) exigem. Permissão de nível **normal**: não gera prompt, não pede declaração na
+      Play e não tem impacto de privacidade.
+
+      ⚠️ Sem ela o `getSystemService` devolve o gerente, mas a consulta lança SecurityException — e
+      o pré-carregamento passaria a gastar dados móveis de todo mundo, em silêncio. Declará-la AQUI,
+      e não em cada app, é o mesmo princípio das linhas acima.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application>
 

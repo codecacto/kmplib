@@ -14,17 +14,37 @@ import br.com.codecacto.kmplib.video.videoStatusOf
 // o pacote cobre os dois casos (ver `references/ios-cinterop.md`).
 import platform.AVFAudio.*
 import platform.AVFoundation.*
+import platform.CoreMedia.*
 import platform.Foundation.*
 import platform.darwin.NSObjectProtocol
 
 /**
- * Um `AVQueuePlayer` + `AVPlayerLooper` do pool do feed.
+ * Um `AVPlayer` do pool do feed.
  *
- * - **Laço pelo `AVPlayerLooper`**, que é o que a Apple indica para repetir sem emenda: ele mantém
- *   réplicas do item na fila e as troca antes do fim. O "voltar para o zero ao terminar"
- *   (`AVPlayerItemDidPlayToEndTime` + `seek`) deixa um soluço visível a cada volta.
- * - **`muted` do próprio AVPlayer** para o mudo — não volume zero —, e a sessão de áudio decidida pelo
- *   [FeedAudioSession] (ver lá a escolha de categoria).
+ * ### A camada nasce ANTES do item — e isto não é detalhe de organização
+ * O [playerLayer] é criado **aqui**, no construtor, já apontando para o player. Motivo, da própria
+ * Apple (WWDC 2016, *Advances in AVFoundation Playback*): quando um `AVPlayerItem` vira
+ * `currentItem` de um player que **não tem camada anexada**, a AVFoundation monta o pipeline
+ * **só de áudio** — e depois tem de reconfigurá-lo quando a camada aparece. No feed isso acontecia
+ * em todo item: o controller manda `load()` num `SideEffect`, que roda **antes** de a superfície
+ * compor. Custo de fazer certo: zero. Ganho: o primeiro quadro sai na primeira tentativa.
+ *
+ * A superfície (`FeedVideoSurface.ios.kt`) apenas **adota** esta camada; ela não cria nenhuma.
+ *
+ * ### Laço manual, e não `AVPlayerLooper` (2.197.0)
+ * O `AVPlayerLooper` faz o laço sem emenda, mas **ignora `preferredForwardBufferDuration` e
+ * `preferredMaximumResolution`** — ele gerencia a fila por dentro, com réplicas do item que não
+ * recebem a nossa configuração. Como o pré-carregamento do iOS é justamente
+ * `preferredForwardBufferDuration` (não existe `PreloadManager` na AVFoundation), manter o looper
+ * seria manter um parâmetro público que não faz nada. Há ainda o bug conhecido de `seek` em HLS
+ * com looper — e o feed vai para HLS quando migrarmos para o Bunny Stream.
+ *
+ * O laço passa a ser `AVPlayerItemDidPlayToEndTime` + `seek(.zero)`, com
+ * `actionAtItemEnd = .none` para o player não se pausar no fim.
+ *
+ * ### O resto
+ * - **`muted` do próprio AVPlayer** para o mudo — não volume zero —, e a sessão de áudio decidida
+ *   pelo [FeedAudioSession] (ver lá a escolha de categoria).
  * - **`preventsDisplaySleepDuringVideoPlayback = false`.** O default do AVPlayer é `true`: qualquer
  *   vídeo tocando, mesmo mudo, prende a tela acesa. Num feed em laço isso seria a tela acesa para
  *   sempre num celular largado. Quem segura a tela, e **só com som**, é o `KeepScreenOn` do
@@ -32,18 +52,32 @@ import platform.darwin.NSObjectProtocol
  * - **O estado se lê** ([refresh]): o AVPlayer não tem listener; `status` e `timeControlStatus` são
  *   propriedades, lidas pela varredura periódica do controller.
  */
-internal class AvFeedVideoEngine : FeedVideoEngine() {
+internal class AvFeedVideoEngine(private val config: FeedVideoConfig) : FeedVideoEngine() {
 
-    val player: AVQueuePlayer = AVQueuePlayer()
+    val player: AVPlayer = AVPlayer()
 
-    private var looper: AVPlayerLooper? = null
+    /** A camada deste player. Criada junto com ele — ver o KDoc da classe. */
+    val playerLayer: AVPlayerLayer = AVPlayerLayer()
+
+    private var observadorDeFim: NSObjectProtocol? = null
     private var querTocar = false
     private var mudo: Boolean? = null
+    private var kindEmVigor: VideoStreamKind = VideoStreamKind.Auto
+
+    /** Este player está adiantando um vizinho (`true`) ou é o da vez? Nasce adiantando. */
+    private var preparando = true
+
+    /** O asset atual nasceu barrado em rede cara/limitada? Ver [opcoesDeRede]. */
+    private var criadoRestrito = false
 
     /** `true` quando este player está com som — o [FeedAudioSession] decide a categoria por isso. */
     internal val comSom: Boolean get() = mudo == false
 
     init {
+        // A camada ANTES de qualquer item virar `currentItem`. Ver o KDoc da classe.
+        playerLayer.player = player
+        // Sem isto o player se pausa ao chegar ao fim, e o laço ficaria com um solavanco.
+        player.actionAtItemEnd = AVPlayerActionAtItemEndNone
         player.muted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
         FeedAudioSession.attach(this)
@@ -51,17 +85,28 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
     }
 
     override fun load(url: String, kind: VideoStreamKind) {
-        // `kind` não se aplica aqui: o AVFoundation reconhece o HLS pelo conteúdo, não pela extensão.
+        // `kind` não muda a construção aqui: o AVFoundation reconhece o HLS pelo conteúdo, não pela
+        // extensão. Guardamos só para poder recarregar do jeito certo em [setPreloadMode].
+        kindEmVigor = kind
         esvaziar()
         loadedUrl = url
+
         val endereco = NSURL.URLWithString(url)
         if (endereco == null) {
             AppLogger.w(FEED_TAG, "URL de vídeo de feed inválida: $url")
             status = VideoStatus.Error(VideoErrorKind.Unknown, FeedVideoTexts().playbackError, "URL inválida")
             return
         }
-        val item = AVPlayerItem(uRL = endereco)
-        looper = AVPlayerLooper.playerLooperWithPlayer(player = player, templateItem = item)
+
+        criadoRestrito = restringirRede()
+        val asset = AVURLAsset(uRL = endereco, options = opcoesDeRede())
+        val item = AVPlayerItem(asset = asset)
+        // O "pré-carregamento" possível no iOS: quem não tem a vez pede pouco à frente, e assim não
+        // disputa banda com o vídeo que está na tela.
+        item.preferredForwardBufferDuration = if (preparando) BUFFER_DE_PRELOAD_SEGUNDOS else BUFFER_AUTOMATICO
+
+        player.replaceCurrentItemWithPlayerItem(item)
+        observarFim(item)
         status = VideoStatus.Loading
         if (querTocar) player.play()
     }
@@ -85,6 +130,22 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
         FeedAudioSession.update()
     }
 
+    /**
+     * Quanto este player pode pedir à frente.
+     *
+     * Ao **ganhar a vez**, um item que nasceu barrado na rede cara é refeito: sem isso ele ficaria
+     * esperando para sempre um Wi-Fi que talvez não venha, e o post apareceria travado na capa.
+     */
+    override fun setPreloadMode(preloading: Boolean) {
+        if (preparando == preloading) return
+        preparando = preloading
+        player.currentItem?.preferredForwardBufferDuration =
+            if (preloading) BUFFER_DE_PRELOAD_SEGUNDOS else BUFFER_AUTOMATICO
+        if (!preloading && criadoRestrito) {
+            loadedUrl?.let { load(it, kindEmVigor) }
+        }
+    }
+
     override fun clear() {
         querTocar = false
         player.pause()
@@ -95,6 +156,8 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
 
     override fun release() {
         clear()
+        playerLayer.player = null
+        playerLayer.removeFromSuperlayer()
         FeedAudioSession.detach(this)
     }
 
@@ -106,7 +169,7 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
         if (status is VideoStatus.Error) return
 
         val item = player.currentItem
-        if (looper?.status == AVPlayerLooperStatusFailed || item?.status == AVPlayerItemStatusFailed) {
+        if (item?.status == AVPlayerItemStatusFailed) {
             publicarFalha(item)
             return
         }
@@ -124,10 +187,51 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
         if (comSom && querTocar) onAudioLost?.invoke()
     }
 
+    /**
+     * O laço: no fim do item, volta ao zero e segue.
+     *
+     * O observador é por **item** (`object = item`), e não global: com dois players vivos, um
+     * observador de `object = null` faria o fim do vídeo de um reiniciar o outro.
+     */
+    private fun observarFim(item: AVPlayerItem) {
+        observadorDeFim = NSNotificationCenter.defaultCenter.addObserverForName(
+            name = AVPlayerItemDidPlayToEndTimeNotification,
+            `object` = item,
+            queue = NSOperationQueue.mainQueue,
+        ) { _ ->
+            player.seekToTime(CMTimeMake(value = 0, timescale = 1))
+            if (querTocar) player.play()
+        }
+    }
+
+    /**
+     * **Rede cara/limitada barra o PRÉ-CARREGAMENTO** — nunca o vídeo que a pessoa está vendo.
+     *
+     * No iOS quem decide não somos nós: são as chaves `AVURLAssetAllowsExpensiveNetworkAccessKey`
+     * (dados móveis) e `AVURLAssetAllowsConstrainedNetworkAccessKey` (Modo Dados Reduzidos, o
+     * "Data Saver" da Apple), que o próprio sistema avalia. É o caminho recomendado — perguntar o
+     * tipo de rede e decidir por conta própria erra em VPN, hotspot e roaming.
+     */
+    private fun restringirRede(): Boolean =
+        preparando && config.preloadEnabled && !config.preloadOnMeteredNetwork
+
+    private fun opcoesDeRede(): Map<Any?, Any?> = if (restringirRede()) {
+        mapOf(
+            AVURLAssetAllowsExpensiveNetworkAccessKey to false,
+            AVURLAssetAllowsConstrainedNetworkAccessKey to false,
+        )
+    } else {
+        emptyMap()
+    }
+
     private fun esvaziar() {
-        looper?.disableLooping()
-        looper = null
-        player.removeAllItems()
+        removerObservador()
+        player.replaceCurrentItemWithPlayerItem(null)
+    }
+
+    private fun removerObservador() {
+        observadorDeFim?.let { NSNotificationCenter.defaultCenter.removeObserver(it) }
+        observadorDeFim = null
     }
 
     /**
@@ -140,9 +244,17 @@ internal class AvFeedVideoEngine : FeedVideoEngine() {
             ?.errorStatusCode
             ?.toInt() ?: 0
         val kind = if (http > 0) videoErrorKindForHttpStatus(http) else VideoErrorKind.Network
-        val detalhe = item?.error?.localizedDescription ?: looper?.error?.localizedDescription ?: "falha"
+        val detalhe = item?.error?.localizedDescription ?: "falha"
         AppLogger.w(FEED_TAG, "Vídeo de feed falhou (HTTP $http): $detalhe")
         status = VideoStatus.Error(kind, FeedVideoTexts().playbackError, detalhe)
+    }
+
+    private companion object {
+        /** 1 s à frente em quem não tem a vez: o bastante para o primeiro quadro. */
+        const val BUFFER_DE_PRELOAD_SEGUNDOS = 1.0
+
+        /** `0` devolve a decisão ao AVPlayer — é o default da Apple, e o certo para quem toca. */
+        const val BUFFER_AUTOMATICO = 0.0
     }
 }
 
@@ -246,6 +358,15 @@ private object FeedAudioSession {
     }
 }
 
-internal actual fun createFeedVideoEngine(): FeedVideoEngine = AvFeedVideoEngine()
+/**
+ * No iOS não há `DefaultPreloadManager`: o adiantamento é feito pelos próprios players do pool, com
+ * `preferredForwardBufferDuration` curto em quem não tem a vez (ver [AvFeedVideoEngine]).
+ */
+internal actual fun createFeedPreloader(config: FeedVideoConfig): FeedPreloader = NoFeedPreloader
+
+internal actual fun createFeedVideoEngine(
+    config: FeedVideoConfig,
+    preloader: FeedPreloader,
+): FeedVideoEngine = AvFeedVideoEngine(config)
 
 internal const val FEED_TAG = "KmpLibFeedVideo"

@@ -71,7 +71,12 @@ sqldelight = "2.0.2"
 # (o `VideoView`/`MediaPlayer` da plataforma não toca HLS de forma confiável, não tem controle
 # de velocidade nem seleção de faixa de legenda). `media3-exoplayer-hls` é o artefato SEPARADO
 # que traz o extrator de HLS: sem ele, um `.m3u8` falha com `UnrecognizedInputFormatException`.
-media3 = "1.6.1"
+#
+# 1.11.1 (2.197.0) — o pré-carregamento do vídeo de FEED depende de duas coisas que a 1.6.1 não
+# tem: `DefaultPreloadManager.PreloadStatus.specifiedRangeCached` (pré-carregar para o DISCO, e não
+# só para a memória — exige 1.9.0+) e `ExoPlayer.setPriority`, que é o que decide quem perde o
+# decodificador de vídeo em aparelho apertado. Ver `feed/FeedVideoPreload.android.kt`.
+media3 = "1.11.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

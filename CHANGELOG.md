@@ -1,5 +1,126 @@
 # Changelog — kmplib
 
+## 2.197.0 — Vídeo de feed: cache de disco e pré-carregamento medido; seletor de vídeo por REFERÊNCIA
+
+Duas frentes, as duas no vídeo. A primeira fecha o `GAP-CC-M-06`; a segunda conserta um seletor que
+existia, funcionava e não servia para o caso de uso que chegou (publicar vídeo de até 100 MB).
+
+### 1. O feed deixa de rebaixar o mesmo vídeo a cada volta do laço
+
+O vídeo de feed toca em **laço** com buffer curto (15 s). Sem cache, um vídeo de 60 s **rebaixava da
+rede a cada volta**, para sempre, enquanto o post estivesse na tela. Não era preparação para nada:
+era plano de dados e bateria indo embora agora.
+
+- **`FeedVideoCache` (Android)** — `SimpleCache` **singleton** (duas instâncias no mesmo diretório
+  lançam: o cache tranca a pasta) em `cacheDir/kmplib_feed_video`, com
+  `LeastRecentlyUsedCacheEvictor` e teto em **`FeedVideoConfig.diskCacheBytes`** (default 128 MB).
+  **Não é o cache do `video.download`, e os dois são opostos de propósito:** feed = `cacheDir` +
+  LRU + escrita ligada; download = `filesDir` + `NoOpCacheEvictor` + somente leitura. Juntá-los
+  faria o evictor apagar a aula que o aluno baixou para o voo. Dividem só o `DatabaseProvider`.
+- **A chave do cache é a URL SEM a query** (`feedVideoCacheKey`, pura e testada). A URL de feed é
+  assinada e muda a cada abertura da tela: endereçada pela URL inteira, cada token viraria uma cópia
+  nova no disco e nenhuma seria reaproveitada.
+- **`Media3FeedPreloader` (Android)** — `DefaultPreloadManager`, o caminho oficial da Media3 para
+  feed de vídeo curto. Escada (pura, em `feedPreloadTargetFor`): **3 s** no próximo · **1 s** no 2º e
+  3º · **5 s só em disco** até o 5º · nada além disso.
+- **Só para frente, e cancelado quando o vídeo da vez passa fome** (`shouldCancelFeedPreload`:
+  < 5 s de buffer à frente, ou `Buffering`). Adiantar o post de baixo enquanto o de cima trava é o
+  pior negócio possível — é o consenso entre a documentação da ByteDance e o `invalidate()` da
+  Media3. Pré-carregar para trás foi recusado: dobraria o gasto para cobrir o caso raro.
+- **`bufferForPlaybackMs` 1000 → 500** — é o teto direto do tempo até o primeiro quadro, e é o valor
+  do demo oficial de vídeo curto do Google.
+- **`ExoPlayer.setPriority`** (`PRIORITY_PLAYBACK` × `PRIORITY_PLAYBACK_PRELOAD`) separa quem toca de
+  quem adianta. O CDD do Android 16 garante **6** decodificadores SDR concorrentes, e há aparelho
+  relatando **1**: sem prioridade, quem o sistema derruba pode ser o vídeo que está na tela.
+- **Rede medida e Data Saver cortam o PRÉ-CARREGAMENTO, nunca a reprodução**
+  (`isActiveNetworkMetered` + `getRestrictBackgroundStatus`; chave de escape em
+  `FeedVideoConfig.preloadOnMeteredNetwork`). ⚠️ **Não** foi implementado "autoplay só no Wi-Fi":
+  é padrão legado, e nem Instagram nem TikTok o têm.
+
+**iOS — três decisões, e a primeira custa zero e vale muito:**
+
+- **A `AVPlayerLayer` passa a ser anexada ANTES de o item virar `currentItem`.** É a recomendação da
+  Apple (WWDC16-503): item que vira `currentItem` sem camada faz a AVFoundation montar o pipeline
+  **só de áudio**, para reconfigurar depois. Acontecia em **todo** item do feed — o `load()` do
+  controller roda num `SideEffect`, antes de a superfície compor. A camada agora nasce dentro do
+  engine, e a superfície só a **adota**.
+- **`AVPlayerLooper` saiu; o laço é manual** (`AVPlayerItemDidPlayToEndTime` + `seek(.zero)` com
+  `actionAtItemEnd = .none`). Motivo: o looper **ignora** `preferredForwardBufferDuration` e
+  `preferredMaximumResolution` (ele gerencia réplicas do item por dentro), e tem bug conhecido de
+  seek em HLS. Como o pré-carregamento do iOS **é** o `preferredForwardBufferDuration`, mantê-lo
+  seria manter um parâmetro público que não faz nada — e o feed vai para HLS na migração ao Bunny
+  Stream. Feito **antes** dela, de propósito.
+- **`preferredForwardBufferDuration` = 1 s em quem não tem a vez**, automático em quem toca; e o
+  asset de quem está adiantando nasce com `AVURLAssetAllowsExpensiveNetworkAccessKey` /
+  `…ConstrainedNetworkAccessKey` em `false` (o Modo Dados Reduzidos da Apple). Ao ganhar a vez, um
+  item barrado é refeito sem a restrição — senão ficaria esperando para sempre um Wi-Fi que não vem.
+
+**Media3 1.6.1 → 1.11.1.** Exigido pelo `specifiedRangeCached` (pré-carregar para o disco, 1.9.0+) e
+pelo `setPriority`. ⚠️ **Um breaking interno veio junto:** `DownloadHelper.Callback.onPrepared`
+ganhou um segundo parâmetro (`hasPreparedTracks`) — corrigido no `video.download`; nenhum app é
+afetado.
+
+**Sobre o `PlayerPool` do Google** (novo em `media3-common-ktx` 1.11.0, com `rememberPooledPlayer` em
+`media3-ui-compose`): **avaliado e recusado**, com motivo. O `acquire` dele é **suspenso** e o
+`rememberPooledPlayer` amarra a posse do player à composição de cada item; o nosso pool decide de
+forma **síncrona e por prioridade** (`assignFeedVideoSlots`), e sabe preferir o player que **já está
+com a mesma fonte carregada** — é o que faz o vídeo que saiu da vez e voltou retomar sem reabrir o
+manifesto. Também precisamos emprestar player a item **fora** da vez e trocar de dono sem passar
+pela composição. O do Google resolve "N players para M itens"; o nosso resolve "quem toca, quem
+adianta e quem espera". Registrado no KDoc do `FeedVideoController`.
+
+### 2. `VideoPicker` — referência ao arquivo, não os bytes; e galeria sem câmera
+
+O seletor existia e tinha dois defeitos sérios para publicar vídeo:
+
+- **Carregava o arquivo inteiro num `ByteArray`** (`openInputStream().readBytes()` no Android,
+  `NSData.dataWithContentsOfURL` no iOS). Com o limite de 100 MB da casa, é `OutOfMemoryError` em
+  aparelho de entrada — e `OutOfMemoryError` **não é `Exception`**, então o `try/catch` em volta nem
+  o pegava. Agora devolve **`PickedVideo`**: referência (`content://` no Android, caminho de uma
+  cópia nossa no iOS) + nome + mime + tamanho, e os bytes saem do disco em pedaços por
+  **`PickedVideo.readChunks`** (256 KB), pronto para `PUT` em fluxo no provedor de vídeo.
+- **Sempre oferecia "Gravar vídeo".** Decisão do fundador (11/set/2026): *"a gente não vai ter
+  câmeras para publicar; esses vídeos vão ser mais trabalhados, muitas vezes editados"*. Entrou
+  **`VideoPickerSource.GALLERY_ONLY`**, que abre o seletor do sistema **direto**, sem folha de
+  escolha (uma folha com uma opção só é um toque a mais para nada) e sem exigir a permissão de
+  câmera. O default é `GALLERY_AND_CAMERA` — o comportamento de sempre.
+
+De quebra, e nas duas plataformas: **duração e medida** vêm junto (`durationMillis`, `widthPx`,
+`heightPx`), **com a rotação já aplicada** — vídeo de celular gravado em pé chega com medida de
+deitado + matriz de 90°, e quem lê a medida crua conclui que todo vídeo de celular é horizontal. Com
+a duração em mãos, o app recusa o vídeo de 90 s **antes** de subir 100 MB para o backend devolver
+erro (o teto é 61 s). Android: `MediaMetadataRetriever`; iOS: `AVURLAsset`.
+
+Também novo: **`VideoPickerError`** (`UNREADABLE`, `CAMERA_PERMISSION_DENIED`, `CAMERA_UNAVAILABLE`).
+Antes, câmera negada era um `if (granted)` **sem `else`** e falha de leitura era `printStackTrace()`:
+o toque no botão não produzia efeito nenhum, e a leitura de quem usa é "está quebrado". É a mesma
+correção que o `ImagePicker` recebeu na 2.131.0.
+
+⚠️ **Corrigido de passagem, e era grave:** no iOS os delegates do seletor eram criados **dentro** do
+bloco de lançamento, e `PHPickerViewController.delegate` é **weak** — o delegate podia ser liberado
+antes de a pessoa escolher, e aí escolher o vídeo não fazia nada, sem erro. Agora há referência
+forte de módulo. **O `ImagePicker.ios.kt` tem o mesmo defeito** e **não** foi tocado (fora do escopo);
+está registrado em `docs/backlog.md`.
+
+`SelectedVideo` e a sobrecarga antiga continuam existindo, **`@Deprecated`**, implementados sobre a
+API nova — nada deixa de compilar, e o caminho de migração está na mensagem. Nenhum projeto do
+monorepo usava o `VideoPicker` (conferido arquivo por arquivo).
+
+### De passagem
+
+- **O `VideoPicker` e o `ImagePicker` NÃO estavam na skill-catálogo** — nem no índice, nem em
+  `references/ui.md`. Falha do catálogo, não da lib: o fundador quase escreveu um seletor de vídeo do
+  zero por não encontrar o que já existia. Corrigido no mesmo commit.
+
+Testes: `FeedVideoPreloadTest` (17 — a escada, o cancelamento por fome, a chave de cache) e
+`FeedVideoControllerTest` (+11 — modo de adiantamento por player, ordem da tela entregue ao
+pré-carregador, fome suspendendo, `poll` que não reenvia a mesma ordem). Compilado no servidor:
+`compileDebugKotlinAndroid` e `compileKotlinIosArm64` de `kmplib-video` e `kmplib-ui` (conferido:
+executados, não `SKIPPED`). **Não validado em aparelho** — cache, consumo de dados e o seletor de
+vídeo são do fundador (backlog `GAP-CC-M-07`).
+
+Aditiva. Nenhum app precisa mudar.
+
 ## 2.196.0 — Vídeo de FEED: toca mudo ao aparecer, um por vez, em laço, com som global
 
 O `VideoPlayer` (2.191.0) é de aula: controles, velocidade, legenda, retomada. Faltava o vídeo **de

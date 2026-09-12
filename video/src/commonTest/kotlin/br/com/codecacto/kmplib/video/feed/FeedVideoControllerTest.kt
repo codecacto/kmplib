@@ -20,6 +20,12 @@ private class PlayerFalso : FeedVideoEngine() {
     var esvaziado = 0
     var destruido = false
 
+    /** `null` = o controller nunca disse. Ver [FeedVideoEngine.setPreloadMode]. */
+    var adiantando: Boolean? = null
+
+    /** O que este player responde ao controller quando ele pergunta pela folga de buffer. */
+    var folgaDeBuffer: Long? = null
+
     override fun load(url: String, kind: VideoStreamKind) {
         carregamentos += url
         loadedUrl = url
@@ -40,6 +46,12 @@ private class PlayerFalso : FeedVideoEngine() {
         mudo = muted
     }
 
+    override fun setPreloadMode(preloading: Boolean) {
+        adiantando = preloading
+    }
+
+    override fun bufferedAheadMillis(): Long? = folgaDeBuffer
+
     override fun clear() {
         esvaziado++
         tocando = false
@@ -56,16 +68,53 @@ private class PlayerFalso : FeedVideoEngine() {
         status = VideoStatus.Error(kind, "falhou")
     }
 
+    /** O vídeo parou para esperar dado — é isto que cancela o pré-carregamento dos vizinhos. */
+    fun engasgar() {
+        status = VideoStatus.Buffering
+    }
+
     fun outroAppTomouOAudio() = onAudioLost?.invoke()
+}
+
+/** Um pré-carregador de mentira: guarda a última ordem recebida. */
+private class PreloaderFalso : FeedPreloader {
+    var atualizacoes = 0
+    var itens: List<FeedPreloadItem> = emptyList()
+    var indiceAtual: Int = -2
+    var pausado: Boolean? = null
+    var reiniciado = 0
+    var liberado = 0
+
+    override fun update(items: List<FeedPreloadItem>, currentIndex: Int, paused: Boolean) {
+        atualizacoes++
+        itens = items
+        indiceAtual = currentIndex
+        pausado = paused
+    }
+
+    override fun reset() {
+        reiniciado++
+    }
+
+    override fun release() {
+        liberado++
+    }
+
+    val urls get() = itens.map { it.url }
 }
 
 class FeedVideoControllerTest {
 
     private val criados = mutableListOf<PlayerFalso>()
     private val som = FeedVideoSoundState()
+    private val preloader = PreloaderFalso()
 
     private fun controller(config: FeedVideoConfig = FeedVideoConfig()) =
         FeedVideoController(config, som) { PlayerFalso().also { criados += it } }
+
+    /** O mesmo controller, mas com o pré-carregador espião. */
+    private fun controllerComPreloader(config: FeedVideoConfig = FeedVideoConfig()) =
+        FeedVideoController(config, som, preloader) { PlayerFalso().also { criados += it } }
 
     private fun FeedVideoController.item(key: String, fracao: Float, top: Float) {
         setSource(key, "https://cdn/$key.m3u8", VideoStreamKind.Auto)
@@ -347,5 +396,145 @@ class FeedVideoControllerTest {
         assertTrue(c.isPlaying)
         c.player("a")!!.falhar(VideoErrorKind.Network)
         assertFalse(c.isPlaying)
+    }
+
+    // ------------------------------------------------------- prioridade / modo de preload
+
+    @Test
+    fun quemTemAVezSaiDoModoDeAdiantamentoEOOutroFicaNele() {
+        val c = controller()
+        c.item("a", 1f, 0f)
+        c.item("b", 0.3f, 1200f)
+
+        // É esta diferença que, no Android, decide quem perde o decodificador em aparelho apertado.
+        assertEquals(false, c.player("a")!!.adiantando)
+        assertEquals(true, c.player("b")!!.adiantando)
+    }
+
+    @Test
+    fun aVezQueMudaTrocaOModoDosDoisPlayers() {
+        val c = controller()
+        c.item("a", 1f, 0f)
+        c.item("b", 0.3f, 1200f)
+        val playerDoA = c.player("a")!!
+        val playerDoB = c.player("b")!!
+
+        c.report("a", 0.2f, -900f)
+        c.report("b", 1f, 0f)
+
+        assertEquals(true, playerDoA.adiantando)
+        assertEquals(false, playerDoB.adiantando)
+    }
+
+    @Test
+    fun semNinguemNaVezTodoPlayerFicaEmAdiantamento() {
+        val c = controller()
+        c.item("a", 1f, 0f)
+        c.setPlaybackEnabled(false)
+        assertEquals(true, c.player("a")!!.adiantando)
+    }
+
+    // --------------------------------------------------------------- pré-carregamento
+
+    @Test
+    fun oPreloaderRecebeOsItensNaOrdemDaTela() {
+        val c = controllerComPreloader()
+        // Declarados fora de ordem de propósito: quem manda é a posição na tela, não a de inserção.
+        c.item("meio", 0.3f, 1000f)
+        c.item("topo", 1f, 0f)
+        c.item("fundo", 0.1f, 2000f)
+
+        assertEquals(
+            listOf("https://cdn/topo.m3u8", "https://cdn/meio.m3u8", "https://cdn/fundo.m3u8"),
+            preloader.urls,
+        )
+        assertEquals(0, preloader.indiceAtual)
+        assertEquals(false, preloader.pausado)
+    }
+
+    @Test
+    fun aChaveDeCacheIgnoraOTokenDaUrl() {
+        val c = controllerComPreloader()
+        c.setSource("a", "https://cdn/a.mp4?token=abc", VideoStreamKind.Auto)
+        c.report("a", 1f, 0f)
+        assertEquals(listOf("https://cdn/a.mp4"), preloader.itens.map { it.cacheKey })
+    }
+
+    @Test
+    fun semNinguemTocandoOIndiceEhMenosUm() {
+        val c = controllerComPreloader()
+        c.item("a", 0.2f, 0f)
+        assertEquals(-1, preloader.indiceAtual)
+    }
+
+    @Test
+    fun fomeDoVideoDaVezSuspendeOPreload() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+        assertEquals(false, preloader.pausado)
+
+        // O vídeo da vez parou para esperar dado: adiantar o de baixo agora é roubar a banda dele.
+        c.player("a")!!.engasgar()
+        c.poll()
+        assertEquals(true, preloader.pausado)
+    }
+
+    @Test
+    fun bufferCurtoDoVideoDaVezSuspendeOPreload() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+        c.player("a")!!.folgaDeBuffer = 2_000L
+        c.poll()
+        assertEquals(true, preloader.pausado)
+    }
+
+    @Test
+    fun bufferConfortavelMantemOPreload() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+        c.player("a")!!.folgaDeBuffer = 20_000L
+        c.poll()
+        assertEquals(false, preloader.pausado)
+    }
+
+    @Test
+    fun oFeedPausadoNaoAdiantaNada() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+        c.setPlaybackEnabled(false)
+        assertEquals(true, preloader.pausado)
+    }
+
+    @Test
+    fun pollRepetidoNaoReenviaAMesmaOrdem() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+        val depoisDoPrimeiro = preloader.atualizacoes
+
+        repeat(10) { c.poll() }
+
+        // O poll roda a cada 150 ms: sem esta trava, seria um `invalidate()` da Media3 por tique.
+        assertEquals(depoisDoPrimeiro, preloader.atualizacoes)
+    }
+
+    @Test
+    fun segundoPlanoEsqueceOsItensEALiberacaoSolta() {
+        val c = controllerComPreloader()
+        c.item("a", 1f, 0f)
+
+        c.onStop()
+        assertEquals(1, preloader.reiniciado)
+
+        c.release()
+        assertEquals(1, preloader.liberado)
+    }
+
+    @Test
+    fun oControllerSemPreloaderNaoQuebra() {
+        // O default é `NoFeedPreloader` — é o que o iOS usa, e é o que os testes acima exercitam.
+        val c = controller()
+        c.item("a", 1f, 0f)
+        c.poll()
+        assertEquals("a", c.activeKey)
     }
 }

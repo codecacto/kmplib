@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,10 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
+import br.com.codecacto.kmplib.core.util.AppLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 actual class VideoPickerLauncher(
-    private val onLaunch: () -> Unit
+    private val onLaunch: () -> Unit,
 ) {
     actual fun launch() {
         onLaunch()
@@ -53,120 +58,90 @@ actual class VideoPickerLauncher(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 actual fun rememberVideoPickerLauncher(
-    onVideoSelected: (SelectedVideo) -> Unit
+    source: VideoPickerSource,
+    onVideoPicked: (PickedVideo) -> Unit,
+    onError: (VideoPickerError) -> Unit,
 ): VideoPickerLauncher {
     val context = LocalContext.current
-    var showChooser by remember { mutableStateOf(false) }
-    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    var mostrarEscolha by remember { mutableStateOf(false) }
+    var uriDaCaptura by remember { mutableStateOf<Uri?>(null) }
 
-    val pickMedia = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
+    // `PickVisualMedia` é o seletor de fotos do sistema: NÃO pede permissão de armazenamento (o
+    // processo escolhido roda fora do app) e é o que o Android indica desde a API 33.
+    val galeria = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
-        uri?.let { readVideoFromUri(context, it, onVideoSelected) }
+        // `null` = fechou sem escolher. Desistir NÃO é erro.
+        uri?.let { entregar(context, it, onVideoPicked, onError) }
     }
 
-    val captureVideo = rememberLauncherForActivityResult(
-        ActivityResultContracts.CaptureVideo()
-    ) { success: Boolean ->
-        if (success) {
-            captureUri?.let { uri -> readVideoFromUri(context, uri, onVideoSelected) }
-        }
+    val camera = rememberLauncherForActivityResult(
+        ActivityResultContracts.CaptureVideo(),
+    ) { gravou: Boolean ->
+        if (gravou) uriDaCaptura?.let { entregar(context, it, onVideoPicked, onError) }
     }
 
-    fun launchCamera() {
+    fun abrirGaleria() {
+        galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+    }
+
+    fun abrirCamera() {
         try {
-            val videosDir = File(context.cacheDir, "videos")
-            videosDir.mkdirs()
-            val file = File(videosDir, "video_${System.currentTimeMillis()}.mp4")
+            val pasta = File(context.cacheDir, "videos").apply { mkdirs() }
+            val arquivo = File(pasta, "video_${System.currentTimeMillis()}.mp4")
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
-                file
+                arquivo,
             )
-            captureUri = uri
-            captureVideo.launch(uri)
+            uriDaCaptura = uri
+            camera.launch(uri)
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLogger.w(TAG, "Câmera de vídeo indisponível: ${e.message}")
+            onError(VideoPickerError.CAMERA_UNAVAILABLE)
         }
     }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted: Boolean ->
-        if (granted) {
-            launchCamera()
-        }
+    val permissaoDaCamera = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { concedida: Boolean ->
+        // Sem `else`, negar a permissão fazia o botão "não fazer nada" — o defeito que o
+        // `ImagePickerError` já tinha corrigido no seletor de foto (2.131.0).
+        if (concedida) abrirCamera() else onError(VideoPickerError.CAMERA_PERMISSION_DENIED)
     }
 
-    if (showChooser) {
-        val sheetState = rememberModalBottomSheetState()
+    if (mostrarEscolha) {
+        val estadoDaFolha = rememberModalBottomSheetState()
         ModalBottomSheet(
-            onDismissRequest = { showChooser = false },
-            sheetState = sheetState,
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            onDismissRequest = { mostrarEscolha = false },
+            sheetState = estadoDaFolha,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = "Adicionar video",
+                    text = "Adicionar vídeo",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                    modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
                 )
 
-                TextButton(
-                    onClick = {
-                        showChooser = false
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
-                            launchCamera()
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Videocam,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Gravar video", fontSize = 16.sp)
-                    }
+                OpcaoDoSeletor(Icons.Default.Videocam, "Gravar vídeo") {
+                    mostrarEscolha = false
+                    val temPermissao = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (temPermissao) abrirCamera() else permissaoDaCamera.launch(Manifest.permission.CAMERA)
                 }
 
-                TextButton(
-                    onClick = {
-                        showChooser = false
-                        pickMedia.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PhotoLibrary,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Escolher da galeria", fontSize = 16.sp)
-                    }
+                OpcaoDoSeletor(Icons.Default.PhotoLibrary, "Escolher da galeria") {
+                    mostrarEscolha = false
+                    abrirGaleria()
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -174,36 +149,126 @@ actual fun rememberVideoPickerLauncher(
         }
     }
 
-    return remember(pickMedia, captureVideo) {
+    return remember(source, galeria, camera) {
         VideoPickerLauncher {
-            showChooser = true
+            when (source) {
+                // Sem folha de escolha: uma folha com uma opção só é um toque a mais para nada.
+                VideoPickerSource.GALLERY_ONLY -> abrirGaleria()
+                VideoPickerSource.GALLERY_AND_CAMERA -> mostrarEscolha = true
+            }
         }
     }
 }
 
-private fun readVideoFromUri(
+@Composable
+private fun OpcaoDoSeletor(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    rotulo: String,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = icone, contentDescription = null, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(rotulo, fontSize = 16.sp)
+        }
+    }
+}
+
+/**
+ * Monta o [PickedVideo] a partir da URI — **sem abrir o arquivo**.
+ *
+ * O que se lê aqui é o cabeçalho (nome, tamanho, e os metadados do contêiner). Os bytes só saem do
+ * disco em [readChunks], na hora do upload.
+ */
+private fun entregar(
     context: Context,
     uri: Uri,
-    onVideoSelected: (SelectedVideo) -> Unit
+    onVideoPicked: (PickedVideo) -> Unit,
+    onError: (VideoPickerError) -> Unit,
 ) {
     try {
         val resolver = context.contentResolver
-        val mimeType = resolver.getType(uri) ?: "video/mp4"
-        val name = queryDisplayName(context, uri)
-            ?: "video_${System.currentTimeMillis()}.${mimeType.substringAfter('/', "mp4")}"
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return
-        onVideoSelected(SelectedVideo(bytes = bytes, mimeType = mimeType, name = name))
+        val mime = resolver.getType(uri) ?: "video/mp4"
+        var nome: String? = null
+        var tamanho = 0L
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    if (!cursor.isNull(0)) nome = cursor.getString(0)
+                    if (!cursor.isNull(1)) tamanho = cursor.getLong(1)
+                }
+            }
+        val metadados = lerMetadados(context, uri)
+        onVideoPicked(
+            PickedVideo(
+                reference = uri.toString(),
+                name = nome ?: "video_${System.currentTimeMillis()}.${mime.substringAfter('/', "mp4")}",
+                mimeType = mime,
+                sizeBytes = tamanho,
+                durationMillis = metadados.duracaoMillis,
+                widthPx = metadados.largura,
+                heightPx = metadados.altura,
+            ),
+        )
     } catch (e: Exception) {
-        e.printStackTrace()
+        AppLogger.w(TAG, "Vídeo escolhido não pôde ser lido: ${e.message}")
+        onError(VideoPickerError.UNREADABLE)
     }
 }
 
-private fun queryDisplayName(context: Context, uri: Uri): String? {
+private class MetadadosDeVideo(val duracaoMillis: Long?, val largura: Int?, val altura: Int?)
+
+/**
+ * Duração e medida, do **cabeçalho** do arquivo (`MediaMetadataRetriever`).
+ *
+ * ⚠️ A rotação é aplicada aqui. Vídeo de celular gravado em pé costuma vir com
+ * `naturalSize` de deitado **mais** `METADATA_KEY_VIDEO_ROTATION = 90`: quem lê largura e altura
+ * cruas conclui que todo vídeo de celular é horizontal, e a moldura sai errada na tela.
+ *
+ * Falha aqui **não** derruba a escolha: `null` nos três, e o app segue sem a validação de duração.
+ */
+private fun lerMetadados(context: Context, uri: Uri): MetadadosDeVideo {
+    val leitor = MediaMetadataRetriever()
     return try {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
-    } catch (_: Exception) {
-        null
+        leitor.setDataSource(context, uri)
+        val duracao = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        val largura = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+        val altura = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+        val rotacao = leitor.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+        val deitadoNoArquivo = rotacao == 90 || rotacao == 270
+        MetadadosDeVideo(
+            duracaoMillis = duracao,
+            largura = if (deitadoNoArquivo) altura else largura,
+            altura = if (deitadoNoArquivo) largura else altura,
+        )
+    } catch (e: Exception) {
+        AppLogger.w(TAG, "Metadados do vídeo não lidos: ${e.message}")
+        MetadadosDeVideo(null, null, null)
+    } finally {
+        runCatching { leitor.release() }
     }
 }
+
+actual suspend fun PickedVideo.readChunks(
+    chunkSize: Int,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+) {
+    val context = AndroidAppContext.get()
+        ?: error("kmplib-ui: chame KmpLib.init(context) (ou initKmpLibCore) antes de ler o vídeo.")
+    val uri = Uri.parse(reference)
+    withContext(Dispatchers.IO) {
+        val entrada = context.contentResolver.openInputStream(uri)
+            ?: error("Vídeo indisponível: $reference")
+        entrada.use { fluxo ->
+            val buffer = ByteArray(chunkSize.coerceAtLeast(1))
+            while (true) {
+                val lidos = fluxo.read(buffer)
+                if (lidos <= 0) break
+                onChunk(buffer, lidos)
+            }
+        }
+    }
+}
+
+private const val TAG = "KmpLibVideoPicker"

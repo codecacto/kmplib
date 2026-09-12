@@ -9,8 +9,9 @@ import br.com.codecacto.kmplib.video.VideoStatus
 import br.com.codecacto.kmplib.video.VideoStreamKind
 
 /**
- * O **coordenador** dos vídeos de um feed: decide quem toca, empresta os players do pool e aplica o
- * som. Um por feed — obtenha com [rememberFeedVideoController] (ou deixe o [FeedVideoHost] criar).
+ * O **coordenador** dos vídeos de um feed: decide quem toca, empresta os players do pool, adianta os
+ * vizinhos e aplica o som. Um por feed — obtenha com [rememberFeedVideoController] (ou deixe o
+ * [FeedVideoHost] criar).
  *
  * ### O que ele garante
  * - **Um vídeo toca por vez**: o mais visível acima de [FeedVideoConfig.playThreshold]
@@ -21,6 +22,8 @@ import br.com.codecacto.kmplib.video.VideoStreamKind
  * - **Item que sai da composição devolve o player esvaziado** (sem decodificador, sem buffer); ao ir
  *   para o segundo plano (`ON_STOP`), **todos os players são destruídos** e recriados na volta.
  * - **Som global** ([sound]): o mesmo estado para todos os vídeos.
+ * - **Pré-carregamento para frente** ([FeedPreloader]): os 2–3 vídeos de baixo já vêm adiantados, e
+ *   **tudo é cancelado** assim que o vídeo da vez passa fome ([shouldCancelFeedPreload]).
  *
  * ### Pausar o feed sem sair da tela
  * [isPlaybackEnabled] = `false` pausa o feed inteiro: um bottom sheet por cima, uma aba que ficou
@@ -33,6 +36,11 @@ class FeedVideoController internal constructor(
     val config: FeedVideoConfig,
     /** O som do feed. Ver [FeedVideoSoundState]. */
     val sound: FeedVideoSoundState,
+    /**
+     * Quem adianta os vizinhos. Default [NoFeedPreloader] — o feed funciona sem ele, só com o pool.
+     * Quem passa o de verdade é o [rememberFeedVideoController].
+     */
+    private val preloader: FeedPreloader = NoFeedPreloader,
     private val engineFactory: () -> FeedVideoEngine,
 ) {
 
@@ -150,11 +158,16 @@ class FeedVideoController internal constructor(
      * `ON_STOP`: **destrói todos os players**. Não é só pausar: um feed no segundo plano não tem por
      * que segurar dois decodificadores de vídeo, e a Media3 recomenda exatamente isto (liberar em
      * `onStop`). Na volta eles são recriados, e a capa cobre a espera.
+     *
+     * O pré-carregamento também para — adiantar vídeo para uma tela que ninguém está vendo é gastar
+     * o plano de dados por nada.
      */
     internal fun onStop() {
         if (!emPrimeiroPlano) return
         emPrimeiroPlano = false
         destruirPlayers()
+        ultimoPreload = null
+        preloader.reset()
     }
 
     /** A tela saiu: destrói tudo. O controller não é mais usado depois disto. */
@@ -163,11 +176,20 @@ class FeedVideoController internal constructor(
         emPrimeiroPlano = false
         entradas.clear()
         destruirPlayers()
+        ultimoPreload = null
+        preloader.release()
     }
 
-    /** Leitura periódica do estado nativo (no-op no Android). */
+    /**
+     * Leitura periódica do estado nativo (no-op no Android).
+     *
+     * Também é aqui que a **fome** do vídeo da vez é reavaliada: o buffer encolhe sem que ninguém
+     * role a tela, então esperar por um [report] deixaria o pré-carregamento roubando banda
+     * justamente enquanto o vídeo visível trava.
+     */
     internal fun poll() {
         slots.forEach { it.engine.refresh() }
+        atualizarPreload()
     }
 
     /** Aplica o som atual a todos os players do pool. */
@@ -228,13 +250,50 @@ class FeedVideoController internal constructor(
         if (novaAtribuicao != atribuicao) atribuicao = novaAtribuicao
         if (novoAtivo != activeKey) activeKey = novoAtivo
         aplicarReproducao()
+        atualizarPreload()
     }
 
     private fun aplicarReproducao() {
         val indiceAtivo = activeKey?.let { atribuicao[it] }
         slots.forEachIndexed { indice, slot ->
-            if (indice == indiceAtivo) slot.engine.play() else slot.engine.pause()
+            val eODaVez = indice == indiceAtivo
+            // ANTES do play: é o que diz ao sistema quem não pode perder o decodificador (Android) e
+            // quanto de buffer cada um pode pedir (iOS). Depois do play, o player já teria começado
+            // a puxar dado com a prioridade errada.
+            slot.engine.setPreloadMode(!eODaVez)
+            if (eODaVez) slot.engine.play() else slot.engine.pause()
         }
+    }
+
+    /**
+     * O que o feed está mostrando, na ordem da tela, para quem adianta os vizinhos.
+     *
+     * Só empurra quando algo **muda de verdade** (lista, quem toca, ou o estado de fome): o [poll]
+     * roda a cada 150 ms, e um `invalidate()` do pré-carregador a cada tique seria trabalho puro.
+     */
+    private fun atualizarPreload() {
+        if (preloader === NoFeedPreloader || liberado || !emPrimeiroPlano) return
+
+        val ordenados = entradas.entries.sortedBy { it.value.top }
+        val itens = ordenados.map { FeedPreloadItem(it.value.url, it.value.kind) }
+        val indiceAtual = ordenados.indexOfFirst { it.key == activeKey }
+        val pausado = !isPlaybackEnabled || comFome()
+
+        val assinatura = Triple(itens.map { it.url }, indiceAtual, pausado)
+        if (assinatura == ultimoPreload) return
+        ultimoPreload = assinatura
+        preloader.update(itens, indiceAtual, pausado)
+    }
+
+    private var ultimoPreload: Triple<List<String>, Int, Boolean>? = null
+
+    /** O vídeo da vez está sem folga de buffer? Ver [shouldCancelFeedPreload]. */
+    private fun comFome(): Boolean {
+        val engine = activeKey?.let { engineFor(it) } ?: return false
+        return shouldCancelFeedPreload(
+            bufferedAheadMillis = engine.bufferedAheadMillis(),
+            buffering = engine.status == VideoStatus.Buffering,
+        )
     }
 
     private fun novoPlayer(): FeedVideoEngine = engineFactory().also { engine ->

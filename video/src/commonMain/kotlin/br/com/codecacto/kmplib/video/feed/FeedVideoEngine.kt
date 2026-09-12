@@ -15,9 +15,9 @@ import br.com.codecacto.kmplib.video.VideoStreamKind
  * nasce com `MediaSession`, legenda, velocidade e — no iOS — com a sessão de áudio em `.playback`,
  * que **interrompe a música** que a pessoa estava ouvindo. Um vídeo mudo de feed não pode fazer isso.
  *
- * - **Android:** um `ExoPlayer` (Media3) em laço (`REPEAT_MODE_ONE`), com buffer curto.
- * - **iOS:** um `AVQueuePlayer` com `AVPlayerLooper` — o caminho que a Apple indica para laço sem
- *   emenda (o "seek para zero no fim" deixa um soluço visível a cada volta).
+ * - **Android:** um `ExoPlayer` (Media3) em laço (`REPEAT_MODE_ONE`), com buffer curto e origem de
+ *   dados **com cache de disco** (ver `FeedVideoCache`).
+ * - **iOS:** um `AVPlayer` com a camada já anexada e laço manual (ver `FeedVideoEngine.ios.kt`).
  *
  * Quem cria, recicla e libera é o [FeedVideoController]; nenhuma tela segura um destes.
  */
@@ -62,14 +62,48 @@ internal abstract class FeedVideoEngine {
     abstract fun release()
 
     /**
+     * Este player está **adiantando** um vídeo que ainda não tem a vez (`true`), ou é o que está
+     * tocando (`false`)? O controller avisa a cada troca de vez.
+     *
+     * O que cada plataforma faz com a informação — e nos dois casos é a diferença entre "o feed
+     * escorrega" e "o vídeo da vez engasga por causa do de baixo":
+     * - **Android:** `ExoPlayer.setPriority` (`PRIORITY_PLAYBACK` × `PRIORITY_PLAYBACK_PRELOAD`). Em
+     *   aparelho apertado é **isto** que decide quem perde o decodificador de vídeo — o CDD do
+     *   Android 16 garante só 6 decodificadores SDR simultâneos, e há aparelho relatando **1**. Sem
+     *   prioridade, quem o sistema derruba pode ser justamente o vídeo que está na tela.
+     * - **iOS:** `preferredForwardBufferDuration` — 1 s em quem está fora da vez, automático em quem
+     *   toca. É o equivalente possível do pré-carregamento medido (a AVFoundation não tem
+     *   `PreloadManager`).
+     */
+    open fun setPreloadMode(preloading: Boolean) = Unit
+
+    /**
+     * Quanto há de buffer **à frente** da posição atual, em milissegundos, ou `null` se a plataforma
+     * não souber dizer.
+     *
+     * Serve a uma decisão só: [shouldCancelFeedPreload] — o vídeo da vez passando fome cancela todo
+     * o pré-carregamento dos vizinhos. `null` **não** é fome (ver lá).
+     */
+    open fun bufferedAheadMillis(): Long? = null
+
+    /**
      * Lê o estado do player nativo. No Android é no-op (o ExoPlayer empurra eventos); no iOS é a
      * leitura periódica — o AVPlayer não tem listener, o `status` do item se lê.
      */
     open fun refresh() = Unit
 }
 
-/** Cria o player nativo do pool. Só o [FeedVideoController] chama. */
-internal expect fun createFeedVideoEngine(): FeedVideoEngine
+/**
+ * Cria o player nativo do pool. Só o [FeedVideoController] chama.
+ *
+ * @param preloader o pré-carregador do feed. No Android o player é construído **pelo mesmo builder**
+ *   do `DefaultPreloadManager`, para dividir com ele a thread de reprodução e o cache; sem isso os
+ *   dois disputariam recursos sem se enxergar.
+ */
+internal expect fun createFeedVideoEngine(
+    config: FeedVideoConfig,
+    preloader: FeedPreloader,
+): FeedVideoEngine
 
 /**
  * A superfície de um player do pool dentro da caixa do post.

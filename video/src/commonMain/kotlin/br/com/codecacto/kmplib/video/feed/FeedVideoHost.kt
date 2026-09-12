@@ -33,7 +33,7 @@ val LocalFeedVideoController: ProvidableCompositionLocal<FeedVideoController?> =
  * - **`ON_STOP` destrói os players** (e `ON_START` os recria). `ON_STOP`, e não `ON_PAUSE`: um
  *   diálogo por cima dispara `ON_PAUSE`, e o vídeo pararia por causa de um menu. É também o gatilho
  *   de navegação: a tela que ficou para trás na pilha recebe `ON_STOP`.
- * - **Sair da composição destrói tudo.**
+ * - **Sair da composição destrói tudo** — inclusive o pré-carregador.
  * - **Tela acesa só com som.** Vídeo de feed é laço: com a tela presa acesa ele tocaria para sempre
  *   num celular largado na mesa. Mudo, vale o tempo de tela do sistema (a pessoa que rola o feed já
  *   o mantém aceso tocando nele); com som, a pessoa está assistindo, e a tela não apaga no meio.
@@ -48,8 +48,18 @@ fun rememberFeedVideoController(
     sound: FeedVideoSoundState = FeedVideoSoundState.Shared,
 ): FeedVideoController {
     val ciclo = LocalLifecycleOwner.current.lifecycle
-    val controller = remember(config, sound) {
-        FeedVideoController(config = config, sound = sound, engineFactory = ::createFeedVideoEngine).also {
+
+    // O pré-carregador vive junto do controller: no Android ele é dono do `DefaultPreloadManager`,
+    // e é o mesmo builder dele que constrói os players do pool (ver `createFeedVideoEngine`).
+    val preloader = remember(config) { createFeedPreloader(config) }
+
+    val controller = remember(config, sound, preloader) {
+        FeedVideoController(
+            config = config,
+            sound = sound,
+            preloader = preloader,
+            engineFactory = { createFeedVideoEngine(config, preloader) },
+        ).also {
             // Composto com a tela já fora do primeiro plano: nasce parado, e o `ON_START` o liga.
             if (!ciclo.currentState.isAtLeast(Lifecycle.State.STARTED)) it.onStop()
         }
@@ -69,7 +79,8 @@ fun rememberFeedVideoController(
     }
 
     // Leitura periódica do estado nativo. No Android é no-op; no iOS é assim que se descobre que o
-    // item ficou pronto ou falhou (o AVPlayer não empurra estado).
+    // item ficou pronto ou falhou (o AVPlayer não empurra estado). É também o tique que reavalia se
+    // o vídeo da vez está passando fome — e, se estiver, cancela o pré-carregamento dos vizinhos.
     LaunchedEffect(controller) {
         while (true) {
             controller.poll()
@@ -121,5 +132,5 @@ fun FeedVideoHost(
     }
 }
 
-/** De quanto em quanto tempo o estado nativo é lido (iOS). */
+/** De quanto em quanto tempo o estado nativo é lido (iOS) e a fome do vídeo da vez é reavaliada. */
 internal const val FEED_VIDEO_POLL_MILLIS: Long = 150L
