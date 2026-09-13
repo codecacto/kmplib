@@ -24,6 +24,7 @@ fun initKmpLibPlatform(context: Context) {
     ShakeDetectorHolder.init(context)
     AudioCaptureHolder.init(context)
     DeviceLocaleHolder.init(context)
+    br.com.codecacto.kmplib.platform.links.InstallReferrerHolder.init(context)
 }
 
 /**

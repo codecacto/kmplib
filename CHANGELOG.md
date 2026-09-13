@@ -1,5 +1,43 @@
 # Changelog — kmplib
 
+## 2.201.0 — Link de fora entra por UMA porta, e o link aberto antes de instalar chega ao app (Android)
+
+Aditiva. Módulo `kmplib-platform`, pacote `platform.links`. Dependência nova no Android:
+`com.android.installreferrer:installreferrer:2.2`.
+
+Pedido do fundador (12/set/2026, Mirassol Conectado): quem recebe o link de uma empresa e tem o app
+abre direto no perfil, e **voltar cai na tela inicial**; quem não tem vai à loja, instala, e na
+primeira abertura é levado à mesma empresa.
+
+### `IncomingLinks` — a porta única
+
+`deliver(url)` (plataforma entrega) · `pending: StateFlow<String?>` · `consume(url)` · `belongsTo(url,
+hosts)`. É o padrão da JetBrains para deep link em Compose Multiplatform: a plataforma entrega, o app
+navega com `navController.navigate(NavUri(url))` **quando está pronto**.
+
+Por que não deixar o `NavHost` tratar o `Intent` sozinho, que é o que os apps faziam: ele abre o
+destino **por cima da abertura** (Splash). Voltar dali mostra a abertura de novo, e com o app em
+segundo plano o `onNewIntent` não navegava para lugar nenhum — o link só trazia o app para a frente.
+No Android, depois de entregar, **apague `intent.data`**, senão o `NavHost` abre também.
+
+Aceita só `http(s)` absoluta com host: a volta do login do Google (esquema `com.googleusercontent…`)
+é recusada, e a plataforma a entrega ao SDK. `belongsTo` compara host sem caixa, com `www.` equivalente
+— e recusa `dominio.com.br.outro.com`.
+
+### `readInstallReferrerLinkOnce()` — deferred deep link
+
+- **Android:** Play Install Referrer API, a forma oficial. O site põe `&referrer=cc_link%3D<url>` no
+  link da Play; a primeira abertura lê, uma vez por instalação. Resposta definitiva (ok, ou aparelho
+  sem o serviço) marca como lida; falha passageira tenta na abertura seguinte. **Clique com mais de
+  24 h é ignorado**: quem instalou por um link há meses e só agora recebeu esta versão não é levado
+  àquela empresa.
+- **iOS: `null`, sempre.** A Apple não atravessa a instalação com dado nenhum, e casar clique com
+  instalação por impressão digital do aparelho é vedado pelas diretrizes da App Store. No iOS o link
+  abre o app quando ele já está instalado (Universal Link) — e só.
+
+Puras e testadas: `parseInstallReferrerLink`, `isInstallReferrerFresh`. Testes: `IncomingLinksTest`
+(5) e `InstallReferrerLinkTest` (5).
+
 ## 2.200.0 — "Sem internet" ganha uma TELA CHEIA, e o app continua onde estava quando a rede volta
 
 Aditiva. Nenhuma API existente muda; o default do `ConnectivityGate` continua `Modal`.

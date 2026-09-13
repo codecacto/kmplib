@@ -31,6 +31,9 @@ kotlin {
             implementation(libs.androidx.core)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.biometric)
+            // Play Install Referrer: o link que a pessoa abriu ANTES de instalar (deferred deep
+            // link). É a API oficial do Google Play para isso — ver `readInstallReferrerLinkOnce`.
+            implementation(libs.android.installreferrer)
             // FragmentActivity está na API pública do androidMain (KmpLib.setActivity), exigida
             // por Credential Manager, permissões e biometria. Até a 2.100.0 a classe só chegava ao
             // consumidor por acaso, transitivamente pelo Firebase.
