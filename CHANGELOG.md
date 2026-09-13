@@ -1,5 +1,39 @@
 # Changelog — kmplib
 
+## 2.202.0 — Modo manutenção: a mesma tela cheia do "sem internet", ligada pelo app
+
+Aditiva. Módulo `kmplib-ui`, pacote `ui.components`. Nenhuma API pública existente muda.
+
+Pedido do fundador (12/set/2026, Cidade Conectada): ligado no admin, o modo manutenção trava portais
+e app numa tela de manutenção. O backend responde `503` com `code: "MAINTENANCE"` e o config remoto
+traz `maintenance: { enabled, message? }` — **quem decide ligar a tela é o app**; a lib não consulta
+nada, só desenha e bloqueia.
+
+### `MaintenanceGate` / `MaintenanceScreen` / `MaintenanceTexts`
+
+- **`MaintenanceGate(active, message, onRetry, modifier, texts) { content }`** — sobrepõe a tela ao
+  app com **exatamente** a mecânica do `ConnectivityGate` em `FullScreen`: o conteúdo segue composto
+  no mesmo nó (quando a manutenção acaba, a pessoa está onde parou, sem o `NavHost` remontar), a
+  semântica de acessibilidade dele some, o teclado fecha, o voltar do sistema é bloqueado, fade.
+- **`MaintenanceScreen(message, onRetry, modifier, texts, icon = Icons.Filled.Build)`** — a mesma
+  casca visual da `NoInternetScreen`. `onRetry = null` = **sem botão** (manutenção sem previsão não
+  tem o que "tentar").
+- **`resolveMaintenanceMessage(message, texts)`** — a mensagem do painel vence quando não é branca
+  (aparada); vazia não pode deixar a tela sem explicação.
+- **`MaintenanceTexts`** — defaults pt-BR: "Estamos em manutenção", "Estamos fazendo melhorias no
+  aplicativo. Volte daqui a pouco.", "Tentar novamente", "Verificando…".
+
+### Sem duplicar a tela cheia
+
+A casca (ilustração + título + mensagem + botão com retorno de "verificando") virou
+`FullScreenNotice` e a sobreposição bloqueante (nó único + semântica + teclado + `BackHandler` +
+`AnimatedVisibility`) virou `BlockingOverlay`, ambos `internal` em `FullScreenNotice.kt`. A
+`NoInternetScreen` e o `ConnectivityGate` `FullScreen` passaram a usá-los — dois avisos
+bloqueantes com a mecânica copiada divergiriam na primeira correção (o teclado, o voltar) feita só
+num deles.
+
+Testes: `MaintenanceGateTest` (5); `ConnectivityGateTest` (6) sem alteração.
+
 ## 2.201.0 — Link de fora entra por UMA porta, e o link aberto antes de instalar chega ao app (Android)
 
 Aditiva. Módulo `kmplib-platform`, pacote `platform.links`. Dependência nova no Android:

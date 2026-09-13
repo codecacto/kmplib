@@ -1,28 +1,15 @@
 package br.com.codecacto.kmplib.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,26 +21,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import br.com.codecacto.kmplib.core.network.ConnectivityObserver
@@ -202,106 +176,15 @@ fun NoInternetScreen(
     texts: ConnectivityTexts = ConnectivityTexts(),
     icon: ImageVector = Icons.Filled.WifiOff,
 ) {
-    val colors = MaterialTheme.colorScheme
-    var tentativas by remember { mutableIntStateOf(0) }
-    var verificando by remember { mutableStateOf(false) }
-
-    LaunchedEffect(tentativas) {
-        if (tentativas == 0) return@LaunchedEffect
-        verificando = true
-        delay(NO_INTERNET_CHECK_FEEDBACK_MS)
-        verificando = false
-    }
-
-    Surface(color = colors.background, modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .verticalScroll(rememberScrollState()),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 420.dp)
-                    .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 40.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                IlustracaoSemConexao(icon = icon)
-
-                Spacer(Modifier.height(32.dp))
-                Text(
-                    text = texts.screenTitle,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = colors.onBackground,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics {
-                        heading()
-                        liveRegion = LiveRegionMode.Polite
-                    },
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = texts.screenMessage,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(32.dp))
-                AppButton(
-                    text = if (verificando) texts.checkingButton else texts.retryButton,
-                    onClick = {
-                        onRetry()
-                        tentativas++
-                    },
-                    isLoading = verificando,
-                    icon = Icons.Filled.Refresh,
-                    primaryColor = colors.primary,
-                    contentColor = colors.onPrimary,
-                    modifier = Modifier.widthIn(max = 320.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun IlustracaoSemConexao(icon: ImageVector) {
-    val primaria = MaterialTheme.colorScheme.primary
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(176.dp)) {
-        Box(Modifier.size(176.dp).clip(CircleShape).background(primaria.copy(alpha = 0.06f)))
-        Box(Modifier.size(128.dp).clip(CircleShape).background(primaria.copy(alpha = 0.10f)))
-        Box(
-            modifier = Modifier
-                .size(84.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(40.dp),
-            )
-        }
-    }
-}
-
-/**
- * O voltar do sistema enquanto a tela cheia está aberta: **não faz nada**. Sem isto o gesto
- * desempilharia a navegação escondida por baixo — a pessoa voltaria a um lugar que não vê.
- *
- * Isolado aqui para o `@Suppress("DEPRECATION")` não calar outra depreciação: o `BackHandler`
- * multiplataforma está marcado em favor do `NavigationEventHandler`, feito para o *predictive back*
- * com progresso, e o `navigationevent-compose` não publica variante Kotlin/Native.
- */
-@OptIn(ExperimentalComposeUiApi::class)
-@Suppress("DEPRECATION")
-@Composable
-private fun SeguraVoltarDoSistema() {
-    BackHandler(enabled = true, onBack = { })
+    FullScreenNotice(
+        title = texts.screenTitle,
+        message = texts.screenMessage,
+        icon = icon,
+        retryLabel = texts.retryButton,
+        checkingLabel = texts.checkingButton,
+        onRetry = onRetry,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -427,32 +310,12 @@ fun ConnectivityGate(
         }
 
         ConnectivityStyle.FullScreen -> {
-            val teclado = LocalSoftwareKeyboardController.current
-            val foco = LocalFocusManager.current
-            LaunchedEffect(isOnline) {
-                // O teclado aberto ficaria por cima da tela de aviso, cobrindo o botão.
-                if (!isOnline) {
-                    foco.clearFocus()
-                    teclado?.hide()
-                }
-            }
-            Box(modifier.fillMaxSize()) {
-                // O MESMO nó nos dois estados — só o modifier muda —, então o conteúdo não é
-                // remontado. Offline, a árvore de acessibilidade dele some: sem isso o leitor de
-                // tela continuaria navegando pelos botões escondidos atrás do aviso.
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .then(if (isOnline) Modifier else Modifier.clearAndSetSemantics { }),
-                ) {
-                    content()
-                }
-                AnimatedVisibility(visible = !isOnline, enter = fadeIn(), exit = fadeOut()) {
-                    // `Surface` do M3 consome o toque: nada atravessa para o app por baixo.
-                    NoInternetScreen(onRetry = retry, texts = texts)
-                    SeguraVoltarDoSistema()
-                }
-            }
+            BlockingOverlay(
+                active = !isOnline,
+                modifier = modifier,
+                overlay = { NoInternetScreen(onRetry = retry, texts = texts) },
+                content = content,
+            )
         }
     }
 }
