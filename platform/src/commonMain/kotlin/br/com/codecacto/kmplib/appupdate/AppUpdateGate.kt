@@ -19,25 +19,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import br.com.codecacto.kmplib.platform.getUrlLauncher
 
 /**
  * Wrapper de entry point que aplica a política de Force Update sobre o [content] do app.
  *
  * Faz o [AppUpdateService.check] uma vez (via [LaunchedEffect] na chave de identidade da config) e:
- * - **Hard** → renderiza uma tela bloqueante full-screen ([HardUpdateScreen]); o [content] NÃO é
- *   composto e não há como dispensar (sem botão fechar/voltar).
- * - **Soft** → renderiza o [content] normalmente + um diálogo dispensável ([SoftUpdateDialog])
- *   ("Atualizar" / "Agora não"); ao dispensar, segue usando o app.
- * - **None** ou ainda checando → renderiza apenas o [content].
+ * - **Hard** → tela bloqueante full-screen ([HardUpdateScreen]) POR CIMA do [content], sem toque,
+ *   sem voltar e sem como dispensar.
+ * - **Soft** → o [content] normalmente + um diálogo dispensável ([SoftUpdateDialog])
+ *   ("Atualizar" / "Agora não"); a dispensa vale para aquela versão.
+ * - **None** ou ainda checando → apenas o [content].
+ *
+ * Desde a 2.204.0 o [content] fica num lugar fixo da árvore: até lá ele era chamado em ramos
+ * diferentes do `when`, e a chegada de um `Soft` na abertura **remontava o app inteiro**.
  *
  * Best-effort: como [AppUpdateService.check] nunca lança nem bloqueia em falha, qualquer erro de
  * rede simplesmente deixa o [content] passar.
@@ -64,50 +63,22 @@ fun AppUpdateGate(
     content: @Composable () -> Unit,
 ) {
     val service = remember(config) { AppUpdateService(config) }
-    var status by remember(config) { mutableStateOf<AppUpdateStatus>(AppUpdateStatus.None) }
-    var softDismissed by remember(config) { mutableStateOf(false) }
+    val state = remember { AppServiceGateState() }
 
     LaunchedEffect(config) {
-        status = service.check()
+        // `check()` é best-effort e nunca lança; trocar a config cancela a consulta da anterior.
+        state.publish(AppServiceStatus(update = service.check()))
     }
 
-    when (val current = status) {
-        is AppUpdateStatus.Hard -> {
-            HardUpdateScreen(
-                texts = texts,
-                serverMessage = current.message,
-                onUpdate = { openStore(current.storeUrl) },
-            )
-        }
-
-        is AppUpdateStatus.Soft -> {
-            content()
-            if (!softDismissed) {
-                SoftUpdateDialog(
-                    texts = texts,
-                    serverMessage = current.message,
-                    latestVersionName = current.latestVersionName,
-                    onUpdate = {
-                        softDismissed = true
-                        openStore(current.storeUrl)
-                    },
-                    onDismiss = { softDismissed = true },
-                )
-            }
-        }
-
-        AppUpdateStatus.None -> content()
-    }
-}
-
-private fun openStore(storeUrl: String?) {
-    val url = storeUrl?.trim().orEmpty()
-    if (url.isNotEmpty()) {
-        getUrlLauncher().openUrl(url)
-    } else {
-        // Sem storeUrl explícita: abre a página do app na loja da plataforma atual.
-        getUrlLauncher().openStorePage()
-    }
+    ServiceGateHost(
+        state = state,
+        texts = AppServiceTexts(),
+        updateTexts = texts,
+        formatUntil = null,
+        // Este gate não conhece manutenção, então a tela que teria "tentar de novo" nunca aparece.
+        onRetry = {},
+        content = content,
+    )
 }
 
 /**

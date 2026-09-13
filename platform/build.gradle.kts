@@ -14,6 +14,14 @@ kotlin {
 
             api(libs.kotlinx.datetime)
             api(libs.kotlinx.serialization.json)
+
+            // `AppServiceGate(recheckOnForeground = true)` reconsulta ao voltar do 2º plano
+            // (ON_STOP → ON_START) — o ciclo de vida multiplataforma oficial do Compose.
+            implementation(libs.androidx.lifecycle.runtime.compose)
+            // BackHandler multiplataforma: a tela de manutenção/atualização obrigatória segura o
+            // voltar do sistema. Artefato separado do `compose.ui` (mesma escolha do `kmplib-ui`);
+            // NÃO trocar pelo `navigationevent-compose`, que não tem variante iOS.
+            implementation(libs.compose.ui.backhandler)
         }
 
         commonTest.dependencies {

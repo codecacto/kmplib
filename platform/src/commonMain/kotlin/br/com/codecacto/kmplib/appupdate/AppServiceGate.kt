@@ -16,16 +16,25 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.codecacto.kmplib.platform.getUrlLauncher
+import kotlinx.coroutines.launch
 
 /**
  * Aviso de **manutenção programada** — o backend está fora do ar de propósito.
@@ -99,10 +108,32 @@ data class AppServiceTexts(
  * }
  * ```
  *
- * @param check Consulta o backend do projeto. Chamada uma vez por valor de [key].
- * @param key Reexecuta a consulta quando muda (ex.: um contador de "tentar de novo").
+ * ## Reconsultar não desmonta o app (2.204.0)
+ *
+ * O [content] é composto **sempre no mesmo lugar da árvore**, e manutenção/atualização obrigatória
+ * entram **por cima** dele (opaco, sem toque, sem voltar, fora da acessibilidade) — como o
+ * `ConnectivityGate` e o `AppLockGate`. Uma reconsulta mantém o último status até a resposta chegar;
+ * a pilha de navegação sobrevive a qualquer número delas, inclusive a uma janela de manutenção que
+ * abre e fecha com o app aberto. A dispensa da atualização opcional vale **por versão**: dispensou a
+ * 1.4.0, ela não volta; o servidor passou a recomendar a 1.5.0, o aviso volta.
+ *
+ * Consequência a conhecer: sob a tela de bloqueio o app continua vivo (e em `RESUMED`) — quem toca
+ * mídia ou faz polling na raiz deve pausar por conta própria se isso importar.
+ *
+ * ## Reconsultar ao voltar ao primeiro plano
+ *
+ * `recheckOnForeground = true` pergunta de novo quando o app volta do segundo plano (`ON_STOP` →
+ * `ON_START`) — é assim que uma manutenção ligada no admin chega a quem já estava com o app aberto.
+ * Prefira isto a trocar o [key] num `LifecycleResumeEffect`: aquele truque dispara também na
+ * abertura (consulta dupla) e na volta de qualquer diálogo do sistema.
+ *
+ * @param check Consulta o backend do projeto. Pedidos que chegam com uma consulta em voo são
+ *   atendidos por ela — nunca há duas simultâneas. Exceção lançada aqui é tratada como "não consegui
+ *   perguntar" e libera.
+ * @param key Reexecuta a consulta quando muda. **Não zera nada**: status e dispensa sobrevivem.
  * @param formatUntil Formata o fim previsto da manutenção. Default: só o epoch não é mostrado —
  *   sem formatador, a linha de previsão é omitida, porque "1755302400000" não é informação.
+ * @param recheckOnForeground Reconsulta ao voltar do segundo plano. Default `false`.
  */
 @Composable
 fun AppServiceGate(
@@ -111,52 +142,129 @@ fun AppServiceGate(
     texts: AppServiceTexts = AppServiceTexts(),
     updateTexts: AppUpdateTexts = AppUpdateTexts(),
     formatUntil: ((Long) -> String)? = null,
+    recheckOnForeground: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    var status by remember(key) { mutableStateOf(AppServiceStatus()) }
-    var tentativa by remember(key) { mutableStateOf(0) }
-    var softDismissed by remember(key) { mutableStateOf(false) }
-
-    LaunchedEffect(key, tentativa) {
-        status = check()
+    // SEM chave: o estado vive o tempo do gate. `remember(key)` era o defeito da 2.203.0.
+    val state = remember { AppServiceGateState() }
+    val currentCheck = rememberUpdatedState(check)
+    // As consultas saem num escopo que NÃO é o do efeito: trocar o [key] com uma consulta em voo não
+    // a cancela para abrir outra — ela responde, e o pedido novo é atendido por ela.
+    val scope = rememberCoroutineScope()
+    val consultar: () -> Unit = remember(state, scope) {
+        { scope.launch { state.refresh { currentCheck.value() } } }
     }
 
-    val manutencao = status.maintenance
-    if (manutencao != null) {
-        MaintenanceScreen(
-            texts = texts,
-            serverMessage = manutencao.message,
-            untilLabel = manutencao.untilEpochMillis?.let { millis -> formatUntil?.invoke(millis) },
-            onRetry = { tentativa++ },
-        )
-        return
-    }
+    LaunchedEffect(key) { consultar() }
 
-    when (val update = status.update) {
-        is AppUpdateStatus.Hard -> HardUpdateScreen(
-            texts = updateTexts,
-            serverMessage = update.message,
-            onUpdate = { abrirLoja(update.storeUrl) },
-        )
-
-        is AppUpdateStatus.Soft -> {
-            content()
-            if (!softDismissed) {
-                SoftUpdateDialog(
-                    texts = updateTexts,
-                    serverMessage = update.message,
-                    latestVersionName = update.latestVersionName,
-                    onUpdate = {
-                        softDismissed = true
-                        abrirLoja(update.storeUrl)
-                    },
-                    onDismiss = { softDismissed = true },
-                )
+    if (recheckOnForeground) {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, consultar) {
+            val tracker = ForegroundRecheck()
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_STOP -> tracker.onStop()
+                    Lifecycle.Event.ON_START -> if (tracker.onStart()) consultar()
+                    else -> Unit
+                }
             }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+    }
+
+    ServiceGateHost(
+        state = state,
+        texts = texts,
+        updateTexts = updateTexts,
+        formatUntil = formatUntil,
+        onRetry = consultar,
+        content = content,
+    )
+}
+
+/**
+ * A casca comum aos dois gates: [content] num lugar fixo da árvore, bloqueio por cima.
+ *
+ * Chamar `content()` em ramos diferentes de um `when` parece equivalente e não é — cada ramo é um
+ * grupo de composição, e trocar de ramo descarta tudo o que foi lembrado dentro (a pilha do
+ * `NavHost`, inclusive).
+ */
+@Composable
+internal fun ServiceGateHost(
+    state: AppServiceGateState,
+    texts: AppServiceTexts,
+    updateTexts: AppUpdateTexts,
+    formatUntil: ((Long) -> String)?,
+    onRetry: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val blocking = state.isBlocking
+    val foco = LocalFocusManager.current
+    val teclado = LocalSoftwareKeyboardController.current
+    LaunchedEffect(blocking) {
+        if (blocking) {
+            foco.clearFocus()
+            teclado?.hide()
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(if (blocking) Modifier.clearAndSetSemantics { } else Modifier),
+        ) {
+            content()
         }
 
-        AppUpdateStatus.None -> content()
+        state.softUpdateToOffer?.let { soft ->
+            SoftUpdateDialog(
+                texts = updateTexts,
+                serverMessage = soft.message,
+                latestVersionName = soft.latestVersionName,
+                onUpdate = {
+                    state.dismissSoft()
+                    abrirLoja(soft.storeUrl)
+                },
+                onDismiss = { state.dismissSoft() },
+            )
+        }
+
+        // Manutenção VENCE atualização. As duas telas são `Surface` opaco de tela cheia, que
+        // consome o toque — nada chega ao conteúdo por baixo.
+        val status = state.status
+        val manutencao = status.maintenance
+        val update = status.update
+        if (manutencao != null) {
+            MaintenanceScreen(
+                texts = texts,
+                serverMessage = manutencao.message,
+                untilLabel = manutencao.untilEpochMillis?.let { millis -> formatUntil?.invoke(millis) },
+                onRetry = onRetry,
+            )
+        } else if (update is AppUpdateStatus.Hard) {
+            HardUpdateScreen(
+                texts = updateTexts,
+                serverMessage = update.message,
+                onUpdate = { abrirLoja(update.storeUrl) },
+            )
+        }
+
+        SeguraVoltarDoSistema(enabled = blocking)
     }
+}
+
+/**
+ * O voltar do sistema com a tela de bloqueio aberta não faz nada — sem isto ele desempilharia a
+ * navegação escondida por baixo. `BackHandler` multiplataforma, marcado em favor do
+ * `NavigationEventHandler`, que não publica variante Kotlin/Native (mesma escolha do `kmplib-ui`).
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Suppress("DEPRECATION")
+@Composable
+private fun SeguraVoltarDoSistema(enabled: Boolean) {
+    BackHandler(enabled = enabled, onBack = { })
 }
 
 /**

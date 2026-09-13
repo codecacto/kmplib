@@ -1,5 +1,52 @@
 # Changelog — kmplib
 
+## 2.204.0 — `AppServiceGate` não desmonta mais o app ao reconsultar (e reconsulta ao voltar do 2º plano)
+
+Correção de comportamento + um parâmetro novo (aditivo, default que mantém o comportamento).
+
+### `kmplib-platform` — reconsultar o `AppServiceGate` destruía a navegação (2.115.0–2.203.0)
+
+O gate guardava status e "já dispensou" em `remember(key)`, e chamava `content()` em ramos
+diferentes do `when` (`Soft` e `None` — cada ramo é um grupo de composição próprio). Consequências:
+
+- **Trocar o `key` zerava tudo.** Com atualização OPCIONAL pendente, o status voltava a `None`
+  enquanto a nova consulta não respondia, o `content()` mudava de ramo e **a pilha de navegação
+  inteira era descartada** — o app voltava à Splash. O diálogo já dispensado reaparecia.
+- **Mesmo sem trocar o `key`**, a chegada de um `Soft` na abertura já remontava o app uma vez.
+- Trocar o `key` com uma consulta em voo a cancelava e abria outra (consulta dupla na abertura, no
+  padrão `LifecycleResumeEffect { key++ }`).
+
+Agora:
+
+- O estado vive o tempo do gate (`remember` sem chave). O `key` só re-dispara a consulta; **a última
+  resposta vale até a nova chegar**.
+- O `content()` fica num **lugar fixo** da árvore. Manutenção e atualização obrigatória entram **por
+  cima** (opacas, sem toque, sem voltar — `BackHandler` —, fora da acessibilidade), como o
+  `ConnectivityGate`/`AppLockGate`. A pilha sobrevive inclusive a uma janela de manutenção aberta e
+  fechada com o app em uso. ⚠️ Sob o bloqueio o app segue composto e `RESUMED`.
+- A dispensa do opcional vale **por versão** (`latestVersionName`; sem ele, o próprio aviso): versão
+  nova recomendada reabre o diálogo.
+- Pedido que chega com consulta em voo é atendido por ela — nunca duas simultâneas.
+- Exceção lançada pelo `check` **libera** (status vazio) em vez de derrubar a raiz do app.
+
+API nova: **`AppServiceGate(…, recheckOnForeground: Boolean = false, content)`** — reconsulta ao
+voltar do segundo plano (`ON_STOP` → `ON_START`; não na abertura, não na volta de diálogo do
+sistema). Substitui o truque de trocar o `key` num `LifecycleResumeEffect`.
+
+`AppUpdateGate` (admin-api central) passa pela mesma casca: `Hard` cobre o conteúdo em vez de
+desmontá-lo, `Soft` não remonta o app, dispensa por versão. Assinatura inalterada.
+
+Dependências novas no `kmplib-platform` (`implementation`): `lifecycle-runtime-compose` e
+`compose ui-backhandler` — as mesmas que o `kmplib-ui` já trazia.
+
+Testes: `AppServiceGateStateTest` (12) — dispensa sobrevive à reconsulta, versão nova reabre,
+reconsulta em voo mantém o último status, pedido durante consulta em voo não abre outra, falha
+libera, cancelamento solta a trava, primeiro `ON_START` não reconsulta. `compileKotlinIosArm64` do
+`kmplib-platform` executado (não `SKIPPED`).
+
+**Migração:** quem troca o `key` para reconsultar ao voltar ao app deve passar a
+`recheckOnForeground = true` e remover o contador. Consumidor no monorepo: só o NeuroCoreX.
+
 ## 2.203.0 — Correções de revisão: "sem internet" preso com 4G, sessão derrubada por corrida, link pré-instalação perdido
 
 Correções (quatro de comportamento e uma de API aditiva). Nenhuma API pública é removida;
