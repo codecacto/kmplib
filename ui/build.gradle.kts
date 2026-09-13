@@ -26,6 +26,10 @@ kotlin {
             api(libs.androidx.lifecycle.viewmodel)
             // LifecycleEventEffect/LocalLifecycleOwner do AppLockGate (ui/security).
             implementation(libs.androidx.lifecycle.runtime.compose)
+            // BackHandler multiplataforma (a tela cheia de "sem internet" segura o voltar do
+            // sistema). Artefato SEPARADO: o `ui` o traz em runtime mas não o expõe como `api`.
+            // ⚠️ Não trocar pelo `navigationevent-compose`: ele é Android-only e derruba o iOS.
+            implementation(libs.compose.ui.backhandler)
             api(libs.kotlinx.datetime)
             // Carrossel e imagem remota dos componentes.
             api(libs.coil.compose)

@@ -1,5 +1,41 @@
 # Changelog — kmplib
 
+## 2.200.0 — "Sem internet" ganha uma TELA CHEIA, e o app continua onde estava quando a rede volta
+
+Aditiva. Nenhuma API existente muda; o default do `ConnectivityGate` continua `Modal`.
+
+### `ConnectivityStyle.FullScreen` + `NoInternetScreen`
+
+Pedido do fundador (12/set/2026, Mirassol Conectado): quando a internet cai, aparecer uma tela de
+verdade — ícone, mensagem, "Tentar novamente" — em qualquer ponto do app, e não o diálogo pequeno
+por cima do conteúdo.
+
+- **`NoInternetScreen(onRetry, modifier, texts, icon)`** — ilustração (ícone em três círculos
+  concêntricos na cor primária do tema), título, mensagem e botão de largura cheia (teto 320dp).
+  Respeita `safeDrawing` e rola em tela pequena ou fonte grande. Tokens do `MaterialTheme`, nada
+  hardcoded.
+- **Depois do toque, o botão mostra "Verificando conexão…" por 1,2 s.** Sem esse retorno, tocar com
+  a rede ainda fora não muda nada na tela, e o botão parece quebrado.
+- **`ConnectivityGate(style = FullScreen)`** sobrepõe a tela ao app. Três decisões que valem ler
+  antes de mexer:
+  1. **Sobrepõe, não substitui.** O conteúdo continua composto no MESMO nó (só o modifier muda).
+     Trocar o conteúdo pela tela desmontaria o `NavHost`: quando a rede voltasse, a pessoa estaria
+     de volta ao início, sem a tela e sem o formulário em que estava.
+  2. **Bloqueia de verdade.** O `Surface` consome o toque; o `BackHandler` segura o voltar do
+     sistema (sem ele o gesto desempilharia a navegação escondida); o teclado é fechado; e a árvore
+     de acessibilidade do app por baixo é limpa (`clearAndSetSemantics`), senão o leitor de tela
+     continuaria navegando por botões invisíveis. O título é `liveRegion`, então o TalkBack/VoiceOver
+     anuncia a queda.
+  3. **`BackHandler` é o de `org.jetbrains.compose.ui:ui-backhandler`** (dependência nova do
+     `kmplib-ui`). Ele está depreciado em favor do `NavigationEventHandler`, mas o
+     `navigationevent-compose` **não publica variante Kotlin/Native** e derruba o link do iOS — o
+     `@Suppress` fica isolado num wrapper privado.
+- **`ConnectivityTexts`** ganha `screenTitle`, `screenMessage` e `checkingButton`, **no fim e com
+  default**: o construtor posicional de 4 textos continua compilando (há teste travando).
+
+**Recomendado para app online-por-padrão.** A `casca-mobile` passa a nascer com `FullScreen` em
+`DataMode.ONLINE_REST`. Apps existentes não mudam sozinhos — o default do gate é o mesmo.
+
 ## 2.199.0 — O pré-carregamento do feed mirava o vídeo errado; e o delegate que uma chamada roubava da outra
 
 Correção de duas coisas entregues nas duas versões anteriores. Nenhuma API pública muda.

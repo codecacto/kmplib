@@ -33,10 +33,32 @@ class ConnectivityGateTest {
     }
 
     @Test
-    fun `estilos disponiveis sao Modal e Banner`() {
+    fun `estilos disponiveis sao Modal, Banner e FullScreen`() {
         assertEquals(
-            listOf(ConnectivityStyle.Modal, ConnectivityStyle.Banner),
+            listOf(ConnectivityStyle.Modal, ConnectivityStyle.Banner, ConnectivityStyle.FullScreen),
             ConnectivityStyle.entries.toList(),
         )
+    }
+
+    @Test
+    fun `textos da tela cheia tem default pt-BR e nao vazios`() {
+        val texts = ConnectivityTexts()
+        assertEquals("Sem conexão com a internet", texts.screenTitle)
+        assertEquals("Verificando conexão…", texts.checkingButton)
+        assertTrue(texts.screenMessage.isNotBlank())
+    }
+
+    @Test
+    fun `construtor posicional antigo continua compilando`() {
+        // Os campos da tela cheia entraram NO FIM e com default: quem montava os 4 textos
+        // posicionalmente antes da 2.200.0 não quebra.
+        val antigo = ConnectivityTexts("a", "b", "c", "d")
+        assertEquals("d", antigo.bannerText)
+        assertEquals(ConnectivityTexts().screenTitle, antigo.screenTitle)
+    }
+
+    @Test
+    fun `o retorno de verificacao dura o bastante para ser visto`() {
+        assertTrue(NO_INTERNET_CHECK_FEEDBACK_MS in 800L..2_000L)
     }
 }
