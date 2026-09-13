@@ -31,26 +31,39 @@ internal actual class PlatformConnectivityMonitor {
         if (callback != null) return // já registrado: nunca registra um segundo callback
         val connectivityManager = connectivityManager() ?: return
 
+        // ⚠️ Callback da rede PADRÃO, nunca de todas as redes (2.203.0).
+        //
+        // Com `registerNetworkCallback(request)` o callback recebe eventos de CADA rede que casa com
+        // o pedido — Wi-Fi e 4G ao mesmo tempo, no aparelho que mantém os dois. O `onLost` do Wi-Fi
+        // chegava e gravava `false` enquanto o 4G seguia funcionando; como nenhuma outra rede
+        // "aparecia" depois, nada voltava a `true`, e o `ConnectivityGate` em tela cheia ficava
+        // travado em "sem internet" com o app online. O que o app quer saber é se a rede que ELE vai
+        // usar tem internet — a padrão —, e é exatamente o que `registerDefaultNetworkCallback`
+        // entrega (API 24, o minSdk da lib): troca de Wi-Fi para 4G chega como `onAvailable` da
+        // nova rede, e `onLost` só chega quando não sobra rede padrão nenhuma.
+        //
+        // E mesmo aí o estado é RELIDO do `ConnectivityManager`, nunca gravado às cegas: um `false`
+        // escrito por evento é o que não tem caminho de volta se o evento seguinte não vier.
         val networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                onStatusChange(true)
+                // A rede padrão acabou de mudar para esta. As capacidades dela chegam logo em seguida
+                // por `onCapabilitiesChanged`; até lá, a releitura responde pela rede ativa.
+                onStatusChange(currentStatus() ?: true)
             }
 
             override fun onLost(network: Network) {
-                onStatusChange(false)
+                onStatusChange(currentStatus() ?: false)
             }
 
             override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                // Aqui `network` É a rede padrão (callback padrão), então as capacidades recebidas
+                // são o estado real dela — inclusive a perda de INTERNET sem perder a rede.
                 onStatusChange(networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))
             }
         }
 
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-
         try {
-            connectivityManager.registerNetworkCallback(request, networkCallback)
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
             callback = networkCallback
         } catch (t: Throwable) {
             // best-effort: conectividade nunca derruba o app

@@ -38,14 +38,29 @@ class OwnAuthTokenManager(
     /** Sessão corrente (null = deslogado). Espelha o cofre; reagir a null = ir para o login. */
     val session: StateFlow<OwnAuthSession?> = _session.asStateFlow()
 
-    /** Lê o cofre e semeia [session]. Chamar uma vez no bootstrap (antes de exigir a sessão). */
-    suspend fun restore(): OwnAuthSession? {
-        val loaded = store.load()
-        _session.value = loaded
-        return loaded
+    /**
+     * Semeia [session] a partir do cofre. Chamar no bootstrap, **na raiz do app** (um deep link não
+     * passa pela Splash) — e pode ser chamada de mais de um lugar: é **idempotente**.
+     *
+     * ### ⚠️ Roda sob a MESMA trava da renovação (2.203.0)
+     * Até a 2.202.0 a leitura do cofre e a publicação corriam fora do [mutex]. Com `restore()` em
+     * paralelo a uma renovação, a ordem "restore lê r1 → refresh troca r1 por r2 e publica → restore
+     * publica r1" deixava a sessão **velha** em memória; o refresh seguinte mandava r1, que o servidor
+     * já tinha rotacionado — **reuso**, e a família inteira de tokens é revogada: a pessoa é deslogada
+     * sem ter feito nada. Sob a trava, quem lê o cofre enxerga sempre o último par gravado.
+     *
+     * Havendo sessão em memória, ela é devolvida sem reler o cofre: tudo o que publica em memória
+     * grava no cofre antes, sob a mesma trava, e a memória nunca está atrás dele — já o contrário
+     * acontece (uma gravação no cofre que falhou), e reler ali trocaria o par novo pelo antigo.
+     */
+    suspend fun restore(): OwnAuthSession? = mutex.withLock {
+        _session.value ?: store.load().also { _session.value = it }
     }
 
-    /** Persiste e publica uma sessão nova (após login/registro bem-sucedidos). */
+    /**
+     * Persiste e publica uma sessão nova (após login/registro bem-sucedidos). Serializada com a
+     * renovação: um refresh em voo com o par anterior não sobrescreve a sessão recém-adotada.
+     */
     suspend fun adopt(
         tokens: OwnAuthTokens,
         email: String,
@@ -53,14 +68,21 @@ class OwnAuthTokenManager(
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
     ) {
         val session = tokens.toSession(email, name, providerId)
-        store.save(session)
-        _session.value = session
+        mutex.withLock {
+            store.save(session)
+            _session.value = session
+        }
     }
 
-    /** Encerra a sessão local (revogação server-side é do chamador via [OwnAuthApi.logout]). */
+    /**
+     * Encerra a sessão local (revogação server-side é do chamador via [OwnAuthApi.logout]).
+     * Serializada com a renovação: um refresh em voo não ressuscita a sessão encerrada.
+     */
     suspend fun clear() {
-        store.clear()
-        _session.value = null
+        mutex.withLock {
+            store.clear()
+            _session.value = null
+        }
     }
 
     /**
@@ -68,7 +90,8 @@ class OwnAuthTokenManager(
      * estiver perto de expirar (ou se [forceRefresh], usado no retry pós-401). `null` = sem sessão.
      */
     suspend fun accessToken(forceRefresh: Boolean = false): String? {
-        val current = _session.value ?: store.load()?.also { _session.value = it } ?: return null
+        // Sem sessão em memória, semeia pelo `restore()` — sob a trava, pelo mesmo motivo dele.
+        val current = _session.value ?: restore() ?: return null
         if (!forceRefresh && !isExpiringSoon(current)) return current.accessToken
         return mutex.withLock {
             // Reavalia sob o lock: outra corrotina pode já ter renovado enquanto esperávamos.

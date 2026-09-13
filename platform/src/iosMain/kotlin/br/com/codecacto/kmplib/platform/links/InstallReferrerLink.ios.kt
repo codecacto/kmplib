@@ -5,4 +5,7 @@ package br.com.codecacto.kmplib.platform.links
  * a instalação por impressão digital do aparelho é vedado pelas diretrizes da App Store. Ver o KDoc
  * da declaração comum.
  */
-actual suspend fun readInstallReferrerLinkOnce(key: String, maxAgeSeconds: Long): String? = null
+actual suspend fun peekInstallReferrerLink(key: String, maxAgeSeconds: Long): String? = null
+
+/** Nada a confirmar: no iOS não há link pendente. */
+actual fun markInstallReferrerLinkConsumed() = Unit

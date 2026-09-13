@@ -167,7 +167,8 @@ private fun NoticeIllustration(icon: ImageVector) {
  * - Ativo, a árvore de acessibilidade do conteúdo some (`clearAndSetSemantics`) — senão o leitor de
  *   tela continuaria navegando pelos botões escondidos atrás do aviso.
  * - Ao ativar, fecha o teclado (ele ficaria por cima do aviso, cobrindo o botão).
- * - Enquanto visível, o voltar do sistema não faz nada.
+ * - Enquanto [active], o voltar do sistema não faz nada — e só enquanto [active]: durante o fade-out
+ *   o gate já liberou, e o voltar volta a funcionar.
  * - Entra e sai com fade. O `Surface` do M3 do aviso consome o toque: nada atravessa.
  */
 @Composable
@@ -195,8 +196,12 @@ internal fun BlockingOverlay(
         }
         AnimatedVisibility(visible = active, enter = fadeIn(), exit = fadeOut()) {
             overlay()
-            SeguraVoltarDoSistema()
         }
+        // FORA da animação, e ligado por [active] — não pela presença do aviso na tela (2.203.0).
+        // Dentro do `AnimatedVisibility` ele continuava composto durante o fade-out inteiro: a rede
+        // voltava, o gate já estava liberado, e o primeiro "voltar" da pessoa era engolido sem fazer
+        // nada. O bloqueio acompanha a regra, não o desenho.
+        SeguraVoltarDoSistema(enabled = active)
     }
 }
 
@@ -211,6 +216,6 @@ internal fun BlockingOverlay(
 @OptIn(ExperimentalComposeUiApi::class)
 @Suppress("DEPRECATION")
 @Composable
-private fun SeguraVoltarDoSistema() {
-    BackHandler(enabled = true, onBack = { })
+private fun SeguraVoltarDoSistema(enabled: Boolean) {
+    BackHandler(enabled = enabled, onBack = { })
 }

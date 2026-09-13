@@ -23,7 +23,8 @@ class FeedPreloadPositionsTest {
         val posicoes = FeedPreloadPositions()
         val atualizacao = posicoes.update(listOf("v0", "v1", "v2", "v3"))
 
-        assertEquals(listOf(0, 1, 2, 3), atualizacao.slots.map { it.position })
+        val o = FEED_PRELOAD_POSITION_ORIGIN
+        assertEquals(listOf(o, o + 1, o + 2, o + 3), atualizacao.slots.map { it.position })
         assertEquals(listOf("v0", "v1", "v2", "v3"), atualizacao.added.map { it.url })
         assertTrue(atualizacao.moved.isEmpty())
         assertTrue(atualizacao.removed.isEmpty())
@@ -35,12 +36,13 @@ class FeedPreloadPositionsTest {
 
         val atualizacao = posicoes.update(listOf("v1", "v2", "v3", "v4"))
 
+        val o = FEED_PRELOAD_POSITION_ORIGIN
         // Quem continuou na tela NÃO se mexe — é isso que mantém verdadeiro o rankingData congelado.
-        assertEquals(1, posicoes.positionOf("v1"))
-        assertEquals(2, posicoes.positionOf("v2"))
-        assertEquals(3, posicoes.positionOf("v3"))
+        assertEquals(o + 1, posicoes.positionOf("v1"))
+        assertEquals(o + 2, posicoes.positionOf("v2"))
+        assertEquals(o + 3, posicoes.positionOf("v3"))
         // O que entrou por baixo vem depois do último, nunca por cima de uma posição usada.
-        assertEquals(4, posicoes.positionOf("v4"))
+        assertEquals(o + 4, posicoes.positionOf("v4"))
         assertEquals(listOf("v4"), atualizacao.added.map { it.url })
         assertEquals(listOf("v0"), atualizacao.removed)
         assertTrue(atualizacao.moved.isEmpty(), "rolar não reordena: não deveria haver remove+add")
@@ -88,10 +90,27 @@ class FeedPreloadPositionsTest {
 
         posicoes.update(listOf("v2", "v3", "v4"))
 
-        // v3 não se mexe; quem apareceu por cima fica um antes — posição negativa é legítima,
-        // porque o que a escada usa é a DIFERENÇA.
+        // v3 não se mexe; quem apareceu por cima fica um antes — o que a escada usa é a DIFERENÇA.
         assertEquals(posicoes.positionOf("v3")!! - 1, posicoes.positionOf("v2"))
         assertEquals(posicoes.positionOf("v3")!! + 1, posicoes.positionOf("v4"))
+    }
+
+    @Test
+    fun rolarParaCimaDaPrimeiraJanelaNuncaDaMenosUm() {
+        // O defeito da 2.199.0–2.202.0: a primeira janela começava no zero, e o item logo acima dela
+        // recebia -1 — o `C_INDICE_NENHUM` do `setCurrentPlayingIndex`. Tocando ele, o manager
+        // entendia "ninguém tocando" e não pré-carregava nada.
+        val posicoes = posicoesDe("v10", "v11", "v12")
+        var janela = listOf("v10", "v11", "v12")
+
+        repeat(10) { passo ->
+            janela = listOf("v${9 - passo}") + janela.dropLast(1)
+            val atualizacao = posicoes.update(janela)
+            atualizacao.slots.forEach { slot ->
+                assertTrue(slot.position >= 0, "posição ${slot.position} de ${slot.url} não é positiva")
+            }
+        }
+        assertEquals(FEED_PRELOAD_POSITION_ORIGIN - 10, posicoes.positionOf("v0"))
     }
 
     // ---------------------------------------------------------------------------- poda e limites
@@ -141,8 +160,8 @@ class FeedPreloadPositionsTest {
 
         // v0 é a âncora e fica; os outros dois trocaram de lugar de verdade → remove + add.
         assertEquals(setOf("v1", "v2"), atualizacao.moved.map { it.url }.toSet())
-        assertEquals(1, posicoes.positionOf("v2"))
-        assertEquals(2, posicoes.positionOf("v1"))
+        assertEquals(FEED_PRELOAD_POSITION_ORIGIN + 1, posicoes.positionOf("v2"))
+        assertEquals(FEED_PRELOAD_POSITION_ORIGIN + 2, posicoes.positionOf("v1"))
     }
 
     @Test

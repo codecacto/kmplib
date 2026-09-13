@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * **A porta única dos links que chegam de fora** (2.201.0) — App Link/Universal Link, link aberto
- * com o app em segundo plano e o link recuperado depois da instalação ([readInstallReferrerLinkOnce]).
+ * com o app em segundo plano e o link recuperado depois da instalação ([peekInstallReferrerLink]).
  *
  * É o padrão que a JetBrains recomenda para deep link em Compose Multiplatform: a plataforma
  * **entrega** a URL aqui (Android pelo `Intent`, iOS pelo `onOpenURL` do SwiftUI) e o app a

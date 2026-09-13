@@ -43,6 +43,18 @@ package br.com.codecacto.kmplib.video.feed
 internal data class FeedPreloadSlot(val url: String, val position: Int)
 
 /**
+ * Onde começa o espaço de posições: **no meio do `Int`**, não no zero (2.203.0).
+ *
+ * Rolar para cima acima da primeira janela faz a base diminuir, e partindo do zero o item logo acima
+ * recebia a posição **`-1`** — que é justamente o "ninguém tocando" (`C_INDICE_NENHUM`) do
+ * `setCurrentPlayingIndex` da Media3. O vídeo da vez nessa posição fazia o manager entender que não
+ * havia vídeo tocando, e a escada inteira se desligava. Com a origem em `Int.MAX_VALUE / 2` a posição
+ * só chegaria a negativo depois de ~1 bilhão de itens rolados para cima, e só estouraria para cima
+ * depois de ~1 bilhão de itens de feeds novos no mesmo pré-carregador — nenhum dos dois é um feed.
+ */
+internal const val FEED_PRELOAD_POSITION_ORIGIN: Int = Int.MAX_VALUE / 2
+
+/**
  * O que mudou entre duas janelas.
  *
  * @param slots a janela inteira, na ordem da tela, já sem URL repetida.
@@ -72,7 +84,7 @@ internal class FeedPreloadPositions {
      * Só cresce: assim uma janela nova nunca reaproveita a posição de um item que acabou de sair,
      * o que evita que um holder ainda não liberado responda no lugar do recém-chegado.
      */
-    private var proximaBase = 0
+    private var proximaBase = FEED_PRELOAD_POSITION_ORIGIN
 
     /** Quantas URLs estão registradas agora. É o tamanho da janela — nunca o do feed. */
     val size: Int get() = posicoes.size
@@ -85,8 +97,8 @@ internal class FeedPreloadPositions {
      *
      * A âncora é o **primeiro conhecido**: a base é escolhida de forma que ele mantenha a posição
      * que já tinha, e os demais saem contíguos a partir dela. É isso que faz rolar **não** mexer em
-     * quem ficou — inclusive rolando para cima, quando a base fica menor (posição negativa é
-     * legítima; o que importa é a diferença entre elas).
+     * quem ficou — inclusive rolando para cima, quando a base fica menor. O que importa é a diferença
+     * entre elas, mas o valor absoluto **nunca fica negativo**: ver [FEED_PRELOAD_POSITION_ORIGIN].
      */
     fun update(urls: List<String>): FeedPreloadPositionUpdate {
         val janela = urls.distinct()

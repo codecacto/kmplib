@@ -1,5 +1,71 @@
 # Changelog — kmplib
 
+## 2.203.0 — Correções de revisão: "sem internet" preso com 4G, sessão derrubada por corrida, link pré-instalação perdido
+
+Correções (quatro de comportamento e uma de API aditiva). Nenhuma API pública é removida;
+`readInstallReferrerLinkOnce` passa a `@Deprecated` com o mesmo comportamento.
+
+### `kmplib-core` — `ConnectivityObserver` no Android preso em offline (desde a 2.67.0; visível em tela cheia desde a 2.200.0)
+
+O monitor registrava `registerNetworkCallback(request)`, que recebe eventos de **todas** as redes que
+casam com o pedido. No aparelho com Wi-Fi e 4G ao mesmo tempo, o `onLost` do Wi-Fi gravava `false`
+com o 4G funcionando — e, como nenhuma rede nova "aparecia" depois, nada voltava a `true`. Com o
+`ConnectivityGate` em `FullScreen` (default da casca desde a 2.200.0), o app ficava **travado na tela
+"sem internet" estando online**; o "Tentar novamente" destravava (ele relê o estado), mas o sintoma
+voltava na próxima troca de rede.
+
+Agora: `registerDefaultNetworkCallback` (rede padrão, API 24 = minSdk) e, em `onAvailable`/`onLost`,
+o estado é **relido** do `ConnectivityManager` (`currentStatus()`), nunca gravado às cegas. iOS
+conferido por leitura: `NWPathMonitor` sem interface específica já reporta o caminho geral
+(`satisfied` enquanto houver rota), sem o defeito.
+
+### `kmplib-ui` — `ConnectivityGate` `FullScreen` e `MaintenanceGate` engoliam um "voltar"
+
+O `BackHandler` que bloqueia o voltar ficava **dentro** do `AnimatedVisibility` e seguia composto
+durante o fade-out: a rede voltava, o gate já tinha liberado, e o primeiro voltar não fazia nada.
+Agora fica fora da animação, com `enabled = active`. Correção no `BlockingOverlay`, comum aos dois.
+
+### `kmplib-video` — posição `-1` desligava o pré-carregamento do feed (2.199.0–2.202.0)
+
+`FeedPreloadPositions` começava no zero, e rolar para cima da primeira janela dava a posição `-1` —
+o `C_INDICE_NENHUM` do `DefaultPreloadManager.setCurrentPlayingIndex`. Com o vídeo da vez nela, o
+manager entendia "ninguém tocando". Agora o espaço começa em `FEED_PRELOAD_POSITION_ORIGIN =
+Int.MAX_VALUE / 2` e as posições nunca ficam negativas. Teste novo
+`rolarParaCimaDaPrimeiraJanelaNuncaDaMenosUm`.
+
+### `kmplib-auth` — `restore()` em paralelo a um refresh derrubava a sessão
+
+`OwnAuthTokenManager.restore()` lia o cofre e publicava **fora** da trava da renovação. Na ordem
+"restore lê r1 → refresh troca r1 por r2 → restore publica r1", a sessão velha voltava à memória; o
+refresh seguinte mandava r1, já rotacionado — **reuso**, a família de tokens é revogada e o usuário é
+deslogado. Fica provável quando o app chama `restore()` na raiz **e** na Splash (o que a correção do
+deep link recomenda) com uma requisição saindo na abertura.
+
+Agora `restore()`, `adopt()`, `clear()` e a semeadura dentro de `accessToken()` rodam sob o **mesmo
+`Mutex`** do refresh. `restore()` ficou idempotente: com sessão em memória, devolve-a sem reler o cofre
+(a memória nunca está atrás do cofre; o contrário acontece quando uma gravação falha). Teste de
+concorrência novo — falha contra a 2.202.0 com `expected r2 but was r1`.
+
+### `kmplib-platform` — link pré-instalação pendente até o app confirmar
+
+`readInstallReferrerLinkOnce` marcava a leitura como feita **antes** de o link ser usado: se o destino
+pedia login e o processo morria na folha do Google, o link se perdia. API nova:
+
+- **`peekInstallReferrerLink(key, maxAgeSeconds): String?`** — consulta a Play uma vez por instalação,
+  **grava** o link e o devolve em toda abertura até ser confirmado. A validade (24 h) vale também para
+  o pendente; sem instante da Play, conta da primeira leitura.
+- **`markInstallReferrerLinkConsumed()`** — chamar quando o destino **abriu** (não na entrega).
+- `readInstallReferrerLinkOnce` = `peek` + `mark` (comportamento antigo), `@Deprecated`.
+
+```kotlin
+LaunchedEffect(Unit) { peekInstallReferrerLink()?.let(IncomingLinks::deliver) }
+// na tela de destino, quando ela abriu:
+LaunchedEffect(Unit) { markInstallReferrerLinkConsumed() }
+```
+
+A chave `lido` da 2.201.0 foi mantida: quem já consultou não consulta de novo. iOS segue `null`.
+Máquina de estado em `commonMain` (`peekInstallReferrerLinkWith`, interna) com 6 testes novos.
+
 ## 2.202.0 — Modo manutenção: a mesma tela cheia do "sem internet", ligada pelo app
 
 Aditiva. Módulo `kmplib-ui`, pacote `ui.components`. Nenhuma API pública existente muda.

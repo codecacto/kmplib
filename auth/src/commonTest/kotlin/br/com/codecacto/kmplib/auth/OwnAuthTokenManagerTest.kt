@@ -1,8 +1,13 @@
 package br.com.codecacto.kmplib.auth
 
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -155,5 +160,77 @@ class OwnAuthTokenManagerTest {
         val restored = mgr.restore()
         assertEquals("r1", restored?.refreshToken)
         assertNotNull(mgr.session.value)
+    }
+
+    /**
+     * Cofre que, com [armed], devolve o valor LIDO NA CHAMADA só depois de [gate] abrir — é a janela
+     * em que um `restore()` sem trava segurava o par velho enquanto a renovação publicava o novo.
+     */
+    private class GatedStorage : SecureTokenStorage {
+        private val delegate = FakeSecureTokenStorage()
+        var armed = false
+        val gate = CompletableDeferred<Unit>()
+        var readsWhileArmed = 0
+
+        override suspend fun getString(key: String): String? {
+            val snapshot = delegate.getString(key)
+            if (armed) {
+                readsWhileArmed++
+                gate.await()
+            }
+            return snapshot
+        }
+        override suspend fun putString(key: String, value: String) = delegate.putString(key, value)
+        override suspend fun remove(key: String) = delegate.remove(key)
+        override suspend fun clear() = delegate.clear()
+    }
+
+    @Test
+    fun `restore em paralelo a uma renovacao nao republica a sessao velha`() = runTest {
+        val refreshTokensEnviados = mutableListOf<String>()
+        val captured = mutableListOf<CapturedRequest>()
+        var rodada = 0
+        val (api, _) = mockOwnAuthApi(captured) { path, _ ->
+            if (path.endsWith("refresh")) {
+                rodada++
+                HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r${rodada + 1}", 3600)
+            } else HttpStatusCode.OK to ""
+        }
+        val storage = GatedStorage()
+        val mgr = OwnAuthTokenManager(api, AuthSessionStore(storage), 60) { fixedNow }
+        mgr.adopt(OwnAuthTokens(fakeJwt("acc-1"), "r1", 5), "a@x.com", "Ana") // expirando → renova
+        mgr.clear()
+        AuthSessionStore(storage).save(session(fakeJwt("acc-1"), "r1", 5))
+
+        // 1) restore começa a ler o cofre (r1) e fica parado na leitura.
+        storage.armed = true
+        val restore = launch { mgr.restore() }
+        runCurrent()
+        assertEquals(1, storage.readsWhileArmed)
+
+        // 2) enquanto isso, uma requisição precisa de token. Sem a trava no restore, ela semearia
+        //    e renovaria agora (r1 → r2) e o restore publicaria r1 por cima logo depois.
+        storage.armed = false
+        val primeira = launch { mgr.accessToken() }
+        // Espera, em tempo REAL e com teto, a renovação terminar: o MockEngine devolve por outro
+        // dispatcher. Sem a trava ela termina (r2 publicado) antes de o restore publicar; com a trava
+        // ela fica presa atrás do restore, e o teto só deixa o teste seguir.
+        withContext(Dispatchers.Default) { withTimeoutOrNull(1_000) { primeira.join() } }
+        runCurrent()
+
+        // 3) a leitura do restore termina.
+        storage.gate.complete(Unit)
+        advanceUntilIdle()
+        restore.join(); primeira.join()
+
+        assertEquals("r2", mgr.session.value?.refreshToken, "a sessão em memória voltou ao par velho")
+
+        // 4) a renovação seguinte manda o par NOVO — mandar r1 aqui seria reuso e derrubaria a família.
+        mgr.accessToken(forceRefresh = true)
+        captured.filter { it.url.endsWith("refresh") }.forEach { req ->
+            refreshTokensEnviados += Regex("\"refreshToken\"\\s*:\\s*\"([^\"]+)\"").find(req.body)!!.groupValues[1]
+        }
+        assertEquals(listOf("r1", "r2"), refreshTokensEnviados)
+        assertEquals("r3", mgr.session.value?.refreshToken)
     }
 }
