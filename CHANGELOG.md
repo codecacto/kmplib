@@ -1,5 +1,26 @@
 # Changelog — kmplib
 
+## 2.205.0 — iOS: a sessão não sobrevive mais à desinstalação do app
+
+Correção (`kmplib-auth`, só `iosMain`). Nenhuma API muda; o app não precisa de código.
+
+**O defeito (todas as versões com own-auth no iOS):** o iOS apaga o `UserDefaults` ao desinstalar o
+app, mas **não** o Keychain. Quem desinstalava e reinstalava abria o app com o `refreshToken` antigo:
+pulava onboarding e login e caía direto numa tela de dentro (no Cidade Conectada, a escolha do bairro
+do cadastro). O Android não tem o problema — o `EncryptedSharedPreferences` sai junto com o app.
+
+**Agora:** o `IosSecureTokenStorage`, antes da primeira operação do processo, confere uma marca no
+`UserDefaults` (`br.com.codecacto.kmplib.auth.instalacao.<serviceName>`). Sem a marca, apaga os itens
+do Keychain **daquele `serviceName`** e grava a marca. Sob `NSLock`: nenhuma leitura concorrente vê o
+token antigo, e não depende da ordem entre `AppDelegate` e Kotlin.
+
+⚠️ **Na primeira versão do app com a 2.205.0, quem só ATUALIZA também é deslogado uma vez** (a marca
+ainda não existe). O `UserDefaults` não distingue reinstalação de atualização com segurança — SDKs
+gravam nele antes da primeira leitura da sessão.
+
+**Quem tinha contornado no `AppDelegate`** (`SecItemDelete` de todo `kSecClassGenericPassword` com
+flag `app_installed`): remover — apagava o Keychain inteiro do app, e não só a sessão.
+
 ## 2.204.0 — `AppServiceGate` não desmonta mais o app ao reconsultar (e reconsulta ao voltar do 2º plano)
 
 Correção de comportamento + um parâmetro novo (aditivo, default que mantém o comportamento).

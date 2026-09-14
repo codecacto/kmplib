@@ -24,6 +24,8 @@ import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
+import platform.Foundation.NSLock
+import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
@@ -59,7 +61,49 @@ internal class IosSecureTokenStorage(
     private val serviceName: String,
 ) : SecureTokenStorage {
 
-    override suspend fun getString(key: String): String? = memScoped {
+    private val trava = NSLock()
+    private var instalacaoConferida = false
+
+    /**
+     * Descarta a sessão que sobreviveu à DESINSTALAÇÃO do app.
+     *
+     * O iOS apaga o `UserDefaults` quando o app é removido, mas **não** apaga o Keychain. Sem esta
+     * conferência, quem desinstala e instala de novo abre o app com o `refreshToken` antigo: pula
+     * onboarding e login e cai direto numa tela de dentro (no Cidade Conectada, o cadastro do
+     * bairro). A marca vive no `UserDefaults` — se ela não está lá, esta é a primeira abertura desta
+     * instalação, e o que houver no Keychain sob este `serviceName` é de uma instalação anterior.
+     *
+     * Roda antes da PRIMEIRA operação do cofre, sob trava: nenhuma leitura concorrente enxerga o
+     * token antigo enquanto ele é apagado, e nada depende de o `AppDelegate` ter rodado antes do
+     * Kotlin. Só apaga os itens deste `serviceName`, nunca o Keychain inteiro do app.
+     *
+     * ⚠️ Na versão do app que traz isto pela primeira vez a marca ainda não existe, então **quem só
+     * ATUALIZA também é deslogado uma vez**. É o preço de não confundir reinstalação com
+     * atualização: o `UserDefaults` não serve de prova, porque SDKs gravam nele antes da primeira
+     * leitura da sessão.
+     */
+    private fun descartarSessaoDeInstalacaoAnterior() {
+        trava.lock()
+        try {
+            if (instalacaoConferida) return
+            val defaults = NSUserDefaults.standardUserDefaults
+            val marca = "br.com.codecacto.kmplib.auth.instalacao.$serviceName"
+            if (!defaults.boolForKey(marca)) {
+                apagarItensDoServico()
+                defaults.setBool(true, marca)
+            }
+            instalacaoConferida = true
+        } finally {
+            trava.unlock()
+        }
+    }
+
+    override suspend fun getString(key: String): String? {
+        descartarSessaoDeInstalacaoAnterior()
+        return lerDoKeychain(key)
+    }
+
+    private fun lerDoKeychain(key: String): String? = memScoped {
         val query = cfDictionaryOf(
             kSecClass to kSecClassGenericPassword,
             kSecAttrService to serviceName.toCFString(),
@@ -75,6 +119,7 @@ internal class IosSecureTokenStorage(
     }
 
     override suspend fun putString(key: String, value: String) {
+        descartarSessaoDeInstalacaoAnterior()
         remove(key)
         val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
         memScoped {
@@ -90,6 +135,7 @@ internal class IosSecureTokenStorage(
     }
 
     override suspend fun remove(key: String) {
+        descartarSessaoDeInstalacaoAnterior()
         memScoped {
             val query = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,
@@ -102,6 +148,11 @@ internal class IosSecureTokenStorage(
     }
 
     override suspend fun clear() {
+        descartarSessaoDeInstalacaoAnterior()
+        apagarItensDoServico()
+    }
+
+    private fun apagarItensDoServico() {
         memScoped {
             val query = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,

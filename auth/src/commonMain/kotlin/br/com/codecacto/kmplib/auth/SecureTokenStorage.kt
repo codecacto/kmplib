@@ -9,7 +9,9 @@ package br.com.codecacto.kmplib.auth
  *
  * - **Android:** `EncryptedSharedPreferences` (Jetpack Security), cifrado com uma `MasterKey`
  *   ancorada no Android Keystore (AES-256-GCM).
- * - **iOS:** Keychain Services (`kSecClassGenericPassword`), acessível após o primeiro unlock.
+ * - **iOS:** Keychain Services (`kSecClassGenericPassword`), acessível após o primeiro unlock. Como o
+ *   Keychain sobrevive à desinstalação, a primeira operação de cada instalação descarta o que ficou
+ *   de uma instalação anterior (marca no `UserDefaults`, 2.205.0).
  *
  * Só guarda **String**; o [AuthSessionStore] serializa a sessão inteira (tokens + identidade) num
  * único valor JSON sob uma chave. Toda operação é `suspend` (I/O de disco/keystore) e **best-effort**:
