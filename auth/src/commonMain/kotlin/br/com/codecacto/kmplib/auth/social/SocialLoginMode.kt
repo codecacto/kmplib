@@ -27,6 +27,13 @@ package br.com.codecacto.kmplib.auth.social
  * **O preço:** o login sai do app e acontece numa aba do navegador (é o que os aplicativos grandes
  * fazem), e exige um backend nosso publicado — o que um app 100% offline não tem.
  *
+ * ## A Apple não entra nessa escolha (2.206.0)
+ * O modo decide o caminho do **Google**. A **Apple é sempre nativa** (`AuthenticationServices`),
+ * nos dois modos: o teto que justifica o [BACKEND] é do Google Cloud, e a Apple identifica o app pelo
+ * bundle id, sem cliente OAuth por app. O backend registra a Apple só na validação do `idToken`
+ * (`AuthLocalSocialConfig.apple`), nunca no fluxo pelo navegador. O app iOS precisa do
+ * *entitlement* `com.apple.developer.applesignin`.
+ *
  * ## Qual usar
  * Projeto **interno da empresa** nasce em [BACKEND] (default da casca): é o que faz o portfólio
  * crescer sem esbarrar no teto. Projeto de **parceria ou de cliente**, que publica na conta dele e

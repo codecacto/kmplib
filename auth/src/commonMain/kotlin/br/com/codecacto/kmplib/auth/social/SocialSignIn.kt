@@ -50,9 +50,9 @@ class SocialSignIn(
 ) {
 
     /** Executa o fluxo completo e devolve o usuário já com a sessão adotada. */
-    suspend fun signIn(provider: SocialProvider): Result<User> = when (mode) {
-        SocialLoginMode.NATIVE -> signInNativo(provider)
-        SocialLoginMode.BACKEND -> signInPeloBackend(provider)
+    suspend fun signIn(provider: SocialProvider): Result<User> = when (caminhoDoLogin(mode, provider)) {
+        CaminhoDoLoginSocial.NATIVO -> signInNativo(provider)
+        CaminhoDoLoginSocial.NAVEGADOR -> signInPeloBackend(provider)
     }
 
     // ── Nativo ────────────────────────────────────────────────────────────────
@@ -133,6 +133,30 @@ class SocialSignIn(
     private fun <T> cancelado(): Result<T> =
         Result.failure(SocialBrowserException("Login cancelado.", reason = "cancelado"))
 }
+
+/** Por onde um provedor negocia o login. */
+internal enum class CaminhoDoLoginSocial { NATIVO, NAVEGADOR }
+
+/**
+ * Qual caminho [SocialSignIn] toma para cada provedor (2.206.0).
+ *
+ * **A Apple é SEMPRE nativa, em qualquer modo.** O [SocialLoginMode] existe por causa do Google — o
+ * teto de clientes OAuth por projeto do Google Cloud — e esse teto não existe na Apple, que
+ * identifica o app pelo bundle id. No iOS o caminho recomendado pela própria Apple é o
+ * `AuthenticationServices` (folha do sistema, Face ID); negociar pelo navegador exigiria Services ID,
+ * domínio verificado e um `client_secret` JWT assinado com o `.p8`, para uma experiência pior.
+ *
+ * Até a 2.205.0 o modo [SocialLoginMode.BACKEND] mandava a Apple para o `/social/start`, onde o
+ * backend (corretamente) só registra o Google — e o botão respondia "Provedor social não habilitado".
+ */
+internal fun caminhoDoLogin(mode: SocialLoginMode, provider: SocialProvider): CaminhoDoLoginSocial =
+    when (provider) {
+        SocialProvider.APPLE -> CaminhoDoLoginSocial.NATIVO
+        SocialProvider.GOOGLE -> when (mode) {
+            SocialLoginMode.NATIVE -> CaminhoDoLoginSocial.NATIVO
+            SocialLoginMode.BACKEND -> CaminhoDoLoginSocial.NAVEGADOR
+        }
+    }
 
 /**
  * `true` quando a pessoa desistiu do login — nos dois modos, e em qualquer plataforma.

@@ -1,5 +1,22 @@
 # Changelog — kmplib
 
+## 2.206.0 — Apple é sempre nativa, também no modo `BACKEND`
+
+Correção (`kmplib-auth`, `commonMain`). Nenhuma API muda; o app não precisa de código.
+
+**O defeito (2.160.0–2.205.0):** com `SocialLoginMode.BACKEND`, o `SocialSignIn` mandava **todos**
+os provedores para o navegador (`/social/start`), inclusive a Apple. O backend registra no fluxo pelo
+navegador só o Google, e o botão "Continuar com Apple" no iOS respondia **"Provedor social não
+habilitado"** (Backhand, 15/set/2026).
+
+**Agora:** a Apple vai sempre pelo `AuthenticationServices` + `POST /auth/social` com o `idToken`,
+nos dois modos. O modo decide só o caminho do Google. A regra mora em `caminhoDoLogin` (internal,
+testada).
+
+**O app iOS precisa do entitlement `com.apple.developer.applesignin`** (`iosApp.entitlements` +
+`CODE_SIGN_ENTITLEMENTS` no `.xcconfig`). Sem ele a folha da Apple falha com
+`ASAuthorizationError 1000`. A `casca-mobile` passa a trazê-lo.
+
 ## 2.205.0 — iOS: a sessão não sobrevive mais à desinstalação do app
 
 Correção (`kmplib-auth`, só `iosMain`). Nenhuma API muda; o app não precisa de código.
