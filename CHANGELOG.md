@@ -1,5 +1,30 @@
 # Changelog — kmplib
 
+## 2.208.0 — Toast abaixo da câmera e legível; moeda em reais inteiros e campo vazio de verdade
+
+Dois itens nascidos da revisão do Mirassol Conectado (fundador, 16/set/2026). Nenhuma assinatura
+quebra; o toast muda de posição e de cor **para todos os apps** (é correção).
+
+### 1. `ToastHost` respeita a barra de status e tem contraste (kmplib-ui)
+- **Posição:** o host aplicava só `topPadding` (16dp) a partir do topo da janela. Montado na raiz —
+  onde ele deve morar —, o toast nascia **por cima da câmera / Dynamic Island do iPhone**. Agora
+  desconta `WindowInsets.safeDrawing` (topo + laterais) antes do `topPadding`. Parâmetro novo
+  `respeitarBarraDeStatus: Boolean = true`; `false` só para host montado dentro de conteúdo que já
+  descontou a barra.
+- **Cor:** a pílula usava os tons 500 (`#10B981`, `#EF4444`, `#F59E0B`, `#3B82F6`) com texto branco —
+  contraste entre 2:1 e 3:1, abaixo do WCAG AA. Agora tons 700 (`#047857`, `#B91C1C`, `#B45309`,
+  `#1D4ED8`), ≥ 4,5:1. Texto 15sp semibold, largura máxima de 560dp e sombra.
+
+### 2. `CurrencyVisualTransformation` — reais inteiros e vazio vazio (kmplib-mask)
+- `decimalPlaces = 0` desenha **"R$ 35.000"**. Antes desenhava "R$ 35.000," com a vírgula pendurada.
+- `showZeroWhenEmpty = false` deixa o campo **vazio** quando não há dígito. O default (`true`)
+  mantém o "R$ 0,00" de sempre. Com `false`, o mapeamento de cursor devolve 0 para o texto vazio (o
+  `prefixLength` de antes estouraria o limite e derrubaria o campo).
+- Por quê: preço de veículo e de imóvel é em reais inteiros no mercado inteiro, e um "0,00"
+  desenhado num campo em branco é lido como valor já informado — e esconde o placeholder.
+
+Testes: `CurrencyMaskTest` (+3).
+
 ## 2.207.0 — Seleção MÚLTIPLA de fotos, a faixa com o "+" em primeiro, e o botão do diálogo que quebrava no meio da palavra
 
 Três itens em `kmplib-ui`, nascidos da revisão do Mirassol Conectado (fundador, 15/set/2026). Os dois

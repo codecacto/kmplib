@@ -77,4 +77,34 @@ class CurrencyMaskTest {
             assertEquals(value, parsed, "roundtrip falhou para $value (formatted=$formatted)")
         }
     }
+
+    // ====== CurrencyVisualTransformation (2.208.0) ======
+
+    private fun desenho(t: CurrencyVisualTransformation, digitos: String): String =
+        t.filter(androidx.compose.ui.text.AnnotatedString(digitos)).text.text
+
+    @Test
+    fun `reais inteiros nao desenham virgula nem centavos`() {
+        val t = CurrencyVisualTransformation(decimalPlaces = 0)
+        assertEquals("R$ 35.000", desenho(t, "35000"))
+        assertEquals("R$ 1.250.000", desenho(t, "1250000"))
+        assertEquals("R$ 7", desenho(t, "007"))
+    }
+
+    @Test
+    fun `vazio fica vazio quando showZeroWhenEmpty e false`() {
+        val t = CurrencyVisualTransformation(decimalPlaces = 0, showZeroWhenEmpty = false)
+        val resultado = t.filter(androidx.compose.ui.text.AnnotatedString(""))
+        assertEquals("", resultado.text.text)
+        // O cursor não pode apontar para além do texto desenhado.
+        assertEquals(0, resultado.offsetMapping.originalToTransformed(0))
+        assertEquals(0, resultado.offsetMapping.transformedToOriginal(0))
+    }
+
+    @Test
+    fun `comportamento padrao continua desenhando zero com centavos`() {
+        val t = CurrencyVisualTransformation()
+        assertEquals("R$ 0,00", desenho(t, ""))
+        assertEquals("R$ 1.234,56", desenho(t, "123456"))
+    }
 }

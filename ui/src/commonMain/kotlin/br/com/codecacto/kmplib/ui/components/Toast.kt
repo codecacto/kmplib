@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -117,6 +118,15 @@ fun ToastHost(
     topPadding: Dp = 16.dp,
     /** [ToastStyle.PILL] (padrão, o desenho de sempre) ou [ToastStyle.BANNER]. */
     style: ToastStyle = ToastStyle.PILL,
+    /**
+     * Desconta a barra de status / notch / Dynamic Island antes do [topPadding] (2.208.0).
+     *
+     * Antes o host só aplicava `topPadding` (16dp) a partir do topo da JANELA: montado na raiz do
+     * app — que é onde ele deve morar —, o toast nascia **por cima da câmera do iPhone**, meio
+     * escondido e ilegível (Mirassol Conectado, 16/set/2026). `false` só para quem monta o host
+     * dentro de um conteúdo que já descontou a barra de status.
+     */
+    respeitarBarraDeStatus: Boolean = true,
 ) {
     val toast = toastState.currentToast.value
 
@@ -131,6 +141,15 @@ fun ToastHost(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (respeitarBarraDeStatus) {
+                    Modifier.windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .padding(top = topPadding),
         contentAlignment = Alignment.TopCenter
     ) {
@@ -182,22 +201,25 @@ private fun ToastContent(
     val (icon, backgroundColor, iconColor) = when (type) {
         ToastType.SUCCESS -> Triple(
             Icons.Default.CheckCircle,
-            Color(0xFF10B981),
+            // Tons 700: com texto branco dão contraste ≥ 4,5:1 (WCAG AA). Os 500 de antes (#10B981,
+            // #F59E0B…) ficavam entre 2:1 e 3:1 — "a cor está muito clara, não dá para ler"
+            // (fundador, Mirassol Conectado, 16/set/2026).
+            Color(0xFF047857),
             Color.White
         )
         ToastType.ERROR -> Triple(
             Icons.Default.Error,
-            Color(0xFFEF4444),
+            Color(0xFFB91C1C),
             Color.White
         )
         ToastType.WARNING -> Triple(
             Icons.Default.Warning,
-            Color(0xFFF59E0B),
+            Color(0xFFB45309),
             Color.White
         )
         ToastType.INFO -> Triple(
             Icons.Default.Info,
-            Color(0xFF3B82F6),
+            Color(0xFF1D4ED8),
             Color.White
         )
     }
@@ -205,6 +227,8 @@ private fun ToastContent(
     Row(
         modifier = Modifier
             .padding(horizontal = 16.dp)
+            .widthIn(max = 560.dp)
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(12.dp))
             .background(
                 color = backgroundColor,
                 shape = RoundedCornerShape(12.dp)
@@ -223,8 +247,8 @@ private fun ToastContent(
         Text(
             text = message,
             color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

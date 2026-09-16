@@ -21,7 +21,17 @@ import androidx.compose.ui.text.input.VisualTransformation
  */
 class CurrencyVisualTransformation(
     private val prefix: String = "R$ ",
-    private val decimalPlaces: Int = 2
+    /**
+     * Casas decimais. `0` = **reais inteiros** ("R$ 35.000"), o padrão de anúncio de veículo e de
+     * imóvel — até a 2.207.0 `0` desenhava "R$ 35.000," com a vírgula pendurada no fim.
+     */
+    private val decimalPlaces: Int = 2,
+    /**
+     * `true` (default, comportamento de sempre): campo vazio desenha "R$ 0,00". `false`: vazio
+     * fica VAZIO (2.208.0) — um zero desenhado num campo em branco é lido como valor já informado,
+     * e o placeholder nunca aparece (Mirassol Conectado, 16/set/2026: *"aparece o 00"*).
+     */
+    private val showZeroWhenEmpty: Boolean = true,
 ) : VisualTransformation {
 
     override fun filter(text: AnnotatedString): TransformedText {
@@ -35,7 +45,12 @@ class CurrencyVisualTransformation(
     }
 
     private fun formatCurrency(digits: String): String {
-        if (digits.isEmpty()) return "${prefix}0,00"
+        if (digits.isEmpty()) {
+            return if (showZeroWhenEmpty) "${prefix}0" + (if (decimalPlaces > 0) "," + "0".repeat(decimalPlaces) else "") else ""
+        }
+        if (decimalPlaces <= 0) {
+            return "$prefix${formatWithThousandSeparator(digits.trimStart('0').ifEmpty { "0" }.toLongOrNull() ?: 0L)}"
+        }
 
         // Preenche com zeros à esquerda se necessário
         val paddedDigits = digits.padStart(decimalPlaces + 1, '0')
@@ -73,7 +88,10 @@ class CurrencyVisualTransformation(
         override fun originalToTransformed(offset: Int): Int {
             // Para moeda, o cursor sempre vai para o final
             // pois os dígitos são inseridos da direita para esquerda
-            if (offset == 0) return prefixLength
+            // Vazio desenhado como "" não tem prefixo: devolver `prefixLength` aqui estouraria o
+            // limite do texto transformado e derrubaria o campo no primeiro quadro.
+            if (formatted.isEmpty()) return 0
+            if (offset == 0) return prefixLength.coerceAtMost(formatted.length)
             return formatted.length
         }
 
