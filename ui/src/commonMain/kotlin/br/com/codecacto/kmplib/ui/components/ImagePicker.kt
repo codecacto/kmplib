@@ -207,3 +207,64 @@ fun rememberImagePickerLauncher(
     onImagePicked = { foto -> onImageSelected(foto.bytes) },
     onError = {},
 )
+
+// =================================================================================================
+// Seletor MÚLTIPLO — escolher várias fotos numa passada só.
+// =================================================================================================
+
+/**
+ * Quantas fotos o seletor múltiplo aceita de uma vez quando o app não diz outro número.
+ *
+ * Vinte é o que cabe numa sessão de anúncio sem virar espera: o gargalo não é escolher, é o upload
+ * de cada uma. Quem precisar de mais chama o seletor de novo — não há teto acumulado.
+ */
+const val MULTI_IMAGE_PICKER_DEFAULT_LIMIT: Int = 20
+
+/** O disparo do seletor múltiplo. Guarde-o e chame [launch] no `onClick`. */
+expect class MultiImagePickerLauncher {
+    fun launch()
+}
+
+/**
+ * Seletor de **várias** fotos da galeria, numa passada só.
+ *
+ * ```kotlin
+ * val seletor = rememberMultiImagePickerLauncher(
+ *     selectionLimit = 20,
+ *     onImagesPicked = { fotos -> fotos.forEach(::enviar) },
+ *     onError = { motivo -> avisar(motivo) },
+ * )
+ *
+ * PhotoStrip(fotos = state.fotos, onAdd = { seletor.launch() }, …)
+ * ```
+ *
+ * ## Por que existe, e por que NÃO tem câmera
+ * Quem monta um anúncio de carro ou de imóvel já fotografou tudo antes de abrir o app: obrigá-lo a
+ * entrar na galeria, escolher uma, esperar, e repetir oito vezes é o atrito que fazia o anúncio
+ * nascer com duas fotos. E câmera não entra aqui de propósito — ela produz **uma** foto por vez, e
+ * oferecer "tirar foto" num seletor múltiplo prometeria algo que o sistema não faz. Para o caminho
+ * de uma foto só (avatar, capa, documento) continue em [rememberImagePickerLauncher].
+ *
+ * ## A ordem da escolha é a ordem entregue
+ * A lista chega na ordem em que o sistema devolveu, e o índice 0 é o primeiro item — é o que permite
+ * ao app tratar "a primeira é a capa" sem reordenar nada.
+ *
+ * ## Uma foto ilegível não derruba as outras
+ * Cada item é decodificado por conta própria. O que falhar é descartado e reportado em [onError]
+ * **uma vez**; o que deu certo é entregue em [onImagesPicked]. Uma imagem corrompida no meio da
+ * seleção não pode custar as outras dezenove.
+ *
+ * ## Desistir não é erro
+ * Fechar a galeria sem escolher nada **não** chama [onImagesPicked] nem [onError] — é exatamente o
+ * mesmo contrato do seletor de uma foto.
+ *
+ * @param selectionLimit teto de itens por abertura; é preso à faixa aceita pelo sistema.
+ * @param onImagesPicked as fotos já reduzidas, giradas e medidas (ver [PickedImage]). Nunca vazia.
+ * @param onError por que ao menos uma foto não veio — NUNCA silêncio na tela.
+ */
+@Composable
+expect fun rememberMultiImagePickerLauncher(
+    selectionLimit: Int = MULTI_IMAGE_PICKER_DEFAULT_LIMIT,
+    onImagesPicked: (List<PickedImage>) -> Unit,
+    onError: (ImagePickerError) -> Unit = {},
+): MultiImagePickerLauncher

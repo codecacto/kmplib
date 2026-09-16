@@ -1,5 +1,68 @@
 # Changelog — kmplib
 
+## 2.207.0 — Seleção MÚLTIPLA de fotos, a faixa com o "+" em primeiro, e o botão do diálogo que quebrava no meio da palavra
+
+Três itens em `kmplib-ui`, nascidos da revisão do Mirassol Conectado (fundador, 15/set/2026). Os dois
+primeiros são **aditivos** — nada que existe muda de comportamento. O terceiro é correção.
+
+### 1. `rememberMultiImagePickerLauncher` — várias fotos numa passada só
+
+```kotlin
+val seletor = rememberMultiImagePickerLauncher(
+    selectionLimit = 20,
+    onImagesPicked = { fotos -> fotos.forEach(::enviar) },
+    onError = { avisar(it) },
+)
+```
+
+Android via `PickMultipleVisualMedia`, iOS via `PHPickerConfiguration.selectionLimit`. Devolve
+`List<PickedImage>` — já reduzidas, **giradas pelo EXIF** e medidas, na ordem em que foram
+escolhidas. **Não tem câmera**, de propósito: ela produz uma foto por vez, e oferecê-la num seletor
+múltiplo prometeria o que o sistema não faz. Para uma foto só (avatar, capa, documento) continue em
+`rememberImagePickerLauncher`.
+
+Uma imagem ilegível no meio da seleção **não derruba as outras**: ela é descartada, `onError` é
+chamado UMA vez, e o que deu certo é entregue. Fechar a galeria sem escolher não chama nenhum dos
+dois. No Android a decodificação sai da thread de UI — vinte JPEGs na main thread congelam a tela.
+
+*Por quê:* quem monta um anúncio de carro ou de imóvel já fotografou tudo antes de abrir o app.
+Escolher uma, esperar o upload e repetir oito vezes era o atrito que fazia o anúncio nascer com duas
+fotos.
+
+### 2. `PhotoStrip` + `PhotoStripItem` — a faixa de fotos de formulário
+
+```kotlin
+PhotoStrip(
+    items = state.fotos,                      // PhotoStripItem(id, url?, failed)
+    onAdd = { seletor.launch() },
+    onRemove = { vm.remover(it.id) },
+    onMakeCover = { vm.usarComoCapa(it.id) },
+    onRetry = { vm.tentarDeNovo(it.id) },
+)
+```
+
+Rolagem horizontal com o **quadradinho de adicionar em PRIMEIRO**, sempre visível — com ele no fim,
+quem já subiu oito fotos precisa rolar até o fim para subir a nona, e quem não rola conclui que não
+dá para adicionar mais. **Não há botão "Adicionar foto" embaixo**: o quadradinho é o botão, e tem a
+medida da miniatura.
+
+A miniatura **nasce antes da URL** (`url = null` desenha o indicador girando): quem escolhe cinco
+fotos volta da galeria e vê cinco quadradinhos, na ordem em que escolheu — sem isso a tela fica
+idêntica à de antes por vários segundos e a pessoa reescolhe tudo. A que falhou fica na faixa com a
+marca de recarregar, e o "x" remove.
+
+### 3. `ConfirmationDialog` — os botões empilham quando os rótulos não cabem
+
+**O defeito (todas as versões):** as duas ações dividiam a linha ao meio com `weight(1f)`, mesmo
+quando o texto não cabia na metade. Num celular de 360dp sobram ~88dp para o rótulo depois do padding
+do botão — e "Denunciar" quebrava no meio da palavra, deixando um **"r" sozinho na linha de baixo**,
+num diálogo de moderação.
+
+**Agora:** a largura dos rótulos é **medida antes de desenhar** (`TextMeasurer`); não cabendo lado a
+lado, os botões empilham em largura cheia, com o confirmar em cima. É o mesmo comportamento do
+`AlertDialog` do Material. Vale para qualquer rótulo e qualquer escala de fonte do aparelho — nada de
+reticências, que num botão de ação irreversível é pior que a segunda linha.
+
 ## 2.206.0 — Apple é sempre nativa, também no modo `BACKEND`
 
 Correção (`kmplib-auth`, `commonMain`). Nenhuma API muda; o app não precisa de código.

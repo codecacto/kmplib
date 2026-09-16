@@ -197,8 +197,19 @@ private fun abrirCameraDeFoto(
     raiz.presentViewController(camera, animated = true, completion = null)
 }
 
+/** Entrega a foto normalizada, ou avisa o motivo. A normalização mora em [paraPickedImage]. */
+private fun entregarFoto(
+    imagem: UIImage,
+    onImagePicked: (PickedImage) -> Unit,
+    onError: (ImagePickerError) -> Unit,
+) {
+    val foto = imagem.paraPickedImage()
+    if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
+}
+
 /**
- * Normaliza, reduz, codifica em JPEG e **mede o que saiu**.
+ * `UIImage` → [PickedImage]: normaliza, reduz, codifica em JPEG e **mede o que saiu**. `null` = não
+ * deu para ler, e o log já nomeou o motivo.
  *
  * ⚠️ A `UIImage` de uma foto de iPhone quase nunca está em pé no arquivo: os pixels vêm deitados e a
  * orientação vem à parte, em `imageOrientation` (o EXIF). Duas consequências que esta função existe
@@ -210,52 +221,46 @@ private fun abrirCameraDeFoto(
  * 2. Por isso a imagem é **sempre redesenhada** antes de codificar: `drawInRect` aplica a
  *    orientação, e o que sai não tem mais tag de rotação. Depois disso, medida devolvida e medida
  *    contida nos bytes são a mesma coisa — para nós, para o backend e para o navegador.
+ *
+ * `internal` porque o seletor MÚLTIPLO (`MultiImagePicker.ios.kt`) faz exatamente o mesmo trabalho,
+ * num laço: duplicar esta normalização seria duplicar a regra de orientação, que é o lugar em que
+ * este arquivo mais custou a acertar.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun entregarFoto(
-    imagem: UIImage,
-    onImagePicked: (PickedImage) -> Unit,
-    onError: (ImagePickerError) -> Unit,
-) {
+internal fun UIImage.paraPickedImage(): PickedImage? {
     // `size` está em PONTOS; `scale` os converte em pixels. Numa foto vinda de arquivo a escala é
     // 1.0, mas a de câmera nem sempre — e a medida que o app publica é em pixels.
-    val (larguraPt, alturaPt) = imagem.size.useContents { width to height }
-    val escala = imagem.scale
-    val larguraPx = (larguraPt * escala).toInt()
-    val alturaPx = (alturaPt * escala).toInt()
+    val (larguraPt, alturaPt) = size.useContents { width to height }
+    val larguraPx = (larguraPt * scale).toInt()
+    val alturaPx = (alturaPt * scale).toInt()
     if (larguraPx <= 0 || alturaPx <= 0) {
         AppLogger.w(TAG, "Foto sem medida utilizável.")
-        onError(ImagePickerError.IMAGE_UNREADABLE)
-        return
+        return null
     }
 
     val (largura, altura) = scaledImageSize(larguraPx, alturaPx, PICKED_IMAGE_MAX_DIMENSION)
 
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(largura.toDouble(), altura.toDouble()), false, 1.0)
-    imagem.drawInRect(CGRectMake(0.0, 0.0, largura.toDouble(), altura.toDouble()))
+    drawInRect(CGRectMake(0.0, 0.0, largura.toDouble(), altura.toDouble()))
     val normalizada = UIGraphicsGetImageFromCurrentImageContext()
     UIGraphicsEndImageContext()
 
     if (normalizada == null) {
         AppLogger.w(TAG, "Não foi possível redesenhar a foto para normalizar a orientação.")
-        onError(ImagePickerError.IMAGE_UNREADABLE)
-        return
+        return null
     }
 
     val jpeg = UIImageJPEGRepresentation(normalizada, 0.85)
     if (jpeg == null) {
         AppLogger.w(TAG, "Não foi possível codificar a foto em JPEG.")
-        onError(ImagePickerError.IMAGE_UNREADABLE)
-        return
+        return null
     }
 
-    onImagePicked(
-        PickedImage(bytes = jpeg.toByteArray(), widthPx = largura, heightPx = altura),
-    )
+    return PickedImage(bytes = jpeg.toByteArray(), widthPx = largura, heightPx = altura)
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun NSData.toByteArray(): ByteArray {
+internal fun NSData.toByteArray(): ByteArray {
     val size = length.toInt()
     val bytes = ByteArray(size)
     if (size > 0) {

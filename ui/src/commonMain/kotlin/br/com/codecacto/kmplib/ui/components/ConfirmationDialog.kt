@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -92,53 +95,126 @@ fun ConfirmationDialog(
                         lineHeight = 20.sp
                     )
 
-                    // Botões
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Botão cancelar
-                        if (cancelText != null) {
-                            OutlinedButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.weight(1f),
-                                enabled = !isLoading,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            ) {
-                                Text(cancelText)
-                            }
-                        }
-
-                        // Botão confirmar
-                        Button(
-                            onClick = onConfirm,
-                            modifier = Modifier.weight(1f),
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = primaryColor,
-                                contentColor = Color.White
-                            )
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text(confirmText)
-                            }
-                        }
-                    }
+                    // ⚠️ **Os botões EMPILHAM quando os rótulos não cabem lado a lado**
+                    // (15/set/2026). Dois botões com `weight(1f)` dividem a linha ao meio mesmo
+                    // quando o texto não cabe na metade — e o rótulo quebra no meio da palavra:
+                    // "Denunciar" virava "Denuncia" numa linha e um "r" solto na outra, num
+                    // diálogo de moderação. A largura útil de cada metade num celular de 360dp é
+                    // ~136dp, e dela o padding do próprio botão come 48dp: sobram 88dp, que
+                    // "Denunciar" só não estoura com a fonte no tamanho padrão do sistema.
+                    //
+                    // A medida é feita ANTES de desenhar, com o `TextMeasurer`, e não chutada: é o
+                    // que faz a decisão valer para qualquer rótulo, em qualquer idioma e em
+                    // qualquer escala de fonte do aparelho. É o mesmo comportamento do `AlertDialog`
+                    // do Material, que empilha as ações quando elas não cabem numa linha.
+                    BotoesDeConfirmacao(
+                        confirmText = confirmText,
+                        cancelText = cancelText,
+                        onConfirm = onConfirm,
+                        onDismiss = onDismiss,
+                        isLoading = isLoading,
+                        primaryColor = primaryColor,
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * As duas ações do [ConfirmationDialog] — lado a lado quando cabem, **empilhadas quando não**.
+ *
+ * O empilhamento é a saída correta, e não encolher a fonte ou cortar com reticências: um botão de
+ * ação irreversível que diz "Denunci…" é pior do que um botão numa segunda linha. Empilhado, o
+ * confirmar fica **em cima** — é a ação principal, e é onde o polegar chega primeiro num diálogo
+ * que acabou de ser lido de cima para baixo.
+ */
+@Composable
+private fun BotoesDeConfirmacao(
+    confirmText: String,
+    cancelText: String?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    isLoading: Boolean,
+    primaryColor: Color,
+) {
+    val medidor = rememberTextMeasurer()
+    val densidade = LocalDensity.current
+    val estilo = MaterialTheme.typography.labelLarge
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val larguraDoRotulo: (String) -> Dp = { texto ->
+            with(densidade) { medidor.measure(texto, estilo).size.width.toDp() }
+        }
+        val maiorRotulo = maxOf(
+            larguraDoRotulo(confirmText),
+            cancelText?.let(larguraDoRotulo) ?: 0.dp,
+        )
+        // `* 2` porque as duas metades têm a mesma largura: quem não cabe é o MAIOR dos dois.
+        val larguraNecessaria = (maiorRotulo + PADDING_INTERNO_DO_BOTAO) * 2 + ESPACO_ENTRE_BOTOES
+        val empilhar = cancelText != null && larguraNecessaria > maxWidth
+
+        val confirmar: @Composable (Modifier) -> Unit = { m ->
+            Button(
+                onClick = onConfirm,
+                modifier = m,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = primaryColor,
+                    contentColor = Color.White,
+                ),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(confirmText, maxLines = 1)
+                }
+            }
+        }
+        val cancelar: @Composable (Modifier) -> Unit = { m ->
+            cancelText?.let {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = m,
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) {
+                    Text(it, maxLines = 1)
+                }
+            }
+        }
+
+        if (empilhar) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                confirmar(Modifier.fillMaxWidth())
+                cancelar(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ESPACO_ENTRE_BOTOES),
+            ) {
+                cancelar(Modifier.weight(1f))
+                confirmar(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** O padding horizontal que o `Button` do Material reserva de cada lado (24dp + 24dp). */
+private val PADDING_INTERNO_DO_BOTAO: Dp = 48.dp
+private val ESPACO_ENTRE_BOTOES: Dp = 8.dp
 
 /**
  * AlertDialog customizado com TextField
