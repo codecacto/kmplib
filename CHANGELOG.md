@@ -1,5 +1,24 @@
 # Changelog — kmplib
 
+## 2.210.0 — O player inline pode nascer MONTADO
+
+Um item em `kmplib-ui`, da revisão do Mirassol Conectado (fundador, 19/set/2026): no detalhe de uma
+matéria de vídeo, *"aparece um botão feio de play — o player já tem que estar ali, grande, já
+carregado"*. Assinatura compatível: o parâmetro novo tem default.
+
+### `VideoPlayerInline(montarDeSaida = true)` (kmplib-ui)
+- **O default não muda.** `false` continua desenhando a capa e montando a view só depois do play —
+  é o que protege a LISTA, onde os três defeitos conhecidos nasceram (piscar, ficar preto, áudio
+  tocando por baixo depois de sair da tela).
+- **`true` inverte a conta numa tela de DETALHE**: quem abriu uma matéria de vídeo quer o vídeo, e
+  a capa com um play desenhado por nós é um degrau a mais — ainda por cima com aspecto de "imagem
+  com um botão colado por cima". Montado, quem aparece é o player real, com o botão do **próprio
+  YouTube**.
+- ⚠️ **Não é autoplay.** A view é criada; o vídeo não começa sozinho. Autoplay com som é bloqueado
+  pelo YouTube e seria indesejado: a pessoa pode ter aberto para ler.
+- `VideoSource.External` nunca monta — ela é aberta fora, e um WebView com link de fora é
+  justamente o que a lib evita.
+
 ## 2.209.0 — A queda de rede espera 2s antes de virar aviso
 
 Um item em `kmplib-core`, nascido da revisão do Mirassol Conectado (fundador, 19/set/2026):

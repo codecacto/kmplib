@@ -35,11 +35,17 @@ actual fun VideoPlayerInline(
     source: VideoSource?,
     modifier: Modifier,
     onExternal: () -> Unit,
+    montarDeSaida: Boolean,
     capa: @Composable (aoTocar: () -> Unit) -> Unit,
 ) {
     // O play é um estado da COMPOSIÇÃO, e não um parâmetro: quem toca é a capa, e o player nasce
     // no mesmo lugar em que ela estava.
-    var tocando by remember(source) { mutableStateOf(false) }
+    // `montarDeSaida` entra como valor INICIAL, e não como condição no `if`: assim o player
+    // montado de saída continua respondendo ao ciclo normal (a tela cheia desliga e volta).
+    // `External` nunca monta — ela é aberta fora, e um WebView com link de fora é o que a lib evita.
+    var tocando by remember(source) {
+        mutableStateOf(montarDeSaida && source != null && source !is VideoSource.External)
+    }
 
     // ── A TELA CHEIA É OUTRA TELA — e a 2.139.0 existe por causa disto ──────────────────────────
     //

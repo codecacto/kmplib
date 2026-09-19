@@ -34,9 +34,15 @@ actual fun VideoPlayerInline(
     source: VideoSource?,
     modifier: Modifier,
     onExternal: () -> Unit,
+    montarDeSaida: Boolean,
     capa: @Composable (aoTocar: () -> Unit) -> Unit,
 ) {
-    var tocando by remember(source) { mutableStateOf(false) }
+    // `montarDeSaida` entra como valor INICIAL, e não como condição no `if`: assim o player
+    // montado de saída continua respondendo ao ciclo normal (a tela cheia desliga e volta).
+    // `External` nunca monta — ela é aberta fora, e um WebView com link de fora é o que a lib evita.
+    var tocando by remember(source) {
+        mutableStateOf(montarDeSaida && source != null && source !is VideoSource.External)
+    }
 
     if (!tocando || source == null) {
         capa {

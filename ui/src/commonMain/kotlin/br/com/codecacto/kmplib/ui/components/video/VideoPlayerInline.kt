@@ -31,14 +31,29 @@ import androidx.compose.ui.Modifier
  *
  * [VideoSource.External] não é tocada aqui — quem chama abre no navegador, como manda `videoSourceOf`.
  *
+ * ## `montarDeSaida` — quando assistir É a razão de a tela existir (2.210.0)
+ *
+ * O default (`false`) é a capa, e continua sendo o certo em LISTA: ninguém rola um feed para ver
+ * cinco players carregando ao mesmo tempo, e os três defeitos acima nasceram exatamente aí.
+ *
+ * Numa tela de DETALHE de um conteúdo em vídeo, a conta se inverte: quem abriu a matéria de vídeo
+ * quer o vídeo, e a capa com um botão desenhado por nós é um degrau a mais — ainda por cima com o
+ * aspecto de "imagem com um play colado por cima", que foi o que o fundador viu. Com `true`, o
+ * player real nasce montado, mostrando o botão de play DO PRÓPRIO YouTube.
+ *
+ * ⚠️ **Não é autoplay**: a view é criada, o vídeo não começa sozinho. Autoplay com som é bloqueado
+ * pelo próprio YouTube e seria indesejado de qualquer forma — a pessoa pode ter aberto para ler.
+ *
  * @param source o vídeo. `null` desenha apenas o espaço reservado.
  * @param onExternal chamado quando a fonte é [VideoSource.External] e o toque pede a abertura fora.
+ * @param montarDeSaida o player nasce montado, sem passar pela capa. Ver acima.
  */
 @Composable
 expect fun VideoPlayerInline(
     source: VideoSource?,
     modifier: Modifier = Modifier,
     onExternal: () -> Unit = {},
+    montarDeSaida: Boolean = false,
     /**
      * A capa antes do play — o slot vem por ÚLTIMO, como manda a convenção do Compose, para caber
      * como lambda de cauda na chamada. Ela recebe o gesto de toque, que é o que monta o player.
