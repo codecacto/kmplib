@@ -1,9 +1,19 @@
 package br.com.codecacto.kmplib.core.network
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Contrato de ciclo de vida do [ConnectivityObserver] (2.69.0).
@@ -123,5 +133,82 @@ class ConnectivityObserverTest {
         assertTrue(observer.isOnline.value)
         observer.refresh()
         assertTrue(observer.isOnline.value)
+    }
+}
+
+/**
+ * O amortecimento da QUEDA (2.209.0) — a política que impede o "sem internet" de piscar na volta do
+ * segundo plano no iOS e na troca de Wi-Fi para dados móveis.
+ *
+ * Exercita a mesma composição que o [ConnectivityObserver] monta (`collectLatest` + `delay`) sobre
+ * um flow controlado, porque o observer real instancia o monitor NATIVO no construtor — e não há
+ * `NWPathMonitor` nem `Context` num teste de `commonTest`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class AmortecimentoDaQuedaTest {
+
+    /** Monta o mesmo laço do observer e devolve o que a UI enxergaria. */
+    private fun kotlinx.coroutines.CoroutineScope.amortecer(
+        sistema: MutableStateFlow<Boolean>,
+        visto: MutableStateFlow<Boolean>,
+        prazo: kotlin.time.Duration,
+    ) = launch {
+        sistema.collectLatest { online ->
+            if (online) visto.value = true else { delay(prazo); visto.value = false }
+        }
+    }
+
+    @Test
+    fun `queda que se desfaz antes do prazo nunca chega a tela`() = runTest {
+        val sistema = MutableStateFlow(true)
+        val visto = MutableStateFlow(true)
+        val laco = amortecer(sistema, visto, 2.seconds)
+
+        // O app volta do segundo plano: o NWPathMonitor empurra `unsatisfied`…
+        sistema.value = false
+        advanceTimeBy(300.milliseconds)
+        runCurrent()
+        assertTrue(visto.value, "300ms de queda não podem derrubar a tela")
+
+        // …e, logo em seguida, o estado verdadeiro.
+        sistema.value = true
+        runCurrent()
+        assertTrue(visto.value)
+
+        advanceTimeBy(5.seconds)
+        runCurrent()
+        assertTrue(visto.value, "a espera do `false` tinha de ter sido cancelada pela volta")
+        laco.cancel()
+    }
+
+    @Test
+    fun `queda de verdade chega depois do prazo`() = runTest {
+        val sistema = MutableStateFlow(true)
+        val visto = MutableStateFlow(true)
+        val laco = amortecer(sistema, visto, 2.seconds)
+
+        sistema.value = false
+        advanceTimeBy(2.seconds + 100.milliseconds)
+        runCurrent()
+
+        assertFalse(visto.value, "sem rede de verdade, o aviso precisa aparecer")
+        laco.cancel()
+    }
+
+    @Test
+    fun `voltar a ficar online e imediato`() = runTest {
+        val sistema = MutableStateFlow(true)
+        val visto = MutableStateFlow(true)
+        val laco = amortecer(sistema, visto, 2.seconds)
+
+        sistema.value = false
+        advanceTimeBy(3.seconds)
+        runCurrent()
+        assertFalse(visto.value)
+
+        sistema.value = true
+        runCurrent()
+        assertTrue(visto.value, "a volta não passa pelo atraso — ele é só da queda")
+        laco.cancel()
     }
 }

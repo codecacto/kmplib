@@ -1,5 +1,32 @@
 # Changelog — kmplib
 
+## 2.209.0 — A queda de rede espera 2s antes de virar aviso
+
+Um item em `kmplib-core`, nascido da revisão do Mirassol Conectado (fundador, 19/set/2026):
+*"está aparecendo um card de sem conexão com o servidor quando eu coloco em segundo plano e volto,
+na tela de detalhes de um parceiro — isso somente no iPhone"*. Nenhuma assinatura quebra; o
+comportamento muda **para todos os apps** (é correção).
+
+### `ConnectivityObserver` amortece a QUEDA, nunca a volta (kmplib-core)
+- **O defeito.** No iOS, o app que vai para o segundo plano perde o direito de usar a rede e o
+  `NWPathMonitor` empurra `unsatisfied` — não porque o Wi-Fi caiu, mas porque o app saiu de cena.
+  Ao voltar, o último estado empurrado ainda é esse, e o `ConnectivityGate` aparecia na frente da
+  tela em que a pessoa estava até chegar o próximo update. O mesmo acontece **nas duas
+  plataformas** na troca de Wi-Fi para dados móveis: há um intervalo de nenhuma das duas.
+- **A regra.** `isOnline` só vira `false` depois de `QUEDA_CONFIRMADA_APOS` (**2 s**) de rede fora
+  **contínua**; voltar a ficar online é **imediato**. Implementado com `collectLatest` + `delay`: a
+  volta cancela a espera da queda, então a oscilação nunca chega à UI.
+- **Nada fica preso atrás do atraso**: ele vale só para a má notícia. O pior caso é a tela de "sem
+  internet" demorar 2 s em quem está mesmo sem rede — e essa pessoa já não carregaria nada nesse
+  tempo. `refresh()` (o botão "Tentar novamente") continua **direto**, sem amortecimento: quem
+  tocou está olhando a tela de offline e espera resposta agora.
+- **Construtor com dois parâmetros novos, ambos com default** (`quedaConfirmadaApos`, `scope`) —
+  `ConnectivityObserver()` continua compilando em todo consumidor. `Duration.ZERO` desliga o
+  atraso.
+
+Testes: `AmortecimentoDaQuedaTest` (+3) — queda que se desfaz antes do prazo não chega à tela,
+queda de verdade chega depois dele, e a volta é imediata.
+
 ## 2.208.0 — Toast abaixo da câmera e legível; moeda em reais inteiros e campo vazio de verdade
 
 Dois itens nascidos da revisão do Mirassol Conectado (fundador, 16/set/2026). Nenhuma assinatura
