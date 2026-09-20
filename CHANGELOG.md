@@ -1,5 +1,22 @@
 # Changelog — kmplib
 
+## 2.211.0 — O modal do seletor de data, sem o campo do Material
+
+Da revisão do Mirassol Conectado (fundador, 20/set/2026): *"está feio esse layout aqui, que a data
+está maior que a hora"*. Aditivo — nenhuma assinatura existente muda.
+
+### `AppDatePickerDialog(...)` (kmplib-ui)
+- **Só o modal**: o calendário do Material, sem `OutlinedTextField` nenhum em volta.
+- Existe porque **projeto com protótipo tem campo próprio**. O `AppDatePicker` traz o campo
+  embutido, e num formulário desenhado (caixa lisa de 50dp) ele nasce mais alto que o campo ao
+  lado — o desenho aprovado tem os dois do mesmo tamanho.
+- A alternativa era o projeto montar o `DatePickerDialog` na mão, e com ele **a conversão de
+  fuso**, que é a armadilha: o `DatePickerState` trabalha em UTC, e converter no fuso do aparelho
+  abre o calendário no dia ANTERIOR para quem está a oeste de Greenwich.
+- `dataParaMillisDoCalendario` / `millisDoCalendarioParaData` deixaram de ser `internal` pelo mesmo
+  motivo — quem desenha o próprio campo precisa da ida e da volta.
+- Quem quer o campo pronto continua no `AppDatePicker`, que agora chama este modal por dentro.
+
 ## 2.210.0 — O player inline pode nascer MONTADO
 
 Um item em `kmplib-ui`, da revisão do Mirassol Conectado (fundador, 19/set/2026): no detalhe de uma

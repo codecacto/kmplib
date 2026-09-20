@@ -130,33 +130,67 @@ fun AppDatePicker(
     }
 
     if (showDialog) {
-        val initialMillis = selectedDate?.let(::dataParaMillisDoCalendario)
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = initialMillis,
+        AppDatePickerDialog(
+            selectedDate = selectedDate,
+            onDateSelected = onDateSelected,
+            onDismiss = { showDialog = false },
+            confirmText = confirmText,
+            dismissText = dismissText,
         )
+    }
+}
 
-        DatePickerDialog(
-            onDismissRequest = { showDialog = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            onDateSelected(millisDoCalendarioParaData(millis))
-                        }
-                        showDialog = false
-                    },
-                ) {
-                    Text(confirmText)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text(dismissText)
-                }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
+/**
+ * **Só o modal** do seletor de data — o calendário do Material, sem campo nenhum em volta.
+ *
+ * Existe porque o [AppDatePicker] traz um `OutlinedTextField` embutido, e **projeto com protótipo
+ * tem campo próprio**: no Cidade Conectada o formulário inteiro usa a caixa lisa de 50dp do
+ * `CityDesign`, e o campo de data do Material nascia mais alto que o campo ao lado — o desenho
+ * aprovado tem os dois do mesmo tamanho. Antes disto, a única saída era o projeto montar o
+ * `DatePickerDialog` na mão, e com ele **a conversão de fuso**, que é onde mora a armadilha:
+ * o `DatePickerState` trabalha em UTC, e converter no fuso do aparelho abre o calendário no dia
+ * ANTERIOR ao escolhido para quem está a oeste de Greenwich (ver [dataParaMillisDoCalendario]).
+ *
+ * Quem quer o campo pronto continua usando o [AppDatePicker]; quem tem desenho próprio chama isto.
+ *
+ * @param selectedDate a data que o calendário abre marcada, ou `null` para nenhuma.
+ * @param onDateSelected a data escolhida, ao confirmar. Cancelar não dispara.
+ * @param onDismiss fechar sem escolher — e também o que roda depois de confirmar.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppDatePickerDialog(
+    selectedDate: LocalDate?,
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit,
+    confirmText: String = "OK",
+    dismissText: String = "Cancelar",
+) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate?.let(::dataParaMillisDoCalendario),
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        onDateSelected(millisDoCalendarioParaData(millis))
+                    }
+                    onDismiss()
+                },
+            ) {
+                Text(confirmText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(dismissText)
+            }
+        },
+    ) {
+        DatePicker(state = datePickerState)
     }
 }
 
@@ -175,9 +209,9 @@ fun formatDateBr(date: LocalDate): String {
  * o clássico "salvei dia 5 e o app mostra 4". A data aqui é uma data de calendário (sem hora), e
  * ida e volta por este par é idempotente.
  */
-internal fun dataParaMillisDoCalendario(date: LocalDate): Long =
+fun dataParaMillisDoCalendario(date: LocalDate): Long =
     date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
 
 /** O caminho de volta de [dataParaMillisDoCalendario]: o millis do seletor vira a data escolhida. */
-internal fun millisDoCalendarioParaData(millis: Long): LocalDate =
+fun millisDoCalendarioParaData(millis: Long): LocalDate =
     Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.UTC).date
