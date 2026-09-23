@@ -1,5 +1,21 @@
 # Changelog — kmplib
 
+## 2.213.0 — `AppBottomNavBar`: rótulo em UMA linha · `RegisterScreen`: fenda `trailingFields`
+
+### `RegisterScreen(trailingFields = { … })`
+- Fenda nova para campos **opcionais** do produto, depois da confirmação de senha e antes do aceite
+  dos termos. `extraFields` (entre telefone e senha) continua igual. Motivo: um bloco opcional ali
+  fazia a tela alternar opcional → obrigatório ("Endereço (opcional)" e, logo abaixo, a senha, que
+  não é), e a pessoa não sabia o que podia pular. Aditiva; default `null`.
+
+### `AppBottomNavBar`
+
+- O rótulo de cada item passa a ter `maxLines = 1` + `TextOverflow.Ellipsis`. Antes, rótulo de duas
+  palavras ("Minha avaliação") quebrava em telas de 360dp e só aquele item ficava mais alto,
+  desalinhando ícone e texto do resto da barra (visto no NeuroCoreX, 23/set/2026).
+- Aditiva e sem mudança de API. Rótulo que não cabe vira reticência — a correção de fundo continua
+  sendo o app escolher rótulo curto, como o Material pede.
+
 ## 2.212.0 — `kmplib-video` sem foreground service: o download virou módulo próprio
 
 ⚠️ **Mudança crítica para quem só TOCA vídeo** e **quebra de dependência para quem BAIXA**.

@@ -64,6 +64,7 @@ data class RegisterFields(
  * @param termsUrl URL dos termos (se null, não mostra)
  * @param privacyUrl URL da política (se null, não mostra)
  * @param brandPanel Painel de marca lateral, só em janela EXPANDIDA (GAP-NCX-T-01)
+ * @param trailingFields Campos opcionais do produto, depois da senha (2.213.0)
  */
 @Composable
 fun RegisterScreen(
@@ -102,6 +103,17 @@ fun RegisterScreen(
      * Recebe `ColumnScope` para o produto usar o MESMO espaçamento vertical dos campos da lib.
      */
     extraFields: (@Composable ColumnScope.() -> Unit)? = null,
+    /**
+     * **Campos OPCIONAIS do produto**, renderizados DEPOIS da confirmação de senha e antes do aceite
+     * dos termos (2.213.0).
+     *
+     * Existe porque [extraFields] fica entre o telefone e a senha: um produto que pedia ali um
+     * bloco opcional (endereço, CPF) fazia a tela alternar opcional → obrigatório → opcional, e a
+     * pessoa via "Endereço (opcional)" e logo abaixo uma senha que NÃO é. Com esta fenda, o que é
+     * obrigatório fica junto, em cima, e o opcional vira um bloco só no fim — onde pular é natural.
+     * O título do bloco é do produto. Mesma regra de estado de [extraFields].
+     */
+    trailingFields: (@Composable ColumnScope.() -> Unit)? = null,
     /**
      * Painel de marca ao lado do formulário, **só em janela EXPANDIDA** — o mesmo parâmetro (e o
      * mesmo comportamento) da `LoginScreen`.
@@ -255,6 +267,9 @@ fun RegisterScreen(
                             labelColor = colors.textSecondary,
                             enabled = !state.isLoading
                         )
+
+                        // Campos OPCIONAIS do produto — depois de tudo que é obrigatório.
+                        trailingFields?.invoke(this)
 
                         // Checkbox Termos
                         if (fields.showTermsCheckbox && (termsUrl != null || privacyUrl != null)) {

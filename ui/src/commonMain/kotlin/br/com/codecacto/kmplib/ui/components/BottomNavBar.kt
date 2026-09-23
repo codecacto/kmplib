@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -228,7 +229,16 @@ fun AppBottomNavBar(
                     )
                 },
                 label = {
-                    Text(text = item.label)
+                    // UMA linha, sempre (2.213.0). Sem o limite, um rótulo de duas palavras ("Minha
+                    // avaliação") quebrava num aparelho de 360dp e só aquele item ficava mais alto —
+                    // ícone e texto desalinhados do resto da barra. O Material pede rótulo curto e
+                    // numa linha; a reticência é a rede de segurança, não o layout esperado.
+                    Text(
+                        text = item.label,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 },
                 selected = state == BottomNavItemState.Selected,
                 enabled = item.enabled,
