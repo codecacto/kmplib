@@ -106,6 +106,12 @@ project(":kmplib-media").projectDir = file("media")
 include(":kmplib-video")
 project(":kmplib-video").projectDir = file("video")
 
+// `kmplib-video-download` (2.212.0) — o DOWNLOAD saiu do player porque traz um foreground service
+// `dataSync` no manifesto, e a Play barra o bundle de quem herda o serviço sem usá-lo. Opt-in: só
+// o app que baixa declara; o umbrella `:kmplib` NÃO o inclui.
+include(":kmplib-video-download")
+project(":kmplib-video-download").projectDir = file("video-download")
+
 include(":kmplib-ads")
 project(":kmplib-ads").projectDir = file("ads")
 

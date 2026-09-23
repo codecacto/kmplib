@@ -1,5 +1,46 @@
 # Changelog — kmplib
 
+## 2.212.0 — `kmplib-video` sem foreground service: o download virou módulo próprio
+
+⚠️ **Mudança crítica para quem só TOCA vídeo** e **quebra de dependência para quem BAIXA**.
+Descoberto publicando o Mirassol Conectado na Play (21/set/2026): o upload travou no formulário
+obrigatório **"Permissões de serviço em primeiro plano"**, exigindo justificar
+`FOREGROUND_SERVICE_DATA_SYNC` — num app que não baixa vídeo nenhum. A permissão entrava pelo
+manifest merger, vinda do `kmplib-video`, que empacotava player e download no mesmo módulo.
+
+### Novo artefato `br.com.codecacto:kmplib-video-download` (opt-in)
+- Leva o pacote `br.com.codecacto.kmplib.video.download` inteiro (`MediaDownloadManager`,
+  `createMediaDownloadManager`, `MediaDownloadRequest`, `MediaDownloadStore`…), o
+  `KmplibDownloadService`, o JobService do `PlatformScheduler`, as permissões `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_DATA_SYNC` e `RECEIVE_BOOT_COMPLETED`, e as strings do canal de notificação.
+- **Os pacotes não mudaram**: quem importava `video.download` só acrescenta a dependência.
+- Depende de `kmplib-video` (`api`) — mão única, nunca o contrário.
+- **O umbrella `br.com.codecacto:kmplib` NÃO o inclui**, de propósito: o umbrella entra em ~25 apps
+  que não baixam vídeo, e todos teriam o bundle barrado.
+
+### `kmplib-video` (o player)
+- **Sem serviço, sem permissão de primeiro plano.** No manifesto fica só `ACCESS_NETWORK_STATE`
+  (pré-carregamento do feed, nível normal).
+- O recorte foi **dentro** do antigo `Media3Downloads`: a parte de cache (diretório, banco,
+  `SimpleCache`, fábrica de leitura do player) virou **`Media3Cache`** e ficou aqui, porque o player
+  lê a cópia baixada por ela e o cache do feed reaproveita o banco. `DownloadManager`, notificação e
+  requisitos de rede foram para o módulo novo, que constrói em cima.
+- `setCacheWriteDataSinkFactory(null)` preservado na fábrica de leitura — sem ele, o streaming
+  gravaria num cache que nunca esvazia.
+- A pasta no disco (`filesDir/kmplib_media_downloads`) **não mudou**: aula baixada numa versão
+  anterior continua sendo achada.
+- `Media3Cache` e `VideoPlayerHolder.getContext()` ficaram públicos **sob opt-in**
+  (`@KmpLibVideoInternalApi`, nível ERROR) — só para a ponte entre os dois módulos; não é API de app.
+
+### Migração
+- **App que só toca vídeo** (feed, `VideoPlayer`): subir para 2.212.0 e **apagar** qualquer
+  `tools:node="remove"` que tenha posto no manifesto para esconder o serviço/permissões.
+  `RECEIVE_BOOT_COMPLETED` **não** some: ela também vem do `kmplib-platform` (lembrete pós-reboot).
+- **App que baixa** (`video.download`): acrescentar `kmplib-video-download` ao lado de
+  `kmplib-video` (e, no `settings.gradle.kts` com `includeBuild`, o `substitute` correspondente).
+  Sem ele o build falha em `unresolved reference: MediaDownloadManager` — não em runtime.
+- `initKmpLibVideo(context)` continua sendo o único init: o download usa o mesmo registro.
+
 ## 2.211.0 — O modal do seletor de data, sem o campo do Material
 
 Da revisão do Mirassol Conectado (fundador, 20/set/2026): *"está feio esse layout aqui, que a data

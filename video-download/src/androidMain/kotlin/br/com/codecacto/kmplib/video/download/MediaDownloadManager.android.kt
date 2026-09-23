@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import br.com.codecacto.kmplib.core.prefs.appPreferences
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.video.Media3Cache
 import br.com.codecacto.kmplib.video.VideoMedia
 import br.com.codecacto.kmplib.video.VideoPlayerHolder
 import br.com.codecacto.kmplib.video.VideoStreamKind
@@ -164,7 +165,7 @@ internal class Media3MediaDownloadManager(
     override suspend fun storageUsage(): MediaStorageUsage {
         val registros = store.all()
         val ocupado = withContext(Dispatchers.IO) {
-            runCatching { Media3Downloads.cache(context).cacheSpace }.getOrDefault(0L)
+            runCatching { Media3Cache.cache(context).cacheSpace }.getOrDefault(0L)
         }
         val livre = withContext(Dispatchers.IO) { availableStorageBytes() }
         return MediaStorageUsage(
@@ -425,7 +426,7 @@ internal class Media3MediaDownloadManager(
                 item,
                 parametros,
                 DefaultRenderersFactory(context),
-                Media3Downloads.httpDataSourceFactory(),
+                Media3Cache.httpDataSourceFactory(),
             )
             cont.invokeOnCancellation { runCatching { helper.release() } }
             helper.prepare(object : DownloadHelper.Callback {

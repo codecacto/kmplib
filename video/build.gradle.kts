@@ -1,12 +1,19 @@
 plugins {
     id("kmplib.module.compose")
-    // `MediaDownloadRecord` é persistido como JSON numa chave de preferências — o que o
-    // subsistema nativo NÃO guarda (a que curso a aula pertence, até quando o direito vale).
-    alias(libs.plugins.kotlinSerialization)
 }
+
+// O DOWNLOAD saiu deste módulo na 2.212.0 → `kmplib-video-download` (opt-in). Com ele aqui, todo
+// app que só tocava vídeo herdava um foreground service `dataSync` pelo manifest merger e tinha o
+// bundle barrado na Play. O player continua dono do CACHE (`Media3Cache`), porque é ele que lê a
+// cópia baixada e o feed reaproveita o banco; o download constrói em cima. Mão única:
+// `kmplib-video-download → kmplib-video`, nunca o contrário.
 
 kotlin {
     sourceSets {
+        // `Media3Cache` e `VideoPlayerHolder.getContext()` são públicos só para o módulo de
+        // download (ver `KmpLibVideoInternalApi`); aqui dentro o opt-in é do módulo inteiro.
+        all { languageSettings.optIn("br.com.codecacto.kmplib.video.KmpLibVideoInternalApi") }
+
         commonMain.dependencies {
             api(project(":kmplib-core"))
             // `KeepScreenOn` — a tela não pode apagar no meio de uma aula. Já existe no platform;
@@ -50,16 +57,16 @@ kotlin {
             implementation(libs.androidx.media3.ui.compose)
 
             // ------------------------------------------------------------------------------
-            // Download offline (2.191.0)
+            // Cache de disco (`Media3Cache`, `FeedVideoCache`)
             // ------------------------------------------------------------------------------
             //
-            // `DownloadManager`, `DownloadService`, `DownloadHelper` e `PlatformScheduler` já vêm
-            // do `media3-exoplayer` acima. Os dois abaixo chegariam por transitividade, e são
-            // declarados assim mesmo porque o CÓDIGO NOMEIA os tipos deles (`SimpleCache`,
-            // `CacheDataSource`, `StandaloneDatabaseProvider`): depender de transitividade para um
-            // tipo que se escreve é o que quebra no dia em que a Media3 reorganizar os artefatos.
-            implementation(libs.androidx.media3.datasource)
-            implementation(libs.androidx.media3.database)
+            // Chegariam por transitividade do `media3-exoplayer`, e são declarados assim mesmo
+            // porque o CÓDIGO NOMEIA os tipos deles (`SimpleCache`, `CacheDataSource`,
+            // `StandaloneDatabaseProvider`): depender de transitividade para um tipo que se escreve
+            // é o que quebra no dia em que a Media3 reorganizar os artefatos. `api` porque
+            // `Media3Cache` (público sob opt-in) devolve esses tipos ao `kmplib-video-download`.
+            api(libs.androidx.media3.datasource)
+            api(libs.androidx.media3.database)
         }
     }
 }

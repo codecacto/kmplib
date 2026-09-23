@@ -176,6 +176,9 @@ kotlin {
             api(project(":kmplib-ads"))
             api(project(":kmplib-media"))
             api(project(":kmplib-video"))
+            // `:kmplib-video-download` fica DE FORA de propósito (2.212.0): ele traz um foreground
+            // service `dataSync` no manifesto, e o umbrella entra em ~25 apps que não baixam vídeo
+            // — todos teriam o bundle barrado na Play. Quem baixa declara o módulo à parte.
             api(project(":kmplib-pdf"))
             api(project(":kmplib-camera"))
             api(project(":kmplib-map"))

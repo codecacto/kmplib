@@ -10,7 +10,7 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.video.download.Media3Downloads
+import br.com.codecacto.kmplib.video.Media3Cache
 import java.io.File
 
 /**
@@ -28,7 +28,7 @@ import java.io.File
  * tem de viver acima deles.
  *
  * ### Três decisões que separam este cache do de download
- * | | feed (aqui) | download (`Media3Downloads`) |
+ * | | feed (aqui) | download (`Media3Cache`) |
  * |---|---|---|
  * | onde | `cacheDir` — **descartável** | `filesDir` — durável |
  * | expurgo | `LeastRecentlyUsedCacheEvictor` (teto) | `NoOpCacheEvictor` (só o usuário apaga) |
@@ -77,7 +77,7 @@ internal object FeedVideoCache {
         val cache = SimpleCache(
             File(app.cacheDir, DIRECTORY),
             LeastRecentlyUsedCacheEvictor(teto),
-            Media3Downloads.databaseProvider(app),
+            Media3Cache.databaseProvider(app),
         )
         cacheRef = cache
         tetoAplicado = teto

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Manifesto do `kmplib-video-download` (2.212.0) — o subsistema de DOWNLOAD, OPT-IN.
+
+      Até a 2.211.0 estas linhas moravam no `kmplib-video`, e todo app que só tocava vídeo herdava
+      um foreground service `dataSync` que nunca iniciava — e a Play exige declarar, no upload, qual
+      tarefa perceptível ao usuário justifica `FOREGROUND_SERVICE_DATA_SYNC`. Aqui elas só entram no
+      app que DECLARA esta dependência, isto é, no app que baixa vídeo de verdade — e esse tem a
+      resposta ("baixar a aula que o usuário pediu para ver sem internet").
+
+      A regra da 2.175.0 vale inteira: elemento de manifesto mora no módulo que contém a CLASSE. Se
+      estas linhas ficassem no README para o app copiar, quem declara este módulo teria um download
+      que compila, enfileira e **nunca anda** assim que o usuário troca de tela — sem erro nenhum.
+
+      Nada aqui pede permissão ao usuário: FOREGROUND_SERVICE e FOREGROUND_SERVICE_DATA_SYNC são de
+      instalação, e RECEIVE_BOOT_COMPLETED é de nível normal.
+    -->
+
+    <!-- O serviço de download roda em primeiro plano enquanto transfere. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!--
+      Android 14 (API 34) exige que TODO foreground service declare um tipo, e o tipo de
+      "baixar arquivo que o usuário pediu" é dataSync. Sem esta permissão o serviço lança
+      SecurityException ao iniciar — em runtime, no aparelho novo, com o build verde.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!--
+      O PlatformScheduler (JobScheduler) precisa dela para reagendar a fila depois de um reinício:
+      sem ela, um download interrompido pela queda do Wi-Fi só volta se o usuário abrir o app.
+
+      ⚠️ Ela TAMBÉM vem do `kmplib-platform` (o `BootCompletedReceiver` reagenda a notificação
+      local depois de um reinício). Repetida, é mesclada sem conflito; e o app que NÃO usa este
+      módulo continua recebendo-a de lá. O blame do manifest merger credita UMA origem por linha —
+      não a remova de um app achando que é "a do download".
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application>
+
+        <!--
+          O serviço do Media3. `exported="false"`: quem o inicia são os `DownloadService.send*` da
+          própria lib, nunca outro app.
+
+          O intent-filter de RESTART é o que o Media3 dispara para religar a fila (pelo agendador e
+          na volta do boot); sem ele, o serviço só sobe quando a tela do app o chama.
+        -->
+        <service
+            android:name="br.com.codecacto.kmplib.video.download.KmplibDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="androidx.media3.exoplayer.downloadService.action.RESTART" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!--
+          O JobService do PlatformScheduler. A classe é da Media3 (não é nossa) e o AAR dela NÃO a
+          declara — quem usa o agendador é que declara. Sem esta linha, `PlatformScheduler.schedule`
+          falha ao agendar e a fila só volta se o usuário abrir o app de novo (o sintoma é o
+          download que "não continua sozinho" depois que o Wi-Fi cai).
+
+          `exported="true"` + `BIND_JOB_SERVICE` é a exigência do JobScheduler para qualquer
+          JobService: quem se liga a ele é o sistema, e a permissão garante que só ele consegue.
+        -->
+        <service
+            android:name="androidx.media3.exoplayer.scheduler.PlatformScheduler$PlatformSchedulerService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+    </application>
+
+</manifest>

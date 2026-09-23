@@ -3,6 +3,18 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.212.0 (23/set/2026) — `kmplib-video` arrastava foreground service para quem só toca vídeo
+> Origem: Mirassol Conectado, upload na Play barrado no formulário "Permissões de serviço em
+> primeiro plano" (`CidadeConectada/docs/a-fazer/05-refatorar-kmplib-video.md`).
+
+- [x] **`kmplib-video-download`** — artefato novo, opt-in, com `video.download`, o
+      `KmplibDownloadService`, o JobService do agendador e as permissões `FOREGROUND_SERVICE`/
+      `FOREGROUND_SERVICE_DATA_SYNC`/`RECEIVE_BOOT_COMPLETED`. O umbrella **não** o inclui.
+- [x] **`Media3Cache`** no `kmplib-video` — o recorte foi dentro do antigo `Media3Downloads`, porque
+      o player lê a cópia baixada e o feed reaproveita o banco. Dependência de mão única.
+- [ ] Consumidores a migrar (cada um quando for tocado): **RaqueteAlta** (usa `video.download` →
+      precisa declarar `kmplib-video-download` ao bumpar). Cidade Conectada migrado na mesma rodada.
+
 ### ATENDIDO na 2.199.0 (12/set/2026) — a escada do feed mirava o vídeo errado; delegate por requisição
 
 - [x] **O pré-carregamento do feed respondia por um vídeo em nome de outro (2.197.0/2.198.0).**

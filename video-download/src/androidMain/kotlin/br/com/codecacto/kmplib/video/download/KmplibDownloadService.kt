@@ -9,7 +9,6 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Scheduler
-import br.com.codecacto.kmplib.video.R
 
 /**
  * O serviço em **primeiro plano** que continua os downloads quando a tela sai da frente.
