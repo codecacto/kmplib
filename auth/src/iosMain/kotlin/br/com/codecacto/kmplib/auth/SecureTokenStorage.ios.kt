@@ -33,10 +33,11 @@ import platform.Foundation.dataUsingEncoding
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
+import platform.Security.SecItemUpdate
 import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
-import platform.Security.kSecAttrAccessibleAfterFirstUnlock
+import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
@@ -51,8 +52,12 @@ actual fun secureTokenStorage(serviceName: String): SecureTokenStorage =
 
 /**
  * Cofre seguro no iOS via **Keychain Services** (`kSecClassGenericPassword`) — o cofre nativo do SO,
- * ideal para o `refreshToken` de longa duração. Acessibilidade `AfterFirstUnlock` (disponível em
- * background depois do primeiro desbloqueio, para o refresh proativo funcionar). Nunca lança à UI.
+ * ideal para o `refreshToken` de longa duração. Acessibilidade **`AfterFirstUnlockThisDeviceOnly`**
+ * (2.214.0): disponível em background depois do primeiro desbloqueio, para o refresh proativo
+ * funcionar, e **preso a este aparelho** — o item não viaja no backup nem é restaurado em outro
+ * iPhone. Até a 2.213.0 era `AfterFirstUnlock`, que acompanha o backup cifrado: restaurar num
+ * aparelho novo levava a sessão junto. Itens gravados com o atributo antigo são migrados no lugar
+ * (ver [migrarAcessibilidade]). Nunca lança à UI.
  *
  * A montagem do `CFDictionaryRef` segue o padrão consagrado do `KeychainSettings`
  * (multiplatform-settings): `allocArrayOf` + `CFDictionaryCreate` com os callbacks de tipo CF.
@@ -63,6 +68,7 @@ internal class IosSecureTokenStorage(
 
     private val trava = NSLock()
     private var instalacaoConferida = false
+    private var acessibilidadeMigrada = false
 
     /**
      * Descarta a sessão que sobreviveu à DESINSTALAÇÃO do app.
@@ -81,25 +87,54 @@ internal class IosSecureTokenStorage(
      * ATUALIZA também é deslogado uma vez**. É o preço de não confundir reinstalação com
      * atualização: o `UserDefaults` não serve de prova, porque SDKs gravam nele antes da primeira
      * leitura da sessão.
+     *
+     * Na mesma trava roda a [migrarAcessibilidade], para nenhuma leitura acontecer antes dela.
      */
-    private fun descartarSessaoDeInstalacaoAnterior() {
+    private fun prepararCofre() {
         trava.lock()
         try {
-            if (instalacaoConferida) return
-            val defaults = NSUserDefaults.standardUserDefaults
-            val marca = "br.com.codecacto.kmplib.auth.instalacao.$serviceName"
-            if (!defaults.boolForKey(marca)) {
-                apagarItensDoServico()
-                defaults.setBool(true, marca)
+            if (!instalacaoConferida) {
+                val defaults = NSUserDefaults.standardUserDefaults
+                val marca = "br.com.codecacto.kmplib.auth.instalacao.$serviceName"
+                if (!defaults.boolForKey(marca)) {
+                    apagarItensDoServico()
+                    defaults.setBool(true, marca)
+                }
+                instalacaoConferida = true
             }
-            instalacaoConferida = true
+            if (!acessibilidadeMigrada) {
+                acessibilidadeMigrada = migrarAcessibilidade()
+            }
         } finally {
             trava.unlock()
         }
     }
 
+    /**
+     * Leva para `AfterFirstUnlockThisDeviceOnly` os itens deste `serviceName` gravados até a
+     * 2.213.0 com `AfterFirstUnlock` — **sem deslogar ninguém**: `SecItemUpdate` altera o atributo
+     * do item no lugar (é a forma documentada pela Apple de mudar a acessibilidade), e o token
+     * continua legível o tempo todo. Em item que já está no atributo novo, é no-op.
+     *
+     * Devolve `true` quando terminou (`errSecSuccess`, ou `errSecItemNotFound` = não havia item).
+     * Qualquer outro status — tipicamente `errSecInteractionNotAllowed`, o app acordado em
+     * background antes do primeiro desbloqueio — devolve `false`, e a próxima operação do cofre
+     * tenta de novo. Nada é apagado por aqui.
+     */
+    private fun migrarAcessibilidade(): Boolean = memScoped {
+        val query = cfDictionaryOf(
+            kSecClass to kSecClassGenericPassword,
+            kSecAttrService to serviceName.toCFString(),
+        )
+        val novosAtributos = cfDictionaryOf(
+            kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        )
+        val status = SecItemUpdate(query, novosAtributos)
+        status == errSecSuccess || status == errSecItemNotFound
+    }
+
     override suspend fun getString(key: String): String? {
-        descartarSessaoDeInstalacaoAnterior()
+        prepararCofre()
         return lerDoKeychain(key)
     }
 
@@ -119,7 +154,7 @@ internal class IosSecureTokenStorage(
     }
 
     override suspend fun putString(key: String, value: String) {
-        descartarSessaoDeInstalacaoAnterior()
+        prepararCofre()
         remove(key)
         val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
         memScoped {
@@ -128,14 +163,14 @@ internal class IosSecureTokenStorage(
                 kSecAttrService to serviceName.toCFString(),
                 kSecAttrAccount to key.toCFString(),
                 kSecValueData to CFBridgingRetain(data),
-                kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlock,
+                kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             )
             SecItemAdd(attributes, null)
         }
     }
 
     override suspend fun remove(key: String) {
-        descartarSessaoDeInstalacaoAnterior()
+        prepararCofre()
         memScoped {
             val query = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,
@@ -148,7 +183,7 @@ internal class IosSecureTokenStorage(
     }
 
     override suspend fun clear() {
-        descartarSessaoDeInstalacaoAnterior()
+        prepararCofre()
         apagarItensDoServico()
     }
 

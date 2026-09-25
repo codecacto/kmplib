@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.feedback
 
+import br.com.codecacto.kmplib.ui.components.FormPlaceholders
+
 /**
  * Textos customizáveis para a FeedbackScreen.
  *
@@ -20,9 +22,9 @@ data class FeedbackTexts(
     val nomeLabel: String = "Seu nome (opcional)",
     val nomePlaceholder: String = "Como podemos te chamar?",
     val emailLabel: String = "Seu e-mail (opcional)",
-    val emailPlaceholder: String = "email@exemplo.com",
+    val emailPlaceholder: String = FormPlaceholders.EMAIL,
     val whatsappLabel: String = "Seu WhatsApp",
-    val whatsappPlaceholder: String = "(00) 00000-0000",
+    val whatsappPlaceholder: String = FormPlaceholders.PHONE,
     val submitButton: String = "Enviar Feedback",
     val cancelButton: String = "Cancelar",
     val successTitle: String = "Obrigado!",

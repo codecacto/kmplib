@@ -155,7 +155,7 @@ fun AddressFields(
                 onValueChange = { onValueChange(value.copy(numero = it)) },
                 modifier = Modifier.weight(1f).focusRequester(focoDoNumero).focusable(),
                 label = "Número",
-                placeholder = "123",
+                placeholder = FormPlaceholders.ADDRESS_NUMBER,
                 errorMessage = errors.numero,
                 enabled = enabled,
             )

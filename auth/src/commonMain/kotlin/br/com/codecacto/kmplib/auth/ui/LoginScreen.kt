@@ -38,19 +38,19 @@ import br.com.codecacto.kmplib.validation.EmailValidator
 data class LoginTexts(
     val title: @Composable (() -> String)? = null,
     val emailLabel: @Composable () -> String = { "Email" },
-    val emailPlaceholder: @Composable () -> String = { "seu@email.com" },
+    val emailPlaceholder: @Composable () -> String = { FormPlaceholders.EMAIL },
     /**
-     * Rótulo e exemplo quando o sistema aceita **e-mail ou usuário** — o padrão da fábrica desde
+     * Rótulo e placeholder (instrução, nunca um valor de exemplo) quando o sistema aceita **e-mail ou usuário** — o padrão da fábrica desde
      * 22/ago/2026. Ficam separados de [emailLabel] para o app traduzir os dois; o servidor ainda pode
      * mandar um rótulo próprio (`identifierLabel`), que vence estes.
      */
     val identifierLabel: @Composable () -> String = { "E-mail ou usuário" },
-    val identifierPlaceholder: @Composable () -> String = { "seu@email.com ou seu.usuario" },
-    /** Rótulo e exemplo quando o sistema aceita **só** nome de usuário. */
+    val identifierPlaceholder: @Composable () -> String = { FormPlaceholders.EMAIL_OR_USERNAME },
+    /** Rótulo e placeholder (instrução, nunca um valor de exemplo) quando o sistema aceita **só** nome de usuário. */
     val usernameLabel: @Composable () -> String = { "Usuário" },
-    val usernamePlaceholder: @Composable () -> String = { "seu.usuario" },
+    val usernamePlaceholder: @Composable () -> String = { FormPlaceholders.USERNAME },
     val passwordLabel: @Composable () -> String = { "Senha" },
-    val passwordPlaceholder: @Composable () -> String = { "••••••••" },
+    val passwordPlaceholder: @Composable () -> String = { FormPlaceholders.PASSWORD },
     val loginButton: @Composable () -> String = { "Entrar" },
     val forgotPassword: @Composable () -> String = { "Esqueci minha senha" },
     val registerPrompt: @Composable () -> String = { "Não tem uma conta?" },

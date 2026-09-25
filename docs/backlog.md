@@ -3,6 +3,15 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### ATENDIDO na 2.214.0 (24/set/2026) — placeholder com dado real, paywall sem acento, Keychain
+> Origem: montagem do Palpite Certo.
+
+- [x] **`FormPlaceholders`** — defaults de login/cadastro/contato/feedback/endereço viraram
+      instrução ou formato (saíram "João Silva", "seu@email.com", "(11) 98765-4321", "123", "••••••••").
+- [x] **`PaywallTexts` acentuado** + `defaultDurationLabel(1)` = "1 mês".
+- [x] **iOS `SecureTokenStorage`** em `AfterFirstUnlockThisDeviceOnly`, com migração in-place via
+      `SecItemUpdate` (sem deslogar). Validação em device fica para o Mac.
+
 ### ATENDIDO na 2.212.0 (23/set/2026) — `kmplib-video` arrastava foreground service para quem só toca vídeo
 > Origem: Mirassol Conectado, upload na Play barrado no formulário "Permissões de serviço em
 > primeiro plano" (`CidadeConectada/docs/a-fazer/05-refatorar-kmplib-video.md`).
@@ -2124,7 +2133,7 @@ pessoal via product flavors `moedas`/`cards`)
       Ktor via `getIdToken()`/`asDomainTokenProvider()` já existentes.
 - [x] **`OwnAuthService`** (registro c/ `acceptedTerms` + `requestPasswordReset`/`confirmPasswordReset` do
       convite). Testes: 28 (`OwnAuthApiTest` 8, `OwnAuthTokenManagerTest` 9, `EmailPasswordAuthRepositoryTest`
-      7, `JwtDecoderTest` 4). iosMain (Keychain) escrito, não compilado em Linux (host Mac).
+      7, `JwtDecoderTest` 4). iosMain (Keychain) compilado no Linux desde a 2.214.0 (link/device no Mac).
 - [ ] **Migrar consumidor piloto:** Meu Barbeiro trocar `AuthRepository()` (Firebase) por `ownAuth(...)` no
       `AppModule`/`DataModule` quando o fundador liberar (plano no handoff). Demais apps: sem ação.
 

@@ -15,6 +15,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import br.com.codecacto.kmplib.ui.components.AppTextField
 import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
+import br.com.codecacto.kmplib.ui.components.FormPlaceholders
 
 /**
  * Campo de email pré-configurado
@@ -25,7 +26,7 @@ fun EmailField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Email",
-    placeholder: String = "seu@email.com",
+    placeholder: String = FormPlaceholders.EMAIL,
     errorMessage: String? = null,
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
@@ -61,7 +62,7 @@ fun PasswordField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Senha",
-    placeholder: String = "••••••••",
+    placeholder: String = FormPlaceholders.PASSWORD,
     errorMessage: String? = null,
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Done,
@@ -97,7 +98,7 @@ fun NameField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Nome completo",
-    placeholder: String = "João Silva",
+    placeholder: String = FormPlaceholders.NAME,
     errorMessage: String? = null,
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
@@ -133,7 +134,7 @@ fun PhoneField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Telefone",
-    placeholder: String = "(11) 98765-4321",
+    placeholder: String = FormPlaceholders.PHONE,
     errorMessage: String? = null,
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,

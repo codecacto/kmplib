@@ -144,7 +144,7 @@ class PaywallPlanMapperTest {
 
     @Test
     fun defaultDurationLabel_coversCanonicalTypes_noTrimestral() {
-        assertEquals("1 mes", defaultDurationLabel(1))
+        assertEquals("1 mês", defaultDurationLabel(1))
         assertEquals("6 meses", defaultDurationLabel(6))
         assertEquals("1 ano", defaultDurationLabel(12))
     }

@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
+import br.com.codecacto.kmplib.ui.components.FormPlaceholders
+
 /**
  * Textos customizáveis para a [ContactScreen] (formulário "Entrar em contato").
  *
@@ -12,9 +14,9 @@ data class ContactTexts(
     val nameLabel: String = "Nome",
     val namePlaceholder: String = "Seu nome",
     val emailLabel: String = "E-mail",
-    val emailPlaceholder: String = "voce@email.com",
+    val emailPlaceholder: String = FormPlaceholders.EMAIL,
     val whatsappLabel: String = "WhatsApp (opcional)",
-    val whatsappPlaceholder: String = "(11) 91234-5678",
+    val whatsappPlaceholder: String = FormPlaceholders.PHONE,
     val subjectLabel: String = "Assunto (opcional)",
     val subjectPlaceholder: String = "Sobre o que você quer falar",
     val messageLabel: String = "Mensagem",

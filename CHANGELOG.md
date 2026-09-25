@@ -1,5 +1,43 @@
 # Changelog — kmplib
 
+## 2.214.0 — placeholder sem dado real · paywall acentuado · Keychain preso ao aparelho
+
+Achados ao montar o Palpite Certo (24/set/2026). Sem mudança de assinatura; apps que passam os
+próprios textos não mudam nada.
+
+### Placeholders: instrução ou formato, nunca dado real
+- Novo `FormPlaceholders` (`kmplib-ui`, `ui.components`): os defaults num lugar só — `NAME`,
+  `EMAIL`, `EMAIL_OR_USERNAME`, `USERNAME`, `PASSWORD`, `CONFIRM_PASSWORD`, `PHONE`
+  (`(00) 00000-0000`, formato) e `ADDRESS_NUMBER`.
+- Saíram "João Silva", "seu@email.com", "seu@email.com ou seu.usuario", "seu.usuario",
+  "(11) 98765-4321", "voce@email.com", "(11) 91234-5678", "email@exemplo.com", "123" (número do
+  endereço) e "••••••••" (senha — é o desenho de uma senha já digitada). Onde: `EmailField`,
+  `NameField`, `PhoneField`, `PasswordField`, `LoginTexts`, `RegisterTexts`, `ContactTexts`,
+  `FeedbackTexts`, `AppReviewDialog`, `AddressFields`.
+- Motivo: regra "PLACEHOLDER NUNCA É DADO REAL" (15/set/2026) — valor plausível no campo é lido
+  como campo preenchido, e a pessoa envia achando que informou.
+- Os recursos traduzidos da lib (`values`, `-en`, `-es`, `-pt-rPT`) não tinham placeholder de dado
+  real; nada a mudar lá.
+- Testes: `FormPlaceholdersTest`, `CentralPlaceholdersTest`.
+
+### Paywall em pt-BR acentuado
+- `PaywallTexts`: "disponível", "Você", "Informações legais", "até 24 horas antes do fim do
+  período", "será cobrado… confirmação", "configurações", "Política de Privacidade", "dúvidas",
+  "Restaurando…". `defaultDurationLabel(1)` = "1 mês". Os textos de erro de compra
+  (`PurchaseErrorTexts`) já estavam certos. O paywall só tem defaults em pt-BR (outros idiomas vêm do
+  app). Teste: `PaywallTextsTest`.
+
+### iOS: refresh token preso ao aparelho (Keychain)
+- `SecureTokenStorage` no iOS grava com `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (era
+  `kSecAttrAccessibleAfterFirstUnlock`). O item não vai no backup para ser restaurado em outro
+  aparelho; continua legível em background depois do primeiro desbloqueio, para o refresh proativo.
+- Migração: na primeira operação do cofre, `SecItemUpdate` troca o atributo dos itens já gravados
+  daquele `serviceName` **sem apagar nem deslogar**. Se falhar (ex.: app acordado em background antes
+  do primeiro desbloqueio), tenta de novo na próxima operação. Compilado com
+  `compileKotlinIosArm64 -Pkmplib.forceAppleTargets=true`; o comportamento em device é do Mac.
+- Efeito esperado: quem restaurar um backup num iPhone NOVO entra de novo no app (antes, a sessão ia
+  junto).
+
 ## 2.213.0 — `AppBottomNavBar`: rótulo em UMA linha · `RegisterScreen`: fenda `trailingFields`
 
 ### `RegisterScreen(trailingFields = { … })`

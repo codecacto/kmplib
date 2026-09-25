@@ -257,7 +257,7 @@ fun List<Plan>.toPaywallPlans(
  * (1/6/12) com fallback generico e honesto; SEM "trimestral".
  */
 fun defaultDurationLabel(durationMonths: Int): String = when (durationMonths) {
-    1 -> "1 mes"
+    1 -> "1 mês"
     12 -> "1 ano"
     else -> "$durationMonths meses"
 }

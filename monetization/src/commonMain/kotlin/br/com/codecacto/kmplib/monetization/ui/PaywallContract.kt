@@ -107,26 +107,26 @@ data class PaywallTexts(
     val ctaSubscribe: String = "Assinar",
     val recommendedBadge: String = "Recomendado",
     val restore: String = "Restaurar compras",
-    val restoring: String = "Restaurando...",
+    val restoring: String = "Restaurando…",
     val usageLabel: String = "Seu uso",
-    val emptyPlans: String = "Nenhum plano disponivel no momento.",
+    val emptyPlans: String = "Nenhum plano disponível no momento.",
     // Bloco de assinatura ativa
     val activeTitle: String = "Assinatura ativa",
-    val activeDescription: String = "Voce tem acesso a todos os recursos premium.",
+    val activeDescription: String = "Você tem acesso a todos os recursos premium.",
     val renewsAtLabel: String = "Renova em",
     val expiresAtLabel: String = "Expira em",
     val manageSubscription: String = "Gerenciar assinatura",
     // Disclosure legal (exigencia Apple/Google)
-    val legalInfoTitle: String = "Informacoes legais",
-    val autoRenewalNotice: String = "A assinatura renova automaticamente, salvo cancelamento ate 24h antes do fim do periodo.",
-    val subscriptionDisclosure: String = "O pagamento sera cobrado na conta da loja na confirmacao. " +
-        "A assinatura renova-se automaticamente pelo mesmo periodo e valor, a menos que cancelada. " +
-        "Gerencie ou cancele a qualquer momento nas configuracoes da sua conta na loja.",
-    val privacyPolicy: String = "Politica de Privacidade",
+    val legalInfoTitle: String = "Informações legais",
+    val autoRenewalNotice: String = "A assinatura renova automaticamente, salvo cancelamento até 24 horas antes do fim do período.",
+    val subscriptionDisclosure: String = "O pagamento será cobrado na conta da loja na confirmação. " +
+        "A assinatura renova-se automaticamente pelo mesmo período e valor, a menos que cancelada. " +
+        "Gerencie ou cancele a qualquer momento nas configurações da sua conta na loja.",
+    val privacyPolicy: String = "Política de Privacidade",
     val termsOfUse: String = "Termos de Uso",
     // Ajuda
     val needHelpTitle: String = "Precisa de ajuda?",
-    val needHelpDescription: String = "Fale com o desenvolvedor para tirar duvidas sobre a assinatura.",
+    val needHelpDescription: String = "Fale com o desenvolvedor para tirar dúvidas sobre a assinatura.",
     val needHelpButton: String = "Falar com o desenvolvedor",
     // Acessibilidade / acoes
     val backContentDescription: String = "Voltar",
