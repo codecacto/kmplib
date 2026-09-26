@@ -3654,6 +3654,11 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       no mesmo ponto do `FeedbackService.initialize(...)`. Sem inicializar, a tela cai no fallback.
 
 ## Prioridade alta
+- [ ] **`DefaultSyncEngine.pushInternal` manda a fila offline INTEIRA num POST só** (26/set/2026, achado na
+      adoção da backlib 0.126.0 na Arroba Certa). Desde a backlib 0.121.0 o `standardModule` corta corpo
+      > 256 KB com 413; quem acumula muita coisa offline fica preso para sempre (o reenvio manda o mesmo
+      lote). O teto de 8 MB posto no `POST /v1/sync/push` da Arroba Certa só alivia o sintoma. Correção na
+      lib: dividir o push em lotes por contagem e tamanho, confirmando cada lote antes do próximo.
 - [ ] **Publicar artefatos iOS da kmplib a partir de host macOS** — o naming dos artefatos por-target
       iOS (`kmplib-iosarm64` / `kmplib-iossimulatorarm64` / `kmplib-iosx64`) foi corrigido na 2.3.1
       (módulo Gradle renomeado de `:library` para `:kmplib` no settings; antes saía `library-ios*`,
