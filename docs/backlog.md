@@ -3,6 +3,32 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (26/set/2026) — origem: design do **QueiMap** (avaliação de queimaduras)
+> Origem: `8-Sistemas-Portal-App/QueiMap/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
+
+- [x] **ATENDIDO na 2.215.0** → `AppTimeField` + `AppTimePickerDialog` (+ `maxTimeNotAfterNow`,
+      `timeLimitViolation`) — hora 24h no `TimePickerDialog` oficial do M3, limite min/max inclusivo.
+      Data+hora = `AppDatePicker` + `AppTimeField` lado a lado (sem `AppDateTimePicker` combinado:
+      o M3 não tem, e dois campos com erro próprio cada um é o padrão do Material).
+      GAP-QUEIMAP-03 (web) é da weblib/`lib-web`.
+- [x] **GAP-QUEIMAP-02 (P1) — sem componente visual de HORA-DO-DIA (só `AppDatePicker`, que é data).**
+      `ui/calendar` só expõe helpers puros (`CalendarTime.formatTimeOfDay`/`parseTimeOfDay`/
+      `maskTime`), sem tela/campo. QueiMap precisa de "hora da queimadura" e "data/hora da avaliação"
+      (AP9/AP10). Genérico o bastante para outros projetos (qualquer registro de evento/ocorrência
+      com hora). Proposta: `AppTimePicker`/`AppDateTimePicker` reaproveitando `CalendarTime` para
+      máscara/parse, com `errorMessage` no padrão dos demais campos (`AppDatePicker`,
+      `AppMultiSelect`). Interino no QueiMap: `AppTextField` mascarado com `CalendarTime.maskTime` +
+      `parseTimeOfDay`.
+- [ ] **GAP-QUEIMAP-04 (P3, baixa, não bloqueia nada hoje) — comparador de imagem antes/depois.**
+      Evolução seriada (Onda 3 do QueiMap, RF-15) vai precisar comparar duas avaliações do mesmo
+      paciente (fotos e/ou diagrama 3D) num intervalo de dias. Sem discovery detalhado ainda — só
+      um marcador de atenção para quando essa onda entrar (potencial reuso: fisioterapia, estética,
+      evolução de lesão em geral). Não tarefar agora.
+- [ ] Não registrado como gap: o visualizador/pintor 3D anatômico (Filament) do QueiMap **fica no
+      projeto** (`burn-core`) — é lógica de domínio de nicho clínico, sem 2º consumidor no
+      portfólio hoje. Reavaliar promoção só se surgir um 2º produto de saúde com a mesma necessidade
+      (regra `lib-evolution`, ≥2 consumidores).
+
 ### ATENDIDO na 2.214.0 (24/set/2026) — placeholder com dado real, paywall sem acento, Keychain
 > Origem: montagem do Palpite Certo.
 

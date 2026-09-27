@@ -16,4 +16,10 @@
     <!-- "Compartilhar app" (ui/share/ShareApp.kt, 2.195.0). %1$s = nome do app. -->
     <string name="kmplib_share_app_label">Partilhar app</string>
     <string name="kmplib_share_app_message">Estou a usar a app %1$s. Descarregue também:</string>
+    <!-- Campo de hora do dia (ui/components/AppTimeField.kt, 2.215.0). %1$s = hora HH:MM. -->
+    <string name="kmplib_time_confirm">OK</string>
+    <string name="kmplib_time_dismiss">Cancelar</string>
+    <string name="kmplib_time_placeholder">HH:MM</string>
+    <string name="kmplib_time_not_after">Escolha uma hora até às %1$s</string>
+    <string name="kmplib_time_not_before">Escolha uma hora a partir das %1$s</string>
 </resources>

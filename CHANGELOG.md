@@ -1,5 +1,28 @@
 # Changelog — kmplib
 
+## 2.215.0 — campo de HORA DO DIA com limite (`AppTimeField`)
+
+Aditivo. Fecha o GAP-QUEIMAP-02 (QueiMap AP10, "hora da queimadura" — não pode ser depois de agora).
+
+### Novo (`kmplib-ui`, `ui.components`)
+- `AppTimeField(selectedTime: LocalTime?, onTimeSelected, label, modifier, isEnabled, minTime,
+  maxTime, helperText, errorMessage, texts)` — par do `AppDatePicker`: campo somente-leitura que
+  abre o seletor ao toque (interactionSource + overlay do iOS), 24h `HH:mm`, erro NO campo
+  (`isError` + `supportingText` + `error()` na semântica), `helperText` neutro.
+- `AppTimePickerDialog(selectedTime, onTimeSelected, onDismiss, minTime, maxTime, texts,
+  initialDisplayMode)` — só o modal, sobre o **`TimePickerDialog` oficial do Material 3**, com
+  título e alternância relógio ⇄ teclado do próprio M3.
+- Limites inclusivos: o M3 não tem faixa permitida, então o seletor abre já dentro dela e, fora
+  dela, o **OK fica desligado** com a frase do limite (live region). Valor já escolhido que sai da
+  faixa depois (trocou a data) vira erro automático no campo; `errorMessage` do app vence.
+- Puros e testados: `timeLimitViolation`/`TimeLimitViolation`, **`maxTimeNotAfterNow(date, now)`**
+  (hoje → agora truncado no minuto; dia anterior → sem limite; futuro → 00:00), `formatTimeHm`,
+  `initialPickerTime`, `timeLimitMessage`.
+- Textos em Compose Resources nas 4 línguas (`kmplib_time_*`): `AppTimeFieldTexts` +
+  `rememberAppTimeFieldTexts()`.
+- O antigo `AppTimePicker(hour, minute, …)` segue intacto.
+- Testes: `AppTimeFieldTest` (13).
+
 ## 2.214.0 — placeholder sem dado real · paywall acentuado · Keychain preso ao aparelho
 
 Achados ao montar o Palpite Certo (24/set/2026). Sem mudança de assinatura; apps que passam os

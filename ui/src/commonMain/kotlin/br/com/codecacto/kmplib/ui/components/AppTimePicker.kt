@@ -28,6 +28,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Uso típico: escolher o horário do lembrete diário — um **instante** 00:00..23:59.
  *
+ * **Para código novo, prefira `AppTimeField` / `AppTimePickerDialog` (2.215.0):** trabalham em
+ * `LocalTime`, aceitam limite mínimo/máximo, usam o `TimePickerDialog` oficial com modo teclado e
+ * trazem os textos traduzidos. Este segue funcionando como está.
+ *
  * **Não serve para expediente/faixa que fecha à meia-noite:** este componente (relógio do Material 3)
  * é fixo em 0..23h e **não expressa "24:00"** (fim do dia). Para editar faixas de horário onde o fim
  * pode ser a meia-noite, use `ui/calendar/AppDayTimePicker` (papel [DayTimeRole.End]) ou o
