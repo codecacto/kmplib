@@ -43,10 +43,12 @@
       `AppMultiSelect`). Interino no QueiMap: `AppTextField` mascarado com `CalendarTime.maskTime` +
       `parseTimeOfDay`.
 - [ ] **GAP-QUEIMAP-04 (P3, baixa, não bloqueia nada hoje) — comparador de imagem antes/depois.**
-      Evolução seriada (Onda 3 do QueiMap, RF-15) vai precisar comparar duas avaliações do mesmo
-      paciente (fotos e/ou diagrama 3D) num intervalo de dias. Sem discovery detalhado ainda — só
-      um marcador de atenção para quando essa onda entrar (potencial reuso: fisioterapia, estética,
-      evolução de lesão em geral). Não tarefar agora.
+      Evolução seriada (Onda 3 do QueiMap, RF-15) precisa comparar duas avaliações do mesmo paciente
+      (fotos por região e/ou diagrama 3D) num intervalo de 48–72h. Telas desenhadas em
+      27/set/2026 (`docs/design/wireframes.md` AP20–AP22) resolvem SEM o componente: mobile alterna
+      A/B (`ChoiceChipGroup`, uma foto por vez), sem slider. Continua marcador de atenção, não tarefa
+      ativa — só 1 consumidor no portfólio hoje (potencial reuso: fisioterapia, estética, evolução de
+      lesão em geral); reavaliar promoção só com 2º consumidor ou discovery de UX validando o slider.
 - [ ] Não registrado como gap: o visualizador/pintor 3D anatômico (Filament) do QueiMap **fica no
       projeto** (`burn-core`) — é lógica de domínio de nicho clínico, sem 2º consumidor no
       portfólio hoje. Reavaliar promoção só se surgir um 2º produto de saúde com a mesma necessidade
