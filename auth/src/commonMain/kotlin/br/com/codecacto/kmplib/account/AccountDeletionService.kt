@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.core.storage.AccountLocalDataPurger
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
+import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
 import br.com.codecacto.kmplib.platform.getShareHandler
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
@@ -149,9 +150,19 @@ class AccountDeletionService(
 
     /** Passo 3: nunca lança e nunca muda o resultado — a exclusão no servidor já aconteceu. */
     private suspend fun purgeLocalData(conta: String?) {
-        if (clearSharedFiles) {
+        val etapas = deletionLocalFileSteps(
+            clearSharedFiles = clearSharedFiles,
+            purgerRuns = localData != null && conta != null,
+        )
+        if (DeletionLocalFileStep.SHARED_FILES in etapas) {
             runCatching { getShareHandler().clearSharedFiles(0L) }
                 .onFailure { AppLogger.w(TAG, "Exclusão de conta: cópias de compartilhamento não apagadas", it) }
+        }
+        if (DeletionLocalFileStep.CAMERA_ORIGINALS in etapas) {
+            runCatching { clearCameraCaptureFiles(0L) }
+                .onFailure { AppLogger.w(TAG, "Exclusão de conta: originais da câmera não apagados", it) }
+        }
+        if (DeletionLocalFileStep.PRIVATE_PHOTO_CACHE in etapas) {
             runCatching { clearPrivatePhotoMemoryCache() }
                 .onFailure { AppLogger.w(TAG, "Exclusão de conta: cache de fotos privadas não limpo", it) }
         }
@@ -219,3 +230,21 @@ data class AccountDeletionTexts(
     val deleteFailed: String = "Não foi possível excluir seus dados. Tente novamente.",
     val exportFailed: String = "Não foi possível exportar seus dados. Tente novamente.",
 )
+
+/** Arquivos locais que a exclusão de conta limpa fora do [AccountLocalDataPurger]. */
+internal enum class DeletionLocalFileStep { SHARED_FILES, CAMERA_ORIGINALS, PRIVATE_PHOTO_CACHE }
+
+/**
+ * Quais limpezas de arquivo o serviço roda por conta própria (2.218.1).
+ *
+ * - Cópias de compartilhamento: só com `clearSharedFiles` (é o que a flag controla).
+ * - Cache de memória das fotos privadas: **sempre** — é imagem da conta excluída, não cópia exportada.
+ * - Originais de câmera: **sempre que o purger não roda** (sem `localData`, ou espelho sem titular).
+ *   Quando ele roda, é ele quem os apaga. Até a 2.218.0 esse caminho deixava a foto crua no disco.
+ */
+internal fun deletionLocalFileSteps(clearSharedFiles: Boolean, purgerRuns: Boolean): Set<DeletionLocalFileStep> =
+    buildSet {
+        if (clearSharedFiles) add(DeletionLocalFileStep.SHARED_FILES)
+        if (!purgerRuns) add(DeletionLocalFileStep.CAMERA_ORIGINALS)
+        add(DeletionLocalFileStep.PRIVATE_PHOTO_CACHE)
+    }

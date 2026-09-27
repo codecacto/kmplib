@@ -67,7 +67,8 @@ enum class LocalPurgeScope {
  *   exclusão). As linhas carregam o `payload_json` com os `formFields` do multipart — saem junto.
  * @param clearSharedFiles apaga as cópias que o `ShareHandler` materializou para compartilhar
  *   (PDF/imagem exportados), em qualquer idade. Vale nos dois modos: não são pendência de ninguém.
- *   Com ele vão também os originais de câmera esquecidos e o cache de memória das fotos privadas.
+ *   Os originais de câmera e o cache de memória das fotos privadas saem **sempre**, com ou sem a
+ *   flag (2.218.1): são imagem crua da conta, não cópia exportada.
  * @param engine o motor REST do app, se houver: a limpeza roda dentro de
  *   [RestCrudSyncEngine.runExclusive], e [withSyncPaused] o segura.
  * @param extraCleanup o que o app guarda FORA do espelho (DataStore da conta, outro `BlobStore`,
@@ -195,8 +196,12 @@ class SyncAccountDataPurger(
      * quantas cópias de compartilhamento saíram, ou `null` se alguma das três etapas falhou.
      */
     private suspend fun arquivosLocais(): Int? {
-        if (!clearSharedFiles) return 0
-        val compartilhados = etapa("arquivos compartilhados") { getShareHandler().clearSharedFiles(0L) }
+        val etapas = purgeLocalFileSteps(clearSharedFiles)
+        val compartilhados = if (PurgeLocalFileStep.SHARED_FILES in etapas) {
+            etapa("arquivos compartilhados") { getShareHandler().clearSharedFiles(0L) }
+        } else {
+            0
+        }
         val camera = etapa("originais da câmera") { clearCameraCaptureFiles(0L) }
         val fotos = etapa("cache de fotos privadas") { clearPrivatePhotoMemoryCache() }
         return if (camera == null || fotos == null) null else compartilhados
@@ -218,3 +223,17 @@ class SyncAccountDataPurger(
         const val TAG = "AccountLocalData"
     }
 }
+
+/** Arquivos locais que o [SyncAccountDataPurger] limpa além do espelho e das filas. */
+internal enum class PurgeLocalFileStep { SHARED_FILES, CAMERA_ORIGINALS, PRIVATE_PHOTO_CACHE }
+
+/**
+ * `clearSharedFiles` controla **só** as cópias de compartilhamento. Até a 2.218.0 a flag em `false`
+ * pulava também os originais de câmera e o cache de fotos privadas (2.218.1).
+ */
+internal fun purgeLocalFileSteps(clearSharedFiles: Boolean): Set<PurgeLocalFileStep> =
+    buildSet {
+        if (clearSharedFiles) add(PurgeLocalFileStep.SHARED_FILES)
+        add(PurgeLocalFileStep.CAMERA_ORIGINALS)
+        add(PurgeLocalFileStep.PRIVATE_PHOTO_CACHE)
+    }

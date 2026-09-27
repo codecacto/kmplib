@@ -1,5 +1,20 @@
 # Changelog — kmplib
 
+## 2.218.1 — re-review de segurança de 2.218.0: originais de câmera e cache de fotos privadas saem em todo caminho
+
+Patch, sem mudança de API. Achados de severidade **baixa** (sem aviso).
+
+- **`AccountDeletionService`**: sem `localData`, ou com o espelho sem titular (limpeza local
+  recusada), a exclusão de conta não apagava os **originais de câmera** — só o purger fazia isso.
+  Agora o serviço chama `clearCameraCaptureFiles(0L)` nesses dois caminhos. O cache de memória das
+  fotos privadas passou a sair **sempre**, com ou sem `clearSharedFiles`.
+- **`SyncAccountDataPurger`**: `clearSharedFiles = false` pulava também os originais de câmera e o
+  cache de fotos privadas. A flag volta a controlar **só** as cópias de compartilhamento; as outras
+  duas etapas rodam sempre (e falha nelas conta no relatório).
+- **`FileBlobStore` (Android)**: `adopted` confirmado `@Volatile` (leitura fora do `Mutex` na via
+  rápida de `adoptLegacyOnce`).
+- Testes: `DeletionLocalFileStepsTest` (auth) e `PurgeLocalFileStepsTest` (sync).
+
 ## 2.218.0 — correções de segurança do review de 2.216.0/2.217.0: limpeza local com conta NOMEADA · sync segurado na exclusão de conta · 5xx sem mensagem do servidor
 
 **Correção de segurança/privacidade.** Muda o jeito de **chamar** a limpeza local (2.217.0): a conta
