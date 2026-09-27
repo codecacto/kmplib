@@ -206,4 +206,21 @@ class RestCrudSyncEngineTest {
         assertTrue(engine.syncNow())
         assertEquals(listOf("drain:p", "refresh:p"), log)
     }
+
+    /** 2.218.0 — a pausa da exclusão de conta segura o motor e, por dentro, pede a mesma trava. */
+    @Test
+    fun `runExclusive e reentrante - aninhado e troca de titular por dentro nao travam`() = runTest {
+        val store = FakeSyncStore()
+        val engine = RestCrudSyncEngine(emptyList(), ConnectivityObserver(), store = store)
+
+        val r = engine.runExclusive {
+            engine.runExclusive {
+                engine.setAccountScope("conta-a")
+                "ok"
+            }
+        }
+
+        assertEquals("ok", r)
+        assertEquals("conta-a", store.accountScope.value)
+    }
 }

@@ -302,7 +302,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
                 400, 401, 403, 422 ->
                     OwnAuthException.InvalidCredentials(serverMessage ?: texts.socialRejected)
                 429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
-                else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+                else -> serverFailure(status, serverMessage)
             }
         }
         return mapPasswordStatus(suffix, status, serverMessage)
@@ -325,7 +325,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         422 -> if (suffix.startsWith("register") || suffix.startsWith("password")) {
             OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
         } else {
-            OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+            serverFailure(status, serverMessage)
         }
         400 -> when {
             suffix.startsWith("password/reset") ->
@@ -334,11 +334,22 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             // real, que é justamente o que a pessoa precisa saber para corrigir.
             suffix.startsWith("register") || suffix.startsWith("password") ->
                 OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
-            else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+            else -> serverFailure(status, serverMessage)
         }
         429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
-        else -> OwnAuthException.Server(serverMessage ?: texts.server(status), status)
+        else -> serverFailure(status, serverMessage)
     }
+
+    /**
+     * Falha genérica do servidor. Em **5xx** a mensagem do corpo é descartada (2.218.0): numa falha
+     * interna ela é o que o servidor deixou escapar — exceção, SQL, nome de tabela, trecho de stack —,
+     * e ia parar na tela. Só 4xx (validação, regra) traz texto escrito para a pessoa ler.
+     */
+    private fun serverFailure(status: Int, serverMessage: String?): OwnAuthException.Server =
+        OwnAuthException.Server(
+            if (status >= 500) texts.server(status) else serverMessage ?: texts.server(status),
+            status,
+        )
 
     companion object {
         private const val TAG = "OwnAuthApi"

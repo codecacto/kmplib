@@ -15,8 +15,6 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * Participante de um ciclo de sync REST-CRUD (implementado por [OfflineFirstRestRepository]). O
@@ -88,7 +86,8 @@ class RestCrudSyncEngine(
     accountScope: StateFlow<String>? = null,
     private val store: SyncStore? = null,
 ) {
-    private val mutex = Mutex()
+    /** Serializa ciclo, troca de titular e pausa. Reentrante (2.218.0): ver [runExclusive]. */
+    private val mutex = ReentrantSyncLock()
 
     /** Titular corrente do espelho. `null` = o app não declara escopo (single-account). */
     private val accountScope: StateFlow<String>? = accountScope ?: store?.accountScope
@@ -136,6 +135,10 @@ class RestCrudSyncEngine(
      * próximo de começar até [block] acabar (o mesmo mutex do [syncNow]). É o que a limpeza local de
      * logout/exclusão de conta usa (2.217.0) — sem isso, um push ou pull em voo reescreveria no
      * espelho uma linha que acabou de ser apagada.
+     *
+     * **Reentrante desde a 2.218.0**: chamado de dentro de outro `runExclusive` (ou de um
+     * [setAccountScope] feito lá dentro, na mesma corrotina) roda direto em vez de esperar a si mesmo.
+     * É o que deixa a exclusão de conta segurar o motor do `DELETE` no servidor até o fim da limpeza.
      */
     suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
 

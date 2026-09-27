@@ -1,5 +1,71 @@
 # Changelog — kmplib
 
+## 2.218.0 — correções de segurança do review de 2.216.0/2.217.0: limpeza local com conta NOMEADA · sync segurado na exclusão de conta · 5xx sem mensagem do servidor
+
+**Correção de segurança/privacidade.** Muda o jeito de **chamar** a limpeza local (2.217.0): a conta
+passa a ser nomeada. Quem só usa `AccountDeletionService(localData = …)` não muda nada no código.
+
+### Bloqueantes (2.217.0)
+- **A limpeza apagava o bucket errado e dizia que deu certo.** `purgeAccount()`/`purgeOnSignOut()`
+  liam o escopo do espelho *no instante da limpeza* — e o app que liga o escopo à sessão já o tinha
+  trocado para "sem conta" no `signOut`. Resultado: `failures = 0` com o dado clínico intacto.
+  - `AccountLocalDataPurger`: **`activeAccountId(): String?`** (novo, abstrato),
+    **`purgeAccount(accountId: String)`**, **`purgeOnSignOut(accountId: String, pending)`** e
+    **`suspend fun <T> withSyncPaused(block: suspend () -> T): T`** (default roda direto). As
+    variantes sem conta ficaram `@Deprecated(level = ERROR)` — não compilam.
+  - `SyncAccountDataPurger`: `purgeAccount(id)` apaga a conta nomeada **mesmo com o escopo já
+    trocado** (espelho por `deleteAccountData(id)`, binários da fila por `getRowsAcrossAccounts`).
+    Conta em branco/`NO_ACCOUNT` = **recusa** (`failures = 1`, nada apagado). `Keep` com o escopo já
+    em outra conta também recusa (a triagem de pendência lê o bucket corrente).
+  - `RestUploadOutbox.purgeAccount(accountId)` (novo) — `purgeCurrentAccount()` `@Deprecated`.
+    A fila (com `formFields` no `payload_json`, 2.216.0) sai inteira na exclusão e no `Discard`.
+  - `AccountDeletionService` captura `activeAccountId()` **antes** do wipe e o passa explicitamente.
+- **O sync podia recriar no servidor a conta recém-apagada.** Entre o `DELETE` e a limpeza local, um
+  ciclo subia a outbox (o access token ainda vale). Agora o serviço roda do `DELETE` ao fim da
+  limpeza dentro de `withSyncPaused` — que no `SyncAccountDataPurger` segura o motor
+  (`RestCrudSyncEngine.runExclusive`) **e** a drenagem de cada fila (`RestUploadOutbox.withDrainPaused`,
+  novo — o `drainNow()` da tela não passa pelo motor). Wipe que falha solta sem apagar nada.
+  `runExclusive` e a trava da fila ficaram **reentrantes na mesma corrotina** (senão a limpeza feita
+  de dentro da pausa esperaria a si mesma).
+
+### Médio/baixo (2.217.0)
+- `BlobStore` Android: a adoção do diretório antigo devolvia "concluída" com arquivo **não movido** e
+  nunca mais tentava. Agora tenta de novo, e enquanto isso `read`/`exists`/`delete`/`ids` enxergam
+  o diretório antigo — a limpeza da conta e a varredura de órfãos alcançam a cópia que ficou.
+- Originais da câmera (`cacheDir/photos/camera_*`, EXIF/GPS): `clearCameraCaptureFiles(olderThanMillis)`
+  (kmplib-platform, novo) roda no `initKmpLibPlatform`/`KmpLib.init` (folga de 10 min, fora da main
+  thread) e sem folga na limpeza da conta.
+- `SyncStore.deleteAccountData` default deixou de ser no-op silencioso: loga e lança
+  `UnsupportedOperationException` — a etapa conta como falha.
+
+### Baixos (2.216.0)
+- `OwnAuthApi`: em **5xx** a mensagem vem sempre de `texts.server(status)` — o corpo de uma falha
+  interna (exceção, SQL) não chega mais à tela. 4xx segue com a frase do servidor.
+- `changeOwnPassword`: rede/5xx depois de o servidor possivelmente ter aplicado a troca →
+  `accessToken(forceRefresh = true)`: rotacionou = troca não aconteceu (erro original); refresh
+  recusado = troca aplicada (entra de novo com a senha nova); sem resposta = `clear()` +
+  `SignInRequired`.
+- `PhotoSource`: `authenticated(api, path, key, accountId = null)` — **passe o id da sessão**: contas
+  diferentes deixam de dividir a entrada do cache de memória. Fontes privadas entram com o prefixo
+  `PRIVATE_PHOTO_MEMORY_KEY_PREFIX`, e **`clearPrivatePhotoMemoryCache()`** (ou com `ImageLoader`)
+  tira só elas — o `SyncAccountDataPurger` e o `AccountDeletionService` já chamam.
+
+### Migração
+- **App que implementa `AccountLocalDataPurger` à mão:** implementar `activeAccountId()` e trocar as
+  assinaturas para as com `accountId`.
+- **App que chama a limpeza no logout** (ordem nova, vale para quem liga o escopo à sessão):
+  ```kotlin
+  val conta = purger.activeAccountId() ?: return     // ANTES do signOut
+  purger.withSyncPaused {
+      auth.signOut()
+      purger.purgeOnSignOut(conta, policy)
+      engine.setAccountScope(null)
+  }
+  ```
+- **App com foto privada:** `PhotoSource.authenticated(api, path, accountId = sessao.userId)`; sem
+  sync, chamar `clearPrivatePhotoMemoryCache()` no logout.
+- Só `AccountDeletionService(localData = SyncAccountDataPurger(...))`: nada a mudar — basta subir.
+
 ## 2.217.0 — privacidade do dado local: fotos fora do backup · exclusão de conta limpa o aparelho · logout com pendências · original da câmera apagado
 
 **Correção de segurança/privacidade** (apontada no security-review do QueiMap, app clínico). Sem

@@ -66,7 +66,12 @@ internal class FileBlobStore(
         }
     }
 
-    /** @return `true` quando não há mais nada a adotar (ou o que havia foi movido). */
+    /**
+     * @return `true` quando não há mais nada a adotar. Até a 2.217.0 devolvia `true` também com
+     *   arquivo que NÃO saiu do diretório antigo — e nunca mais tentava: a foto ficava no diretório
+     *   com backup, fora da limpeza e da varredura de órfãos. Agora `false` = tenta de novo na
+     *   próxima operação, e enquanto isso [delete]/[ids]/[read] enxergam o diretório antigo.
+     */
     private fun adoptLegacy(): Boolean {
         val legacy = legacyDirectory ?: return true
         if (!legacy.isDirectory) return true
@@ -105,8 +110,16 @@ internal class FileBlobStore(
         } else {
             legacy.delete()
         }
-        return true
+        return !pendente
     }
+
+    /** O mesmo blob no diretório do outro modo — só enquanto a adoção não terminou. */
+    private fun legacyFileOf(id: String): File? =
+        if (!adopted && isValidBlobId(id)) legacyDirectory?.let { File(it, id) } else null
+
+    /** Blob a ler: o do diretório atual, ou o que ainda não saiu do antigo. */
+    private fun existingFileOf(id: String): File? =
+        fileOf(id)?.takeIf { it.isFile } ?: legacyFileOf(id)?.takeIf { it.isFile }
 
     override suspend fun write(id: String, bytes: ByteArray): Boolean = withContext(io) {
         adoptLegacyOnce()
@@ -134,8 +147,8 @@ internal class FileBlobStore(
 
     override suspend fun read(id: String): ByteArray? = withContext(io) {
         adoptLegacyOnce()
-        val file = fileOf(id) ?: return@withContext null
-        runCatching { if (file.isFile) file.readBytes() else null }.getOrElse {
+        val file = existingFileOf(id) ?: return@withContext null
+        runCatching { file.readBytes() }.getOrElse {
             AppLogger.e(TAG, "falha ao ler blob", it)
             null
         }
@@ -143,26 +156,32 @@ internal class FileBlobStore(
 
     override suspend fun exists(id: String): Boolean = withContext(io) {
         adoptLegacyOnce()
-        fileOf(id)?.isFile == true
+        existingFileOf(id) != null
     }
 
     override suspend fun sizeOf(id: String): Long = withContext(io) {
         adoptLegacyOnce()
-        fileOf(id)?.takeIf { it.isFile }?.length() ?: 0L
+        existingFileOf(id)?.length() ?: 0L
     }
 
     override suspend fun delete(id: String): Boolean = withContext(io) {
         adoptLegacyOnce()
         val file = fileOf(id) ?: return@withContext false
-        runCatching { file.isFile && file.delete() }.getOrDefault(false)
+        val atual = runCatching { file.isFile && file.delete() }.getOrDefault(false)
+        // A cópia que não conseguiu sair do diretório antigo também é desta conta/fila: sai junto.
+        val antiga = legacyFileOf(id)?.let { runCatching { it.isFile && it.delete() }.getOrDefault(false) } ?: false
+        atual || antiga
     }
 
     override suspend fun ids(): List<String> = withContext(io) {
         adoptLegacyOnce()
-        directory.listFiles()
-            ?.filter { it.isFile && !it.name.startsWith(TEMP_PREFIX) }
-            ?.map { it.name }
-            .orEmpty()
+        val pastas = listOfNotNull(directory, legacyDirectory.takeIf { !adopted })
+        pastas.flatMap { pasta ->
+            pasta.listFiles()
+                ?.filter { it.isFile && !it.name.startsWith(TEMP_PREFIX) }
+                ?.map { it.name }
+                .orEmpty()
+        }.distinct()
     }
 
     private companion object {

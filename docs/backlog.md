@@ -6,6 +6,13 @@
 ### Registrado nesta rodada (26/set/2026) — origem: design do **QueiMap** (avaliação de queimaduras)
 > Origem: `8-Sistemas-Portal-App/QueiMap/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
 
+- [x] **ATENDIDO na 2.218.0** (security-review de 2.216/2.217) → limpeza local com **conta
+      nomeada** (`purgeAccount(accountId)`, `purgeOnSignOut(accountId, …)`, `activeAccountId()`;
+      em branco/fora do escopo = recusa contada como falha); `withSyncPaused {}` segura motor + filas
+      do `DELETE` ao fim da limpeza; `SyncStore.deleteAccountData` default recusa; `BlobStore` com
+      adoção pendente honesta; originais de câmera varridos no init e na limpeza; 5xx do own-auth sem
+      mensagem do servidor; troca de senha com resposta perdida; cache de memória de foto privada
+      por conta + `clearPrivatePhotoMemoryCache()`.
 - [x] **ATENDIDO na 2.217.0** (QueiMap, security-review) → `BlobStore` fora do backup por default
       (Android `noBackupFilesDir` com migração; iOS `NSURLIsExcludedFromBackupKey`);
       `AccountLocalDataPurger`/`SyncAccountDataPurger` ligado ao `AccountDeletionService` (espelho,

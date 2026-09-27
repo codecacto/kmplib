@@ -6,6 +6,7 @@ import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
 import coil3.ImageLoader
 import coil3.PlatformContext
+import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.decode.DataSource
 import coil3.decode.ImageSource
@@ -44,6 +45,17 @@ import okio.Buffer
  * [Loader], [Bytes] e [Url] **com cabeçalhos** saem com o cache de disco do Coil **desligado** — o
  * cache de disco é um arquivo em claro no aparelho, e foto clínica gravada ali sobrevive ao logout.
  * Fica só o cache de **memória**, indexado pela [key], que morre com o processo.
+ *
+ * ## …e não sobrevive ao logout (2.218.0)
+ * "Morre com o processo" não bastava: o logout não mata o processo, e a próxima pessoa a entrar no
+ * mesmo aparelho via, de relance, a miniatura em memória da conta anterior sempre que a chave
+ * coincidisse (o mesmo `path` de endpoint, como `/v1/pacientes/1/foto`). Duas defesas:
+ * - [authenticated] recebe `accountId` e o põe **na chave** — contas diferentes nunca compartilham
+ *   entrada de cache;
+ * - as fontes privadas ([Loader], [Bytes], [Url] com cabeçalhos) entram no cache com o prefixo
+ *   [PRIVATE_PHOTO_MEMORY_KEY_PREFIX], e [clearPrivatePhotoMemoryCache] tira só elas. A limpeza de
+ *   conta do sync (`SyncAccountDataPurger`) e o `AccountDeletionService` já chamam; app sem sync
+ *   chama no próprio logout.
  *
  * ⚠️ A [key] é a identidade da imagem para o cache: duas fotos diferentes com a mesma chave mostram a
  * mesma imagem. Use o id da foto no servidor (ou o caminho do endpoint), nunca um índice da lista.
@@ -100,11 +112,22 @@ sealed interface PhotoSource {
          * refresh e transporte que não lança — tudo do [DomainApiClient.getBytes].
          *
          * ```kotlin
-         * PhotoStripItem(id = foto.id, source = PhotoSource.authenticated(api, "/v1/fotos/${foto.id}/bytes"))
+         * PhotoStripItem(
+         *     id = foto.id,
+         *     source = PhotoSource.authenticated(api, "/v1/fotos/${foto.id}/bytes", accountId = sessao.userId),
+         * )
          * ```
+         *
+         * @param accountId o id da conta da sessão. **Passe sempre em app com login**: sem ele, duas
+         *   contas que abrem o mesmo [path] no mesmo processo dividem a entrada do cache de memória.
          */
-        fun authenticated(api: DomainApiClient, path: String, key: String = path): Loader =
-            Loader(key) {
+        fun authenticated(
+            api: DomainApiClient,
+            path: String,
+            key: String = path,
+            accountId: String? = null,
+        ): Loader =
+            Loader(accountScopedPhotoKey(key, accountId)) {
                 when (val r = api.getBytes(path)) {
                     is DomainResult.Success -> r.data
                     else -> null
@@ -126,7 +149,7 @@ fun rememberPhotoSourceRequest(source: PhotoSource): ImageRequest {
 
 /** Versão não-composable de [rememberPhotoSourceRequest]. */
 fun photoSourceRequest(context: PlatformContext, source: PhotoSource): ImageRequest {
-    val builder = ImageRequest.Builder(context).memoryCacheKey(source.key)
+    val builder = ImageRequest.Builder(context).memoryCacheKey(photoMemoryCacheKey(source))
     return when (source) {
         is PhotoSource.Url -> {
             builder.data(source.url)
@@ -148,6 +171,50 @@ fun photoSourceRequest(context: PlatformContext, source: PhotoSource): ImageRequ
             .build()
     }
 }
+
+/** Prefixo da chave de cache de memória de toda fonte PRIVADA — é por ele que a limpeza as acha. */
+const val PRIVATE_PHOTO_MEMORY_KEY_PREFIX: String = "kmplib-private-photo:"
+
+/** A fonte é privada (não pode sobreviver ao logout nem ir ao disco)? */
+internal val PhotoSource.isPrivate: Boolean
+    get() = when (this) {
+        is PhotoSource.Url -> headers.isNotEmpty()
+        is PhotoSource.Bytes, is PhotoSource.Loader -> true
+    }
+
+/** Chave no cache de memória: privada ganha o prefixo; URL pública fica como sempre foi. */
+internal fun photoMemoryCacheKey(source: PhotoSource): String =
+    if (source.isPrivate) PRIVATE_PHOTO_MEMORY_KEY_PREFIX + source.key else source.key
+
+/** A chave com a conta à frente — contas diferentes, entradas diferentes. */
+internal fun accountScopedPhotoKey(key: String, accountId: String?): String =
+    if (accountId.isNullOrBlank()) key else "$accountId|$key"
+
+/**
+ * Tira do cache de **memória** do [imageLoader] toda imagem de fonte privada (2.218.0) — as públicas
+ * ficam. Chame no logout/troca de conta. Devolve quantas entradas saíram.
+ */
+fun clearPrivatePhotoMemoryCache(imageLoader: ImageLoader): Int {
+    val cache = imageLoader.memoryCache ?: return 0
+    return cache.keys
+        .filter { isPrivatePhotoMemoryKey(it.key) }
+        .count { cache.remove(it) }
+}
+
+/** A entrada do cache veio de uma fonte privada? (É o critério da limpeza.) */
+internal fun isPrivatePhotoMemoryKey(key: String): Boolean = key.startsWith(PRIVATE_PHOTO_MEMORY_KEY_PREFIX)
+
+/**
+ * O mesmo, sobre o `ImageLoader` **padrão** do app (`SingletonImageLoader`, o que `AsyncImage` usa
+ * quando não recebe outro). Sem a lib inicializada (Android sem `Context`) devolve `0`.
+ */
+fun clearPrivatePhotoMemoryCache(): Int {
+    val context = defaultPhotoPlatformContext() ?: return 0
+    return clearPrivatePhotoMemoryCache(SingletonImageLoader.get(context))
+}
+
+/** O `PlatformContext` do app fora da composição (Android: o `Context` registrado no init). */
+internal expect fun defaultPhotoPlatformContext(): PlatformContext?
 
 /**
  * Fetcher do Coil para [PhotoSource.Loader] — a extensão oficial do pipeline de imagem (um `Fetcher`

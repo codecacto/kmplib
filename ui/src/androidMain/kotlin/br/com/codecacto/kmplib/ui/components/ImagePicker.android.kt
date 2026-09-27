@@ -45,6 +45,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.CAMERA_CAPTURE_FILE_PREFIX
+import br.com.codecacto.kmplib.platform.DEFAULT_CAMERA_CAPTURE_TTL_MILLIS
+import br.com.codecacto.kmplib.platform.cameraCaptureDirectory
+import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -101,10 +105,12 @@ actual fun rememberImagePickerLauncher(
 
     fun launchCamera() {
         try {
-            val photosDir = File(context.cacheDir, CAMERA_PHOTOS_DIR)
+            val photosDir = cameraCaptureDirectory(context)
             photosDir.mkdirs()
-            sweepStaleCameraFiles(photosDir)
-            val photoFile = File(photosDir, "$CAMERA_FILE_PREFIX${System.currentTimeMillis()}.jpg")
+            // Originais de capturas anteriores que ficaram (processo morto no meio); a folga protege
+            // uma captura ainda aberta em outro seletor.
+            clearCameraCaptureFiles(context, DEFAULT_CAMERA_CAPTURE_TTL_MILLIS)
+            val photoFile = File(photosDir, "$CAMERA_CAPTURE_FILE_PREFIX${System.currentTimeMillis()}.jpg")
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -291,27 +297,9 @@ private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
 
 private const val TAG = "KmpLibImagePicker"
 
-/** Subpasta do `cacheDir` coberta pelo FileProvider da lib (`kmplib_file_paths`). */
-private const val CAMERA_PHOTOS_DIR = "photos"
-private const val CAMERA_FILE_PREFIX = "camera_"
-
-/** Idade a partir da qual um original de câmera é resíduo (processo morto, versão anterior da lib). */
-private const val STALE_CAMERA_FILE_MILLIS = 10 * 60 * 1000L
-
 private fun deleteCameraTempFile(file: File) {
     if (file.exists() && !file.delete()) {
         AppLogger.w(TAG, "Original temporário da câmera não pôde ser apagado.")
     }
 }
 
-/**
- * Recolhe originais de câmera que ficaram para trás: todos os que as versões até a 2.216.0 deixaram,
- * e o de uma captura cujo processo morreu antes do retorno. A folga de 10 minutos protege uma captura
- * ainda aberta em outro seletor.
- */
-private fun sweepStaleCameraFiles(dir: File) {
-    val limite = System.currentTimeMillis() - STALE_CAMERA_FILE_MILLIS
-    dir.listFiles()
-        ?.filter { it.isFile && it.name.startsWith(CAMERA_FILE_PREFIX) && it.lastModified() < limite }
-        ?.forEach { it.delete() }
-}

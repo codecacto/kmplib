@@ -94,10 +94,37 @@ class EmailPasswordAuthRepository(
         val token = tokenManager.accessToken()
             ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
 
-        api.changePassword(currentPassword, newPassword, token).onFailure { return Result.failure(it) }
+        api.changePassword(currentPassword, newPassword, token).onFailure { erro ->
+            if (!erro.isAmbiguousTransportFailure()) return Result.failure(erro)
+            // Rede/5xx: o pedido pode ter chegado e a troca ter sido APLICADA — a resposta é que se
+            // perdeu. Se foi, o servidor revogou o refresh desta sessão, e o app seguiria "logado"
+            // num par morto. O refresh forçado responde a pergunta: rotacionou → a sessão está viva
+            // e a troca não aconteceu (devolve o erro original); qualquer outra coisa → não dá para
+            // afirmar que a sessão vale, e ela é encerrada (a pessoa entra de novo).
+            val renovado = tokenManager.accessToken(forceRefresh = true)
+            val atual = tokenManager.session.value
+            when {
+                // Rotacionou: a sessão está viva, logo a troca NÃO aconteceu.
+                renovado != null && atual != null && atual.refreshToken != sessao.refreshToken ->
+                    return Result.failure(erro)
+                // Refresh recusado (o gerenciador já derrubou a sessão): a troca FOI aplicada —
+                // segue o caminho da troca aceita, que tenta entrar de novo com a senha nova.
+                atual == null -> return entrarDeNovo(sessao, newPassword)
+                // Não deu para saber (rede ainda fora): a sessão não é confiável — encerra.
+                else -> {
+                    tokenManager.clear()
+                    return Result.success(PasswordChangeOutcome.SignInRequired)
+                }
+            }
+        }
+        return entrarDeNovo(sessao, newPassword)
+    }
 
-        // Aceita: o servidor acabou de revogar o refresh desta sessão. Entrar de novo com a senha
-        // nova é o que mantém a pessoa dentro do app.
+    /**
+     * Troca aceita: o servidor acabou de revogar o refresh desta sessão. Entrar de novo com a senha
+     * nova é o que mantém a pessoa dentro do app.
+     */
+    private suspend fun entrarDeNovo(sessao: OwnAuthSession, newPassword: String): Result<PasswordChangeOutcome> {
         val identificador = sessao.email.trim()
         if (identificador.isNotEmpty()) {
             val renovada = api.login(identificador, newPassword).getOrNull()
@@ -113,6 +140,10 @@ class EmailPasswordAuthRepository(
         tokenManager.clear()
         return Result.success(PasswordChangeOutcome.SignInRequired)
     }
+
+    /** Falha em que o servidor pode ter aplicado a troca sem a resposta chegar: rede ou 5xx. */
+    private fun Throwable.isAmbiguousTransportFailure(): Boolean =
+        this is OwnAuthException.Network || (this is OwnAuthException.Server && code >= 500)
 
     override suspend fun completeFirstAccess(newPassword: String): Result<User> {
         val sessao = tokenManager.session.value ?: tokenManager.restore()

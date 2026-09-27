@@ -101,6 +101,11 @@ sealed interface PasswordChangeOutcome {
     /**
      * Senha trocada, mas não foi possível entrar de novo sozinho — a sessão local foi encerrada.
      * A tela avisa que a senha foi alterada e leva ao login (o `currentUser` já emitiu `null`).
+     *
+     * Vem também (2.218.0) quando o `password/change` falhou por **rede/5xx** e não deu para
+     * confirmar se o servidor aplicou a troca: a sessão pode estar revogada, então é encerrada. Aí a
+     * senha **pode** ter mudado — a tela diz para entrar de novo, com a senha nova e, se não
+     * funcionar, com a antiga.
      */
     data object SignInRequired : PasswordChangeOutcome
 }

@@ -11,6 +11,12 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import br.com.codecacto.kmplib.core.network.ConnectivityObserver
+import br.com.codecacto.kmplib.sync.rest.RestCrudSyncEngine
+import br.com.codecacto.kmplib.sync.rest.RestCrudSyncParticipant
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,8 +35,10 @@ import kotlin.test.assertTrue
  */
 class SyncAccountDataPurgerTest {
 
+    private var requisicoes = 0
+
     private val api = DomainApiClient(
-        HttpClient(MockEngine { respond("{}", HttpStatusCode.Created) }),
+        HttpClient(MockEngine { requisicoes++; respond("{}", HttpStatusCode.Created) }),
         DomainTokenProvider { "tok" },
         "https://api.example.com",
     )
@@ -103,7 +111,7 @@ class SyncAccountDataPurgerTest {
             c.store, listOf(c.outbox), clearSharedFiles = false, extraCleanup = { extra = it },
         )
 
-        val relatorio = purger.purgeAccount()
+        val relatorio = purger.purgeAccount("conta-a")
 
         assertTrue(relatorio.isComplete)
         assertEquals(2, relatorio.discardedPending)
@@ -124,7 +132,7 @@ class SyncAccountDataPurgerTest {
         val c = cenario()
         val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
 
-        val relatorio = purger.purgeOnSignOut(SignOutPendingPolicy.Keep)
+        val relatorio = purger.purgeOnSignOut("conta-a", SignOutPendingPolicy.Keep)
 
         assertTrue(relatorio.isComplete)
         assertEquals(2, relatorio.keptPending)
@@ -142,7 +150,7 @@ class SyncAccountDataPurgerTest {
         val c = cenario()
         val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
 
-        val relatorio = purger.purgeOnSignOut(SignOutPendingPolicy.Discard)
+        val relatorio = purger.purgeOnSignOut("conta-a", SignOutPendingPolicy.Discard)
 
         assertEquals(2, relatorio.discardedPending)
         assertTrue(c.store.getVisible("paciente").isEmpty())
@@ -157,7 +165,7 @@ class SyncAccountDataPurgerTest {
             extraCleanup = { error("disco") },
         )
 
-        val relatorio = purger.purgeAccount()
+        val relatorio = purger.purgeAccount("conta-a")
 
         assertFalse(relatorio.isComplete)
         assertEquals(1, relatorio.failures)
@@ -170,10 +178,128 @@ class SyncAccountDataPurgerTest {
         c.store.upsert(linha("up-x", serverId = null, entidade = "kmplib_upload").copy(payload_json = "{quebrado"))
         c.blobs.write("up-x-0", byteArrayOf(7))
 
-        val removidos = c.outbox.purgeCurrentAccount()
+        val removidos = c.outbox.purgeAccount("conta-a")
 
         assertEquals(2, removidos)
         assertFalse("up-x-0" in c.blobs.ids())
         assertTrue(c.store.getDirty("kmplib_upload").isEmpty())
+    }
+
+    // ---- 2.218.0: a conta é NOMEADA, e o motor fica segurado --------------------------------
+
+    /**
+     * O app que liga o escopo à sessão já trocou o titular para "sem conta" quando a limpeza roda.
+     * Até a 2.217.0 ela apagava o bucket vazio e devolvia `failures = 0`, com a conta intacta.
+     */
+    @Test
+    fun `escopo ja trocado para sem conta - apaga a conta nomeada mesmo assim`() = runTest {
+        val c = cenario()
+        val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
+        c.store.setAccountScope(null)
+
+        val relatorio = purger.purgeAccount("conta-a")
+
+        assertTrue(relatorio.isComplete, "falhas: ${relatorio.failures}")
+        assertEquals(listOf("up-b-0"), c.blobs.ids(), "a foto da conta A sai; a da B fica")
+        c.store.setAccountScope("conta-a")
+        assertTrue(c.store.getVisible("paciente").isEmpty())
+        assertEquals(0L, c.store.countDirty(), "outbox da conta A (registros e fila de upload) saiu")
+        c.store.setAccountScope("conta-b")
+        assertEquals(1, c.outbox.pending().size, "a outra conta segue intacta")
+    }
+
+    @Test
+    fun `escopo ja e OUTRA conta - apaga a nomeada e preserva a corrente`() = runTest {
+        val c = cenario()
+        val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
+        c.store.setAccountScope("conta-b")
+
+        assertTrue(purger.purgeAccount("conta-a").isComplete)
+
+        assertEquals(1, c.outbox.pending().size, "a fila da B não é tocada")
+        assertEquals(listOf("up-b-0"), c.blobs.ids())
+    }
+
+    @Test
+    fun `conta em branco e recusada - nada apagado e a falha aparece`() = runTest {
+        val c = cenario()
+        val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
+
+        val relatorio = purger.purgeAccount(SyncStore.NO_ACCOUNT)
+
+        assertEquals(1, relatorio.failures)
+        assertEquals(2, c.blobs.ids().size)
+        assertEquals(3, c.store.getVisible("paciente").size)
+    }
+
+    @Test
+    fun `logout mantendo pendencias com o escopo ja trocado e recusado sem apagar nada`() = runTest {
+        val c = cenario()
+        val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false)
+        c.store.setAccountScope("conta-b")
+
+        val relatorio = purger.purgeOnSignOut("conta-a", SignOutPendingPolicy.Keep)
+
+        assertEquals(1, relatorio.failures)
+        c.store.setAccountScope("conta-a")
+        assertEquals(3, c.store.getVisible("paciente").size, "nada da conta A saiu")
+    }
+
+    @Test
+    fun `activeAccountId devolve null sem titular`() = runTest {
+        val store = FakeSyncStore()
+        val purger = SyncAccountDataPurger(store)
+        assertNull(purger.activeAccountId())
+        store.setAccountScope("conta-a")
+        assertEquals("conta-a", purger.activeAccountId())
+    }
+
+    /** Store que não sabe apagar uma conta: até a 2.217.0 o no-op era contado como sucesso. */
+    @Test
+    fun `store sem deleteAccountData conta a etapa como falha`() = runTest {
+        val c = cenario()
+        val semSuporte = object : SyncStore by c.store {
+            override fun deleteAccountData(accountId: String) = super<SyncStore>.deleteAccountData(accountId)
+        }
+        val purger = SyncAccountDataPurger(semSuporte, clearSharedFiles = false)
+
+        val relatorio = purger.purgeAccount("conta-a")
+
+        assertEquals(1, relatorio.failures)
+    }
+
+    /**
+     * Entre o DELETE no servidor e a limpeza, um ciclo subiria a outbox da conta apagada. Dentro da
+     * pausa, o ciclo do motor e o `drainNow()` da tela esperam; a limpeza feita por dentro não trava.
+     */
+    @Test
+    fun `pausa segura o motor e a fila ate o fim do bloco sem travar a limpeza interna`() = runTest {
+        val c = cenario()
+        val log = mutableListOf<String>()
+        val registro = object : RestCrudSyncParticipant {
+            override suspend fun drainOutbox(parentRemap: Map<String, String>): Map<String, String> {
+                log += "ciclo"
+                return emptyMap()
+            }
+            override suspend fun refresh(): Boolean = true
+        }
+        val engine = RestCrudSyncEngine(listOf(registro, c.outbox), ConnectivityObserver(), store = c.store)
+        val purger = SyncAccountDataPurger(c.store, listOf(c.outbox), clearSharedFiles = false, engine = engine)
+        requisicoes = 0
+
+        val ciclo = purger.withSyncPaused {
+            val ciclo = backgroundScope.launch { engine.syncNow() }
+            val envio = backgroundScope.launch { c.outbox.drainNow() }
+            delay(1_000)
+            assertTrue(log.isEmpty(), "nenhum ciclo durante a pausa")
+            assertFalse(envio.isCompleted, "o drainNow da tela também espera")
+            assertTrue(purger.purgeAccount("conta-a").isComplete)
+            log += "limpou"
+            listOf(ciclo, envio)
+        }
+        ciclo.joinAll()
+
+        assertEquals(listOf("limpou", "ciclo"), log)
+        assertEquals(0, requisicoes, "a foto da conta apagada nunca subiu")
     }
 }

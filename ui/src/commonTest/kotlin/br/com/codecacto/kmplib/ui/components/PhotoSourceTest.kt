@@ -77,4 +77,36 @@ class PhotoSourceTest {
         status = HttpStatusCode.NotFound
         assertNull(fonte.load(), "falha vira null, e a miniatura mostra a marca de falha")
     }
+
+    // ---- 2.218.0: o cache de memória não sobrevive à troca de conta ----------------------
+
+    private val api = DomainApiClient(
+        HttpClient(MockEngine { respond(byteArrayOf(1), HttpStatusCode.OK) }),
+        DomainTokenProvider { "tok" },
+        "https://api.example.com",
+    )
+
+    @Test
+    fun `fonte autenticada com conta poe a conta na chave`() {
+        val a = PhotoSource.authenticated(api, "/v1/pacientes/1/foto", accountId = "conta-a")
+        val b = PhotoSource.authenticated(api, "/v1/pacientes/1/foto", accountId = "conta-b")
+
+        assertFalse(a == b, "mesmo endpoint, contas diferentes: entradas diferentes no cache")
+        assertTrue(a.key.contains("conta-a"))
+        assertEquals("/v1/pacientes/1/foto", PhotoSource.authenticated(api, "/v1/pacientes/1/foto").key)
+    }
+
+    @Test
+    fun `so fonte privada entra no cache com o prefixo que a limpeza procura`() {
+        val publica = PhotoSource.Url("https://cdn/x.jpg")
+        val comCabecalho = PhotoSource.Url("https://cdn/x.jpg", headers = mapOf("X-Key" to "k"))
+        val loader = PhotoSource.Loader("/v1/f/1") { null }
+        val bytes = PhotoSource.Bytes("previa", byteArrayOf(1))
+
+        assertEquals("https://cdn/x.jpg", photoMemoryCacheKey(publica), "URL pública: chave de sempre")
+        assertFalse(isPrivatePhotoMemoryKey(photoMemoryCacheKey(publica)))
+        for (fonte in listOf(comCabecalho, loader, bytes)) {
+            assertTrue(isPrivatePhotoMemoryKey(photoMemoryCacheKey(fonte)), "$fonte")
+        }
+    }
 }

@@ -158,4 +158,54 @@ class OwnAuthPasswordChangeTest {
         assertIs<PasswordChangeOutcome.SessionRenewed>(r)
         assertTrue(c.captured.none { it.url.endsWith("/password/change") })
     }
+
+    // ---- 2.218.0: a resposta da troca se perdeu (rede/5xx) --------------------------------
+
+    @Test
+    fun `5xx na troca e refresh recusado - a troca foi aplicada e a sessao renova com a senha nova`() = runTest {
+        val c = logado { path ->
+            when {
+                path.endsWith("/password/change") -> HttpStatusCode.BadGateway to ""
+                path.endsWith("/refresh") -> HttpStatusCode.Unauthorized to ""
+                path.endsWith("/login") -> HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r3")
+                else -> HttpStatusCode.NotFound to ""
+            }
+        }
+
+        val r = c.repo.changeOwnPassword("antiga", "novaSenha1").getOrThrow()
+
+        assertIs<PasswordChangeOutcome.SessionRenewed>(r)
+        assertEquals("r3", c.tm.session.value?.refreshToken)
+    }
+
+    @Test
+    fun `5xx na troca e refresh rotaciona - a troca nao aconteceu e o erro volta`() = runTest {
+        val c = logado { path ->
+            when {
+                path.endsWith("/password/change") -> HttpStatusCode.ServiceUnavailable to ""
+                path.endsWith("/refresh") -> HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r2")
+                else -> HttpStatusCode.NotFound to ""
+            }
+        }
+
+        val e = c.repo.changeOwnPassword("antiga", "novaSenha1").exceptionOrNull()
+
+        assertIs<OwnAuthException.Server>(e)
+        assertEquals("r2", c.tm.session.value?.refreshToken, "a sessão viva segue")
+    }
+
+    @Test
+    fun `5xx na troca e refresh sem resposta - sessao nao confiavel e encerrada`() = runTest {
+        val c = logado { path ->
+            when {
+                path.endsWith("/password/change") -> HttpStatusCode.GatewayTimeout to ""
+                else -> HttpStatusCode.ServiceUnavailable to ""
+            }
+        }
+
+        val r = c.repo.changeOwnPassword("antiga", "novaSenha1").getOrThrow()
+
+        assertEquals(PasswordChangeOutcome.SignInRequired, r)
+        assertNull(c.tm.session.value)
+    }
 }

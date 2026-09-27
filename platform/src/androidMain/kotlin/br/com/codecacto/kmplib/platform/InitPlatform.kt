@@ -7,10 +7,12 @@ import br.com.codecacto.kmplib.platform.permission.PermissionHostHolder
 import br.com.codecacto.kmplib.platform.privacy.AndroidPrivacyScreen
 import br.com.codecacto.kmplib.platform.tts.TtsControllerHolder
 import br.com.codecacto.kmplib.torch.TorchControllerHolder
+import kotlin.concurrent.thread
 
 /**
  * Registra o `Context` nos serviços de sistema do `kmplib-platform`: compartilhamento,
  * notificação agendada, TTS, lanterna, bateria, sacudida, captura de áudio e idioma do aparelho.
+ * Varre também, em segundo plano, originais de câmera esquecidos ([clearCameraCaptureFiles]).
  *
  * Chame no `Application.onCreate()`. Ver [br.com.codecacto.kmplib.core.initKmpLibCore] para o
  * porquê de cada módulo ter o seu.
@@ -25,6 +27,12 @@ fun initKmpLibPlatform(context: Context) {
     AudioCaptureHolder.init(context)
     DeviceLocaleHolder.init(context)
     br.com.codecacto.kmplib.platform.links.InstallReferrerHolder.init(context)
+    // Original de câmera deixado por captura interrompida (EXIF/GPS, resolução cheia) — 2.218.0.
+    // Fora da main thread (é disco); a folga protege a captura que esta abertura veio receber.
+    val app = context.applicationContext
+    thread(name = "kmplib-camera-sweep", isDaemon = true) {
+        clearCameraCaptureFiles(app, DEFAULT_CAMERA_CAPTURE_TTL_MILLIS)
+    }
 }
 
 /**

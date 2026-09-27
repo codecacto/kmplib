@@ -7,6 +7,7 @@ import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.platform.getShareHandler
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
+import br.com.codecacto.kmplib.ui.components.clearPrivatePhotoMemoryCache
 
 /**
  * Serviço de **direito ao esquecimento + portabilidade (LGPD/GDPR)** — exclusão de todos os dados
@@ -42,6 +43,16 @@ import br.com.codecacto.kmplib.sync.rest.DomainResult
  * que seja o resultado dele, porque os dados do servidor já saíram —, o serviço apaga as cópias de
  * compartilhamento e chama [AccountLocalDataPurger.purgeAccount]. Falha local **não** muda o
  * resultado (a exclusão no servidor aconteceu e não se desfaz); fica no log.
+ *
+ * ### Conta nomeada e motor segurado (2.218.0)
+ * - A conta a limpar é capturada ([AccountLocalDataPurger.activeAccountId]) **antes** do wipe e
+ *   passada explicitamente. Até a 2.217.0 a limpeza lia o escopo do espelho **depois** do
+ *   `signOut` — e o app que liga o escopo à sessão já o tinha trocado para "sem conta": apagava o
+ *   bucket errado e reportava `failures = 0`.
+ * - Tudo, do `DELETE` no servidor ao fim da limpeza local, roda dentro de
+ *   [AccountLocalDataPurger.withSyncPaused]. Sem isso, um ciclo de sync entre o wipe e a limpeza
+ *   subia a outbox e **recriava no servidor** dado da conta recém-apagada (o access token ainda
+ *   vale). Wipe que falha solta o motor sem ter apagado nada.
  */
 class AccountDeletionService(
     private val api: DomainApiClient,
@@ -68,8 +79,9 @@ class AccountDeletionService(
      * `SyncAccountDataPurger` (kmplib-sync) com as filas de upload: sem ele o espelho, a outbox e as
      * fotos pendentes da conta excluída **ficam no disco**. `null` = app sem dado local da conta.
      *
-     * Roda com o **escopo de conta ainda ativo** — o app só troca o titular do espelho depois que
-     * este serviço devolve.
+     * A conta é capturada antes do wipe (não importa se o app troca o escopo no `signOut`); sem
+     * titular declarado no espelho, a limpeza local é **recusada** e registrada como erro — o wipe
+     * no servidor segue normalmente.
      */
     private val localData: AccountLocalDataPurger? = null,
     /**
@@ -86,6 +98,15 @@ class AccountDeletionService(
     suspend fun deleteAccountAndData(): Result<AccountDeletionResult> {
         auth.currentUserSync?.id ?: return Result.failure(AuthException.NotAuthenticated)
 
+        val purger = localData ?: return excluir(contaLocal = null)
+        // Capturada ANTES do wipe e do signOut: depois deles o app pode já ter trocado o escopo.
+        val conta = purger.activeAccountId()
+        // O motor fica segurado do DELETE até o fim da limpeza: nenhum push recria no servidor o
+        // que acabou de ser apagado. Falha no wipe devolve dentro do bloco — nada local é tocado.
+        return purger.withSyncPaused { excluir(contaLocal = conta) }
+    }
+
+    private suspend fun excluir(contaLocal: String?): Result<AccountDeletionResult> {
         // 1. Wipe atômico server-side (entidades + blobs), ainda autenticado.
         when (val r = api.delete(dataPath)) {
             is DomainResult.Success -> Unit
@@ -121,20 +142,26 @@ class AccountDeletionService(
             }
         }
 
-        // 3. O aparelho — depois de encerrada a sessão, para nenhum sync repovoar o que sai aqui.
-        purgeLocalData()
+        // 3. O aparelho — ainda com o motor segurado, e com a conta capturada antes do passo 1.
+        purgeLocalData(contaLocal)
         return Result.success(resultado)
     }
 
     /** Passo 3: nunca lança e nunca muda o resultado — a exclusão no servidor já aconteceu. */
-    private suspend fun purgeLocalData() {
+    private suspend fun purgeLocalData(conta: String?) {
         if (clearSharedFiles) {
             runCatching { getShareHandler().clearSharedFiles(0L) }
                 .onFailure { AppLogger.w(TAG, "Exclusão de conta: cópias de compartilhamento não apagadas", it) }
+            runCatching { clearPrivatePhotoMemoryCache() }
+                .onFailure { AppLogger.w(TAG, "Exclusão de conta: cache de fotos privadas não limpo", it) }
         }
         val purger = localData ?: return
+        if (conta == null) {
+            AppLogger.e(TAG, "Exclusão de conta: espelho sem titular declarado; limpeza local recusada")
+            return
+        }
         try {
-            val relatorio = purger.purgeAccount()
+            val relatorio = purger.purgeAccount(conta)
             if (!relatorio.isComplete) {
                 AppLogger.e(TAG, "Exclusão de conta: limpeza local incompleta (${relatorio.failures} etapa(s))")
             }

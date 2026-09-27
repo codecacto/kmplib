@@ -83,8 +83,19 @@ interface SyncStore {
     /**
      * Apaga o espelho + outbox de **uma** conta (exclusão de conta/LGPD), preservando as demais.
      * Distinto de [deleteAll], que zera o aparelho inteiro.
+     *
+     * **Default (2.218.0): recusa.** Até a 2.217.0 o default era um no-op silencioso, e a limpeza
+     * da exclusão de conta reportava sucesso sem ter apagado nada num store que não sabe apagar.
+     * Agora registra aviso e lança [UnsupportedOperationException] — a etapa conta como falha no
+     * relatório. Fake de teste que precise dela sobrescreve.
      */
-    fun deleteAccountData(accountId: String) = Unit
+    fun deleteAccountData(accountId: String) {
+        AppLogger.w(
+            "SyncStore",
+            "deleteAccountData recusado: impl sem suporte (${this::class.simpleName}); nada foi apagado.",
+        )
+        throw UnsupportedOperationException("${this::class.simpleName} não implementa deleteAccountData")
+    }
 
     /**
      * Apaga, da **conta corrente**, as linhas **já sincronizadas** (`dirty = 0`) — o espelho que o

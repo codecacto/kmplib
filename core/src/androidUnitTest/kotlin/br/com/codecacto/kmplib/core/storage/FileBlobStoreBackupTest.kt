@@ -81,4 +81,48 @@ class FileBlobStoreBackupTest {
         assertContentEquals(byteArrayOf(5), store.read("x"))
         assertFalse(comBackup.exists())
     }
+
+    /**
+     * 2.218.0 — arquivo que NÃO conseguiu sair do diretório antigo. Até a 2.217.0 a adoção dizia
+     * "concluída" e nunca mais olhava para lá: a foto ficava no diretório COM backup, invisível para
+     * a limpeza da conta e para a varredura de órfãos.
+     */
+    @Test
+    fun `binario que nao saiu do diretorio antigo segue visivel para leitura limpeza e varredura`() = runTest {
+        legado("a", byteArrayOf(1))
+        semBackup.mkdirs()
+        semBackup.setWritable(false)
+        try {
+            // Rodando como root a permissão não trava nada — não há o que provar.
+            if (semBackup.canWrite()) return@runTest
+            val store = FileBlobStore(directory = semBackup, legacyDirectory = comBackup)
+
+            assertEquals(listOf("a"), store.ids(), "a varredura de órfãos precisa enxergar")
+            assertTrue(store.exists("a"))
+            assertContentEquals(byteArrayOf(1), store.read("a"))
+            assertTrue(store.delete("a"), "a limpeza da conta apaga a cópia que ficou para trás")
+            assertFalse(File(comBackup, "a").exists())
+        } finally {
+            semBackup.setWritable(true)
+        }
+    }
+
+    @Test
+    fun `adocao pendente tenta de novo na operacao seguinte`() = runTest {
+        legado("a", byteArrayOf(1))
+        semBackup.mkdirs()
+        semBackup.setWritable(false)
+        val store = FileBlobStore(directory = semBackup, legacyDirectory = comBackup)
+        try {
+            if (semBackup.canWrite()) return@runTest
+            store.ids()
+            assertTrue(File(comBackup, "a").exists(), "não saiu ainda")
+        } finally {
+            semBackup.setWritable(true)
+        }
+
+        assertEquals(listOf("a"), store.ids())
+        assertTrue(File(semBackup, "a").isFile, "na nova tentativa, mudou de diretório")
+        assertFalse(comBackup.exists())
+    }
 }

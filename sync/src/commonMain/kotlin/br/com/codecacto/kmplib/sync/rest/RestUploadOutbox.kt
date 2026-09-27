@@ -120,8 +120,11 @@ class RestUploadOutbox(
     /** Serializa gravação de blob e varredura de órfãos (uma não pode ver a outra pela metade). */
     private val writeMutex = Mutex()
 
-    /** Serializa a drenagem (nunca dois envios concorrentes da mesma fila). */
-    private val drainMutex = Mutex()
+    /**
+     * Serializa a drenagem (nunca dois envios concorrentes da mesma fila). Reentrante (2.218.0): a
+     * limpeza feita de dentro de [withDrainPaused] não espera a si mesma.
+     */
+    private val drainMutex = ReentrantSyncLock()
 
     // -- Leitura / estado para a UI ----------------------------------------
 
@@ -336,27 +339,59 @@ class RestUploadOutbox(
     suspend fun discardAll(): Int = pending().count { discard(it.model.id) }
 
     /**
-     * Apaga **toda** a fila da conta corrente — linhas **e** binários —, inclusive linha com payload
-     * ilegível (que o [discardAll] não enxerga, porque [pending] só devolve o que decodifica). É o
-     * passo da fila na exclusão de conta e no logout que descarta pendências (2.217.0).
+     * Apaga **toda** a fila da conta [accountId] — linhas **e** binários —, inclusive linha com
+     * payload ilegível (que o [discardAll] não enxerga, porque [pending] só devolve o que decodifica).
+     * É o passo da fila na exclusão de conta e no logout que descarta pendências.
+     *
+     * **A conta é nomeada, não lida do escopo** (2.218.0): no logout/exclusão o app pode já ter
+     * trocado o escopo do espelho, e ler "a conta corrente" aqui apagaria a fila de outra conta (ou
+     * nenhuma) e diria que deu certo. Se [accountId] ainda é o escopo corrente, linhas e binários saem
+     * aqui; se não é, saem os **binários** (achados em [SyncStore.getRowsAcrossAccounts]) e as linhas
+     * ficam para o [SyncStore.deleteAccountData] — que o `SyncAccountDataPurger` chama logo em
+     * seguida.
      *
      * Espera a drenagem em curso terminar (e impede a próxima de começar no meio): apagar o arquivo
      * enquanto ele está sendo lido para o multipart subiria meio upload de uma conta que está saindo.
      *
-     * @return quantos uploads saíram.
+     * @return quantos uploads da conta foram encontrados (e tiveram os binários apagados).
+     * @throws IllegalArgumentException [accountId] em branco (bucket sem escopo) — recusado.
+     * @throws IllegalStateException a conta não é a corrente e o espelho não lê outras contas.
      */
-    suspend fun purgeCurrentAccount(): Int = drainMutex.withLock {
-        writeMutex.withLock {
-            val linhas = (store.getVisible(entityName) + store.getDirty(entityName))
-                .distinctBy { it.local_id }
-            linhas.forEach { linha ->
-                mirror.decode(linha.payload_json)?.parts?.forEach { blobs.delete(it.blobId) }
-                blobs.deleteByPrefix(linha.local_id)
-                store.deleteHard(entityName, linha.local_id)
+    suspend fun purgeAccount(accountId: String): Int {
+        require(accountId.isNotBlank()) { "fila de upload: limpeza sem conta nomeada recusada" }
+        return drainMutex.withLock {
+            writeMutex.withLock {
+                val corrente = store.accountScope.value == accountId
+                val linhas = if (corrente) {
+                    (store.getVisible(entityName) + store.getDirty(entityName)).distinctBy { it.local_id }
+                } else {
+                    store.getRowsAcrossAccounts(entityName)?.filter { it.account_id == accountId }
+                        ?: throw IllegalStateException(
+                            "fila de upload: a conta não é a corrente e o espelho não lê outras contas",
+                        )
+                }
+                linhas.forEach { linha ->
+                    mirror.decode(linha.payload_json)?.parts?.forEach { blobs.delete(it.blobId) }
+                    blobs.deleteByPrefix(linha.local_id)
+                    if (corrente) store.deleteHard(entityName, linha.local_id)
+                }
+                linhas.size
             }
-            linhas.size
         }
     }
+
+    /** Lia o escopo do instante — que o app pode já ter trocado. Use [purgeAccount]. */
+    @Deprecated(
+        "Nomeie a conta: purgeAccount(accountId), com o id capturado antes do signOut.",
+        ReplaceWith("purgeAccount(accountId)"),
+    )
+    suspend fun purgeCurrentAccount(): Int = purgeAccount(store.accountScope.value)
+
+    /**
+     * Roda [block] com a fila **segurada**: a drenagem em curso termina e nenhuma começa até [block]
+     * acabar — inclusive o `drainNow()` do botão "tentar enviar", que não passa pelo motor (2.218.0).
+     */
+    suspend fun <T> withDrainPaused(block: suspend () -> T): T = drainMutex.withLock { block() }
 
     /**
      * Donos (`entidade` → handles) dos uploads que ainda estão na fila da conta corrente. A limpeza

@@ -4,6 +4,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -101,5 +102,31 @@ class OwnAuthApiTest {
         }
         assertTrue(api.requestPasswordReset("a@x.com").isSuccess)
         assertTrue(api.logout("r1").isSuccess)
+    }
+
+    /**
+     * 2.218.0 — em 5xx o corpo é o que o servidor deixou escapar (exceção, SQL); a tela mostra o
+     * texto local. Em 4xx a frase do servidor continua valendo (é escrita para a pessoa).
+     */
+    @Test
+    fun `5xx nunca repassa a mensagem do servidor`() = runTest {
+        val vazamento = """{"message":"org.postgresql.util.PSQLException: relation staff_account","code":"INTERNAL"}"""
+        val (api, _) = mockOwnAuthApi { _, _ -> HttpStatusCode.InternalServerError to vazamento }
+
+        for (e in listOf(
+            api.changePassword("a", "novaSenha1", "tok").exceptionOrNull(),
+            api.login("a@x.com", "p").exceptionOrNull(),
+            api.register("Ana", "a@x.com", "novaSenha1", acceptedTerms = true).exceptionOrNull(),
+        )) {
+            assertIs<OwnAuthException.Server>(e)
+            assertEquals(OwnAuthTexts().server(500), e.message)
+            assertFalse(e.message.contains("PSQL"))
+        }
+    }
+
+    @Test
+    fun `4xx generico ainda traz a frase do servidor`() = runTest {
+        val (api, _) = mockOwnAuthApi { _, _ -> HttpStatusCode.Conflict to """{"message":"Já existe","code":"CONFLICT"}""" }
+        assertEquals("Já existe", api.register("Ana", "a@x.com", "novaSenha1", acceptedTerms = true).exceptionOrNull()?.message)
     }
 }

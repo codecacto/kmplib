@@ -13,10 +13,24 @@ package br.com.codecacto.kmplib.core.storage
  * apagar** (o sync, dono do espelho e da fila) são artefatos diferentes, e nenhum dos dois depende
  * do outro. A implementação padrão é o `SyncAccountDataPurger` do `kmplib-sync`.
  *
- * Toda operação vale para a **conta corrente** (o `accountScope` do espelho): é quem está saindo
- * ou excluindo a conta. Nenhuma lança — falha parcial vem em [LocalPurgeReport.failures].
+ * ### A conta é SEMPRE nomeada (2.218.0)
+ * Até a 2.217.0 a limpeza valia para "a conta corrente" — o `accountScope` do espelho **no instante
+ * da limpeza**. Só que é justamente no logout/exclusão que o app troca esse escopo (o `signOut`
+ * dispara o ouvinte de sessão, que chama `setAccountScope(null)`), e a limpeza passava a varrer o
+ * bucket errado — o vazio — e devolver `failures = 0`, com o dado clínico da conta que saiu intacto
+ * no disco. Agora quem limpa **diz de quem**: capture [activeAccountId] **antes** de encerrar a
+ * sessão e passe-o a [purgeAccount]/[purgeOnSignOut]. Conta em branco é **recusada** e contada como
+ * falha — nunca "limpeza completa de nada".
+ *
+ * Nenhuma operação lança — falha parcial vem em [LocalPurgeReport.failures].
  */
 interface AccountLocalDataPurger {
+
+    /**
+     * A conta dona do dado local **agora** (o `accountScope` do espelho), ou `null` quando não há
+     * titular declarado. É o valor a capturar **antes** do `signOut`/wipe e passar às limpezas.
+     */
+    fun activeAccountId(): String?
 
     /**
      * O que ainda **não subiu** da conta corrente — para o app avisar ANTES de sair
@@ -26,22 +40,57 @@ interface AccountLocalDataPurger {
     suspend fun pendingChanges(): LocalPendingChanges
 
     /**
-     * Apaga **tudo** o que a conta corrente tem no aparelho: espelho, outbox, fila de upload com os
-     * binários, cursores, remap de ids e as cópias de compartilhamento. É o passo local da
-     * **exclusão de conta** — o `AccountDeletionService` chama sozinho quando recebe o purger.
+     * Apaga **tudo** o que a conta [accountId] tem no aparelho: espelho, outbox, fila de upload com
+     * os binários, cursores, remap de ids, cópias de compartilhamento e o cache de memória das fotos
+     * privadas. Vale para a conta nomeada **mesmo que o escopo corrente já seja outro**. É o passo
+     * local da **exclusão de conta** — o `AccountDeletionService` chama sozinho quando recebe o purger.
+     *
+     * `accountId` em branco é recusado (nada é apagado; `failures = 1`).
      */
-    suspend fun purgeAccount(): LocalPurgeReport
+    suspend fun purgeAccount(accountId: String): LocalPurgeReport
 
     /**
-     * Limpeza de **logout**. O espelho sincronizado (o que já está no servidor e volta no próximo
-     * login) sai sempre; o que ainda não subiu segue [pending]:
+     * Limpeza de **logout** da conta [accountId]. O espelho sincronizado (o que já está no servidor e
+     * volta no próximo login) sai sempre; o que ainda não subiu segue [pending]:
      * - [SignOutPendingPolicy.Keep] — a outbox e as fotos pendentes **ficam**, isoladas pelo escopo
-     *   de conta, e sobem quando a mesma conta entrar de novo. Nada é perdido.
-     * - [SignOutPendingPolicy.Discard] — sai tudo, como na exclusão de conta.
+     *   de conta, e sobem quando a mesma conta entrar de novo. Nada é perdido. Exige que [accountId]
+     *   ainda seja o escopo corrente (a triagem "o que é pendência" lê o bucket corrente); se não for,
+     *   **recusa sem apagar nada** e conta a falha.
+     * - [SignOutPendingPolicy.Discard] — sai tudo, como em [purgeAccount].
      *
      * Consulte [pendingChanges] antes: se estiver vazio, as duas políticas dão no mesmo.
      */
-    suspend fun purgeOnSignOut(pending: SignOutPendingPolicy): LocalPurgeReport
+    suspend fun purgeOnSignOut(accountId: String, pending: SignOutPendingPolicy): LocalPurgeReport
+
+    /**
+     * Roda [block] com a sincronização **segurada**: o ciclo em curso termina, e nenhum push/pull nem
+     * envio da fila de upload começa até [block] acabar. As limpezas chamadas por dentro não esperam
+     * a si mesmas.
+     *
+     * É o que fecha a janela da exclusão de conta: entre o `DELETE` no servidor e a limpeza local, um
+     * ciclo disparado pela volta da rede subiria a outbox — e **recriaria no servidor** o dado da
+     * conta que acabou de ser apagada (o access token segue válido por alguns minutos). O
+     * `AccountDeletionService` segura desde **antes** do `DELETE` até o fim da limpeza.
+     *
+     * Default: roda [block] direto (implementação sem motor de sync).
+     */
+    suspend fun <T> withSyncPaused(block: suspend () -> T): T = block()
+
+    /** Removido na 2.218.0: limpava o escopo do instante, que o app já pode ter trocado. */
+    @Deprecated(
+        "Nomeie a conta: capture activeAccountId() ANTES do signOut e passe-a.",
+        ReplaceWith("purgeAccount(accountId)"),
+        level = DeprecationLevel.ERROR,
+    )
+    suspend fun purgeAccount(): LocalPurgeReport = LocalPurgeReport(failures = 1)
+
+    /** Removido na 2.218.0: limpava o escopo do instante, que o app já pode ter trocado. */
+    @Deprecated(
+        "Nomeie a conta: capture activeAccountId() ANTES do signOut e passe-a.",
+        ReplaceWith("purgeOnSignOut(accountId, pending)"),
+        level = DeprecationLevel.ERROR,
+    )
+    suspend fun purgeOnSignOut(pending: SignOutPendingPolicy): LocalPurgeReport = LocalPurgeReport(failures = 1)
 }
 
 /** O que acontece, no logout, com o que ainda não subiu. */

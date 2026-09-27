@@ -144,16 +144,32 @@ class AccountDeletionServiceTest {
         assertTrue(auth.signOutCalled, "a sessão local precisa cair")
         assertFalse(auth.deleteCalled, "não há IdP externo a chamar em own-auth")
     }
-    /** Registra a ordem das chamadas: a limpeza local vem DEPOIS de a sessão cair. */
-    private class Purger(private val eventos: MutableList<String>, private val falha: Throwable? = null) :
-        AccountLocalDataPurger {
+    /**
+     * Registra a ordem das chamadas: a limpeza local vem DEPOIS de a sessão cair, e tudo — do
+     * DELETE à limpeza — dentro da pausa do sync. [escopo] é o titular do espelho, que o app pode
+     * trocar no meio (o ouvinte de sessão faz `setAccountScope(null)` no signOut).
+     */
+    private class Purger(
+        private val eventos: MutableList<String>,
+        private val falha: Throwable? = null,
+        var escopo: String? = "conta-a",
+    ) : AccountLocalDataPurger {
+        override fun activeAccountId(): String? = escopo
         override suspend fun pendingChanges() = LocalPendingChanges.NONE
-        override suspend fun purgeAccount(): LocalPurgeReport {
-            eventos += "purge"
+        override suspend fun purgeAccount(accountId: String): LocalPurgeReport {
+            eventos += "purge:$accountId"
             falha?.let { throw it }
             return LocalPurgeReport()
         }
-        override suspend fun purgeOnSignOut(pending: SignOutPendingPolicy) = LocalPurgeReport()
+        override suspend fun purgeOnSignOut(accountId: String, pending: SignOutPendingPolicy) = LocalPurgeReport()
+        override suspend fun <T> withSyncPaused(block: suspend () -> T): T {
+            eventos += "pausa"
+            try {
+                return block()
+            } finally {
+                eventos += "retoma"
+            }
+        }
     }
 
     @Test
@@ -172,7 +188,7 @@ class AccountDeletionServiceTest {
         val r = service.deleteAccountAndData()
 
         assertEquals(AccountDeletionResult.Completed, r.getOrNull())
-        assertEquals(listOf("signOut", "purge"), eventos)
+        assertEquals(listOf("pausa", "signOut", "purge:conta-a", "retoma"), eventos)
     }
 
     @Test
@@ -185,7 +201,7 @@ class AccountDeletionServiceTest {
         )
 
         assertTrue(service.deleteAccountAndData().isFailure)
-        assertTrue(eventos.isEmpty(), "a conta continua existindo; a fila offline dela também")
+        assertEquals(listOf("pausa", "retoma"), eventos, "a conta continua existindo; a fila offline dela também")
     }
 
     @Test
@@ -198,7 +214,7 @@ class AccountDeletionServiceTest {
         )
 
         assertEquals(AccountDeletionResult.DataWipedAccountPending, service.deleteAccountAndData().getOrNull())
-        assertEquals(listOf("purge"), eventos)
+        assertEquals(listOf("pausa", "purge:conta-a", "retoma"), eventos)
     }
 
     @Test
@@ -212,5 +228,63 @@ class AccountDeletionServiceTest {
         )
 
         assertEquals(AccountDeletionResult.Completed, service.deleteAccountAndData().getOrNull())
+    }
+
+    /**
+     * 2.218.0 — o app que liga o escopo à SESSÃO troca o titular para "sem conta" no signOut. A
+     * limpeza lia o escopo depois disso: apagava o bucket vazio e dizia que deu certo.
+     */
+    @Test
+    fun `escopo trocado no signOut - a limpeza apaga a conta capturada ANTES do wipe`() = runTest {
+        val eventos = mutableListOf<String>()
+        val purger = Purger(eventos)
+        val auth = object : IAuthRepository by FakeAuth(user) {
+            override suspend fun signOut() {
+                eventos += "signOut"
+                purger.escopo = null
+            }
+        }
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = auth,
+            credencialSaiNoWipe = true,
+            localData = purger,
+        )
+
+        service.deleteAccountAndData()
+
+        assertTrue("purge:conta-a" in eventos, "a conta que saiu, não o escopo do instante: $eventos")
+    }
+
+    /** 2.218.0 — nenhum ciclo de sync entre o DELETE e a limpeza: tudo dentro da pausa. */
+    @Test
+    fun `o DELETE no servidor acontece com o sync ja segurado`() = runTest {
+        val eventos = mutableListOf<String>()
+        val service = AccountDeletionService(
+            api = api { method, _ -> eventos += "HTTP ${method.value}"; HttpStatusCode.NoContent to "" },
+            auth = object : IAuthRepository by FakeAuth(user) {
+                override suspend fun signOut() { eventos += "signOut" }
+            },
+            credencialSaiNoWipe = true,
+            localData = Purger(eventos),
+        )
+
+        service.deleteAccountAndData()
+
+        assertEquals(listOf("pausa", "HTTP DELETE", "signOut", "purge:conta-a", "retoma"), eventos)
+    }
+
+    @Test
+    fun `espelho sem titular - a limpeza local e recusada e o wipe segue`() = runTest {
+        val eventos = mutableListOf<String>()
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = FakeAuth(user),
+            credencialSaiNoWipe = true,
+            localData = Purger(eventos, escopo = null),
+        )
+
+        assertEquals(AccountDeletionResult.Completed, service.deleteAccountAndData().getOrNull())
+        assertEquals(listOf("pausa", "retoma"), eventos, "nada de 'purge:' sem conta nomeada")
     }
 }
