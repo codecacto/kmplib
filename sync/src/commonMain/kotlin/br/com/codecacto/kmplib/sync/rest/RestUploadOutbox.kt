@@ -335,6 +335,46 @@ class RestUploadOutbox(
     /** Descarta **toda** a fila da conta corrente (ex.: wipe de logout). Devolve quantos saíram. */
     suspend fun discardAll(): Int = pending().count { discard(it.model.id) }
 
+    /**
+     * Apaga **toda** a fila da conta corrente — linhas **e** binários —, inclusive linha com payload
+     * ilegível (que o [discardAll] não enxerga, porque [pending] só devolve o que decodifica). É o
+     * passo da fila na exclusão de conta e no logout que descarta pendências (2.217.0).
+     *
+     * Espera a drenagem em curso terminar (e impede a próxima de começar no meio): apagar o arquivo
+     * enquanto ele está sendo lido para o multipart subiria meio upload de uma conta que está saindo.
+     *
+     * @return quantos uploads saíram.
+     */
+    suspend fun purgeCurrentAccount(): Int = drainMutex.withLock {
+        writeMutex.withLock {
+            val linhas = (store.getVisible(entityName) + store.getDirty(entityName))
+                .distinctBy { it.local_id }
+            linhas.forEach { linha ->
+                mirror.decode(linha.payload_json)?.parts?.forEach { blobs.delete(it.blobId) }
+                blobs.deleteByPrefix(linha.local_id)
+                store.deleteHard(entityName, linha.local_id)
+            }
+            linhas.size
+        }
+    }
+
+    /**
+     * Donos (`entidade` → handles) dos uploads que ainda estão na fila da conta corrente. A limpeza
+     * de logout que **mantém** pendências não pode apagar esses registros do espelho: é por eles que
+     * a foto descobre o id do servidor ([resolveTarget]), e sem eles ela seria recusada como
+     * "dono não existe mais".
+     */
+    internal fun pendingOwnerHandles(): List<Pair<String, String>> =
+        pending().map { it.model }
+            .filter { it.hasOwner }
+            .flatMap { upload ->
+                val handle = upload.ownerHandle
+                listOfNotNull(handle, store.resolveServerId(handle)).map { upload.ownerEntity to it }
+            }
+
+    /** Nome da entidade desta fila no espelho (para a limpeza separar upload de registro). */
+    internal val entity: String get() = entityName
+
     // -- Ciclo de sync (RestCrudSyncParticipant) ---------------------------
 
     /**

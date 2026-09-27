@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.account
 
+import br.com.codecacto.kmplib.core.storage.AccountLocalDataPurger
+import br.com.codecacto.kmplib.core.storage.LocalPendingChanges
+import br.com.codecacto.kmplib.core.storage.LocalPurgeReport
+import br.com.codecacto.kmplib.core.storage.SignOutPendingPolicy
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
@@ -139,5 +143,74 @@ class AccountDeletionServiceTest {
         assertEquals(AccountDeletionResult.Completed, r.getOrNull())
         assertTrue(auth.signOutCalled, "a sessão local precisa cair")
         assertFalse(auth.deleteCalled, "não há IdP externo a chamar em own-auth")
+    }
+    /** Registra a ordem das chamadas: a limpeza local vem DEPOIS de a sessão cair. */
+    private class Purger(private val eventos: MutableList<String>, private val falha: Throwable? = null) :
+        AccountLocalDataPurger {
+        override suspend fun pendingChanges() = LocalPendingChanges.NONE
+        override suspend fun purgeAccount(): LocalPurgeReport {
+            eventos += "purge"
+            falha?.let { throw it }
+            return LocalPurgeReport()
+        }
+        override suspend fun purgeOnSignOut(pending: SignOutPendingPolicy) = LocalPurgeReport()
+    }
+
+    @Test
+    fun `wipe ok apaga o dado local da conta depois de encerrar a sessao`() = runTest {
+        val eventos = mutableListOf<String>()
+        val auth = object : IAuthRepository by FakeAuth(user) {
+            override suspend fun signOut() { eventos += "signOut" }
+        }
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = auth,
+            credencialSaiNoWipe = true,
+            localData = Purger(eventos),
+        )
+
+        val r = service.deleteAccountAndData()
+
+        assertEquals(AccountDeletionResult.Completed, r.getOrNull())
+        assertEquals(listOf("signOut", "purge"), eventos)
+    }
+
+    @Test
+    fun `wipe falhou - o dado local da conta NAO e apagado`() = runTest {
+        val eventos = mutableListOf<String>()
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.InternalServerError to """{"error":"x"}""" },
+            auth = FakeAuth(user),
+            localData = Purger(eventos),
+        )
+
+        assertTrue(service.deleteAccountAndData().isFailure)
+        assertTrue(eventos.isEmpty(), "a conta continua existindo; a fila offline dela também")
+    }
+
+    @Test
+    fun `re-login pendente tambem limpa o aparelho - os dados do servidor ja sairam`() = runTest {
+        val eventos = mutableListOf<String>()
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = FakeAuth(user, deleteResult = Result.failure(AuthException.RequiresRecentLogin)),
+            localData = Purger(eventos),
+        )
+
+        assertEquals(AccountDeletionResult.DataWipedAccountPending, service.deleteAccountAndData().getOrNull())
+        assertEquals(listOf("purge"), eventos)
+    }
+
+    @Test
+    fun `falha na limpeza local nao desfaz o resultado da exclusao`() = runTest {
+        val eventos = mutableListOf<String>()
+        val service = AccountDeletionService(
+            api = api { _, _ -> HttpStatusCode.NoContent to "" },
+            auth = FakeAuth(user),
+            credencialSaiNoWipe = true,
+            localData = Purger(eventos, falha = IllegalStateException("disco")),
+        )
+
+        assertEquals(AccountDeletionResult.Completed, service.deleteAccountAndData().getOrNull())
     }
 }

@@ -132,6 +132,14 @@ class RestCrudSyncEngine(
     }
 
     /**
+     * Roda [block] com o motor **parado por dentro**: espera o ciclo em curso terminar e impede o
+     * próximo de começar até [block] acabar (o mesmo mutex do [syncNow]). É o que a limpeza local de
+     * logout/exclusão de conta usa (2.217.0) — sem isso, um push ou pull em voo reescreveria no
+     * espelho uma linha que acabou de ser apagada.
+     */
+    suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
+
+    /**
      * Executa um ciclo completo de sync (push de todas as outboxes na ordem + pull/reconcile).
      * Serializado por mutex. Retorna `true` se todo o ciclo (push + todos os refresh) teve sucesso.
      *

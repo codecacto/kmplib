@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +66,10 @@ actual fun rememberImagePickerLauncher(
     val context = LocalContext.current
     var showChooser by remember { mutableStateOf(false) }
 
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    // Caminho do arquivo temporário da câmera. `rememberSaveable` porque o app de câmera costuma
+    // levar o sistema a destruir a nossa Activity: com `remember` o retorno chegava sem saber qual
+    // arquivo ler — a foto se perdia e o arquivo cru ficava no disco.
+    var cameraFilePath by rememberSaveable { mutableStateOf<String?>(null) }
 
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -77,8 +81,17 @@ actual fun rememberImagePickerLauncher(
     val takePicture = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
-        if (success) {
-            photoUri?.let { uri -> processImageUri(context, uri, onImagePicked, onError) }
+        val arquivo = cameraFilePath?.let(::File)
+        cameraFilePath = null
+        if (arquivo == null) return@rememberLauncherForActivityResult
+        try {
+            if (success) processImageUri(context, Uri.fromFile(arquivo), onImagePicked, onError)
+        } finally {
+            // O original da câmera tem EXIF completo (GPS, modelo, horário) e resolução cheia. O que
+            // o app recebe são os bytes RECODIFICADOS acima; o original não serve a mais ninguém e,
+            // até a 2.216.0, ficava para sempre em cache/photos. Cancelado também sai (arquivo vazio
+            // ou parcial).
+            deleteCameraTempFile(arquivo)
         }
     }
 
@@ -88,15 +101,16 @@ actual fun rememberImagePickerLauncher(
 
     fun launchCamera() {
         try {
-            val photosDir = File(context.cacheDir, "photos")
+            val photosDir = File(context.cacheDir, CAMERA_PHOTOS_DIR)
             photosDir.mkdirs()
-            val photoFile = File(photosDir, "camera_${System.currentTimeMillis()}.jpg")
+            sweepStaleCameraFiles(photosDir)
+            val photoFile = File(photosDir, "$CAMERA_FILE_PREFIX${System.currentTimeMillis()}.jpg")
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 photoFile
             )
-            photoUri = uri
+            cameraFilePath = photoFile.absolutePath
             takePicture.launch(uri)
         } catch (e: Exception) {
             // Ate 2.131.0 isto era so `printStackTrace()`: a camera nao abria e a tela nao dizia
@@ -276,3 +290,28 @@ private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
 }
 
 private const val TAG = "KmpLibImagePicker"
+
+/** Subpasta do `cacheDir` coberta pelo FileProvider da lib (`kmplib_file_paths`). */
+private const val CAMERA_PHOTOS_DIR = "photos"
+private const val CAMERA_FILE_PREFIX = "camera_"
+
+/** Idade a partir da qual um original de câmera é resíduo (processo morto, versão anterior da lib). */
+private const val STALE_CAMERA_FILE_MILLIS = 10 * 60 * 1000L
+
+private fun deleteCameraTempFile(file: File) {
+    if (file.exists() && !file.delete()) {
+        AppLogger.w(TAG, "Original temporário da câmera não pôde ser apagado.")
+    }
+}
+
+/**
+ * Recolhe originais de câmera que ficaram para trás: todos os que as versões até a 2.216.0 deixaram,
+ * e o de uma captura cujo processo morreu antes do retorno. A folga de 10 minutos protege uma captura
+ * ainda aberta em outro seletor.
+ */
+private fun sweepStaleCameraFiles(dir: File) {
+    val limite = System.currentTimeMillis() - STALE_CAMERA_FILE_MILLIS
+    dir.listFiles()
+        ?.filter { it.isFile && it.name.startsWith(CAMERA_FILE_PREFIX) && it.lastModified() < limite }
+        ?.forEach { it.delete() }
+}

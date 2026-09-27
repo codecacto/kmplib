@@ -202,6 +202,13 @@ ORDER BY updated_at ASC;
 countDirty:
 SELECT COUNT(*) FROM synced_entity WHERE account_id = :accountId AND dirty = 1;
 
+-- Linhas JÁ sincronizadas (nada pendente) de uma conta (kmplib 2.217.0) — o que a limpeza de
+-- logout apaga mantendo a outbox. Só leitura nova: nenhuma mudança de schema.
+selectCleanInAccount:
+SELECT *
+FROM synced_entity
+WHERE account_id = :accountId AND dirty = 0;
+
 -- Linhas de UMA entidade em TODAS as contas (kmplib 2.104.0). ÚNICA consulta que ignora o escopo,
 -- e por um motivo específico: o dono de binários no disco (BlobStore/RestUploadOutbox) precisa saber
 -- quais arquivos ainda são referenciados por ALGUMA conta antes de varrer órfãos. Varrer olhando só

@@ -1,5 +1,66 @@
 # Changelog — kmplib
 
+## 2.217.0 — privacidade do dado local: fotos fora do backup · exclusão de conta limpa o aparelho · logout com pendências · original da câmera apagado
+
+**Correção de segurança/privacidade** (apontada no security-review do QueiMap, app clínico). Sem
+quebra de fonte; uma mudança de **comportamento** de default (`createBlobStore`), explicada abaixo.
+
+### `kmplib-core` — `BlobStore` fora do backup por padrão
+- `createBlobStore(directoryName, excludeFromBackup = true)`. **O default mudou:** até a 2.216.0 os
+  binários (fotos da fila de upload) entravam no backup do iCloud e no Auto Backup/transferência do
+  Android — mesmo quando o banco do sync estava fora. Fila é transitória; a cópia na nuvem, não.
+- **Android:** `noBackupFilesDir/<dir>` (o diretório que a plataforma exclui do backup e da
+  transferência entre aparelhos). O que estava em `filesDir/<dir>` é **movido** na primeira operação —
+  nada pendente se perde. `false` faz o caminho inverso.
+- **iOS:** mesmo `Application Support/<dir>`, com `NSURLIsExcludedFromBackupKey` no diretório,
+  aplicado também ao diretório que já existia.
+- **Efeito colateral aceito:** app com `createSyncDatabase(excludeFromBackup = false)` que restaurar
+  um backup num aparelho novo recebe a linha da fila **sem** o binário — o upload aparece recusado
+  ("O arquivo não está mais no dispositivo"), com opção de descartar. Antes a foto viajava na nuvem.
+- Contrato novo `AccountLocalDataPurger` (+ `LocalPendingChanges`, `LocalPurgeReport`,
+  `SignOutPendingPolicy`) — mora no core porque quem chama (auth) e quem apaga (sync) não se enxergam.
+
+### `kmplib-sync` — limpar o que a conta deixou no aparelho
+- **`SyncAccountDataPurger(store, uploadOutboxes, clearSharedFiles = true, engine = null, extraCleanup)`**:
+  - `purgeAccount()` — espelho + outbox + cursores + remap da conta corrente, fila de upload com os
+    binários, varredura de órfãos, cópias do `ShareHandler` e o `extraCleanup` do app.
+  - `pendingChanges()` — `records` e `uploads` ainda não enviados, para o app **avisar antes do logout**.
+  - `purgeOnSignOut(Keep | Discard)` — `Keep` apaga só o que já está no servidor (e os cursores, para
+    o próximo pull devolver tudo), preservando outbox, fotos pendentes e os registros donos delas;
+    `Discard` = `purgeAccount()`.
+  - Nunca lança: etapa que falha é logada (sem PII) e contada em `failures`, sem impedir as outras.
+- `SyncStore.deleteSyncedRows(keep)` (default no-op para fakes; nova consulta `selectCleanInAccount`,
+  **sem mudança de schema**).
+- `RestUploadOutbox.purgeCurrentAccount()` — apaga a fila da conta corrente inclusive linha de
+  payload ilegível (que `discardAll()` não enxerga), esperando a drenagem em curso.
+- `RestCrudSyncEngine.runExclusive { }` — roda um bloco com o ciclo de sync parado por dentro.
+
+### `kmplib-auth` — `AccountDeletionService`
+- Parâmetros novos `localData: AccountLocalDataPurger? = null` e `clearSharedFiles: Boolean = true`.
+  Depois do wipe no servidor **e** do passo da credencial (qualquer resultado), o serviço apaga as
+  cópias de compartilhamento e chama `purgeAccount()`. Wipe que falha não toca no aparelho. Falha
+  local não muda o resultado (fica no log). A ordem do passo 2 foi preservada.
+
+### `kmplib-ui` — original da câmera (Android)
+- `rememberImagePickerLauncher`: o JPEG cru da câmera (`cache/photos/camera_*.jpg`, com EXIF/GPS e
+  resolução cheia) **é apagado** depois de processado — e também quando a captura é cancelada. Originais
+  com mais de 10 min deixados por versões anteriores são varridos a cada nova captura. O caminho do
+  arquivo passou a `rememberSaveable` (Activity recriada pelo app de câmera não perde mais a foto).
+  iOS não grava temporário (a imagem chega em memória).
+
+### Casca / app — Android 12+
+- `allowBackup="false"` **não** cobre a transferência aparelho-a-aparelho do Android 12+ (targetSdk
+  31+). A `casca-mobile` passa a declarar `android:dataExtractionRules="@xml/data_extraction_rules"`
+  excluindo todos os domínios em `cloud-backup` e `device-transfer`. Snippet em
+  `kmplib-catalog/references/sync.md`.
+
+### Migração
+- **App com sync offline-first:** registrar `SyncAccountDataPurger` e passá-lo como `localData` ao
+  `AccountDeletionService`; no logout, `pendingChanges()` → perguntar → `auth.signOut()` →
+  `purgeOnSignOut(policy)` → `engine.setAccountScope(null)`.
+- **Todo app Android com dado pessoal:** acrescentar `data_extraction_rules.xml` (ver casca).
+- Nada a fazer para o novo default do `BlobStore` — a migração de diretório é automática.
+
 ## 2.216.0 — multipart com campos de texto · erro por campo no `DomainResult` · troca de senha own-auth · foto privada no `PhotoStrip`
 
 Aditivo (sem quebra de fonte). Demandado pelo QueiMap (app clínico), genérico para todo app com

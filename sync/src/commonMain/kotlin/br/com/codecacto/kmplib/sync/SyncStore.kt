@@ -86,6 +86,25 @@ interface SyncStore {
      */
     fun deleteAccountData(accountId: String) = Unit
 
+    /**
+     * Apaga, da **conta corrente**, as linhas **já sincronizadas** (`dirty = 0`) — o espelho que o
+     * próximo `refresh()` traz de volta —, preservando toda a outbox (pendentes e recusadas) e as
+     * linhas para as quais [keep] responder `true`. Zera também os **cursores** da conta: sem isso o
+     * próximo pull seria incremental e não devolveria o que foi apagado. O remap de ids fica (é dele
+     * que um filho pendente precisa para achar o pai).
+     *
+     * É a limpeza de **logout mantendo pendências** (2.217.0). Para apagar tudo, [deleteAccountData].
+     *
+     * @return quantas linhas saíram. Default (compat, fakes de app): não apaga nada e devolve `0`.
+     */
+    fun deleteSyncedRows(keep: (Synced_entity) -> Boolean = { false }): Int {
+        AppLogger.w(
+            "SyncStore",
+            "deleteSyncedRows ignorado: impl sem suporte (${this::class.simpleName}).",
+        )
+        return 0
+    }
+
     // -- Leitura reativa (Flow) --------------------------------------------
     fun observeVisible(entity: String): Flow<List<Synced_entity>>
     fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?>
@@ -313,6 +332,21 @@ class SqlDelightSyncStore(
             q.deleteAccountCursors(accountId)
             q.deleteAccountRemap(accountId)
         }
+    }
+
+    override fun deleteSyncedRows(keep: (Synced_entity) -> Boolean): Int {
+        val conta = account
+        var removidas = 0
+        q.transaction {
+            q.selectCleanInAccount(conta).executeAsList()
+                .filterNot(keep)
+                .forEach { linha ->
+                    q.deleteHard(conta, linha.entity, linha.local_id)
+                    removidas++
+                }
+            q.deleteAccountCursors(conta)
+        }
+        return removidas
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

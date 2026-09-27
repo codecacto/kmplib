@@ -72,6 +72,16 @@ class FakeSyncStore : SyncStore {
         revision.value++
     }
 
+    override fun deleteSyncedRows(keep: (Synced_entity) -> Boolean): Int {
+        val alvo = rows.entries
+            .filter { it.key.account == account && !it.value.dirty.toDbBoolean() && !keep(it.value) }
+            .map { it.key }
+        alvo.forEach { rows.remove(it) }
+        cursors.keys.filter { it.first == account }.forEach { cursors.remove(it) }
+        revision.value++
+        return alvo.size
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeVisible(entity: String): Flow<List<Synced_entity>> =
         combine(revision, _accountScope) { _, acc -> acc }

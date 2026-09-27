@@ -18,8 +18,24 @@ package br.com.codecacto.kmplib.core.storage
  *   `Documents` (visível ao usuário no app Arquivos quando o app declara compartilhamento; a fila de
  *   upload é estado interno, não documento do usuário).
  *
- * O conteúdo **não** é excluído do backup de propósito: um binário que só existe na fila é a **única**
- * cópia do usuário; excluí-lo do backup faria a restauração do aparelho perdê-lo.
+ * ### Fora do backup em nuvem, por padrão (2.217.0)
+ * Até a 2.216.0 os binários **entravam** no backup (iCloud / Auto Backup do Google), com o argumento
+ * de que a foto na fila é a única cópia do usuário. O argumento não fecha: a fila é **transitória**
+ * (minutos a dias até subir), o backup é restaurado **meses depois** num aparelho novo, e o preço era
+ * uma cópia de cada foto — num app clínico, foto de lesão de paciente — na nuvem pessoal de quem
+ * usou o aparelho, fora do alcance da exclusão de conta. Pior: o banco do sync já podia estar fora
+ * (`createSyncDatabase(excludeFromBackup = true)`) e as fotos iam mesmo assim.
+ *
+ * Por isso `createBlobStore(excludeFromBackup = true)` é o default:
+ * - **Android:** `context.noBackupFilesDir/<diretório>` — o diretório que a plataforma define para
+ *   "arquivo que não vai para backup" (fora do Auto Backup **e** da transferência entre aparelhos, sem
+ *   depender de regra de manifesto). Binários que estavam em `filesDir/<diretório>` são **movidos**
+ *   na primeira operação — nada pendente se perde na atualização.
+ * - **iOS:** o mesmo `Application Support/<diretório>`, com `NSURLIsExcludedFromBackupKey` no
+ *   **diretório** (cobre todo arquivo dentro dele, inclusive o já gravado).
+ *
+ * `excludeFromBackup = false` devolve o comportamento antigo (e move os arquivos de volta), para o
+ * app que usa o [BlobStore] como armazenamento **permanente** e quer o dado no aparelho novo.
  *
  * ### Não é um sistema de arquivos
  * A superfície é chave→bytes, sem diretórios, sem streaming e sem caminhos que o app componha. O `id`
@@ -66,8 +82,16 @@ interface BlobStore {
  * **Android:** exige `KmpLib.init(context)` (ou `KmpLib.initSync(context)`) no `Application.onCreate()`
  * — o mesmo pré-requisito do banco de sync. Sem isso, falha alto no bootstrap, nunca em silêncio na
  * hora de guardar a foto do usuário.
+ *
+ * @param excludeFromBackup `true` (default, 2.217.0) mantém os binários **fora** do backup em nuvem
+ *   e da transferência entre aparelhos — ver o KDoc do [BlobStore]. Trocar o valor numa versão
+ *   futura do app não perde nada: os arquivos migram de diretório (Android) ou só mudam de atributo
+ *   (iOS).
  */
-expect fun createBlobStore(directoryName: String = DEFAULT_BLOB_DIRECTORY): BlobStore
+expect fun createBlobStore(
+    directoryName: String = DEFAULT_BLOB_DIRECTORY,
+    excludeFromBackup: Boolean = true,
+): BlobStore
 
 /** Diretório default dos binários da lib. */
 const val DEFAULT_BLOB_DIRECTORY: String = "kmplib_blobs"

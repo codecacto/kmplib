@@ -1,8 +1,10 @@
 package br.com.codecacto.kmplib.account
 
+import br.com.codecacto.kmplib.core.storage.AccountLocalDataPurger
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
+import br.com.codecacto.kmplib.platform.getShareHandler
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
 
@@ -31,6 +33,15 @@ import br.com.codecacto.kmplib.sync.rest.DomainResult
  * @param exportPath rota de exportação. Default `"/v1/me/export"`.
  * @param texts mensagens amigáveis (i18n; defaults pt-BR).
  * @param credencialSaiNoWipe **`true` em projeto own-auth** — ver o KDoc do parâmetro.
+ * @param localData limpeza do que a conta deixou **no aparelho** — ver o KDoc do parâmetro.
+ * @param clearSharedFiles apaga as cópias de compartilhamento — ver o KDoc do parâmetro.
+ *
+ * ### 3. O aparelho (2.217.0)
+ * Dado o wipe no servidor, a conta ainda existia **no aparelho**: espelho do sync, outbox, fotos da
+ * fila de upload e as cópias exportadas para compartilhar. Agora, depois do passo 2 — **qualquer**
+ * que seja o resultado dele, porque os dados do servidor já saíram —, o serviço apaga as cópias de
+ * compartilhamento e chama [AccountLocalDataPurger.purgeAccount]. Falha local **não** muda o
+ * resultado (a exclusão no servidor aconteceu e não se desfaz); fica no log.
  */
 class AccountDeletionService(
     private val api: DomainApiClient,
@@ -52,6 +63,20 @@ class AccountDeletionService(
      * apagava a conta e saía achando que sobrou alguma coisa.
      */
     private val credencialSaiNoWipe: Boolean = false,
+    /**
+     * **Quem apaga o que a conta deixou no aparelho** (2.217.0). Em app com sync, passe o
+     * `SyncAccountDataPurger` (kmplib-sync) com as filas de upload: sem ele o espelho, a outbox e as
+     * fotos pendentes da conta excluída **ficam no disco**. `null` = app sem dado local da conta.
+     *
+     * Roda com o **escopo de conta ainda ativo** — o app só troca o titular do espelho depois que
+     * este serviço devolve.
+     */
+    private val localData: AccountLocalDataPurger? = null,
+    /**
+     * Apaga, depois do wipe, **todas** as cópias que o `ShareHandler` materializou para compartilhar
+     * (PDF/imagem exportados da conta). Default `true`.
+     */
+    private val clearSharedFiles: Boolean = true,
 ) {
 
     /**
@@ -77,20 +102,47 @@ class AccountDeletionService(
         // 2. Conta de autenticação por ÚLTIMO — dados pessoais já removidos neste ponto.
         //    Em own-auth a credencial saiu junto no passo 1: resta encerrar a sessão local, e o
         //    resultado é COMPLETO (nada ficou pendente).
-        if (credencialSaiNoWipe) {
+        val resultado = if (credencialSaiNoWipe) {
             auth.signOut()
-            return Result.success(AccountDeletionResult.Completed)
-        }
-        auth.deleteAccount().onFailure {
-            if (it is AuthException.RequiresRecentLogin) {
-                AppLogger.w(TAG, "Dados removidos; exclusão da conta exige re-login recente (resíduo benigno)")
-                return Result.success(AccountDeletionResult.DataWipedAccountPending)
+            AccountDeletionResult.Completed
+        } else {
+            val exclusao = auth.deleteAccount()
+            val falha = exclusao.exceptionOrNull()
+            when {
+                falha == null -> AccountDeletionResult.Completed
+                falha is AuthException.RequiresRecentLogin -> {
+                    AppLogger.w(TAG, "Dados removidos; exclusão da conta exige re-login recente (resíduo benigno)")
+                    AccountDeletionResult.DataWipedAccountPending
+                }
+                else -> {
+                    AppLogger.w(TAG, "Dados removidos; exclusão da conta falhou (resíduo benigno: login vazio)", falha)
+                    AccountDeletionResult.DataWipedAccountPending
+                }
             }
-            AppLogger.w(TAG, "Dados removidos; exclusão da conta falhou (resíduo benigno: login vazio)", it)
-            return Result.success(AccountDeletionResult.DataWipedAccountPending)
         }
 
-        return Result.success(AccountDeletionResult.Completed)
+        // 3. O aparelho — depois de encerrada a sessão, para nenhum sync repovoar o que sai aqui.
+        purgeLocalData()
+        return Result.success(resultado)
+    }
+
+    /** Passo 3: nunca lança e nunca muda o resultado — a exclusão no servidor já aconteceu. */
+    private suspend fun purgeLocalData() {
+        if (clearSharedFiles) {
+            runCatching { getShareHandler().clearSharedFiles(0L) }
+                .onFailure { AppLogger.w(TAG, "Exclusão de conta: cópias de compartilhamento não apagadas", it) }
+        }
+        val purger = localData ?: return
+        try {
+            val relatorio = purger.purgeAccount()
+            if (!relatorio.isComplete) {
+                AppLogger.e(TAG, "Exclusão de conta: limpeza local incompleta (${relatorio.failures} etapa(s))")
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            AppLogger.e(TAG, "Exclusão de conta: limpeza local falhou", e)
+        }
     }
 
     /**
