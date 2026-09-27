@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.ui.components
 
+import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_usage_unlimited
+import br.com.codecacto.kmplib.generated.resources.kmplib_usage_count
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -115,5 +119,11 @@ fun UsageBadge(
     )
 }
 
+/** "Ilimitado" / "3 de 10" no idioma do aparelho (2.219.0 — antes, pt-BR fixo). */
+@Composable
 private fun usageText(usage: UsageSnapshot): String =
-    if (usage.isUnlimited) "Ilimitado" else "${usage.contagem} de ${usage.limite}"
+    if (usage.isUnlimited) {
+        stringResource(Res.string.kmplib_usage_unlimited)
+    } else {
+        stringResource(Res.string.kmplib_usage_count, usage.contagem, usage.limite)
+    }

@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
+import br.com.codecacto.kmplib.core.locale.DateSkeletons
+import br.com.codecacto.kmplib.core.locale.RegionalFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,7 +53,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import br.com.codecacto.kmplib.core.format.formatDateBrFromMillis
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.ui.components.AppButton
@@ -84,7 +85,7 @@ import br.com.codecacto.kmplib.ui.components.UsageMeter
 fun PaywallScreen(
     state: PaywallState,
     onAction: (PaywallAction) -> Unit,
-    texts: PaywallTexts = PaywallTexts(),
+    texts: PaywallTexts = rememberPaywallTexts(),
     snackbarHostState: SnackbarHostState? = null,
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
@@ -158,7 +159,7 @@ fun PaywallScreen(
 fun PaywallContent(
     state: PaywallState,
     onAction: (PaywallAction) -> Unit,
-    texts: PaywallTexts = PaywallTexts(),
+    texts: PaywallTexts = rememberPaywallTexts(),
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
     beforePlansContent: (@Composable () -> Unit)? = null,
@@ -563,8 +564,11 @@ private fun ActiveSubscriptionCard(
             )
 
             subscription?.expirationDate?.let { expiration ->
-                // Data formatada dd/MM/yyyy (padrao BR) dentro da lib.
-                val formatted = formatDateBrFromMillis(expiration.toEpochMilliseconds())
+                // Data no formato da REGIAO do aparelho (27/09/2026 no BR, 09/27/2026 nos EUA).
+                val formatted = RegionalFormat.formatDateTime(
+                    expiration.toEpochMilliseconds(),
+                    skeleton = DateSkeletons.SHORT,
+                )
                 val label = if (subscription.willRenew) texts.renewsAtLabel else texts.expiresAtLabel
                 Spacer(Modifier.height(12.dp))
                 Text(

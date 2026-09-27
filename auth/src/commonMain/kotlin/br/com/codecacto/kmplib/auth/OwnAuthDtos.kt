@@ -94,6 +94,11 @@ internal data class RegisterBody(
      * O backend (backlib ≥ 0.68.0) trata ausente e em branco igual.
      */
     val phone: String? = null,
+    /**
+     * Idioma da conta, BCP 47 (2.219.0 — par da backlib 0.134.0). Omitido quando nulo: servidor
+     * anterior recebe o corpo de sempre.
+     */
+    val locale: String? = null,
 )
 
 /**

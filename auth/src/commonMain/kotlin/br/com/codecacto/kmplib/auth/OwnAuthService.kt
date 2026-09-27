@@ -33,6 +33,26 @@ interface OwnAuthService {
     ): Result<User>
 
     /**
+     * [register] com o **idioma da conta** (2.219.0, par da backlib 0.134.0): BCP 47 — `pt-BR`,
+     * `en`, `es`, `pt-PT`. É por ele que o servidor escreve e-mail, PDF e push no idioma da pessoa.
+     *
+     * ```kotlin
+     * service.register(nome, email, senha, aceitou, telefone, locale = appLanguageTag())
+     * ```
+     *
+     * Tem implementação default (ignora o idioma e chama o [register] de sempre) para não quebrar
+     * quem implementa esta porta — dublês de teste, por exemplo. A implementação da lib manda o campo.
+     */
+    suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String?,
+        locale: String?,
+    ): Result<User> = register(name, email, password, acceptedTerms, phone)
+
+    /**
      * Dispara o e-mail de definição/redefinição de senha (`password/forgot`). SEMPRE resolve como
      * sucesso genérico do lado do servidor (não revela se o e-mail existe). Serve tanto o "esqueci a
      * senha" quanto o **convite** de conta criada pelo dono.

@@ -25,11 +25,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
+import br.com.codecacto.kmplib.core.locale.RegionalFormat
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_ok
+import br.com.codecacto.kmplib.ui.locale.rememberDatePlaceholder
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Campo de data com seletor em modal ([DatePickerDialog] do Material3).
@@ -65,6 +71,12 @@ import kotlinx.datetime.toLocalDateTime
  * `colorScheme.error`** (via `isError` do Material), **a frase embaixo** (o mesmo `supportingText`
  * dos demais) e **`error()` na semântica** do campo — é isso que faz o leitor de tela anunciar
  * "entrada inválida" com a frase, e o `focusFirstInvalidField` da tela ter onde parar.
+ *
+ * ### Idioma e região (2.219.0)
+ * Sem `placeholder`/`formatDate`, a data sai no formato da REGIÃO do aparelho (`27/09/2026` no BR,
+ * `09/27/2026` nos EUA — `RegionalFormat.formatDate`), o placeholder mostra esse mesmo formato com a
+ * letra de "ano" do idioma (`dd/mm/aaaa`, `mm/dd/yyyy`) e os botões vêm no idioma do aparelho. Num
+ * aparelho brasileiro nada muda. Quem precisa do `dd/MM/yyyy` fixo passa `formatDate = ::formatDateBr`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,10 +86,10 @@ fun AppDatePicker(
     label: String,
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
-    placeholder: String = "dd/mm/aaaa",
-    formatDate: (LocalDate) -> String = ::formatDateBr,
-    confirmText: String = "OK",
-    dismissText: String = "Cancelar",
+    placeholder: String = rememberDatePlaceholder(),
+    formatDate: (LocalDate) -> String = { RegionalFormat.formatDate(it) },
+    confirmText: String = stringResource(Res.string.kmplib_ok),
+    dismissText: String = stringResource(Res.string.kmplib_cancel),
     errorMessage: String? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
@@ -163,8 +175,8 @@ fun AppDatePickerDialog(
     selectedDate: LocalDate?,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = "OK",
-    dismissText: String = "Cancelar",
+    confirmText: String = stringResource(Res.string.kmplib_ok),
+    dismissText: String = stringResource(Res.string.kmplib_cancel),
 ) {
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDate?.let(::dataParaMillisDoCalendario),

@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.security
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_unlock
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,7 +102,7 @@ fun AppLockGate(
     modifier: Modifier = Modifier,
     graceMillis: Long = 60_000L,
     hideFromRecents: Boolean = enabled,
-    texts: AppLockTexts = AppLockTexts(),
+    texts: AppLockTexts = rememberAppLockTexts(),
     mark: @Composable () -> Unit = { DefaultLockMark() },
     onUnlockFailed: (() -> Unit)? = null,
     content: @Composable () -> Unit,
@@ -129,7 +132,7 @@ fun AppLockGate(
     modifier: Modifier = Modifier,
     graceMillis: Long = 60_000L,
     hideFromRecents: Boolean = enabled,
-    texts: AppLockTexts = AppLockTexts(),
+    texts: AppLockTexts = rememberAppLockTexts(),
     mark: @Composable () -> Unit = { DefaultLockMark() },
     onUnlockFailed: (() -> Unit)? = null,
     content: @Composable () -> Unit,
@@ -244,4 +247,11 @@ private fun DefaultLockMark() {
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(64.dp),
     )
+}
+
+/** [AppLockTexts] no idioma do aparelho (2.219.0). */
+@Composable
+fun rememberAppLockTexts(): AppLockTexts {
+    val desbloquear = stringResource(Res.string.kmplib_unlock)
+    return AppLockTexts(unlockButton = desbloquear, promptTitle = desbloquear)
 }

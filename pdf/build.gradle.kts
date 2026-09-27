@@ -11,6 +11,10 @@ kotlin {
             api(project(":kmplib-core"))
             // Gera o arquivo e o entrega ao compartilhamento do sistema.
             api(project(":kmplib-platform"))
+            // Os textos do visualizador (4 idiomas) moram nos recursos da lib, em `kmplib-ui`
+            // (2.219.0) — `Res` é gerado num módulo só. `implementation`: nenhum tipo do `ui`
+            // aparece na API pública do `pdf`.
+            implementation(project(":kmplib-ui"))
             api(libs.kotlinx.serialization.json)
             // Baixa o PDF remoto pelo `createHttpClient` do core e o guarda no `BlobStore` —
             // ver `pdf/viewer/PdfViewerState.kt`.

@@ -3,6 +3,26 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### 2.219.0 (27/set/2026) — app GLOBAL (origem: QueiMap, 4 idiomas + conselho por país)
+- [x] **ATENDIDO na 2.219.0** → telas/componentes da lib com recursos próprios em pt-BR/en/es/pt-PT
+      (Login, Cadastro, primeiro acesso, Feedback, Desenvolvido por, Contato, Paywall, PDF, ErrorState,
+      AppDatePicker, SearchTopBar, AppPickerField, ConnectivityGate, MaintenanceGate, AppLockGate,
+      diálogos, PhotoStrip, contentDescriptions) + mensagens do own-auth, do `DomainApiClient`
+      (`textsProvider`) e de compra; `register(…, locale)`; `core.locale` (`appLanguageTag`,
+      `RegionalFormat`, `Countries`, `DeviceLocaleHeaders`/`sendLocaleHeaders`); telefone
+      internacional (`InternationalPhone`, `PhoneInputFormat`) — e o feedback deixou de recusar
+      WhatsApp de fora do Brasil.
+- [ ] **ABERTO (2.219.0, de passagem) — ainda com texto pt-BR fixo:** `AppReviewDialog` (13 strings),
+      `AppWeeklyScheduleEditor`/`AppTimeGridScheduler` (contentDescriptions), `ModulePermissionMatrix`,
+      `OnboardingPager`, `StepTimeline`, `LikertScale`, `ChecklistItem`, `MultiSelectList`,
+      `LineChart`, `HtmlDocument`, `AuthLinks`/`AuthFields` (legado), `ShareCard*`. Mesmo tratamento
+      (recurso `kmplib_*` + `remember…Texts()` como default) quando um app global usar um deles.
+- [ ] **ABERTO (2.219.0) — validação fina de telefone por país** (móvel × fixo, prefixos válidos):
+      exigiria o libphonenumber inteiro (~500 KB de metadado, sem versão oficial KMP). Hoje a lib valida
+      E.164 + comprimento por país (dados do libphonenumber) + a regra completa do Brasil; a validação
+      fina fica no servidor (libphonenumber no JVM). Reabrir só se um app precisar recusar, no cliente,
+      número de estrutura válida.
+
 ### Registrado nesta rodada (26/set/2026) — origem: design do **QueiMap** (avaliação de queimaduras)
 > Origem: `8-Sistemas-Portal-App/QueiMap/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
 
@@ -747,13 +767,13 @@ teste em dispositivo são do fundador, no Mac. Pontos de maior risco de compila�
 > entrega a tela pronta, mas com o TEXTO em pt-BR fixo em Kotlin — então todo app multi-idioma
 > reescreve a mesma tradução.
 
-- [ ] **`DeveloperTexts` / `ContactTexts` / `FeedbackTexts` com defaults pt-BR hardcoded.** São as
+- [x] **`DeveloperTexts` / `ContactTexts` / `FeedbackTexts` com defaults pt-BR hardcoded.** **ATENDIDO na 2.219.0** — `remember{Developer,Contact,Feedback}Texts()` lendo os recursos da lib (4 idiomas), default das telas. São as
       telas que a constituição **obriga** em todo produto ("Desenvolvido por CodeCacto" + contato +
       feedback): num app em 4 idiomas, elas são as únicas que respondem em português a quem lê o
       resto em inglês. ~57 strings reescritas **por app**, e já são ≥2 consumidores copiando a mesma
       tradução (Super 8 e Torneio de Pênalti) — gatilho de promoção da constituição. Certo: a
       kmplib trazer as próprias `composeResources` traduzidas nos 4 idiomas, e o app não passar nada.
-- [ ] **`PurchaseErrorTexts` — 13 strings de erro de compra por app.** Mesma classe do item acima, na
+- [x] **`PurchaseErrorTexts` — 13 strings de erro de compra por app.** **ATENDIDO na 2.219.0** — `loadPurchaseErrorTexts()`/`rememberPurchaseErrorTexts()`. Mesma classe do item acima, na
       tela em que se cobra: sem traduzir, o cartão recusado é explicado em português a um comprador
       espanhol.
 - [ ] **`PurchasePackage` não expõe a oferta introdutória (free trial) do produto da loja.** Sem isso
@@ -1117,8 +1137,8 @@ Pendências que este item deixa à vista (nenhuma bloqueia):
       **fim < início TROCA os dois** em vez de dar erro (o usuário quis um intervalo, e obrigá-lo a
       recomeçar por causa da ordem é atrito puro) · alvos ≥48dp.
 
-- [ ] **GAP-DC-M-07 — `OwnAuthTexts` não é traduzível: mensagens de erro do servidor chegam em pt-BR
-      fixo. Prioridade MÉDIA.** Verificado em `auth/OwnAuthConfig.kt:76-104`: `OwnAuthTexts` é uma
+- [x] **GAP-DC-M-07 — `OwnAuthTexts` não é traduzível: mensagens de erro do servidor chegam em pt-BR
+      fixo. Prioridade MÉDIA.** **ATENDIDO na 2.219.0 por uma terceira via:** a lib traz as próprias traduções (`loadOwnAuthTexts()`), e `OwnAuthConfig(texts = null)` (default) as lê no idioma da tela a cada erro — o app não passa nada. O tipo continua exposto em `OwnAuthException` para quem quiser mapear. Verificado em `auth/OwnAuthConfig.kt:76-104`: `OwnAuthTexts` é uma
       `data class` de `String` com defaults pt-BR (`invalidCredentials`, `emailAlreadyInUse`,
       `weakPassword`, `tooManyRequests`, `network`, `sessionExpired`, `socialRejected`, `server:
       (Int) -> String`…). Como **mobile segue o idioma do DISPOSITIVO** (regra da casa) e a casca

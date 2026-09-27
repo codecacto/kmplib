@@ -27,16 +27,32 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
 
     private val client get() = config.httpClient
     private val json get() = config.json
-    private val texts get() = config.texts
 
+    /** As mensagens da vez: as do app, se ele passou; senão as da lib, no idioma da tela. */
+    private suspend fun texts(): OwnAuthTexts = config.customTexts ?: loadOwnAuthTexts()
+
+    /**
+     * Cria a conta.
+     *
+     * @param locale idioma da conta, BCP 47 (`pt-BR`, `en`, `es`, `pt-PT`) — 2.219.0, par da backlib
+     *   0.134.0. É por ele que o servidor escreve e-mail, PDF e push no idioma da pessoa. Passe
+     *   `appLanguageTag()` (ou `uiLanguageTag()`); `null` (default) não manda o campo, e servidor
+     *   anterior à 0.134.0 continua recebendo exatamente o corpo de antes.
+     */
     suspend fun register(
         name: String,
         email: String,
         password: String,
         acceptedTerms: Boolean,
         phone: String? = null,
+        locale: String? = null,
     ): Result<OwnAuthTokens> =
-        postForTokens("register", json.encodeToString(RegisterBody(name, email, password, acceptedTerms, phone)))
+        postForTokens(
+            "register",
+            json.encodeToString(
+                RegisterBody(name, email, password, acceptedTerms, phone, locale?.trim()?.takeIf { it.isNotEmpty() }),
+            ),
+        )
 
     /**
      * Login por **e-mail ou nome de usuário** — o que o campo aceita é decidido pelo servidor
@@ -251,7 +267,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             call()
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha de transporte em $suffix: ${e.message}")
-            return Result.failure(OwnAuthException.Network(texts.network))
+            return Result.failure(OwnAuthException.Network(texts().network))
         }
         val status = response.status.value
         if (config.diagnostics) AppLogger.d(TAG, "← $status $url")
@@ -260,7 +276,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         } else {
             // A mensagem do servidor é mais útil que qualquer texto fixo daqui: ele é quem sabe o
             // mínimo de caracteres exigido, qual campo faltou, etc. O texto local vira fallback.
-            Result.failure(mapStatus(suffix, status, response.serverMessageOrNull()))
+            Result.failure(mapStatus(texts(), suffix, status, response.serverMessageOrNull()))
         }
     }
 
@@ -291,7 +307,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
     }
 
-    private fun mapStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException {
+    private fun mapStatus(texts: OwnAuthTexts, suffix: String, status: Int, serverMessage: String?): OwnAuthException {
         // Social tem um vocabulário de recusa próprio: nonce vencido/reusado, `aud` inesperado,
         // `email_verified=false`, assinatura inválida. Todos significam a mesma coisa para a tela —
         // "esta prova de identidade não serve" —, e a mensagem do servidor é a única que diz qual
@@ -302,22 +318,22 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
                 400, 401, 403, 422 ->
                     OwnAuthException.InvalidCredentials(serverMessage ?: texts.socialRejected)
                 429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
-                else -> serverFailure(status, serverMessage)
+                else -> serverFailure(texts, status, serverMessage)
             }
         }
-        return mapPasswordStatus(suffix, status, serverMessage)
+        return mapPasswordStatus(texts, suffix, status, serverMessage)
     }
 
-    private fun mapPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException =
+    private fun mapPasswordStatus(texts: OwnAuthTexts, suffix: String, status: Int, serverMessage: String?): OwnAuthException =
         // Na troca com a sessão aberta, o 401 é "senha ATUAL incorreta" — e o texto de login
         // ("e-mail ou senha incorretos") mandaria a pessoa conferir um e-mail que ela nem digitou.
         if (status == 401 && suffix == "password/change") {
             OwnAuthException.InvalidCredentials(texts.currentPasswordIncorrect)
         } else {
-            mapGenericPasswordStatus(suffix, status, serverMessage)
+            mapGenericPasswordStatus(texts, suffix, status, serverMessage)
         }
 
-    private fun mapGenericPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
+    private fun mapGenericPasswordStatus(texts: OwnAuthTexts, suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
         // Credencial inválida mantém o texto local DE PROPÓSITO: o servidor responde genérico para não
         // revelar se o e-mail existe, e repassar a mensagem dele não acrescentaria nada.
         401, 403 -> OwnAuthException.InvalidCredentials(texts.invalidCredentials)
@@ -325,7 +341,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         422 -> if (suffix.startsWith("register") || suffix.startsWith("password")) {
             OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
         } else {
-            serverFailure(status, serverMessage)
+            serverFailure(texts, status, serverMessage)
         }
         400 -> when {
             suffix.startsWith("password/reset") ->
@@ -334,10 +350,10 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             // real, que é justamente o que a pessoa precisa saber para corrigir.
             suffix.startsWith("register") || suffix.startsWith("password") ->
                 OwnAuthException.WeakPassword(serverMessage ?: texts.weakPassword)
-            else -> serverFailure(status, serverMessage)
+            else -> serverFailure(texts, status, serverMessage)
         }
         429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
-        else -> serverFailure(status, serverMessage)
+        else -> serverFailure(texts, status, serverMessage)
     }
 
     /**
@@ -345,7 +361,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
      * interna ela é o que o servidor deixou escapar — exceção, SQL, nome de tabela, trecho de stack —,
      * e ia parar na tela. Só 4xx (validação, regra) traz texto escrito para a pessoa ler.
      */
-    private fun serverFailure(status: Int, serverMessage: String?): OwnAuthException.Server =
+    private fun serverFailure(texts: OwnAuthTexts, status: Int, serverMessage: String?): OwnAuthException.Server =
         OwnAuthException.Server(
             if (status >= 500) texts.server(status) else serverMessage ?: texts.server(status),
             status,

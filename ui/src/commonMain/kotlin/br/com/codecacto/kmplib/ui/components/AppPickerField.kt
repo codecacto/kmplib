@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_search
+import br.com.codecacto.kmplib.generated.resources.kmplib_search_no_results
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +80,9 @@ fun AppPickerField(
      */
     searchable: Boolean = false,
     /** Placeholder do campo de busca. */
-    searchPlaceholder: String = "Buscar",
+    searchPlaceholder: String = stringResource(Res.string.kmplib_search),
+    /** Frase da lista filtrada vazia; recebe o termo buscado (2.219.0 — antes, pt-BR fixo). */
+    noResultsText: (query: String) -> String = rememberNoResultsText(),
 ) {
     var aberto by remember { mutableStateOf(false) }
     var busca by remember { mutableStateOf("") }
@@ -149,7 +155,7 @@ fun AppPickerField(
                 // Lista vazia depois de filtrar diz o que houve. Sem isto, o sheet abre num vão
                 // branco e a leitura é "quebrou".
                 Text(
-                    text = "Nada encontrado para “$busca”.",
+                    text = noResultsText(busca),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
@@ -199,4 +205,12 @@ private fun String.semAcento(): String {
             append(if (i >= 0) sem[i] else c)
         }
     }.lowercase()
+}
+
+/** "Nada encontrado para “…”." no idioma do aparelho, para o [AppPickerField]. */
+@Composable
+private fun rememberNoResultsText(): (String) -> String {
+    // Lido sem argumento (modelo cru, com `%1$s`) e preenchido no lambda: o termo muda a cada tecla.
+    val modelo = stringResource(Res.string.kmplib_search_no_results)
+    return { termo -> modelo.replace("%1\$s", termo) }
 }

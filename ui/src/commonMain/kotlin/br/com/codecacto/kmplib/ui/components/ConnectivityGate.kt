@@ -1,5 +1,12 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_modal_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_retry
+import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_screen_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_checking
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,8 +42,8 @@ import br.com.codecacto.kmplib.core.network.ConnectivityObserver
 /**
  * Textos do aviso de conectividade — **i18n-ready** (defaults pt-BR).
  *
- * O app pode injetar traduções (Compose Resources `stringResource(...)`) montando um
- * [ConnectivityTexts] próprio. Todos os textos têm default em português.
+ * Sem `texts`, os componentes usam [rememberConnectivityTexts] — idioma do aparelho (pt-BR, en,
+ * es, pt-PT, 2.219.0). Os defaults literais são pt-BR, para uso fora da composição.
  */
 data class ConnectivityTexts(
     val modalTitle: String = "Sem conexão com a internet",
@@ -83,7 +90,7 @@ internal const val NO_INTERNET_CHECK_FEEDBACK_MS = 1_200L
 fun NoInternetModal(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    texts: ConnectivityTexts = ConnectivityTexts(),
+    texts: ConnectivityTexts = rememberConnectivityTexts(),
     icon: ImageVector = Icons.Filled.WifiOff,
 ) {
     Dialog(
@@ -173,7 +180,7 @@ fun NoInternetModal(
 fun NoInternetScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    texts: ConnectivityTexts = ConnectivityTexts(),
+    texts: ConnectivityTexts = rememberConnectivityTexts(),
     icon: ImageVector = Icons.Filled.WifiOff,
 ) {
     FullScreenNotice(
@@ -239,7 +246,7 @@ fun rememberIsOnline(observer: ConnectivityObserver): State<Boolean> {
 fun ConnectivityGate(
     modifier: Modifier = Modifier,
     style: ConnectivityStyle = ConnectivityStyle.Modal,
-    texts: ConnectivityTexts = ConnectivityTexts(),
+    texts: ConnectivityTexts = rememberConnectivityTexts(),
     onRetry: (() -> Unit)? = null,
     onOnlineChange: ((Boolean) -> Unit)? = null,
     content: @Composable () -> Unit,
@@ -271,7 +278,7 @@ fun ConnectivityGate(
     observer: ConnectivityObserver,
     modifier: Modifier = Modifier,
     style: ConnectivityStyle = ConnectivityStyle.Modal,
-    texts: ConnectivityTexts = ConnectivityTexts(),
+    texts: ConnectivityTexts = rememberConnectivityTexts(),
     onRetry: (() -> Unit)? = null,
     onOnlineChange: ((Boolean) -> Unit)? = null,
     content: @Composable () -> Unit,
@@ -318,4 +325,19 @@ fun ConnectivityGate(
             )
         }
     }
+}
+
+/** [ConnectivityTexts] no idioma do aparelho (2.219.0). */
+@Composable
+fun rememberConnectivityTexts(): ConnectivityTexts {
+    val titulo = stringResource(Res.string.kmplib_connectivity_title)
+    return ConnectivityTexts(
+        modalTitle = titulo,
+        modalMessage = stringResource(Res.string.kmplib_connectivity_modal_message),
+        retryButton = stringResource(Res.string.kmplib_retry),
+        bannerText = titulo,
+        screenTitle = titulo,
+        screenMessage = stringResource(Res.string.kmplib_connectivity_screen_message),
+        checkingButton = stringResource(Res.string.kmplib_connectivity_checking),
+    )
 }

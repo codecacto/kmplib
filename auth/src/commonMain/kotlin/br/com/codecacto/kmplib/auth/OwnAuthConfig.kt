@@ -19,7 +19,9 @@ import kotlinx.serialization.json.Json
  * @param refreshSkewSeconds margem (segundos) para o **refresh proativo**: o token é renovado quando
  *   falta menos que isto para expirar (default 60s), evitando enviar um access token quase-morto.
  * @param json instância kotlinx [Json] usada na (de)serialização (default tolerante da lib).
- * @param texts mensagens de erro (defaults pt-BR; injete traduções via `*Texts` do app).
+ * @param texts mensagens de erro. **Sem passar (ou `null`), a lib usa os próprios recursos no
+ *   idioma da tela** (pt-BR, en, es, pt-PT — `loadOwnAuthTexts()`, 2.219.0), lidos a cada erro.
+ *   Passando um objeto, é ele que vale, como antes.
  * @param diagnostics liga o **rastro de diagnóstico** do login no [AppLogger] (tag `OwnAuthApi`):
  *   rota chamada, status HTTP e o e-mail EXATO que o app enviou, com comprimento e os pontos de
  *   código dos caracteres não-ASCII — é assim que se enxerga espaço invisível, acento ou palavra
@@ -33,13 +35,22 @@ class OwnAuthConfig(
     authBasePath: String = DEFAULT_AUTH_BASE_PATH,
     val refreshSkewSeconds: Long = DEFAULT_REFRESH_SKEW_SECONDS,
     val json: Json = DefaultHttpClientJson,
-    val texts: OwnAuthTexts = OwnAuthTexts(),
+    texts: OwnAuthTexts? = null,
     val diagnostics: Boolean = false,
     socialSuffix: String = DEFAULT_SOCIAL_SUFFIX,
     socialNonceSuffix: String = DEFAULT_SOCIAL_NONCE_SUFFIX,
     socialStartSuffix: String = DEFAULT_SOCIAL_START_SUFFIX,
     socialExchangeSuffix: String = DEFAULT_SOCIAL_EXCHANGE_SUFFIX,
 ) {
+    /**
+     * As mensagens fixas: as que o app passou ou, sem elas, os defaults pt-BR. O fluxo em si usa
+     * as do idioma da tela quando o app não passou nada — ver [customTexts].
+     */
+    val texts: OwnAuthTexts = texts ?: OwnAuthTexts()
+
+    /** As mensagens que o APP passou, ou `null` — aí a lib lê as dela no idioma da tela. */
+    internal val customTexts: OwnAuthTexts? = texts
+
     /** Base normalizada (sem barra final). */
     val baseUrl: String = baseUrl.trimEnd('/')
 

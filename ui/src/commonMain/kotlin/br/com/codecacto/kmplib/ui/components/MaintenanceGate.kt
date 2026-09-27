@@ -1,5 +1,11 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_maintenance_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_maintenance_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_retry
+import br.com.codecacto.kmplib.generated.resources.kmplib_checking
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.runtime.Composable
@@ -45,7 +51,7 @@ fun MaintenanceScreen(
     message: String?,
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    texts: MaintenanceTexts = MaintenanceTexts(),
+    texts: MaintenanceTexts = rememberMaintenanceTexts(),
     icon: ImageVector = Icons.Filled.Build,
 ) {
     FullScreenNotice(
@@ -89,7 +95,7 @@ fun MaintenanceGate(
     message: String?,
     onRetry: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    texts: MaintenanceTexts = MaintenanceTexts(),
+    texts: MaintenanceTexts = rememberMaintenanceTexts(),
     content: @Composable () -> Unit,
 ) {
     BlockingOverlay(
@@ -99,3 +105,12 @@ fun MaintenanceGate(
         content = content,
     )
 }
+
+/** [MaintenanceTexts] no idioma do aparelho (2.219.0). A mensagem do servidor, quando vem, continua vencendo. */
+@Composable
+fun rememberMaintenanceTexts(): MaintenanceTexts = MaintenanceTexts(
+    title = stringResource(Res.string.kmplib_maintenance_title),
+    message = stringResource(Res.string.kmplib_maintenance_message),
+    retryButton = stringResource(Res.string.kmplib_retry),
+    checkingButton = stringResource(Res.string.kmplib_checking),
+)

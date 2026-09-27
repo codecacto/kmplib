@@ -30,43 +30,73 @@ import br.com.codecacto.kmplib.auth.SocialProvider
 import br.com.codecacto.kmplib.auth.social.disponivelNestaPlataforma
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
 import br.com.codecacto.kmplib.validation.EmailValidator
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_email_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_email_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_identifier_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_identifier_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_username_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_username_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_login_button
+import br.com.codecacto.kmplib.generated.resources.kmplib_forgot_password
+import br.com.codecacto.kmplib.generated.resources.kmplib_register_prompt
+import br.com.codecacto.kmplib.generated.resources.kmplib_register_link
+import br.com.codecacto.kmplib.generated.resources.kmplib_or_continue_with
+import br.com.codecacto.kmplib.generated.resources.kmplib_google_login
+import br.com.codecacto.kmplib.generated.resources.kmplib_apple_login
+import br.com.codecacto.kmplib.generated.resources.kmplib_login_terms_prefix
+import br.com.codecacto.kmplib.generated.resources.kmplib_terms_of_use
+import br.com.codecacto.kmplib.generated.resources.kmplib_privacy_policy
+import br.com.codecacto.kmplib.generated.resources.kmplib_forgot_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_forgot_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_send
+import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_and
+import org.jetbrains.compose.resources.stringResource
 
 /**
- * Configuração de textos para LoginScreen
- * Suporta internacionalização via @Composable lambdas
+ * Textos da [LoginScreen] — lambdas `@Composable`, então cada default já é um `stringResource` dos
+ * recursos da lib, **no idioma do aparelho** (pt-BR, en, es, pt-PT) desde a 2.219.0. O app só
+ * passa o que quiser trocar: `LoginTexts(title = { stringResource(Res.string.bem_vindo) })` mantém
+ * o resto traduzido.
  */
 data class LoginTexts(
     val title: @Composable (() -> String)? = null,
-    val emailLabel: @Composable () -> String = { "Email" },
-    val emailPlaceholder: @Composable () -> String = { FormPlaceholders.EMAIL },
+    val emailLabel: @Composable () -> String = { stringResource(Res.string.kmplib_email_label) },
+    val emailPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_email_placeholder) },
     /**
      * Rótulo e placeholder (instrução, nunca um valor de exemplo) quando o sistema aceita **e-mail ou usuário** — o padrão da fábrica desde
      * 22/ago/2026. Ficam separados de [emailLabel] para o app traduzir os dois; o servidor ainda pode
      * mandar um rótulo próprio (`identifierLabel`), que vence estes.
      */
-    val identifierLabel: @Composable () -> String = { "E-mail ou usuário" },
-    val identifierPlaceholder: @Composable () -> String = { FormPlaceholders.EMAIL_OR_USERNAME },
+    val identifierLabel: @Composable () -> String = { stringResource(Res.string.kmplib_identifier_label) },
+    val identifierPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_identifier_placeholder) },
     /** Rótulo e placeholder (instrução, nunca um valor de exemplo) quando o sistema aceita **só** nome de usuário. */
-    val usernameLabel: @Composable () -> String = { "Usuário" },
-    val usernamePlaceholder: @Composable () -> String = { FormPlaceholders.USERNAME },
-    val passwordLabel: @Composable () -> String = { "Senha" },
-    val passwordPlaceholder: @Composable () -> String = { FormPlaceholders.PASSWORD },
-    val loginButton: @Composable () -> String = { "Entrar" },
-    val forgotPassword: @Composable () -> String = { "Esqueci minha senha" },
-    val registerPrompt: @Composable () -> String = { "Não tem uma conta?" },
-    val registerLink: @Composable () -> String = { "Cadastre-se" },
-    val orContinueWith: @Composable () -> String = { "ou continue com" },
-    val googleLogin: @Composable () -> String = { "Continuar com Google" },
-    val appleLogin: @Composable () -> String = { "Continuar com Apple" },
-    val termsPrefix: @Composable () -> String = { "Ao continuar, você concorda com os " },
-    val termsText: @Composable () -> String = { "Termos de Uso" },
-    val privacyText: @Composable () -> String = { "Política de Privacidade" },
+    val usernameLabel: @Composable () -> String = { stringResource(Res.string.kmplib_username_label) },
+    val usernamePlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_username_placeholder) },
+    val passwordLabel: @Composable () -> String = { stringResource(Res.string.kmplib_password_label) },
+    val passwordPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_password_placeholder) },
+    val loginButton: @Composable () -> String = { stringResource(Res.string.kmplib_login_button) },
+    val forgotPassword: @Composable () -> String = { stringResource(Res.string.kmplib_forgot_password) },
+    val registerPrompt: @Composable () -> String = { stringResource(Res.string.kmplib_register_prompt) },
+    val registerLink: @Composable () -> String = { stringResource(Res.string.kmplib_register_link) },
+    val orContinueWith: @Composable () -> String = { stringResource(Res.string.kmplib_or_continue_with) },
+    val googleLogin: @Composable () -> String = { stringResource(Res.string.kmplib_google_login) },
+    val appleLogin: @Composable () -> String = { stringResource(Res.string.kmplib_apple_login) },
+    // O espaço do fim fica no código: espaço na ponta de um recurso XML é frágil.
+    val termsPrefix: @Composable () -> String = { stringResource(Res.string.kmplib_login_terms_prefix) + " " },
+    val termsText: @Composable () -> String = { stringResource(Res.string.kmplib_terms_of_use) },
+    val privacyText: @Composable () -> String = { stringResource(Res.string.kmplib_privacy_policy) },
     val termsSuffix: @Composable () -> String = { "" },
     // Dialog esqueci senha
-    val forgotPasswordTitle: @Composable () -> String = { "Recuperação de Senha" },
-    val forgotPasswordMessage: @Composable () -> String = { "Digite seu email para receber o link de recuperação" },
-    val sendButton: @Composable () -> String = { "Enviar" },
-    val cancelButton: @Composable () -> String = { "Cancelar" }
+    val forgotPasswordTitle: @Composable () -> String = { stringResource(Res.string.kmplib_forgot_title) },
+    val forgotPasswordMessage: @Composable () -> String = { stringResource(Res.string.kmplib_forgot_message) },
+    val sendButton: @Composable () -> String = { stringResource(Res.string.kmplib_send) },
+    val cancelButton: @Composable () -> String = { stringResource(Res.string.kmplib_cancel) },
+    /** O "e" entre "Termos de Uso" e "Política de Privacidade" (2.219.0 — era " e " fixo). Sem espaços: a tela os põe. */
+    val andText: @Composable () -> String = { stringResource(Res.string.kmplib_and) },
 )
 
 /**
@@ -393,7 +423,7 @@ fun LoginScreen(
                                 }
                                 if (termsUrl != null && privacyUrl != null) {
                                     Text(
-                                        text = " e ",
+                                        text = " ${texts.andText().trim()} ",
                                         fontSize = 12.sp,
                                         color = colors.textSecondary,
                                         modifier = Modifier.padding(vertical = 4.dp)

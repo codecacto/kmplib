@@ -1,12 +1,40 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
 import br.com.codecacto.kmplib.ui.components.FormPlaceholders
+import androidx.compose.runtime.Composable
+import br.com.codecacto.kmplib.mask.PhoneInputFormat
+import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
+import br.com.codecacto.kmplib.ui.locale.rememberPhonePlaceholder
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_subtitle
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_name_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_name_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_email_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_email_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_whatsapp_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_subject_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_subject_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_message_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_message_placeholder
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_send
+import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_name_error
+import br.com.codecacto.kmplib.generated.resources.kmplib_email_error
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_message_error
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_phone_error
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_error
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_success_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_contact_success_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_back
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Textos customizáveis para a [ContactScreen] (formulário "Entrar em contato").
  *
- * Todos os textos possuem valores padrão em português brasileiro. Espelha os rótulos do
- * `ContactForm` da weblib (paridade web/app).
+ * Espelha os rótulos do `ContactForm` da weblib (paridade web/app). Sem `texts`, a tela usa
+ * [rememberContactTexts] — idioma do aparelho (pt-BR, en, es, pt-PT, 2.219.0). Os defaults literais
+ * são pt-BR, para uso fora da composição.
  */
 data class ContactTexts(
     val title: String = "Entrar em contato",
@@ -33,3 +61,32 @@ data class ContactTexts(
     val continueButton: String = "Voltar",
     val backContentDescription: String = "Voltar",
 )
+
+/** [ContactTexts] no idioma do aparelho; o placeholder do WhatsApp segue o [phoneFormat] do campo. */
+@Composable
+fun rememberContactTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat()): ContactTexts =
+    ContactTexts(
+        title = stringResource(Res.string.kmplib_contact_title),
+        subtitle = stringResource(Res.string.kmplib_contact_subtitle),
+        nameLabel = stringResource(Res.string.kmplib_contact_name_label),
+        namePlaceholder = stringResource(Res.string.kmplib_contact_name_placeholder),
+        emailLabel = stringResource(Res.string.kmplib_email_label),
+        emailPlaceholder = stringResource(Res.string.kmplib_email_placeholder),
+        whatsappLabel = stringResource(Res.string.kmplib_contact_whatsapp_label),
+        whatsappPlaceholder = rememberPhonePlaceholder(phoneFormat),
+        subjectLabel = stringResource(Res.string.kmplib_contact_subject_label),
+        subjectPlaceholder = stringResource(Res.string.kmplib_contact_subject_placeholder),
+        messageLabel = stringResource(Res.string.kmplib_contact_message_label),
+        messagePlaceholder = stringResource(Res.string.kmplib_contact_message_placeholder),
+        sendButton = stringResource(Res.string.kmplib_contact_send),
+        cancelButton = stringResource(Res.string.kmplib_cancel),
+        nameError = stringResource(Res.string.kmplib_contact_name_error),
+        emailError = stringResource(Res.string.kmplib_email_error),
+        messageError = stringResource(Res.string.kmplib_contact_message_error),
+        whatsappError = stringResource(Res.string.kmplib_contact_phone_error),
+        errorMessage = stringResource(Res.string.kmplib_contact_error),
+        successTitle = stringResource(Res.string.kmplib_contact_success_title),
+        successMessage = stringResource(Res.string.kmplib_contact_success_message),
+        continueButton = stringResource(Res.string.kmplib_back),
+        backContentDescription = stringResource(Res.string.kmplib_back),
+    )

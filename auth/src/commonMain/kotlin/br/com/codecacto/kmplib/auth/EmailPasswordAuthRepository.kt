@@ -34,8 +34,11 @@ import kotlinx.coroutines.flow.map
 class EmailPasswordAuthRepository(
     private val api: OwnAuthApi,
     private val tokenManager: OwnAuthTokenManager,
-    private val texts: OwnAuthTexts = OwnAuthTexts(),
+    /** Mensagens do app; `null` (default) = as da lib no idioma da tela (2.219.0). */
+    private val texts: OwnAuthTexts? = null,
 ) : IAuthRepository, OwnAuthService, OwnAuthSocialService {
+
+    private suspend fun t(): OwnAuthTexts = texts ?: loadOwnAuthTexts()
 
     override val currentUser: Flow<User?> = tokenManager.session.map { it?.toUser() }
 
@@ -73,7 +76,16 @@ class EmailPasswordAuthRepository(
         password: String,
         acceptedTerms: Boolean,
         phone: String?,
-    ): Result<User> = api.register(name, email, password, acceptedTerms, phone).mapAndAdopt(email, name)
+    ): Result<User> = register(name, email, password, acceptedTerms, phone, locale = null)
+
+    override suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String?,
+        locale: String?,
+    ): Result<User> = api.register(name, email, password, acceptedTerms, phone, locale).mapAndAdopt(email, name)
 
     override suspend fun requestPasswordReset(email: String): Result<Unit> =
         api.requestPasswordReset(email).mapAuthError()
@@ -86,13 +98,13 @@ class EmailPasswordAuthRepository(
         newPassword: String,
     ): Result<PasswordChangeOutcome> {
         val sessao = tokenManager.session.value ?: tokenManager.restore()
-            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
         if (sessao.passwordChangeRequired) {
             // Senha temporária: o servidor só aceita a rota de primeiro acesso.
             return completeFirstAccess(newPassword).map { PasswordChangeOutcome.SessionRenewed(it) }
         }
         val token = tokenManager.accessToken()
-            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
 
         api.changePassword(currentPassword, newPassword, token).onFailure { erro ->
             if (!erro.isAmbiguousTransportFailure()) return Result.failure(erro)
@@ -147,9 +159,9 @@ class EmailPasswordAuthRepository(
 
     override suspend fun completeFirstAccess(newPassword: String): Result<User> {
         val sessao = tokenManager.session.value ?: tokenManager.restore()
-            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
         val token = tokenManager.accessToken()
-            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
         return api.firstAccessPasswordChange(newPassword, token).map { tokens ->
             tokenManager.adopt(tokens, email = sessao.email, name = sessao.name, providerId = sessao.providerId)
             tokenManager.session.value?.toUser() ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
@@ -216,7 +228,7 @@ class EmailPasswordAuthRepository(
      */
     override suspend fun signInWithGoogle(idToken: String, accessToken: String?): Result<User> {
         val nonce = pendingNonce
-            ?: return Result.failure(AuthException.UnknownError(texts.socialNonceMissing))
+            ?: return Result.failure(AuthException.UnknownError(t().socialNonceMissing))
         return signInWithSocial(SocialProvider.GOOGLE, idToken, nonce)
     }
 
@@ -234,7 +246,7 @@ class EmailPasswordAuthRepository(
         unsupported("Cadastro own-auth exige aceite de termos — use OwnAuthService.register(...).")
 
     override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> =
-        Result.failure(AuthException.UnknownError(texts.unsupported))
+        Result.failure(AuthException.UnknownError(t().unsupported))
 
     /**
      * Contrato do [IAuthRepository] (2.216.0 — antes falhava como "não suportado"): delega ao
@@ -248,10 +260,10 @@ class EmailPasswordAuthRepository(
         changeOwnPassword(currentPassword, newPassword).map { }.mapAuthError()
 
     override suspend fun deleteAccount(password: String?): Result<Unit> =
-        Result.failure(AuthException.UnknownError(texts.unsupported))
+        Result.failure(AuthException.UnknownError(t().unsupported))
 
     override suspend fun sendEmailVerification(): Result<Unit> =
-        Result.failure(AuthException.UnknownError(texts.unsupported))
+        Result.failure(AuthException.UnknownError(t().unsupported))
 
     // ---- Helpers ---------------------------------------------------------
 

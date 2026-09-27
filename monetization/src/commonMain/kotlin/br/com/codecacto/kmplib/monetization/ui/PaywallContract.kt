@@ -1,5 +1,33 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
+import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_screen_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_header_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_header_subtitle
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_choose_plan
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_subscribe
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_recommended
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_restore
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_restoring
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_usage
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_empty
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_active_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_active_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_renews_at
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_expires_at
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_manage
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_legal_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_auto_renewal
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_disclosure
+import br.com.codecacto.kmplib.generated.resources.kmplib_privacy_policy
+import br.com.codecacto.kmplib.generated.resources.kmplib_terms_of_use
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_help_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_help_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_help_button
+import br.com.codecacto.kmplib.generated.resources.kmplib_back
+import br.com.codecacto.kmplib.generated.resources.kmplib_ok
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 
@@ -95,8 +123,10 @@ sealed interface PaywallAction {
 }
 
 /**
- * Textos do paywall (i18n / customizacao por app). Defaults em pt-BR — apps nascem funcionando;
- * cada app sobrescreve via `stringResource(...)` (mecanismo oficial Compose Resources).
+ * Textos do paywall. Sem `texts`, a tela usa [rememberPaywallTexts] — os recursos da lib no idioma
+ * do aparelho (pt-BR, en, es, pt-PT, 2.219.0). O app troca o que é dele (nome do produto, pitch)
+ * mantendo o resto traduzido: `rememberPaywallTexts().copy(headerTitle = stringResource(…))`.
+ * Os defaults literais desta classe são pt-BR, para uso fora da composição.
  */
 data class PaywallTexts(
     // Topo / cabecalho
@@ -131,4 +161,34 @@ data class PaywallTexts(
     // Acessibilidade / acoes
     val backContentDescription: String = "Voltar",
     val errorDismiss: String = "OK",
+)
+
+/** [PaywallTexts] no idioma do aparelho (2.219.0). O disclosure legal vem traduzido nos 4 idiomas. */
+@Composable
+fun rememberPaywallTexts(): PaywallTexts = PaywallTexts(
+    screenTitle = stringResource(Res.string.kmplib_paywall_screen_title),
+    headerTitle = stringResource(Res.string.kmplib_paywall_header_title),
+    headerSubtitle = stringResource(Res.string.kmplib_paywall_header_subtitle),
+    choosePlanLabel = stringResource(Res.string.kmplib_paywall_choose_plan),
+    ctaSubscribe = stringResource(Res.string.kmplib_paywall_subscribe),
+    recommendedBadge = stringResource(Res.string.kmplib_paywall_recommended),
+    restore = stringResource(Res.string.kmplib_paywall_restore),
+    restoring = stringResource(Res.string.kmplib_paywall_restoring),
+    usageLabel = stringResource(Res.string.kmplib_paywall_usage),
+    emptyPlans = stringResource(Res.string.kmplib_paywall_empty),
+    activeTitle = stringResource(Res.string.kmplib_paywall_active_title),
+    activeDescription = stringResource(Res.string.kmplib_paywall_active_description),
+    renewsAtLabel = stringResource(Res.string.kmplib_paywall_renews_at),
+    expiresAtLabel = stringResource(Res.string.kmplib_paywall_expires_at),
+    manageSubscription = stringResource(Res.string.kmplib_paywall_manage),
+    legalInfoTitle = stringResource(Res.string.kmplib_paywall_legal_title),
+    autoRenewalNotice = stringResource(Res.string.kmplib_paywall_auto_renewal),
+    subscriptionDisclosure = stringResource(Res.string.kmplib_paywall_disclosure),
+    privacyPolicy = stringResource(Res.string.kmplib_privacy_policy),
+    termsOfUse = stringResource(Res.string.kmplib_terms_of_use),
+    needHelpTitle = stringResource(Res.string.kmplib_paywall_help_title),
+    needHelpDescription = stringResource(Res.string.kmplib_paywall_help_description),
+    needHelpButton = stringResource(Res.string.kmplib_paywall_help_button),
+    backContentDescription = stringResource(Res.string.kmplib_back),
+    errorDismiss = stringResource(Res.string.kmplib_ok),
 )

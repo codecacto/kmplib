@@ -23,15 +23,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_offline_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_offline_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_retry
+import org.jetbrains.compose.resources.stringResource
 
 /**
- * Textos do [ErrorState] (i18n; defaults pt-BR). O app injeta traduções sem tocar no componente.
+ * Textos do [ErrorState]. Sem `texts`, o componente usa [rememberErrorStateTexts] — os recursos da lib
+ * no idioma do aparelho (pt-BR, en, es, pt-PT). Os defaults literais desta classe são pt-BR e servem a
+ * quem monta o objeto fora da composição (teste, preview).
  */
 data class ErrorStateTexts(
     val title: String = "Não foi possível carregar",
     val retryButton: String = "Tentar novamente",
     val offlineTitle: String = "Você está sem conexão",
     val offlineMessage: String = "Verifique sua internet e tente novamente.",
+)
+
+/** [ErrorStateTexts] no idioma do aparelho (2.219.0). Para trocar um texto: `.copy(title = …)`. */
+@Composable
+fun rememberErrorStateTexts(): ErrorStateTexts = ErrorStateTexts(
+    title = stringResource(Res.string.kmplib_error_state_title),
+    retryButton = stringResource(Res.string.kmplib_retry),
+    offlineTitle = stringResource(Res.string.kmplib_error_state_offline_title),
+    offlineMessage = stringResource(Res.string.kmplib_error_state_offline_message),
 )
 
 /**
@@ -92,7 +109,7 @@ fun ErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Outlined.ErrorOutline,
-    texts: ErrorStateTexts = ErrorStateTexts(),
+    texts: ErrorStateTexts = rememberErrorStateTexts(),
     title: String = texts.title,
     retryLabel: String = texts.retryButton,
 ) {
@@ -146,7 +163,7 @@ fun ErrorState(
 fun OfflineErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    texts: ErrorStateTexts = ErrorStateTexts(),
+    texts: ErrorStateTexts = rememberErrorStateTexts(),
 ) {
     ErrorState(
         message = texts.offlineMessage,

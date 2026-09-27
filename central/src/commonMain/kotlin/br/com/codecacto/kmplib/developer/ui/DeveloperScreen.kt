@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
+import br.com.codecacto.kmplib.mask.PhoneInputFormat
+import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -108,12 +110,16 @@ fun DeveloperScreen(
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     backgroundColor: Color = MaterialTheme.colorScheme.background,
     cardColor: Color = MaterialTheme.colorScheme.surface,
-    texts: DeveloperTexts = DeveloperTexts(),
+    texts: DeveloperTexts? = null,
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
     bottomBar: @Composable () -> Unit = {},
+    /** Formato do WhatsApp do formulário de contato (2.219.0) — ver `ContactScreen`. */
+    phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
 ) {
+    @Suppress("NAME_SHADOWING")
+    val texts: DeveloperTexts = texts ?: rememberDeveloperTexts(phoneFormat)
     var contact by remember { mutableStateOf(DeveloperContact()) }
     var apps by remember { mutableStateOf<List<DeveloperApp>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -136,6 +142,7 @@ fun DeveloperScreen(
             defaultEmail = defaultEmail,
             defaultWhatsapp = defaultWhatsapp,
             bottomBar = bottomBar,
+            phoneFormat = phoneFormat,
         )
         return
     }

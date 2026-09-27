@@ -310,7 +310,7 @@ fun RegisterScreen(
                                             ) { append(texts.termsText()) }
                                         }
                                         if (termsUrl != null && privacyUrl != null) {
-                                            append(" ${texts.andText()} ")
+                                            append(" ${texts.andText().trim()} ")
                                         }
                                         if (privacyUrl != null) {
                                             withLink(

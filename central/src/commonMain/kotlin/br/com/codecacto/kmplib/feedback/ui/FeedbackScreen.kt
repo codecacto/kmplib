@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.feedback
 
+import br.com.codecacto.kmplib.mask.PhoneInputFormat
+import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import androidx.compose.foundation.background
 import br.com.codecacto.kmplib.ui.components.appKeyboardOptions
 import br.com.codecacto.kmplib.ui.components.FormDefaults
@@ -29,8 +31,6 @@ import br.com.codecacto.kmplib.feedback.FeedbackMotivo
 import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
-import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
-import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
 
@@ -80,18 +80,26 @@ fun FeedbackScreen(
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     backgroundColor: Color = MaterialTheme.colorScheme.background,
     cardColor: Color = MaterialTheme.colorScheme.surface,
-    texts: FeedbackTexts = FeedbackTexts(),
+    texts: FeedbackTexts? = null,
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
     bottomBar: @Composable () -> Unit = {},
+    /**
+     * Formato do WhatsApp (2.219.0). Default: o da região do aparelho — o brasileiro de sempre no
+     * Brasil (11 dígitos com DDD), o internacional E.164 fora dele (`+351 912 345 678`), que é
+     * como o número é enviado. Antes, quem estava fora do Brasil não conseguia enviar o feedback.
+     */
+    phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
     onFeedbackSent: (() -> Unit)? = null
 ) {
+    @Suppress("NAME_SHADOWING")
+    val texts: FeedbackTexts = texts ?: rememberFeedbackTexts(phoneFormat)
     var selectedMotivo by remember { mutableStateOf<FeedbackMotivo?>(null) }
     var mensagem by remember { mutableStateOf("") }
     var nome by remember { mutableStateOf(defaultName.orEmpty()) }
     var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
-    var whatsapp by remember { mutableStateOf(filterPhoneInput(defaultWhatsapp.orEmpty())) }
+    var whatsapp by remember { mutableStateOf(phoneFormat.fromStoredValue(defaultWhatsapp)) }
     var isLoading by remember { mutableStateOf(false) }
     var isSent by remember { mutableStateOf(false) }
     var motivoError by remember { mutableStateOf<String?>(null) }
@@ -122,7 +130,7 @@ fun FeedbackScreen(
         }
         if (!semeouWhatsapp && !defaultWhatsapp.isNullOrBlank()) {
             semeouWhatsapp = true
-            if (whatsapp.isBlank()) whatsapp = filterPhoneInput(defaultWhatsapp)
+            if (whatsapp.isBlank()) whatsapp = phoneFormat.fromStoredValue(defaultWhatsapp)
         }
     }
 
@@ -374,7 +382,7 @@ fun FeedbackScreen(
                 OutlinedTextField(
                     value = whatsapp,
                     onValueChange = {
-                        whatsapp = filterPhoneInput(it)
+                        whatsapp = phoneFormat.filter(it)
                         whatsappError = null
                     },
                     label = { Text(texts.whatsappLabel) },
@@ -383,7 +391,7 @@ fun FeedbackScreen(
                     supportingText = whatsappError?.let { error ->
                         { Text(error, color = MaterialTheme.colorScheme.error) }
                     },
-                    visualTransformation = PhoneVisualTransformation(),
+                    visualTransformation = phoneFormat.visualTransformation,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
@@ -397,7 +405,7 @@ fun FeedbackScreen(
                 val isFormValid = selectedMotivo != null &&
                     mensagem.trim().isNotEmpty() &&
                     (email.trim().isEmpty() || EmailValidator.isValid(email.trim())) &&
-                    whatsapp.length == 11
+                    phoneFormat.isCompleteWhatsapp(whatsapp)
                 Button(
                     onClick = {
                         // Validate
@@ -413,7 +421,7 @@ fun FeedbackScreen(
                             emailError = texts.emailError
                             return@Button
                         }
-                        if (whatsapp.length != 11) {
+                        if (!phoneFormat.isCompleteWhatsapp(whatsapp)) {
                             whatsappError = texts.whatsappError
                             return@Button
                         }
@@ -426,7 +434,7 @@ fun FeedbackScreen(
                                 mensagem = mensagem.trim(),
                                 nome = nome.trim(),
                                 email = email.trim(),
-                                whatsapp = whatsapp.trim()
+                                whatsapp = phoneFormat.toSubmitValue(whatsapp)
                             ).onSuccess {
                                 isLoading = false
                                 isSent = true

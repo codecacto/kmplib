@@ -1,5 +1,10 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_confirm
+import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_ok
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -114,8 +119,8 @@ fun AppAlertDialog(
     message: String,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    confirmText: String = "OK",
-    dismissText: String? = "Cancelar",
+    confirmText: String = stringResource(Res.string.kmplib_ok),
+    dismissText: String? = stringResource(Res.string.kmplib_cancel),
     onConfirm: () -> Unit = onDismiss,
     isLoading: Boolean = false,
     confirmButtonColor: Color = MaterialTheme.colorScheme.primary,
@@ -198,8 +203,8 @@ fun AppInputDialog(
     textFieldLabel: String = "",
     textFieldPlaceholder: String = "",
     textFieldError: String? = null,
-    confirmText: String = "Confirmar",
-    dismissText: String = "Cancelar",
+    confirmText: String = stringResource(Res.string.kmplib_confirm),
+    dismissText: String = stringResource(Res.string.kmplib_cancel),
     onConfirm: () -> Unit,
     isLoading: Boolean = false
 ) {

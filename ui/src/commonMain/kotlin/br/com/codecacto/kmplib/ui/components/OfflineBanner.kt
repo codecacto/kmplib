@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_offline_short
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -39,7 +42,7 @@ import br.com.codecacto.kmplib.core.network.ConnectivityObserver
 fun OfflineBanner(
     isOnline: Boolean,
     modifier: Modifier = Modifier,
-    text: String = "Sem conexão",
+    text: String = stringResource(Res.string.kmplib_offline_short),
     backgroundColor: Color = MaterialTheme.colorScheme.errorContainer,
     contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
 ) {
@@ -92,7 +95,7 @@ fun OfflineBanner(
 fun OfflineBanner(
     observer: ConnectivityObserver,
     modifier: Modifier = Modifier,
-    text: String = "Sem conexão",
+    text: String = stringResource(Res.string.kmplib_offline_short),
     backgroundColor: Color = MaterialTheme.colorScheme.errorContainer,
     contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
 ) {

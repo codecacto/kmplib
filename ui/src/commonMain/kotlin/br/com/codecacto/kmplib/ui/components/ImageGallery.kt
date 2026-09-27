@@ -1,5 +1,10 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_upload_failed
+import br.com.codecacto.kmplib.generated.resources.kmplib_uploaded
+import br.com.codecacto.kmplib.generated.resources.kmplib_selected
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -208,7 +213,7 @@ private fun GalleryCell(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Error,
-                        contentDescription = "Falha no envio",
+                        contentDescription = stringResource(Res.string.kmplib_upload_failed),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -216,7 +221,7 @@ private fun GalleryCell(
             GalleryItemStatus.UPLOADED -> {
                 Icon(
                     imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = "Enviado",
+                    contentDescription = stringResource(Res.string.kmplib_uploaded),
                     tint = AppColors.current.success,
                     modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
                 )
@@ -232,7 +237,7 @@ private fun GalleryCell(
             ) {
                 Icon(
                     imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = "Selecionada",
+                    contentDescription = stringResource(Res.string.kmplib_selected),
                     tint = accent,
                     modifier = Modifier.size(28.dp),
                 )

@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
+import br.com.codecacto.kmplib.ui.screens.feedback.isCompleteWhatsapp
+import br.com.codecacto.kmplib.mask.PhoneInputFormat
+import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import androidx.compose.foundation.background
 import br.com.codecacto.kmplib.ui.components.appKeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -47,8 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
-import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
-import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
 
@@ -80,16 +81,23 @@ fun ContactScreen(
     onBack: () -> Unit,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     backgroundColor: Color = MaterialTheme.colorScheme.background,
-    texts: ContactTexts = ContactTexts(),
+    texts: ContactTexts? = null,
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
     bottomBar: @Composable () -> Unit = {},
+    /**
+     * Formato do WhatsApp (2.219.0). Default: o da região do aparelho — brasileiro no Brasil,
+     * internacional E.164 fora dele (é como o número é enviado).
+     */
+    phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
     onSent: (() -> Unit)? = null,
 ) {
+    @Suppress("NAME_SHADOWING")
+    val texts: ContactTexts = texts ?: rememberContactTexts(phoneFormat)
     var name by remember { mutableStateOf(defaultName.orEmpty()) }
     var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
-    var whatsapp by remember { mutableStateOf(filterPhoneInput(defaultWhatsapp.orEmpty())) }
+    var whatsapp by remember { mutableStateOf(phoneFormat.fromStoredValue(defaultWhatsapp)) }
     var subject by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -239,14 +247,14 @@ fun ContactScreen(
                     // WhatsApp (opcional, mascarado)
                     OutlinedTextField(
                         value = whatsapp,
-                        onValueChange = { whatsapp = filterPhoneInput(it); whatsappError = null },
+                        onValueChange = { whatsapp = phoneFormat.filter(it); whatsappError = null },
                         label = { Text(texts.whatsappLabel) },
                         placeholder = { Text(texts.whatsappPlaceholder) },
                         isError = whatsappError != null,
                         supportingText = whatsappError?.let { error ->
                             { Text(error, color = MaterialTheme.colorScheme.error) }
                         },
-                        visualTransformation = PhoneVisualTransformation(),
+                        visualTransformation = phoneFormat.visualTransformation,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
@@ -290,13 +298,13 @@ fun ContactScreen(
                     val isFormValid = name.trim().isNotEmpty() &&
                         EmailValidator.isValid(email.trim()) &&
                         message.trim().isNotEmpty() &&
-                        (whatsapp.isEmpty() || whatsapp.length == 11)
+                        (whatsapp.isEmpty() || phoneFormat.isCompleteWhatsapp(whatsapp))
 
                     Button(
                         onClick = {
                             if (name.trim().isEmpty()) { nameError = texts.nameError; return@Button }
                             if (!EmailValidator.isValid(email.trim())) { emailError = texts.emailError; return@Button }
-                            if (whatsapp.isNotEmpty() && whatsapp.length != 11) { whatsappError = texts.whatsappError; return@Button }
+                            if (whatsapp.isNotEmpty() && !phoneFormat.isCompleteWhatsapp(whatsapp)) { whatsappError = texts.whatsappError; return@Button }
                             if (message.trim().isEmpty()) { messageError = texts.messageError; return@Button }
 
                             scope.launch {
@@ -305,7 +313,7 @@ fun ContactScreen(
                                     name = name.trim(),
                                     email = email.trim(),
                                     message = message.trim(),
-                                    whatsapp = whatsapp.trim(),
+                                    whatsapp = if (whatsapp.isEmpty()) "" else phoneFormat.toSubmitValue(whatsapp),
                                     subject = subject.trim(),
                                 ).onSuccess {
                                     isLoading = false

@@ -11,6 +11,16 @@ import br.com.codecacto.kmplib.core.network.createHttpClient
 import br.com.codecacto.kmplib.core.storage.BlobStore
 import br.com.codecacto.kmplib.core.storage.createBlobStore
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_loading
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_retry
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_network
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_not_found
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_corrupted
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_io
+import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_page_indicator
+import br.com.codecacto.kmplib.ui.locale.formatTwoNumberTemplate
+import org.jetbrains.compose.resources.stringResource
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsBytes
@@ -60,6 +70,36 @@ data class PdfViewerTexts(
         PdfViewerError.NotFound -> errorNotFound
         PdfViewerError.Corrupted -> errorCorrupted
         PdfViewerError.Io -> errorIo
+    }
+}
+
+/**
+ * [PdfViewerTexts] no idioma do aparelho (pt-BR, en, es, pt-PT) — o default de
+ * [rememberPdfViewerState] desde a 2.219.0.
+ *
+ * Lembrado pelas próprias frases: o objeto é CHAVE do `remember` do estado, e um objeto novo a cada
+ * recomposição (o `pageIndicator` é lambda, e lambda nova nunca é igual à anterior) recriaria o
+ * estado — e recarregaria o documento — a cada quadro.
+ */
+@Composable
+fun rememberPdfViewerTexts(): PdfViewerTexts {
+    val carregando = stringResource(Res.string.kmplib_pdf_loading)
+    val tentar = stringResource(Res.string.kmplib_pdf_retry)
+    val rede = stringResource(Res.string.kmplib_pdf_error_network)
+    val naoEncontrado = stringResource(Res.string.kmplib_pdf_error_not_found)
+    val corrompido = stringResource(Res.string.kmplib_pdf_error_corrupted)
+    val io = stringResource(Res.string.kmplib_pdf_error_io)
+    val pagina = stringResource(Res.string.kmplib_pdf_page_indicator)
+    return remember(carregando, tentar, rede, naoEncontrado, corrompido, io, pagina) {
+        PdfViewerTexts(
+            loading = carregando,
+            retry = tentar,
+            errorNetwork = rede,
+            errorNotFound = naoEncontrado,
+            errorCorrupted = corrompido,
+            errorIo = io,
+            pageIndicator = { atual, total -> formatTwoNumberTemplate(pagina, atual, total) },
+        )
     }
 }
 
@@ -123,7 +163,7 @@ class PdfViewerState internal constructor(
 @Composable
 fun rememberPdfViewerState(
     source: PdfSource?,
-    texts: PdfViewerTexts = PdfViewerTexts(),
+    texts: PdfViewerTexts = rememberPdfViewerTexts(),
     httpClient: HttpClient? = null,
     cache: BlobStore? = null,
 ): PdfViewerState {

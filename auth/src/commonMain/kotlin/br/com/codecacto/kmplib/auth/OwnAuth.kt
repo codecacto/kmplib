@@ -68,6 +68,6 @@ fun ownAuth(
     val api = OwnAuthApi(config)
     val sessionStore = AuthSessionStore(storage)
     val tokenManager = OwnAuthTokenManager(api, sessionStore, config.refreshSkewSeconds)
-    val repository = EmailPasswordAuthRepository(api, tokenManager, config.texts)
+    val repository = EmailPasswordAuthRepository(api, tokenManager, config.customTexts)
     return OwnAuth(api, tokenManager, repository)
 }

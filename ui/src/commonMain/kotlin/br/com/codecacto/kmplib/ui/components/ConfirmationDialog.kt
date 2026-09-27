@@ -1,5 +1,10 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_confirm
+import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_ok
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -39,8 +44,8 @@ fun ConfirmationDialog(
     show: Boolean,
     title: String,
     message: String,
-    confirmText: String = "Confirmar",
-    cancelText: String? = "Cancelar",
+    confirmText: String = stringResource(Res.string.kmplib_confirm),
+    cancelText: String? = stringResource(Res.string.kmplib_cancel),
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -245,8 +250,8 @@ fun InputDialog(
     textFieldLabel: String? = null,
     textFieldPlaceholder: String? = null,
     textFieldError: String? = null,
-    confirmText: String = "OK",
-    cancelText: String = "Cancelar",
+    confirmText: String = stringResource(Res.string.kmplib_ok),
+    cancelText: String = stringResource(Res.string.kmplib_cancel),
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,

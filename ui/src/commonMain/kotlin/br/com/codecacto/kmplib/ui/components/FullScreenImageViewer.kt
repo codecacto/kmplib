@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_close
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -209,7 +212,7 @@ fun FullScreenImageViewer(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Fechar"
+                    contentDescription = stringResource(Res.string.kmplib_close)
                 )
             }
         }
@@ -326,7 +329,7 @@ fun FullScreenGallery(
                     contentColor = Color.White,
                 ),
             ) {
-                Icon(imageVector = Icons.Default.Close, contentDescription = "Fechar")
+                Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(Res.string.kmplib_close))
             }
         }
     }

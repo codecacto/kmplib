@@ -19,6 +19,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_confirm
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_greeting
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_new_password
+import br.com.codecacto.kmplib.generated.resources.kmplib_first_access_repeat_password
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_required
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_same_as_temporary
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_min_length
+import br.com.codecacto.kmplib.generated.resources.kmplib_password_mismatch
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * **Primeiro acesso: o diálogo que não fecha.**
@@ -45,6 +57,8 @@ import androidx.compose.ui.semantics.testTag
  *   permitiria.
  * @param errorMessage mensagem devolvida pelo servidor na última tentativa; some quando a pessoa
  *   digita de novo (quem controla é o chamador).
+ * @param texts rótulos, saudação e erros de campo (2.219.0). Default: idioma do aparelho.
+ *   [title]/[description]/[confirmLabel] seguem como parâmetros próprios, como antes.
  */
 @Composable
 fun ForcePasswordChangeDialog(
@@ -56,23 +70,23 @@ fun ForcePasswordChangeDialog(
     temporaryPassword: String = TEMPORARY_PASSWORD,
     isLoading: Boolean = false,
     errorMessage: String? = null,
-    title: String = "Defina a sua senha",
-    description: String =
-        "Sua conta foi criada com uma senha provisória. Escolha uma senha só sua para continuar.",
-    confirmLabel: String = "Salvar e continuar",
+    title: String = stringResource(Res.string.kmplib_first_access_title),
+    description: String = stringResource(Res.string.kmplib_first_access_description),
+    confirmLabel: String = stringResource(Res.string.kmplib_first_access_confirm),
+    texts: ForcePasswordChangeTexts = rememberForcePasswordChangeTexts(),
 ) {
     var senha by remember { mutableStateOf("") }
     var confirmacao by remember { mutableStateOf("") }
     var enviado by remember { mutableStateOf(false) }
 
     val erroSenha = when {
-        senha.isBlank() -> "A senha é obrigatória"
-        senha == temporaryPassword -> "Escolha uma senha diferente da temporária"
-        senha.length < minLength -> "A senha deve ter ao menos $minLength caracteres"
+        senha.isBlank() -> texts.passwordRequired
+        senha == temporaryPassword -> texts.sameAsTemporary
+        senha.length < minLength -> texts.minLength(minLength)
         else -> null
     }
     val erroConfirmacao =
-        if (confirmacao.isNotEmpty() && senha != confirmacao) "As senhas não conferem" else null
+        if (confirmacao.isNotEmpty() && senha != confirmacao) texts.passwordMismatch else null
 
     AppDialog(
         show = show,
@@ -88,7 +102,7 @@ fun ForcePasswordChangeDialog(
     ) {
         Text(
             text = userName?.trim()?.takeIf { it.isNotEmpty() }
-                ?.let { "Olá, ${it.substringBefore(' ')}!" }
+                ?.let { texts.greeting(it.substringBefore(' ')) }
                 ?: title,
             style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center,
@@ -110,7 +124,7 @@ fun ForcePasswordChangeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { testTag = TAG_NOVA_SENHA },
-                label = "Nova senha",
+                label = texts.newPasswordLabel,
                 isPassword = true,
                 imeAction = ImeAction.Next,
                 // Vermelho só DEPOIS do envio — marcar enquanto a pessoa digita é ruído.
@@ -122,7 +136,7 @@ fun ForcePasswordChangeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { testTag = TAG_CONFIRMACAO },
-                label = "Repita a nova senha",
+                label = texts.repeatPasswordLabel,
                 isPassword = true,
                 imeAction = ImeAction.Done,
                 errorMessage = if (enviado) erroConfirmacao else null,
@@ -162,6 +176,38 @@ fun ForcePasswordChangeDialog(
             }
         }
     }
+}
+
+/**
+ * Textos do [ForcePasswordChangeDialog] além de título/descrição/botão (2.219.0 — antes, pt-BR fixo).
+ * Os defaults literais são pt-BR; na tela use [rememberForcePasswordChangeTexts].
+ */
+data class ForcePasswordChangeTexts(
+    val newPasswordLabel: String = "Nova senha",
+    val repeatPasswordLabel: String = "Repita a nova senha",
+    /** Título quando há nome: recebe o PRIMEIRO nome. */
+    val greeting: (firstName: String) -> String = { nome -> "Olá, $nome!" },
+    val passwordRequired: String = "A senha é obrigatória",
+    val sameAsTemporary: String = "Escolha uma senha diferente da temporária",
+    val minLength: (min: Int) -> String = { min -> "A senha deve ter ao menos $min caracteres" },
+    val passwordMismatch: String = "As senhas não conferem",
+)
+
+/** [ForcePasswordChangeTexts] no idioma do aparelho (pt-BR, en, es, pt-PT). */
+@Composable
+fun rememberForcePasswordChangeTexts(): ForcePasswordChangeTexts {
+    // Modelos lidos sem argumento (com `%1$s`/`%1$d`) e preenchidos no lambda.
+    val saudacao = stringResource(Res.string.kmplib_first_access_greeting)
+    val minimo = stringResource(Res.string.kmplib_password_min_length)
+    return ForcePasswordChangeTexts(
+        newPasswordLabel = stringResource(Res.string.kmplib_first_access_new_password),
+        repeatPasswordLabel = stringResource(Res.string.kmplib_first_access_repeat_password),
+        greeting = { nome -> saudacao.replace("%1\$s", nome) },
+        passwordRequired = stringResource(Res.string.kmplib_password_required),
+        sameAsTemporary = stringResource(Res.string.kmplib_password_same_as_temporary),
+        minLength = { min -> minimo.replace("%1\$d", min.toString()) },
+        passwordMismatch = stringResource(Res.string.kmplib_password_mismatch),
+    )
 }
 
 /** Tags de teste — o E2E precisa alcançar os campos sem depender do texto exibido. */

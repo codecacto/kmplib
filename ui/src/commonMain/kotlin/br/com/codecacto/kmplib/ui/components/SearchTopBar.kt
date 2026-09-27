@@ -41,9 +41,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_back
+import br.com.codecacto.kmplib.generated.resources.kmplib_filters
+import br.com.codecacto.kmplib.generated.resources.kmplib_menu
+import br.com.codecacto.kmplib.generated.resources.kmplib_search
+import br.com.codecacto.kmplib.generated.resources.kmplib_search_clear
+import br.com.codecacto.kmplib.generated.resources.kmplib_search_close
+import org.jetbrains.compose.resources.stringResource
 
 /**
- * Textos do [SearchTopBar] (i18n; defaults pt-BR).
+ * Textos do [SearchTopBar]. Sem `texts`, o componente usa [rememberSearchTopBarTexts] (idioma do
+ * aparelho: pt-BR, en, es, pt-PT); os defaults literais são pt-BR, para uso fora da composição.
  */
 data class SearchTopBarTexts(
     val searchPlaceholder: String = "Buscar",
@@ -51,6 +60,22 @@ data class SearchTopBarTexts(
     val closeSearchDescription: String = "Fechar busca",
     val clearQueryDescription: String = "Limpar busca",
     val filterDescription: String = "Filtros",
+    /** Leitor de tela do ícone de voltar ([NavigationType.BACK]) — 2.219.0; era "Voltar" fixo. */
+    val backDescription: String = "Voltar",
+    /** Leitor de tela do ícone de menu ([NavigationType.MENU]) — 2.219.0; era "Menu" fixo. */
+    val menuDescription: String = "Menu",
+)
+
+/** [SearchTopBarTexts] no idioma do aparelho (2.219.0). */
+@Composable
+fun rememberSearchTopBarTexts(): SearchTopBarTexts = SearchTopBarTexts(
+    searchPlaceholder = stringResource(Res.string.kmplib_search),
+    openSearchDescription = stringResource(Res.string.kmplib_search),
+    closeSearchDescription = stringResource(Res.string.kmplib_search_close),
+    clearQueryDescription = stringResource(Res.string.kmplib_search_clear),
+    filterDescription = stringResource(Res.string.kmplib_filters),
+    backDescription = stringResource(Res.string.kmplib_back),
+    menuDescription = stringResource(Res.string.kmplib_menu),
 )
 
 /**
@@ -168,7 +193,7 @@ fun SearchTopBar(
     onNavigationClick: () -> Unit = {},
     filter: FilterAction? = null,
     actions: @Composable RowScope.() -> Unit = {},
-    texts: SearchTopBarTexts = SearchTopBarTexts(),
+    texts: SearchTopBarTexts = rememberSearchTopBarTexts(),
     backgroundColor: Color = MaterialTheme.colorScheme.surface,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     onSearchClosed: () -> Unit = {},
@@ -239,11 +264,11 @@ fun SearchTopBar(
                 }
 
                 navigationType == NavigationType.BACK -> IconButton(onClick = onNavigationClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = texts.backDescription)
                 }
 
                 navigationType == NavigationType.MENU -> IconButton(onClick = onNavigationClick) {
-                    Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    Icon(Icons.Default.Menu, contentDescription = texts.menuDescription)
                 }
 
                 else -> Unit
@@ -276,7 +301,7 @@ fun SearchTopBar(
 @Composable
 fun FilterIconButton(
     filter: FilterAction,
-    contentDescription: String = "Filtros",
+    contentDescription: String = stringResource(Res.string.kmplib_filters),
     modifier: Modifier = Modifier,
 ) {
     val badge = filterBadgeLabel(filter.activeCount)

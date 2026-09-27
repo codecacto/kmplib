@@ -81,6 +81,11 @@ fun createHttpClient(
         }
     }
 
+    // Idioma da tela + fuso do aparelho, para o servidor responder no idioma e no relógio certos.
+    if (options.sendLocaleHeaders) {
+        install(DeviceLocaleHeaders)
+    }
+
     configure()
 }
 
@@ -146,6 +151,10 @@ fun createHttpClient(
  * @property installJsonContentNegotiation instala `ContentNegotiation` JSON (default `false` —
  *   os serviços da kmplib usam Ktor core puro; ligar em apps que fazem REST de domínio tipado).
  * @property json [Json] usado pelo `ContentNegotiation` (default [DefaultHttpClientJson]).
+ * @property sendLocaleHeaders instala o [DeviceLocaleHeaders] (2.219.0): `Accept-Language` com o
+ *   idioma da tela e `X-Time-Zone` com o fuso IANA do aparelho em toda requisição. **Default
+ *   `false`** para não mudar a resposta de servidor que já existe; app global liga (a `casca-mobile`
+ *   já nasce com ele). Para configurar hosts/idiomas, instale o plugin no bloco `configure`.
  */
 data class HttpClientOptions(
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
@@ -156,6 +165,7 @@ data class HttpClientOptions(
     val installContentEncoding: Boolean = true,
     val installJsonContentNegotiation: Boolean = false,
     val json: Json = DefaultHttpClientJson,
+    val sendLocaleHeaders: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_REQUEST_TIMEOUT_MILLIS: Long = 30_000

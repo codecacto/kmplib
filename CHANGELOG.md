@@ -1,5 +1,107 @@
 # Changelog — kmplib
 
+## 2.219.0 — app GLOBAL: telas da lib nos 4 idiomas da fábrica, idioma/região/formatos do aparelho, `Accept-Language` + `X-Time-Zone`, telefone internacional (E.164), `locale` no cadastro
+
+Minor, **aditiva**. Em aparelho brasileiro (pt-BR, região BR) **nada muda na tela** — os textos pt-BR
+dos recursos são os mesmos dos defaults de antes (travado por teste de paridade). Primeiro consumidor:
+QueiMap, que tinha contornado tudo isto no app (`LibTexts.kt`, `PlatformLocale.*`, `DateField`,
+`HttpClientFactory`). Regra da casa mantida: **o app segue o idioma do DISPOSITIVO**, pelos Compose
+Resources oficiais — sem seletor, sem `LocalComposeEnvironment`.
+
+### 1. Telas e componentes da lib no idioma do aparelho (pt-BR · en · es · pt-PT)
+196 strings novas em `kmplib-ui/composeResources` (`values`, `values-en`, `values-es`,
+`values-pt-rPT`), prefixo `kmplib_`. Onde o app **não** passa texto, a lib agora lê o recurso:
+- **Login/Cadastro**: os defaults das lambdas de `LoginTexts`/`RegisterTexts` viraram
+  `stringResource` — `LoginTexts(title = { … })` mantém o resto traduzido. `LoginTexts.andText`
+  (novo; era `" e "` fixo). Placeholder de telefone do cadastro continua o formato BR (a máscara
+  default é a BR).
+- **Primeiro acesso**: `ForcePasswordChangeDialog` — título/descrição/botão com default do recurso
+  e `texts: ForcePasswordChangeTexts = rememberForcePasswordChangeTexts()` (rótulos, saudação, erros
+  de campo; eram pt fixos).
+- **Feedback / Desenvolvido por / Contato**: `rememberFeedbackTexts()`, `rememberDeveloperTexts()`,
+  `rememberContactTexts()`; `texts` das três telas virou `FeedbackTexts? = null` (etc.) — passar o
+  objeto continua igual.
+- **Paywall**: `rememberPaywallTexts()` (disclosure legal traduzido nos 4), data de renovação no
+  formato da região, `UsageMeter`/`UsageBadge` ("Ilimitado", "3 de 10"); nomes de plano
+  `PaywallPlanLabels` + `loadPaywallPlanLabels()`/`rememberPaywallPlanLabels()` (passe
+  `rotulos::planName`/`rotulos::durationLabel` aos mapeadores).
+- **PDF**: `rememberPdfViewerTexts()` (default de `rememberPdfViewerState`; lembrado pelas frases —
+  objeto novo a cada quadro recarregaria o documento). `kmplib-pdf` passou a depender de `kmplib-ui`
+  (`implementation`).
+- **Componentes**: `rememberErrorStateTexts()`, `rememberSearchTopBarTexts()` (+ `backDescription`/
+  `menuDescription`, eram "Voltar"/"Menu" fixos), `rememberConnectivityTexts()`,
+  `rememberMaintenanceTexts()`, `rememberAppLockTexts()`; `AppPickerField` (`searchPlaceholder` +
+  `noResultsText` novo), `AppDatePicker`/`AppDatePickerDialog`, `ConfirmationDialog`, `AppAlertDialog`,
+  `AppInputDialog`, `NoInternetDialog`, `OfflineBanner`, `PhotoStrip`; contentDescriptions de
+  `AppTextField` (mostrar/ocultar senha), `FullScreenImageViewer`, `ImageGallery`, `NotificationBadge`,
+  `FilterIconButton`.
+- **Fora da composição** (camada de dados): `loadOwnAuthTexts()`, `loadDomainApiTexts()`,
+  `loadPurchaseErrorTexts()`/`rememberPurchaseErrorTexts()`. Leitura que falha (teste de JVM) devolve
+  os defaults pt-BR — mensagem de erro nunca vira outro erro.
+- **own-auth traduzido por default**: `OwnAuthConfig(texts = null)` (default) lê as mensagens da lib
+  no idioma da tela **a cada erro**; passando `texts`, vale o do app, como antes.
+  `OwnAuthConfig.texts` continua não-nulo. `EmailPasswordAuthRepository(texts: OwnAuthTexts? = null)`.
+- **`DomainApiClient(…, textsProvider = { loadDomainApiTexts() })`** — parâmetro novo; sem ele, os
+  textos fixos de sempre (o `core` não carrega Compose). Provedor que falha cai nos fixos.
+- **`AppDatePicker`**: sem `placeholder`/`formatDate`, a data sai no formato da **região**
+  (`27/09/2026` BR, `09/27/2026` US) e o placeholder mostra esse formato (`dd/mm/aaaa`,
+  `mm/dd/yyyy`). Quem quer o `dd/MM/yyyy` fixo passa `formatDate = ::formatDateBr`.
+
+### 2. `locale` no cadastro (par da backlib 0.134.0)
+`OwnAuthApi.register(…, locale: String? = null)` e `OwnAuthService.register(…, phone, locale)` (overload
+novo, com implementação default que ignora o idioma — dublê de teste não quebra). `null` não manda o
+campo: servidor anterior à 0.134.0 recebe o corpo de sempre. Passe `appLanguageTag()`.
+
+### 3. Idioma, região e formatos (`kmplib-core`, pacote `core.locale`) — APIs oficiais de cada plataforma
+- `FactoryLocales` (`PT_BR`/`EN`/`ES`/`PT_PT`/`ALL`, **`match(tag)`** = a mesma escolha de pasta do
+  compose-resources), `deviceLanguageTag()`, `deviceLanguage()`, **`appLanguageTag()`** (idioma da
+  tela), `splitLanguageTag`. No `kmplib-ui`: **`uiLanguageTag()`** (lê o recurso da pasta escolhida).
+- **`RegionalFormat`**: `decimalSeparator`, `groupingSeparator`, `formatNumber`, `formatInteger`,
+  `formatPercent`, `formatDate(LocalDate)`, `formatDateTime`, `formatTime`, `datePattern`,
+  `datePlaceholder`; `DateSkeletons` (esqueletos CLDR); `placeholderFromDatePattern`. Android:
+  `java.text` + `DateFormat.getBestDateTimePattern`; iOS: `NSNumberFormatter` +
+  `NSDateFormatter.setLocalizedDateFormatFromTemplate`. HALF_UP nas duas.
+- **`Countries`**: `all(languageTag)` (ISO 3166-1, nome traduzido pelo CLDR do sistema, ordem
+  alfabética do idioma), `name(code)`, `search(query)`; `Country(code, name).flag`,
+  `countryFlagEmoji`, `isIsoCountryCode`. A região do aparelho continua em `deviceRegion()`
+  (`kmplib-platform`).
+- **`DeviceLocaleHeaders`** (plugin Ktor): `Accept-Language` = idioma da tela, `X-Time-Zone` = fuso
+  IANA, lidos **a cada requisição**, sem sobrescrever o que a chamada já definiu; `onlyHosts` para não
+  contar o fuso a terceiros. **`HttpClientOptions(sendLocaleHeaders = true)`** — opt-in (default
+  `false`, para não mudar a resposta de servidor existente). A casca já nasce ligada.
+
+### 4. Telefone internacional (E.164), com o BR intacto
+- `kmplib-core`: **`InternationalPhone`** — `callingCodeFor(region)`, `regionsFor(ddi)`,
+  `filterInput`, `parse(input, defaultRegion): PhoneNumberParts?`, `toE164`, `isValid`, `format`,
+  `formatAsYouType`. Plano de numeração (DDI + comprimento do número nacional + prefixo de tronco)
+  de 245 regiões **gerado dos metadados do libphonenumber** (Google, Apache 2.0) —
+  `core/tools/GeneratePhoneRegionData.java`. `+55` usa a regra completa do `PhoneValidator`.
+  Não valida o plano fino de cada país (isso exigiria o libphonenumber inteiro no app; é do servidor).
+- `kmplib-mask`: **`PhoneInputFormat.forRegion(region)`** (BR/nulo/desconhecida → o caminho BR de
+  sempre; demais → E.164): `filter`, `visualTransformation`, `isValid`, `toSubmitValue`,
+  `fromStoredValue`; `InternationalPhoneVisualTransformation`, `filterInternationalPhoneInput`.
+- `kmplib-ui`: `rememberDevicePhoneInputFormat()`, `rememberPhonePlaceholder(format)`.
+- **`FeedbackScreen`/`ContactScreen`/`DeveloperScreen`**: `phoneFormat` novo (default: região do
+  aparelho). **Conserto:** fora do Brasil o feedback exigia "WhatsApp com 11 dígitos" e **não havia
+  como enviar**; agora vale o número do país e ele sobe em E.164. No Brasil, igual.
+
+### Testes
++67 testes (suíte do Android host: 2.874 testes, 15 ignorados, 0 falha): `AppLocaleTest`, `RegionalFormatTest`,
+`CountriesTest`, `InternationalPhoneTest`, `DeviceLocaleHeadersTest`, `DomainApiClientTextsTest`
+(core); `PhoneInputFormatTest` (mask); `LibStringResourcesParityTest` (as 4 pastas com as mesmas
+chaves e os mesmos argumentos), `UiPtResourceParityTest`, `UiLocaleTest`, `LoaderFallbackTest` (ui);
+`OwnAuthLocaleTest`, `OwnAuthPtResourceParityTest` (auth); `PaywallPlanLabelsTest`,
+`MonetizationPtResourceParityTest` (monetization); `WhatsappCompletenessTest` (central).
+`compileKotlinIosArm64` e `compileDebugKotlinAndroid` dos 24 módulos compilados no Linux (nenhum
+`SKIPPED`). Em teste de JVM os recursos não carregam (`Resources.getSystem()` nulo), por isso o
+conteúdo das traduções é travado lendo os XML (`*ParityTest`) e os leitores são testados no fallback.
+
+### Migração (opcional — nada quebra)
+- App que montava `*Texts` só para traduzir: pode apagar e deixar o default; para trocar uma frase,
+  `remember…Texts().copy(…)`.
+- App global: `createHttpClient(HttpClientOptions(sendLocaleHeaders = true))`,
+  `DomainApiClient(…, textsProvider = { loadDomainApiTexts() })`, `register(…, locale = appLanguageTag())`.
+
 ## 2.218.2 — `formatAsCurrency` arredonda o centavo e põe o sinal antes do "R$"
 
 Patch, sem mudança de API. **Correção de valor em dinheiro exibido** (com aviso).

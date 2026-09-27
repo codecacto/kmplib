@@ -1,5 +1,16 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
+import androidx.compose.runtime.Composable
+import kotlinx.coroutines.CancellationException
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_plan_monthly
+import br.com.codecacto.kmplib.generated.resources.kmplib_plan_semiannual
+import br.com.codecacto.kmplib.generated.resources.kmplib_plan_yearly
+import br.com.codecacto.kmplib.generated.resources.kmplib_duration_one_month
+import br.com.codecacto.kmplib.generated.resources.kmplib_duration_one_year
+import br.com.codecacto.kmplib.generated.resources.kmplib_duration_months
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
 import br.com.codecacto.kmplib.monetization.entitlement.PlanInterval
 import br.com.codecacto.kmplib.monetization.entitlement.isPaidPlan
@@ -275,3 +286,67 @@ fun defaultPlanName(durationMonths: Int): String = when (PlanInterval.fromDurati
     PlanInterval.Yearly -> "Anual"
     null -> "$durationMonths meses"
 }
+
+/**
+ * Nomes e rótulos de duração dos planos no **idioma da tela** (2.219.0) — o que [defaultPlanName] e
+ * [defaultDurationLabel] fazem em pt-BR fixo. Passe as funções aos mapeadores:
+ *
+ * ```kotlin
+ * val rotulos = loadPaywallPlanLabels()           // no ViewModel (suspend)
+ * packages.toPaywallPlansFromStore(planName = rotulos::planName, durationLabel = rotulos::durationLabel)
+ * ```
+ */
+data class PaywallPlanLabels(
+    val monthly: String = "Mensal",
+    val semiAnnual: String = "Semestral",
+    val yearly: String = "Anual",
+    val oneMonth: String = "1 mês",
+    val oneYear: String = "1 ano",
+    /** Modelo com `%1$d` = número de meses ("6 meses"). */
+    val monthsTemplate: String = "%1\$d meses",
+) {
+    /** Nome do card: Mensal / Semestral / Anual; fora dos 3, "N meses". */
+    fun planName(durationMonths: Int): String = when (PlanInterval.fromDurationMonths(durationMonths)) {
+        PlanInterval.Monthly -> monthly
+        PlanInterval.SemiAnnual -> semiAnnual
+        PlanInterval.Yearly -> yearly
+        null -> months(durationMonths)
+    }
+
+    /** Rótulo de duração: "1 mês", "1 ano", "N meses". */
+    fun durationLabel(durationMonths: Int): String = when (durationMonths) {
+        1 -> oneMonth
+        12 -> oneYear
+        else -> months(durationMonths)
+    }
+
+    private fun months(n: Int): String = monthsTemplate.replace("%1\$d", n.toString())
+}
+
+/** [PaywallPlanLabels] no idioma da tela, lido dos recursos da lib. Falha de leitura → pt-BR. */
+suspend fun loadPaywallPlanLabels(): PaywallPlanLabels =
+    try {
+        PaywallPlanLabels(
+            monthly = getString(Res.string.kmplib_plan_monthly),
+            semiAnnual = getString(Res.string.kmplib_plan_semiannual),
+            yearly = getString(Res.string.kmplib_plan_yearly),
+            oneMonth = getString(Res.string.kmplib_duration_one_month),
+            oneYear = getString(Res.string.kmplib_duration_one_year),
+            monthsTemplate = getString(Res.string.kmplib_duration_months),
+        )
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        PaywallPlanLabels()
+    }
+
+/** [PaywallPlanLabels] no idioma do aparelho, para quem monta os planos na composição. */
+@Composable
+fun rememberPaywallPlanLabels(): PaywallPlanLabels = PaywallPlanLabels(
+    monthly = stringResource(Res.string.kmplib_plan_monthly),
+    semiAnnual = stringResource(Res.string.kmplib_plan_semiannual),
+    yearly = stringResource(Res.string.kmplib_plan_yearly),
+    oneMonth = stringResource(Res.string.kmplib_duration_one_month),
+    oneYear = stringResource(Res.string.kmplib_duration_one_year),
+    monthsTemplate = stringResource(Res.string.kmplib_duration_months),
+)

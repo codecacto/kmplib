@@ -1,5 +1,10 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_offline_short
+import br.com.codecacto.kmplib.generated.resources.kmplib_no_internet_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_got_it
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,9 +41,9 @@ import androidx.compose.ui.window.Dialog
 @Composable
 fun NoInternetDialog(
     onDismiss: () -> Unit,
-    title: String = "Sem conexão",
-    message: String = "Verifique sua conexão com a internet e tente novamente.",
-    buttonText: String = "Entendi",
+    title: String = stringResource(Res.string.kmplib_offline_short),
+    message: String = stringResource(Res.string.kmplib_no_internet_message),
+    buttonText: String = stringResource(Res.string.kmplib_got_it),
     iconTint: Color = MaterialTheme.colorScheme.error,
 ) {
     Dialog(onDismissRequest = onDismiss) {

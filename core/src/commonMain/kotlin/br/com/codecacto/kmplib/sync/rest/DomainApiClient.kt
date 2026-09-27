@@ -58,12 +58,19 @@ import kotlinx.serialization.json.jsonObject
  * então um `HttpClient` compartilhado com outros hosts nunca recebe o Bearer de domínio. Passe sempre
  * caminhos **relativos** ([getJson]/[postJson]/...); um caminho absoluto para outro host é rejeitado
  * ([DomainResult.Error] sem token anexado).
+ *
+ * ### Idioma das mensagens locais (2.219.0)
+ * [texts] traz os defaults em pt-BR (este módulo não carrega Compose, e os recursos traduzidos moram
+ * no `kmplib-ui`). App com mais de um idioma passa [textsProvider] — `{ loadDomainApiTexts() }` do
+ * `kmplib-ui` lê os 4 idiomas da fábrica no idioma da tela, **a cada erro** (troca de idioma com o
+ * processo vivo não deixa mensagem velha). Com [textsProvider], [texts] é ignorado.
  */
 class DomainApiClient(
     private val httpClient: HttpClient,
     private val tokenProvider: DomainTokenProvider,
     baseUrl: String,
     private val texts: DomainApiTexts = DomainApiTexts(),
+    private val textsProvider: (suspend () -> DomainApiTexts)? = null,
 ) {
     private val root: String = baseUrl.trimEnd('/')
     private val host: String = runCatching { Url(root).host }.getOrDefault("")
@@ -74,7 +81,21 @@ class DomainApiClient(
         auth: IAuthRepository,
         baseUrl: String,
         texts: DomainApiTexts = DomainApiTexts(),
-    ) : this(httpClient, auth.asDomainTokenProvider(), baseUrl, texts)
+        textsProvider: (suspend () -> DomainApiTexts)? = null,
+    ) : this(httpClient, auth.asDomainTokenProvider(), baseUrl, texts, textsProvider)
+
+    /** Os textos da vez: o do provedor (idioma da tela) ou os fixos. Provedor que falha cai nos fixos. */
+    private suspend fun currentTexts(): DomainApiTexts =
+        textsProvider?.let { provedor ->
+            try {
+                provedor()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "textsProvider falhou; usando os textos fixos: ${e.message}")
+                texts
+            }
+        } ?: texts
 
     private fun url(path: String): String = root + "/" + path.trimStart('/')
 
@@ -335,7 +356,7 @@ class DomainApiClient(
             throw e
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao ler o corpo da resposta: ${e.message}")
-            DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = texts.offline)
+            DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = currentTexts().offline)
         }
         // `Error` e `Quota` não têm corpo a ler — atravessam intactos. O `Quota` é o 402 do
         // paywall, cujo contexto já foi extraído em `classify`; relê-lo aqui consumiria um corpo
@@ -354,7 +375,7 @@ class DomainApiClient(
     ): DomainResult<HttpResponse> {
         if (!sameHost(path)) {
             AppLogger.w(TAG, "Requisição bloqueada: path de outro host ($path) — token não anexado.")
-            return DomainResult.Error(DomainResult.OFFLINE_CODE, texts.offline)
+            return DomainResult.Error(DomainResult.OFFLINE_CODE, currentTexts().offline)
         }
         return try {
             val token = tokenProvider.token(forceRefresh = false)
@@ -372,7 +393,7 @@ class DomainApiClient(
             throw e
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha de transporte em requisição de domínio: ${e.message}")
-            DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = texts.offline)
+            DomainResult.Error(code = DomainResult.OFFLINE_CODE, message = currentTexts().offline)
         }
     }
 
@@ -382,14 +403,14 @@ class DomainApiClient(
             status in 200..299 -> DomainResult.Success(response)
             status == 402 -> {
                 val quota = parseQuotaExceeded(runCatching { response.bodyAsText() }.getOrNull())
-                if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, texts.quotaReached)
+                if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, currentTexts().quotaReached)
             }
             else -> {
                 val envelope = envelopeDeErro(response)
                 val mensagemLocal = when (status) {
-                    429 -> texts.rateLimited
-                    401 -> texts.sessionExpired
-                    else -> texts.serverError(status)
+                    429 -> currentTexts().rateLimited
+                    401 -> currentTexts().sessionExpired
+                    else -> currentTexts().serverError(status)
                 }
                 DomainResult.Error(
                     code = status,
