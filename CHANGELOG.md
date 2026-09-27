@@ -1,5 +1,23 @@
 # Changelog — kmplib
 
+## 2.218.2 — `formatAsCurrency` arredonda o centavo e põe o sinal antes do "R$"
+
+Patch, sem mudança de API. **Correção de valor em dinheiro exibido** (com aviso).
+
+- **`Double.formatAsCurrency`** (`kmplib-mask`) **truncava** em vez de arredondar:
+  `(this * 100).toLong()` fazia `1234567.89` (= `123456788.99999…` centavos em ponto flutuante)
+  sair **"R$ 1.234.567,88"**, e `19.99`/`0.1 + 0.2` perdiam um centavo pelo mesmo motivo. Agora
+  arredonda ao centavo mais próximo, meio centavo para longe do zero (mesma regra do
+  `formatCurrencyBRL` do core).
+- **Negativos**: saía "R$ -1.000,00" e, abaixo de 1 real, texto quebrado ("R$ 0,-50"). Agora
+  **"-R$ 1.000,00"** / **"-R$ 0,50"** — sinal antes do prefixo. Valor que arredonda para zero não
+  leva sinal; `NaN`/infinito desenham zero.
+- **`CurrencyVisualTransformation`**: a parte inteira é agrupada como texto — acima de 19 dígitos a
+  conversão para `Long` estourava e o campo desenhava "R$ 0,xx".
+- `currencyToDouble`/`filterCurrencyInput` conferidos: sem o mesmo defeito (divisão exata de `Long`
+  por 100, entrada só de dígitos).
+- Testes: `CurrencyMaskTest` (arredondamento, negativos, zero, milhares, prefixo vazio, >19 dígitos).
+
 ## 2.218.1 — re-review de segurança de 2.218.0: originais de câmera e cache de fotos privadas saem em todo caminho
 
 Patch, sem mudança de API. Achados de severidade **baixa** (sem aviso).

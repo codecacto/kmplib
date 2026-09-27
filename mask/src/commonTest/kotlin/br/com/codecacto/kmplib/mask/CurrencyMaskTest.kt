@@ -61,11 +61,51 @@ class CurrencyMaskTest {
         assertEquals("R$ 5,05", 5.05.formatAsCurrency())
     }
 
+    // ====== 2.218.2: arredondamento em centavos e sinal ======
+
     @Test
-    fun `formatAsCurrency arredonda valores excedentes via truncamento`() {
-        // 5.555 → (5.555 * 100).toLong() = 555 → "R$ 5,55"
-        // Implementação trunca via toLong()
-        assertEquals("R$ 5,55", 5.555.formatAsCurrency())
+    fun `formatAsCurrency arredonda para o centavo mais proximo em vez de truncar`() {
+        // 1234567.89 * 100 = 123456788.99999… em ponto flutuante: truncar dava ",88".
+        assertEquals("R$ 1.234.567,89", 1234567.89.formatAsCurrency())
+        // 19.99 * 100 = 1998.9999999999998
+        assertEquals("R$ 19,99", 19.99.formatAsCurrency())
+        // 0.1 + 0.2 = 0.30000000000000004
+        assertEquals("R$ 0,30", (0.1 + 0.2).formatAsCurrency())
+        // meio centavo arredonda para longe do zero
+        assertEquals("R$ 0,01", 0.005.formatAsCurrency())
+        assertEquals("R$ 1,00", 0.999.formatAsCurrency())
+        // 5.555 * 100 dá exatamente 555.5 em Double: meio centavo, sobe (truncar dava ",55")
+        assertEquals("R$ 5,56", 5.555.formatAsCurrency())
+    }
+
+    @Test
+    fun `formatAsCurrency poe o sinal de menos antes do prefixo`() {
+        assertEquals("-R$ 1.000,00", (-1000.0).formatAsCurrency())
+        assertEquals("-R$ 0,50", (-0.5).formatAsCurrency())
+        assertEquals("-R$ 0,01", (-0.01).formatAsCurrency())
+        assertEquals("-R$ 1.234.567,89", (-1234567.89).formatAsCurrency())
+        assertEquals("-12,34", (-12.34).formatAsCurrency(prefix = ""))
+    }
+
+    @Test
+    fun `formatAsCurrency nao desenha menos zero`() {
+        assertEquals("R$ 0,00", (-0.0).formatAsCurrency())
+        assertEquals("R$ 0,00", (-0.001).formatAsCurrency())
+    }
+
+    @Test
+    fun `formatAsCurrency desenha zero para valor nao finito`() {
+        assertEquals("R$ 0,00", Double.NaN.formatAsCurrency())
+        assertEquals("R$ 0,00", Double.POSITIVE_INFINITY.formatAsCurrency())
+    }
+
+    @Test
+    fun `formatAsCurrency agrupa milhares em varias ordens`() {
+        assertEquals("R$ 999,99", 999.99.formatAsCurrency())
+        assertEquals("R$ 1.000,00", 1000.0.formatAsCurrency())
+        assertEquals("R$ 12.345,67", 12345.67.formatAsCurrency())
+        assertEquals("R$ 123.456,78", 123456.78.formatAsCurrency())
+        assertEquals("1.234,56", 1234.56.formatAsCurrency(prefix = ""))
     }
 
     @Test
@@ -106,5 +146,14 @@ class CurrencyMaskTest {
         val t = CurrencyVisualTransformation()
         assertEquals("R$ 0,00", desenho(t, ""))
         assertEquals("R$ 1.234,56", desenho(t, "123456"))
+    }
+
+    @Test
+    fun `mascara nao zera a parte inteira quando o campo passa de 19 digitos`() {
+        val t = CurrencyVisualTransformation()
+        assertEquals("R$ 12.345.678.901.234.567.890,12", desenho(t, "1234567890123456789012"))
+        assertEquals("R$ 0,05", desenho(t, "0005"))
+        val inteiros = CurrencyVisualTransformation(decimalPlaces = 0)
+        assertEquals("R$ 12.345.678.901.234.567.890", desenho(inteiros, "12345678901234567890"))
     }
 }

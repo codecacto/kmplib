@@ -4,6 +4,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Máscara de moeda brasileira (BRL) para Compose.
@@ -49,34 +51,18 @@ class CurrencyVisualTransformation(
             return if (showZeroWhenEmpty) "${prefix}0" + (if (decimalPlaces > 0) "," + "0".repeat(decimalPlaces) else "") else ""
         }
         if (decimalPlaces <= 0) {
-            return "$prefix${formatWithThousandSeparator(digits.trimStart('0').ifEmpty { "0" }.toLongOrNull() ?: 0L)}"
+            return "$prefix${groupThousands(digits)}"
         }
 
         // Preenche com zeros à esquerda se necessário
         val paddedDigits = digits.padStart(decimalPlaces + 1, '0')
 
-        // Separa parte inteira e decimal
-        val integerPart = paddedDigits.dropLast(decimalPlaces).toLongOrNull() ?: 0L
+        // Separa parte inteira e decimal. A parte inteira é agrupada como TEXTO: convertê-la para
+        // Long (até a 2.218.1) desenhava "R$ 0,xx" quando o campo passava de 19 dígitos.
+        val integerPart = paddedDigits.dropLast(decimalPlaces)
         val decimalPart = paddedDigits.takeLast(decimalPlaces)
 
-        // Formata parte inteira com separador de milhar
-        val formattedInteger = formatWithThousandSeparator(integerPart)
-
-        return "$prefix$formattedInteger,$decimalPart"
-    }
-
-    private fun formatWithThousandSeparator(value: Long): String {
-        val str = value.toString()
-        val result = StringBuilder()
-
-        for (i in str.indices) {
-            if (i > 0 && (str.length - i) % 3 == 0) {
-                result.append('.')
-            }
-            result.append(str[i])
-        }
-
-        return result.toString()
+        return "$prefix${groupThousands(integerPart)},$decimalPart"
     }
 
     private class CurrencyOffsetMapping(
@@ -120,22 +106,34 @@ fun String.currencyToDouble(): Double {
 
 /**
  * Converte um Double para string formatada como moeda brasileira.
- * Ex: 123.45 -> "R$ 123,45"
+ * Ex: 123.45 -> "R$ 123,45" · -1000.0 -> "-R$ 1.000,00" · 1234567.89 -> "R$ 1.234.567,89"
+ *
+ * - **Arredonda** para o centavo mais próximo, meio centavo para longe do zero (HALF_UP sobre o
+ *   módulo, a mesma regra de `formatCurrencyBRL` do `kmplib-core`). Até a 2.218.1 a conta
+ *   **truncava** (`(this * 100).toLong()`), e `1234567.89` — que em ponto flutuante vale
+ *   `123456788.99999…` centavos — saía "R$ 1.234.567,88".
+ * - O **sinal vem antes do prefixo** ("-R$ 1.000,00", como o pt-BR escreve). Até a 2.218.1 saía
+ *   "R$ -1.000,00", e valor negativo menor que 1 real quebrava o texto ("R$ 0,-50").
+ * - Valor que arredonda para zero não leva sinal (`-0.001` → "R$ 0,00").
+ * - `NaN`/infinito não derrubam a tela: desenham zero, como antes.
+ *
+ * Dinheiro que já existe em centavos (`Long`) não deve passar por `Double` — use `Money` do core.
  */
 fun Double.formatAsCurrency(prefix: String = "R$ "): String {
-    val totalCents = (this * 100).toLong()
+    val totalCents = if (isFinite()) (abs(this) * 100).roundToLong() else 0L
+    val sign = if (this < 0 && totalCents != 0L) "-" else ""
     val integerPart = totalCents / 100
     val decimalPart = (totalCents % 100).toString().padStart(2, '0')
+    return "$sign$prefix${groupThousands(integerPart.toString())},$decimalPart"
+}
 
-    val formattedInteger = buildString {
-        val str = integerPart.toString()
+/** Agrupa uma string de dígitos de 3 em 3 com ".", sem zeros à esquerda ("0012345" -> "12.345"). */
+private fun groupThousands(digits: String): String {
+    val str = digits.trimStart('0').ifEmpty { "0" }
+    return buildString {
         for (i in str.indices) {
-            if (i > 0 && (str.length - i) % 3 == 0) {
-                append('.')
-            }
+            if (i > 0 && (str.length - i) % 3 == 0) append('.')
             append(str[i])
         }
     }
-
-    return "$prefix$formattedInteger,$decimalPart"
 }
