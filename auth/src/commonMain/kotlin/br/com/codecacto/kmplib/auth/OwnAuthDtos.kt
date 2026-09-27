@@ -115,6 +115,13 @@ internal data class LoginBody(
 @Serializable
 internal data class FirstAccessBody(val newPassword: String)
 
+/**
+ * Corpo do `POST {authBasePath}/password/change`. **Sem e-mail, de propósito**: o servidor resolve a
+ * conta pelo token — aceitar o identificador do cliente deixaria uma sessão trocar a senha de outra.
+ */
+@Serializable
+internal data class ChangePasswordBody(val currentPassword: String, val newPassword: String)
+
 @Serializable
 internal data class RefreshBody(val refreshToken: String)
 

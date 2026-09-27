@@ -39,6 +39,8 @@ kotlin {
         commonTest.dependencies {
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.uiTest)
+            // PhotoSource.authenticated contra um DomainApiClient de mentira.
+            implementation(libs.ktor.client.mock)
         }
 
         androidMain.dependencies {

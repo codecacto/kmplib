@@ -24,6 +24,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,17 +47,35 @@ import coil3.compose.AsyncImage
  * virar a imagem sem a lista remontar. Um `id` derivado da URL só nasceria no fim do upload — e aí
  * a miniatura só apareceria quando não fosse mais precisa.
  *
+ * ## Foto privada (2.216.0)
+ * Foto que só sai por um endpoint autenticado não tem URL para pôr em [url]. Use [source] com
+ * `PhotoSource.authenticated(api, "/v1/fotos/{id}/bytes")` — o Bearer e o 401→refresh são do
+ * `DomainApiClient`, e a imagem não vai para o cache de disco. Enquanto sobe, a miniatura pode
+ * mostrar a própria foto escolhida com `PhotoSource.Bytes(id, picked.bytes)` + [uploading] `= true`.
+ *
  * @param id chave estável da miniatura.
- * @param url `null` enquanto sobe; preenchida quando o servidor devolve o endereço.
+ * @param url `null` enquanto sobe; preenchida quando o servidor devolve o endereço. Atalho para
+ *   `source = PhotoSource.Url(url)`.
  * @param failed o upload falhou — a miniatura fica com o aviso e o toque tenta de novo.
+ * @param source de onde vem a imagem, quando não é uma URL pública. Vence [url].
+ * @param uploadingOverride força o estado "subindo" com uma imagem já visível (a prévia local);
+ *   `null` = deduzir (sem imagem e sem falha → subindo).
  */
 data class PhotoStripItem(
     val id: String,
     val url: String? = null,
     val failed: Boolean = false,
+    val source: PhotoSource? = null,
+    val uploadingOverride: Boolean? = null,
 ) {
-    /** Está subindo: sem URL e sem falha. */
-    val uploading: Boolean get() = url == null && !failed
+    /** A imagem a desenhar: [source], ou [url] como fonte pública. `null` = ainda não há imagem. */
+    val imageSource: PhotoSource? get() = source ?: url?.let { PhotoSource.Url(it) }
+
+    /** Está subindo: sem imagem e sem falha — ou marcado assim explicitamente. */
+    val uploading: Boolean get() = !failed && (uploadingOverride ?: (imageSource == null))
+
+    /** Pronta: tem imagem, não falhou e não está subindo — a única que pode virar capa. */
+    val ready: Boolean get() = !failed && !uploading && imageSource != null
 }
 
 /**
@@ -164,7 +186,7 @@ fun PhotoStrip(
         }
 
         items(items, key = { it.id }) { foto ->
-            val ehCapa = foto.id == items.firstOrNull()?.id && foto.url != null
+            val ehCapa = foto.id == items.firstOrNull()?.id && foto.ready
             Box(
                 modifier = Modifier
                     .size(itemSize)
@@ -180,32 +202,39 @@ fun PhotoStrip(
                             foto.failed && onRetry != null ->
                                 Modifier.clickable { onRetry(foto) }
                                     .semantics { contentDescription = retryLabel }
-                            foto.url != null && onMakeCover != null ->
+                            foto.ready && onMakeCover != null ->
                                 Modifier.clickable { onMakeCover(foto) }
                                     .semantics { contentDescription = coverLabel }
                             else -> Modifier
                         },
                     ),
             ) {
+                val fonte = foto.imageSource
+                var imagemFalhou by remember(fonte) { mutableStateOf(false) }
+                if (fonte != null && !foto.failed) {
+                    AsyncImage(
+                        model = rememberPhotoSourceRequest(fonte),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        onError = { imagemFalhou = true },
+                        onSuccess = { imagemFalhou = false },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 when {
-                    foto.failed -> Icon(
+                    // Falha de upload OU de carregamento: a marca é a mesma, e sem ela a miniatura
+                    // de uma foto privada que não carregou seria um quadrado cinza sem explicação.
+                    foto.failed || imagemFalhou -> Icon(
                         imageVector = Icons.Filled.Refresh,
                         contentDescription = null,
                         tint = scheme.error,
                         modifier = Modifier.align(Alignment.Center).size(24.dp),
                     )
 
-                    foto.url == null -> CircularProgressIndicator(
+                    foto.uploading -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center).size(24.dp),
                         strokeWidth = 2.dp,
                         color = scheme.primary,
-                    )
-
-                    else -> AsyncImage(
-                        model = foto.url,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
                     )
                 }
 

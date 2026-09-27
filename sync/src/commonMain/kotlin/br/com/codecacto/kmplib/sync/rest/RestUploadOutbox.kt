@@ -182,6 +182,9 @@ class RestUploadOutbox(
      *   espera (para dono que a lib não espelha).
      * @param ownerHandle id do dono como o app o conhece (local ou do servidor).
      * @param label rótulo semântico ("anverso"/"reverso") — o que a UI mostra.
+     * @param formFields campos de texto enviados no MESMO multipart do arquivo (2.216.0), gravados
+     *   na outbox junto do resto — ver [PendingUpload.formFields]. Entra por último na assinatura
+     *   para não deslocar nenhuma chamada posicional existente.
      */
     suspend fun enqueue(
         bytes: ByteArray,
@@ -194,6 +197,7 @@ class RestUploadOutbox(
         fieldName: String = DEFAULT_UPLOAD_FIELD_NAME,
         method: UploadMethod = UploadMethod.POST,
         id: String = idFactory(),
+        formFields: Map<String, String> = emptyMap(),
     ): UploadEnqueueResult = enqueueParts(
         parts = listOf(UploadContent(bytes, fileName, mimeType, fieldName)),
         path = path,
@@ -202,11 +206,14 @@ class RestUploadOutbox(
         label = label,
         method = method,
         id = id,
+        formFields = formFields,
     )
 
     /**
      * Enfileira um upload de **várias partes nomeadas** num único request multipart (ex.: foto-prova
      * `full` + `thumb`). Ou todas as partes são gravadas, ou nada entra na fila.
+     *
+     * @param formFields ver [enqueue].
      */
     suspend fun enqueueParts(
         parts: List<UploadContent>,
@@ -216,8 +223,9 @@ class RestUploadOutbox(
         label: String = "",
         method: UploadMethod = UploadMethod.POST,
         id: String = idFactory(),
+        formFields: Map<String, String> = emptyMap(),
     ): UploadEnqueueResult = writeMutex.withLock {
-        val invalido = validate(parts, path, ownerHandle, id)
+        val invalido = validate(parts, path, ownerHandle, id, formFields)
         if (invalido != null) return@withLock invalido
 
         val gravadas = mutableListOf<PendingUploadPart>()
@@ -252,6 +260,7 @@ class RestUploadOutbox(
             createdAtMillis = nowMillis(),
             nextAttemptAtMillis = 0L,
             method = method,
+            formFields = formFields,
         )
         // Grava a linha DEPOIS dos bytes: uma linha sem arquivo seria uma promessa que o disco não
         // pode cumprir. O contrário (arquivo sem linha) é apenas um órfão, que a varredura recolhe.
@@ -264,9 +273,17 @@ class RestUploadOutbox(
         path: String,
         ownerHandle: String,
         id: String,
+        formFields: Map<String, String>,
     ): UploadEnqueueResult.Rejected? = when {
         parts.isEmpty() || parts.any { it.bytes.isEmpty() } ->
             reject("Conteúdo vazio: não há o que enviar.")
+        // Recusado AGORA, com a tela aberta: um campo sem nome some do multipart no envio (não há
+        // como o servidor recebê-lo), e descobrir isso dias depois, offline, é tarde.
+        formFields.keys.any { it.isBlank() } ->
+            reject("Campo de formulário sem nome: não há como enviá-lo.")
+        // Nome igual ao de uma parte binária faria o servidor receber dois valores no mesmo campo.
+        formFields.keys.any { campo -> parts.any { it.fieldName == campo } } ->
+            reject("Campo de formulário com o mesmo nome de uma parte do arquivo.")
         !isValidUploadId(id) ->
             reject("Id de upload inválido (precisa servir de nome de arquivo).")
         path.isBlank() ->
@@ -383,8 +400,8 @@ class RestUploadOutbox(
                         continue
                     }
                     val resposta = when (upload.method) {
-                        UploadMethod.POST -> api.postMultipartParts(alvo.path, parts)
-                        UploadMethod.PUT -> api.putMultipartParts(alvo.path, parts)
+                        UploadMethod.POST -> api.postMultipartParts(alvo.path, parts, upload.formFields)
+                        UploadMethod.PUT -> api.putMultipartParts(alvo.path, parts, upload.formFields)
                     }
                     if (store.accountScope.value != titular) {
                         AppLogger.w(TAG, "Resposta de upload descartada: o titular do espelho mudou.")
@@ -409,7 +426,7 @@ class RestUploadOutbox(
                                 if (virouRecusa) recusados++
                             }
                             RestFailureClass.Terminal, RestFailureClass.Quota -> {
-                                mirror.markFailed(upload.id, resposta.code, resposta.message)
+                                mirror.markFailed(upload.id, resposta.code, resposta.userMessage)
                                 recusados++
                             }
                         }

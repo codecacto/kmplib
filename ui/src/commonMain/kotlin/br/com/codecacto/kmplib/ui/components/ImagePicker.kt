@@ -44,10 +44,24 @@ expect class ImagePickerLauncher {
  * **grava os bytes já girados**, sem tag de orientação sobrando: a medida daqui é a mesma que
  * qualquer decodificador vai encontrar nos [bytes], inclusive o do backend e o do navegador.
  *
+ * ### Sempre JPEG — inclusive a câmera do iPhone (que grava HEIC)
+ * A câmera do iOS grava **HEIC** por padrão, e os servidores da fábrica recusam HEIC com `422
+ * IMAGE_METADATA_NOT_REMOVABLE` (backlib ≥ 0.131.0 — a limpeza de metadados não sabe reescrever o
+ * contêiner HEIF, e subir a foto com GPS dentro não é opção). **Nada disso chega até aqui:** os
+ * três caminhos — galeria, câmera e seleção múltipla, nas duas plataformas — decodificam a imagem e
+ * **recodificam em JPEG** (`UIImageJPEGRepresentation` no iOS, `Bitmap.compress(JPEG)` no Android).
+ * O HEIC nunca sai do seletor, e não existe opção para desligar isso de propósito.
+ *
+ * Como efeito da recodificação, **o EXIF do original não viaja** (sem GPS, sem modelo do aparelho):
+ * o JPEG sai só com os pixels, já na orientação certa.
+ *
+ * ⚠️ Isso vale para o seletor de IMAGEM. O `FilePicker` (`platform`) entrega o arquivo **como está**
+ * — uma foto escolhida por ele pode ser HEIC e ser recusada. Para foto, use sempre este seletor.
+ *
  * @param bytes o JPEG pronto para subir.
  * @param widthPx largura, em pixels, da imagem contida em [bytes].
  * @param heightPx altura, idem.
- * @param mimeType sempre `image/jpeg` hoje — o seletor recodifica o que escolhem.
+ * @param mimeType sempre `image/jpeg` — o seletor recodifica o que escolhem (ver acima).
  */
 data class PickedImage(
     val bytes: ByteArray,

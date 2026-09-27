@@ -1,5 +1,55 @@
 # Changelog — kmplib
 
+## 2.216.0 — multipart com campos de texto · erro por campo no `DomainResult` · troca de senha own-auth · foto privada no `PhotoStrip`
+
+Aditivo (sem quebra de fonte). Demandado pelo QueiMap (app clínico), genérico para todo app com
+backend da fábrica.
+
+### `kmplib-core` — `DomainApiClient`/`DomainResult`
+- **Campos de texto no multipart:** sobrecargas `postMultipartParts(path, parts, formFields)`,
+  `putMultipartParts(path, parts, formFields)` e `postMultipart(path, bytes, fileName, mimeType,
+  fieldName, formFields)`. Os campos vão ANTES das partes binárias; nome em branco é ignorado. As
+  assinaturas antigas continuam iguais (delegam com mapa vazio).
+- **`DomainResult.Error` com o envelope inteiro:** `serverMessage` (a `message` do corpo) e
+  `details: Map<String,String>` (erros por campo de `ValidationException.forField`/`FieldErrors`),
+  mais `fieldError(field)`, `fieldErrors`, `hasFieldErrors` e `userMessage` (frase do servidor em
+  4xx exceto 401/429; texto local em 5xx). `message` segue sendo o texto local de sempre.
+- `parseServerErrorEnvelope(body): ServerErrorEnvelope?` público (nunca lança; aceita
+  `{"error":{…}}` aninhado; `details` só com valores primitivos).
+
+### `kmplib-sync` — `RestUploadOutbox`
+- `enqueue(…, formFields = emptyMap())` e `enqueueParts(…, formFields)` — **persistidos** na linha da
+  outbox (`PendingUpload.formFields`, linha antiga desserializa vazia) e enviados no mesmo multipart.
+  Nome em branco ou igual a `fieldName` de uma parte → `Rejected(InvalidRequest)` ao enfileirar.
+- Recusa terminal grava a frase do servidor (`userMessage`) em vez de "Erro do servidor (4xx)".
+
+### `kmplib-auth` — troca de senha
+- `OwnAuthService.changeOwnPassword(current, new): Result<PasswordChangeOutcome>`
+  (`SessionRenewed(user)` | `SignInRequired`) contra `POST {authBasePath}/password/change`. O servidor
+  revoga todas as sessões; a lib entra de novo com a senha nova e adota a sessão fresca. Senha
+  temporária desvia para o primeiro acesso.
+- `OwnAuthService.completeFirstAccess(new): Result<User>` — chama `password/first-access` com token
+  válido e adota os tokens novos preservando nome/identificador/`providerId`.
+- `EmailPasswordAuthRepository.changePassword` (contrato `IAuthRepository`) **deixou de falhar como
+  "não suportado"** — delega ao `changeOwnPassword`.
+- `OwnAuthApi.changePassword(current, new, accessToken)`; 401 dessa rota vira
+  `InvalidCredentials(OwnAuthTexts.currentPasswordIncorrect)` ("Senha atual incorreta.").
+- Os métodos novos da interface têm default (`Unsupported`): implementações externas compilam.
+
+### `kmplib-ui` — `PhotoStrip` com fonte autenticada
+- `PhotoSource` = `Url(url, headers)` · `Bytes(key, bytes)` · `Loader(key, load)` ·
+  `PhotoSource.authenticated(api: DomainApiClient, path)`. `PhotoStripItem(…, source, uploadingOverride)`
+  + `imageSource`/`ready`. `Loader` é um `Fetcher` do Coil por requisição; foto privada fica fora do
+  cache de disco (só memória). `rememberPhotoSourceRequest`/`photoSourceRequest` para outros
+  componentes. Falha de carregamento mostra a marca de falha.
+- **Documentado (sem mudança de código):** o seletor de imagem (galeria, câmera, múltipla) sempre
+  recodifica em JPEG — o HEIC da câmera do iPhone nunca sai dele, e o EXIF/GPS não viaja. O
+  `FilePicker` não converte.
+
+### Testes
+`DomainApiClientTest` (+5), `RestUploadOutboxTest` (+3), `OwnAuthPasswordChangeTest` (8),
+`PhotoSourceTest` (5). Android + `compileKotlinIosArm64` (25 tarefas, nenhuma SKIPPED).
+
 ## 2.215.0 — campo de HORA DO DIA com limite (`AppTimeField`)
 
 Aditivo. Fecha o GAP-QUEIMAP-02 (QueiMap AP10, "hora da queimadura" — não pode ser depois de agora).

@@ -79,6 +79,31 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             json.decodeFromString(OwnAuthTokens.serializer(), response.bodyAsText())
         }
 
+    /**
+     * `password/change` (backlib-auth-local ≥ 0.46.0) — a **troca voluntária**, com a sessão aberta.
+     *
+     * Exige a senha atual (uma sessão sequestrada não pode expulsar o dono) e responde **204**. O
+     * servidor **derruba todas as sessões** da conta ao fim, inclusive a desta chamada: o refresh
+     * guardado morre no mesmo instante. Quem cuida disso é o
+     * [EmailPasswordAuthRepository.changeOwnPassword], que entra de novo com a senha nova — chamar
+     * este método cru deixa a pessoa deslogada no próximo refresh.
+     *
+     * Erros: senha atual errada → [OwnAuthException.InvalidCredentials] (com a frase do servidor);
+     * senha nova recusada (curta, igual à atual) → [OwnAuthException.WeakPassword] com o motivo.
+     */
+    suspend fun changePassword(
+        currentPassword: String,
+        newPassword: String,
+        accessToken: String,
+    ): Result<Unit> =
+        send("password/change", "POST") {
+            client.post(config.url("password/change")) {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                setBody(json.encodeToString(ChangePasswordBody(currentPassword, newPassword)))
+            }
+        }.map { }
+
     suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
         postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
 
@@ -283,7 +308,16 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         return mapPasswordStatus(suffix, status, serverMessage)
     }
 
-    private fun mapPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
+    private fun mapPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException =
+        // Na troca com a sessão aberta, o 401 é "senha ATUAL incorreta" — e o texto de login
+        // ("e-mail ou senha incorretos") mandaria a pessoa conferir um e-mail que ela nem digitou.
+        if (status == 401 && suffix == "password/change") {
+            OwnAuthException.InvalidCredentials(texts.currentPasswordIncorrect)
+        } else {
+            mapGenericPasswordStatus(suffix, status, serverMessage)
+        }
+
+    private fun mapGenericPasswordStatus(suffix: String, status: Int, serverMessage: String?): OwnAuthException = when (status) {
         // Credencial inválida mantém o texto local DE PROPÓSITO: o servidor responde genérico para não
         // revelar se o e-mail existe, e repassar a mensagem dele não acrescentaria nada.
         401, 403 -> OwnAuthException.InvalidCredentials(texts.invalidCredentials)

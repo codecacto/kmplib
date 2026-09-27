@@ -21,8 +21,9 @@ import kotlinx.coroutines.flow.map
  * login/registro, `providerId = "password"`. Não inventamos endpoint de perfil.
  *
  * ### Operações não suportadas pelo backend (falham explicitamente, nunca em silêncio)
- * `updateProfile`/`changePassword`/`deleteAccount`/`sendEmailVerification` não têm endpoint no
- * contrato own-auth atual → `Result.failure(AuthException.UnknownError)`. `signUpWithEmail` também
+ * `updateProfile`/`deleteAccount`/`sendEmailVerification` não têm endpoint no
+ * contrato own-auth atual → `Result.failure(AuthException.UnknownError)`. `changePassword` deixou
+ * esta lista na 2.216.0 — ver [changeOwnPassword]. `signUpWithEmail` também
  * falha de propósito: registre por [OwnAuthService.register] (que exige `acceptedTerms`).
  *
  * ### Login social (2.98.0)
@@ -79,6 +80,50 @@ class EmailPasswordAuthRepository(
 
     override suspend fun confirmPasswordReset(token: String, newPassword: String): Result<Unit> =
         api.confirmPasswordReset(token, newPassword).mapAuthError()
+
+    override suspend fun changeOwnPassword(
+        currentPassword: String,
+        newPassword: String,
+    ): Result<PasswordChangeOutcome> {
+        val sessao = tokenManager.session.value ?: tokenManager.restore()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+        if (sessao.passwordChangeRequired) {
+            // Senha temporária: o servidor só aceita a rota de primeiro acesso.
+            return completeFirstAccess(newPassword).map { PasswordChangeOutcome.SessionRenewed(it) }
+        }
+        val token = tokenManager.accessToken()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+
+        api.changePassword(currentPassword, newPassword, token).onFailure { return Result.failure(it) }
+
+        // Aceita: o servidor acabou de revogar o refresh desta sessão. Entrar de novo com a senha
+        // nova é o que mantém a pessoa dentro do app.
+        val identificador = sessao.email.trim()
+        if (identificador.isNotEmpty()) {
+            val renovada = api.login(identificador, newPassword).getOrNull()
+            if (renovada != null) {
+                tokenManager.adopt(renovada, email = sessao.email, name = sessao.name, providerId = sessao.providerId)
+                val usuario = tokenManager.session.value?.toUser()
+                    ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
+                return Result.success(PasswordChangeOutcome.SessionRenewed(usuario))
+            }
+        }
+        // Sem como renovar: o par guardado já está morto no servidor. Encerrar agora evita que o
+        // app siga "logado" até o próximo refresh e caia no login no meio de outra tarefa.
+        tokenManager.clear()
+        return Result.success(PasswordChangeOutcome.SignInRequired)
+    }
+
+    override suspend fun completeFirstAccess(newPassword: String): Result<User> {
+        val sessao = tokenManager.session.value ?: tokenManager.restore()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+        val token = tokenManager.accessToken()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(texts.sessionExpired))
+        return api.firstAccessPasswordChange(newPassword, token).map { tokens ->
+            tokenManager.adopt(tokens, email = sessao.email, name = sessao.name, providerId = sessao.providerId)
+            tokenManager.session.value?.toUser() ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
+        }
+    }
 
     /** `IAuthRepository.sendPasswordResetEmail` mapeia para `password/forgot` (mesma mecânica). */
     override suspend fun sendPasswordResetEmail(email: String): Result<Unit> =
@@ -160,8 +205,16 @@ class EmailPasswordAuthRepository(
     override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> =
         Result.failure(AuthException.UnknownError(texts.unsupported))
 
+    /**
+     * Contrato do [IAuthRepository] (2.216.0 — antes falhava como "não suportado"): delega ao
+     * [changeOwnPassword] e devolve `Unit`. Se a sessão não pôde ser renovada, ela é encerrada e o
+     * [currentUser] emite `null` — o app vai ao login pelo caminho que já observa.
+     *
+     * Os erros viram [AuthException] (o vocabulário deste contrato), e com isso perdem a frase do
+     * servidor. Para marcar o campo certo com o motivo real, use [changeOwnPassword].
+     */
     override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> =
-        Result.failure(AuthException.UnknownError(texts.unsupported))
+        changeOwnPassword(currentPassword, newPassword).map { }.mapAuthError()
 
     override suspend fun deleteAccount(password: String?): Result<Unit> =
         Result.failure(AuthException.UnknownError(texts.unsupported))

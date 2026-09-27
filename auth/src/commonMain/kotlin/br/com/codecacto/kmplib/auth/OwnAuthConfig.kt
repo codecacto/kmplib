@@ -120,6 +120,8 @@ data class OwnAuthTexts(
         "Nonce do servidor ausente: chame socialNonce() antes do login social (ou use signInWithSocial).",
     val server: (Int) -> String = { code -> "Erro do servidor ($code)." },
     val unsupported: String = "Operação não disponível para login por e-mail e senha.",
+    /** Troca de senha com a sessão aberta: a senha ATUAL não confere (2.216.0). */
+    val currentPasswordIncorrect: String = "Senha atual incorreta.",
 )
 
 /**

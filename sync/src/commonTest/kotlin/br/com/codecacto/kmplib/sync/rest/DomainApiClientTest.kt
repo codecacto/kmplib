@@ -217,6 +217,91 @@ class DomainApiClientTest {
         assertTrue(body.contains("image/jpeg"))
     }
 
+    @Test
+    fun `postMultipartParts com formFields envia os campos de texto antes do arquivo`() = runTest {
+        var body = ""
+        val engine = MockEngine { request ->
+            body = readBody(request.body as OutgoingContent.WriteChannelContent)
+            respond("""{"id":"p1"}""", HttpStatusCode.Created, jsonHeader)
+        }
+        val api = DomainApiClient(HttpClient(engine), DomainTokenProvider { "tok" }, "https://api.example.com")
+
+        val r = api.postMultipartParts(
+            "/v1/lesoes/1/fotos",
+            listOf(MultipartPart("file", "lesao.jpg", byteArrayOf(1, 2), "image/jpeg")),
+            linkedMapOf("regiao" to "antebraco", "" to "ignorado"),
+        )
+
+        assertTrue(r is DomainResult.Success)
+        assertTrue(body.contains("name=regiao"))
+        assertTrue(body.contains("antebraco"))
+        assertTrue(!body.contains("ignorado"), "campo sem nome não pode viajar")
+        assertTrue(body.indexOf("name=regiao") < body.indexOf("lesao.jpg"))
+    }
+
+    @Test
+    fun `put e parte unica com formFields tambem levam os campos`() = runTest {
+        val corpos = mutableListOf<String>()
+        val metodos = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            metodos += request.method.value
+            corpos += readBody(request.body as OutgoingContent.WriteChannelContent)
+            respond("{}", HttpStatusCode.OK, jsonHeader)
+        }
+        val api = DomainApiClient(HttpClient(engine), DomainTokenProvider { "tok" }, "https://api.example.com")
+
+        api.putMultipartParts("/v1/a", listOf(MultipartPart("file", "a.jpg", byteArrayOf(1), "image/jpeg")), mapOf("k" to "v1"))
+        api.postMultipart("/v1/b", byteArrayOf(1), "b.jpg", "image/jpeg", "foto", mapOf("k" to "v2"))
+
+        assertEquals(listOf("PUT", "POST"), metodos)
+        assertTrue(corpos[0].contains("v1"))
+        assertTrue(corpos[1].contains("v2") && corpos[1].contains("name=foto"))
+    }
+
+    @Test
+    fun `400 da backlib traz message e details por campo`() = runTest {
+        val corpo = """{"message":"Revise os campos destacados","code":"VALIDATION_ERROR",
+            "details":{"regiao":"Informe a região","capturadaEm":"A data não pode ser futura"},"traceId":"t"}"""
+        val (api, _) = client { HttpStatusCode.BadRequest to corpo }
+
+        val r = api.postJson("/v1/lesoes", "{}")
+
+        assertTrue(r is DomainResult.Error)
+        r as DomainResult.Error
+        assertEquals(400, r.code)
+        assertEquals("VALIDATION_ERROR", r.serverCode)
+        assertEquals("Revise os campos destacados", r.serverMessage)
+        assertEquals("Informe a região", r.fieldError("regiao"))
+        assertEquals("A data não pode ser futura", r.fieldError("capturadaEm"))
+        assertNull(r.fieldError("outro"))
+        assertTrue(r.hasFieldErrors)
+        assertEquals(listOf("regiao", "capturadaEm"), r.fieldErrors.keys.toList(), "ordem do servidor = ordem do foco")
+        assertEquals("Revise os campos destacados", r.userMessage)
+    }
+
+    @Test
+    fun `userMessage usa o texto local em 5xx e 401 e o do servidor em 4xx`() = runTest {
+        val (api500, _) = client { HttpStatusCode.InternalServerError to """{"message":"NPE em X","code":"INTERNAL"}""" }
+        val e500 = api500.getJson("/v1/x") as DomainResult.Error
+        assertEquals("NPE em X", e500.serverMessage)
+        assertEquals("Erro do servidor (500).", e500.userMessage, "5xx nunca expõe a frase técnica")
+
+        val (api422, _) = client { HttpStatusCode.UnprocessableEntity to """{"message":"Foto sem metadado removível","code":"IMAGE_METADATA_NOT_REMOVABLE"}""" }
+        val e422 = api422.getJson("/v1/x") as DomainResult.Error
+        assertEquals("Foto sem metadado removível", e422.userMessage)
+        assertTrue(e422.details.isEmpty())
+    }
+
+    @Test
+    fun `envelope aninhado e corpo nao JSON`() {
+        val aninhado = parseServerErrorEnvelope("""{"ok":false,"error":{"code":"C","message":"m","details":{"a":"b","n":{"x":1}}}}""")
+        assertEquals("C", aninhado?.code)
+        assertEquals(mapOf("a" to "b"), aninhado?.details, "valor não primitivo é ignorado")
+        assertNull(parseServerErrorEnvelope("<html>502</html>"))
+        assertNull(parseServerErrorEnvelope(null))
+        assertNull(parseServerErrorEnvelope("{quebrado"))
+    }
+
     /** Drena o corpo de um [OutgoingContent.WriteChannelContent] (multipart) para texto. */
     private suspend fun readBody(content: OutgoingContent.WriteChannelContent): String = coroutineScope {
         val channel = ByteChannel(autoFlush = true)

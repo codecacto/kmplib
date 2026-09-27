@@ -143,6 +143,63 @@ class RestUploadOutboxTest {
         id = id,
     )
 
+    // -- 0. Campos de texto junto do arquivo (2.216.0) ----------------------
+
+    @Test
+    fun `campos de texto sobrevivem ao processo morrer e viajam no mesmo multipart do arquivo`() = runTest {
+        val store = FakeSyncStore()
+        val blobs = InMemoryBlobStore()
+        val servidor = Servidor()
+
+        val antes = outbox(servidor, store, blobs)
+        val r = antes.enqueue(
+            bytes = fotoAnverso, fileName = "lesao.jpg", mimeType = "image/jpeg",
+            path = "/v1/lesoes/7/fotos", id = "up-campos",
+            formFields = linkedMapOf("regiao" to "antebraco", "capturadaEm" to "2026-09-26T10:12"),
+        )
+        assertIs<UploadEnqueueResult.Queued>(r)
+
+        // O processo morre: os campos têm de estar na LINHA, não na instância.
+        val depois = outbox(servidor, store, blobs)
+        assertEquals(
+            mapOf("regiao" to "antebraco", "capturadaEm" to "2026-09-26T10:12"),
+            depois.pending().single().model.formFields,
+        )
+
+        assertEquals(1, depois.drainNow().uploaded)
+        val corpo = servidor.corpos.single()
+        assertTrue(corpo.contains("name=regiao"), "faltou o campo de texto no multipart")
+        assertTrue(corpo.contains("antebraco"))
+        assertTrue(corpo.contains("name=capturadaEm"))
+        assertTrue(corpo.contains("lesao.jpg"), "e o arquivo no MESMO request")
+        assertTrue(corpo.indexOf("name=regiao") < corpo.indexOf("lesao.jpg"), "campos antes do binário")
+    }
+
+    @Test
+    fun `campo sem nome ou com o nome de uma parte e recusado ao enfileirar`() = runTest {
+        val outbox = outbox(Servidor(), FakeSyncStore(), InMemoryBlobStore())
+        val semNome = outbox.enqueue(
+            bytes = fotoAnverso, fileName = "a.jpg", mimeType = "image/jpeg", path = "/v1/x",
+            id = "up-a", formFields = mapOf(" " to "v"),
+        )
+        assertIs<UploadEnqueueResult.Rejected>(semNome)
+        val colide = outbox.enqueue(
+            bytes = fotoAnverso, fileName = "a.jpg", mimeType = "image/jpeg", path = "/v1/x",
+            id = "up-b", formFields = mapOf("file" to "v"),
+        )
+        assertIs<UploadEnqueueResult.Rejected>(colide)
+        assertTrue(outbox.pending().isEmpty())
+    }
+
+    @Test
+    fun `linha gravada antes da 2_216_0 sem formFields desserializa como vazio`() {
+        val antiga = restMirrorJson.decodeFromString(
+            PendingUpload.serializer(),
+            """{"id":"u","path":"/v1/x","parts":[{"blobId":"u-0","fileName":"a.jpg","mimeType":"image/jpeg"}]}""",
+        )
+        assertTrue(antiga.formFields.isEmpty())
+    }
+
     // -- 1. O caso que originou o gap --------------------------------------
 
     @Test

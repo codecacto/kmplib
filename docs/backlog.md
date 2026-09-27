@@ -6,6 +6,12 @@
 ### Registrado nesta rodada (26/set/2026) — origem: design do **QueiMap** (avaliação de queimaduras)
 > Origem: `8-Sistemas-Portal-App/QueiMap/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
 
+- [x] **ATENDIDO na 2.216.0** (QueiMap, integração) → multipart com `formFields` (`DomainApiClient` +
+      `RestUploadOutbox`, persistido na outbox); `DomainResult.Error.serverMessage/details` +
+      `fieldError`/`userMessage` (erro de campo da backlib no campo); own-auth
+      `changeOwnPassword`/`completeFirstAccess` (+ `IAuthRepository.changePassword` real);
+      `PhotoSource` (foto privada por stream autenticado) no `PhotoStrip`; saída JPEG do seletor
+      documentada (já recodificava — HEIC nunca sai).
 - [x] **ATENDIDO na 2.215.0** → `AppTimeField` + `AppTimePickerDialog` (+ `maxTimeNotAfterNow`,
       `timeLimitViolation`) — hora 24h no `TimePickerDialog` oficial do M3, limite min/max inclusivo.
       Data+hora = `AppDatePicker` + `AppTimeField` lado a lado (sem `AppDateTimePicker` combinado:

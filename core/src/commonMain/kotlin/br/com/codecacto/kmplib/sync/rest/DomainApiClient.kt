@@ -25,9 +25,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Cliente HTTP do **backend REST-CRUD de domínio** de um app (`/v1/...`) — a base de rede da camada
@@ -187,13 +188,7 @@ class DomainApiClient(
     suspend fun postMultipartParts(
         path: String,
         parts: List<MultipartPart>,
-    ): DomainResult<String> =
-        execute(path) { token ->
-            httpClient.post(url(path)) {
-                bearer(token)
-                setBody(multipartBody(parts))
-            }
-        }.texto()
+    ): DomainResult<String> = postMultipartParts(path, parts, emptyMap())
 
     /**
      * Upload multipart via **PUT** — para recursos que já existem e cujo binário é *substituído*
@@ -213,16 +208,73 @@ class DomainApiClient(
     suspend fun putMultipartParts(
         path: String,
         parts: List<MultipartPart>,
+    ): DomainResult<String> = putMultipartParts(path, parts, emptyMap())
+
+    /**
+     * Upload multipart com **campos de texto junto do arquivo** (2.216.0) — ex.: a foto de uma
+     * lesão que precisa chegar com `"regiao" = "antebraco"` e `"capturadaEm" = "2026-09-26T10:12"`
+     * no MESMO request.
+     *
+     * ### Por que no mesmo request, e não num `PATCH` depois
+     * Dois requests são dois pontos de falha: a foto sobe, o `PATCH` cai na fila, e durante esse
+     * intervalo — que offline pode durar dias — o servidor guarda uma foto **sem o dado que a
+     * classifica**. Pior: se o campo é obrigatório no servidor, ele recusa a foto inteira, e a única
+     * saída que sobrava ao app era montar o `HttpClient` na mão e perder o 401→refresh e o 402→quota
+     * que moram aqui.
+     *
+     * ### Ordem no corpo
+     * Os campos de texto vão **antes** das partes binárias. O `receiveMultipart` do Ktor (e todo
+     * servidor que lê em fluxo) consegue validar o formulário antes de começar a gravar o arquivo —
+     * recusar um upload de 5 MB depois de lê-lo inteiro, por causa de um campo que chegou depois
+     * dele, é desperdício de banda de quem está no 3G.
+     *
+     * @param formFields `nome → valor`, na ordem do mapa. Nome em branco é ignorado. ⚠️ Os valores
+     *   viajam no CORPO (não vão para o log de requisição), mas não coloque segredo aqui.
+     */
+    suspend fun postMultipartParts(
+        path: String,
+        parts: List<MultipartPart>,
+        formFields: Map<String, String>,
+    ): DomainResult<String> =
+        execute(path) { token ->
+            httpClient.post(url(path)) {
+                bearer(token)
+                setBody(multipartBody(parts, formFields))
+            }
+        }.texto()
+
+    /** Versão PUT do [postMultipartParts] com campos de texto (2.216.0). */
+    suspend fun putMultipartParts(
+        path: String,
+        parts: List<MultipartPart>,
+        formFields: Map<String, String>,
     ): DomainResult<String> =
         execute(path) { token ->
             httpClient.put(url(path)) {
                 bearer(token)
-                setBody(multipartBody(parts))
+                setBody(multipartBody(parts, formFields))
             }
         }.texto()
 
-    private fun multipartBody(parts: List<MultipartPart>) = MultiPartFormDataContent(
+    /** [postMultipart] de parte única com campos de texto junto (2.216.0). */
+    suspend fun postMultipart(
+        path: String,
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        fieldName: String,
+        formFields: Map<String, String>,
+    ): DomainResult<String> =
+        postMultipartParts(path, listOf(MultipartPart(fieldName, fileName, fileBytes, mimeType)), formFields)
+
+    private fun multipartBody(
+        parts: List<MultipartPart>,
+        formFields: Map<String, String> = emptyMap(),
+    ) = MultiPartFormDataContent(
         formData {
+            formFields.forEach { (nome, valor) ->
+                if (nome.isNotBlank()) append(nome, valor)
+            }
             parts.forEach { part ->
                 append(
                     key = part.fieldName,
@@ -332,30 +384,26 @@ class DomainApiClient(
                 val quota = parseQuotaExceeded(runCatching { response.bodyAsText() }.getOrNull())
                 if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, texts.quotaReached)
             }
-            status == 429 -> DomainResult.Error(429, texts.rateLimited, codigoDoServidor(response))
-            status == 401 -> DomainResult.Error(401, texts.sessionExpired, codigoDoServidor(response))
-            else -> DomainResult.Error(status, texts.serverError(status), codigoDoServidor(response))
+            else -> {
+                val envelope = envelopeDeErro(response)
+                val mensagemLocal = when (status) {
+                    429 -> texts.rateLimited
+                    401 -> texts.sessionExpired
+                    else -> texts.serverError(status)
+                }
+                DomainResult.Error(
+                    code = status,
+                    message = mensagemLocal,
+                    serverCode = envelope?.code,
+                    serverMessage = envelope?.message,
+                    details = envelope?.details.orEmpty(),
+                )
+            }
         }
     }
 
-    /**
-     * O `code` do envelope de erro da backlib (`{"message": ..., "code": ..., "traceId": ...}`).
-     *
-     * Ler o corpo aqui é seguro: só acontece em resposta de ERRO, e nenhum chamador consome o corpo
-     * de uma resposta que já virou [DomainResult.Error]. Qualquer falha — corpo vazio, HTML de um
-     * proxy no meio, JSON sem `code` — devolve `null`, nunca uma exceção: um erro de transporte não
-     * pode virar um segundo erro dentro do tratamento do primeiro.
-     */
-    private suspend fun codigoDoServidor(response: HttpResponse): String? = runCatching {
-        val corpo = response.bodyAsText()
-        if (!corpo.trimStart().startsWith("{")) return@runCatching null
-        Json { ignoreUnknownKeys = true }
-            .parseToJsonElement(corpo)
-            .jsonObject["code"]
-            ?.jsonPrimitive
-            ?.contentOrNull
-            ?.takeIf { it.isNotBlank() }
-    }.getOrNull()
+    private suspend fun envelopeDeErro(response: HttpResponse): ServerErrorEnvelope? =
+        parseServerErrorEnvelope(runCatching { response.bodyAsText() }.getOrNull())
 
     companion object {
         private const val TAG = "DomainApi"
@@ -432,12 +480,52 @@ sealed class DomainResult<out T> {
      * a chamada para ler o corpo que este cliente tinha acabado de descartar.
      *
      * É `null` quando o corpo não é JSON, não tem `code`, ou o erro é de transporte.
+     *
+     * @param message a frase **local** (dos [DomainApiTexts]) — genérica, sempre presente.
+     * @param serverMessage a `message` que o backend mandou no corpo (2.216.0). É a frase que diz o
+     *   motivo real ("A data não pode ser futura"); `null` quando não veio. Para mostrar ao usuário,
+     *   prefira [userMessage], que escolhe entre as duas.
+     * @param details os **erros por campo** do envelope da backlib (2.216.0) — `{nome do campo no
+     *   DTO: frase}`, o que `ValidationException.forField`/`FieldErrors` do servidor produzem. Vazio
+     *   quando o erro não é de campo. Ver [fieldError] e [fieldErrors].
+     *
+     * ### Por que `details` chegou aqui
+     * A constituição manda o erro de campo ficar **no campo** (borda vermelha + frase embaixo) e só o
+     * resto ir para o banner junto do botão. O servidor já mandava `details`; o cliente o descartava
+     * junto com o corpo, e a tela só tinha "Erro do servidor (400)" para pôr num banner — sem dizer
+     * qual das sete linhas corrigir.
      */
     data class Error(
         val code: Int,
         val message: String,
         val serverCode: String? = null,
-    ) : DomainResult<Nothing>()
+        val serverMessage: String? = null,
+        val details: Map<String, String> = emptyMap(),
+    ) : DomainResult<Nothing>() {
+
+        /** A frase do servidor para [field], ou `null` se aquele campo não foi recusado. */
+        fun fieldError(field: String): String? = details[field]
+
+        /**
+         * Os erros de campo — o mesmo [details], com nome que diz o que é. Mapa na ordem em que o
+         * servidor mandou: o primeiro é o campo que deve receber o foco.
+         */
+        val fieldErrors: Map<String, String> get() = details
+
+        /** `true` se o servidor apontou ao menos um campo. */
+        val hasFieldErrors: Boolean get() = details.isNotEmpty()
+
+        /**
+         * A frase para a tela: a do **servidor** em recusa de negócio/validação (4xx, exceto 401 e
+         * 429 — "sessão expirada" e "muitas requisições" são textos locais de propósito), e a
+         * [message] local no resto. 5xx nunca mostra a frase do servidor: ela é para o log, não para
+         * quem está usando o app.
+         */
+        val userMessage: String
+            get() = serverMessage
+                ?.takeIf { code in 400..499 && code != 401 && code != 429 }
+                ?: message
+    }
 
     inline fun <R> map(transform: (T) -> R): DomainResult<R> = when (this) {
         is Success -> Success(transform(data))
@@ -456,3 +544,42 @@ sealed class DomainResult<out T> {
         const val OFFLINE_CODE: Int = -1
     }
 }
+
+/**
+ * O envelope de erro que a backlib devolve (`backlib-errors` → `ErrorResponse`):
+ * `{"message": ..., "code": ..., "details": {campo: frase}, "traceId": ...}`.
+ *
+ * Aceita também a forma aninhada `{"ok": false, "error": {...}}`, que é a do 402 de cota.
+ */
+data class ServerErrorEnvelope(
+    val code: String? = null,
+    val message: String? = null,
+    val details: Map<String, String> = emptyMap(),
+)
+
+/**
+ * Lê o [ServerErrorEnvelope] de um corpo de erro. **Nunca lança**: corpo vazio, HTML de um proxy,
+ * JSON sem os campos — tudo devolve `null` (ou um envelope com os campos nulos). Um erro de
+ * transporte não pode virar um segundo erro dentro do tratamento do primeiro.
+ *
+ * Em `details`, só entram valores **primitivos** (a frase do campo); objeto ou lista aninhados são
+ * ignorados em vez de virarem `toString()` de JSON numa legenda de formulário.
+ */
+fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching {
+    val texto = body?.trim().orEmpty()
+    if (!texto.startsWith("{")) return@runCatching null
+    val raiz = errorEnvelopeJson.parseToJsonElement(texto).jsonObject
+    val alvo = (raiz["error"] as? JsonObject) ?: raiz
+    fun primitivo(nome: String): String? =
+        (alvo[nome] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+    val detalhes = (alvo["details"] as? JsonObject)
+        ?.mapNotNull { (campo, valor) ->
+            val frase = (valor as? JsonPrimitive)?.contentOrNull?.trim()
+            if (campo.isBlank() || frase.isNullOrEmpty()) null else campo to frase
+        }
+        ?.toMap()
+        .orEmpty()
+    ServerErrorEnvelope(code = primitivo("code"), message = primitivo("message"), details = detalhes)
+}.getOrNull()
+
+private val errorEnvelopeJson = Json { ignoreUnknownKeys = true; isLenient = true }
