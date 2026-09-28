@@ -3,6 +3,26 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (27/set/2026) — origem: design do **Minha Estadia** (guia digital de temporada)
+> Origem: `8-Sistemas-Portal-App/MinhaEstadia/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
+> App full-stack (anfitrião + hóspede no mesmo app); par web em `Lib/weblib/docs/backlog.md`.
+
+- [ ] **GAP-ME-01 (P1) — sem card de navegação "ícone + título + subtítulo + trailing".** Padrão
+      central do produto (editor de seções do guia, lista de seções do hóspede) hoje montado à mão com
+      `Card`+`Row`+`Icon`+texto. Proposta: `IconNavCard`/`SectionListItem` — ícone em círculo colorido,
+      título, subtítulo, trailing (`chevron`/`Switch`/`StatusBadge`), `onClick`. Mesmo formato reaparece
+      em telas de configurações e menus de outros produtos — candidato forte a virar item de lib
+      (≥2 consumidores prováveis).
+- [ ] **GAP-ME-02 (P2) — sem kit de chat/assistente** (bolha enviada/recebida, "digitando…", composer
+      com envio, slot de CTA para escalar a um humano). 1º consumidor: assistente de IA do guia do
+      hóspede (responde com base no conteúdo, escala pro WhatsApp quando não sabe). Cresce em
+      relevância com a IA por fluxo já virando padrão da fábrica (memória `ia-por-fluxo-no-nexus`).
+      Proposta: `ChatThread`/`MessageBubble`/`ChatComposer` em `ui` (ou módulo `ui/chat` próprio).
+- [ ] **GAP-ME-03 (P2, módulo `pdf`) — sem gerador de "placa/pôster com QR" para impressão física**
+      (múltiplos tamanhos em mm + 2+ estilos claro/escuro). Os geradores hoje cobrem documento/recibo/
+      relatório/carteira de vacinação, não pôster físico. Proposta: `QrPosterPdf`. Reusável por
+      qualquer produto que precise de placa física com QR (mesa de restaurante, guarda-volumes).
+
 ### 2.219.0 (27/set/2026) — app GLOBAL (origem: QueiMap, 4 idiomas + conselho por país)
 - [x] **ATENDIDO na 2.219.0** → telas/componentes da lib com recursos próprios em pt-BR/en/es/pt-PT
       (Login, Cadastro, primeiro acesso, Feedback, Desenvolvido por, Contato, Paywall, PDF, ErrorState,
