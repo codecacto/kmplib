@@ -349,7 +349,12 @@ platform :ios do
     # no archive E no export: sem isso o export morria em "requires a provisioning profile" (Super 8,
     # 28/set/2026 — 1º release iOS pelo runner).
     if perfis.empty?
-      chave = File.expand_path("private_keys/AuthKey_#{asc_key_id}.p8")
+      # O código do Fastfile roda com o cwd em `fastlane/`, mas as ações (e o `key_filepath` acima)
+      # resolvem a partir da pasta do projeto — onde a chave mora. O `xcodebuild` exige caminho
+      # ABSOLUTO de arquivo existente.
+      nome_chave = "private_keys/AuthKey_#{asc_key_id}.p8"
+      chave = [File.expand_path(nome_chave), File.expand_path("../#{nome_chave}")].find { |c| File.exist?(c) }
+      UI.user_error!("chave #{nome_chave} não encontrada (nem em #{Dir.pwd} nem na pasta acima)") if chave.nil?
       autorizacao = [
         "-allowProvisioningUpdates",
         "-authenticationKeyPath", chave.shellescape,
