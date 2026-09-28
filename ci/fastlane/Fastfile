@@ -105,9 +105,28 @@ platform :ios do
   # que este trabalho serve para fazer.
   #
   # Devolve o hash de `provisioningProfiles` para o `build_app`, ou vazio.
+  # Caminho ABSOLUTO da chave `.p8`. O código do Fastfile roda com o cwd em `fastlane/`, mas as
+  # ações resolvem a partir da pasta do projeto — onde a chave mora.
+  def caminho_da_chave_asc(asc_key_id)
+    nome = "private_keys/AuthKey_#{asc_key_id}.p8"
+    chave = [File.expand_path(nome), File.expand_path("../#{nome}")].find { |c| File.exist?(c) }
+    UI.user_error!("chave #{nome} não encontrada (nem em #{Dir.pwd} nem na pasta acima)") if chave.nil?
+    chave
+  end
+
   def perfis_do_match(app_identifier, tipo)
     return {} if ENV["MATCH_PASSWORD"].to_s.empty?
     return {} if app_identifier.to_s.empty?
+
+    # CRIAR (1ª vez do app): pedido explícito do runner (`release` com `assinatura: "criar"`), que
+    # exporta ASSINATURA_IOS_CRIAR=1. Aqui NÃO há volta ao chaveiro: se falhar, falha alto — quem
+    # pediu para criar precisa saber que não criou.
+    if ENV["ASSINATURA_IOS_CRIAR"] == "1"
+      sync_signing(app_identifier: app_identifier, tipo: tipo, setup: "true")
+      nome = ENV["sigh_#{app_identifier}_#{tipo}_profile-name"]
+      UI.user_error!("match criou mas não publicou o nome do perfil de #{app_identifier}") if nome.to_s.empty?
+      return { app_identifier => nome }
+    end
 
     # "Ainda não migrei este app" também é o caso de ter a passphrase e NÃO ter o perfil no repo —
     # e é o caso de TODOS até o primeiro `setup:true`: o runner exporta `MATCH_PASSWORD` sempre, e o
@@ -194,7 +213,21 @@ platform :ios do
       )
     end
 
+    # Com a chave da API da App Store Connect o `match` fala com a Apple sem login de Apple ID (que
+    # pediria senha e 2FA e travaria um build sem ninguém na frente).
+    asc_key_id = ENV["ASC_KEY_ID"]
+    api_key = if asc_key_id.to_s.empty? || ENV["ASC_ISSUER_ID"].to_s.empty?
+      nil
+    else
+      app_store_connect_api_key(
+        key_id: asc_key_id,
+        issuer_id: ENV["ASC_ISSUER_ID"],
+        key_filepath: caminho_da_chave_asc(asc_key_id)
+      )
+    end
+
     match(
+      api_key: api_key,
       type: tipo,
       app_identifier: [app_identifier],
       git_url: git_url,
@@ -349,12 +382,8 @@ platform :ios do
     # no archive E no export: sem isso o export morria em "requires a provisioning profile" (Super 8,
     # 28/set/2026 — 1º release iOS pelo runner).
     if perfis.empty?
-      # O código do Fastfile roda com o cwd em `fastlane/`, mas as ações (e o `key_filepath` acima)
-      # resolvem a partir da pasta do projeto — onde a chave mora. O `xcodebuild` exige caminho
-      # ABSOLUTO de arquivo existente.
-      nome_chave = "private_keys/AuthKey_#{asc_key_id}.p8"
-      chave = [File.expand_path(nome_chave), File.expand_path("../#{nome_chave}")].find { |c| File.exist?(c) }
-      UI.user_error!("chave #{nome_chave} não encontrada (nem em #{Dir.pwd} nem na pasta acima)") if chave.nil?
+      # O `xcodebuild` exige caminho ABSOLUTO de arquivo existente.
+      chave = caminho_da_chave_asc(asc_key_id)
       autorizacao = [
         "-allowProvisioningUpdates",
         "-authenticationKeyPath", chave.shellescape,
