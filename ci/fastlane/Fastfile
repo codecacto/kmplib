@@ -343,6 +343,24 @@ platform :ios do
       build_params[:project] = xcode_project
     end
 
+    # Sem perfil do `match`, a assinatura é a AUTOMÁTICA do Xcode — e ela, sem ninguém na frente,
+    # só consegue buscar/criar o perfil de distribuição com autorização explícita. O caminho oficial
+    # é `-allowProvisioningUpdates` + a chave da API da App Store Connect (a mesma `.p8` do upload),
+    # no archive E no export: sem isso o export morria em "requires a provisioning profile" (Super 8,
+    # 28/set/2026 — 1º release iOS pelo runner).
+    if perfis.empty?
+      chave = File.expand_path("private_keys/AuthKey_#{asc_key_id}.p8")
+      autorizacao = [
+        "-allowProvisioningUpdates",
+        "-authenticationKeyPath", chave.shellescape,
+        "-authenticationKeyID", asc_key_id.to_s.shellescape,
+        "-authenticationKeyIssuerID", asc_issuer_id.to_s.shellescape
+      ].join(" ")
+      build_params[:xcargs] = autorizacao
+      build_params[:export_xcargs] = autorizacao
+      build_params[:export_options] = { signingStyle: "automatic" }
+    end
+
     build_app(**build_params)
 
     upload_to_testflight(
