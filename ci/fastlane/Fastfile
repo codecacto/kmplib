@@ -109,7 +109,18 @@ platform :ios do
     return {} if ENV["MATCH_PASSWORD"].to_s.empty?
     return {} if app_identifier.to_s.empty?
 
-    sync_signing(app_identifier: app_identifier, tipo: tipo)
+    # "Ainda não migrei este app" também é o caso de ter a passphrase e NÃO ter o perfil no repo —
+    # e é o caso de TODOS até o primeiro `setup:true`: o runner exporta `MATCH_PASSWORD` sempre, e o
+    # `match` readonly falhava duro. Foi assim que o 1º release iOS pelo runner (Super 8, 28/set/2026)
+    # morreu com o repositório de certificados vazio. Sem perfil, volta ao chaveiro — o comportamento
+    # que o comentário acima promete.
+    begin
+      sync_signing(app_identifier: app_identifier, tipo: tipo)
+    rescue => e
+      UI.important("match sem perfil de #{app_identifier} (#{e.message.to_s.lines.first.to_s.strip}) — " \
+                   "seguindo com a assinatura automática do chaveiro. Migrar: sync_signing setup:true")
+      return {}
+    end
 
     # O `match` publica o nome do perfil instalado nesta variável — é o contrato dele com o
     # `build_app`. Ler daqui evita fixar o nome ("match AppStore br.com.x"), que muda de formato
@@ -171,8 +182,10 @@ platform :ios do
 
     tipo = options[:tipo] || "appstore"
     setup = options[:setup].to_s == "true"
+    # `github.com`, não o apelido `github-alt`: o apelido só existe no ~/.ssh/config do SERVIDOR, e
+    # o `match` roda no Mac ("Could not resolve hostname github-alt", 28/set/2026).
     git_url = options[:git_url] || ENV["MATCH_GIT_URL"] ||
-              "git@github-alt:codecacto/certificates.git"
+              "git@github.com:codecacto/certificates.git"
 
     if ENV["MATCH_PASSWORD"].to_s.empty?
       UI.user_error!(
