@@ -361,8 +361,9 @@ platform :ios do
         "-authenticationKeyID", asc_key_id.to_s.shellescape,
         "-authenticationKeyIssuerID", asc_issuer_id.to_s.shellescape
       ].join(" ")
+      # Só `xcargs`: o gym já o repassa ao `-exportArchive`, e mandar também em `export_xcargs`
+      # duplica a flag ("-authenticationKeyPath may only be provided once").
       build_params[:xcargs] = autorizacao
-      build_params[:export_xcargs] = autorizacao
       build_params[:export_options] = { signingStyle: "automatic" }
     end
 
