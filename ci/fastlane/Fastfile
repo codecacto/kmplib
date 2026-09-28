@@ -376,6 +376,16 @@ platform :ios do
       build_params[:project] = xcode_project
     end
 
+    # Versão e build number também como ARGUMENTO do xcodebuild. O `increment_*_in_xcodeproj` acima
+    # grava no .pbxproj, mas quem define o valor de fato é a cadeia de build settings: app que declara
+    # `CURRENT_PROJECT_VERSION`/`MARKETING_VERSION` no xcconfig (padrão da casca) ou no alvo seguia
+    # saindo com o número versionado, e a Apple recusava o upload ("bundle version must be higher",
+    # Super 8, 28/set/2026 — IPA 1.0.1 (5) com o TestFlight já no 7). Build setting passado na linha
+    # de comando vence todos os níveis.
+    versao_xcargs = ["CURRENT_PROJECT_VERSION=#{build_number.to_s.shellescape}"]
+    versao_xcargs << "MARKETING_VERSION=#{marketing_version.to_s.shellescape}" if marketing_version
+    build_params[:xcargs] = versao_xcargs.join(" ")
+
     # Sem perfil do `match`, a assinatura é a AUTOMÁTICA do Xcode — e ela, sem ninguém na frente,
     # só consegue buscar/criar o perfil de distribuição com autorização explícita. O caminho oficial
     # é `-allowProvisioningUpdates` + a chave da API da App Store Connect (a mesma `.p8` do upload),
@@ -392,7 +402,7 @@ platform :ios do
       ].join(" ")
       # Só `xcargs`: o gym já o repassa ao `-exportArchive`, e mandar também em `export_xcargs`
       # duplica a flag ("-authenticationKeyPath may only be provided once").
-      build_params[:xcargs] = autorizacao
+      build_params[:xcargs] = [build_params[:xcargs], autorizacao].join(" ")
       build_params[:export_options] = { signingStyle: "automatic" }
     end
 
