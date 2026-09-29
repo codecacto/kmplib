@@ -125,13 +125,28 @@ private const val TAG = "EntitlementProvider"
 class RevenueCatEntitlementProvider(
     purchaseConfig: PurchaseConfig,
     monetizationConfig: MonetizationConfig = MonetizationConfig.FreemiumQuota(purchase = purchaseConfig),
-) : EntitlementProvider {
+) : EntitlementProvider by PurchaseManagerEntitlementProvider() {
 
     init {
         if (!MonetizationManager.hasPurchase) {
             MonetizationManager.initialize(monetizationConfig)
         }
     }
+}
+
+/**
+ * Provider sobre o [PurchaseManager] **que o app já inicializou** (2.224.0) — o mesmo comportamento do
+ * [RevenueCatEntitlementProvider], **sem inicializar nada**.
+ *
+ * Existe para o app que inicializa o [MonetizationManager] **ele mesmo, e com o usuário**
+ * (`MonetizationManager.initialize(config, userId)` depois do login — LocAki, Super 8). Construir o
+ * [RevenueCatEntitlementProvider] ali seria arriscado: se o Koin o criasse antes do login, ele
+ * inicializaria a loja com um app user **anônimo**, e a compra feita nessa sessão não voltaria para a
+ * conta. Com este, a ordem é do app: antes da inicialização o repositório é `null` e tudo responde
+ * "sem billing" ([OfferingsOutcome.Indisponivel] / [PurchaseOutcome.Indisponivel]) — nunca premium
+ * grátis, nunca preço fabricado.
+ */
+class PurchaseManagerEntitlementProvider : EntitlementProvider {
 
     /** Reflete o `isPremium` do MonetizationManager (atualizado pelo estado da assinatura). */
     override val isPremium: StateFlow<Boolean> get() = MonetizationManager.isPremium

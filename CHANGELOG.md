@@ -1,5 +1,55 @@
 # Changelog — kmplib
 
+## 2.224.0 — `PaywallViewModel` + `PaywallHost`: a lógica do paywall sai dos apps e vem para a lib
+
+Minor, **aditiva** (nada existente mudou de assinatura). Origem: a lógica em volta da `PaywallScreen`
+— ler a oferta, montar os planos, cair para a loja quando a oferta central não vem, comprar,
+restaurar, abrir a gestão de assinatura, reler ao voltar ao primeiro plano e decidir quando alertar —
+estava **copiada à mão em ~15 apps**, cada cópia com uma parte da régua (uma alertava paywall vazio
+sem rede, outra não relia no `ON_RESUME`, outra usava `plans()` e não via a oferta ilegível). As
+duas cópias mais completas eram a do **LocAki** (oferta central + fallback da loja) e a da
+**casca-mobile** (só loja, régua de alertas inteira); a peça nova é a soma das duas.
+
+`kmplib-monetization`, pacote `br.com.codecacto.kmplib.ui.screens.paywall` (o mesmo da `PaywallScreen`):
+
+- **`PaywallViewModel(entitlementProvider, config, paymentAlerts, loadMessages)`** — `BaseViewModel` da
+  lib; estado `PaywallHostState(paywall, isRefreshing)`, ações `PaywallHostAction`
+  (`Load`/`Refresh`/`ShowUsage`/`Paywall`), efeitos `PaywallHostEffect`
+  (`Close`/`OpenUrl`/`OpenSubscriptionManagement`/`OpenDeveloper`/`ShowMessage`).
+- **`PaywallConfig`** — URLs legais, **`offerSource: PaywallOfferSource`** (`Store` = app de login
+  próprio; `CentralWithStoreFallback(controller | readPlans)` = oferta do admin-api ∩ loja, com
+  **fallback pela loja quando a oferta é ILEGÍVEL** — oferta vazia continua vazia), selo forçado,
+  benefícios do card vindo da loja, `savings`, `afterActivation` (`ShowActive`/`Close`) e
+  `onPremiumActivated` (ex.: invalidar o cache do entitlement).
+- **`PaywallHost(viewModel, onClose, onOpenDeveloper, …)`** — a tela inteira: relê a cada `ON_RESUME`,
+  puxa para atualizar (`RefreshableBox`), abre documento legal e a **gestão de assinatura da loja da
+  plataforma** (`getUrlLauncher().openSubscriptionManagement()`), snackbar. Repassa os slots e o
+  `headerIcon` da `PaywallScreen`.
+- **`PaywallSavings`** + **`withStoreSavings`** / **`savingsPercent`** — "Economize N%" e preço por mês
+  sobre o mensal, com os **micros da loja** em `Long` e só na mesma moeda (o que LocAki e Super 8
+  calculavam cada um do seu jeito). Opt-in.
+- **`PaywallMessages`** + **`loadPaywallMessages()`** — os textos que o ViewModel monta fora da
+  composição, nos 4 idiomas (3 recursos novos: `kmplib_paywall_nothing_to_restore`,
+  `kmplib_paywall_unavailable`, `kmplib_paywall_savings`).
+- **`PurchaseManagerEntitlementProvider`** (`monetization.entitlement`) — o provider sobre o
+  `PurchaseManager` **que o app já inicializou**, sem inicializar nada. É o do app que inicializa a
+  loja com o usuário depois do login (LocAki, Super 8): o `RevenueCatEntitlementProvider` criado cedo
+  pelo Koin inicializaria a loja com um app user anônimo. O `RevenueCatEntitlementProvider` passou a
+  delegar a ele (comportamento idêntico).
+
+**Régua de alertas** (GlitchTip → Discord): `OfertaCentralIndisponivel` quando a oferta central não
+veio **e o usuário não está sem rede**; `PaywallSemPlano` quando a loja respondeu vazia ou nada vendável
+sobrou; `LojaIndisponivel` só em falha de loja que é incidente; `CompraFalhou`/`RestauracaoFalhou` só
+em incidente. Sem rede, cancelamento, cartão recusado e build sem chave **não** alertam.
+
+Dependência nova no módulo: `lifecycle-runtime-compose` (`implementation`; o `kmplib-ui` já a tinha).
+
+Testes: `PaywallViewModelTest` (41) e `PaywallSavingsTest` (6).
+
+**Migração** (não obrigatória — quem não usa não muda nada): trocar o ViewModel próprio do paywall por
+`PaywallViewModel` no Koin e a tela por `PaywallHost`. Feita na `casca-mobile` e no LocAki nesta
+rodada; demais apps, quando forem tocados.
+
 ## 2.223.0 — `WithTestTagsAsResourceId` público (app com tema próprio expõe os `testTag` ao Maestro)
 
 Minor, **aditiva**. Origem: **Super 8** (29/set/2026) — o app tem tema próprio (nasceu antes do

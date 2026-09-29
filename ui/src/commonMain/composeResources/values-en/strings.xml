@@ -193,6 +193,10 @@
     <string name="kmplib_duration_months">%1$d months</string>
     <string name="kmplib_usage_unlimited">Unlimited</string>
     <string name="kmplib_usage_count">%1$d of %2$d</string>
+    <!-- PaywallViewModel (2.224.0) — o %1$s do selo recebe o percentual JA com o sinal ("33%"): %% nao desescapa igual no iOS -->
+    <string name="kmplib_paywall_nothing_to_restore">No purchases found to restore.</string>
+    <string name="kmplib_paywall_unavailable">Subscription unavailable right now.</string>
+    <string name="kmplib_paywall_savings">Save %1$s</string>
     <!-- Erros de compra (monetization/purchase — a frase diz O QUE FAZER) -->
     <string name="kmplib_purchase_network">No internet connection. Check your network and try again.</string>
     <string name="kmplib_purchase_store">The store is unavailable right now. Try again in a few minutes.</string>

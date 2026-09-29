@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — ViewModel do paywall promovido (2.224.0)
+- [x] **Lógica do paywall copiada em ~15 apps** — **fechado em 2.224.0**: `PaywallViewModel` + `PaywallHost`
+      (`kmplib-monetization`), fonte da oferta configurável (`Store` | `CentralWithStoreFallback`). Migrados:
+      `casca-mobile` e LocAki. **Migração pendente (quando cada um for tocado, sem campanha):** Super 8, Larguei,
+      Torneio de Pênalti, Mundo Bandeiras, Minhas Vacinas, Minha Agenda, Minha Despensa, Esquecido, CallRecorder,
+      ChamadaFacil, Números da Sorte, Acervo, Meu Fisio. Também copiam o padrão (achados na varredura): ExtinRota,
+      QueiMap, MinhaEstadia.
+
 ### Registrado nesta rodada (29/set/2026) — origem: design **ExtinRota Onda 2 / 3.1**
 > Origem: `8-Sistemas-Portal-App/ExtinRota/docs/design/wireframes-onda2.md` §D2. Par web em `Lib/weblib/docs/backlog.md`.
 
