@@ -316,6 +316,24 @@ class DomainApiClient(
     suspend fun getBytes(path: String): DomainResult<ByteArray> =
         execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.bytes()
 
+    /**
+     * `POST` com corpo JSON cuja resposta é BINÁRIA (2.222.0) — ex.: `POST /v1/etiquetas/pdf` com
+     * `{"ids":[…]}`, que devolve `application/pdf`.
+     *
+     * Existe porque documento gerado a partir de uma LISTA não cabe em `GET ?ids=`: com algumas
+     * centenas de UUIDs a query estoura a linha inicial que o servidor aceita, e ele responde 400
+     * antes de a aplicação ver o pedido (no ExtinRota isso acontecia a partir de ~110 ids). Mesmo
+     * tratamento das demais chamadas: Bearer, refresh + 1 retry no 401, 402 vira [DomainResult.Quota],
+     * envelope de erro da backlib em [DomainResult.Error], e o corpo lido sob a mesma proteção de
+     * [getBytes] (conexão caída no meio do download vira erro, não corrotina morta).
+     */
+    suspend fun postJsonForBytes(path: String, body: String): DomainResult<ByteArray> =
+        execute(path) { token ->
+            httpClient.post(url(path)) {
+                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+            }
+        }.bytes()
+
     // ---- Núcleo ----------------------------------------------------------
 
     private fun HttpRequestBuilder.bearer(token: String?) {

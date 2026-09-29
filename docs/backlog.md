@@ -8,6 +8,7 @@
 
 - [x] **GAP-ER-10 (P1) — folha de etiquetas com QR** — **fechado, NÃO é gap de lib (29/set/2026).** Resolvido no **backend do ExtinRota**: o PDF de etiquetas é gerado no servidor, e o app só baixa/compartilha o arquivo — sem `LabelSheetPdf` em Android + iOS. Reabrir só se um SEGUNDO produto precisar gerar etiqueta no aparelho (offline).
 - [x] **GAP-ER-11 (P2) — `DocumentPdf` para orçamento** — **fechado, NÃO é gap de lib (29/set/2026).** Resolvido no **backend do ExtinRota**: o PDF do orçamento é gerado no servidor, e o app só baixa/compartilha. Nada a estender no `DocumentPdf` por ora.
+- [x] **GAP-ER-12 (P1) — binário por `POST` com corpo JSON** — **fechado em 2.222.0 (29/set/2026)**: `DomainApiClient.postJsonForBytes(path, body)`. O ExtinRota passou a pedir a folha de etiquetas por `POST /v1/etiquetas/pdf` (lista de ids no corpo; na query, ~110 UUIDs estouravam a linha inicial do servidor), e o cliente de domínio só baixava binário por `GET`.
 
 ### Registrado nesta rodada (28/set/2026) — origem: design do **ExtinRota** (carteira de extintores, mapa + rota)
 > Origem: `8-Sistemas-Portal-App/ExtinRota/docs/design/wireframes.md` §D "Gaps de lib" (ux-designer). Par web em `Lib/weblib/docs/backlog.md`.

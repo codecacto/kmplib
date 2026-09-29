@@ -302,6 +302,58 @@ class DomainApiClientTest {
         assertNull(parseServerErrorEnvelope("{quebrado"))
     }
 
+    @Test
+    fun `postJsonForBytes envia o JSON com Bearer e devolve os bytes crus`() = runTest {
+        var metodo: String? = null
+        var tipo: String? = null
+        var corpo: String? = null
+        var auth: String? = null
+        val pdf = byteArrayOf(0x25, 0x50, 0x44, 0x46, 0x2D, 0x00, 0xFF.toByte())
+        val engine = MockEngine { request ->
+            metodo = request.method.value
+            auth = request.headers["Authorization"]
+            val c = request.body
+            tipo = c.contentType?.toString()
+            corpo = when (c) {
+                is OutgoingContent.ByteArrayContent -> c.bytes().decodeToString()
+                is OutgoingContent.WriteChannelContent -> readBody(c)
+                else -> null
+            }
+            respond(content = pdf, status = HttpStatusCode.OK, headers = headersOf("Content-Type", "application/pdf"))
+        }
+        val api = DomainApiClient(HttpClient(engine), DomainTokenProvider { "tok-1" }, "https://api.example.com")
+        val r = api.postJsonForBytes("/v1/etiquetas/pdf", """{"ids":["a","b"],"formato":"A4_24"}""")
+        assertTrue(r is DomainResult.Success)
+        assertTrue(pdf.contentEquals((r as DomainResult.Success).data))
+        assertEquals("POST", metodo)
+        assertEquals("Bearer tok-1", auth)
+        assertTrue(tipo.orEmpty().startsWith("application/json"))
+        assertEquals("""{"ids":["a","b"],"formato":"A4_24"}""", corpo)
+    }
+
+    @Test
+    fun `postJsonForBytes traz o code do envelope de erro e o 402 como Quota`() = runTest {
+        val erro = """{"ok":false,"error":{"code":"TOO_MANY_LABELS","message":"No máximo 500 etiquetas por folha","details":{"ids":"No máximo 500"}}}"""
+        val (api, _) = client { HttpStatusCode.BadRequest to erro }
+        val r = api.postJsonForBytes("/v1/etiquetas/pdf", "{}")
+        assertTrue(r is DomainResult.Error)
+        assertEquals(400, (r as DomainResult.Error).code)
+        assertEquals("TOO_MANY_LABELS", r.serverCode)
+        assertEquals("No máximo 500", r.fieldError("ids"))
+
+        val quota = """{"ok":false,"error":{"code":"QUOTA_EXCEEDED","message":"x","details":{"feature":"etiquetas","limite":"0","contagem":"0"}}}"""
+        val (api2, _) = client { HttpStatusCode.PaymentRequired to quota }
+        assertTrue(api2.postJsonForBytes("/v1/etiquetas/pdf", "{}") is DomainResult.Quota)
+    }
+
+    @Test
+    fun `postJsonForBytes com 401 renova o token e repete uma vez`() = runTest {
+        val (api, cap) = client { attempt -> if (attempt == 1) HttpStatusCode.Unauthorized to "" else HttpStatusCode.OK to "%PDF" }
+        val r = api.postJsonForBytes("/v1/etiquetas/pdf", "{}")
+        assertTrue(r is DomainResult.Success)
+        assertEquals<List<String?>>(listOf("Bearer tok-1", "Bearer fresh"), cap.auths)
+    }
+
     /** Drena o corpo de um [OutgoingContent.WriteChannelContent] (multipart) para texto. */
     private suspend fun readBody(content: OutgoingContent.WriteChannelContent): String = coroutineScope {
         val channel = ByteChannel(autoFlush = true)

@@ -1,5 +1,19 @@
 # Changelog — kmplib
 
+## 2.222.0 — `DomainApiClient.postJsonForBytes(path, body)`: POST com corpo JSON e resposta binária
+
+Minor, **aditiva**. Origem: **ExtinRota** (GAP-ER-12) — o backend trocou `GET /v1/etiquetas/pdf?ids=…`
+por `POST /v1/etiquetas/pdf` com `{"ids":[…],"formato":…}`: acima de ~110 UUIDs a query estourava a
+linha inicial do servidor, que respondia 400 antes de a aplicação ver o pedido. O cliente de domínio
+só tinha binário por `GET` (`getBytes`), e o app não tinha como pedir o PDF sem montar um `HttpClient`
+próprio (perdendo o Bearer, o refresh no 401, o 402 → `Quota` e o envelope de erro).
+
+- `suspend fun postJsonForBytes(path: String, body: String): DomainResult<ByteArray>` (`kmplib-core`,
+  `sync.rest.DomainApiClient`) — mesmo núcleo das demais chamadas (`execute` + leitura do corpo
+  protegida, como em `getBytes`). Nada muda para quem não usa.
+- Testes: 3 novos em `DomainApiClientTest` (método/Content-Type/corpo/Bearer e bytes crus; envelope de
+  erro com `serverCode`/`fieldError` e 402 como `Quota`; refresh + 1 retry no 401).
+
 ## 2.221.0 — exclusão de conta com a confirmação digitada no corpo (`deleteAccountAndData(confirmation)`); lista reordenável por arrasto e acessível (`ReorderableList`)
 
 Minor, **aditiva**. Origem: **ExtinRota** (lacuna da exclusão de conta + ER-04, reordenar paradas).
