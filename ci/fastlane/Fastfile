@@ -261,12 +261,8 @@ platform :ios do
     workspace_path = options[:workspace_path] || "iosApp/iosApp.xcworkspace"
     xcode_project = options[:xcode_project] || "iosApp/iosApp.xcodeproj"
 
-    if marketing_version
-      increment_version_number_in_xcodeproj(
-        version_number: marketing_version,
-        xcodeproj: xcode_project
-      )
-    end
+    # Versão: SÓ como argumento do xcodebuild (xcargs, abaixo) — nada se grava no .pbxproj.
+    # Ver o comentário "Por que nenhuma lane reescreve o .pbxproj" na lane `release`.
 
     app_id = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
              CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
@@ -290,6 +286,10 @@ platform :ios do
     else
       build_params[:project] = xcode_project
     end
+
+    # Mesma regra da `release`: a versão vai como argumento do xcodebuild, que vence xcconfig e
+    # alvo, e o repositório não é tocado.
+    build_params[:xcargs] = "MARKETING_VERSION=#{marketing_version.to_s.shellescape}" if marketing_version
 
     build_app(**build_params)
 
@@ -316,12 +316,18 @@ platform :ios do
       key_filepath: "private_keys/AuthKey_#{asc_key_id}.p8"
     )
 
-    if marketing_version
-      increment_version_number_in_xcodeproj(
-        version_number: marketing_version,
-        xcodeproj: xcode_project
-      )
-    end
+    # Por que nenhuma lane reescreve o .pbxproj (kmplib 2.224.1, 29/set/2026).
+    #
+    # Até a 2.224.0 a lane chamava `increment_version_number_in_xcodeproj` e
+    # `increment_build_number_in_xcodeproj` (plugin `versioning`) E TAMBÉM passava os dois valores
+    # como argumento do xcodebuild (`xcargs`, abaixo). O argumento vence todos os níveis da cadeia
+    # de build settings (xcconfig, alvo, projeto) — então a gravação no .pbxproj não decidia nada:
+    # o IPA sai com o que vai no `xcargs`. Ela só fazia estrago: reescrevia o .pbxproj no clone do
+    # Mac a cada release, deixando a árvore "suja", e o qa-runner recusa testar por cima de árvore
+    # suja (descoberta 6 do CONTINUAR-AUTOMACAO.md). O `release.sh` da casca (≥ 724860d1) sempre
+    # manda o MARKETING_VERSION do `version.properties`; o build number sai do TestFlight (+1) ou
+    # vem explícito. A versão fica versionada no `version.properties` + xcconfig, e o release não
+    # toca em arquivo nenhum do repositório.
 
     # Build number: NUNCA digitado à mão.
     #
@@ -350,11 +356,6 @@ platform :ios do
       UI.message("Build number resolvido pelo TestFlight: #{build_number}")
     end
 
-    increment_build_number_in_xcodeproj(
-      build_number: build_number.to_s,
-      xcodeproj: xcode_project
-    )
-
     app_id_release = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
                      CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
     perfis = perfis_do_match(app_id_release, "appstore")
@@ -376,12 +377,12 @@ platform :ios do
       build_params[:project] = xcode_project
     end
 
-    # Versão e build number também como ARGUMENTO do xcodebuild. O `increment_*_in_xcodeproj` acima
-    # grava no .pbxproj, mas quem define o valor de fato é a cadeia de build settings: app que declara
-    # `CURRENT_PROJECT_VERSION`/`MARKETING_VERSION` no xcconfig (padrão da casca) ou no alvo seguia
-    # saindo com o número versionado, e a Apple recusava o upload ("bundle version must be higher",
-    # Super 8, 28/set/2026 — IPA 1.0.1 (5) com o TestFlight já no 7). Build setting passado na linha
-    # de comando vence todos os níveis.
+    # Versão e build number como ARGUMENTO do xcodebuild — o ÚNICO lugar onde a lane os define.
+    # Quem decide o valor é a cadeia de build settings: app que declara
+    # `CURRENT_PROJECT_VERSION`/`MARKETING_VERSION` no xcconfig (padrão da casca) ou no alvo saía
+    # com o número versionado mesmo depois de gravado no .pbxproj, e a Apple recusava o upload
+    # ("bundle version must be higher", Super 8, 28/set/2026 — IPA 1.0.1 (5) com o TestFlight já
+    # no 7). Build setting passado na linha de comando vence todos os níveis.
     versao_xcargs = ["CURRENT_PROJECT_VERSION=#{build_number.to_s.shellescape}"]
     versao_xcargs << "MARKETING_VERSION=#{marketing_version.to_s.shellescape}" if marketing_version
     build_params[:xcargs] = versao_xcargs.join(" ")

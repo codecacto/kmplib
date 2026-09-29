@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — aviso do R8 no release Android
+- [ ] **R8: "An error occurred when parsing kotlin metadata"** — aviso no `minifyReleaseEnabled` dos apps. Causa
+      provável: o R8 embutido no AGP (`agp = "8.11.2"` em `gradle/libs.versions.toml`) é mais antigo que o metadata
+      do Kotlin 2.3 e não o lê (aviso, não erro — mas regra de keep que dependa de metadata pode ser ignorada).
+      **Na próxima rodada de dependências:** conferir a versão AGP/R8 compatível com Kotlin 2.3 (tabela de
+      compatibilidade do R8) e subir o AGP — ou fixar o R8 mais novo — na lib e na `casca-mobile`. Sem mudar
+      dependência agora.
+
 ### Registrado nesta rodada (29/set/2026) — ViewModel do paywall promovido (2.224.0)
 - [x] **Lógica do paywall copiada em ~15 apps** — **fechado em 2.224.0**: `PaywallViewModel` + `PaywallHost`
       (`kmplib-monetization`), fonte da oferta configurável (`Store` | `CentralWithStoreFallback`). Migrados:

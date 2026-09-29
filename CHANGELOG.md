@@ -1,5 +1,18 @@
 # Changelog — kmplib
 
+## 2.224.1 — Fastfile iOS: a versão vai só por argumento do xcodebuild; o `.pbxproj` não é mais reescrito
+
+Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). A lane `release` chamava
+`increment_version_number_in_xcodeproj` e `increment_build_number_in_xcodeproj` **e também** passava os
+dois valores em `xcargs` (desde `0fcfb16`). O argumento do xcodebuild vence a cadeia de build settings,
+então a gravação no `.pbxproj` não decidia nada — só deixava o clone do Mac com a árvore suja, e o
+qa-runner recusa testar por cima de árvore suja. Com o `release.sh` da casca (≥ `724860d1`) mandando
+sempre o `MARKETING_VERSION` do `version.properties`, as duas gravações saíram. A lane `build` também
+deixou de gravar a versão no `.pbxproj` e passa `MARKETING_VERSION` por `xcargs`.
+
+**Ação nos apps:** nenhuma — o Fastfile é importado da `main`. O plugin `fastlane-plugin-versioning`
+deixou de ser usado pelas lanes da lib (pode sair do `Pluginfile` do app quando ele for tocado).
+
 ## 2.224.0 — `PaywallViewModel` + `PaywallHost`: a lógica do paywall sai dos apps e vem para a lib
 
 Minor, **aditiva** (nada existente mudou de assinatura). Origem: a lógica em volta da `PaywallScreen`
