@@ -4840,3 +4840,12 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       precisa ser redescoberto por consumidor, e quem não notar a ausência tende a cair no
       `observeString` + `toFloat()`, que perde precisão na volta. Aditivo: acrescentar
       `observeFloat(key, default)` às três implementações (Android/iOS/fake) não quebra ninguém.
+
+- **`kmplib-location`: posição de ALTA precisão e helper visível no código comum** (FX Investimentos,
+  29/set/2026). (1) Pelo caminho de tela, o módulo pede só `ACCESS_COARSE_LOCATION` e lê em modo
+  econômico — no Android a posição "aproximada" erra centenas de metros, inútil para gravar a
+  coordenada de um ENDEREÇO. Falta uma opção de precisão (FINE + COARSE e leitura de alta
+  precisão). (2) `rememberLocationProvider()` existe em Android e iOS mas não é visível no
+  `commonMain`, e o `createLocationProvider()` comum no Android exige `initKmpLibCore` +
+  `FragmentActivity` — num app com `ComponentActivity` o pedido de permissão fica mudo. O FX
+  contornou com uma ponte própria (`mobile/.../core/location/`), que sai quando a lib resolver.
