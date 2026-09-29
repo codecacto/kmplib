@@ -241,4 +241,6 @@
     <string name="kmplib_photo_cover">Capa</string>
     <string name="kmplib_photo_remove">Remover foto</string>
     <string name="kmplib_try_again_short">Tentar de novo</string>
+    <string name="kmplib_stepper_decrease">Diminuir</string>
+    <string name="kmplib_stepper_increase">Aumentar</string>
 </resources>

@@ -85,6 +85,32 @@ object ColorContrast {
     /** `true` se [foreground] atinge o alvo **gráfico** (≥ [AA_GRAPHIC]) sobre [background] opaco. */
     fun meetsGraphicContrast(foreground: Color, background: Color): Boolean =
         contrastRatio(foreground, background) >= AA_GRAPHIC
+
+    /**
+     * Devolve [foreground] **o mais parecido possível** com a cor pedida que ainda atinge [minRatio]
+     * sobre [background] (2.220.0). Se a cor já atinge, volta intacta; senão escurece (ou clareia,
+     * conforme o fundo) em passos de 5% rumo ao candidato de maior contraste de [pickOnColor], até
+     * passar. É o que deixa uma cor ARBITRÁRIA de status (o âmbar de "vence em 30 dias", o amarelo de
+     * um semáforo) servir de texto sobre o próprio fundo tingido sem virar ilegível — e sem o app
+     * escolher um segundo tom à mão para cada cor.
+     *
+     * [foreground] e [background] devem ser opacos (componha antes com [compositeOver]).
+     */
+    fun adjustForContrast(
+        foreground: Color,
+        background: Color,
+        minRatio: Double = AA_TEXT,
+    ): Color {
+        if (contrastRatio(foreground, background) >= minRatio) return foreground
+        val target = pickOnColor(background)
+        var step = 1
+        while (step <= 20) {
+            val candidate = foreground.lerpTo(target, step / 20f)
+            if (contrastRatio(candidate, background) >= minRatio) return candidate
+            step++
+        }
+        return target
+    }
 }
 
 /**

@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,24 @@ fun statusToneColor(tone: StatusTone): Color = when (tone) {
  * StatusBadge("Ativo", if (item.active) StatusTone.SUCCESS else StatusTone.NEUTRAL)
  * ```
  */
+/**
+ * `StatusBadge` de **cor arbitrária** (2.220.0): fundo da cor a 15% e texto na mesma cor, escurecida
+ * só o necessário para atingir 4,5:1 — o selo de um degrau de semáforo customizado sem o app escolher
+ * dois tons à mão. Para ícone + rótulo, use [StatusChip].
+ */
+@Composable
+fun StatusBadge(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    surface: Color = MaterialTheme.colorScheme.surface,
+) {
+    val (content, background) = remember(color, surface) {
+        statusChipColors(color, StatusChipStyle.TINTED, surface)
+    }
+    StatusBadge(text = text, textColor = content, backgroundColor = background, modifier = modifier)
+}
+
 @Composable
 fun StatusBadge(
     text: String,

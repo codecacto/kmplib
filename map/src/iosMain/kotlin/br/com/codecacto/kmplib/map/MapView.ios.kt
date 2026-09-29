@@ -1,40 +1,40 @@
 package br.com.codecacto.kmplib.map
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.UIKitView
 
 /**
- * Implementação iOS do [MapView] — **Google Maps NATIVO** (`GMSMapView`), em paridade com o
- * Android (`maps-compose`). A `GMSMapView` é criada no Swift (`iosApp/.../MapBridge.swift`) e
- * injetada via [IosMapBridge]; aqui ela é embutida no Compose por `UIKitView`. Os marcadores
- * são declarados como filhos `@Composable` ([MapMarker]) e reconciliados imperativamente na
- * `GMSMapView` (add/remove via [DisposableEffect]) — mesmo modelo do Android.
+ * Implementação iOS do [MapView].
  *
- * Sem o bridge Swift registrado (`IosMapBridge.factory == null`), exibe um placeholder claro
- * (não quebra). O build/validação final é em host macOS (pacote SPM `googlemaps/ios-maps-sdk` no Xcode).
+ * - **Padrão (2.220.0): MapKit** ([MapKitMap]) — o SDK oficial da Apple, sem chave e sem ponte
+ *   Swift. Até a 2.219.0, sem ponte registrada este mapa mostrava só o texto "Mapa indisponível".
+ * - **Com [IosMapBridge.factory] registrada**: a `GMSMapView` do app (Google Maps via Swift), como
+ *   antes — quem já tinha a ponte continua exatamente igual.
+ *
+ * Os marcadores são declarados como filhos `@Composable` ([MapMarker]) e reconciliados
+ * imperativamente no mapa nativo (add/remove via [DisposableEffect]) — mesmo modelo do Android.
  */
 actual class MapScope internal constructor(
     internal val markers: SnapshotStateList<IosMapMarkerData>,
     internal val clicks: MutableMap<String, () -> Unit>,
+    /** Cor de cada pino (id → cor; `null` = cor padrão) — usada pelo caminho MapKit. */
+    internal val colors: SnapshotStateMap<String, Color?> = mutableStateMapOf(),
 )
 
 @Composable
@@ -48,19 +48,7 @@ actual fun MapView(
 ) {
     val factory = IosMapBridge.factory
     if (factory == null) {
-        Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "Mapa indisponível: registre IosMapBridge.factory (GMSMapView) no app iOS.",
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-        LaunchedEffect(Unit) { onMapLoaded() }
+        MapKitMapView(modifier, cameraPosition, onMapLoaded, onMapClick, onMapLongClick, content)
         return
     }
 
@@ -101,7 +89,7 @@ actual fun MapScope.MapMarker(
     title: String,
     onClick: () -> Unit,
 ) {
-    RegisterMarker(position, title, onClick)
+    RegisterMarker(position, title, status.color(), onClick)
 }
 
 @Composable
@@ -110,12 +98,12 @@ actual fun MapScope.MapMarker(
     title: String,
     onClick: () -> Unit,
 ) {
-    RegisterMarker(position, title, onClick)
+    RegisterMarker(position, title, null, onClick)
 }
 
 /** Adiciona o pin ao escopo (e remove ao sair de composição) — reconciliado na GMSMapView. */
 @Composable
-private fun MapScope.RegisterMarker(position: LatLng, title: String, onClick: () -> Unit) {
+private fun MapScope.RegisterMarker(position: LatLng, title: String, color: Color?, onClick: () -> Unit) {
     val id = remember(position.latitude, position.longitude, title) {
         "m_${position.latitude}_${position.longitude}_${title.hashCode()}"
     }
@@ -125,7 +113,53 @@ private fun MapScope.RegisterMarker(position: LatLng, title: String, onClick: ()
         onDispose {
             markers.removeAll { it.id == id }
             clicks.remove(id)
+            colors.remove(id)
         }
+    }
+    SideEffect { colors[id] = color }
+}
+
+/** O [MapView] sobre MapKit: os filhos registram pinos no escopo e o MapKit os desenha. */
+@Composable
+private fun MapKitMapView(
+    modifier: Modifier,
+    cameraPosition: CameraPosition,
+    onMapLoaded: () -> Unit,
+    onMapClick: ((LatLng) -> Unit)?,
+    onMapLongClick: ((LatLng) -> Unit)?,
+    content: @Composable MapScope.() -> Unit,
+) {
+    val scope = remember { MapScope(mutableStateListOf(), mutableMapOf()) }
+    val controller = rememberMapController(cameraPosition)
+    LaunchedEffect(cameraPosition) { controller.moveTo(cameraPosition, animate = false) }
+    val primary = MaterialTheme.colorScheme.primary
+    val resolved = scope.markers.map { m ->
+        resolveMarker(
+            MapItem(
+                id = m.id,
+                position = LatLng(m.lat, m.lng),
+                title = m.title,
+                style = scope.colors[m.id]?.let { MapMarkerStyle(it) },
+            ),
+            primary,
+        )
+    }
+    Box(modifier = modifier) {
+        MapKitMap(
+            markers = resolved,
+            polylines = emptyList(),
+            controller = controller,
+            clustering = false,
+            showUserLocation = false,
+            defaultColor = primary,
+            onMarkerClick = { item -> scope.clicks[item.id]?.invoke() },
+            onClusterClick = {},
+            onMapClick = onMapClick,
+            onMapLongClick = onMapLongClick,
+            onLoaded = onMapLoaded,
+            modifier = Modifier.fillMaxSize(),
+        )
+        scope.content()
     }
 }
 

@@ -1,5 +1,64 @@
 # Changelog — kmplib
 
+## 2.220.0 — mapa nativo de carteira (`NativeMap`: pinos coloridos, agrupamento, rota, posição do usuário, enquadrar) com **MapKit real no iOS**; escala de status com cor arbitrária (`StatusScale`/`StatusChip`); `ProportionalBar` e `AppStepper`
+
+Minor, **aditiva**. Origem: design do **ExtinRota** (carteira de extintores num mapa, semáforo de
+vencimento, rota de visitas) — `GAP-ER-01`, `-06`, `-07`, `-08`. Referência promovida (só leitura):
+o mapa nativo do Prospecta (Maps Compose + MapKit).
+
+### 1. `NativeMap` — mapa de carteira no SDK oficial dos dois sistemas (`kmplib-map`, GAP-ER-01)
+- `NativeMap(items, modifier, controller, polylines, clustering = true, showUserLocation = false,
+  fitOnFirstLoad = true, onItemClick, onClusterClick, onMapClick, onMapLongClick)`.
+- **Android:** Google Maps SDK (`maps-compose`) + **agrupamento pelo `ClusterManager` oficial**
+  (`maps-compose-utils`/android-maps-utils — dependência nova, `implementation`), com renderizador
+  próprio: o pino sai na cor do item com texto curto dentro, o grupo na cor do **membro mais grave**
+  com o contador exato (o `DefaultClusterRenderer` só tem pino vermelho e "10+"/"20+").
+- **iOS:** **MapKit** (`MKMapView` via `UIKitView`) — SDK da Apple, sem chave, sem SPM, sem ponte
+  Swift. `MKMarkerAnnotationView` com `markerTintColor`/`glyphText`, agrupamento nativo por
+  `clusteringIdentifier`, `MKPolyline`, `showsUserLocation`, toque/toque longo no mapa.
+- Modelos: `MapItem(id, position, title, snippet, style, priority)`, `MapMarkerStyle(color, glyph,
+  glyphColor)` (glifo até 3 caracteres, sem partir emoji; cor do glifo por contraste quando nula),
+  `MapPolyline(id, points, color, width)`, `LatLngBounds.of(points)`.
+- Câmera: `rememberMapController()` → `MapController.fitTo(points, padding, maxZoom)` /
+  `moveTo(...)` / `cameraPosition` (atualizado quando o movimento para). Comando dado antes de o mapa
+  carregar fica guardado e é aplicado ao carregar. Um ponto só vira "centralizar em `maxZoom`" (em
+  vez do zoom máximo do SDK).
+- Toque em grupo sem `onClusterClick`: aproxima até separar; se todos estão no MESMO ponto (vários
+  itens no mesmo endereço), abre o mais grave via `onItemClick`.
+- Posição do usuário: só com permissão já concedida (reconferida no `ON_RESUME` no Android). O mapa
+  **não pede** permissão — use `createLocationProvider()`.
+- Puras e testadas (21 casos): `limitGlyph`, `clusterRepresentative`, `clusterCountLabel`,
+  `longitudeSpanForZoom`/`zoomForLongitudeSpan`/`latitudeSpanFor` (ponte zoom ↔ `MKCoordinateSpan`).
+
+### 2. iOS do `MapView` deixou de ser placeholder
+Sem `IosMapBridge.factory` registrada, o `MapView` (e `MarkersMap`/`SinglePinMap`/`PickerMap`)
+agora desenha **MapKit** — antes mostrava o texto "Mapa indisponível". Com a ponte registrada, segue
+exatamente como era (Google Maps via Swift).
+
+### 3. Escala de status com cor arbitrária (`kmplib-ui`, GAP-ER-07)
+- `StatusLevel(key, label, color, icon, severity)` + `StatusScale(levels)` (`level`, `require`,
+  `mostSevere`, `bySeverityDescending`) — o semáforo é do app, não da lib.
+- `rememberStatusRamp(count = 5)` (tema: `success` → `warning` → `error`) e `rampColors(stops, count)`.
+- `StatusChip(label, color | tone | level, icon, style = TINTED|SOLID)` — ícone + rótulo + cor com
+  **contraste AA garantido**; `StatusBadge(text, color)` (overload novo, cor arbitrária).
+- `ColorContrast.adjustForContrast(foreground, background, minRatio)`.
+
+### 4. `ProportionalBar` e `AppStepper` (`kmplib-ui`, GAP-ER-08)
+- `ProportionalBar(segments: List<ProportionalSegment>, …)` — uma barra dividida na proporção (legenda
+  com percentuais que somam 100: `proportionalPercents`, maior resto).
+- `AppStepper(value, onValueChange, min, max, step, label, …)` — `[−] n [+]`, alvos de 48 dp,
+  descrições nos 4 idiomas (`kmplib_stepper_decrease`/`_increase`), valor como região viva;
+  `stepperNextValue` (preso aos limites, sem estourar `Int`).
+
+### 5. Conferido, sem mudança (GAP-ER-06)
+`signature` já expõe o composable `SignaturePad(state, …)` + `SignaturePadState.toPngBytes()`;
+`OsPdfData` já aceita logo (`OsPdfCompany.logoBytes`) e marca d'água (`watermark`/`watermarkText`)
+nos dois sistemas. Assinatura em PDF: `ReciboPdf` (`assinaturaEmitenteBytes`/`assinaturaPagadorBytes`) e `InspectionPdf` (`signatures`).
+
+**Consumo:** `api(libs.kmplib.map)` (ou o umbrella). Android: a chave do Maps no manifesto do app
+(`com.google.android.geo.API_KEY`), como antes. iOS: nada a instalar; para o ponto azul,
+`NSLocationWhenInUseUsageDescription` no `Info.plist`.
+
 ## 2.219.0 — app GLOBAL: telas da lib nos 4 idiomas da fábrica, idioma/região/formatos do aparelho, `Accept-Language` + `X-Time-Zone`, telefone internacional (E.164), `locale` no cadastro
 
 Minor, **aditiva**. Em aparelho brasileiro (pt-BR, região BR) **nada muda na tela** — os textos pt-BR

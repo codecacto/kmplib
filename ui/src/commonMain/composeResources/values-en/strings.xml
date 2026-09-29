@@ -232,4 +232,6 @@
     <string name="kmplib_photo_cover">Cover</string>
     <string name="kmplib_photo_remove">Remove photo</string>
     <string name="kmplib_try_again_short">Try again</string>
+    <string name="kmplib_stepper_decrease">Decrease</string>
+    <string name="kmplib_stepper_increase">Increase</string>
 </resources>

@@ -9,8 +9,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Wrappers de alto nível dos mapas **nativos (Google Maps SDK)** — Android via `maps-compose`,
- * iOS via `GMSMapView` (cinterop). São o padrão-ouro de mapa do ecossistema; espelham os 3 modos
+ * Wrappers de alto nível dos mapas **nativos** — Android via Google Maps SDK (`maps-compose`), iOS
+ * via **MapKit** (2.220.0; ou a `GMSMapView` do app, se registrar `IosMapBridge`). Para carteira com
+ * muitos pinos coloridos, agrupamento e rota, use [NativeMap]. São o padrão-ouro de mapa do ecossistema; espelham os 3 modos
  * que a web expõe (`MapInner.tsx`) para garantir paridade web=Android=iOS:
  *  - [MarkersMap] — N pins, toque → navega (espelha `ClientsMap`).
  *  - [SinglePinMap] — 1 pin só-leitura (espelha `SinglePinMap`).

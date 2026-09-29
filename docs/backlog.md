@@ -3,6 +3,28 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (28/set/2026) — origem: design do **ExtinRota** (carteira de extintores, mapa + rota)
+> Origem: `8-Sistemas-Portal-App/ExtinRota/docs/design/wireframes.md` §D "Gaps de lib" (ux-designer). Par web em `Lib/weblib/docs/backlog.md`.
+
+- [x] **GAP-ER-01 (P0) — `map` sem pino colorido por status, cluster e polilinha; iOS placeholder.** **ATENDIDO na
+      2.220.0** → `NativeMap` (+ `MapItem`/`MapMarkerStyle`/`MapPolyline`/`MapController.fitTo`), agrupamento pelo
+      `ClusterManager` oficial no Android e `clusteringIdentifier` do MapKit no iOS; grupo na cor do membro mais grave.
+      **Decisão:** iOS em **MapKit** (SDK oficial da Apple, sem chave nem SPM) em vez de Google Maps SDK via ponte
+      Swift — mesma API comum, zero configuração no app. O `MapView` antigo também passou a usar MapKit sem ponte.
+- [ ] **GAP-ER-03 (P1) — sem leitor CSV/XLSX no app** (par do `/import` da weblib): `parseCsv` (`;`, Windows-1252, BOM),
+      `readXlsx`, mapeamento de colunas e relatório de erros.
+- [ ] **GAP-ER-04 (P1) — rota multi-parada:** `RouteProvider` só faz origem→destino. Faltam `optimize(origin, stops)`,
+      lista reordenável por arrasto e helpers `openInMaps`/`openInWaze` (deep link).
+- [x] **GAP-ER-06 (P2) — verificar** se `signature` tem composable de traço e se `OsPdf` aceita marca d'água + logo do vendedor.
+      **Conferido na 2.220.0, já existia:** `SignaturePad(state)` + `toPngBytes()`; `OsPdfCompany.logoBytes` +
+      `OsPdfData.watermark/watermarkText` (Android e iOS). Assinatura no PDF: `ReciboPdf`/`InspectionPdf` (o `OsPdf` não tem).
+- [x] **GAP-ER-07 (P1) — semáforo de 5 níveis:** **ATENDIDO na 2.220.0** → `StatusLevel`/`StatusScale` (o app declara
+      os degraus), `rememberStatusRamp(5)` do tema, `StatusChip(label, color|tone|level, icon)` com contraste AA
+      garantido e `StatusBadge(text, color)`.
+- [x] **GAP-ER-08 (P2) — sem barra proporcional/mini-gráfico e sem stepper/campo percentual** (painel do dono no app).
+      **ATENDIDO na 2.220.0** → `ProportionalBar` + `AppStepper`. Mini-gráfico já existia (`BarChart`/`StackedBarChart`/
+      `ScoreBarRow`); campo percentual = `NumberField(maxValue = 100.0)`.
+
 ### Registrado nesta rodada (27/set/2026) — origem: design do **Minha Estadia** (guia digital de temporada)
 > Origem: `8-Sistemas-Portal-App/MinhaEstadia/docs/design/wireframes.md` §"Gaps de lib" (ux-designer).
 > App full-stack (anfitrião + hóspede no mesmo app); par web em `Lib/weblib/docs/backlog.md`.
@@ -1909,7 +1931,8 @@ pessoal via product flavors `moedas`/`cards`)
       histórico imutável (alocação, entregas, devoluções parciais, pagamentos, avarias, transferências) —
       lista vertical com ícone por tipo de evento + autor + timestamp, variante compacta ("últimos N +
       ver tudo"). Candidato de alto reuso: qualquer módulo com `backlib-audit` exposto na UI.
-- [ ] **GAP-LS-M-MAP-CLUSTER-01 — clustering de pins no `map/MapView` (Google Maps, mobile).** Com muitas
+- [x] **GAP-LS-M-MAP-CLUSTER-01 — clustering de pins no `map/MapView` (Google Maps, mobile).** **ATENDIDO na 2.220.0**
+      pelo `NativeMap` (`clustering = true`, `ClusterManager` oficial). Com muitas
       obras/caçambas próximas, pins sobrepostos ficam ilegíveis. Usar o clustering **oficial** do Google
       Maps Compose (`maps-compose` já é dependência da lib) — não reinventar algoritmo. Par com o gap
       web equivalente (weblib backlog).

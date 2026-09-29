@@ -65,8 +65,11 @@ expect class MapScope
  * Mapa Google Maps multiplataforma (Compose).
  *
  * - **Android:** `com.google.maps.android:maps-compose` (`GoogleMap`).
- * - **iOS:** Google Maps SDK for iOS via `UIViewControllerRepresentable`
- *   (placeholder neste ambiente — requer macOS + SDK para build final).
+ * - **iOS:** **MapKit** (`MKMapView`) desde a 2.220.0 — ou a `GMSMapView` do app, se ele
+ *   registrar [br.com.codecacto.kmplib.map.IosMapBridge] (caminho antigo, mantido).
+ *
+ * Para mapa de carteira (muitos pinos coloridos, agrupamento, rota, posição do usuário, enquadrar
+ * pontos), use [NativeMap] — este aqui é o mapa simples de pinos declarados como filhos.
  *
  * @param modifier modificador Compose.
  * @param cameraPosition posição inicial da câmera. Para câmera controlável

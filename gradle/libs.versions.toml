@@ -164,6 +164,8 @@ coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.re
 
 # Google Maps (GAP-02 — Android) e Location (GAP-04 — Android)
 maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "mapsCompose" }
+# Agrupamento oficial de pinos (ClusterManager / android-maps-utils) — 2.220.0, GAP-ER-01.
+maps-compose-utils = { module = "com.google.maps.android:maps-compose-utils", version.ref = "mapsCompose" }
 play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "playServicesMaps" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 
