@@ -4849,3 +4849,10 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
   `commonMain`, e o `createLocationProvider()` comum no Android exige `initKmpLibCore` +
   `FragmentActivity` — num app com `ComponentActivity` o pedido de permissão fica mudo. O FX
   contornou com uma ponte própria (`mobile/.../core/location/`), que sai quando a lib resolver.
+
+- **`kmplib-map`: opção de mapa NÃO interativo (`interactive`/`gesturesEnabled`)** (FX Investimentos,
+  29/set/2026). Mapa de pré-visualização dentro de tela que rola (ficha do imóvel) não pode
+  sequestrar o arrasto; hoje `NativeMap`/`MapView` não deixam desligar os gestos, e o FX pôs uma
+  camada transparente por cima (toque abre a tela cheia, arrasto vertical segue para a lista).
+  Android: `MapUiSettings` com gestos desligados (+ `liteMode`); iOS: `isScrollEnabled`/
+  `isZoomEnabled`. Junto, um componente de TELA CHEIA com zoom +/- (o FX escreveu o seu).
