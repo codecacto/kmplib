@@ -4864,3 +4864,11 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
   camada transparente por cima (toque abre a tela cheia, arrasto vertical segue para a lista).
   Android: `MapUiSettings` com gestos desligados (+ `liteMode`); iOS: `isScrollEnabled`/
   `isZoomEnabled`. Junto, um componente de TELA CHEIA com zoom +/- (o FX escreveu o seu).
+
+- **`FullScreenGallery`: foto horizontal cortada no iPhone** (FX Investimentos, 29/set/2026). Com
+  `ContentScale.Fit` + `fillMaxSize()` a foto em paisagem saía cortada no iOS (retrato ok); causa
+  exata não isolada fora do aparelho. O FX contornou com um visualizador local que dimensiona a
+  caixa de cada foto na PROPORÇÃO da imagem (largura÷altura do Coil) antes de desenhar
+  (`product_details/ProductPhotoGallery.kt`) e respeita a área segura no X/contador. Promover.
+- **`AppCheckbox` alinha a caixa pela 1ª linha do rótulo**, não pelo centro — em cabeçalho com
+  altura maior o texto fica fora do centro vertical (FX, "Destacar na página inicial").
