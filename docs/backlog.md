@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — origem: design **ExtinRota Onda 2 / 3.1**
+> Origem: `8-Sistemas-Portal-App/ExtinRota/docs/design/wireframes-onda2.md` §D2. Par web em `Lib/weblib/docs/backlog.md`.
+
+- [x] **GAP-ER-10 (P1) — folha de etiquetas com QR** — **fechado, NÃO é gap de lib (29/set/2026).** Resolvido no **backend do ExtinRota**: o PDF de etiquetas é gerado no servidor, e o app só baixa/compartilha o arquivo — sem `LabelSheetPdf` em Android + iOS. Reabrir só se um SEGUNDO produto precisar gerar etiqueta no aparelho (offline).
+- [x] **GAP-ER-11 (P2) — `DocumentPdf` para orçamento** — **fechado, NÃO é gap de lib (29/set/2026).** Resolvido no **backend do ExtinRota**: o PDF do orçamento é gerado no servidor, e o app só baixa/compartilha. Nada a estender no `DocumentPdf` por ora.
+
 ### Registrado nesta rodada (28/set/2026) — origem: design do **ExtinRota** (carteira de extintores, mapa + rota)
 > Origem: `8-Sistemas-Portal-App/ExtinRota/docs/design/wireframes.md` §D "Gaps de lib" (ux-designer). Par web em `Lib/weblib/docs/backlog.md`.
 
