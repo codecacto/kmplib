@@ -21,7 +21,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal actual fun WithTestTagsAsResourceId(content: @Composable () -> Unit) {
+actual fun WithTestTagsAsResourceId(content: @Composable () -> Unit) {
     Box(Modifier.semantics { testTagsAsResourceId = true }) {
         content()
     }

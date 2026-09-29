@@ -36,6 +36,16 @@ import androidx.compose.runtime.Composable
  * Multiplatform, que é exatamente o que o Maestro/XCUITest leem. O `actual` de lá é um no-op de
  * propósito — embrulhar em `Box` só para não ficar vazio custaria um nó de layout por app sem
  * comprar nada.
+ *
+ * ## Público desde 2.223.0 — para app com TEMA PRÓPRIO
+ *
+ * Quem usa o [AppTheme] da lib já está coberto e não chama isto. App que tem o próprio tema (o Super 8
+ * nasceu antes do `AppTheme` da lib) embrulha a raiz uma vez — sem isso o Maestro não enxerga nenhum
+ * `testTag` do app, e o QA automatizado no Mac vira "procurar por texto", que quebra no primeiro
+ * aparelho em outro idioma (29/set/2026):
+ * ```kotlin
+ * MeuTema { WithTestTagsAsResourceId { AppNavHost(...) } }
+ * ```
  */
 @Composable
-internal expect fun WithTestTagsAsResourceId(content: @Composable () -> Unit)
+expect fun WithTestTagsAsResourceId(content: @Composable () -> Unit)

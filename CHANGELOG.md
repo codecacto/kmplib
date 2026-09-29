@@ -1,5 +1,16 @@
 # Changelog — kmplib
 
+## 2.223.0 — `WithTestTagsAsResourceId` público (app com tema próprio expõe os `testTag` ao Maestro)
+
+Minor, **aditiva**. Origem: **Super 8** (29/set/2026) — o app tem tema próprio (nasceu antes do
+`AppTheme` da lib), então nenhum `testTag` virava `resource-id` no Android e o flow Maestro do print
+de tela no Mac não achava nada por id; por texto, quebrou no emulador em inglês.
+
+- `@Composable fun WithTestTagsAsResourceId(content)` (`kmplib-ui`, `ui.theme`) deixa de ser `internal`.
+  Quem usa o `AppTheme` da lib já está coberto; app com tema próprio embrulha a raiz uma vez.
+  Android: `semantics { testTagsAsResourceId = true }` na raiz; iOS: no-op (o Compose já publica a tag
+  como `accessibilityIdentifier`). Nada muda para quem não usa.
+
 ## 2.222.0 — `DomainApiClient.postJsonForBytes(path, body)`: POST com corpo JSON e resposta binária
 
 Minor, **aditiva**. Origem: **ExtinRota** (GAP-ER-12) — o backend trocou `GET /v1/etiquetas/pdf?ids=…`

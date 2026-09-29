@@ -11,6 +11,6 @@ import androidx.compose.runtime.Composable
  * app iOS da fábrica sem comprar nada.
  */
 @Composable
-internal actual fun WithTestTagsAsResourceId(content: @Composable () -> Unit) {
+actual fun WithTestTagsAsResourceId(content: @Composable () -> Unit) {
     content()
 }
