@@ -9,6 +9,8 @@ import br.com.codecacto.kmplib.platform.getShareHandler
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
 import br.com.codecacto.kmplib.ui.components.clearPrivatePhotoMemoryCache
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Serviço de **direito ao esquecimento + portabilidade (LGPD/GDPR)** — exclusão de todos os dados
@@ -90,26 +92,55 @@ class AccountDeletionService(
      * (PDF/imagem exportados da conta). Default `true`.
      */
     private val clearSharedFiles: Boolean = true,
+    /**
+     * Nome do campo do corpo que leva a confirmação digitada (2.221.0). Default `"confirmacao"` —
+     * o contrato `{"confirmacao": "EXCLUIR"}` dos backends que conferem, no SERVIDOR, a palavra
+     * que a tela exige digitar. Só é usado quando [deleteAccountAndData] recebe `confirmation`.
+     */
+    private val confirmationField: String = DEFAULT_CONFIRMATION_FIELD,
 ) {
 
     /**
      * Exclui **todos os dados** do usuário (wipe server-side) e, por último, a **conta** de
      * autenticação. Nunca lança — devolve [Result].
      */
-    suspend fun deleteAccountAndData(): Result<AccountDeletionResult> {
+    suspend fun deleteAccountAndData(): Result<AccountDeletionResult> = deleteAccountAndData(confirmation = null)
+
+    /**
+     * Igual a [deleteAccountAndData], levando no corpo do `DELETE` a **confirmação digitada** pela
+     * pessoa (2.221.0): `{"<confirmationField>": "<confirmation aparado>"}`.
+     *
+     * Use quando o backend confere a palavra do lado dele (ex.: o ExtinRota responde
+     * `400 CONFIRMATION_REQUIRED` a um `DELETE` sem corpo). Passe exatamente o que foi digitado no
+     * `AppInputDialog` — a comparação (caixa, espaços) é do servidor. `null` = `DELETE` sem corpo,
+     * o comportamento de sempre; backend que não lê o corpo o ignora, então mandar não quebra.
+     */
+    suspend fun deleteAccountAndData(confirmation: String?): Result<AccountDeletionResult> {
         auth.currentUserSync?.id ?: return Result.failure(AuthException.NotAuthenticated)
 
-        val purger = localData ?: return excluir(contaLocal = null)
+        val purger = localData ?: return excluir(contaLocal = null, confirmation = confirmation)
         // Capturada ANTES do wipe e do signOut: depois deles o app pode já ter trocado o escopo.
         val conta = purger.activeAccountId()
         // O motor fica segurado do DELETE até o fim da limpeza: nenhum push recria no servidor o
         // que acabou de ser apagado. Falha no wipe devolve dentro do bloco — nada local é tocado.
-        return purger.withSyncPaused { excluir(contaLocal = conta) }
+        return purger.withSyncPaused { excluir(contaLocal = conta, confirmation = confirmation) }
     }
 
-    private suspend fun excluir(contaLocal: String?): Result<AccountDeletionResult> {
+    private suspend fun wipe(confirmation: String?): DomainResult<Unit> =
+        if (confirmation == null) {
+            api.delete(dataPath)
+        } else {
+            val body = accountDeletionConfirmationBody(confirmationField, confirmation)
+            when (val r = api.deleteJson(dataPath, body)) {
+                is DomainResult.Success -> DomainResult.Success(Unit)
+                is DomainResult.Quota -> r
+                is DomainResult.Error -> r
+            }
+        }
+
+    private suspend fun excluir(contaLocal: String?, confirmation: String?): Result<AccountDeletionResult> {
         // 1. Wipe atômico server-side (entidades + blobs), ainda autenticado.
-        when (val r = api.delete(dataPath)) {
+        when (val r = wipe(confirmation)) {
             is DomainResult.Success -> Unit
             is DomainResult.Quota -> {
                 AppLogger.e(TAG, "Resposta inesperada (quota) no wipe LGPD; conta preservada")
@@ -207,8 +238,16 @@ class AccountDeletionService(
         private const val TAG = "AccountDeletion"
         const val DEFAULT_DATA_PATH = "/v1/me/data"
         const val DEFAULT_EXPORT_PATH = "/v1/me/export"
+        const val DEFAULT_CONFIRMATION_FIELD = "confirmacao"
     }
 }
+
+/**
+ * Corpo JSON do `DELETE` com confirmação: `{"<field>": "<confirmation aparado>"}`. Montado pelo
+ * serializador (aspas e barras escapadas), nunca por concatenação. Puro e testado.
+ */
+internal fun accountDeletionConfirmationBody(field: String, confirmation: String): String =
+    JsonObject(mapOf(field to JsonPrimitive(confirmation.trim()))).toString()
 
 /**
  * Resultado (sucesso) da exclusão LGPD. Distingue exclusão total de exclusão com resíduo benigno

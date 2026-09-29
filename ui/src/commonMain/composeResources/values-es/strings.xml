@@ -234,4 +234,9 @@
     <string name="kmplib_try_again_short">Reintentar</string>
     <string name="kmplib_stepper_decrease">Disminuir</string>
     <string name="kmplib_stepper_increase">Aumentar</string>
+    <string name="kmplib_reorder_move_up">Mover hacia arriba</string>
+    <string name="kmplib_reorder_move_down">Mover hacia abajo</string>
+    <string name="kmplib_reorder_move_to_top">Mover al principio</string>
+    <string name="kmplib_reorder_move_to_bottom">Mover al final</string>
+    <string name="kmplib_reorder_position">Posición %1$d de %2$d</string>
 </resources>

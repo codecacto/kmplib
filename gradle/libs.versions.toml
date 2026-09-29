@@ -30,6 +30,8 @@ revenuecatKmp = "2.2.13+17.23.0"
 # Compose
 composeMultiplatform = "1.10.0"
 material3 = "1.10.0-alpha05"
+# Lista reordenável por arrasto (Calvin-LL/Reorderable, KMP) — 2.221.0, ER-04.
+reorderable = "3.1.0"
 
 # AndroidX
 androidxCore = "1.13.1"
@@ -161,6 +163,9 @@ google-googleid = { module = "com.google.android.libraries.identity.googleid:goo
 # Coil (Image loading for Custom Ads)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+
+# Lista reordenável por arrasto (ReorderableList da kmplib-ui) — 2.221.0, ER-04.
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 
 # Google Maps (GAP-02 — Android) e Location (GAP-04 — Android)
 maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "mapsCompose" }

@@ -34,6 +34,9 @@ kotlin {
             // Carrossel e imagem remota dos componentes.
             api(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            // ReorderableList (2.221.0): arrasto com autoscroll e animação dos vizinhos. Nenhum tipo
+            // dele aparece na API pública (o escopo do item é nosso), por isso implementation.
+            implementation(libs.reorderable)
         }
 
         commonTest.dependencies {

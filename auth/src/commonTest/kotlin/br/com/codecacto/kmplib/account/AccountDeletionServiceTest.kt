@@ -13,6 +13,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpMethod
+import io.ktor.http.content.OutgoingContent
+import io.ktor.http.content.TextContent
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.flow.Flow
@@ -286,5 +288,73 @@ class AccountDeletionServiceTest {
 
         assertEquals(AccountDeletionResult.Completed, service.deleteAccountAndData().getOrNull())
         assertEquals(listOf("pausa", "retoma"), eventos, "nada de 'purge:' sem conta nomeada")
+    }
+    /** Cliente que devolve [status] e guarda método, caminho, corpo e content-type de cada chamada. */
+    private class Gravador {
+        val chamadas = mutableListOf<Triple<HttpMethod, String, String?>>()
+        var contentType: String? = null
+        fun api(status: HttpStatusCode, resposta: String = ""): DomainApiClient {
+            val engine = MockEngine { req ->
+                val corpo = when (val b = req.body) {
+                    is TextContent -> b.text
+                    is OutgoingContent.ByteArrayContent -> b.bytes().decodeToString()
+                    is OutgoingContent.NoContent -> null
+                    else -> "?"
+                }
+                contentType = req.body.contentType?.toString()
+                chamadas += Triple(req.method, req.url.encodedPath, corpo)
+                respond(content = resposta, status = status, headers = headersOf("Content-Type", "application/json"))
+            }
+            return DomainApiClient(HttpClient(engine), DomainTokenProvider { _ -> "tok" }, "https://api.example.com")
+        }
+    }
+
+    @Test
+    fun `com confirmacao o DELETE leva o corpo confirmacao aparado`() = runTest {
+        val g = Gravador()
+        val service = AccountDeletionService(api = g.api(HttpStatusCode.NoContent), auth = FakeAuth(user), credencialSaiNoWipe = true)
+
+        val r = service.deleteAccountAndData(confirmation = "  excluir ")
+
+        assertEquals(AccountDeletionResult.Completed, r.getOrNull())
+        assertEquals(1, g.chamadas.size)
+        val (metodo, caminho, corpo) = g.chamadas.single()
+        assertEquals(HttpMethod.Delete, metodo)
+        assertEquals("/v1/me/data", caminho)
+        assertEquals("""{"confirmacao":"excluir"}""", corpo)
+        assertTrue(g.contentType.orEmpty().startsWith("application/json"))
+    }
+
+    @Test
+    fun `sem confirmacao o DELETE segue sem corpo`() = runTest {
+        val g = Gravador()
+        val service = AccountDeletionService(api = g.api(HttpStatusCode.NoContent), auth = FakeAuth(user), credencialSaiNoWipe = true)
+
+        service.deleteAccountAndData()
+
+        val corpo = g.chamadas.single().third
+        assertTrue(corpo == null || corpo.isEmpty(), "DELETE de sempre não ganha corpo: '$corpo'")
+    }
+
+    @Test
+    fun `backend recusa a confirmacao - conta preservada e mensagem do servidor`() = runTest {
+        val g = Gravador()
+        val auth = FakeAuth(user)
+        val service = AccountDeletionService(
+            api = g.api(HttpStatusCode.BadRequest, """{"error":"CONFIRMATION_REQUIRED","message":"Digite EXCLUIR para confirmar"}"""),
+            auth = auth,
+            credencialSaiNoWipe = true,
+        )
+
+        val r = service.deleteAccountAndData(confirmation = "sim")
+
+        assertTrue(r.isFailure)
+        assertFalse(auth.signOutCalled)
+        assertFalse(auth.deleteCalled)
+    }
+
+    @Test
+    fun `nome do campo configuravel e valor escapado pelo serializador`() {
+        assertEquals("""{"confirmation":"a\"b"}""", accountDeletionConfirmationBody("confirmation", " a\"b "))
     }
 }

@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.221.0 — exclusão de conta com a confirmação digitada no corpo (`deleteAccountAndData(confirmation)`); lista reordenável por arrasto e acessível (`ReorderableList`)
+
+Minor, **aditiva**. Origem: **ExtinRota** (lacuna da exclusão de conta + ER-04, reordenar paradas).
+
+### 1. `AccountDeletionService.deleteAccountAndData(confirmation: String?)` (`kmplib-auth`)
+- Nova sobrecarga que leva no corpo do `DELETE {dataPath}` a palavra digitada pela pessoa:
+  `{"confirmacao": "<texto aparado>"}` (JSON montado pelo serializador, via `DomainApiClient.deleteJson(path, body)`).
+  Nome do campo: parâmetro de construtor `confirmationField` (default `"confirmacao"`).
+- Para o backend que confere o "EXCLUIR" do lado do servidor (o ExtinRota responde
+  `400 CONFIRMATION_REQUIRED` a um `DELETE` sem corpo). **Não é contrato da backlib**: a backlib não
+  implementa `/v1/me/data` (cada backend implementa o seu) e a `casca-backend` ignora o corpo — mandar não quebra.
+- `deleteAccountAndData()` sem argumento continua idêntico (`DELETE` sem corpo).
+- A `casca-mobile` passa a mandar o que foi digitado no `AppInputDialog`.
+- Testes: 4 novos em `AccountDeletionServiceTest` (corpo enviado, sem corpo no caminho antigo, recusa
+  do servidor preserva a sessão, escape do JSON).
+
+### 2. `ReorderableList` (`kmplib-ui`, ER-04)
+- `ReorderableList(items, key, onMove, modifier, onReorderFinished, state, contentPadding,
+  verticalArrangement, enabled, dragOnLongPress = true, texts) { item, index, isDragging -> }` —
+  segurar e arrastar (ou arrastar pela alça `DragHandle()` / `Modifier.dragHandle()` do escopo, sem
+  espera); autoscroll na borda, vizinhos animados, háptico ao pegar/trocar/soltar.
+- **Acessível sem arrasto:** cada item tem ações de acessibilidade *Mover para cima/baixo/para o
+  início/para o fim* (só as possíveis naquela posição) e estado "Posição 2 de 5"; a alça fica fora da
+  árvore de acessibilidade. Textos nos 4 idiomas (`rememberReorderableListTexts()`).
+- Contrato: `onMove` aplica a troca **síncrona** na lista (`reorderMove(itens, from, to)`); persistir
+  em `onReorderFinished` (uma vez ao soltar, e após cada ação de acessibilidade).
+- Base: **Reorderable** (`sh.calvin.reorderable:reorderable:3.1.0`, KMP) — dependência nova,
+  `implementation` (nenhum tipo dele na API pública).
+- Puras e testadas (9 casos): `reorderMove`, `reorderActionsFor`, `reorderTargetIndex`.
+
 ## 2.220.0 — mapa nativo de carteira (`NativeMap`: pinos coloridos, agrupamento, rota, posição do usuário, enquadrar) com **MapKit real no iOS**; escala de status com cor arbitrária (`StatusScale`/`StatusChip`); `ProportionalBar` e `AppStepper`
 
 Minor, **aditiva**. Origem: design do **ExtinRota** (carteira de extintores num mapa, semáforo de

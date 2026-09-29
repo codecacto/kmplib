@@ -14,7 +14,10 @@
 - [ ] **GAP-ER-03 (P1) — sem leitor CSV/XLSX no app** (par do `/import` da weblib): `parseCsv` (`;`, Windows-1252, BOM),
       `readXlsx`, mapeamento de colunas e relatório de erros.
 - [ ] **GAP-ER-04 (P1) — rota multi-parada:** `RouteProvider` só faz origem→destino. Faltam `optimize(origin, stops)`,
-      lista reordenável por arrasto e helpers `openInMaps`/`openInWaze` (deep link).
+      ~~lista reordenável por arrasto~~ (**entregue na 2.221.0: `ReorderableList`**) e helpers `openInMaps`/`openInWaze` (deep link).
+- [x] **ExtinRota — exclusão de conta com corpo:** `AccountDeletionService` mandava `DELETE /v1/me/data` sem corpo e o
+      backend do ExtinRota exige `{"confirmacao":"EXCLUIR"}`. **2.221.0:** `deleteAccountAndData(confirmation)`. Não é contrato da
+      backlib (ela não implementa a rota); nenhum outro backend do monorepo exige o corpo hoje (varredura 29/set/2026).
 - [x] **GAP-ER-06 (P2) — verificar** se `signature` tem composable de traço e se `OsPdf` aceita marca d'água + logo do vendedor.
       **Conferido na 2.220.0, já existia:** `SignaturePad(state)` + `toPngBytes()`; `OsPdfCompany.logoBytes` +
       `OsPdfData.watermark/watermarkText` (Android e iOS). Assinatura no PDF: `ReciboPdf`/`InspectionPdf` (o `OsPdf` não tem).
@@ -464,7 +467,7 @@
       lado a lado, com a validação "fim ≥ início" na tela. Vale a pena no **terceiro** consumidor —
       um seletor de intervalo bem-feito (mês contínuo, dois toques, atalhos "esta semana"/"este mês")
       é bem mais componente do que parece, e dois campos resolvem sem mentir.
-- [ ] **GAP-TF-M-02 (P2) — lista reordenável com alça de arrastar.** ⚠️ **Se entrar, as setas ↑↓
+- [x] **GAP-TF-M-02 (P2) — lista reordenável com alça de arrastar.** **(Entregue na 2.221.0 — `ReorderableList`, com ações de acessibilidade no lugar das setas.)** ⚠️ **Se entrar, as setas ↑↓
       ficam como alternativa acessível, não saem.** Arrastar dentro de uma lista que também rola é o
       gesto mais fácil de errar no celular, e a seta continua funcionando com leitor de tela.
 - [ ] **GAP-TF-M-03 (P2) — `SectionedList` / `ListSectionHeader`** com `stickyHeader` opcional. Hoje
@@ -2107,7 +2110,7 @@ pessoal via product flavors `moedas`/`cards`)
       `AccentColorField` da weblib** (0.63.0 — cor com contraste medido/WCAG) para escolher COR.
       A matemática de contraste (`ColorContrast.kt`, `ui/theme`) já existe na kmplib — falta só o
       componente visual de picker que a reusa. Usado em "Nova/Editar lista" (ícone+cor da lista).
-- [ ] **GAP-ML-06 — Drag-to-reorder genérico (lista arrastável, mobile).** Nem `LazyColumn` nativo
+- [x] **GAP-ML-06 — Drag-to-reorder genérico (lista arrastável, mobile).** **(Entregue na 2.221.0 — `ReorderableList`, com ações de acessibilidade no lugar das setas.)** Nem `LazyColumn` nativo
       nem nenhum componente da kmplib oferecem hoje um wrapper padronizado de "lista reordenável
       por arrastar" (drag handle + swap + persistência de ordem). Usado para reordenar listas
       (Home) e links (dentro de uma lista) no Meus Links; provável candidato de alto reuso (todo
@@ -4246,7 +4249,7 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
       `QRCode`; a kmplib não. Útil para o gestor mostrar o QR do link do portal (5.3). Sugestão:
       `QRCode(content: String, size: Dp, logo: ImageBitmap? = null)` (commonMain via lib QR multiplataforma
       ou render próprio). Candidato a `ui/components`. Contorno no MVP: compartilhar só o link via `ShareHandler`.
-- [ ] **GAP-MO-M-03 — Lista reordenável (drag-to-reorder) para etapas** — Média · Onda 2.
+- [x] **GAP-MO-M-03 — Lista reordenável (drag-to-reorder) para etapas** **(Entregue na 2.221.0 — `ReorderableList`, com ações de acessibilidade no lugar das setas.)** — Média · Onda 2.
       **= GAP-10 (Exiba)** já no backlog (Prioridade baixa) — 2º consumidor confirmado (reordenar etapas
       da obra, tela 2.2). Reforça promoção. Contorno no MVP: campo "ordem" (`NumberField`) + reordenar lógico.
 - [ ] **GAP-MO-M-04 — `AppSlider` (0–100%) para % de progresso da etapa** — Baixa · Onda 2.
@@ -4315,7 +4318,7 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
 - [x] **GAP-03 — `FilterChipRow` / `ChipGroup`** — entregue na 2.7.0 (ver Concluído). Chips de
       filtro single-choice scrolláveis para listas filtráveis.
 - [x] **GAP-01 — `SegmentedControl` / Tabs inline** — entregue na 2.5.0 (ver Concluído).
-- [ ] **GAP-10 — Lista reordenável drag-to-reorder** — componente de lista com drag para reordenar
+- [x] **GAP-10 — Lista reordenável drag-to-reorder** **(Entregue na 2.221.0 — `ReorderableList`, com ações de acessibilidade no lugar das setas.)** — componente de lista com drag para reordenar
       itens (ex.: fila de próximos contratantes).
 - [ ] **GAP-09 — Modo single-select em `AppMultiSelect`** — `AppMultiSelect` só faz multi por
       construção. Adicionar modo `singleSelect=true` ou criar `AppSingleSelect` com busca.
