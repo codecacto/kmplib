@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.226.1 — PDF no iOS não derruba mais o app: cor do texto chega ao CoreText como objeto
+
+Patch, **correção de crash** no `kmplib-pdf` (iOS). Achado pela primeira rodada da suíte iOS no
+simulador (verbo `testar-lib` do qa-runner): o `PdfCanvasIosRenderTest` **abortava o processo**.
+
+**Causa.** A cor do texto ia ao `NSAttributedString` como `CGColorRef` cru
+(`addAttribute("CTForegroundColor", value = uiColor.CGColor)`). O Kotlin/Native não entrega o
+`CGColor`: embrulha o ponteiro num objeto Kotlin, e o CoreText, ao desenhar a linha, manda `-CGColor`
+para o embrulho → `NSInvalidArgumentException: unrecognized selector` → `SIGABRT`. Valia para **todo
+texto de PDF no iOS**: o canvas de layout livre (`buildPdf`/`recordPdf`, 2.225.0) **e** os 9 geradores
+legados (`IosPdfCanvas` — recibo, OS, relatórios, carteira de vacinação…).
+
+**Correção.** `coreTextForegroundColor()` = `CFBridgingRelease(CGColorRetain(cgColor))`, a ponte
+oficial de tipo Core Foundation para `id` (posse +1 equilibrada). Sem mudança de API.
+
+**Afeta:** quem gera PDF com texto no iOS em qualquer versão com `IosPdfCanvas` (2.77.0+) ou com o
+canvas (2.225.0–2.226.0). `PlatformCapabilities.pdfGeneration` continua `false` no iOS (validação
+visual dos 9 geradores pendente) — o flag não muda nesta versão.
+
+**Testes (suíte iOS passa a rodar de verdade).**
+- `ReciboPdfIosRenderTest` (novo, iosTest) — gera o recibo pelo renderizador legado e relê no PDFKit.
+- `PlatformCapabilityTest."android entrega camera e pdf"` saiu do commonTest (falhava no simulador
+  iOS) para `PlatformCapabilitiesAndroidTest` (androidUnitTest); `PlatformCapabilitiesIosTest` trava
+  o valor declarado no iOS.
+- `assert()` nos testes do `ui` virou `assertTrue` (no Native exige `ExperimentalNativeApi`; no JVM,
+  sem `-ea`, não provava nada).
+- Nomes de teste com `,` `(` `)` — ilegais no Kotlin/Native — corrigidos nos 13 módulos restantes, e
+  `Runnable` importado de `kotlinx.coroutines` no `sync`: **`compileTestKotlinIosArm64` e
+  `compileTestKotlinIosSimulatorArm64` verdes em TODOS os módulos** (fecha a dívida da 2.225.0).
+
 ## 2.226.0 — `ContactScreen` pré-preenchida: assunto, mensagem inicial e lista de assuntos
 
 Minor, **aditiva** (três parâmetros opcionais com default `null`; quem não passa nada vê a tela de

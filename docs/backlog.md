@@ -17,7 +17,7 @@
 - [ ] **GAP-CV-04 (P2) — opção de escolha exclusiva com miniatura** (`ChoiceChipGroup`/`FilterChipRow` mudam a forma).
 
 ### Registrado nesta rodada (29/set/2026) — a suíte iOS da lib NÃO COMPILA em 13 módulos
-- [ ] **`compileTestKotlinIosArm64` falha em 13 módulos** (medido com `./gradlew compileTestKotlinIosArm64
+- [x] **FECHADO na 2.226.1 — todos os módulos compilam a suíte iOS (`IosArm64` e `IosSimulatorArm64`).** **`compileTestKotlinIosArm64` falhava em 13 módulos** (medido com `./gradlew compileTestKotlinIosArm64
       -Pkmplib.forceAppleTargets=true --continue`): `ads, auth, brdata, camera, core, firebase, mask,
       monetization, qr, sync, ui, kmplib-testing` — 196 erros. **181 são nome de teste entre crases com caractere que
       o Kotlin/Native proíbe** (`,` `(` `)` `.` `:` …) — o JVM aceita, então a suíte Android nunca acusou; o resto:
