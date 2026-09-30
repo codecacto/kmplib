@@ -29,7 +29,7 @@ class ItemPurchaseResultTest {
     }
 
     @Test
-    fun `ja possuido vira AlreadyOwned - o caminho e conciliar, nao cobrar de novo`() {
+    fun `ja possuido vira AlreadyOwned - o caminho e conciliar nao cobrar de novo`() {
         val r = ItemPurchaseResult.fromFailure(PurchaseErrorCode.ALREADY_OWNED, "owned", "curso_a")
 
         assertIs<ItemPurchaseResult.AlreadyOwned>(r)

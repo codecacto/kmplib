@@ -71,7 +71,7 @@ class AdRoutingTest {
     }
 
     @Test
-    fun `desserializa config do servidor (case lowercase, campos extras)`() {
+    fun `desserializa config do servidor - case lowercase campos extras`() {
         val rawFromServer = """
             {
               "banner": "custom",

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class BarcodeScannerStateTest {
 
     @Test
-    fun `sem permissao ainda pedivel, o estado pede permissao`() {
+    fun `sem permissao ainda pedivel o estado pede permissao`() {
         assertEquals(
             BarcodeScannerState.PermissionRequired,
             barcodeScannerStateOf(PermissionStatus.NOT_REQUESTED, null),
@@ -43,7 +43,7 @@ class BarcodeScannerStateTest {
     }
 
     @Test
-    fun `com permissao, o estado segue a situacao da camera`() {
+    fun `com permissao o estado segue a situacao da camera`() {
         assertEquals(
             BarcodeScannerState.Starting,
             barcodeScannerStateOf(PermissionStatus.GRANTED, null),

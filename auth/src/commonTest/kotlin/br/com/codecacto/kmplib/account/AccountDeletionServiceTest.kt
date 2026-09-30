@@ -132,7 +132,7 @@ class AccountDeletionServiceTest {
      * não existe.
      */
     @Test
-    fun `own-auth - wipe apaga a credencial, encerra a sessao e retorna Completed`() = runTest {
+    fun `own-auth - wipe apaga a credencial encerra a sessao e retorna Completed`() = runTest {
         val auth = FakeAuth(user, deleteResult = Result.failure(AuthException.UnknownError("unsupported")))
         val service = AccountDeletionService(
             api = api { _, _ -> HttpStatusCode.NoContent to "" },

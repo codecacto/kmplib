@@ -35,7 +35,7 @@ class EmailPasswordAuthRepositoryTest {
     }
 
     @Test
-    fun `register loga o usuario (adota sessao) com nome`() = runTest {
+    fun `register loga o usuario - adota sessao com nome`() = runTest {
         val repo = repo { path, _ ->
             if (path.endsWith("register")) HttpStatusCode.Created to tokensJson(fakeJwt("acc-7"), "r1")
             else HttpStatusCode.OK to ""

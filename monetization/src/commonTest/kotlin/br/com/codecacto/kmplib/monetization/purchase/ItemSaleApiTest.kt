@@ -31,7 +31,7 @@ class ItemSaleApiTest {
     // ---------------------------------------------------------------- defaults da interface
 
     @Test
-    fun `repositorio so de assinatura responde que nao vende avulso, sem fingir sucesso`() = runTest {
+    fun `repositorio so de assinatura responde que nao vende avulso sem fingir sucesso`() = runTest {
         val repo = IdentityUnawarePurchaseRepository()
 
         assertIs<StoreItemsOutcome.Unavailable>(repo.getStoreItems(listOf("curso_a")))

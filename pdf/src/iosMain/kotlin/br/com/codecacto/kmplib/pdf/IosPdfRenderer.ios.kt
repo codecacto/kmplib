@@ -90,7 +90,8 @@ internal data class PdfColor(val r: Double, val g: Double, val b: Double, val a:
  * ### Cor/fonte do texto (padrão-ouro CoreText)
  * O texto é montado como `NSAttributedString` com os atributos que o CoreText lê:
  * - **`"NSFont"`** = valor de `kCTFontAttributeName` (uma `UIFont`, toll-free bridge → `CTFont`).
- * - **`"CTForegroundColor"`** = valor de `kCTForegroundColorAttributeName` (um `CGColor`).
+ * - **`"CTForegroundColor"`** = valor de `kCTForegroundColorAttributeName` (um `CGColor` como objeto
+ *   ObjC — `coreTextForegroundColor()`; o `CGColorRef` cru derruba o processo).
  *
  * ### Sistema de coordenadas
  * O contexto do `UIGraphicsPDFRenderer` é orientado como UIKit (origem **topo-esquerda**, y↓),
@@ -328,7 +329,7 @@ internal class IosPdfCanvas(
         val nsString = text as NSString
         val range = NSMakeRange(0u, nsString.length)
         attr.addAttribute("NSFont", value = font, range = range)
-        color.cgColor()?.let { attr.addAttribute("CTForegroundColor", value = it, range = range) }
+        color.uiColor().coreTextForegroundColor()?.let { attr.addAttribute("CTForegroundColor", value = it, range = range) }
         val cfAttr = CFBridgingRetain(attr as NSAttributedString)
         val line = CTLineCreateWithAttributedString(cfAttr?.reinterpret())
         cfAttr?.let { CFRelease(it) }

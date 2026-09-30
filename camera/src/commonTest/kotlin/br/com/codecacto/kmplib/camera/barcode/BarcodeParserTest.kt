@@ -15,7 +15,7 @@ class BarcodeParserTest {
     // ---------------------------------------------------------------- dígito verificador
 
     @Test
-    fun `valida GTIN de 8, 12, 13 e 14 digitos`() {
+    fun `valida GTIN de 8 12 13 e 14 digitos`() {
         assertTrue(Gtin.isValid("96385074"), "EAN-8")
         assertTrue(Gtin.isValid("036000291452"), "UPC-A")
         assertTrue(Gtin.isValid("7891000100103"), "EAN-13 (Nestlé)")
@@ -23,7 +23,7 @@ class BarcodeParserTest {
     }
 
     @Test
-    fun `rejeita verificador errado, tamanho invalido e nao-digito`() {
+    fun `rejeita verificador errado tamanho invalido e nao-digito`() {
         assertFalse(Gtin.isValid("7891000100104"), "último dígito trocado")
         assertFalse(Gtin.isValid("789100010010"), "12 dígitos que não são UPC-A válido")
         assertFalse(Gtin.isValid("789100010010A"))
@@ -122,7 +122,7 @@ class BarcodeParserTest {
     }
 
     @Test
-    fun `ITF-14 e chave de produto, mas so vira GTIN-13 se o excesso for zero`() {
+    fun `ITF-14 e chave de produto mas so vira GTIN-13 se o excesso for zero`() {
         val caixaComZero = parseBarcode("07891000100103", BarcodeFormat.ITF)!!
         assertTrue(caixaComZero.isProductCode)
         assertEquals("07891000100103", caixaComZero.toGtin14())

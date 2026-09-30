@@ -44,7 +44,7 @@ class CountriesTest {
     }
 
     @Test
-    fun `nome de pais conhecido, null para codigo que nao e pais`() {
+    fun `nome de pais conhecido null para codigo que nao e pais`() {
         assertTrue(!Countries.name("PT", "pt-BR").isNullOrBlank())
         assertEquals(Countries.name("PT", "en"), Countries.name("pt", "en"))
         assertNull(Countries.name("ZZZ"))

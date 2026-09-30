@@ -44,7 +44,7 @@ class ViewableImpressionTest {
     }
 
     @Test
-    fun `layout ainda nao medido conta zero, e nao estoura na divisao`() {
+    fun `layout ainda nao medido conta zero e nao estoura na divisao`() {
         // Primeira passada de layout: `coords.size` e 0x0. Sem a guarda, isto seria divisao por zero
         // e o resultado NaN passaria pelo `>=` como false — funcionaria por acidente, nao por regra.
         val f = visibleFractionOf(totalWidth = 0, totalHeight = 0, visibleWidth = 0f, visibleHeight = 0f)

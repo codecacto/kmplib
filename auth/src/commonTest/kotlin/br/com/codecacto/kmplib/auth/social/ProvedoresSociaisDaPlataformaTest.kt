@@ -35,7 +35,7 @@ class ProvedoresSociaisDaPlataformaTest {
     }
 
     @Test
-    fun `plataforma desconhecida cai no denominador comum, nunca na Apple`() {
+    fun `plataforma desconhecida cai no denominador comum nunca na Apple`() {
         // Alvo novo (desktop, web) entra pelo `else`. A Apple é exceção declarada, não presunção.
         val provedores = provedoresSociaisPara("jvm")
         assertEquals(setOf(SocialProvider.GOOGLE), provedores)

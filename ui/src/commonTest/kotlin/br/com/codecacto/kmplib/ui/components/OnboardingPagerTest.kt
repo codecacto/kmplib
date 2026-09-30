@@ -26,7 +26,7 @@ class OnboardingPagerTest {
     }
 
     @Test
-    fun `total invalido trata como ultimo (nunca trava sem proximo)`() {
+    fun `total invalido trata como ultimo - nunca trava sem proximo`() {
         assertTrue(onboardingIsLastPage(index = 0, total = 0))
         assertTrue(onboardingIsLastPage(index = 0, total = -1))
     }

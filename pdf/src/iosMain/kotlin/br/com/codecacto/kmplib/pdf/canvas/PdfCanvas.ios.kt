@@ -64,6 +64,7 @@ import platform.UIKit.UIGraphicsGetCurrentContext
 import platform.UIKit.UIGraphicsPDFRenderer
 import platform.UIKit.UIGraphicsPDFRendererFormat
 import platform.UIKit.UIImage
+import br.com.codecacto.kmplib.pdf.coreTextForegroundColor
 
 /**
  * iOS: `UIGraphicsPDFRenderer` (UIKit) com texto por **CoreText** (`CTLine`) — a pilha oficial da
@@ -217,7 +218,10 @@ private class IosFontCache {
         // "NSFont"/"CTForegroundColor" são os valores de kCTFontAttributeName e
         // kCTForegroundColorAttributeName — as strings evitam o bridging das constantes CFString.
         attr.addAttribute("NSFont", value = font, range = range)
-        style.color.uiColor().CGColor?.let { attr.addAttribute("CTForegroundColor", value = it, range = range) }
+        // Cor como OBJETO ObjC: o `CGColorRef` cru vira embrulho Kotlin e derruba o CoreText.
+        style.color.uiColor().coreTextForegroundColor()?.let {
+            attr.addAttribute("CTForegroundColor", value = it, range = range)
+        }
         if (needsSyntheticBold(style)) {
             // Negrito sintético (família sem o arquivo negrito): contorno + preenchimento, a -3 % do
             // corpo — kCTStrokeWidthAttributeName negativo. Não muda a largura medida.

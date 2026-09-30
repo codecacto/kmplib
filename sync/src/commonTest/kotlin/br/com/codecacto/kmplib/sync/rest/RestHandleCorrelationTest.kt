@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -121,7 +122,7 @@ class RestHandleCorrelationTest {
     // -- handlesOf ---------------------------------------------------------
 
     @Test
-    fun `handlesOf resolve nos DOIS sentidos (local a partir do servidor e vice-versa)`() = runTest {
+    fun `handlesOf resolve nos DOIS sentidos - local a partir do servidor e vice-versa`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { idsDeSaida += "srv-1" }
         val repo = grupoRepo(backend, store)
@@ -138,7 +139,7 @@ class RestHandleCorrelationTest {
     }
 
     @Test
-    fun `handlesOf de id em branco e vazio, e de id desconhecido e ele mesmo`() {
+    fun `handlesOf de id em branco e vazio e de id desconhecido e ele mesmo`() {
         val ids = RestIdResolver(FakeSyncStore())
         assertTrue(ids.handlesOf("").isEmpty())
         assertEquals(setOf("qualquer"), ids.handlesOf("qualquer"))
@@ -148,7 +149,7 @@ class RestHandleCorrelationTest {
     // -- O defeito que o exemplo da doc induzia ----------------------------
 
     @Test
-    fun `com o drain interrompido, igualdade derruba METADE da lista - handles nao`() = runTest {
+    fun `com o drain interrompido igualdade derruba METADE da lista - handles nao`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend()
         val grupos = grupoRepo(backend, store)
@@ -247,7 +248,7 @@ class RestHandleCorrelationTest {
     // -- O operador de fluxo resolve FORA do contexto do coletor ------------
 
     @Test
-    fun `resolvingIds resolve no dispatcher do resolvedor, nao no do coletor`() = runTest {
+    fun `resolvingIds resolve no dispatcher do resolvedor nao no do coletor`() = runTest {
         val marcador = DispatcherEspiao(Dispatchers.Default)
         val ids = RestIdResolver(FakeSyncStore(), dispatcher = marcador)
 
@@ -271,7 +272,7 @@ class RestHandleCorrelationTest {
     // -- Regressão: `same` continua valendo para comparar DOIS ids ----------
 
     @Test
-    fun `same continua correto (a diferenca e o custo, nao o resultado)`() = runTest {
+    fun `same continua correto - a diferenca e o custo nao o resultado`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { idsDeSaida += "srv-1" }
         val repo = grupoRepo(backend, store)
@@ -286,7 +287,7 @@ class RestHandleCorrelationTest {
     }
 
     @Test
-    fun `handles de varios pais somam (filtrar filhos de um conjunto)`() = runTest {
+    fun `handles de varios pais somam - filtrar filhos de um conjunto`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { idsDeSaida += "srv-1"; idsDeSaida += "srv-2" }
         val repo = grupoRepo(backend, store)

@@ -18,7 +18,7 @@ class AppMultiSelectTest {
     }
 
     @Test
-    fun `tocar um item marcado remove, sem mexer nos outros`() {
+    fun `tocar um item marcado remove sem mexer nos outros`() {
         assertEquals(
             listOf("seg", "sex"),
             alternarSelecao(listOf("seg", "qua", "sex"), "qua"),
@@ -43,7 +43,7 @@ class AppMultiSelectTest {
     }
 
     @Test
-    fun `funciona com qualquer tipo, nao so String`() {
+    fun `funciona com qualquer tipo nao so String`() {
         assertEquals(listOf(1, 3), alternarSelecao(listOf(1, 2, 3), 2))
     }
 }

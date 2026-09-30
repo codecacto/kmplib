@@ -51,7 +51,7 @@ class RestCrudSyncEngineTest {
     }
 
     @Test
-    fun `sem escopo de conta declarado, nenhum ciclo roda (nao sobe outbox de dono desconhecido)`() = runTest {
+    fun `sem escopo de conta declarado nenhum ciclo roda - nao sobe outbox de dono desconhecido`() = runTest {
         val log = mutableListOf<String>()
         val p = FakeParticipant("p", log = log)
         val scope = MutableStateFlow("")
@@ -103,7 +103,7 @@ class RestCrudSyncEngineTest {
     }
 
     @Test
-    fun `titular que muda no meio do PUSH aborta o ciclo (outbox de A nao sobe com o token de B)`() = runTest {
+    fun `titular que muda no meio do PUSH aborta o ciclo - outbox de A nao sobe com o token de B`() = runTest {
         val log = mutableListOf<String>()
         val scope = MutableStateFlow("motorista-A")
         val pai = TrocaDeTitular("pai", scope, "motorista-B", log)
@@ -132,7 +132,7 @@ class RestCrudSyncEngineTest {
     }
 
     @Test
-    fun `titular inalterado durante o ciclo continua rodando tudo (sem falso positivo)`() = runTest {
+    fun `titular inalterado durante o ciclo continua rodando tudo - sem falso positivo`() = runTest {
         val log = mutableListOf<String>()
         val scope = MutableStateFlow("motorista-A")
         val a = FakeParticipant("a", log = log)
@@ -162,7 +162,7 @@ class RestCrudSyncEngineTest {
     }
 
     @Test
-    fun `setAccountScope ESPERA o ciclo em execucao terminar (fecha ate a requisicao em voo)`() = runTest {
+    fun `setAccountScope ESPERA o ciclo em execucao terminar - fecha ate a requisicao em voo`() = runTest {
         val store = FakeSyncStore()
         store.setAccountScope("motorista-A")
         val log = mutableListOf<String>()
@@ -193,7 +193,7 @@ class RestCrudSyncEngineTest {
     }
 
     @Test
-    fun `com store informado o motor deriva o escopo sozinho (nao roda sem titular)`() = runTest {
+    fun `com store informado o motor deriva o escopo sozinho - nao roda sem titular`() = runTest {
         val store = FakeSyncStore()
         val log = mutableListOf<String>()
         val p = FakeParticipant("p", log = log)

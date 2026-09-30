@@ -40,7 +40,7 @@ class SocialProviderAliasTest {
     }
 
     @Test
-    fun `GoogleSignInResult distingue sucesso, erro e cancelamento`() {
+    fun `GoogleSignInResult distingue sucesso erro e cancelamento`() {
         assertTrue(GoogleSignInResult.success("t").isSuccess)
         assertFalse(GoogleSignInResult.error("boom").isSuccess)
         assertTrue(GoogleSignInResult.cancelled().isCancelled)

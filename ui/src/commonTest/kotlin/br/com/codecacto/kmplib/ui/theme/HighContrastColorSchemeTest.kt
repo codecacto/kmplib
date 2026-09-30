@@ -21,7 +21,7 @@ class HighContrastColorSchemeTest {
     // --- Light alto contraste ---
 
     @Test
-    fun `HC light primary e quase-preto (nao a cor da marca)`() {
+    fun `HC light primary e quase-preto - nao a cor da marca`() {
         val hc = createHighContrastLightColorScheme(AppColorPalettes.Teal)
         assertEquals(Color(0xFF0A0A0A), hc.primary)
         assertEquals(paper, hc.onPrimary)
@@ -40,7 +40,7 @@ class HighContrastColorSchemeTest {
     }
 
     @Test
-    fun `HC light tom Quick nao some (container claro com texto ink)`() {
+    fun `HC light tom Quick nao some - container claro com texto ink`() {
         val hc = createHighContrastLightColorScheme(AppColorPalettes.Teal)
         assertEquals(ink, hc.onSecondaryContainer)
         assertNotEquals(paper, hc.secondaryContainer) // container distinto do fundo branco
@@ -78,7 +78,7 @@ class HighContrastColorSchemeTest {
     }
 
     @Test
-    fun `tema claro normal da Teal preenche Normal com teal (nao branco)`() {
+    fun `tema claro normal da Teal preenche Normal com teal - nao branco`() {
         val normal = createLightColorScheme(AppColorPalettes.Teal)
         // No tema NORMAL, o tile Normal (primary) é colorido, não a "parede branca".
         assertEquals(AppColorPalettes.Teal.primary, normal.primary)

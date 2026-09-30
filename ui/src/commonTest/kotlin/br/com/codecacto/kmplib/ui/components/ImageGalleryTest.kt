@@ -42,7 +42,7 @@ class ImageGalleryTest {
     }
 
     @Test
-    fun `coluna zero ou negativa cai em uma coluna, em vez de estourar`() {
+    fun `coluna zero ou negativa cai em uma coluna em vez de estourar`() {
         // `chunked(0)` lança IllegalArgumentException — seria a tela caindo por causa de um
         // parâmetro que o app calculou (ex.: largura dividida por tamanho de célula).
         assertEquals(3, galeriaEmLinhas(fotos(3), colunas = 0).size)

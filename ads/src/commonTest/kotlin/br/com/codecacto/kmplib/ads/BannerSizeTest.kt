@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 class BannerSizeTest {
 
     @Test
-    fun `a caixa segue a proporcao da arte que veio, nao a do tamanho pedido`() {
+    fun `a caixa segue a proporcao da arte que veio nao a do tamanho pedido`() {
         // Pediu o grande e recebeu o comum (nao havia arte grande): desenhar em 3:1 cortaria a 6:1.
         assertEquals(6f, BannerSize.aspectRatioOf(CustomAd.FORMAT_BANNER, fallback = BannerSize.LARGE))
         assertEquals(3f, BannerSize.aspectRatioOf(CustomAd.FORMAT_BANNER_LARGE, fallback = BannerSize.STANDARD))
@@ -21,7 +21,7 @@ class BannerSizeTest {
     }
 
     @Test
-    fun `a cadeia de fallback desce, nunca sobe`() {
+    fun `a cadeia de fallback desce nunca sobe`() {
         // Descer e seguro: a caixa segue a arte que veio, entao sai um banner mais baixo e inteiro.
         // Subir seria pedir uma peca mais alta do que o app reservou na tela.
         assertEquals(

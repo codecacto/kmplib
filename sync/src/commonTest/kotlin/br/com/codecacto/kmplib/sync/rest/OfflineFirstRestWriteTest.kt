@@ -93,7 +93,7 @@ class OfflineFirstRestWriteTest {
     // -- Correção que vale para TODOS os apps (default OnlineFirst) --------
 
     @Test
-    fun `OnlineFirst - 5xx com rede presente NAO perde a escrita, cai na outbox`() = runTest {
+    fun `OnlineFirst - 5xx com rede presente NAO perde a escrita cai na outbox`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { status = HttpStatusCode.InternalServerError }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -112,7 +112,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `OnlineFirst - 4xx de validacao continua devolvendo erro sem persistir (formulario corrige)`() = runTest {
+    fun `OnlineFirst - 4xx de validacao continua devolvendo erro sem persistir - formulario corrige`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { status = HttpStatusCode.UnprocessableEntity }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -158,7 +158,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `LocalFirst - 4xx terminal deixa a linha VISIVEL e marcada como nao-salva, com o erro`() = runTest {
+    fun `LocalFirst - 4xx terminal deixa a linha VISIVEL e marcada como nao-salva com o erro`() = runTest {
         val store = FakeSyncStore()
         val server = Server()
         val r = repo(server, store, RestWriteMode.LocalFirst)
@@ -273,7 +273,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `LocalFirst - delete recusado REEXIBE o registro (ele continua existindo no servidor)`() = runTest {
+    fun `LocalFirst - delete recusado REEXIBE o registro - ele continua existindo no servidor`() = runTest {
         val store = FakeSyncStore()
         val server = Server()
         val r = repo(server, store, RestWriteMode.LocalFirst)
@@ -288,7 +288,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `drain - 4xx durante o push para de retentar e vira Failed (antes era loop infinito)`() = runTest {
+    fun `drain - 4xx durante o push para de retentar e vira Failed - antes era loop infinito`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { transportDown = true }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -305,7 +305,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `drain - resposta ilegivel no create nao retenta (duplicaria o registro no servidor)`() = runTest {
+    fun `drain - resposta ilegivel no create nao retenta - duplicaria o registro no servidor`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { transportDown = true }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -390,7 +390,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `OnlineFirst - update sobre CREATE pendente nao faz PUT em id local (era 404 eterno)`() = runTest {
+    fun `OnlineFirst - update sobre CREATE pendente nao faz PUT em id local - era 404 eterno`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { transportDown = true }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -431,7 +431,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `delete sobre CREATE pendente remove local e NAO envia DELETE (evita 404 previsivel)`() = runTest {
+    fun `delete sobre CREATE pendente remove local e NAO envia DELETE - evita 404 previsivel`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { transportDown = true }
         val r = repo(server, store, RestWriteMode.LocalFirst)
@@ -468,7 +468,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `mirror tombstone em linha sincronizada continua enfileirando DELETE (sem regressao)`() = runTest {
+    fun `mirror tombstone em linha sincronizada continua enfileirando DELETE - sem regressao`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { serverId = "srv-1" }
         val r = repo(server, store, RestWriteMode.LocalFirst)
@@ -521,7 +521,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `update em linha JA sincronizada continua fazendo PUT (sem regressao para os apps)`() = runTest {
+    fun `update em linha JA sincronizada continua fazendo PUT - sem regressao para os apps`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { serverId = "srv-1" }
         val r = repo(server, store, RestWriteMode.OnlineFirst)
@@ -552,7 +552,7 @@ class OfflineFirstRestWriteTest {
     }
 
     @Test
-    fun `drain PARA na hora quando o titular muda no meio (a linha seguinte nao sobe sob outra conta)`() = runTest {
+    fun `drain PARA na hora quando o titular muda no meio - a linha seguinte nao sobe sob outra conta`() = runTest {
         val store = FakeSyncStore()
         store.setAccountScope("motorista-A")
         val server = Server().apply { transportDown = true }

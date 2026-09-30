@@ -73,7 +73,7 @@ class AdminApiEntitlementRepositoryTest {
     }
 
     @Test
-    fun `getEntitlement trata default free (ativo=false) como nao-premium sem erro`() = runTest {
+    fun `getEntitlement trata default free - ativo=false como nao-premium sem erro`() = runTest {
         // Usuario sem grant: o admin-api responde 200 com o default free (plano="free", ativo=false).
         val r = repo {
             HttpStatusCode.OK to """
@@ -282,7 +282,7 @@ class AdminApiEntitlementRepositoryTest {
     // ====== assertUsage (GAP de backend — degradacao segura, sem rede) ======
 
     @Test
-    fun `assertUsage degrada seguro para Failed sem chamar rede (sem rota me-assert)`() = runTest {
+    fun `assertUsage degrada seguro para Failed sem chamar rede - sem rota me-assert`() = runTest {
         val calls = mutableListOf<HttpRequestData>()
         val r = repo(captured = calls) { HttpStatusCode.OK to "{}" }
         val result = r.assertUsage("export_pdf", currentCount = 0, amount = 1)

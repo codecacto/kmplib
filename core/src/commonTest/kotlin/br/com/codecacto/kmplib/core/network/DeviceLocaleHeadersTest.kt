@@ -61,7 +61,7 @@ class DeviceLocaleHeadersTest {
     }
 
     @Test
-    fun `provedor nulo, em branco ou que falha nao manda nada`() = runTest {
+    fun `provedor nulo em branco ou que falha nao manda nada`() = runTest {
         val vistos = mutableListOf<Headers>()
         client(vistos) {
             languageTag = { error("boom") }

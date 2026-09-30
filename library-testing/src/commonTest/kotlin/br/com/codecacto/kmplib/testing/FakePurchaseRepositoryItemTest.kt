@@ -69,7 +69,7 @@ class FakePurchaseRepositoryItemTest {
     }
 
     @Test
-    fun `restaurar em celular novo devolve os SEIS itens, nao um booleano`() = runTest {
+    fun `restaurar em celular novo devolve os SEIS itens nao um booleano`() = runTest {
         val comprados = (1..6).map { FakePurchaseRepository.itemComprado("curso_$it") }
         val loja = FakePurchaseRepository.itensJaComprados(comprados, appUserId = "aluno-1")
 

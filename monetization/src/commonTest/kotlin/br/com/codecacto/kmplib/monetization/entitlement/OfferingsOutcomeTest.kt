@@ -154,7 +154,7 @@ class OfferingsOutcomeTest {
     }
 
     @Test
-    fun `provider real sem repositorio reporta Indisponivel, nunca Vazio`() = runTest {
+    fun `provider real sem repositorio reporta Indisponivel nunca Vazio`() = runTest {
         PurchaseManager.initializeWith(FakePurchaseRepository())
         val provider = RevenueCatEntitlementProvider(purchaseConfig = config)
 

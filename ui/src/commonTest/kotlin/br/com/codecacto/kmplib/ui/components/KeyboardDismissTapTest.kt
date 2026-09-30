@@ -40,7 +40,7 @@ class KeyboardDismissTapTest {
     }
 
     @Test
-    fun `arrastar alem do slop e rolagem, nao toque`() {
+    fun `arrastar alem do slop e rolagem nao toque`() {
         assertEquals(Verdict.NotATap, next(distanceFromDown = slop + 1f))
         assertEquals(Verdict.NotATap, next(distanceFromDown = slop + 1f, released = true))
     }

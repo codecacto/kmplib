@@ -6,6 +6,7 @@ import br.com.codecacto.kmplib.ui.components.BottomNavItem
 import br.com.codecacto.kmplib.ui.components.NavigationType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.assertNull
 
 /**
@@ -55,8 +56,8 @@ class NavigationTest {
     fun `NavigationType has all variants`() {
         val types = NavigationType.entries
         assertEquals(3, types.size)
-        assert(NavigationType.NONE in types)
-        assert(NavigationType.BACK in types)
-        assert(NavigationType.MENU in types)
+        assertTrue(NavigationType.NONE in types)
+        assertTrue(NavigationType.BACK in types)
+        assertTrue(NavigationType.MENU in types)
     }
 }

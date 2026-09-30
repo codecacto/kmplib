@@ -26,7 +26,7 @@ class VideoSourceTest {
     }
 
     @Test
-    fun `o id vem do parametro v, mesmo com outros antes dele`() {
+    fun `o id vem do parametro v mesmo com outros antes dele`() {
         assertEquals(
             "abcdefghijk",
             youTubeIdOf("https://www.youtube.com/watch?list=PL123&v=abcdefghijk&index=2"),
@@ -53,7 +53,7 @@ class VideoSourceTest {
     }
 
     @Test
-    fun `o que nao sabemos tocar vira External, para abrir no navegador`() {
+    fun `o que nao sabemos tocar vira External para abrir no navegador`() {
         assertEquals(
             VideoSource.External("https://vimeo.com/12345"),
             videoSourceOf("https://vimeo.com/12345"),
@@ -61,7 +61,7 @@ class VideoSourceTest {
     }
 
     @Test
-    fun `vazio, nulo e nao-http nao viram video`() {
+    fun `vazio nulo e nao-http nao viram video`() {
         assertNull(videoSourceOf(null))
         assertNull(videoSourceOf(""))
         assertNull(videoSourceOf("   "))

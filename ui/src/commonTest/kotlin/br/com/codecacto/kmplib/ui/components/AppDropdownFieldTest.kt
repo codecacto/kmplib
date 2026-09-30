@@ -10,7 +10,7 @@ import kotlin.test.assertEquals
 class AppDropdownFieldTest {
 
     @Test
-    fun `sem nada marcado o campo fica vazio, nunca com zero`() {
+    fun `sem nada marcado o campo fica vazio nunca com zero`() {
         assertEquals("", dropdownFieldSummary(emptyList()))
     }
 
@@ -31,7 +31,7 @@ class AppDropdownFieldTest {
     }
 
     @Test
-    fun `limite invalido cai na contagem, e nao numa lista sem fim`() {
+    fun `limite invalido cai na contagem e nao numa lista sem fim`() {
         assertEquals("3", dropdownFieldSummary(listOf("A", "B", "C"), maxLabels = 0))
     }
 }

@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.ui.components.ToastData
 import br.com.codecacto.kmplib.ui.components.ToastType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Testes para Toast system
@@ -14,10 +15,10 @@ class ToastTest {
     fun `ToastType has all variants`() {
         val types = ToastType.entries
         assertEquals(4, types.size)
-        assert(ToastType.SUCCESS in types)
-        assert(ToastType.ERROR in types)
-        assert(ToastType.WARNING in types)
-        assert(ToastType.INFO in types)
+        assertTrue(ToastType.SUCCESS in types)
+        assertTrue(ToastType.ERROR in types)
+        assertTrue(ToastType.WARNING in types)
+        assertTrue(ToastType.INFO in types)
     }
 
     @Test

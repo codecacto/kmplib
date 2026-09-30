@@ -41,7 +41,7 @@ class QrCapacityTest {
     }
 
     @Test
-    fun `check devolve numeros uteis, nao so um booleano`() {
+    fun `check devolve numeros uteis nao so um booleano`() {
         val check = qrCodeFits("confere-qr:v1:" + "a".repeat(80), QrErrorCorrection.L, maxVersion = 20)
 
         assertTrue(check.fits)
@@ -57,7 +57,7 @@ class QrCapacityTest {
     }
 
     @Test
-    fun `quando nao cabe, o check diz quanto falta`() {
+    fun `quando nao cabe o check diz quanto falta`() {
         val check = qrCodeFits("z".repeat(3000), QrErrorCorrection.H, maxVersion = 40)
 
         assertTrue(!check.fits)

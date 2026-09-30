@@ -30,7 +30,7 @@ class ReorderableListTest {
     }
 
     @Test
-    fun `acoes do primeiro, do segundo, do meio, do penultimo e do ultimo`() {
+    fun `acoes do primeiro do segundo do meio do penultimo e do ultimo`() {
         assertEquals(listOf(MOVE_DOWN, MOVE_TO_BOTTOM), reorderActionsFor(0, 5))
         assertEquals(listOf(MOVE_UP, MOVE_DOWN, MOVE_TO_BOTTOM), reorderActionsFor(1, 5))
         assertEquals(listOf(MOVE_TO_TOP, MOVE_UP, MOVE_DOWN, MOVE_TO_BOTTOM), reorderActionsFor(2, 5))

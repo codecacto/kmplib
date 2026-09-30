@@ -16,7 +16,7 @@ class BarcodeScanDebouncerTest {
     private val outro = "7896004000015"
 
     @Test
-    fun `o mesmo codigo na mira dispara UMA vez, nao a cada frame`() {
+    fun `o mesmo codigo na mira dispara UMA vez nao a cada frame`() {
         val debouncer = BarcodeScanDebouncer()
         var aceitos = 0
         // 2 segundos de câmera a 30 fps sobre o mesmo produto.
@@ -27,7 +27,7 @@ class BarcodeScanDebouncerTest {
     }
 
     @Test
-    fun `passado o cooldown do mesmo codigo, ele pode ser lido de novo`() {
+    fun `passado o cooldown do mesmo codigo ele pode ser lido de novo`() {
         // Duas caixas do MESMO produto com validades diferentes é o caso normal do varejo.
         val debouncer = BarcodeScanDebouncer(BarcodeScanDebounce(sameCodeCooldownMillis = 2_000))
         assertTrue(debouncer.accept(ean, 0))
@@ -36,7 +36,7 @@ class BarcodeScanDebouncerTest {
     }
 
     @Test
-    fun `codigo DIFERENTE passa sem recriar a tela, respeitado o intervalo global`() {
+    fun `codigo DIFERENTE passa sem recriar a tela respeitado o intervalo global`() {
         val debouncer = BarcodeScanDebouncer(
             BarcodeScanDebounce(sameCodeCooldownMillis = 5_000, anyCodeCooldownMillis = 600)
         )
@@ -105,7 +105,7 @@ class BarcodeScanDebouncerTest {
     }
 
     @Test
-    fun `configuracao invalida falha alto, nao silenciosamente`() {
+    fun `configuracao invalida falha alto nao silenciosamente`() {
         assertFailsWith<IllegalArgumentException> { BarcodeScanDebounce(requiredConsecutiveReads = 0) }
         assertFailsWith<IllegalArgumentException> { BarcodeScanDebounce(sameCodeCooldownMillis = -1) }
         assertFailsWith<IllegalArgumentException> { BarcodeScanDebounce(anyCodeCooldownMillis = -1) }

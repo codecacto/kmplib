@@ -26,7 +26,7 @@ class ThemeChipGridTest {
     }
 
     @Test
-    fun `ChipItem com mesmo id e label sao iguais (data class)`() {
+    fun `ChipItem com mesmo id e label sao iguais - data class`() {
         assertEquals(
             ChipItem("gratidao", "Gratidão"),
             ChipItem("gratidao", "Gratidão")

@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class PhoneInputFormatTest {
 
     @Test
-    fun `Brasil, regiao nula ou desconhecida ficam no caminho brasileiro`() {
+    fun `Brasil regiao nula ou desconhecida ficam no caminho brasileiro`() {
         assertSame(PhoneInputFormat.Brazil, PhoneInputFormat.forRegion("BR"))
         assertSame(PhoneInputFormat.Brazil, PhoneInputFormat.forRegion(null))
         assertSame(PhoneInputFormat.Brazil, PhoneInputFormat.forRegion(" "))
@@ -32,7 +32,7 @@ class PhoneInputFormatTest {
     }
 
     @Test
-    fun `modo internacional aceita mais, valida pelo pais e envia E164`() {
+    fun `modo internacional aceita mais valida pelo pais e envia E164`() {
         val pt = PhoneInputFormat.forRegion("PT")
         assertEquals("+351912345678", pt.filter("+351 912 345 678"))
         assertTrue(pt.isValid("912345678"))

@@ -14,7 +14,7 @@ class DeletePrefixResultTest {
     }
 
     @Test
-    fun `sucesso completo quando prefixo vazio (nada varrido)`() {
+    fun `sucesso completo quando prefixo vazio - nada varrido`() {
         val r = DeletePrefixResult(scannedCount = 0, deletedCount = 0, failedCount = 0)
         assertTrue(r.isCompleteSuccess)
     }

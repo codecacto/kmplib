@@ -21,7 +21,7 @@ class AppLocaleTest {
     }
 
     @Test
-    fun `portugues de Portugal so com a regiao PT, o resto do portugues ve pt-BR`() {
+    fun `portugues de Portugal so com a regiao PT o resto do portugues ve pt-BR`() {
         assertEquals("pt-PT", FactoryLocales.match("pt-PT"))
         assertEquals("pt-PT", FactoryLocales.match("pt_PT"))
         assertEquals("pt-BR", FactoryLocales.match("pt-BR"))
@@ -31,7 +31,7 @@ class AppLocaleTest {
     }
 
     @Test
-    fun `idioma sem traducao ve o fallback, que e o que a tela mostra`() {
+    fun `idioma sem traducao ve o fallback que e o que a tela mostra`() {
         assertEquals("pt-BR", FactoryLocales.match("fr-FR"))
         assertEquals("pt-BR", FactoryLocales.match("de"))
         assertEquals("pt-BR", FactoryLocales.match(null))
@@ -47,7 +47,7 @@ class AppLocaleTest {
     }
 
     @Test
-    fun `split aceita sublinhado, pula script e reconhece regiao numerica`() {
+    fun `split aceita sublinhado pula script e reconhece regiao numerica`() {
         assertEquals("pt" to "BR", splitLanguageTag("pt_BR"))
         assertEquals("zh" to "TW", splitLanguageTag("zh-Hant-TW"))
         assertEquals("es" to "419", splitLanguageTag("es-419"))

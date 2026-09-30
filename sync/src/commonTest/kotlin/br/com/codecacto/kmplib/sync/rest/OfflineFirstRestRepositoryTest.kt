@@ -105,7 +105,7 @@ class OfflineFirstRestRepositoryTest {
     private fun empresas(n: Int): List<Empresa> = (1..n).map { Empresa(id = "e$it", nome = "Empresa $it") }
 
     @Test
-    fun `refresh pagina o dataset COMPLETO (N maior que size) e preserva TODOS os itens`() = runTest {
+    fun `refresh pagina o dataset COMPLETO - N maior que size e preserva TODOS os itens`() = runTest {
         val store = FakeSyncStore()
         val backend = PagedBackend(empresas(25)) // 25 itens, size 10 -> 3 páginas (10,10,5)
         val r = pagedRepo(backend, store, pageSize = 10)
@@ -120,7 +120,7 @@ class OfflineFirstRestRepositoryTest {
     }
 
     @Test
-    fun `refresh so apaga o item genuinamente removido no servidor (nao a pagina 2+)`() = runTest {
+    fun `refresh so apaga o item genuinamente removido no servidor - nao a pagina 2+`() = runTest {
         val store = FakeSyncStore()
         val backend = PagedBackend(empresas(25))
         val r = pagedRepo(backend, store, pageSize = 10)
@@ -138,7 +138,7 @@ class OfflineFirstRestRepositoryTest {
     }
 
     @Test
-    fun `refresh sem paginacao (total menor ou igual a size) continua funcionando (regressao)`() = runTest {
+    fun `refresh sem paginacao - total menor ou igual a size continua funcionando - regressao`() = runTest {
         val store = FakeSyncStore()
         val backend = PagedBackend(empresas(5)) // total 5 <= size 10 -> 1 página
         val r = pagedRepo(backend, store, pageSize = 10)
@@ -150,7 +150,7 @@ class OfflineFirstRestRepositoryTest {
     }
 
     @Test
-    fun `refresh preserva edicao local pendente (dirty) durante a reconciliacao paginada`() = runTest {
+    fun `refresh preserva edicao local pendente - dirty durante a reconciliacao paginada`() = runTest {
         val store = FakeSyncStore()
         val backend = PagedBackend(empresas(25))
         val r = pagedRepo(backend, store, pageSize = 10)

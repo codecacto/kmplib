@@ -20,7 +20,7 @@ class RegionalFormatTest {
     }
 
     @Test
-    fun `texto entre aspas do padrao fica, sem as aspas`() {
+    fun `texto entre aspas do padrao fica sem as aspas`() {
         assertEquals("dd de mm de aaaa", placeholderFromDatePattern("dd 'de' MM 'de' y", 'a'))
     }
 
@@ -47,7 +47,7 @@ class RegionalFormatTest {
     }
 
     @Test
-    fun `placeholder da regiao tem dia, mes e ano`() {
+    fun `placeholder da regiao tem dia mes e ano`() {
         val ph = RegionalFormat.datePlaceholder('a')
         assertTrue("dd" in ph && "mm" in ph && "aaaa" in ph, ph)
     }

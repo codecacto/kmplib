@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class OwnAuthLocaleTest {
 
     @Test
-    fun `register leva o idioma da conta, e o omite quando nao ha`() = runTest {
+    fun `register leva o idioma da conta e o omite quando nao ha`() = runTest {
         val cap = mutableListOf<CapturedRequest>()
         val (api, _) = mockOwnAuthApi(cap) { _, _ -> HttpStatusCode.Created to tokensJson(fakeJwt("a"), "r") }
 
@@ -40,7 +40,7 @@ class OwnAuthLocaleTest {
     }
 
     @Test
-    fun `sem mensagens do app, a lib responde no idioma da tela`() = runTest {
+    fun `sem mensagens do app a lib responde no idioma da tela`() = runTest {
         val (api, _) = mockOwnAuthApi { _, _ -> HttpStatusCode.Unauthorized to "{}" }
         val mensagem = api.login("a@x.com", "x").exceptionOrNull()?.message
         val esperado = if (uiLanguageTag() == FactoryLocales.PT_BR) OwnAuthTexts().invalidCredentials

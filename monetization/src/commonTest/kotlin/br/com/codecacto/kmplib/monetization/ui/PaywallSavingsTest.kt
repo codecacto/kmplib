@@ -35,7 +35,7 @@ class PaywallSavingsTest {
     }
 
     @Test
-    fun `sem mensal nao ha selo, mas o preco por mes continua`() {
+    fun `sem mensal nao ha selo mas o preco por mes continua`() {
         val plans = listOf(plan("s", 6), plan("a", 12)).withStoreSavings(
             packages = listOf(pkg("s", 6, 60_000_000L), pkg("a", 12, 96_000_000L)),
             badgeLabel = { "E$it" },

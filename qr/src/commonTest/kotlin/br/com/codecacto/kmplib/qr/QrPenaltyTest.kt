@@ -81,7 +81,7 @@ class QrPenaltyTest {
     }
 
     @Test
-    fun `regra 3 tambem detecta o arranjo espelhado (area clara ANTES)`() {
+    fun `regra 3 tambem detecta o arranjo espelhado - area clara ANTES`() {
         val size = 11
         val mirrored = "00001011101"
         val dark = BooleanArray(size * size)

@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ui.components
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 /**
  * Testes de lógica pura do Avatar — não requerem Compose UI test.
@@ -47,7 +48,7 @@ class AvatarLogicTest {
 
         // Espera-se pelo menos 5 cores distintas entre os 10 nomes
         // (com 10 cores na paleta e hashCode bem distribuído).
-        assert(colors.size >= 5) { "Esperava ao menos 5 cores distintas, obteve ${colors.size}" }
+        assertTrue(colors.size >= 5, "Esperava ao menos 5 cores distintas, obteve ${colors.size}")
     }
 
     @Test

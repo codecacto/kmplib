@@ -24,19 +24,19 @@ class PixCrcTest {
     }
 
     @Test
-    fun `entrada vazia devolve o valor inicial, provando ausencia de XOR final`() {
+    fun `entrada vazia devolve o valor inicial provando ausencia de XOR final`() {
         assertEquals("FFFF", PixCrc.compute(""))
     }
 
     @Test
-    fun `resultado sai em hex maiusculo de quatro digitos, com zeros a esquerda`() {
+    fun `resultado sai em hex maiusculo de quatro digitos com zeros a esquerda`() {
         val crc = PixCrc.compute(PixFixtures.staticPix().dropLast(PixCrc.VALUE_LENGTH))
         assertEquals(4, crc.length)
         assertTrue(crc.all { it in '0'..'9' || it in 'A'..'F' }, "esperado hex maiúsculo, foi $crc")
     }
 
     @Test
-    fun `o calculo e sobre bytes UTF-8, nao sobre caracteres`() {
+    fun `o calculo e sobre bytes UTF-8 nao sobre caracteres`() {
         // "é" é um caractere e dois bytes em UTF-8 (0xC3 0xA9). O CRC tem de ver os bytes.
         val fromText = PixCrc.compute("é")
         val fromBytes = PixCrc.compute(byteArrayOf(0xC3.toByte(), 0xA9.toByte()))
@@ -46,7 +46,7 @@ class PixCrcTest {
     }
 
     @Test
-    fun `sign acrescenta 6304 e o CRC, e e idempotente quando o sufixo ja esta la`() {
+    fun `sign acrescenta 6304 e o CRC e e idempotente quando o sufixo ja esta la`() {
         val body = "0002010102115204000053039865802BR5913CODECACTO6009SAO PAULO"
 
         val signed = PixCrc.sign(body)

@@ -172,7 +172,7 @@ class BrCodeParserTest {
     // -------------------------------------------------------------------------------------------
 
     @Test
-    fun `CRC errado e classificado como InvalidCrc, nunca como nao-EMV`() {
+    fun `CRC errado e classificado como InvalidCrc nunca como nao-EMV`() {
         val payload = PixFixtures.staticPix()
         val adulterado = PixFixtures.withBrokenCrc(payload)
 
@@ -221,7 +221,7 @@ class BrCodeParserTest {
     // -------------------------------------------------------------------------------------------
 
     @Test
-    fun `EMV valido de outro arranjo e NotPix, nao erro`() {
+    fun `EMV valido de outro arranjo e NotPix nao erro`() {
         val reading = assertIs<BrCodeReading.NotPix>(parseBrCode(PixFixtures.otherArrangement()))
 
         assertFalse(reading.brCode.isPix)
@@ -231,7 +231,7 @@ class BrCodeParserTest {
     }
 
     @Test
-    fun `link, texto livre e vCard nao sao EMV`() {
+    fun `link texto livre e vCard nao sao EMV`() {
         listOf(
             "https://codecacto.com.br/pagar",
             "Obrigado pela visita, volte sempre!",
@@ -244,7 +244,7 @@ class BrCodeParserTest {
     }
 
     @Test
-    fun `entrada nula, vazia ou so espacos e Blank`() {
+    fun `entrada nula vazia ou so espacos e Blank`() {
         listOf(null, "", "   ", "\n\t ", "\uFEFF").forEach { texto ->
             val reading = assertIs<BrCodeReading.NotEmv>(parseBrCode(texto))
             assertEquals(BrCodeError.Blank, reading.error, "entrada: $texto")
@@ -252,7 +252,7 @@ class BrCodeParserTest {
     }
 
     @Test
-    fun `payload com dois templates Pix devolve os dois, e account usa o de menor id`() {
+    fun `payload com dois templates Pix devolve os dois e account usa o de menor id`() {
         val segundoTemplate = PixFixtures.tlv(
             "27",
             PixFixtures.tlv(BrCodeTag.ACCOUNT_GUI, BrCodeTag.PIX_GUI) +

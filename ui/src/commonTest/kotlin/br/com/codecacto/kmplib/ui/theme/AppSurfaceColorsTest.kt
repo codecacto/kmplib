@@ -72,7 +72,7 @@ class AppSurfaceColorsTest {
     }
 
     @Test
-    fun `escala de elevacao fica na familia preta (containers entre fundo e variante)`() {
+    fun `escala de elevacao fica na familia preta - containers entre fundo e variante`() {
         val scheme = createDarkColorScheme(meuBarbeiroPalette)
         // Nunca o cinza-roxo do baseline Material: containers ancorados no preto.
         assertEquals(Color(0xFF0A0A0A), scheme.surfaceContainerLowest)
@@ -93,7 +93,7 @@ class AppSurfaceColorsTest {
     }
 
     @Test
-    fun `fundo claro com on-color ausente deriva texto escuro (nunca claro sobre claro)`() {
+    fun `fundo claro com on-color ausente deriva texto escuro - nunca claro sobre claro`() {
         val palette = AppColorPalette(
             primary = Color(0xFF6C63FF),
             lightSurfaces = AppSurfaceColors(background = Color(0xFFFAFAFA), surface = Color.White)

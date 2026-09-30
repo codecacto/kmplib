@@ -191,7 +191,7 @@ class RestIdMigrationTest {
     }
 
     @Test
-    fun `remap durável funciona com o hook remapRefs do app (caminho dos apps de hoje)`() = runTest {
+    fun `remap durável funciona com o hook remapRefs do app - caminho dos apps de hoje`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { online = false }
         val rotas = rotaRepo(backend, store)
@@ -295,7 +295,7 @@ class RestIdMigrationTest {
     }
 
     @Test
-    fun `update e delete pelo handle antigo falam com o id do servidor (nada de PUT em local-)`() = runTest {
+    fun `update e delete pelo handle antigo falam com o id do servidor - nada de PUT em local-`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { online = false }
         val rotas = rotaRepo(backend, store)
@@ -360,7 +360,7 @@ class RestIdMigrationTest {
     // =====================================================================
 
     @Test
-    fun `client_id sobrevive a markSynced, a refresh e a confirm`() = runTest {
+    fun `client_id sobrevive a markSynced a refresh e a confirm`() = runTest {
         val store = FakeSyncStore()
         val backend = Backend().apply { online = false }
         val rotas = rotaRepo(backend, store)
@@ -421,7 +421,7 @@ class RestIdMigrationTest {
     // =====================================================================
 
     @Test
-    fun `a varredura generica so troca ids conhecidos, nunca texto livre`() {
+    fun `a varredura generica so troca ids conhecidos nunca texto livre`() {
         val json = restMirrorJson
         val corpo = """{"id":"local-1","rotaId":"local-9","obs":"combinei local-9 com a escola","n":7}"""
         val resultado = RestPayloadRemap.applyToBody(corpo, json) { if (it == "local-9") "rota-SRV" else null }

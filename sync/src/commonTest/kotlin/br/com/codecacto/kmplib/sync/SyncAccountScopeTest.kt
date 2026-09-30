@@ -90,7 +90,7 @@ class SyncAccountScopeTest {
     }
 
     @Test
-    fun `Adopt (default) reivindica a base legada uma unica vez — nao perde a outbox de quem atualizou o app`() {
+    fun `Adopt - default reivindica a base legada uma unica vez — nao perde a outbox de quem atualizou o app`() {
         val store = FakeSyncStore()
         // Base gravada antes do escopo existir (bucket "").
         store.upsert(row("marcacao", "antiga", dirty = true))
@@ -118,7 +118,7 @@ class SyncAccountScopeTest {
     }
 
     @Test
-    fun `Discard apaga a base legada (fail-closed de aparelho compartilhado)`() {
+    fun `Discard apaga a base legada - fail-closed de aparelho compartilhado`() {
         val store = FakeSyncStore()
         store.upsert(row("marcacao", "antiga", dirty = true))
 
@@ -129,7 +129,7 @@ class SyncAccountScopeTest {
     }
 
     @Test
-    fun `deleteAccountData apaga so a conta pedida (exclusao de conta - LGPD)`() {
+    fun `deleteAccountData apaga so a conta pedida - exclusao de conta - LGPD`() {
         val store = FakeSyncStore()
         store.setAccountScope("A")
         store.upsert(row("passageiro", "p1"))

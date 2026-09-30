@@ -156,7 +156,7 @@ class PixIdentityTest {
     }
 
     @Test
-    fun `recebedor trocado com o HOST IGUAL e recebedor diferente, nao endpoint diferente`() {
+    fun `recebedor trocado com o HOST IGUAL e recebedor diferente nao endpoint diferente`() {
         // Dois clientes do mesmo PSP: o host bate, mas quem recebe é outro. É o caso mais grave e
         // tem precedência sobre qualquer outra divergência.
         val cadastrada = identidade(
@@ -318,7 +318,7 @@ class PixIdentityTest {
     }
 
     @Test
-    fun `decode nunca lanca - texto nulo, vazio ou corrompido devolve null`() {
+    fun `decode nunca lanca - texto nulo vazio ou corrompido devolve null`() {
         listOf(null, "", "   ", "{", "não é json", """{"type":"marciano"}""").forEach { texto ->
             assertNull(PixIdentity.decode(texto), "entrada: $texto")
         }

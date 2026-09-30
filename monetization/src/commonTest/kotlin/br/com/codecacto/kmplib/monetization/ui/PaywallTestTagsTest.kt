@@ -15,7 +15,7 @@ class PaywallTestTagsTest {
         PaywallPlan(id = id, name = id, priceLabel = "R$ 1,00", durationMonths = meses)
 
     @Test
-    fun `sufixo vem da duracao canonica, nao do id da loja`() {
+    fun `sufixo vem da duracao canonica nao do id da loja`() {
         assertEquals("paywall-plano-mensal", PaywallTestTags.plano(plano("\$rc_monthly", 1)))
         assertEquals("paywall-plano-semestral", PaywallTestTags.plano(plano("\$rc_six_month", 6)))
         assertEquals("paywall-plano-anual", PaywallTestTags.plano(plano("premium_anual_x", 12)))
@@ -39,7 +39,7 @@ class PaywallTestTagsTest {
     }
 
     @Test
-    fun `duracao nao-canonica cai no id sanitizado, sem inventar sufixo`() {
+    fun `duracao nao-canonica cai no id sanitizado sem inventar sufixo`() {
         // Trimestral residual e `lifetime` existem no mundo real (o `$rc_three_month` vazio do Super 8).
         // Inventar "trimestral" seria criar vocabulário para um plano que o padrão da fábrica não tem;
         // colapsar tudo em "outro" faria dois planos dividirem o mesmo id na mesma tela.

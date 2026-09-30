@@ -177,14 +177,14 @@ class PaywallViewModelTest {
     // ------------------------------------------------------------ só loja
 
     @Test
-    fun `nasce carregando, sem plano`() {
+    fun `nasce carregando sem plano`() {
         val p = viewModel(FakeStore()).paywall
         assertTrue(p.isLoadingPlans)
         assertTrue(p.plans.isEmpty())
     }
 
     @Test
-    fun `planos saem Mensal, Semestral, Anual com selo no de maior duracao`() {
+    fun `planos saem Mensal Semestral Anual com selo no de maior duracao`() {
         val vm = viewModel(FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(ANUAL, MENSAL, SEMESTRAL))))
         vm.onAction(PaywallHostAction.Load)
 
@@ -233,7 +233,7 @@ class PaywallViewModelTest {
     }
 
     @Test
-    fun `build sem chave da loja nao alerta — e defeito de build, nao de runtime`() {
+    fun `build sem chave da loja nao alerta — e defeito de build nao de runtime`() {
         val vm = viewModel(FakeStore(offerings = OfferingsOutcome.Indisponivel))
         vm.onAction(PaywallHostAction.Load)
         assertTrue(vm.paywall.plans.isEmpty())

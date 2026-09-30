@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ui
 import br.com.codecacto.kmplib.ui.components.BadgeStyle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Testes para Badge component
@@ -13,9 +14,9 @@ class BadgeTest {
     fun `BadgeStyle has all variants`() {
         val styles = BadgeStyle.entries
         assertEquals(3, styles.size)
-        assert(BadgeStyle.CIRCULAR in styles)
-        assert(BadgeStyle.PILL in styles)
-        assert(BadgeStyle.DOT in styles)
+        assertTrue(BadgeStyle.CIRCULAR in styles)
+        assertTrue(BadgeStyle.PILL in styles)
+        assertTrue(BadgeStyle.DOT in styles)
     }
 
     @Test

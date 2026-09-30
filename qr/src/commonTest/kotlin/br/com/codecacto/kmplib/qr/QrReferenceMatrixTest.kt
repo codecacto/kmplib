@@ -79,7 +79,7 @@ class QrReferenceMatrixTest {
     }
 
     @Test
-    fun `os vetores cobrem versao pequena, com informacao de versao e multi-bloco`() {
+    fun `os vetores cobrem versao pequena com informacao de versao e multi-bloco`() {
         // A cobertura só vale se os vetores exercitarem os caminhos que costumam quebrar.
         val versions = QrReferenceVectors.vectors.map { it.version }
         assertTrue(versions.any { it == 1 }, "falta versão 1")

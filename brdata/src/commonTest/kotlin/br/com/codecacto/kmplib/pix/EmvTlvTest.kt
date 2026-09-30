@@ -60,7 +60,7 @@ class EmvTlvTest {
     }
 
     @Test
-    fun `tamanho nao-numerico e recusado, inclusive digito nao-ASCII`() {
+    fun `tamanho nao-numerico e recusado inclusive digito nao-ASCII`() {
         val naoNumerico = assertIs<EmvTlvResult.Failure>(parseEmvTlv("59XXCODECACTO"))
         assertEquals(EmvTlvError.InvalidLength, naoNumerico.error)
 
@@ -83,7 +83,7 @@ class EmvTlvTest {
     }
 
     @Test
-    fun `id desconhecido e PRESERVADO, nao recusado`() {
+    fun `id desconhecido e PRESERVADO nao recusado`() {
         // "70" está em faixa reservada para uso futuro: nenhuma versão da lib o interpreta.
         val payload = PixFixtures.tlv(BrCodeTag.FORMAT_INDICATOR, "01") +
             PixFixtures.tlv("70", "PSP-NOVO") +

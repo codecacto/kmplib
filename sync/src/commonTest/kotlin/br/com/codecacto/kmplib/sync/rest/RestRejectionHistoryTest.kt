@@ -86,7 +86,7 @@ class RestRejectionHistoryTest {
     // -- A sequência do desfecho fatal -------------------------------------
 
     @Test
-    fun `recusa, toque OFFLINE, e a evidencia SOBREVIVE (era o Tudo certo com o registro faltando)`() = runTest {
+    fun `recusa toque OFFLINE e a evidencia SOBREVIVE - era o Tudo certo com o registro faltando`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { serverId = "srv-9" }
         val r = repo(server, store)
@@ -150,7 +150,7 @@ class RestRejectionHistoryTest {
     // -- As duas camadas: estado atual × histórico -------------------------
 
     @Test
-    fun `pendencia NOVA legitima nao tem historico nenhum (offline puro e confiavel)`() = runTest {
+    fun `pendencia NOVA legitima nao tem historico nenhum - offline puro e confiavel`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { transportDown = true }
         val r = repo(server, store)
@@ -166,7 +166,7 @@ class RestRejectionHistoryTest {
     }
 
     @Test
-    fun `5xx passageiro conta tentativa mas NAO e recusa (nada de historico de recusa)`() = runTest {
+    fun `5xx passageiro conta tentativa mas NAO e recusa - nada de historico de recusa`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { status = HttpStatusCode.BadGateway }
         val r = repo(server, store)
@@ -214,7 +214,7 @@ class RestRejectionHistoryTest {
     }
 
     @Test
-    fun `requeueFailed SEM SINAL nao apaga a prova (era o retry que transformava recusa em pendencia boa)`() = runTest {
+    fun `requeueFailed SEM SINAL nao apaga a prova - era o retry que transformava recusa em pendencia boa`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { status = HttpStatusCode.Forbidden }
         val r = repo(server, store)
@@ -274,7 +274,7 @@ class RestRejectionHistoryTest {
     }
 
     @Test
-    fun `a linha da lista carrega o sinal (a UI nao precisa remontar a regra)`() = runTest {
+    fun `a linha da lista carrega o sinal - a UI nao precisa remontar a regra`() = runTest {
         val store = FakeSyncStore()
         val server = Server().apply { status = HttpStatusCode.UnprocessableEntity }
         val r = repo(server, store)

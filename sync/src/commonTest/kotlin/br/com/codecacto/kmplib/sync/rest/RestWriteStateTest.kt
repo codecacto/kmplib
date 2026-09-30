@@ -30,7 +30,7 @@ class RestWriteStateTest {
     }
 
     @Test
-    fun `timeout 408, rate limit 429 e sessao expirada 401 sao retentaveis`() {
+    fun `timeout 408 rate limit 429 e sessao expirada 401 sao retentaveis`() {
         // 401 chega aqui só depois de o DomainApiClient já ter renovado o token e tentado de novo:
         // a escrita espera o novo login em vez de ser jogada fora.
         listOf(408, 429, 401).forEach { assertTrue(classifyRestFailure(it).isRetryable, "código $it") }
@@ -45,7 +45,7 @@ class RestWriteStateTest {
     }
 
     @Test
-    fun `402 tem classe propria (cota) e nao e retentavel sozinho`() {
+    fun `402 tem classe propria - cota e nao e retentavel sozinho`() {
         assertEquals(RestFailureClass.Quota, classifyRestFailure(402))
         assertFalse(classifyRestFailure(402).isRetryable)
     }
@@ -78,7 +78,7 @@ class RestWriteStateTest {
     }
 
     @Test
-    fun `delete sobre linha SEM server_id nao envia nada (nulo) — resolve local, sem 404`() {
+    fun `delete sobre linha SEM server_id nao envia nada - nulo — resolve local sem 404`() {
         assertNull(resolveOutboxOp(SyncOpType.DELETE, knownLocally = true, hasServerId = false))
     }
 
@@ -169,7 +169,7 @@ class RestWriteStateTest {
     }
 
     @Test
-    fun `Failed com 402 se identifica como cota (caminho do Paywall, nao do retry)`() {
+    fun `Failed com 402 se identifica como cota - caminho do Paywall nao do retry`() {
         val state = row(dirty = 1L, op = SyncOpType.CREATE.wire, failed = 1L, code = 402L).toRestRowState()
         assertTrue((state as RestRowState.Failed).isQuota)
     }

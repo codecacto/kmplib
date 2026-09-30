@@ -60,7 +60,7 @@ class DensityGridTest {
     @Test
     fun `todas as densidades tem pelo menos uma coluna`() {
         GridDensity.entries.forEach { density ->
-            assert(density.columns >= 1) { "$density deve ter >= 1 coluna" }
+            assertTrue(density.columns >= 1, "$density deve ter >= 1 coluna")
         }
     }
 
@@ -73,7 +73,7 @@ class DensityGridTest {
     // --- CommunicationTile: tom → token (todos preenchidos, nenhum usa surface) ---
 
     @Test
-    fun `Normal usa primary preenchido (nao surface)`() {
+    fun `Normal usa primary preenchido - nao surface`() {
         assertEquals(
             TileColorRole.Primary to TileColorRole.OnPrimary,
             communicationTileRoles(TileTone.Normal)

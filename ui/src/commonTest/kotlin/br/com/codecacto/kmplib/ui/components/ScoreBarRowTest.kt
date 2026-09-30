@@ -19,7 +19,7 @@ class ScoreBarRowTest {
     fun `acima do maximo satura em vez de estourar a caixa`() = assertEquals(1f, fracao(7.0, 5.0))
 
     @Test
-    fun `negativo vira zero, nunca barra para a esquerda`() = assertEquals(0f, fracao(-1.0, 5.0))
+    fun `negativo vira zero nunca barra para a esquerda`() = assertEquals(0f, fracao(-1.0, 5.0))
 
     @Test
     fun `maximo zero nao divide por zero`() = assertEquals(0f, fracao(3.0, 0.0))

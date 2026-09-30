@@ -102,7 +102,7 @@ class BrCodeBuilderTest {
     }
 
     @Test
-    fun `valor com 3 casas, zero ou texto e recusado antes de virar QR`() {
+    fun `valor com 3 casas zero ou texto e recusado antes de virar QR`() {
         assertEquals(PixBrCodeError.InvalidAmount, erro(base.copy(amount = "150.0055")))
         assertEquals(PixBrCodeError.InvalidAmount, erro(base.copy(amount = "0")))
         assertEquals(PixBrCodeError.InvalidAmount, erro(base.copy(amount = "0,00")))
@@ -119,7 +119,7 @@ class BrCodeBuilderTest {
     // -- Nome e cidade -----------------------------------------------------------------------
 
     @Test
-    fun `acento sai, maiuscula entra — e a contagem de caracteres passa a bater com a de bytes`() {
+    fun `acento sai maiuscula entra — e a contagem de caracteres passa a bater com a de bytes`() {
         val payload = ok(base.copy(merchantName = "Rosângela Conceição", merchantCity = "São Paulo"))
         val leitura = parseBrCode(payload)
         assertTrue(leitura is BrCodeReading.Pix)
@@ -130,14 +130,14 @@ class BrCodeBuilderTest {
     }
 
     @Test
-    fun `nome longo e truncado no limite da tag, depois de limpo`() {
+    fun `nome longo e truncado no limite da tag depois de limpo`() {
         val leitura = parseBrCode(ok(base.copy(merchantName = "Maria das Graças de Souza Albuquerque")))
         assertTrue(leitura is BrCodeReading.Pix)
         assertEquals(25, leitura.brCode.merchantName?.length)
     }
 
     @Test
-    fun `emoji e ideograma viram espaco e somem no colapso, sem corromper o payload`() {
+    fun `emoji e ideograma viram espaco e somem no colapso sem corromper o payload`() {
         val payload = ok(base.copy(merchantName = "Rosa 🌵 Servicos"))
         val leitura = parseBrCode(payload)
         assertTrue(leitura is BrCodeReading.Pix)
@@ -145,7 +145,7 @@ class BrCodeBuilderTest {
     }
 
     @Test
-    fun `nome ou cidade que somem na limpeza recusam, em vez de gerar QR sem recebedor`() {
+    fun `nome ou cidade que somem na limpeza recusam em vez de gerar QR sem recebedor`() {
         assertEquals(PixBrCodeError.EmptyMerchantName, erro(base.copy(merchantName = "🌵🌵")))
         assertEquals(PixBrCodeError.EmptyMerchantName, erro(base.copy(merchantName = "   ")))
         assertEquals(PixBrCodeError.EmptyMerchantCity, erro(base.copy(merchantCity = "")))
@@ -189,7 +189,7 @@ class BrCodeBuilderTest {
     }
 
     @Test
-    fun `descricao encolhe para caber nos 99 caracteres da conta, e o QR continua valido`() {
+    fun `descricao encolhe para caber nos 99 caracteres da conta e o QR continua valido`() {
         // Chave aleatória (36) + descrição longa estouraria o template. O pagamento não pode falhar
         // por causa de um texto decorativo: quem encolhe é a descrição.
         val payload = ok(

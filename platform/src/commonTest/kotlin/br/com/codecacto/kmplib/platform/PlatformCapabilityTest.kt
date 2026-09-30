@@ -2,11 +2,14 @@ package br.com.codecacto.kmplib.platform
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * "O app não pode vender o que não tem": filtragem de features por capacidade de plataforma.
  * O resolvedor é injetado, então os dois alvos são testados de qualquer host.
+ *
+ * O VALOR real de cada plataforma (o `actual`) não se prova aqui — commonTest roda também no
+ * simulador iOS, onde uma asserção de Android falha. Está em `PlatformCapabilitiesAndroidTest`
+ * (androidUnitTest) e `PlatformCapabilitiesIosTest` (iosTest).
  */
 class PlatformCapabilityTest {
 
@@ -52,12 +55,5 @@ class PlatformCapabilityTest {
     fun `isAvailable espelha o PlatformCapabilities da plataforma corrente`() {
         assertEquals(PlatformCapabilities.pdfGeneration, PlatformCapability.PdfGeneration.isAvailable)
         assertEquals(PlatformCapabilities.cameraCapture, PlatformCapability.CameraCapture.isAvailable)
-    }
-
-    @Test
-    fun `android entrega camera e pdf`() {
-        // Este teste roda no unit test do Android: os actuals de androidMain devem ser true/true.
-        assertTrue(PlatformCapabilities.cameraCapture)
-        assertTrue(PlatformCapabilities.pdfGeneration)
     }
 }

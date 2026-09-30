@@ -20,7 +20,7 @@ class DomainApiClientTextsTest {
     }
 
     @Test
-    fun `sem provedor, os textos fixos de sempre`() = runTest {
+    fun `sem provedor os textos fixos de sempre`() = runTest {
         val r = cliente(HttpStatusCode.TooManyRequests).getJson("/x") as DomainResult.Error
         assertEquals(DomainApiTexts().rateLimited, r.message)
     }

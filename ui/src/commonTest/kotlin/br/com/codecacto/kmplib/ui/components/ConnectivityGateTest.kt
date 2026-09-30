@@ -33,7 +33,7 @@ class ConnectivityGateTest {
     }
 
     @Test
-    fun `estilos disponiveis sao Modal, Banner e FullScreen`() {
+    fun `estilos disponiveis sao Modal Banner e FullScreen`() {
         assertEquals(
             listOf(ConnectivityStyle.Modal, ConnectivityStyle.Banner, ConnectivityStyle.FullScreen),
             ConnectivityStyle.entries.toList(),

@@ -21,7 +21,7 @@ class ShareAppTest {
     )
 
     @Test
-    fun `shareApp manda mensagem, titulo e o link com UTM`() {
+    fun `shareApp manda mensagem titulo e o link com UTM`() {
         val fake = RecordingShareHandler()
         fake.shareApp(link, texts, content = SHARE_APP_CONTENT_MENU)
 
@@ -36,7 +36,7 @@ class ShareAppTest {
     }
 
     @Test
-    fun `sem content, o link nao leva utm_content`() {
+    fun `sem content o link nao leva utm_content`() {
         val fake = RecordingShareHandler()
         fake.shareApp(link, texts)
         assertNull(Url(fake.links.single().url).parameters["utm_content"])

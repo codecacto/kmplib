@@ -16,7 +16,7 @@ class QrStructureTest {
         encodeQrOrNull(text, ec)!!
 
     @Test
-    fun `quiet zone de 4 modulos existe, e claro em toda a volta`() {
+    fun `quiet zone de 4 modulos existe e claro em toda a volta`() {
         val code = qr()
         assertEquals(QrCode.QUIET_ZONE, code.quietZone)
         assertEquals(4, code.quietZone, "o padrão exige 4 módulos")
@@ -33,7 +33,7 @@ class QrStructureTest {
     }
 
     @Test
-    fun `quiet zone menor que o minimo do padrao e elevada, nunca aceita`() {
+    fun `quiet zone menor que o minimo do padrao e elevada nunca aceita`() {
         // "Economizar" margem é o caminho conhecido para o QR que só lê em alguns aparelhos.
         assertEquals(4, encodeQrOrNull("CODECACTO", quietZone = 0)!!.quietZone)
         assertEquals(4, encodeQrOrNull("CODECACTO", quietZone = 2)!!.quietZone)
@@ -101,7 +101,7 @@ class QrStructureTest {
     }
 
     @Test
-    fun `padroes de alinhamento aparecem a partir da versao 2, no lugar previsto`() {
+    fun `padroes de alinhamento aparecem a partir da versao 2 no lugar previsto`() {
         // Versão 1 não tem alinhamento; da 2 em diante, sim.
         assertEquals(0, QrTables.alignmentPatternPositions(1).size)
         assertEquals(intArrayOf(6, 18).toList(), QrTables.alignmentPatternPositions(2).toList())
@@ -169,7 +169,7 @@ class QrStructureTest {
     }
 
     @Test
-    fun `toMatrix devolve copia, nao a matriz interna`() {
+    fun `toMatrix devolve copia nao a matriz interna`() {
         val code = qr()
         val matrix = code.toMatrix()
         val before = code.isDark(code.quietZone, code.quietZone)

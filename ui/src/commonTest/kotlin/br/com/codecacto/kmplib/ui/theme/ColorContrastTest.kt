@@ -48,7 +48,7 @@ class ColorContrastTest {
     }
 
     @Test
-    fun `preenchimento a 15pct sobre preto (padrao da agenda) tem contraste AA com texto branco`() {
+    fun `preenchimento a 15pct sobre preto - padrao da agenda tem contraste AA com texto branco`() {
         // Espelha o teste web: cor de status @15% composta sobre o fundo preto, texto branco ≥ 4.5:1.
         val fill = ColorContrast.compositeOver(Color(0xFF38BDF8), 0.15f, Color(0xFF0A0A0A))
         assertTrue(ColorContrast.meetsTextContrast(white, fill))

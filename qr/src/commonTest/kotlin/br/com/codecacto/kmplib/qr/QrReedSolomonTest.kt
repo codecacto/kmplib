@@ -79,7 +79,7 @@ class QrReedSolomonTest {
     }
 
     @Test
-    fun `EC de tamanho pedido, e mensagem diferente muda a EC`() {
+    fun `EC de tamanho pedido e mensagem diferente muda a EC`() {
         val a = QrReedSolomon.errorCorrectionCodewords(byteArrayOf(1, 2, 3), 7)
         val b = QrReedSolomon.errorCorrectionCodewords(byteArrayOf(1, 2, 4), 7)
         assertEquals(7, a.size)
@@ -107,7 +107,7 @@ class QrReedSolomonTest {
     }
 
     @Test
-    fun `padding alterna EC e 11 exatamente nessa ordem, depois do terminador`() {
+    fun `padding alterna EC e 11 exatamente nessa ordem depois do terminador`() {
         val buffer = QrBitBuffer()
         buffer.appendBits(0, 8) // um codeword de dados
         val codewords = buffer.toDataCodewords(5)
@@ -142,7 +142,7 @@ class QrReedSolomonTest {
     }
 
     @Test
-    fun `segmento numerico usa 10, 7 ou 4 bits conforme o resto`() {
+    fun `segmento numerico usa 10 7 ou 4 bits conforme o resto`() {
         assertEquals(10, QrSegment.numeric("123").data.bitLength)
         assertEquals(17, QrSegment.numeric("12345").data.bitLength) // 10 + 7
         assertEquals(14, QrSegment.numeric("1234").data.bitLength) // 10 + 4
@@ -166,7 +166,7 @@ class QrReedSolomonTest {
     }
 
     @Test
-    fun `conjunto alfanumerico tem os 45 caracteres do padrao, na ordem`() {
+    fun `conjunto alfanumerico tem os 45 caracteres do padrao na ordem`() {
         assertEquals(45, QrSegment.ALPHANUMERIC_CHARSET.length)
         assertEquals(0, QrSegment.ALPHANUMERIC_CHARSET.indexOf('0'))
         assertEquals(10, QrSegment.ALPHANUMERIC_CHARSET.indexOf('A'))

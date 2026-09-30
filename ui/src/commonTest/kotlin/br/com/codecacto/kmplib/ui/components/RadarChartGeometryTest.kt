@@ -14,7 +14,7 @@ class RadarChartGeometryTest {
     // ── ângulos ────────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `o primeiro vertice fica no TOPO, nao a direita`() {
+    fun `o primeiro vertice fica no TOPO nao a direita`() {
         // Se começasse à direita, o primeiro domínio da lista cairia no meio da lateral, onde
         // ninguém procura o que leu primeiro.
         val angulos = angulosDosVertices(7)
@@ -59,7 +59,7 @@ class RadarChartGeometryTest {
     // ── vértices ───────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `o vertice de valor maximo encosta no raio, no topo`() {
+    fun `o vertice de valor maximo encosta no raio no topo`() {
         val pontos = verticesDaSerie(listOf(100.0, 0.0, 0.0), 100.0, raio = 50f, centroX = 60f, centroY = 60f)
         quase(60f, pontos[0].x)
         quase(10f, pontos[0].y) // topo = centro menos o raio
@@ -75,7 +75,7 @@ class RadarChartGeometryTest {
     }
 
     @Test
-    fun `nenhum vertice sai do raio, com valores fora da escala`() {
+    fun `nenhum vertice sai do raio com valores fora da escala`() {
         val pontos = verticesDaSerie(
             listOf(500.0, -80.0, 100.0, 0.0, 1e9, 42.0, 99.0),
             maximo = 100.0,
@@ -119,7 +119,7 @@ class RadarChartGeometryTest {
     }
 
     @Test
-    fun `quebra no meio, nao no primeiro espaco`() {
+    fun `quebra no meio nao no primeiro espaco`() {
         // "Conversão em Ação" tem espaço no índice 9 e no 12; o meio é 8,5.
         assertEquals(listOf("Conversão", "em Ação"), quebrarRotuloDoVertice("Conversão em Ação", 12))
     }
@@ -166,7 +166,7 @@ class RotuloDoAnelTest {
     }
 
     @Test
-    fun `escala curta ganha uma casa, porque o anel cai em quebrado`() {
+    fun `escala curta ganha uma casa porque o anel cai em quebrado`() {
         // 5 com 4 anéis: 1,25 · 2,5 · 3,75 · 5. Arredondar para inteiro imprimiria "1, 3, 4, 5" —
         // uma progressão que mente sobre onde as linhas da grade estão.
         assertEquals("1,3", rotuloDoAnel(5.0, 0.25f))
@@ -176,7 +176,7 @@ class RotuloDoAnelTest {
     }
 
     @Test
-    fun `a virgula e decimal, nunca ponto`() {
+    fun `a virgula e decimal nunca ponto`() {
         assertTrue(rotuloDoAnel(5.0, 0.5f).contains(','))
         assertTrue(!rotuloDoAnel(5.0, 0.5f).contains('.'))
     }

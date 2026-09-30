@@ -154,7 +154,7 @@ class OwnAuthSocialTest {
     }
 
     @Test
-    fun `email nao verificado (403) tambem e recusa de credencial, nao erro de servidor`() = runTest {
+    fun `email nao verificado - 403 tambem e recusa de credencial nao erro de servidor`() = runTest {
         val (api, _) = mockOwnAuthApi { _, _ ->
             HttpStatusCode.Forbidden to """{"message":"e-mail não verificado pelo provedor"}"""
         }
@@ -173,7 +173,7 @@ class OwnAuthSocialTest {
     }
 
     @Test
-    fun `500 no social vira erro de servidor, nao credencial invalida`() = runTest {
+    fun `500 no social vira erro de servidor nao credencial invalida`() = runTest {
         val (api, _) = mockOwnAuthApi { _, _ -> HttpStatusCode.InternalServerError to "" }
         val e = api.social(SocialProvider.GOOGLE, "t", "n").exceptionOrNull()
         assertIs<OwnAuthException.Server>(e)
@@ -321,7 +321,7 @@ class OwnAuthSocialTest {
     }
 
     @Test
-    fun `sessao gravada antes da 2 98 0 (sem providerId) le como password`() {
+    fun `sessao gravada antes da 2 98 0 - sem providerId le como password`() {
         val legacy = """
             {"accessToken":"a","refreshToken":"r","accessExpiresAtEpochSeconds":1,"accountId":"acc"}
         """.trimIndent()

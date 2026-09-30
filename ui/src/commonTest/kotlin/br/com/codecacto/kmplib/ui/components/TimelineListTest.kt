@@ -21,7 +21,7 @@ class TimelineListBadgeTest {
     private val explicita = Color.Blue
 
     @Test
-    fun `sem tom e sem cor, o selo segue o status do item`() {
+    fun `sem tom e sem cor o selo segue o status do item`() {
         assertEquals(doStatus, corDoBadgeDaTimeline(toneColor = null, badgeColor = null, fallback = doStatus))
     }
 

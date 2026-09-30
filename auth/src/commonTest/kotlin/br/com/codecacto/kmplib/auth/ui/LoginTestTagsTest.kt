@@ -48,7 +48,7 @@ class LoginTestTagsTest {
     }
 
     @Test
-    fun `o erro tem id, senao falha silenciosa passa por tela que nao abriu`() {
+    fun `o erro tem id senao falha silenciosa passa por tela que nao abriu`() {
         assertEquals("login-erro", LoginTestTags.ERRO)
     }
 }

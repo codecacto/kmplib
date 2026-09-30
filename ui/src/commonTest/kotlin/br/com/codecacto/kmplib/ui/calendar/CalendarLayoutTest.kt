@@ -148,7 +148,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `sombra antes, no almoco e depois do expediente`() {
+    fun `sombra antes no almoco e depois do expediente`() {
         val off = offHoursRanges(window, listOf(WorkRange(540, 720), WorkRange(780, 1140)))
         assertEquals(
             listOf(MinuteRange(480, 540), MinuteRange(720, 780), MinuteRange(1140, 1200)),
@@ -164,13 +164,13 @@ class CalendarLayoutTest {
     // --- nowLineColumnIds (regra recurso×dia da linha do "agora") ---
 
     @Test
-    fun `sem nowColumnId a linha do agora cruza todas as colunas (recursos do mesmo dia)`() {
+    fun `sem nowColumnId a linha do agora cruza todas as colunas - recursos do mesmo dia`() {
         val cols = listOf("prof-a", "prof-b", "prof-c")
         assertEquals(cols, nowLineColumnIds(cols, nowColumnId = null, hasNow = true))
     }
 
     @Test
-    fun `com nowColumnId a linha do agora fica em exatamente uma coluna (colunas=dias)`() {
+    fun `com nowColumnId a linha do agora fica em exatamente uma coluna - colunas=dias`() {
         val dias = listOf("2026-07-08", "2026-07-09", "2026-07-10")
         val marcadas = nowLineColumnIds(dias, nowColumnId = "2026-07-09", hasNow = true)
         assertEquals(listOf("2026-07-09"), marcadas)
@@ -193,7 +193,7 @@ class CalendarLayoutTest {
     // --- distributeEvents (órfão × fora-da-janela) ---
 
     @Test
-    fun `modo recurso - resourceId inexistente vira orfao (nao some calado)`() {
+    fun `modo recurso - resourceId inexistente vira orfao - nao some calado`() {
         // Ana foi desativada; o agendamento dela continua com resourceId=ana, mas não há coluna.
         val evAna = ev("corte-ana", 10, 0, 11, 0, resourceId = "ana")
         val evBob = ev("corte-bob", 14, 0, 15, 0, resourceId = "bob")
@@ -209,7 +209,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `modo recurso - resourceId nulo nao e orfao (nao atribuido, silencioso)`() {
+    fun `modo recurso - resourceId nulo nao e orfao - nao atribuido silencioso`() {
         val d = distributeEvents(
             events = listOf(ev("x", 10, 0, 11, 0, resourceId = null)),
             columnIds = listOf("bob"),
@@ -222,7 +222,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `modo dia (getColumnId custom) - evento fora do intervalo NAO dispara orfao`() {
+    fun `modo dia - getColumnId custom - evento fora do intervalo NAO dispara orfao`() {
         // Visão Semana: colunas = dias; evento de outro dia é fora-da-janela, não anomalia.
         val fora = ev("x", 10, 0, 11, 0, resourceId = "2026-07-20")
         val dentro = ev("y", 12, 0, 13, 0, resourceId = "2026-07-09")
@@ -238,7 +238,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `getColumnId retornando null e silencioso, nunca orfao`() {
+    fun `getColumnId retornando null e silencioso nunca orfao`() {
         val d = distributeEvents(
             events = listOf(ev("x", 10, 0, 11, 0, resourceId = "ana")),
             columnIds = listOf("2026-07-09"),
@@ -250,7 +250,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `coluna unica absorve tudo, sem orfaos mesmo com resourceId estranho`() {
+    fun `coluna unica absorve tudo sem orfaos mesmo com resourceId estranho`() {
         val d = distributeEvents(
             events = listOf(ev("x", 10, 0, 11, 0, resourceId = "qualquer")),
             columnIds = listOf("__single__"),

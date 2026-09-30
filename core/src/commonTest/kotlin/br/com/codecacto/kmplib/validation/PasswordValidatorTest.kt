@@ -34,22 +34,22 @@ class PasswordValidatorTest {
     }
 
     @Test
-    fun `isValid com strong() returns false for missing uppercase`() {
+    fun `isValid com strong - returns false for missing uppercase`() {
         assertFalse(PasswordValidator.isValid("senha@123", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid com strong() returns false for missing lowercase`() {
+    fun `isValid com strong - returns false for missing lowercase`() {
         assertFalse(PasswordValidator.isValid("SENHA@123", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid com strong() returns false for missing digit`() {
+    fun `isValid com strong - returns false for missing digit`() {
         assertFalse(PasswordValidator.isValid("Senha@Test", PasswordRules.strong()))
     }
 
     @Test
-    fun `isValid com strong() returns false for missing special char`() {
+    fun `isValid com strong - returns false for missing special char`() {
         assertFalse(PasswordValidator.isValid("Senha123", PasswordRules.strong()))
     }
 
@@ -70,7 +70,7 @@ class PasswordValidatorTest {
     }
 
     @Test
-    fun `errorMessage aponta a composicao que falta quando o app pede strong()`() {
+    fun `errorMessage aponta a composicao que falta quando o app pede strong -`() {
         assertEquals("A senha deve conter letra maiúscula",
             PasswordValidator.errorMessage("senha@123", PasswordRules.strong()))
         assertEquals("A senha deve conter número",

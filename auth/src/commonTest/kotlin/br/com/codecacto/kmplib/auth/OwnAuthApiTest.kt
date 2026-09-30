@@ -32,7 +32,7 @@ class OwnAuthApiTest {
      * OMITIR a chave quando não há telefone, para o corpo não dizer "informei nada".
      */
     @Test
-    fun `register leva o telefone, e o omite quando nao ha`() = runTest {
+    fun `register leva o telefone e o omite quando nao ha`() = runTest {
         val cap = mutableListOf<CapturedRequest>()
         val (api, _) = mockOwnAuthApi(cap) { _, _ ->
             HttpStatusCode.Created to tokensJson(fakeJwt("acc-1"), "r1")
@@ -48,7 +48,7 @@ class OwnAuthApiTest {
     }
 
     @Test
-    fun `authBasePath customizado (cliente) muda a rota`() = runTest {
+    fun `authBasePath customizado - cliente muda a rota`() = runTest {
         val cap = mutableListOf<CapturedRequest>()
         val (api, _) = mockOwnAuthApi(cap, authBasePath = "/v1/customer/auth") { _, _ ->
             HttpStatusCode.OK to tokensJson(fakeJwt("acc-2"), "r2")
@@ -96,7 +96,7 @@ class OwnAuthApiTest {
     }
 
     @Test
-    fun `forgot sempre resolve (200 generico) e logout resolve (204)`() = runTest {
+    fun `forgot sempre resolve - 200 generico e logout resolve - 204`() = runTest {
         val (api, _) = mockOwnAuthApi { path, _ ->
             if (path.endsWith("logout")) HttpStatusCode.NoContent to "" else HttpStatusCode.OK to "{}"
         }

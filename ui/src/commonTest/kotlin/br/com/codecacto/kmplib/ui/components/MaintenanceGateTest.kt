@@ -19,7 +19,7 @@ class MaintenanceGateTest {
     }
 
     @Test
-    fun `construtor posicional segue a ordem titulo, mensagem, botao, verificando`() {
+    fun `construtor posicional segue a ordem titulo mensagem botao verificando`() {
         val en = MaintenanceTexts("Under maintenance", "Back soon.", "Try again", "Checking…")
         assertEquals("Under maintenance", en.title)
         assertEquals("Back soon.", en.message)

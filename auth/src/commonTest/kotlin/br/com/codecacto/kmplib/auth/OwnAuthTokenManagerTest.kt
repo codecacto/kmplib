@@ -133,7 +133,7 @@ class OwnAuthTokenManagerTest {
     }
 
     @Test
-    fun `4xx no refresh derruba a sessao (fail-closed)`() = runTest {
+    fun `4xx no refresh derruba a sessao - fail-closed`() = runTest {
         val mgr = manager { path, _ ->
             if (path.endsWith("refresh")) HttpStatusCode.Unauthorized to ""
             else HttpStatusCode.OK to ""

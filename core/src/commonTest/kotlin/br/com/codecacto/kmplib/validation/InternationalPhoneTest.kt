@@ -18,7 +18,7 @@ class InternationalPhoneTest {
     }
 
     @Test
-    fun `regiao principal vem primeiro nos DDIs compartilhados, e todas existem`() {
+    fun `regiao principal vem primeiro nos DDIs compartilhados e todas existem`() {
         assertEquals("US", InternationalPhone.regionsFor(1).first())
         assertTrue("CA" in InternationalPhone.regionsFor(1))
         assertEquals("GB", InternationalPhone.regionsFor(44).first())
@@ -62,7 +62,7 @@ class InternationalPhoneTest {
     }
 
     @Test
-    fun `sem mais e numero nacional da regiao padrao, e sem regiao nao da para saber`() {
+    fun `sem mais e numero nacional da regiao padrao e sem regiao nao da para saber`() {
         assertEquals("+351912345678", InternationalPhone.toE164("912 345 678", "PT"))
         assertNull(InternationalPhone.parse("912345678", null))
         assertNull(InternationalPhone.parse("+999 1234", null))

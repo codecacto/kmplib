@@ -62,7 +62,7 @@ class LoginContractNavigationTest {
 class LoginIdentifierModeTest {
 
     @kotlin.test.Test
-    fun `default e EMAIL, para app que nao consulta o servidor nao mudar de aparencia sozinho`() {
+    fun `default e EMAIL para app que nao consulta o servidor nao mudar de aparencia sozinho`() {
         kotlin.test.assertEquals(
             br.com.codecacto.kmplib.auth.AuthIdentifierMode.EMAIL,
             LoginState().identifierMode,
@@ -81,7 +81,7 @@ class LoginIdentifierModeTest {
     }
 
     @kotlin.test.Test
-    fun `config do servidor desserializa, e corpo estranho cai no default`() {
+    fun `config do servidor desserializa e corpo estranho cai no default`() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val lido = json.decodeFromString(
             br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),
@@ -103,7 +103,7 @@ class LoginIdentifierModeTest {
     }
 
     @kotlin.test.Test
-    fun `provedores sociais vem do servidor, e a ausencia significa nenhum botao`() {
+    fun `provedores sociais vem do servidor e a ausencia significa nenhum botao`() {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         val comGoogle = json.decodeFromString(
             br.com.codecacto.kmplib.auth.OwnAuthIdentifierConfig.serializer(),

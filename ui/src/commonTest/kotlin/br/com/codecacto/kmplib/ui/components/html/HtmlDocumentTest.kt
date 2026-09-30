@@ -225,14 +225,14 @@ class HtmlDocumentTest {
     // ---------------------------------------------------------------------------------------
 
     @Test
-    fun `carregando sem fracao e indeterminado, nunca zero`() {
+    fun `carregando sem fracao e indeterminado nunca zero`() {
         // Uma barra parada em 0% diz à pessoa que nada está acontecendo.
         assertNull((HtmlDocumentState.Loading() as HtmlDocumentState.Loading).progress)
         assertEquals(0.4f, HtmlDocumentState.Loading(0.4f).progress)
     }
 
     @Test
-    fun `falha carrega o diagnostico, nao o texto de tela`() {
+    fun `falha carrega o diagnostico nao o texto de tela`() {
         val estado = HtmlDocumentState.Failed(
             HtmlDocumentError(message = "net::ERR_TIMED_OUT", code = 504, url = documento),
         )

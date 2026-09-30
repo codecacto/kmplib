@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 class QrEncoderTest {
 
     @Test
-    fun `modo numerico e escolhido para digitos, e e mais economico que byte`() {
+    fun `modo numerico e escolhido para digitos e e mais economico que byte`() {
         val digits = "1".repeat(100)
         val qr = encodeQrOrNull(digits, QrErrorCorrection.M)!!
         assertEquals(QrMode.Numeric, qr.mode)
@@ -64,7 +64,7 @@ class QrEncoderTest {
     }
 
     @Test
-    fun `conteudo que nao cabe devolve TooLong com os numeros, sem lancar`() {
+    fun `conteudo que nao cabe devolve TooLong com os numeros sem lancar`() {
         // Versão 40-H cabe ~1273 bytes; 5000 caracteres não cabem em nível nenhum.
         val result = encodeQr("z".repeat(5000), QrErrorCorrection.H)
         val tooLong = assertIs<QrEncodeResult.TooLong>(result)
@@ -94,7 +94,7 @@ class QrEncoderTest {
     }
 
     @Test
-    fun `argumento invalido de programacao lanca, ao contrario de conteudo grande`() {
+    fun `argumento invalido de programacao lanca ao contrario de conteudo grande`() {
         // Distinção deliberada: erro de quem chama estoura; limite de capacidade é resultado tipado.
         assertFails { encodeQr("A", minVersion = 0) }
         assertFails { encodeQr("A", maxVersion = 41) }

@@ -18,7 +18,7 @@ class FullScreenGalleryTest {
     }
 
     @Test
-    fun `indice acima do fim ancora na ultima, em vez de estourar`() {
+    fun `indice acima do fim ancora na ultima em vez de estourar`() {
         assertEquals(11, paginaInicialDaGaleria(indiceInicial = 40, total = 12))
     }
 
@@ -64,7 +64,7 @@ class ZoomableBoxGestoTest {
 
     // Ninguém usa dois dedos para virar página: pinça é sempre do zoom, mesmo partindo da escala 1.
     @Test
-    fun `dois dedos sao sempre do zoom, mesmo em escala 1`() {
+    fun `dois dedos sao sempre do zoom mesmo em escala 1`() {
         assertEquals(true, gestoEDoZoom(dedos = 2, escalaAtual = 1f))
     }
 
