@@ -1,5 +1,64 @@
 # Changelog — kmplib
 
+## 2.228.0 — "Reduzir movimento", `AppTheme` com duas famílias, ambiente sonoro em laço, `.ics` e o motor de desenho → PNG
+
+Minor, **aditiva**. Origem: design do **Folha de Axé** (`docs/design/wireframes.md` §16, GAP-FA-K01…K05).
+
+**`kmplib-platform` — "reduzir movimento" do sistema (K01).** `isReduceMotionEnabled()`,
+`reduceMotionChanges(): Flow<Boolean>`, `rememberReduceMotion(): State<Boolean>`, `LocalReduceMotion` e
+`ProvideReduceMotion { }` (pacote `platform.motion`). Android: `Settings.Global.ANIMATOR_DURATION_SCALE`
+**ou** `TRANSITION_ANIMATION_SCALE` em 0 ("Remover animações" / Opções do desenvolvedor), ao vivo por
+`ContentObserver`; iOS: `UIAccessibilityIsReduceMotionEnabled()` + `UIAccessibilityReduceMotionStatusDidChangeNotification`.
+**O `AppTheme` já provê `LocalReduceMotion`** — app da fábrica lê sem configurar nada. O contexto vem do
+`initKmpLibPlatform` (novo `ReduceMotionHolder`); sem ele, `false`. Compose no Android já encurta
+`animate*AsState` com a escala 0; a preferência existe para animação infinita/`Canvas` e para o iOS.
+
+**`kmplib-ui` — `AppTheme(displayFontFamily = …)` e `createAppTypography(fontFamily, displayFontFamily)` (K02).**
+Divisão *brand* × *plain* dos tokens do Material 3: `displayFontFamily` em display, headline e
+**titleLarge**; `fontFamily` em titleMedium/titleSmall, body e label. Default = `fontFamily` (quem passa
+uma só não muda nada). O parâmetro novo do `AppTheme` entra **depois** de `highContrast` — chamadas
+posicionais antigas continuam compilando.
+
+**`kmplib-ui` — `renderDrawingToPng`/`renderDrawingToImageBitmap(widthPx, heightPx, density, layoutDirection) { DrawScope }` (K03).**
+O motor que o `renderShareCardToPng`/`renderGameShareCardToPng` usavam por dentro, exposto sem layout:
+`CanvasDrawScope` sobre o `Canvas` de um `ImageBitmap` + `encodeBitmapToPng` — a API oficial do Compose,
+em `commonMain`. Density default: `widthPx` = 360 dp (`DRAWING_REFERENCE_WIDTH_DP`). Os dois renders de
+card passaram a usá-lo (saída idêntica). Para card de story com o layout do protótipo do projeto.
+
+**`kmplib-media` — `AmbientSoundPlayer` (K04).** Ambiente sonoro em laço sem emenda, com volume e fade:
+`createAmbientSoundPlayer(AmbientSoundConfig(mixWithOthers))`, `rememberAmbientSoundPlayer()` (pausa em
+`ON_STOP`, retoma em `ON_START`, libera no dispose), `AmbientSoundBackgroundPause(player)` para o player do
+ViewModel; `load(bytes)` suspenso, `play(fadeInMillis)`, `pause/stop(fadeOutMillis)`,
+`setVolume(volume, fadeMillis)`, `state: StateFlow<AmbientSoundState>` (`AmbientSoundStatus`),
+`AmbientSoundOutcome`/`AmbientSoundError` (nunca lança). Android **Media3/ExoPlayer** (`REPEAT_MODE_ONE`,
+`ByteArrayDataSource` — sem arquivo temporário, `setHandleAudioBecomingNoisy`, foco de áudio só com
+`mixWithOthers = false`); iOS **`AVAudioPlayer`** `numberOfLoops = -1` + `AVAudioSession` **`.ambient`**
+(mistura e respeita o Silencioso; `.playback` com `mixWithOthers = false`), sessão configurada só no
+primeiro `play`, retomada após interrupção com `ShouldResume`. O fade é uma rampa comum de 20 ms/passo
+(reversível no meio: tocar durante um fade-out sobe do ponto atual). `kmplib-media` passa a depender de
+`media3-exoplayer`/`media3-datasource` (Android) e `lifecycle-runtime-compose`. Prefira **`.m4a` (AAC)**
+ou WAV: MP3 tem *padding* que o `AVAudioPlayer` não remove (emenda audível no iPhone).
+
+**`kmplib-core` — `IcsCalendar` (K05)** (`core.ics`): `IcsCalendar.build(event|events, IcsCalendarOptions)`,
+`IcsEvent`, `IcsTime.Timed/AllDay`, `IcsRecurrence` (`IcsFrequency`, `IcsWeekday`), `IcsAlarm`,
+`IcsEventStatus`, `escapeText`, `foldLine`, `MIME_TYPE`. RFC 5545: CRLF, dobra em 75 octetos UTF-8 sem
+partir acento/emoji, escape, `UID`/`DTSTAMP`, dia inteiro com `DTEND` exclusivo, `TZID` + **`VTIMEZONE`
+gerado da base IANA do aparelho**, `RRULE` com `UNTIL` em UTC, `VALARM DISPLAY`. **Paridade byte a byte
+com o `buildIcs` da weblib 0.224.0** — a suíte compara 6 saídas geradas pela weblib (`IcsWeblibGolden.kt`;
+regenerar empacotando `src/utils/ics.ts` com o `esbuild` da weblib e rodando no node). Única diferença
+intencional: `PRODID` default `-//CodeCacto//kmplib//PT-BR`. **`kmplib-platform` — `ShareHandler.shareIcs(ics,
+fileName, title)`**: `shareFile` com `text/calendar`, garante a extensão `.ics`.
+
+**`kmplib-astro` — KDoc do `MoonCalculator` corrigido.** O exemplo dizia que `phaseOn(2026-08-10)` era
+`WAXING_GIBBOUS` com 87%; o cálculo dá **`WANING_CRESCENT`, 6%** (a lua nova de 12/08/2026 17:36:35 UTC
+vem dois dias depois). Só documentação — o cálculo sempre esteve certo; teste novo trava o exemplo.
+
+**Testes:** `IcsCalendarTest` (16, 6 de paridade), `ShareIcsTest` (3), `ReduceMotionRuleTest` (3),
+`AppTypographyFamiliesTest` (2), `DrawingRenderTest` (2), `AmbientSoundPlayerTest` (12), +1 no
+`MoonCalculatorTest`. `compileKotlinIosArm64` + `compileTestKotlinIosArm64` de core/platform/ui/media/astro
+verdes (sem SKIPPED). **Pendente no Mac:** ouvir o laço/fade do `AmbientSoundPlayer` num device, alternar
+"Reduzir Movimento" com o app aberto, e importar um `.ics` compartilhado no Calendário.
+
 ## 2.227.0 — `PriceHistoryChart` (preço em degrau) e `PermissionBanner`; notificação desligada passa a ser lida
 
 Minor, **aditiva**. Origem: design do **Rede de Ofertas** (`docs/design/gaps-de-lib.md` G1, G10, G11).

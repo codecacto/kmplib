@@ -25,14 +25,14 @@ import kotlinx.datetime.toInstant
  *
  * ### Uso típico
  * ```kotlin
- * // Estado da lua hoje (fuso do aparelho)
- * val hoje = MoonCalculator.phaseOn(LocalDate(2026, 8, 10))
- * hoje.phase                 // MoonPhase.WAXING_GIBBOUS
- * hoje.illuminationPercent   // 87
+ * // Estado da lua num dia (fuso de Brasília): 10/08/2026 é o fim do ciclo, 2 dias antes da nova
+ * val dia = MoonCalculator.phaseOn(LocalDate(2026, 8, 10), TimeZone.of("America/Sao_Paulo"))
+ * dia.phase                  // MoonPhase.WANING_CRESCENT
+ * dia.illuminationPercent    // 6
  *
- * // Âncora de um protocolo: a próxima lua nova
- * val nova = MoonCalculator.nextPhase(PrincipalMoonPhase.NEW, Clock.System.now())
- * nova.instant               // 2026-08-12T17:37:00Z
+ * // Âncora de um protocolo: a próxima lua nova depois daquele dia
+ * val nova = MoonCalculator.nextPhase(PrincipalMoonPhase.NEW, dia.instant)
+ * nova.instant               // 2026-08-12T17:36:35Z (eclipse solar total)
  * nova.dateIn(TimeZone.currentSystemDefault())   // 2026-08-12
  *
  * // As 6 próximas luas cheias

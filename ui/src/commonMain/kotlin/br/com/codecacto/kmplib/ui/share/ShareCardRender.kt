@@ -3,7 +3,6 @@ package br.com.codecacto.kmplib.ui.share
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Canvas as ComposeCanvas
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.text.TextLayoutResult
@@ -15,11 +14,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.platform.ShareHandler
-import br.com.codecacto.kmplib.platform.encodeBitmapToPng
 import br.com.codecacto.kmplib.platform.getShareHandler
 
 /**
@@ -70,15 +67,8 @@ fun renderShareCardToPng(
     // sobre a referência de ~360dp do preview), para que tamanhos de fonte em sp casem com o preview.
     val density = Density(density = targetWidthPx / 360f, fontScale = 1f)
 
-    val bitmap = ImageBitmap(wPx, hPx)
-    val canvas = ComposeCanvas(bitmap)
-
-    CanvasDrawScope().draw(
-        density = density,
-        layoutDirection = LayoutDirection.Ltr,
-        canvas = canvas,
-        size = Size(widthF, heightF),
-    ) {
+    // O motor é o `renderDrawingToPng` (2.228.0); aqui fica só o layout do card.
+    return renderDrawingToPng(wPx, hPx, density) {
         // Fundo (gradiente sutil ou chapado).
         val bg = style.background
         val brush = if (bg.isSolid) {
@@ -151,8 +141,6 @@ fun renderShareCardToPng(
             )
         }
     }
-
-    return encodeBitmapToPng(bitmap)
 }
 
 /** Constraints de largura fixa (altura livre) para medir parágrafos centralizados. */

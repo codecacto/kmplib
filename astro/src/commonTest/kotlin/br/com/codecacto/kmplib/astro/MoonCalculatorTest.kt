@@ -26,6 +26,21 @@ class MoonCalculatorTest {
     private val saoPaulo = TimeZone.of("America/Sao_Paulo")
 
     // -----------------------------------------------------------------------------------
+    // O exemplo do KDoc do MoonCalculator (corrigido na 2.228.0)
+    // -----------------------------------------------------------------------------------
+
+    @Test
+    fun `o exemplo do KDoc 10 de agosto de 2026 e minguante a dois dias da lua nova`() {
+        // A lua nova de 12/08/2026 (eclipse solar total) vem 2 dias depois: o dia 10 é o fim do
+        // ciclo — minguante, quase apagada. O KDoc dizia "WAXING_GIBBOUS, 87%", que é outra data.
+        val hoje = MoonCalculator.phaseOn(LocalDate(2026, 8, 10), saoPaulo)
+        assertEquals(MoonPhase.WANING_CRESCENT, hoje.phase)
+        assertTrue(hoje.illuminationPercent in 3..9, "iluminação ${hoje.illuminationPercent}%")
+        val nova = MoonCalculator.nextPhase(PrincipalMoonPhase.NEW, hoje.instant)
+        assertEquals(LocalDate(2026, 8, 12), nova.dateIn(saoPaulo))
+    }
+
+    // -----------------------------------------------------------------------------------
     // Precisão contra fontes externas
     // -----------------------------------------------------------------------------------
 

@@ -4,10 +4,13 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.motion.LocalReduceMotion
+import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
 
 /**
  * Tema principal da aplicação
@@ -25,7 +28,8 @@ import br.com.codecacto.kmplib.core.util.AppLogger
  *
  * @param darkTheme Se true, usa o tema escuro. Padrão: isSystemInDarkTheme()
  * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default
- * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default
+ * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default. Com [displayFontFamily], vale
+ *   só para o texto corrido e os rótulos (titleMedium/titleSmall, body, label).
  * @param fontScale Escala de fonte global de acessibilidade (multiplica toda a [AppTypography] e é
  *   exposta em [LocalFontScale]). Clampada em [MIN_FONT_SCALE]..[MAX_FONT_SCALE]. Use os degraus de
  *   [AppFontScale] (`Small`/`Medium`/`Large`/`ExtraLarge`) → `fontScale = AppFontScale.Large.scale`.
@@ -36,7 +40,13 @@ import br.com.codecacto.kmplib.core.util.AppLogger
  *   (ex.: `CommunicationTile` `Normal` sai de colorido para quase-preto+texto branco). Também expõe
  *   [LocalHighContrast] para componentes reforçarem a UI (bordas grossas). Ideal para baixa visão.
  *   Padrão: `false`.
+ * @param displayFontFamily família dos TÍTULOS — display, headline e titleLarge (o papel *brand* da
+ *   escala do Material 3; ver [createAppTypography]). Padrão: a própria [fontFamily], ou seja, quem
+ *   não passa nada continua com uma família só. Desde 2.228.0.
  * @param content Conteúdo da aplicação
+ *
+ * O tema também provê `LocalReduceMotion` (`kmplib-platform`, 2.228.0) com o valor vivo da
+ * preferência "reduzir movimento" do sistema.
  */
 @Composable
 fun AppTheme(
@@ -45,6 +55,7 @@ fun AppTheme(
     fontFamily: FontFamily = FontFamily.Default,
     fontScale: Float = 1f,
     highContrast: Boolean = false,
+    displayFontFamily: FontFamily = fontFamily,
     content: @Composable () -> Unit
 ) {
     // Memoiza o esquema por (palette, darkTheme, highContrast): evita recomputar as derivações de
@@ -69,13 +80,15 @@ fun AppTheme(
     }
 
     val effectiveScale = clampFontScale(fontScale)
-    val typography = scaleTypography(createAppTypography(fontFamily), effectiveScale)
+    val reduceMotion by rememberReduceMotion()
+    val typography = scaleTypography(createAppTypography(fontFamily, displayFontFamily), effectiveScale)
 
     // Fornecer a paleta customizada, a escala de fonte e o alto contraste via CompositionLocal
     CompositionLocalProvider(
         LocalAppColorPalette provides colorPalette,
         LocalFontScale provides effectiveScale,
-        LocalHighContrast provides highContrast
+        LocalHighContrast provides highContrast,
+        LocalReduceMotion provides reduceMotion,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

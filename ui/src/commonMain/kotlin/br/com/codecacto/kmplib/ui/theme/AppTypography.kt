@@ -19,28 +19,39 @@ import androidx.compose.ui.unit.sp
  * Typography padrão Material 3
  *
  * Usa FontFamily.Default (Roboto no Android, San Francisco no iOS)
+ *
+ * **Duas famílias (2.228.0)** — a divisão *brand* × *plain* da escala tipográfica do Material 3:
+ * [displayFontFamily] (a "brand") vai em **display**, **headline** e **titleLarge**; [fontFamily]
+ * (a "plain") vai em titleMedium/titleSmall, **body** e **label**. É o recorte dos tokens oficiais
+ * (`TypeScaleTokens`: `TitleLargeFont = Brand`, `TitleMediumFont = Plain`), e é o que um projeto
+ * editorial (serifa nos títulos, sans no texto corrido) precisa sem reescrever a escala por cima.
+ * Default: a mesma família nos dois — quem passa uma só continua exatamente igual.
+ *
+ * @param fontFamily família do texto corrido e dos rótulos.
+ * @param displayFontFamily família dos títulos (display/headline/titleLarge). Default [fontFamily].
  */
 fun createAppTypography(
-    fontFamily: FontFamily = FontFamily.Default
+    fontFamily: FontFamily = FontFamily.Default,
+    displayFontFamily: FontFamily = fontFamily,
 ): Typography {
     return Typography(
         // Display - Maiores textos, usados com parcimônia
         displayLarge = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 57.sp,
             lineHeight = 64.sp,
             letterSpacing = (-0.25).sp
         ),
         displayMedium = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 45.sp,
             lineHeight = 52.sp,
             letterSpacing = 0.sp
         ),
         displaySmall = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 36.sp,
             lineHeight = 44.sp,
@@ -49,21 +60,21 @@ fun createAppTypography(
 
         // Headline - Títulos principais
         headlineLarge = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 32.sp,
             lineHeight = 40.sp,
             letterSpacing = 0.sp
         ),
         headlineMedium = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 28.sp,
             lineHeight = 36.sp,
             letterSpacing = 0.sp
         ),
         headlineSmall = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = 24.sp,
             lineHeight = 32.sp,
@@ -72,7 +83,7 @@ fun createAppTypography(
 
         // Title - Títulos de seções
         titleLarge = TextStyle(
-            fontFamily = fontFamily,
+            fontFamily = displayFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = 22.sp,
             lineHeight = 28.sp,

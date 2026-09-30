@@ -26,6 +26,7 @@ fun initKmpLibPlatform(context: Context) {
     ShakeDetectorHolder.init(context)
     AudioCaptureHolder.init(context)
     DeviceLocaleHolder.init(context)
+    br.com.codecacto.kmplib.platform.motion.ReduceMotionHolder.init(context)
     br.com.codecacto.kmplib.platform.links.InstallReferrerHolder.init(context)
     // Original de câmera deixado por captura interrompida (EXIF/GPS, resolução cheia) — 2.218.0.
     // Fora da main thread (é disco); a folga protege a captura que esta abertura veio receber.

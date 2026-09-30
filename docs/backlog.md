@@ -3,6 +3,34 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — origem: design do **Folha de Axé** (`8-Sistemas-Portal-App/FolhaDeAxe/docs/design/wireframes.md` §16)
+> Nenhum bloqueia o projeto (contorno local mínimo em cada um). Par web em `Lib/weblib/docs/backlog.md`.
+- [x] **GAP-FA-K01 (P1) — "reduzir movimento" do sistema** (`platform`): `isReduceMotionEnabled()` +
+      `rememberReduceMotion()` reativo. Android: `Settings.Global.ANIMATOR_DURATION_SCALE`/`TRANSITION_ANIMATION_SCALE`
+      = 0 ("Remover animações"); iOS: `UIAccessibility.isReduceMotionEnabled` + `UIAccessibilityReduceMotionStatusDidChangeNotification`.
+      A web tem `prefers-reduced-motion`; o app não tem par, e cada app com animação precisa (acessibilidade).
+      ✅ **2.228.0** — `platform.motion` (`rememberReduceMotion`, `LocalReduceMotion` provido pelo `AppTheme`).
+- [x] **GAP-FA-K02 (P2) — `AppTheme` com duas famílias de fonte** (`ui/theme`): `displayFontFamily` (display/headline/
+      titleLarge) + `fontFamily` (corpo/rótulo). Hoje `createAppTypography` recebe uma só e projeto editorial (serifa + sans)
+      sobrepõe `MaterialTheme(typography)` à mão. ✅ **2.228.0** — `AppTheme(displayFontFamily)`.
+- [x] **GAP-FA-K03 (P2) — render genérico de desenho → PNG** (`ui/share`): `renderDrawingToPng(widthPx, heightPx,
+      textMeasurer) { DrawScope }` extraído de `renderShareCardToPng`/`renderGameShareCardToPng`, para card de story com
+      layout próprio (projeto com protótipo) usar só o motor. ✅ **2.228.0** — `renderDrawingToPng { DrawScope }` (o
+      `TextMeasurer` entra pelo lambda, não como parâmetro).
+- [x] **GAP-FA-K04 (P2) — ambiente sonoro em laço** (`media`): `AmbientSoundPlayer` — asset em bytes, laço sem emenda,
+      fade in/out, volume, pausa em `ON_STOP`, mistura com o áudio de outros apps. `AudioPlayer` (caminho, sem laço/fade)
+      e `SoundEffectPlayer` (efeito curto) não cobrem. ✅ **2.228.0** — `AmbientSoundPlayer` (Media3 / `AVAudioPlayer` `.ambient`).
+- [x] **GAP-FA-K05 (P2) — gerar `.ics`** (`core` + `platform`): `IcsCalendar.build(events)` (RFC 5545: `VEVENT`, TZID,
+      `VALARM`, escape/dobra de linha) + atalho `shareIcs` via `ShareHandler.shareFile`. "Adicionar à agenda" recorrente.
+      ✅ **2.228.0** — `core.ics.IcsCalendar` (paridade byte a byte com o `buildIcs` da weblib) + `ShareHandler.shareIcs`.
+- [ ] **Validação no Mac/device (2.228.0):** laço e fade do `AmbientSoundPlayer` (ouvir a emenda com `.m4a`), "Reduzir
+      Movimento" alternado com o app aberto, e o `.ics` do `shareIcs` importado no Calendário do iOS.
+- [ ] **(ideia, sem pedido) "Adicionar à agenda" NATIVO** — `EKEventEditViewController` (EventKitUI) no iOS e
+      `Intent.ACTION_INSERT` em `CalendarContract.Events` no Android abrem o formulário do evento já preenchido, sem
+      passar pelo share sheet. Abrir só se um produto pedir; o `shareIcs` cobre o caso multiagenda.
+- [ ] **(ideia) componentes animados da lib respeitarem `LocalReduceMotion`** (ex.: `ProgressRing` com animação de
+      entrada, shimmer de esqueleto) — auditar quando um app com a preferência ligada reclamar.
+
 ### Registrado nesta rodada (29/set/2026) — origem: design do **Rede de Ofertas** (`8-Sistemas-Portal-App/RedeDeOfertas/docs/design/gaps-de-lib.md`)
 - [x] **G1 — `PriceHistoryChart`** (degrau, eixo Y real em BRL, menor preço, toque, acessível). ✅ **2.227.0**.
       Par web: `@codecacto/weblib/charts` `PriceHistoryChart` (lib-web).
@@ -4930,3 +4958,12 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
   sourceRect` — no iPad o UIKit lança `NSGenericException`. Mesma correção do `ShareHandler.ios.kt`
   (ancorar no centro da view raiz). O FX usa `GALLERY_ONLY` no iPad até a lib corrigir
   (`features/profile/presentation/profile/OrigemDaFotoDePerfil*.kt`).
+
+## `AppColorPalette` sem `onPrimary` — texto branco fixo sobre primária clara (29/set/2026, Rede de Ofertas)
+
+O esquema claro fixa `onPrimary = Color.White` (`AppColorScheme.kt`). Primária clara (amarelo `#E0A100`
+do Obra em Conta) fica com botão/topo abaixo de AA. O app contorna na camada de tema
+(`core/theme/BrandTheme.kt`: `colorScheme.copy(onPrimary = ColorContrast.pickOnColor(primary))`), mas
+`AppColors`/componentes que leem da lib continuam brancos. Proposta: derivar `onPrimary` por
+`ColorContrast.pickOnColor` (ou campo opcional `onPrimary` na paleta). 2º item: flavors/branding no KMP
+(AppFlavor + paleta + ícone iOS por configuração) já tem 2 consumidores (Meu Advogado, Rede de Ofertas).
