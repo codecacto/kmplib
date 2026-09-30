@@ -11,16 +11,19 @@
       `MediaSize` customizado / `choosePaper`+`cutLengthFor`) + `FileSaver` (SAF / exportar para Arquivos).
       **Pendente no Mac:** abrir o diálogo num simulador com o *Printer Simulator* (bobina e corte).
 - [x] **GAP-CV-03 (P1) — `DigitBoxField`.** ✅ **2.225.0** — `DigitBoxField` + `DigitBoxDisplay` + `DigitBoxTexts`.
+- [x] **GAP-CV-05 (P1) — `ContactScreen` pré-preenchida.** ✅ **2.226.0** — `initialSubject`, `initialMessage`,
+      `subjects: List<String>?` (seletor `AppDropdownField`; assunto inicial fora da lista entra no topo). O assunto vai
+      no campo `subject` do `POST /contact/v1` (já existia no contrato do apps-api, `MAX_SUBJECT = 300`).
 - [ ] **GAP-CV-04 (P2) — opção de escolha exclusiva com miniatura** (`ChoiceChipGroup`/`FilterChipRow` mudam a forma).
 
 ### Registrado nesta rodada (29/set/2026) — a suíte iOS da lib NÃO COMPILA em 13 módulos
 - [ ] **`compileTestKotlinIosArm64` falha em 13 módulos** (medido com `./gradlew compileTestKotlinIosArm64
-      -Pkmplib.forceAppleTargets=true --continue`): `ads, auth, brdata, camera, central, core, firebase, mask,
+      -Pkmplib.forceAppleTargets=true --continue`): `ads, auth, brdata, camera, core, firebase, mask,
       monetization, qr, sync, ui, kmplib-testing` — 196 erros. **181 são nome de teste entre crases com caractere que
       o Kotlin/Native proíbe** (`,` `(` `)` `.` `:` …) — o JVM aceita, então a suíte Android nunca acusou; o resto:
       `@OptIn(ExperimentalNativeApi)` faltando (`BadgeTest`, `NavigationTest`), `Runnable` inexistente no Native e um
       dublê incompleto (`RestHandleCorrelationTest.DispatcherEspiao`). Consequência: **no Mac, `iosSimulatorArm64Test`
-      desses módulos não roda** — a lógica comum só é provada no JVM. Na 2.225.0 foram corrigidos `pdf` e `platform`
+      desses módulos não roda** — a lógica comum só é provada no JVM. Na 2.225.0 foram corrigidos `pdf` e `platform`; na 2.226.0, `central`
       (regra: tirar do nome o caractere proibido — vírgula vira espaço, parênteses somem). Fazer o resto numa rodada própria e
       pôr `compileTestKotlinIosArm64` no gate da lib.
 

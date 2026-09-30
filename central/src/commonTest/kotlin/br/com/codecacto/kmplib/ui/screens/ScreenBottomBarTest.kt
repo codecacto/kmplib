@@ -32,7 +32,7 @@ class ScreenBottomBarTest {
     }
 
     @Test
-    fun `a folga da tela SOMA com a altura do rodape, nao substitui`() {
+    fun `a folga da tela SOMA com a altura do rodape e nao substitui`() {
         // Trocar uma pela outra colaria o botão de enviar no topo do banner: o padding de leitura
         // da tela continua valendo ACIMA da barra.
         val comBanner = PaddingValues(bottom = 90.dp)

@@ -49,6 +49,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.contact.ContactService
+import br.com.codecacto.kmplib.contact.contactInitialMessage
+import br.com.codecacto.kmplib.contact.contactInitialSubject
+import br.com.codecacto.kmplib.contact.contactSubjectOptions
+import br.com.codecacto.kmplib.ui.components.AppDropdownField
+import br.com.codecacto.kmplib.ui.components.PickerOption
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
@@ -74,6 +79,15 @@ import kotlinx.coroutines.launch
  *   `bottomBar` do `Scaffold` interno, e o conteúdo já desconta a altura dele (o botão de enviar
  *   termina COLADO ao topo do rodapé, nunca por baixo). Vazio por default: quem não passa nada
  *   continua exatamente como antes. A [DeveloperScreen] repassa o dela para cá.
+ * @param initialSubject Assunto com que a tela ABRE (2.226.0) — editável, vai no campo `subject`
+ *   do `POST /contact/v1`. Ex.: "Erro em dado de candidato" num "Informar erro" contextual.
+ * @param initialMessage Texto inicial da mensagem (2.226.0) — editável, a pessoa completa ou
+ *   apaga. Não é aparado: termine em `"\n\n"` para o cursor cair embaixo do contexto. Só dado que
+ *   a pessoa pode ver e mandar — nunca dado privado dela que ela não escolheu enviar.
+ * @param subjects Assuntos escolhíveis (2.226.0). Com lista, o campo de assunto vira um seletor
+ *   (`AppDropdownField`) em vez de texto livre; `null`/vazia = texto livre, como antes. Um
+ *   [initialSubject] fora da lista entra no topo dela (nunca some em silêncio). Continua opcional:
+ *   sem escolha, o envio sai sem assunto.
  * @param onSent Callback opcional chamado após envio com sucesso
  */
 @Composable
@@ -91,6 +105,9 @@ fun ContactScreen(
      * internacional E.164 fora dele (é como o número é enviado).
      */
     phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
+    initialSubject: String? = null,
+    initialMessage: String? = null,
+    subjects: List<String>? = null,
     onSent: (() -> Unit)? = null,
 ) {
     @Suppress("NAME_SHADOWING")
@@ -98,8 +115,11 @@ fun ContactScreen(
     var name by remember { mutableStateOf(defaultName.orEmpty()) }
     var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
     var whatsapp by remember { mutableStateOf(phoneFormat.fromStoredValue(defaultWhatsapp)) }
-    var subject by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
+    var subject by remember { mutableStateOf(contactInitialSubject(initialSubject)) }
+    var message by remember { mutableStateOf(contactInitialMessage(initialMessage)) }
+    val subjectOptions = remember(subjects, initialSubject) {
+        contactSubjectOptions(subjects, initialSubject)?.map { PickerOption(value = it, label = it) }
+    }
     var isLoading by remember { mutableStateOf(false) }
     var isSent by remember { mutableStateOf(false) }
     var nameError by remember { mutableStateOf<String?>(null) }
@@ -262,17 +282,29 @@ fun ContactScreen(
                         enabled = !isLoading
                     )
 
-                    // Assunto (opcional)
-                    OutlinedTextField(
-                        value = subject,
-                        onValueChange = { subject = it },
-                        label = { Text(texts.subjectLabel) },
-                        placeholder = { Text(texts.subjectPlaceholder) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        enabled = !isLoading
-                    )
+                    // Assunto (opcional) — seletor quando o app passa `subjects`, texto livre senão.
+                    if (subjectOptions != null) {
+                        AppDropdownField(
+                            value = subject,
+                            onValueChange = { subject = it },
+                            options = subjectOptions,
+                            label = texts.subjectLabel,
+                            placeholder = texts.subjectPlaceholder,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = subject,
+                            onValueChange = { subject = it },
+                            label = { Text(texts.subjectLabel) },
+                            placeholder = { Text(texts.subjectPlaceholder) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            enabled = !isLoading
+                        )
+                    }
 
                     // Mensagem (obrigatória)
                     OutlinedTextField(

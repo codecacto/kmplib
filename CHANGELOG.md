@@ -1,5 +1,28 @@
 # Changelog — kmplib
 
+## 2.226.0 — `ContactScreen` pré-preenchida: assunto, mensagem inicial e lista de assuntos
+
+Minor, **aditiva** (três parâmetros opcionais com default `null`; quem não passa nada vê a tela de
+sempre). Origem: **Colinha do Voto** (`GAP-CV-05`) — "Informar erro neste candidato" precisa abrir o
+"Entrar em contato" já com o assunto e um texto inicial com o cargo e o número PÚBLICO do candidato.
+
+**`kmplib-central` — `ContactScreen(…, initialSubject, initialMessage, subjects, onSent)`.**
+- `initialSubject: String?` — assunto com que a tela abre, editável. Vai no campo **`subject`** do
+  `POST /contact/v1`, que **já existe** no contrato do apps-api (`CreateContactRequest.subject`, até
+  300 caracteres) e já era enviado pelo `ContactService` — nada é prefixado na mensagem.
+- `initialMessage: String?` — texto inicial da mensagem, editável e **não aparado** (termine em
+  `"\n\n"` para a pessoa escrever embaixo do contexto; o envio apara).
+- `subjects: List<String>?` — com lista, o assunto vira seletor (`AppDropdownField`) em vez de texto
+  livre; `null`/vazia mantém o texto livre. A lista é aparada, sem vazios e sem repetidos; um
+  `initialSubject` que não está nela entra **no topo** (nunca some em silêncio). Continua opcional.
+- Os três entram **antes** de `onSent`, que segue podendo ser trailing lambda.
+
+**Suíte iOS do `central` volta a compilar** (`compileTestKotlinIosArm64`): dois nomes de teste com
+vírgula, ilegal no Kotlin/Native (dívida registrada na 2.225.0 — restam 12 módulos no backlog).
+
+Testes: `ContactPrefillTest` (5). `compileKotlinIosArm64` e `compileTestKotlinIosArm64` do `central`
+executados (não SKIPPED).
+
 ## 2.225.0 — PDF de layout livre, impressão (térmica 58/80 mm), salvar arquivo e `DigitBoxField`
 
 Minor, **aditiva** (nada existente mudou de assinatura). Origem: o desenho do **Colinha do Voto**

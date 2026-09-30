@@ -22,7 +22,7 @@ class WhatsappCompletenessTest {
     }
 
     @Test
-    fun `fora do Brasil vale o numero do pais, com ou sem DDI`() {
+    fun `fora do Brasil vale o numero do pais com ou sem DDI`() {
         val pt = PhoneInputFormat.forRegion("PT")
         assertTrue(pt.isCompleteWhatsapp("912345678"))
         assertTrue(pt.isCompleteWhatsapp("+14155550100"))
