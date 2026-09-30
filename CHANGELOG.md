@@ -1,5 +1,19 @@
 # Changelog — kmplib
 
+## 2.230.0 — "Desenvolvido por": a mensagem do WhatsApp diz DE QUAL APP a pessoa veio
+
+Minor, **aditiva**. Origem: mensagem "Olá! Vim pelo app e gostaria de falar com vocês." chegando no
+WhatsApp da CodeCacto sem dizer o app (era o LocAki) — todos os apps caem no mesmo contato.
+
+- **`kmplib-core` — `BuildInfo.appName: String?`**: o nome que o sistema mostra (Android: rótulo do
+  `applicationInfo`; iOS: `CFBundleDisplayName`, senão `CFBundleName`). Por flavor. `null` sem
+  `initKmpLib` no Android ou com rótulo vazio.
+- **`kmplib-central` — `rememberDeveloperTexts(phoneFormat, appName = BuildInfo.appName)`**:
+  `whatsappMessage` = "Olá! Vim pelo app **LocAki** e gostaria de falar com vocês." e `emailSubject` =
+  "Contato via app **LocAki**", nos 4 idiomas (`kmplib_dev_whatsapp_message_from_app`,
+  `kmplib_dev_email_subject_from_app`). Sem nome, o texto genérico de antes. Nada a mudar no app que
+  usa `DeveloperScreen` sem `texts`; quem passa `DeveloperTexts(...)` próprio não ganha.
+
 ## 2.229.0 — own-auth: `username` no `User` (lido do `GET /me`) e edição do próprio nome (`PATCH /me`)
 
 Minor, **aditiva**. Origem: **Folha de Axé** — par da **backlib 0.140.0** (`username` no `GET <auth>/me`,

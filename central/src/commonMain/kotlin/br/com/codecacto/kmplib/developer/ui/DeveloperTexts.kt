@@ -1,6 +1,8 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import br.com.codecacto.kmplib.core.util.BuildInfo
 import br.com.codecacto.kmplib.mask.PhoneInputFormat
 import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import br.com.codecacto.kmplib.generated.resources.Res
@@ -13,7 +15,9 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_dev_whatsapp
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_site
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_whatsapp_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_dev_whatsapp_message_from_app
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email_subject
+import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email_subject_from_app
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_section
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_empty
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
@@ -44,9 +48,19 @@ data class DeveloperTexts(
     val contact: ContactTexts = ContactTexts(),
 )
 
-/** [DeveloperTexts] no idioma do aparelho — inclusive o formulário de contato ([rememberContactTexts]). */
+/**
+ * [DeveloperTexts] no idioma do aparelho — inclusive o formulário de contato ([rememberContactTexts]).
+ *
+ * A mensagem do WhatsApp e o assunto do e-mail levam o nome do app ("Vim pelo app LocAki…", 2.230.0):
+ * os dois chegam no MESMO contato da CodeCacto, vindos de todos os apps, e sem o nome não há como
+ * saber de onde a pessoa veio. [appName] vem do sistema ([BuildInfo.appName]); sem ele, o texto
+ * volta à forma genérica.
+ */
 @Composable
-fun rememberDeveloperTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat()): DeveloperTexts =
+fun rememberDeveloperTexts(
+    phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
+    appName: String? = remember { BuildInfo.appName },
+): DeveloperTexts =
     DeveloperTexts(
         title = stringResource(Res.string.kmplib_dev_title),
         subtitle = stringResource(Res.string.kmplib_dev_subtitle),
@@ -56,8 +70,16 @@ fun rememberDeveloperTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneIn
         whatsappButton = stringResource(Res.string.kmplib_dev_whatsapp),
         emailButton = stringResource(Res.string.kmplib_dev_email),
         siteButton = stringResource(Res.string.kmplib_dev_site),
-        whatsappMessage = stringResource(Res.string.kmplib_dev_whatsapp_message),
-        emailSubject = stringResource(Res.string.kmplib_dev_email_subject),
+        whatsappMessage = if (appName.isNullOrBlank()) {
+            stringResource(Res.string.kmplib_dev_whatsapp_message)
+        } else {
+            stringResource(Res.string.kmplib_dev_whatsapp_message_from_app, appName)
+        },
+        emailSubject = if (appName.isNullOrBlank()) {
+            stringResource(Res.string.kmplib_dev_email_subject)
+        } else {
+            stringResource(Res.string.kmplib_dev_email_subject_from_app, appName)
+        },
         appsSectionTitle = stringResource(Res.string.kmplib_dev_apps_section),
         appsEmpty = stringResource(Res.string.kmplib_dev_apps_empty),
         backContentDescription = stringResource(Res.string.kmplib_back),

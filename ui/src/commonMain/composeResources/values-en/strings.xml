@@ -146,6 +146,8 @@
     <string name="kmplib_dev_site">Visit website</string>
     <string name="kmplib_dev_whatsapp_message">Hi! I came from the app and would like to talk to you.</string>
     <string name="kmplib_dev_email_subject">Contact from the app</string>
+    <string name="kmplib_dev_whatsapp_message_from_app">Hi! I came from the %1$s app and would like to talk to you.</string>
+    <string name="kmplib_dev_email_subject_from_app">Contact from the %1$s app</string>
     <string name="kmplib_dev_apps_section">Our apps</string>
     <string name="kmplib_dev_apps_empty">New apps coming soon.</string>
     <string name="kmplib_contact_title">Get in touch</string>

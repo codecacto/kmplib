@@ -9,4 +9,11 @@ actual object BuildInfo {
             val context = AndroidAppContext.get() ?: return false
             return (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         }
+
+    actual val appName: String?
+        get() {
+            val context = AndroidAppContext.get() ?: return null
+            return context.applicationInfo.loadLabel(context.packageManager)
+                .toString().trim().takeIf { it.isNotEmpty() }
+        }
 }
