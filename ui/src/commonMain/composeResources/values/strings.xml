@@ -117,6 +117,7 @@
     <string name="kmplib_auth_social_rejected">Não foi possível concluir o login com esta conta. Tente novamente.</string>
     <string name="kmplib_auth_unsupported">Operação não disponível para login por e-mail e senha.</string>
     <string name="kmplib_auth_current_password_incorrect">Senha atual incorreta.</string>
+    <string name="kmplib_auth_profile_rejected">Não foi possível salvar as alterações do perfil.</string>
     <!-- Estado de erro (ui/components/ErrorState) -->
     <string name="kmplib_error_state_title">Não foi possível carregar</string>
     <string name="kmplib_error_state_offline_title">Você está sem conexão</string>

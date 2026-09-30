@@ -10,9 +10,10 @@ import kotlinx.serialization.json.jsonObject
  * Sessão own-auth persistida no cofre seguro: os dois tokens + o instante de expiração do access +
  * a identidade capturada no login/registro.
  *
- * **Por que guardar email/nome aqui:** o JWT próprio carrega só `sub` (id da conta) e o backend não
- * expõe um `GET /me` de perfil. Então o `currentUser` é remontado a partir do `sub` (decodificado do
- * access token) + o `email`/`name` capturados quando o usuário logou/registrou. Não inventamos endpoint.
+ * **Por que guardar email/nome aqui:** o JWT próprio carrega só `sub` (id da conta) e o login devolve
+ * só tokens. O `currentUser` é remontado a partir do `sub` (decodificado do access token) + o
+ * `email`/`name` capturados no login/registro, completados pelo `GET {authBasePath}/me` (2.229.0 —
+ * nome, e-mail e [username] como o servidor os tem), lido logo depois de cada login.
  *
  * @property accessExpiresAtEpochSeconds epoch (segundos) em que o access token expira — base do
  *   refresh proativo (renovar um pouco ANTES de expirar).
@@ -20,7 +21,7 @@ import kotlinx.serialization.json.jsonObject
  *   vocabulário do `AuthRepository` Firebase, para `user.isGoogleProvider` valer nos dois mundos).
  *   Sessão gravada antes da 2.98.0 não tem o campo e cai no default `"password"` — que é a verdade,
  *   já que social não existia. **É o único campo que a lib sabe sobre a origem**: o JWT próprio
- *   carrega só `sub`, e o backend não expõe `GET /me`.
+ *   carrega só `sub`, e o `GET /me` não diz por onde a pessoa entrou.
  */
 @Serializable
 data class OwnAuthSession(
@@ -42,6 +43,14 @@ data class OwnAuthSession(
      * `false`, que é o correto — quem já usava o app tem senha própria.
      */
     val passwordChangeRequired: Boolean = false,
+    /**
+     * **Nome de usuário** (2.229.0), lido do `GET {authBasePath}/me` (backlib ≥ 0.140.0) — o login
+     * só devolve tokens, e o JWT próprio carrega só `sub`. `null` até a primeira leitura do perfil,
+     * quando o servidor não o conhece e **na sessão com senha temporária** (o servidor o omite: com
+     * a senha pública, ele é metade da credencial). Sessão gravada antes da 2.229.0 desserializa
+     * como `null`. O refresh preserva o valor.
+     */
+    val username: String? = null,
 ) {
     companion object {
         /** Login por e-mail e senha — mesmo valor que o `User.providerId` default. */

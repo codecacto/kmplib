@@ -1,5 +1,40 @@
 # Changelog — kmplib
 
+## 2.229.0 — own-auth: `username` no `User` (lido do `GET /me`) e edição do próprio nome (`PATCH /me`)
+
+Minor, **aditiva**. Origem: **Folha de Axé** — par da **backlib 0.140.0** (`username` no `GET <auth>/me`,
+`PATCH <auth>/me {name, username}`).
+
+**`kmplib-core` — `User.username: String?`** (último parâmetro, default `null`). Nulo no Firebase, em
+backend anterior à 0.140.0 e na sessão com senha temporária (o servidor o omite de propósito).
+
+**`kmplib-auth` — perfil pelo servidor.**
+- `OwnAuthApi.me(accessToken): Result<OwnAuthProfile>` e `OwnAuthApi.updateMe(accessToken, name, username)`;
+  `OwnAuthProfile(id, email, name, username)` público. Campo nulo não vai no corpo do `PATCH`.
+- **Depois de cada login** (senha, cadastro, social nativo e pelo navegador, primeiro acesso) o
+  `EmailPasswordAuthRepository` lê o `/me` e mescla nome, e-mail e `username` na sessão — **best-effort**:
+  falha da leitura não derruba o login. Efeito colateral bom: o login por senha deixa de nascer com
+  `displayName = null`, e o login pelo navegador deixa de nascer com e-mail vazio.
+- `OwnAuthService.updateOwnProfile(name, username): Result<User>` (PATCH + atualiza o `currentUser`) e
+  `refreshOwnProfile(): Result<User>` (relê o `/me`; para o `ON_RESUME` da tela de perfil). Ambos com
+  implementação default `Unsupported` na interface (quem implementa a porta fora da lib não quebra).
+- `IAuthRepository.updateProfile(displayName)` **deixou de ser "não suportado"** no own-auth: grava o nome
+  pelo `PATCH`. Com `photoUrl` a chamada falha inteira (foto não tem endpoint), sem gravar o nome.
+- `OwnAuthException.ProfileRejected(message, code, serverCode, fieldErrors)` + `fieldError("name"|"username")`
+  — 400/403/409/422 do `/me`, com o envelope da backlib inteiro (erro **no campo**). `OwnAuthErrorCodes`:
+  `NOTHING_TO_UPDATE`, `PASSWORD_CHANGE_REQUIRED`, `USERNAME_CHANGE_DISABLED`, `USERNAME_TAKEN`. 404 do
+  `PATCH` (backend sem `AuthLocalProfileEditor`) → `Unsupported`; 401 → `NotAuthenticated`; 5xx não
+  vaza a mensagem interna. Chamar sem nada a alterar falha local, sem ida ao servidor.
+- `OwnAuthSession.username` persistido no cofre; o refresh de token o preserva; sessão gravada antes
+  desserializa com `null`. `OwnAuthTokenManager.applyProfile(profile)` só aplica se o perfil é da
+  **mesma conta** da sessão (a pessoa pode ter trocado de conta com a leitura em voo) e não troca valor
+  conhecido por vazio.
+- `OwnAuthTexts.profileRejected` + recurso `kmplib_auth_profile_rejected` nos 4 idiomas.
+- ⚠️ `OwnAuthException` ganhou um subtipo: `when` **exaustivo sem `else`** sobre ela deixa de compilar
+  (nenhum consumidor do monorepo faz isso hoje).
+
+Testes: `OwnAuthProfileTest` (21). Compilado `compileKotlinIosArm64` (core, ui, auth) no servidor.
+
 ## 2.228.0 — "Reduzir movimento", `AppTheme` com duas famílias, ambiente sonoro em laço, `.ics` e o motor de desenho → PNG
 
 Minor, **aditiva**. Origem: design do **Folha de Axé** (`docs/design/wireframes.md` §16, GAP-FA-K01…K05).

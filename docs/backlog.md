@@ -23,6 +23,12 @@
 - [x] **GAP-FA-K05 (P2) — gerar `.ics`** (`core` + `platform`): `IcsCalendar.build(events)` (RFC 5545: `VEVENT`, TZID,
       `VALARM`, escape/dobra de linha) + atalho `shareIcs` via `ShareHandler.shareFile`. "Adicionar à agenda" recorrente.
       ✅ **2.228.0** — `core.ics.IcsCalendar` (paridade byte a byte com o `buildIcs` da weblib) + `ShareHandler.shareIcs`.
+- [x] **GAP-FA-K06 (P1) — own-auth sem `username` e sem editar o próprio nome** (`auth`): o `User` não tinha
+      `username` e não havia chamada para o `PATCH <auth>/me` da backlib 0.140.0. ✅ **2.229.0** — `User.username`
+      (lido do `GET /me` após cada login, best-effort), `OwnAuthService.updateOwnProfile(name, username)`/`refreshOwnProfile()`,
+      `OwnAuthException.ProfileRejected.fieldError(campo)` + `OwnAuthErrorCodes`.
+- [ ] **(ideia, sem pedido) e-mail editável no own-auth** — depende do `GAP-B-AUTHLOCAL-EMAIL-CHANGE-01` da backlib
+      (confirmar posse do endereço novo). Abrir quando a backlib tiver a rota.
 - [ ] **Validação no Mac/device (2.228.0):** laço e fade do `AmbientSoundPlayer` (ouvir a emenda com `.m4a`), "Reduzir
       Movimento" alternado com o app aberto, e o `.ics` do `shareIcs` importado no Calendário do iOS.
 - [ ] **(ideia, sem pedido) "Adicionar à agenda" NATIVO** — `EKEventEditViewController` (EventKitUI) no iOS e

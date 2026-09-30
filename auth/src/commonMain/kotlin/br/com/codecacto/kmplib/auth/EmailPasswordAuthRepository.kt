@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
@@ -15,13 +16,17 @@ import kotlinx.coroutines.flow.map
  * Também implementa [OwnAuthService] (registro com termos + reset por token do convite) e
  * [OwnAuthSocialService] (Google/Apple via `POST /auth/social`, desde a 2.98.0).
  *
- * ### currentUser a partir do `sub`
- * O JWT próprio carrega só `sub` (id da conta) e o backend não expõe `GET /me`. O [User] é remontado
- * da [OwnAuthSession]: `id = accountId` (o `sub` decodificado), `email`/`displayName` capturados no
- * login/registro, `providerId = "password"`. Não inventamos endpoint de perfil.
+ * ### currentUser a partir do `sub` + `GET /me`
+ * O JWT próprio carrega só `sub` (id da conta) e o login devolve só tokens. O [User] é remontado da
+ * [OwnAuthSession]: `id = accountId` (o `sub` decodificado), `email`/`displayName` capturados no
+ * login/registro e `providerId` da origem do login. **Desde a 2.229.0**, logo depois de cada login a
+ * lib lê o `GET {authBasePath}/me` (o mesmo que a `createTokenStrategy` da weblib lê) e completa
+ * nome, e-mail e **`username`** com o que o servidor tem — best-effort: se a leitura falhar, o login
+ * segue valendo com o que já se sabia. Editar o próprio nome: [updateOwnProfile] (`PATCH /me`), que
+ * também atende o `IAuthRepository.updateProfile(displayName)`.
  *
  * ### Operações não suportadas pelo backend (falham explicitamente, nunca em silêncio)
- * `updateProfile`/`deleteAccount`/`sendEmailVerification` não têm endpoint no
+ * `deleteAccount`/`sendEmailVerification` e a foto do `updateProfile` não têm endpoint no
  * contrato own-auth atual → `Result.failure(AuthException.UnknownError)`. `changePassword` deixou
  * esta lista na 2.216.0 — ver [changeOwnPassword]. `signUpWithEmail` também
  * falha de propósito: registre por [OwnAuthService.register] (que exige `acceptedTerms`).
@@ -141,7 +146,10 @@ class EmailPasswordAuthRepository(
         if (identificador.isNotEmpty()) {
             val renovada = api.login(identificador, newPassword).getOrNull()
             if (renovada != null) {
-                tokenManager.adopt(renovada, email = sessao.email, name = sessao.name, providerId = sessao.providerId)
+                tokenManager.adopt(
+                    renovada, email = sessao.email, name = sessao.name,
+                    providerId = sessao.providerId, username = sessao.username,
+                )
                 val usuario = tokenManager.session.value?.toUser()
                     ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
                 return Result.success(PasswordChangeOutcome.SessionRenewed(usuario))
@@ -162,10 +170,62 @@ class EmailPasswordAuthRepository(
             ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
         val token = tokenManager.accessToken()
             ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
-        return api.firstAccessPasswordChange(newPassword, token).map { tokens ->
-            tokenManager.adopt(tokens, email = sessao.email, name = sessao.name, providerId = sessao.providerId)
-            tokenManager.session.value?.toUser() ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
+        val tokens = api.firstAccessPasswordChange(newPassword, token).getOrElse { return Result.failure(it) }
+        tokenManager.adopt(
+            tokens, email = sessao.email, name = sessao.name,
+            providerId = sessao.providerId, username = sessao.username,
+        )
+        // Na sessão restrita o `/me` omitia e-mail e usuário; agora, com a senha própria, vêm.
+        syncProfileQuietly()
+        return Result.success(
+            tokenManager.session.value?.toUser() ?: fallbackUser(sessao.email, sessao.name, sessao.providerId),
+        )
+    }
+
+    // ---- Perfil (2.229.0) ------------------------------------------------
+
+    override suspend fun updateOwnProfile(name: String?, username: String?): Result<User> {
+        if (name == null && username == null) {
+            // Sem ida ao servidor: o `{}` só voltaria o mesmo 400.
+            return Result.failure(
+                OwnAuthException.ProfileRejected(
+                    message = t().profileRejected,
+                    code = 400,
+                    serverCode = OwnAuthErrorCodes.NOTHING_TO_UPDATE,
+                ),
+            )
         }
+        val token = tokenManager.accessToken()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
+        val perfil = api.updateMe(token, name = name, username = username).getOrElse { return Result.failure(it) }
+        return adoptProfile(perfil)
+    }
+
+    override suspend fun refreshOwnProfile(): Result<User> {
+        val token = tokenManager.accessToken()
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
+        val perfil = api.me(token).getOrElse { return Result.failure(it) }
+        return adoptProfile(perfil)
+    }
+
+    /** Grava o perfil do servidor na sessão e devolve o [User] resultante. */
+    private suspend fun adoptProfile(perfil: OwnAuthProfile): Result<User> {
+        // `null` = a sessão acabou (ou virou outra conta) enquanto a chamada estava em voo.
+        val sessao = tokenManager.applyProfile(perfil)
+            ?: return Result.failure(OwnAuthException.NotAuthenticated(t().sessionExpired))
+        return Result.success(sessao.toUser())
+    }
+
+    /**
+     * Lê o `/me` e mescla na sessão, **sem nunca falhar o fluxo que chamou**: um login aceito não
+     * pode virar erro porque a leitura do perfil caiu (rede, backend sem a rota). O que já se sabia
+     * continua valendo, e [refreshOwnProfile] tenta de novo quando a tela pedir.
+     */
+    private suspend fun syncProfileQuietly() {
+        val token = tokenManager.session.value?.accessToken ?: return
+        api.me(token)
+            .onSuccess { tokenManager.applyProfile(it) }
+            .onFailure { AppLogger.d(TAG, "Leitura do perfil após o login falhou: ${it.message}") }
     }
 
     /** `IAuthRepository.sendPasswordResetEmail` mapeia para `password/forgot` (mesma mecânica). */
@@ -245,8 +305,19 @@ class EmailPasswordAuthRepository(
     override suspend fun signUpWithEmail(email: String, password: String, displayName: String?): Result<User> =
         unsupported("Cadastro own-auth exige aceite de termos — use OwnAuthService.register(...).")
 
-    override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> =
-        Result.failure(AuthException.UnknownError(t().unsupported))
+    /**
+     * Contrato do [IAuthRepository] (2.229.0 — antes falhava como "não suportado"): o nome vai para o
+     * [updateOwnProfile] (`PATCH /me`). **Foto não tem endpoint** no own-auth: com [photoUrl] a
+     * chamada falha inteira, antes de gravar qualquer coisa — gravar só o nome e dizer "ok" esconderia
+     * que a foto não foi salva.
+     *
+     * Os erros viram [AuthException] e perdem o campo; para marcar o campo certo, use
+     * [updateOwnProfile].
+     */
+    override suspend fun updateProfile(displayName: String?, photoUrl: String?): Result<Unit> {
+        if (photoUrl != null) return Result.failure(AuthException.UnknownError(t().unsupported))
+        return updateOwnProfile(name = displayName).map { }.mapAuthError()
+    }
 
     /**
      * Contrato do [IAuthRepository] (2.216.0 — antes falhava como "não suportado"): delega ao
@@ -275,6 +346,8 @@ class EmailPasswordAuthRepository(
         fold(
             onSuccess = { tokens ->
                 tokenManager.adopt(tokens, email = email, name = name, providerId = providerId)
+                // O login só devolve tokens; nome e usuário vêm do `/me` (best-effort).
+                syncProfileQuietly()
                 Result.success(
                     tokenManager.session.value?.toUser() ?: fallbackUser(email, name, providerId)
                 )
@@ -303,6 +376,7 @@ class EmailPasswordAuthRepository(
         // A ORIGEM do login vem da sessão, não é mais fixa em "password" — é o que faz
         // `user.isGoogleProvider`/`isAppleProvider` responderem a verdade no own-auth.
         providerId = providerId,
+        username = username,
     )
 
     /** Converte a [OwnAuthException] tipada para a [AuthException] canônica que os apps já tratam. */
@@ -318,5 +392,9 @@ class EmailPasswordAuthRepository(
             else -> AuthException.UnknownError(message)
         }
         else -> AuthException.UnknownError(message ?: "Erro desconhecido")
+    }
+
+    private companion object {
+        const val TAG = "EmailPasswordAuthRepository"
     }
 }

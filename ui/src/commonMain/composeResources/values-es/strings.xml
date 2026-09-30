@@ -108,6 +108,7 @@
     <string name="kmplib_auth_social_rejected">No se pudo completar el inicio de sesión con esta cuenta. Inténtelo de nuevo.</string>
     <string name="kmplib_auth_unsupported">Operación no disponible para el inicio de sesión con correo electrónico y contraseña.</string>
     <string name="kmplib_auth_current_password_incorrect">La contraseña actual no es correcta.</string>
+    <string name="kmplib_auth_profile_rejected">No se pudieron guardar los cambios del perfil.</string>
     <!-- Estado de erro (ui/components/ErrorState) -->
     <string name="kmplib_error_state_title">No se pudo cargar</string>
     <string name="kmplib_error_state_offline_title">Está sin conexión</string>

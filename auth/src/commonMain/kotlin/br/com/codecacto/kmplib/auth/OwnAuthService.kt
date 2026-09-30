@@ -110,6 +110,52 @@ interface OwnAuthService {
      */
     suspend fun completeFirstAccess(newPassword: String): Result<User> =
         Result.failure(OwnAuthException.Unsupported("completeFirstAccess não implementado."))
+
+    /**
+     * **Editar o próprio perfil** (Configurações → "Meus dados"), contra o `PATCH
+     * {authBasePath}/me` da backlib-auth-local ≥ 0.140.0 (2.229.0).
+     *
+     * Parcial: parâmetro `null` não vai no corpo e o servidor o deixa como está. O [username] só é
+     * aceito se o backend ligou `usernameEditable` — sem isso vem 403 `USERNAME_CHANGE_DISABLED`,
+     * nunca ignorado em silêncio. Com sucesso, a sessão guardada recebe o perfil **que o servidor
+     * gravou** (nome já aparado, usuário já normalizado) e o `currentUser` emite o [User] novo — a
+     * tela que mostra o nome no topo se atualiza sozinha.
+     *
+     * ```kotlin
+     * service.updateOwnProfile(name = nome)
+     *     .onSuccess { user -> /* fechar a edição */ }
+     *     .onFailure { e ->
+     *         val campo = (e as? OwnAuthException.ProfileRejected)?.fieldError("name")
+     *         // campo != null → erro NO campo "Nome"; senão banner junto do botão (e.message)
+     *     }
+     * ```
+     *
+     * ### Erros
+     * - [OwnAuthException.ProfileRejected] — `fieldError("name")`/`fieldError("username")` com a
+     *   frase do servidor; `serverCode` em [OwnAuthErrorCodes]: `NOTHING_TO_UPDATE` (nada informado),
+     *   `PASSWORD_CHANGE_REQUIRED` (senha temporária — conclua [completeFirstAccess] antes),
+     *   `USERNAME_CHANGE_DISABLED`, `USERNAME_TAKEN`.
+     * - [OwnAuthException.Unsupported] — o backend não publica a rota (404).
+     * - [OwnAuthException.NotAuthenticated], [OwnAuthException.TooManyRequests],
+     *   [OwnAuthException.Network] — banner junto do botão.
+     *
+     * Chamar com os dois nulos falha **localmente** com `ProfileRejected(NOTHING_TO_UPDATE)`, sem
+     * ida ao servidor. Default: falha com [OwnAuthException.Unsupported] — mantém compilando quem
+     * implementa esta porta fora da lib.
+     */
+    suspend fun updateOwnProfile(name: String? = null, username: String? = null): Result<User> =
+        Result.failure(OwnAuthException.Unsupported("updateOwnProfile não implementado."))
+
+    /**
+     * Relê o perfil no servidor (`GET {authBasePath}/me`) e atualiza o `currentUser` (2.229.0) —
+     * para a tela de perfil abrir com o nome e o **nome de usuário** atuais mesmo que tenham mudado
+     * noutro aparelho ou no portal. A implementação da lib já faz esta leitura sozinha depois de
+     * cada login (sem bloquear o login se ela falhar); chamar aqui é para o `ON_RESUME` da tela.
+     *
+     * Default: falha com [OwnAuthException.Unsupported].
+     */
+    suspend fun refreshOwnProfile(): Result<User> =
+        Result.failure(OwnAuthException.Unsupported("refreshOwnProfile não implementado."))
 }
 
 /** Desfecho de uma troca de senha aceita pelo servidor — ver [OwnAuthService.changeOwnPassword]. */

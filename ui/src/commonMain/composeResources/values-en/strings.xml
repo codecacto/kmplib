@@ -108,6 +108,7 @@
     <string name="kmplib_auth_social_rejected">Could not complete sign-in with this account. Try again.</string>
     <string name="kmplib_auth_unsupported">Operation not available for email and password sign-in.</string>
     <string name="kmplib_auth_current_password_incorrect">The current password is incorrect.</string>
+    <string name="kmplib_auth_profile_rejected">Couldn't save your profile changes.</string>
     <!-- Estado de erro (ui/components/ErrorState) -->
     <string name="kmplib_error_state_title">Could not load</string>
     <string name="kmplib_error_state_offline_title">You are offline</string>

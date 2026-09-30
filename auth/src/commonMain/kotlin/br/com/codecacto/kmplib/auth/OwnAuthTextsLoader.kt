@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_auth_current_password_
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_email_in_use
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_invalid_credentials
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_invalid_reset
+import br.com.codecacto.kmplib.generated.resources.kmplib_auth_profile_rejected
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_social_rejected
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_unsupported
 import br.com.codecacto.kmplib.generated.resources.kmplib_auth_weak_password
@@ -43,6 +44,7 @@ suspend fun loadOwnAuthTexts(): OwnAuthTexts =
             server = { codigo -> formatStatusTemplate(servidor, codigo) },
             unsupported = getString(Res.string.kmplib_auth_unsupported),
             currentPasswordIncorrect = getString(Res.string.kmplib_auth_current_password_incorrect),
+            profileRejected = getString(Res.string.kmplib_auth_profile_rejected),
         )
     } catch (e: CancellationException) {
         throw e

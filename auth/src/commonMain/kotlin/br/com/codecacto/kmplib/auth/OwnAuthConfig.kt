@@ -133,6 +133,11 @@ data class OwnAuthTexts(
     val unsupported: String = "Operação não disponível para login por e-mail e senha.",
     /** Troca de senha com a sessão aberta: a senha ATUAL não confere (2.216.0). */
     val currentPasswordIncorrect: String = "Senha atual incorreta.",
+    /**
+     * Edição do perfil recusada sem frase do servidor (2.229.0). Quase nunca aparece: a backlib
+     * explica o motivo (nome vazio/longo, usuário em uso) e é a frase dela que vai para o campo.
+     */
+    val profileRejected: String = "Não foi possível salvar as alterações do perfil.",
 )
 
 /**
@@ -151,6 +156,27 @@ sealed class OwnAuthException(override val message: String, val code: Int) : Exc
     class NotAuthenticated(message: String) : OwnAuthException(message, 401)
     class Unsupported(message: String) : OwnAuthException(message, -2)
 
+    /**
+     * **Edição do perfil recusada** pelo servidor (`PATCH {authBasePath}/me`, 2.229.0) — 400, 403,
+     * 409 ou 422, com o envelope da backlib por inteiro.
+     *
+     * @property serverCode o `code` do envelope — compare com [OwnAuthErrorCodes]
+     *   (`NOTHING_TO_UPDATE`, `PASSWORD_CHANGE_REQUIRED`, `USERNAME_CHANGE_DISABLED`,
+     *   `USERNAME_TAKEN`); `null` se o servidor não mandou.
+     * @property fieldErrors `details` do envelope: campo → frase. É o que põe o erro **no campo**
+     *   (`fieldError("username")` = "Este nome de usuário já está em uso"), como manda a regra de
+     *   formulário da fábrica, em vez de num banner solto.
+     */
+    class ProfileRejected(
+        message: String,
+        code: Int,
+        val serverCode: String? = null,
+        val fieldErrors: Map<String, String> = emptyMap(),
+    ) : OwnAuthException(message, code) {
+        /** A frase do servidor para [field] (`"name"`, `"username"`), ou `null`. */
+        fun fieldError(field: String): String? = fieldErrors[field]
+    }
+
     /** `true` para 4xx (erro do cliente/credencial) — o refresh deve **fail-closed** (derrubar sessão). */
     val isClientError: Boolean get() = code in 400..499
 
@@ -161,4 +187,23 @@ sealed class OwnAuthException(override val message: String, val code: Int) : Exc
         /** Código sentinela de falha de transporte (não é status HTTP). */
         const val OFFLINE_CODE: Int = -1
     }
+}
+
+/**
+ * Os `code` que a backlib-auth-local devolve no envelope de erro e que a tela precisa distinguir
+ * (2.229.0). Constantes para o app não escrever a string na mão — é assim que um typo vira um `if`
+ * que nunca casa.
+ */
+object OwnAuthErrorCodes {
+    /** `PATCH /me` com corpo vazio (`{}`) — 400. */
+    const val NOTHING_TO_UPDATE: String = "NOTHING_TO_UPDATE"
+
+    /** Sessão ainda com a **senha temporária** — 403. Abra o `ForcePasswordChangeDialog`. */
+    const val PASSWORD_CHANGE_REQUIRED: String = "PASSWORD_CHANGE_REQUIRED"
+
+    /** O backend não deixa editar o nome de usuário (`usernameEditable = false`) — 403. */
+    const val USERNAME_CHANGE_DISABLED: String = "USERNAME_CHANGE_DISABLED"
+
+    /** Nome de usuário já em uso por outra conta — 409, com a frase em `details.username`. */
+    const val USERNAME_TAKEN: String = "USERNAME_TAKEN"
 }

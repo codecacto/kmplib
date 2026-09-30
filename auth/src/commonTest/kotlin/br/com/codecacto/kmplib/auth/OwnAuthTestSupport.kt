@@ -22,7 +22,12 @@ class FakeSecureTokenStorage : SecureTokenStorage {
 }
 
 /** Requisição capturada pelo MockEngine. */
-class CapturedRequest(val url: String, val body: String)
+class CapturedRequest(
+    val url: String,
+    val body: String,
+    val method: String = "",
+    val authorization: String? = null,
+)
 
 /**
  * Monta um [OwnAuthApi] sobre um MockEngine controlado por [responder] (recebe o path final e o
@@ -54,7 +59,12 @@ fun mockHttpClient(
     val engine = MockEngine { request ->
         attempt++
         val bodyText = (request.body as? io.ktor.http.content.TextContent)?.text ?: ""
-        captured += CapturedRequest(request.url.toString(), bodyText)
+        captured += CapturedRequest(
+            request.url.toString(),
+            bodyText,
+            method = request.method.value,
+            authorization = request.headers["Authorization"],
+        )
         val (status, body) = responder(request.url.encodedPath, attempt)
         respond(content = body, status = status, headers = headersOf("Content-Type", "application/json"))
     }

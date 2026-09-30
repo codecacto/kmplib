@@ -1,7 +1,10 @@
 package br.com.codecacto.kmplib.auth
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.sync.rest.ServerErrorEnvelope
+import br.com.codecacto.kmplib.sync.rest.parseServerErrorEnvelope
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.header
 import io.ktor.client.request.setBody
@@ -11,12 +14,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Cliente REST **puro/sem estado** dos 8 endpoints da autenticação própria (6 de senha + 2 sociais). Ktor core puro (SEM
+ * Cliente REST **puro/sem estado** dos endpoints da autenticação própria (senha, social e, desde a
+ * 2.229.0, o perfil `GET`/`PATCH {authBasePath}/me`). Ktor core puro (SEM
  * `ContentNegotiation`) + kotlinx-json manual, mesmo padrão de `DomainApiClient`/`RestSyncPort`.
  *
  * Traduz status HTTP em [OwnAuthException] tipada (para o [OwnAuthTokenManager] distinguir 4xx de
@@ -119,6 +120,55 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
                 setBody(json.encodeToString(ChangePasswordBody(currentPassword, newPassword)))
             }
         }.map { }
+
+    /**
+     * `GET {authBasePath}/me` — o perfil da conta dona do [accessToken]: id, e-mail, nome e, desde a
+     * backlib 0.140.0, o **nome de usuário** (2.229.0).
+     *
+     * Na sessão com senha temporária o servidor devolve `email` vazio e `username` nulo, de
+     * propósito — ver [OwnAuthProfile]. Erros: 401 → [OwnAuthException.NotAuthenticated] (token
+     * vencido ou conta que não existe mais).
+     */
+    suspend fun me(accessToken: String): Result<OwnAuthProfile> =
+        send(ME_SUFFIX, "GET") {
+            client.get(config.url(ME_SUFFIX)) {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+        }.mapCatching { response ->
+            json.decodeFromString(OwnAuthProfile.serializer(), response.bodyAsText())
+        }
+
+    /**
+     * `PATCH {authBasePath}/me` (backlib-auth-local ≥ 0.140.0) — o titular edita o **próprio**
+     * nome e, se o backend liga `usernameEditable`, o nome de usuário. Parcial: parâmetro `null` não
+     * vai no corpo e o servidor o deixa como está. Responde 200 com o perfil já gravado.
+     *
+     * A conta vem do token, nunca do corpo. Erros, todos com a frase do servidor:
+     * - [OwnAuthException.ProfileRejected] — 400 (`NOTHING_TO_UPDATE`, nome vazio/longo em
+     *   `fieldErrors["name"]`, usuário fora da régua em `fieldErrors["username"]`), 403
+     *   (`PASSWORD_CHANGE_REQUIRED`, `USERNAME_CHANGE_DISABLED`), 409 (`USERNAME_TAKEN`). Os códigos
+     *   estão em [OwnAuthErrorCodes].
+     * - [OwnAuthException.Unsupported] — **404**: o backend não publica a rota (sem
+     *   `AuthLocalProfileEditor` no Koin, ou backlib anterior à 0.140.0).
+     * - [OwnAuthException.NotAuthenticated] — 401. [OwnAuthException.TooManyRequests] — 429.
+     *
+     * Prefira [OwnAuthService.updateOwnProfile], que pega um token válido e atualiza o
+     * `currentUser` com a resposta.
+     */
+    suspend fun updateMe(
+        accessToken: String,
+        name: String? = null,
+        username: String? = null,
+    ): Result<OwnAuthProfile> =
+        send(ME_SUFFIX, "PATCH") {
+            client.patch(config.url(ME_SUFFIX)) {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                setBody(json.encodeToString(UpdateMeBody.serializer(), UpdateMeBody(name, username)))
+            }
+        }.mapCatching { response ->
+            json.decodeFromString(OwnAuthProfile.serializer(), response.bodyAsText())
+        }
 
     suspend fun refresh(refreshToken: String): Result<OwnAuthTokens> =
         postForTokens("refresh", json.encodeToString(RefreshBody(refreshToken)))
@@ -276,16 +326,10 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         } else {
             // A mensagem do servidor é mais útil que qualquer texto fixo daqui: ele é quem sabe o
             // mínimo de caracteres exigido, qual campo faltou, etc. O texto local vira fallback.
-            Result.failure(mapStatus(texts(), suffix, status, response.serverMessageOrNull()))
+            val envelope = parseServerErrorEnvelope(runCatching { response.bodyAsText() }.getOrNull())
+            Result.failure(mapStatus(texts(), suffix, status, envelope))
         }
     }
-
-    /** `message` do envelope de erro do backend (backlib-errors), se vier legível. */
-    private suspend fun HttpResponse.serverMessageOrNull(): String? = runCatching {
-        val body = bodyAsText()
-        json.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.contentOrNull
-            ?.trim()?.takeIf { it.isNotEmpty() }
-    }.getOrNull()
 
     /**
      * Rastro de diagnóstico das credenciais (só com [OwnAuthConfig.diagnostics] ligado — ver o KDoc
@@ -307,7 +351,9 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
     }
 
-    private fun mapStatus(texts: OwnAuthTexts, suffix: String, status: Int, serverMessage: String?): OwnAuthException {
+    private fun mapStatus(texts: OwnAuthTexts, suffix: String, status: Int, envelope: ServerErrorEnvelope?): OwnAuthException {
+        val serverMessage = envelope?.message
+        if (suffix == ME_SUFFIX) return mapProfileStatus(texts, status, envelope)
         // Social tem um vocabulário de recusa próprio: nonce vencido/reusado, `aud` inesperado,
         // `email_verified=false`, assinatura inválida. Todos significam a mesma coisa para a tela —
         // "esta prova de identidade não serve" —, e a mensagem do servidor é a única que diz qual
@@ -357,6 +403,26 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     }
 
     /**
+     * Perfil (`GET`/`PATCH /me`). Recusa de regra (400/403/409/422) carrega o envelope inteiro —
+     * `code` e `details` — para a tela marcar o campo certo com a frase do servidor.
+     */
+    private fun mapProfileStatus(texts: OwnAuthTexts, status: Int, envelope: ServerErrorEnvelope?): OwnAuthException =
+        when (status) {
+            401 -> OwnAuthException.NotAuthenticated(texts.sessionExpired)
+            400, 403, 409, 422 -> OwnAuthException.ProfileRejected(
+                message = envelope?.message ?: texts.profileRejected,
+                code = status,
+                serverCode = envelope?.code,
+                fieldErrors = envelope?.details.orEmpty(),
+            )
+            // Rota ausente: backend sem `AuthLocalProfileEditor` (ou anterior à 0.140.0). Não é
+            // falha do usuário nem do servidor — a operação não existe ali.
+            404 -> OwnAuthException.Unsupported(texts.unsupported)
+            429 -> OwnAuthException.TooManyRequests(texts.tooManyRequests)
+            else -> serverFailure(texts, status, envelope?.message)
+        }
+
+    /**
      * Falha genérica do servidor. Em **5xx** a mensagem do corpo é descartada (2.218.0): numa falha
      * interna ela é o que o servidor deixou escapar — exceção, SQL, nome de tabela, trecho de stack —,
      * e ia parar na tela. Só 4xx (validação, regra) traz texto escrito para a pessoa ler.
@@ -369,5 +435,8 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
 
     companion object {
         private const val TAG = "OwnAuthApi"
+
+        /** `GET`/`PATCH {authBasePath}/me` — perfil da conta autenticada. */
+        private const val ME_SUFFIX = "me"
     }
 }

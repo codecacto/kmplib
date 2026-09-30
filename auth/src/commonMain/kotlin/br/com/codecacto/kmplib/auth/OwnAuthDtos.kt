@@ -147,3 +147,30 @@ internal data class PasswordResetBody(val token: String, val newPassword: String
  */
 @Serializable
 internal data class SocialExchangeBody(val code: String, val codeVerifier: String)
+
+/**
+ * Perfil da conta autenticada — `GET {authBasePath}/me` e resposta do `PATCH {authBasePath}/me`
+ * (`AuthLocalMeResponse` da backlib-auth-local; `username` desde a 0.140.0).
+ *
+ * Na sessão com **senha temporária** o servidor devolve `email` vazio e `username` nulo, de
+ * propósito (com a senha pública, os dois são metade da credencial de outra conta). Quem mescla
+ * isto na sessão ([OwnAuthTokenManager.applyProfile]) não troca valor conhecido por vazio.
+ */
+@Serializable
+data class OwnAuthProfile(
+    val id: String,
+    val email: String = "",
+    val name: String? = null,
+    val username: String? = null,
+)
+
+/**
+ * Corpo do `PATCH {authBasePath}/me`. Parcial: campo nulo é **omitido** do JSON (`explicitNulls =
+ * false` no Json da lib) e o servidor o deixa como está. Sem e-mail, de propósito — trocar e-mail
+ * exige provar a posse do endereço novo, que é outro fluxo.
+ */
+@Serializable
+internal data class UpdateMeBody(
+    val name: String? = null,
+    val username: String? = null,
+)

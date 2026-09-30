@@ -66,12 +66,43 @@ class OwnAuthTokenManager(
         email: String,
         name: String,
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+        /** Nome de usuário já conhecido (2.229.0) — preservado ao trocar o par de tokens. */
+        username: String? = null,
     ) {
-        val session = tokens.toSession(email, name, providerId)
+        val session = tokens.toSession(email, name, providerId, username)
         mutex.withLock {
             store.save(session)
             _session.value = session
         }
+    }
+
+    /**
+     * Mescla o perfil lido do servidor (`GET`/`PATCH {authBasePath}/me`) na sessão corrente e
+     * publica — é o que faz `currentUser` passar a ter nome, e-mail e **nome de usuário** reais
+     * (2.229.0). Devolve a sessão resultante, ou `null` quando não aplicou.
+     *
+     * **Só aplica se o perfil é da conta da sessão** (`profile.id == accountId`): entre pedir e
+     * receber o `/me` a pessoa pode ter saído e entrado com outra conta, e o perfil da primeira não
+     * pode ser gravado sobre a segunda. Valor vazio/nulo do servidor **não apaga** o conhecido — na
+     * sessão com senha temporária o `/me` omite e-mail e usuário de propósito, e isso não significa
+     * que a conta deixou de tê-los.
+     */
+    suspend fun applyProfile(profile: OwnAuthProfile): OwnAuthSession? = mutex.withLock {
+        val current = _session.value ?: return@withLock null
+        if (profile.id.isNotBlank() && current.accountId.isNotBlank() && profile.id != current.accountId) {
+            AppLogger.w(TAG, "Perfil de outra conta ignorado (a sessão mudou durante a leitura).")
+            return@withLock null
+        }
+        val merged = current.copy(
+            email = profile.email.trim().ifEmpty { current.email },
+            name = profile.name?.trim()?.takeIf { it.isNotEmpty() } ?: current.name,
+            username = profile.username?.trim()?.takeIf { it.isNotEmpty() } ?: current.username,
+        )
+        if (merged != current) {
+            store.save(merged)
+            _session.value = merged
+        }
+        merged
     }
 
     /**
@@ -119,7 +150,7 @@ class OwnAuthTokenManager(
             onSuccess = { tokens ->
                 // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar o
                 // token não converte um login social em login por senha.
-                val renewed = tokens.toSession(session.email, session.name, session.providerId)
+                val renewed = tokens.toSession(session.email, session.name, session.providerId, session.username)
                 store.save(renewed)
                 _session.value = renewed
                 renewed.accessToken
@@ -145,6 +176,7 @@ class OwnAuthTokenManager(
         email: String,
         name: String,
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+        username: String? = null,
     ): OwnAuthSession {
         val accountId = JwtDecoder.subject(accessToken).orEmpty()
         val expiresAt = nowMillis() / 1000 + expiresInSeconds
@@ -157,6 +189,7 @@ class OwnAuthTokenManager(
             name = name,
             providerId = providerId,
             passwordChangeRequired = passwordChangeRequired,
+            username = username,
         )
     }
 
