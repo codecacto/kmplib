@@ -7,6 +7,11 @@ import platform.Foundation.NSCharacterSet
 import platform.Foundation.URLQueryAllowedCharacterSet
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenSettingsURLString
+import platform.UIKit.UIApplicationOpenNotificationSettingsURLString
+import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSOperatingSystemVersion
+import kotlinx.cinterop.cValue
+import kotlinx.cinterop.ExperimentalForeignApi
 import br.com.codecacto.kmplib.core.util.AppLogger
 
 class IosUrlLauncher : UrlLauncher {
@@ -107,6 +112,21 @@ class IosUrlLauncher : UrlLauncher {
     override fun openAppSettings() {
         // A Apple só permite abrir a página do próprio app nos Ajustes (não uma sub-tela).
         openUrl(UIApplicationOpenSettingsURLString)
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    override fun openNotificationSettings() {
+        // A constante nasceu no iOS 15.4 (a lib declara iOS 14 no Package.swift): só é lida depois
+        // de conferir a versão, e abaixo dela a página do app é o melhor que a Apple permite.
+        val atLeast154 = NSProcessInfo.processInfo.isOperatingSystemAtLeastVersion(
+            cValue<NSOperatingSystemVersion> {
+                majorVersion = 15
+                minorVersion = 4
+                patchVersion = 0
+            }
+        )
+        if (atLeast154) openUrl(UIApplicationOpenNotificationSettingsURLString)
+        else openAppSettings()
     }
 
     private fun encodeUrlComponent(value: String): String {

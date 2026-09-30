@@ -257,4 +257,14 @@
     <string name="kmplib_digitbox_too_many">Este campo aceita %1$d dígitos; o número colado tem %2$d</string>
     <string name="kmplib_digitbox_description">Campo de %1$d dígitos</string>
     <string name="kmplib_digitbox_state">%1$d de %2$d dígitos preenchidos</string>
+    <!-- Histórico de preço (ui/components/PriceHistoryChart.kt, 2.227.0) e faixa de permissão (PermissionBanner.kt). -->
+    <string name="kmplib_price_history_empty">Sem dados suficientes</string>
+    <string name="kmplib_price_history_lowest">Menor preço: %1$s em %2$s</string>
+    <string name="kmplib_price_history_summary">Histórico de preço. Atual: %1$s. Menor: %2$s em %3$s. Maior: %4$s em %5$s.</string>
+    <string name="kmplib_price_history_selected">%1$s em %2$s</string>
+    <string name="kmplib_price_history_next">Próxima mudança de preço</string>
+    <string name="kmplib_price_history_previous">Mudança de preço anterior</string>
+    <string name="kmplib_price_history_clear">Limpar seleção</string>
+    <string name="kmplib_permission_banner_allow">Permitir</string>
+    <string name="kmplib_permission_banner_open_settings">Abrir configurações</string>
 </resources>

@@ -1,5 +1,57 @@
 # Changelog — kmplib
 
+## 2.227.0 — `PriceHistoryChart` (preço em degrau) e `PermissionBanner`; notificação desligada passa a ser lida
+
+Minor, **aditiva**. Origem: design do **Rede de Ofertas** (`docs/design/gaps-de-lib.md` G1, G10, G11).
+
+**`kmplib-ui` — `PriceHistoryChart` (G1).** Histórico de preço em **degrau** (a linha fica no valor até a
+próxima captura e muda na vertical — reta ou curva entre R$ 100 e R$ 80 inventaria um R$ 90 que nunca
+existiu; por isso não é o `LineChart`/`AreaChart`). Canvas do Compose em `commonMain`, sem WebView.
+- `PriceHistoryChart(points, modifier, startMillis, endMillis, chartHeight, lineColor, lowestColor,
+  priceFormatter, axisPriceFormatter, timeZone, showLowestLegend, texts)`; `PricePoint(atEpochMillis,
+  priceCents)` — centavos em `Long`.
+- **Eixo Y real** em marcas redondas (`priceAxisTicks`, 1/2/2,5/5×10ⁿ), sem forçar o zero; BRL por default
+  (`defaultPriceFormatter`/`defaultPriceAxisFormatter` — `R$ 2.500` no eixo), trocável para outra moeda.
+- A captura anterior ao início da janela vira o **preço de abertura** (`PriceStep.carriedOver`) — a janela
+  de 30 dias não começa "no vazio".
+- **Menor preço** marcado (cor de sucesso do tema, guia tracejada, legenda "Menor preço: … em …"); empate =
+  ocorrência mais recente. Pontos de captura quando cabem (≥ 8 dp cada).
+- **Toque/arrasto** mostra o balão "preço em data hora" (`ddMMjjmm` pela região).
+- **Acessível:** `contentDescription` com atual/menor/maior e datas, `stateDescription` do ponto escolhido e
+  ações "Próxima/Anterior mudança de preço" e "Limpar seleção" (TalkBack/VoiceOver navegam sem tocar).
+- Lógica pura e testada: `buildPriceHistory` → `PriceHistorySeries`/`PriceStep`/`PriceExtreme`,
+  `priceStepIndexAt`, `priceAxisTicks`. Textos nos 4 idiomas (`kmplib_price_history_*`,
+  `rememberPriceHistoryChartTexts()`).
+
+**`kmplib-ui` — `PermissionBanner` (G11).** Faixa de permissão negada = `AppBanner` (aviso, suave) ligado ao
+`PermissionState`: "Permitir" enquanto o sistema ainda pergunta, "Abrir configurações" na negação
+definitiva; **reconsulta no `ON_RESUME`** (some sozinha na volta das Configurações); não pede nada ao
+aparecer (nunca pedida = escondida, salvo `showWhenNotRequested`). Sobrecarga sem estado
+`PermissionBanner(status, message, onRequest, onOpenSettings, …)` para tela MVI;
+`permissionBannerAction(status, showWhenNotRequested)` puro; `PermissionBannerTexts`/
+`rememberPermissionBannerTexts()` (4 idiomas).
+
+**`kmplib-platform` — o que o banner precisava e a lib não tinha:**
+- **`UrlLauncher.openNotificationSettings()`** — Android `ACTION_APP_NOTIFICATION_SETTINGS` +
+  `EXTRA_APP_PACKAGE` (API 26+, cai na página do app se o fabricante não resolver); iOS 15.4+
+  `openNotificationSettingsURLString`, antes disso `openSettingsURLString`. Default da interface delega a
+  `openAppSettings()` (fakes de app continuam compilando).
+- **`PermissionState.openSettings()`** — abre a tela certa (notificações do app para `NOTIFICATIONS`,
+  página do app para o resto). `openAppSettings()` continua.
+- **`PermissionManager.currentStatus(permission)`** (suspenso, default = `checkPermission`). No iOS lê
+  notificação por `getNotificationSettings` — o `checkPermission` síncrono respondia sempre
+  `NOT_REQUESTED`. `PermissionState.refresh()` passou a usá-lo (assíncrono) + **`refreshNow()`** suspenso.
+- **Correções de leitura de notificação:** Android considera o interruptor do app
+  (`areNotificationsEnabled`) — abaixo da API 33 era "concedida" para quem desligou tudo
+  (`combineNotificationStatus`, puro); iOS trata `provisional`/`ephemeral` como concedida (antes virava
+  "não pedida" e o app perguntava de novo). Nenhuma das duas para de funcionar algo — só passa a dizer a
+  verdade — por isso sem aviso.
+
+**G10 `AppSwitch` não era lacuna:** existe desde a 2.12.0 (`ui/components/AppSwitch.kt`).
+
+**Testes:** `PriceHistoryLogicTest` (15), `PermissionBannerActionTest` (4), `NotificationPermissionStatusTest` (7).
+`compileKotlinIosArm64` + `compileTestKotlinIosArm64` de `platform`/`ui`/`camera` verdes (sem SKIPPED).
+
 ## 2.226.1 — PDF no iOS não derruba mais o app: cor do texto chega ao CoreText como objeto
 
 Patch, **correção de crash** no `kmplib-pdf` (iOS). Achado pela primeira rodada da suíte iOS no

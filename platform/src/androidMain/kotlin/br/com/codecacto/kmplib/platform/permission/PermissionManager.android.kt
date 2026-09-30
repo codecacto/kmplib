@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -110,6 +111,18 @@ class AndroidPermissionManager : PermissionManager {
      * expõe esse bit. No iOS não é preciso: `AVAudioSession` já devolve `Undetermined`.
      */
     override fun checkPermission(permission: AppPermission): PermissionStatus {
+        val runtime = checkRuntimePermission(permission)
+        if (permission != AppPermission.NOTIFICATIONS) return runtime
+        val ctx = context ?: return runtime
+        // Notificação tem uma segunda trava: o interruptor do app nas Configurações. Abaixo da API
+        // 33 ele é a ÚNICA trava (a permissão de runtime não existe e responde "concedida").
+        return combineNotificationStatus(
+            runtimeStatus = runtime,
+            notificationsEnabledInSystem = NotificationManagerCompat.from(ctx).areNotificationsEnabled(),
+        )
+    }
+
+    private fun checkRuntimePermission(permission: AppPermission): PermissionStatus {
         val ctx = context ?: return PermissionStatus.NOT_REQUESTED
         val manifest = manifestPermission(permission)
             ?: return PermissionStatus.GRANTED // sem permissão de runtime nesta versão
@@ -133,6 +146,11 @@ class AndroidPermissionManager : PermissionManager {
         val current = checkPermission(permission)
         if (current == PermissionStatus.GRANTED) {
             return flowOf(PermissionStatus.GRANTED)
+        }
+        // Permissão concedida, mas o interruptor de notificações do app está desligado: o diálogo
+        // de runtime responderia "concedida" sem mudar nada. Só as Configurações resolvem.
+        if (checkRuntimePermission(permission) == PermissionStatus.GRANTED) {
+            return flowOf(current)
         }
 
         val activity = PermissionHostHolder.getActivity()

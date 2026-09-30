@@ -87,6 +87,22 @@ interface UrlLauncher {
             "openAppSettings() não implementado nesta implementação de UrlLauncher",
         )
     }
+
+    /**
+     * Abre a tela de **notificações do próprio app** nas Configurações do sistema — o caminho de
+     * volta de quem desligou as notificações.
+     *
+     * - **Android (API 26+):** `Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)` com
+     *   `EXTRA_APP_PACKAGE` — cai direto no interruptor. Se o fabricante não resolver a intent,
+     *   cai em [openAppSettings].
+     * - **iOS 15.4+:** `UIApplication.openNotificationSettingsURLString`; antes disso,
+     *   `openSettingsURLString` (a página do app, onde "Notificações" é uma linha).
+     *
+     * O corpo default delega a [openAppSettings], para não quebrar implementações mantidas por apps.
+     */
+    fun openNotificationSettings() {
+        openAppSettings()
+    }
 }
 
 /**

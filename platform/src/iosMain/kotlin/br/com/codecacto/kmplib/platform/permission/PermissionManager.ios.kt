@@ -5,6 +5,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionRecordPermissionDenied
 import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
@@ -29,7 +31,10 @@ import platform.darwin.NSObject
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
+import platform.UserNotifications.UNAuthorizationStatus
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
+import platform.UserNotifications.UNAuthorizationStatusEphemeral
+import platform.UserNotifications.UNAuthorizationStatusProvisional
 import platform.UserNotifications.UNAuthorizationStatusDenied
 import platform.UserNotifications.UNAuthorizationStatusNotDetermined
 import platform.UserNotifications.UNUserNotificationCenter
@@ -87,12 +92,37 @@ class IosPermissionManager : PermissionManager {
         )
 
         // Notifications checa de forma assíncrona; aqui devolvemos NOT_REQUESTED como
-        // fallback síncrono. Use requestPermission() para o status real.
+        // fallback síncrono. O status real vem de currentStatus() (sem pedir nada).
         AppPermission.NOTIFICATIONS -> PermissionStatus.NOT_REQUESTED
 
         AppPermission.LOCATION -> mapLocationStatus(CLLocationManager.authorizationStatus())
 
         AppPermission.PHONE_STATE, AppPermission.CALL_LOG -> PermissionStatus.GRANTED
+    }
+
+    override suspend fun currentStatus(permission: AppPermission): PermissionStatus =
+        if (permission == AppPermission.NOTIFICATIONS) {
+            suspendCancellableCoroutine { cont ->
+                UNUserNotificationCenter.currentNotificationCenter()
+                    .getNotificationSettingsWithCompletionHandler { settings ->
+                        if (cont.isActive) cont.resume(mapNotificationStatus(settings?.authorizationStatus))
+                    }
+            }
+        } else {
+            checkPermission(permission)
+        }
+
+    /**
+     * `provisional` (entrega silenciosa na Central, iOS 12+) e `ephemeral` (App Clip, iOS 14+)
+     * **são autorizações**: o app pode notificar. Tratá-los como "não pedida" fazia o app pedir de
+     * novo e mostrar aviso de permissão a quem já as recebe.
+     */
+    private fun mapNotificationStatus(status: UNAuthorizationStatus?): PermissionStatus = when (status) {
+        UNAuthorizationStatusAuthorized,
+        UNAuthorizationStatusProvisional,
+        UNAuthorizationStatusEphemeral -> PermissionStatus.GRANTED
+        UNAuthorizationStatusDenied -> PermissionStatus.PERMANENTLY_DENIED
+        else -> PermissionStatus.NOT_REQUESTED
     }
 
     override fun requestPermission(permission: AppPermission): Flow<PermissionStatus> = when (permission) {
@@ -157,7 +187,9 @@ class IosPermissionManager : PermissionManager {
             val center = UNUserNotificationCenter.currentNotificationCenter()
             center.getNotificationSettingsWithCompletionHandler { settings ->
                 when (settings?.authorizationStatus) {
-                    UNAuthorizationStatusAuthorized -> {
+                    UNAuthorizationStatusAuthorized,
+                    UNAuthorizationStatusProvisional,
+                    UNAuthorizationStatusEphemeral -> {
                         trySend(PermissionStatus.GRANTED); close()
                     }
                     UNAuthorizationStatusDenied -> {

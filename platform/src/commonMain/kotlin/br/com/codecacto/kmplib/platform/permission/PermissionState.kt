@@ -50,13 +50,20 @@ class PermissionState internal constructor(
      */
     val isPermanentlyDenied: Boolean get() = status == PermissionStatus.PERMANENTLY_DENIED
 
-    /** Reconsulta o status atual sem abrir diálogo (ex.: ao voltar das Configurações). */
+    /**
+     * Reconsulta o status atual sem abrir diálogo (ex.: ao voltar das Configurações).
+     *
+     * Usa [PermissionManager.currentStatus] — no iOS, notificação só se lê de forma assíncrona, e a
+     * leitura síncrona respondia sempre "não pedida". Por isso a atualização chega um instante
+     * depois; para esperar por ela, use [refreshNow].
+     */
     fun refresh() {
-        val current = manager.checkPermission(permission)
-        // O `checkPermission` do Android não distingue negação permanente; nunca deixamos um
-        // PERMANENTLY_DENIED já conhecido regredir para DENIED por causa disso.
-        if (status == PermissionStatus.PERMANENTLY_DENIED && current != PermissionStatus.GRANTED) return
-        status = current
+        scope.launch { refreshNow() }
+    }
+
+    /** Versão suspensa de [refresh]: devolve quando o [status] já foi atualizado. */
+    suspend fun refreshNow() {
+        status = mergeRefreshedStatus(status, manager.currentStatus(permission))
     }
 
     /** Solicita a permissão ao usuário (no-op se já concedida). */
@@ -65,6 +72,21 @@ class PermissionState internal constructor(
         scope.launch {
             manager.requestPermission(permission).collectLatest { status = it }
         }
+    }
+
+    /**
+     * Abre, nas Configurações do sistema, **a tela que devolve esta permissão**: para
+     * [AppPermission.NOTIFICATIONS], a de notificações do app
+     * ([br.com.codecacto.kmplib.platform.UrlLauncher.openNotificationSettings]); para as demais, a
+     * página do app ([openAppSettings]). Best-effort, nunca lança.
+     */
+    fun openSettings() {
+        if (permission != AppPermission.NOTIFICATIONS) {
+            openAppSettings()
+            return
+        }
+        runCatching { getUrlLauncher().openNotificationSettings() }
+            .onFailure { AppLogger.e(TAG, "Não foi possível abrir as Configurações de notificação", it) }
     }
 
     /**
@@ -107,8 +129,18 @@ fun rememberPermissionState(
     val scope = rememberCoroutineScope()
     val state = remember(permission, manager) { PermissionState(permission, manager, scope) }
     LaunchedEffect(state, requestOnFirstAppearance) {
-        state.refresh()
+        state.refreshNow()
         if (requestOnFirstAppearance && !state.isGranted) state.request()
     }
     return state
 }
+
+/**
+ * Status que o [PermissionState] adota depois de uma reconsulta.
+ *
+ * O `checkPermission` do Android não distingue negação permanente de negação simples depois que a
+ * Activity é recriada; um [PermissionStatus.PERMANENTLY_DENIED] já conhecido **não regride** para
+ * negado por causa disso — só sai dele quando a permissão volta concedida. Pura, testável.
+ */
+internal fun mergeRefreshedStatus(known: PermissionStatus, fresh: PermissionStatus): PermissionStatus =
+    if (known == PermissionStatus.PERMANENTLY_DENIED && fresh != PermissionStatus.GRANTED) known else fresh

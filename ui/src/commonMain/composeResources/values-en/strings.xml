@@ -248,4 +248,13 @@
     <string name="kmplib_digitbox_too_many">This field takes %1$d digits; the pasted number has %2$d</string>
     <string name="kmplib_digitbox_description">%1$d-digit field</string>
     <string name="kmplib_digitbox_state">%1$d of %2$d digits filled in</string>
+    <string name="kmplib_price_history_empty">Not enough data</string>
+    <string name="kmplib_price_history_lowest">Lowest price: %1$s on %2$s</string>
+    <string name="kmplib_price_history_summary">Price history. Current: %1$s. Lowest: %2$s on %3$s. Highest: %4$s on %5$s.</string>
+    <string name="kmplib_price_history_selected">%1$s on %2$s</string>
+    <string name="kmplib_price_history_next">Next price change</string>
+    <string name="kmplib_price_history_previous">Previous price change</string>
+    <string name="kmplib_price_history_clear">Clear selection</string>
+    <string name="kmplib_permission_banner_allow">Allow</string>
+    <string name="kmplib_permission_banner_open_settings">Open settings</string>
 </resources>

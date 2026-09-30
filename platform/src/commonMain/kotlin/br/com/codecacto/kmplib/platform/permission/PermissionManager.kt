@@ -94,7 +94,45 @@ interface PermissionManager {
      * o status terminal.
      */
     fun requestPermission(permission: AppPermission): Flow<PermissionStatus>
+
+    /**
+     * Status atual de [permission] consultado da forma que a plataforma recomenda — **sem** pedir
+     * nada ao usuário.
+     *
+     * Existe porque há permissão cujo status só se lê de forma **assíncrona**: no iOS, notificação
+     * é `UNUserNotificationCenter.getNotificationSettings(completionHandler:)`, e o
+     * [checkPermission] síncrono não tem como responder (devolve [PermissionStatus.NOT_REQUESTED]).
+     * Tela que precisa saber "o usuário desligou as notificações?" — o `PermissionBanner` do
+     * `kmplib-ui`, por exemplo — usa esta, nunca o [checkPermission].
+     *
+     * O default delega ao [checkPermission], para não quebrar implementações mantidas por apps
+     * (fakes de teste). As implementações da lib sobrescrevem onde a plataforma exige.
+     */
+    suspend fun currentStatus(permission: AppPermission): PermissionStatus = checkPermission(permission)
 }
+
+/**
+ * Status de notificação combinando a permissão de runtime com o **interruptor do sistema**.
+ *
+ * No Android, notificação tem duas travas: a permissão `POST_NOTIFICATIONS` (API 33+) e o
+ * interruptor "Mostrar notificações" nas Configurações do app (`areNotificationsEnabled`). Abaixo da
+ * API 33 não há permissão de runtime — ela responde "concedida" — e o único jeito de o usuário
+ * recusar é o interruptor. Sem esta combinação, o app diz "notificação ativa" para quem as desligou,
+ * e o aviso de "ative as notificações" nunca aparece.
+ *
+ * Com a permissão concedida e o interruptor desligado, a resposta é
+ * [PermissionStatus.PERMANENTLY_DENIED]: pedir de novo não abre diálogo, só as Configurações
+ * resolvem. Nos demais casos vale o status da permissão. Pura, testável.
+ */
+fun combineNotificationStatus(
+    runtimeStatus: PermissionStatus,
+    notificationsEnabledInSystem: Boolean,
+): PermissionStatus =
+    if (runtimeStatus == PermissionStatus.GRANTED && !notificationsEnabledInSystem) {
+        PermissionStatus.PERMANENTLY_DENIED
+    } else {
+        runtimeStatus
+    }
 
 /**
  * Cria a implementação de [PermissionManager] para a plataforma atual.

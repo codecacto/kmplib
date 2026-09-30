@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.platform
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.net.Uri
 import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -155,6 +156,24 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             context.startActivity(intent)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Erro ao abrir as Configurações do app", e)
+        }
+    }
+
+    override fun openNotificationSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            openAppSettings()
+            return
+        }
+        val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Há fabricante que não resolve a tela de notificações do app: cai na página do app.
+            AppLogger.w(TAG, "Tela de notificações do app indisponível; abrindo a página do app")
+            openAppSettings()
         }
     }
 }

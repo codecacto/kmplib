@@ -3,6 +3,15 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — origem: design do **Rede de Ofertas** (`8-Sistemas-Portal-App/RedeDeOfertas/docs/design/gaps-de-lib.md`)
+- [x] **G1 — `PriceHistoryChart`** (degrau, eixo Y real em BRL, menor preço, toque, acessível). ✅ **2.227.0**.
+      Par web: `@codecacto/weblib/charts` `PriceHistoryChart` (lib-web).
+- [x] **G10 — `AppSwitch`** — não era lacuna: existe desde a 2.12.0.
+- [x] **G11 — `PermissionBanner`** + `UrlLauncher.openNotificationSettings`, `PermissionManager.currentStatus`,
+      `PermissionState.openSettings/refreshNow`. ✅ **2.227.0**.
+- [ ] **Validação visual no Mac/emulador** do `PriceHistoryChart` (balão no toque, legenda) e do `PermissionBanner`
+      (voltar das Configurações e a faixa sumir) — via fila do Qualidade quando o Rede de Ofertas tiver a tela.
+
 ### Registrado nesta rodada (29/set/2026) — origem: design do **Colinha do Voto** (`1-Apps-Offline-Ads/Colinha do Voto/docs/design/wireframes.md` §5)
 - [x] **GAP-CV-01 (P0) — PDF de layout livre.** ✅ **2.225.0** — `pdf.canvas` (`buildPdf`/`recordPdf`, `PdfPageSize`
       em mm, bobina `FitContent`, `text`/`textBlock`/`textInBox`/`line`/`rect`/`image`/`offset`, `PdfFontFamily.fromBytes`).
