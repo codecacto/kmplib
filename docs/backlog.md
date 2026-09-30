@@ -4904,3 +4904,20 @@ correspondente em `PlatformCapabilities.ios.kt` — nenhum app precisa mudar.
   (`product_details/ProductPhotoGallery.kt`) e respeita a área segura no X/contador. Promover.
 - **`AppCheckbox` alinha a caixa pela 1ª linha do rótulo**, não pelo centro — em cabeçalho com
   altura maior o texto fica fora do centro vertical (FX, "Destacar na página inicial").
+
+- **`ZoomableBox`/`FullScreenGallery`: zoom preso entre páginas e sempre no centro** (FX
+  Investimentos, 29/set/2026 — continuação do item acima; o fundador seguiu vendo a foto "cortada e
+  explodida"). (1) A escala mora num `remember` DENTRO do `ZoomableBox`, sem estado elevável: a
+  galeria só zera a flag `ampliada` ao trocar de página, e a página vizinha (ainda composta pelo
+  `beyondViewportPageCount`) volta ampliada e com o pager destravado — pan preso. (2) O zoom é em
+  torno do centro da tela, não dos dedos (teto 5×, duplo toque 2,5×). (3) O pan é limitado pela
+  caixa, não pela foto. (4) Sem `memoryCacheKey` própria, a tela cheia pode herdar o bitmap pequeno
+  do carrossel. O FX escreveu zoom local com estado por página elevado, zoom pelo centróide, pan
+  limitado à foto e pedido Coil próprio (`product_details/ProductPhotoGallery.kt`). Promover:
+  `rememberZoomState()` + `ZoomableBox(state)` e a galeria usando-o.
+- **`rememberImagePickerLauncher` (iOS): folha "Tirar foto / Escolher da galeria" ENCERRA o app no
+  iPad** (FX Investimentos, 29/set/2026, por leitura de código). `UIAlertController` em
+  `UIAlertControllerStyleActionSheet` é apresentado sem `popoverPresentationController.sourceView/
+  sourceRect` — no iPad o UIKit lança `NSGenericException`. Mesma correção do `ShareHandler.ios.kt`
+  (ancorar no centro da view raiz). O FX usa `GALLERY_ONLY` no iPad até a lib corrigir
+  (`features/profile/presentation/profile/OrigemDaFotoDePerfil*.kt`).
