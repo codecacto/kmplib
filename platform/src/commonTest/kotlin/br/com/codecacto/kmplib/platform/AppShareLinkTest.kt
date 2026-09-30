@@ -20,7 +20,7 @@ class AppShareLinkTest {
     private fun params(url: String) = Url(url).parameters
 
     @Test
-    fun `link do app leva source app, medium share e o slug como campaign`() {
+    fun `link do app leva source app medium share e o slug como campaign`() {
         val p = params(link.url())
         assertEquals("app", p["utm_source"])
         assertEquals("share", p["utm_medium"])
@@ -34,7 +34,7 @@ class AppShareLinkTest {
     }
 
     @Test
-    fun `content em branco e omitido, nao vira parametro vazio`() {
+    fun `content em branco e omitido nao vira parametro vazio`() {
         assertFalse("utm_content" in link.url(content = "   "))
     }
 
@@ -54,7 +54,7 @@ class AppShareLinkTest {
     }
 
     @Test
-    fun `preserva caminho, query existente e fragmento`() {
+    fun `preserva caminho query existente e fragmento`() {
         val url = link.urlFor("https://meu-app.codecacto.com.br/receita/42?ref=abc#passo-2", content = "receita")
         val parsed = Url(url)
         assertEquals("/receita/42", parsed.encodedPath)
@@ -64,7 +64,7 @@ class AppShareLinkTest {
     }
 
     @Test
-    fun `utm que ja estava no link e SUBSTITUIDA, nunca duplicada`() {
+    fun `utm que ja estava no link e SUBSTITUIDA nunca duplicada`() {
         val recebido = "https://x.com.br/?utm_source=instagram&utm_medium=social&utm_campaign=outro&utm_content=bio"
         val url = appendShareUtm(recebido, campaign = "meu-app")
         val p = params(url)
@@ -82,7 +82,7 @@ class AppShareLinkTest {
     }
 
     @Test
-    fun `url sem esquema http(s) e recusada`() {
+    fun `url sem esquema http ou https e recusada`() {
         assertFailsWith<IllegalArgumentException> { AppShareLink("meu-app.codecacto.com.br", "meu-app") }
         assertFailsWith<IllegalArgumentException> { AppShareLink("ftp://x.com.br", "meu-app") }
         assertFailsWith<IllegalArgumentException> { AppShareLink("", "meu-app") }
@@ -101,7 +101,7 @@ class AppShareLinkTest {
     }
 
     @Test
-    fun `texto do share - mensagem, quebra de linha e o link`() {
+    fun `texto do share - mensagem quebra de linha e o link`() {
         assertEquals("Conheça o app\nhttps://x.com.br", composeShareText("  Conheça o app ", " https://x.com.br "))
     }
 

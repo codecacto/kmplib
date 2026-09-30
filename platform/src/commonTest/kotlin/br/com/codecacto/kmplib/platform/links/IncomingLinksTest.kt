@@ -19,7 +19,7 @@ class IncomingLinksTest {
     }
 
     @Test
-    fun `recusa o que nao e http - esquema do login do Google, texto e nulo`() {
+    fun `recusa o que nao e http - esquema do login do Google texto e nulo`() {
         assertFalse(IncomingLinks.deliver("com.googleusercontent.apps.123:/oauth2redirect?code=x"))
         assertFalse(IncomingLinks.deliver("parceiros/1"))
         assertFalse(IncomingLinks.deliver(null))

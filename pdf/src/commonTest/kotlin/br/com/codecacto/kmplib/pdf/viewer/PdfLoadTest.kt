@@ -54,7 +54,7 @@ class PdfLoadTest {
     }
 
     @Test
-    fun `a segunda abertura sai do disco, sem rede`() = runTest {
+    fun `a segunda abertura sai do disco sem rede`() = runTest {
         val cache = BlobStoreFake(mapOf(pdfCacheIdFor(url) to pdf))
         // Um cliente que devolve 500 em qualquer chamada: se o cache não for consultado primeiro,
         // este teste falha — é o que prova "abre no avião".
@@ -80,7 +80,7 @@ class PdfLoadTest {
     }
 
     @Test
-    fun `404 e documento inexistente, nao falha de rede`() = runTest {
+    fun `404 e documento inexistente e nao falha de rede`() = runTest {
         val cache = BlobStoreFake()
         val cliente = HttpClient(MockEngine { respondError(HttpStatusCode.NotFound) })
         val erro = loadPdfBytes(PdfSource.Url(url), cache, cliente).exceptionOrNull()

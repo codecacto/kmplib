@@ -1,5 +1,61 @@
 # Changelog — kmplib
 
+## 2.225.0 — PDF de layout livre, impressão (térmica 58/80 mm), salvar arquivo e `DigitBoxField`
+
+Minor, **aditiva** (nada existente mudou de assinatura). Origem: o desenho do **Colinha do Voto**
+(`GAP-CV-01/02/03`) — seis formatos de papel de medida própria (cartão 85×55, tira 70×297, A4 com 8
+recortáveis, bobina térmica 58 e 80 mm de comprimento variável), botão Imprimir com papel térmico e o
+campo de número de candidato em caixas. A lib só tinha geradores de PDF de domínio em A4, **nenhuma
+impressão** e nenhum "salvar como".
+
+**`kmplib-pdf` — `br.com.codecacto.kmplib.pdf.canvas` (GAP-CV-01).** `buildPdf { page(PdfPageSize) { … } }`
+(suspend, `Dispatchers.Default`) e `recordPdf` → `RecordedPdf` (`pages` com a altura final, `toByteArray()`).
+Geometria em **mm** (origem topo-esquerda), corpo e traço em **pt**. `text` (y = topo da linha; âncora ou
+caixa com "…"), `textBlock` (quebra por palavra, `\n`, `maxLines`), `textInBox` (dígito na caixa, centro
+pela altura de versal), `line`/`rect` com `PdfStroke(widthPt, color, dash)` e `PdfDash.CutLine`,
+`image(fit)`, `offset {}`, `markExtent`, `measureText` → `PdfTextMetrics`. `PdfPageSize`
+(`A4`/`A5`/`LETTER`/`THERMAL_58`/`THERMAL_80`/`fixed`/`roll`) e `PdfPageHeight.FitContent` — bobina que
+passaria do máximo **lança `PdfLayoutException`** em vez de cortar o rodapé. `PdfTextStyle(tabularNumbers)`
+e `PdfFontFamily.fromBytes(name, regular, bold)` — fonte do app embutida (papel idêntico nas duas
+plataformas; Android 10+ `Font.Builder(ByteBuffer)`, antes arquivo estável no cache; iOS
+`CTFontManagerCreateFontDescriptorFromData`). Android: `PdfDocument` (Skia, `DashPathEffect`, texto com
+`SUBPIXEL`+`LINEAR_TEXT` para a medida bater com o desenho). iOS: `UIGraphicsPDFRenderer.beginPageWithBounds`
+(uma medida por página) + CoreText.
+
+**`kmplib-platform` — `platform.print` + `FileSaver` (GAP-CV-02).** `rememberPrintHandler()`/`getPrintHandler()`
+→ `PrintHandler.printPdf(pdf, jobName, paper, colorMode, onResult)` + `isPrintingAvailable`; `PrintPaper`
+(`A4`/`A5`/`LETTER`/`THERMAL_58`/`THERMAL_80`/`sheet`/`roll` — bobina com o comprimento da página do
+PDF), `PrintColorMode`, `PrintResult`. Android: `PrintManager` + `PrintDocumentAdapter` (contagem pelo
+`PdfRenderer`, escrita fora da main, `MediaSize` customizado em mils, `NO_MARGINS`). iOS:
+`UIPrintInteractionController`, papel por `printInteractionController(_:choosePaper:)` com
+`UIPrintPaper.bestPaper(forPageSize:)` e corte da bobina por `printInteractionController(_:cutLengthFor:)`;
+iPad ancorado. `rememberFileSaver(onResult)` → `FileSaver.save(bytes, fileName, mime)`: SAF
+`ACTION_CREATE_DOCUMENT` (sem permissão) / `UIDocumentPickerViewController(forExportingURLs:asCopy:)`;
+`FileSaveResult`. Compartilhar segue sendo `ShareHandler.shareFile`. O `topViewController()` do
+`IosShareHandler` virou helper interno (`IosPresentation.kt`) e serve aos três.
+
+**`kmplib-ui` — `DigitBoxField` + `DigitBoxDisplay` (GAP-CV-03).** N caixas de dígito sobre UM
+`BasicTextField` (teclado numérico, colar, apagar volta a caixa, toque em qualquer ponto da linha, um nó
+só para o leitor de tela: número inteiro + rótulo + "2 de 4 dígitos preenchidos"). Erro no campo:
+`errorMessage` do app (incompleto pós-envio com `rememberDigitBoxTexts().missing(n)`, duplicado, externo);
+**excedente** tratado pelo próprio campo — colar mais algarismos do que cabe **não corta** (manteria um
+número que a pessoa não escreveu), mantém o anterior e avisa. `masked` (PIN), `autoFocus`, `onFilled`,
+`onOverflow`, caixas que encolhem até 28 dp, algarismos tabulares. Regras puras `applyDigitBoxInput`
+(`DigitBoxInput.Accepted/Overflow/Ignored`) e `digitBoxMissingCount`. 5 recursos novos
+(`kmplib_digitbox_*`) nos 4 idiomas.
+
+**Suíte iOS de `pdf` e `platform` voltou a compilar.** Nomes de teste entre crases com `,`/`()` são
+aceitos no JVM e recusados pelo Kotlin/Native — `compileTestKotlinIosArm64` falhava nos dois módulos
+(e falha em mais 13: registrado no `docs/backlog.md`). Corrigidos os de `pdf`/`platform`, sem mudar o
+que os testes provam.
+
+Testes: `PdfCanvasRecordingTest` (38), `PrintRulesTest` (10), `DigitBoxLogicTest` (15);
+`PdfCanvasIosRenderTest` (iOS — gera, reabre no PDFKit, confere medida, texto e `tnum`) compila aqui e
+**roda no Mac** (`./gradlew :kmplib-pdf:iosSimulatorArm64Test`). `iosMain` dos três compilado com
+`compileKotlinIosArm64 -Pkmplib.forceAppleTargets=true` (não `SKIPPED`).
+
+**Ação nos apps:** nenhuma — aditivo.
+
 ## 2.224.1 — Fastfile iOS: a versão vai só por argumento do xcodebuild; o `.pbxproj` não é mais reescrito
 
 Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). A lane `release` chamava

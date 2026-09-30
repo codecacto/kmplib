@@ -243,4 +243,9 @@
     <string name="kmplib_reorder_move_to_top">Move to top</string>
     <string name="kmplib_reorder_move_to_bottom">Move to bottom</string>
     <string name="kmplib_reorder_position">Position %1$d of %2$d</string>
+    <string name="kmplib_digitbox_missing_one">1 digit missing</string>
+    <string name="kmplib_digitbox_missing_other">%1$d digits missing</string>
+    <string name="kmplib_digitbox_too_many">This field takes %1$d digits; the pasted number has %2$d</string>
+    <string name="kmplib_digitbox_description">%1$d-digit field</string>
+    <string name="kmplib_digitbox_state">%1$d of %2$d digits filled in</string>
 </resources>

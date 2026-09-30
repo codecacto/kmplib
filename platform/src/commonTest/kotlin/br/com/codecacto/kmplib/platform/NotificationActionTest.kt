@@ -340,7 +340,7 @@ class NotificationActionTest {
      * falha por timeout antes de a outra thread ter tido chance de rodar. Era assim que este
      * arquivo falhava em uma execução a cada quatro, sem nada ter mudado no código.
      */
-    fun `o handler recebe id da notificacao, id da acao e o data do dominio`() = runTest {
+    fun `o handler recebe id da notificacao id da acao e o data do dominio`() = runTest {
         NotificationActions.reset()
         val recebido = CompletableDeferred<NotificationActionEvent>()
         NotificationActions.setHandler { recebido.complete(it) }

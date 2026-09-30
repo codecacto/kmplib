@@ -95,7 +95,7 @@ class NotificationWeeklyTest {
     }
 
     @Test
-    fun `o horario e lido no fuso pedido, nao no do aparelho`() {
+    fun `o horario e lido no fuso pedido nao no do aparelho`() {
         // Mesmo instante, dois fusos: 19:00 em Cuiabá é 20:00 em São Paulo.
         val agora = millis("2026-08-24T13:00:00Z")
         val emCuiaba = NotificationRescheduling.nextWeeklyTriggerMillis(
@@ -110,7 +110,7 @@ class NotificationWeeklyTest {
     }
 
     @Test
-    fun `a semana avanca em dias de calendario, nao em 7 x 24h`() {
+    fun `a semana avanca em dias de calendario nao em 7 x 24h`() {
         // A conta tem de valer também num fuso com histórico de horário de verão: o disparo seguinte
         // é sempre o MESMO horário de parede, nunca "o instante + 168 h".
         val agora = millis("2026-08-23T23:00:00Z")
@@ -149,7 +149,7 @@ class NotificationWeeklyTest {
     // ── plan() ───────────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `semanal volta para a fila depois do boot, com o proximo disparo recalculado`() {
+    fun `semanal volta para a fila depois do boot com o proximo disparo recalculado`() {
         val agora = millis("2026-08-24T13:00:00Z") // segunda 09:00 em Cuiabá
         val plano = NotificationRescheduling.plan(
             stored = listOf(weekly(id = 1, weekday = 7, hour = 18, minute = 30, timeZoneId = "America/Cuiaba")),
@@ -161,7 +161,7 @@ class NotificationWeeklyTest {
     }
 
     @Test
-    fun `o recalculo do semanal usa o fuso GRAVADO, nao o do aparelho`() {
+    fun `o recalculo do semanal usa o fuso GRAVADO nao o do aparelho`() {
         val agora = millis("2026-08-24T13:00:00Z")
         val plano = NotificationRescheduling.plan(
             stored = listOf(weekly(id = 1, weekday = 3, hour = 19, minute = 0, timeZoneId = "America/Cuiaba")),
@@ -172,7 +172,7 @@ class NotificationWeeklyTest {
     }
 
     @Test
-    fun `disparo semanal perdido dentro da graca e exibido, e o proximo fica agendado`() {
+    fun `disparo semanal perdido dentro da graca e exibido e o proximo fica agendado`() {
         // Culto das 18:30 de domingo; o aparelho voltou 18:50 (20 min depois).
         val disparo = "2026-08-23T22:30:00Z"
         val agora = millis("2026-08-23T22:50:00Z")

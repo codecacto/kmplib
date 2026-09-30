@@ -16,12 +16,7 @@ import platform.Foundation.writeToFile
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGRectMake
 import platform.UIKit.UIActivityViewController
-import platform.UIKit.UIApplication
 import platform.UIKit.UIImage
-import platform.UIKit.UISceneActivationStateForegroundActive
-import platform.UIKit.UIViewController
-import platform.UIKit.UIWindow
-import platform.UIKit.UIWindowScene
 import platform.UIKit.popoverPresentationController
 import br.com.codecacto.kmplib.core.util.AppLogger
 
@@ -197,23 +192,6 @@ class IosShareHandler : ShareHandler {
             popover.permittedArrowDirections = 0uL
         }
         presenter.presentViewController(controller, animated = true, completion = null)
-    }
-
-    private fun topViewController(): UIViewController? {
-        val scenes = UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>()
-        val scene = scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
-            ?: scenes.firstOrNull()
-        val window = scene?.keyWindow
-            ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull { it.isKeyWindow() }
-            ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull()
-        var top = window?.rootViewController ?: return null
-        while (true) {
-            val next = top.presentedViewController ?: break
-            // Não empilha em cima de um controlador que está saindo de cena.
-            if (next.isBeingDismissed()) break
-            top = next
-        }
-        return top
     }
 }
 

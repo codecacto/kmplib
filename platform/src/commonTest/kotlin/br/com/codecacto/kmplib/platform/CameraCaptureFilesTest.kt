@@ -20,7 +20,7 @@ class CameraCaptureFilesTest {
     }
 
     @Test
-    fun `na limpeza da conta sai todo original, de qualquer idade`() {
+    fun `na limpeza da conta sai todo original de qualquer idade`() {
         assertTrue(shouldPurgeCameraCapture("camera_2.jpg", agora, agora, 0L))
     }
 

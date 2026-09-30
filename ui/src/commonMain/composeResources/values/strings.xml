@@ -252,4 +252,9 @@
     <string name="kmplib_reorder_move_to_top">Mover para o início</string>
     <string name="kmplib_reorder_move_to_bottom">Mover para o fim</string>
     <string name="kmplib_reorder_position">Posição %1$d de %2$d</string>
+    <string name="kmplib_digitbox_missing_one">Falta 1 dígito</string>
+    <string name="kmplib_digitbox_missing_other">Faltam %1$d dígitos</string>
+    <string name="kmplib_digitbox_too_many">Este campo aceita %1$d dígitos; o número colado tem %2$d</string>
+    <string name="kmplib_digitbox_description">Campo de %1$d dígitos</string>
+    <string name="kmplib_digitbox_state">%1$d de %2$d dígitos preenchidos</string>
 </resources>

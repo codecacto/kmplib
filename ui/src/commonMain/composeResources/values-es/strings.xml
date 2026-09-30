@@ -243,4 +243,9 @@
     <string name="kmplib_reorder_move_to_top">Mover al principio</string>
     <string name="kmplib_reorder_move_to_bottom">Mover al final</string>
     <string name="kmplib_reorder_position">Posición %1$d de %2$d</string>
+    <string name="kmplib_digitbox_missing_one">Falta 1 dígito</string>
+    <string name="kmplib_digitbox_missing_other">Faltan %1$d dígitos</string>
+    <string name="kmplib_digitbox_too_many">Este campo acepta %1$d dígitos; el número pegado tiene %2$d</string>
+    <string name="kmplib_digitbox_description">Campo de %1$d dígitos</string>
+    <string name="kmplib_digitbox_state">%1$d de %2$d dígitos completados</string>
 </resources>

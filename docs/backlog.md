@@ -3,6 +3,27 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado nesta rodada (29/set/2026) — origem: design do **Colinha do Voto** (`1-Apps-Offline-Ads/Colinha do Voto/docs/design/wireframes.md` §5)
+- [x] **GAP-CV-01 (P0) — PDF de layout livre.** ✅ **2.225.0** — `pdf.canvas` (`buildPdf`/`recordPdf`, `PdfPageSize`
+      em mm, bobina `FitContent`, `text`/`textBlock`/`textInBox`/`line`/`rect`/`image`/`offset`, `PdfFontFamily.fromBytes`).
+      **Pendente no Mac:** `./gradlew :kmplib-pdf:iosSimulatorArm64Test` (`PdfCanvasIosRenderTest`) + conferência visual.
+- [x] **GAP-CV-02 (P0) — impressão.** ✅ **2.225.0** — `platform.print.PrintHandler` (`PrintPaper.THERMAL_58/80`,
+      `MediaSize` customizado / `choosePaper`+`cutLengthFor`) + `FileSaver` (SAF / exportar para Arquivos).
+      **Pendente no Mac:** abrir o diálogo num simulador com o *Printer Simulator* (bobina e corte).
+- [x] **GAP-CV-03 (P1) — `DigitBoxField`.** ✅ **2.225.0** — `DigitBoxField` + `DigitBoxDisplay` + `DigitBoxTexts`.
+- [ ] **GAP-CV-04 (P2) — opção de escolha exclusiva com miniatura** (`ChoiceChipGroup`/`FilterChipRow` mudam a forma).
+
+### Registrado nesta rodada (29/set/2026) — a suíte iOS da lib NÃO COMPILA em 13 módulos
+- [ ] **`compileTestKotlinIosArm64` falha em 13 módulos** (medido com `./gradlew compileTestKotlinIosArm64
+      -Pkmplib.forceAppleTargets=true --continue`): `ads, auth, brdata, camera, central, core, firebase, mask,
+      monetization, qr, sync, ui, kmplib-testing` — 196 erros. **181 são nome de teste entre crases com caractere que
+      o Kotlin/Native proíbe** (`,` `(` `)` `.` `:` …) — o JVM aceita, então a suíte Android nunca acusou; o resto:
+      `@OptIn(ExperimentalNativeApi)` faltando (`BadgeTest`, `NavigationTest`), `Runnable` inexistente no Native e um
+      dublê incompleto (`RestHandleCorrelationTest.DispatcherEspiao`). Consequência: **no Mac, `iosSimulatorArm64Test`
+      desses módulos não roda** — a lógica comum só é provada no JVM. Na 2.225.0 foram corrigidos `pdf` e `platform`
+      (regra: tirar do nome o caractere proibido — vírgula vira espaço, parênteses somem). Fazer o resto numa rodada própria e
+      pôr `compileTestKotlinIosArm64` no gate da lib.
+
 ### Registrado nesta rodada (29/set/2026) — aviso do R8 no release Android
 - [ ] **R8: "An error occurred when parsing kotlin metadata"** — aviso no `minifyReleaseEnabled` dos apps. Causa
       provável: o R8 embutido no AGP (`agp = "8.11.2"` em `gradle/libs.versions.toml`) é mais antigo que o metadata

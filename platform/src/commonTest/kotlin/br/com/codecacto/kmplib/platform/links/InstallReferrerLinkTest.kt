@@ -34,7 +34,7 @@ class InstallReferrerLinkTest {
     }
 
     @Test
-    fun `clique velho demais nao vale, e clique desconhecido vale`() {
+    fun `clique velho demais nao vale e clique desconhecido vale`() {
         val agora = 1_000_000L
         assertTrue(isInstallReferrerFresh(agora - 60, agora, INSTALL_REFERRER_MAX_AGE_SECONDS))
         assertFalse(isInstallReferrerFresh(agora - INSTALL_REFERRER_MAX_AGE_SECONDS - 1, agora, INSTALL_REFERRER_MAX_AGE_SECONDS))
@@ -79,7 +79,7 @@ class InstallReferrerLinkTest {
     }
 
     @Test
-    fun `o link continua pendente ate ser confirmado, e a Play e consultada uma vez so`() = runTest {
+    fun `o link continua pendente ate ser confirmado e a Play e consultada uma vez so`() = runTest {
         val store = FakeStore()
         var consultas = 0
 
