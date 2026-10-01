@@ -200,6 +200,14 @@
     <string name="kmplib_paywall_nothing_to_restore">No se encontraron compras para restaurar.</string>
     <string name="kmplib_paywall_unavailable">Suscripción no disponible en este momento.</string>
     <string name="kmplib_paywall_savings">Ahorra %1$s</string>
+    <string name="kmplib_paywall_start_trial">Probar %1$s gratis</string>
+    <string name="kmplib_paywall_trial_terms">Gratis durante %1$s, luego %2$s. Se renueva automáticamente; cancela cuando quieras.</string>
+    <string name="kmplib_paywall_price_per_month">%1$s/mes</string>
+    <string name="kmplib_paywall_price_per_semester">%1$s/semestre</string>
+    <string name="kmplib_paywall_price_per_year">%1$s/año</string>
+    <string name="kmplib_paywall_price_per_months">%1$s cada %2$d meses</string>
+    <string name="kmplib_duration_one_day">1 día</string>
+    <string name="kmplib_duration_days">%1$d días</string>
     <!-- Erros de compra (monetization/purchase — a frase diz O QUE FAZER) -->
     <string name="kmplib_purchase_network">Sin conexión a internet. Verifique su red e inténtelo de nuevo.</string>
     <string name="kmplib_purchase_store">La tienda no está disponible en este momento. Inténtelo de nuevo en unos minutos.</string>

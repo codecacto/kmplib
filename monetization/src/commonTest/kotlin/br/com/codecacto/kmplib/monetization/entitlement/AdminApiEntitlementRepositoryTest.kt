@@ -107,6 +107,34 @@ class AdminApiEntitlementRepositoryTest {
     }
 
     @Test
+    fun `trial ja usado sobrevive ao rebaixamento para free - uma conta um trial`() = runTest {
+        // Acesso vencido e trial gasto na web: e exatamente aqui que o paywall do app precisa saber.
+        val r = repo {
+            HttpStatusCode.OK to """
+                {"project":"meu-app","tenant":"uid-1","plano":"trial","features":[],
+                "validoAte":"2020-01-01","fonte":"MANUAL","ativo":false,
+                "trialUsadoEm":"2026-09-01T12:00:00Z","trialOrigem":"WEB"}
+            """.trimIndent()
+        }
+        val result = r.getEntitlement()
+        assertIs<ApiResult.Success<Entitlement>>(result)
+        assertTrue(result.data.isFree)
+        assertTrue(result.data.trialUsed)
+        assertEquals("web", result.data.trialOrigem)
+    }
+
+    @Test
+    fun `servidor antigo sem campos de trial = trial nao usado`() = runTest {
+        val r = repo {
+            HttpStatusCode.OK to """{"plano":"free","features":[],"fonte":"NONE","ativo":false}"""
+        }
+        val result = r.getEntitlement()
+        assertIs<ApiResult.Success<Entitlement>>(result)
+        assertTrue(!result.data.trialUsed)
+        assertNull(result.data.trialOrigem)
+    }
+
+    @Test
     fun `getEntitlement usa cache dentro do TTL e revalida apos invalidateCache`() = runTest {
         val calls = mutableListOf<HttpRequestData>()
         val r = repo(captured = calls) {

@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.231.0 — Teste grátis de 7 dias PELA LOJA: o paywall só promete o que a loja confirma
+
+Minor, **aditiva**. Origem: o botão "Começar 7 dias grátis" do **Backhand** cobrava na hora — não havia
+oferta na loja — e a Apple recusa isso pela **3.1.2**. Decisão do fundador (30/set/2026): o trial de app
+com compra pela loja é a **oferta introdutória da loja** (`trial: P7D` no `monetizacao.yaml`, aplicada
+pelo provisioner). Desenho completo: `docs/43-trial-pela-loja.md`.
+
+- **`kmplib-monetization` — elegibilidade oficial da RevenueCat.** `PurchasePackage` ganhou
+  `freeTrial: FreeTrialPeriod?`, `trialEligibility: TrialEligibility` e `canSkipFreeTrial`, mais o
+  derivado `offerableFreeTrial` (só `ELIGIBLE`; `UNKNOWN` nunca vira promessa). iOS:
+  `checkTrialOrIntroPriceEligibility` sobre o `introductoryDiscount` `FREE_TRIAL` (timeout 5 s);
+  Android: a fase grátis em `subscriptionOptions.freeTrial` (o Play já filtra por elegibilidade).
+- **Paywall:** `PaywallPlan.trial: PaywallTrial?` (preenchido pelos mapeadores, nunca à mão);
+  `PaywallTexts.ctaLabel(plan)` ("Começar 7 dias grátis" | "Assinar"), `trialTerms(plan)` (o termo de
+  cobrança — duração, preço e período da loja, renovação — **junto do botão**) e `pricePerPeriod(plan)`,
+  nos 4 idiomas. `PaywallScreen` usa os três; tela própria chama os mesmos helpers.
+  `PaywallPlanLabels.trialLabel` (semana vira "7 dias"), `PaywallTestTags.termoDoTrial(plan)`.
+- **Uma conta = um trial (produto web + app):** `PaywallConfig.trialPolicy =
+  PaywallTrialPolicy(alreadyUsed, offeringWithoutTrial)`. Trial já usado no backend → Android compra o
+  **plano base sem a fase grátis**; iOS segue a opção do fundador por configuração (A: aceita; B:
+  offering sem trial). Contrato novo, todos com default: `PurchaseRepository.getOfferings(offeringId)`,
+  `PurchaseRepository.purchasePackage(packageId, withoutFreeTrial)`, `EntitlementProvider
+  .loadOfferings(offeringId)`, `EntitlementProvider.purchasePackage(packageId, withoutFreeTrial)`.
+- **`kmplib-core` — `Entitlement.trialUsadoEm`/`trialOrigem`/`trialUsed`**, lidos do `/me/entitlement`
+  (registro `trial_usage` do admin-api); sobrevivem ao rebaixamento para free.
+- **`kmplib-testing`:** `FakePurchaseRepository.comTrial(...)`, `ofertasPorOffering`, `comprasSemTrial`.
+
+**Nada muda para quem não tem trial na loja:** sem oferta introdutória, `freeTrial = null` e o card
+continua "Assinar". **Não é aviso** (aditivo; não conserta nada que esteja quebrado na lib).
+
 ## 2.230.0 — "Desenvolvido por": a mensagem do WhatsApp diz DE QUAL APP a pessoa veio
 
 Minor, **aditiva**. Origem: mensagem "Olá! Vim pelo app e gostaria de falar com vocês." chegando no

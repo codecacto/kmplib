@@ -131,6 +131,38 @@ class PaywallSavings(
 )
 
 /**
+ * **Uma conta = um trial** em produto com web E app (2.231.0, docs/43 §5).
+ *
+ * Sem configurar nada (o default), quem decide o trial é **só a loja**: o card promete "7 dias
+ * grátis" exatamente quando a loja confirma a elegibilidade. Isso basta para app que só vende pela
+ * loja. Produto com web + app informa aqui o que o **nosso** backend sabe — que a conta já usou o
+ * trial na outra ponta:
+ *
+ * - **Android:** a compra vai pelo **plano base, sem a fase grátis**, e o card mostra "Assinar".
+ * - **iOS:** a Apple aplica a oferta introdutória sozinha a quem é elegível naquele Apple ID; o app
+ *   não consegue recusá-la no mesmo produto. A escolha é do fundador e é SÓ esta configuração:
+ *   - [offeringWithoutTrial] `null` (**opção A**): aceita até 7 dias a mais no iPhone — e o card
+ *     continua dizendo a verdade ("7 dias grátis", porque a Apple vai dar);
+ *   - [offeringWithoutTrial] = id do offering da RevenueCat com as mesmas durações **sem** oferta
+ *     introdutória (**opção B**): a tela vende esse offering a quem já usou o trial.
+ *
+ * @param alreadyUsed lê do backend se a conta já usou o trial — normalmente
+ *   `{ controller.entitlement().trialUsed }` (campo `trialUsadoEm` do admin-api). Falha na leitura =
+ *   `false`: a loja decide, e o card continua dizendo só o que a loja confirma.
+ * @param offeringWithoutTrial ver acima. Só é lido quando [alreadyUsed] é `true` e algum pacote tem
+ *   trial que a loja não deixa pular.
+ *
+ * ⚠️ **Exige o provider da lib** (`PurchaseManagerEntitlementProvider`/`RevenueCatEntitlementProvider`)
+ * ou um `EntitlementProvider` próprio que implemente `purchasePackage(packageId, withoutFreeTrial)` e
+ * `loadOfferings(offeringId)`. O default dessas sobrecargas compra o pacote como ele é — no Android,
+ * COM a fase grátis que o card deixou de mostrar.
+ */
+class PaywallTrialPolicy(
+    val alreadyUsed: suspend () -> Boolean = { false },
+    val offeringWithoutTrial: String? = null,
+)
+
+/**
  * Configuração do [PaywallViewModel] — o que muda de um app para outro. Todo o resto (ordem Mensal →
  * Semestral → Anual, selo na maior duração, fallback, régua de alertas, compra, restauração) é da lib.
  *
@@ -143,6 +175,7 @@ class PaywallSavings(
  * @param onPremiumActivated roda depois de compra/restauração que liberou o premium — ex.: invalidar o
  *   cache do `AdminApiEntitlementRepository` para a próxima leitura refletir o webhook. Falha aqui é
  *   logada e não desfaz a compra.
+ * @param trialPolicy uma conta = um trial em produto web + app (2.231.0). Default: só a loja decide.
  */
 class PaywallConfig(
     val termsUrl: String,
@@ -153,6 +186,7 @@ class PaywallConfig(
     val savings: PaywallSavings? = null,
     val afterActivation: PaywallAfterActivation = PaywallAfterActivation.ShowActive,
     val onPremiumActivated: suspend () -> Unit = {},
+    val trialPolicy: PaywallTrialPolicy = PaywallTrialPolicy(),
 )
 
 /**

@@ -39,6 +39,13 @@ data class PurchaseProduct(
  * @param priceAmountMicros preco em micros (1_000_000 = 1 unidade da moeda).
  * @param currencyCode codigo ISO da moeda (ex.: "BRL").
  * @param durationMonths duracao em meses (1/6/12) quando derivavel; `null` p/ vitalicio/indeterminado.
+ * @param freeTrial periodo GRATIS da oferta introdutoria que a LOJA tem para este produto (2.231.0):
+ *   Apple `introductoryDiscount` em `FREE_TRIAL`; Play a fase `FREE_TRIAL` da oferta. `null` = a loja
+ *   nao tem trial para este produto. **Ter oferta nao e ter direito** — ver [trialEligibility].
+ * @param trialEligibility a pessoa tem direito ao [freeTrial]? (2.231.0). So [TrialEligibility.ELIGIBLE]
+ *   autoriza a tela a prometer "X dias gratis"; `UNKNOWN` NUNCA vira promessa.
+ * @param canSkipFreeTrial a loja deixa comprar este produto SEM o trial (Play: o plano base sem a
+ *   oferta). `false` no iOS, onde a Apple aplica a oferta introdutoria sozinha a quem e elegivel.
  */
 data class PurchasePackage(
     val packageId: String,
@@ -47,8 +54,58 @@ data class PurchasePackage(
     val priceLabel: String,
     val priceAmountMicros: Long,
     val currencyCode: String,
-    val durationMonths: Int? = null
-)
+    val durationMonths: Int? = null,
+    val freeTrial: FreeTrialPeriod? = null,
+    val trialEligibility: TrialEligibility = TrialEligibility.UNKNOWN,
+    val canSkipFreeTrial: Boolean = false,
+) {
+    /**
+     * O trial que a tela PODE prometer: existe na loja **e** a loja confirmou o direito. E a unica
+     * condicao para "Comecar 7 dias gratis" — botao que diz gratis e cobra na hora e recusa 3.1.2 da
+     * Apple (docs/43).
+     */
+    val offerableFreeTrial: FreeTrialPeriod?
+        get() = freeTrial?.takeIf { trialEligibility == TrialEligibility.ELIGIBLE }
+}
+
+/**
+ * Duracao do periodo gratis, como a loja a descreve (`value` x `unit`): `7 DAY`, `1 WEEK`, `1 MONTH`.
+ * A lib nao converte semana em dias nem mes em 30 dias para CALCULO — so para o rotulo (ver
+ * `PaywallPlanLabels.trialLabel`).
+ */
+data class FreeTrialPeriod(val value: Int, val unit: FreeTrialUnit) {
+    /** Dias corridos quando a unidade e dia/semana (`1 WEEK` = 7); `null` para mes/ano. */
+    val days: Int?
+        get() = when (unit) {
+            FreeTrialUnit.DAY -> value
+            FreeTrialUnit.WEEK -> value * 7
+            FreeTrialUnit.MONTH, FreeTrialUnit.YEAR -> null
+        }
+}
+
+/** Unidade do [FreeTrialPeriod]. */
+enum class FreeTrialUnit { DAY, WEEK, MONTH, YEAR }
+
+/**
+ * Direito da pessoa a oferta introdutoria, segundo a LOJA (2.231.0).
+ *
+ * - iOS: `checkTrialOrIntroPriceEligibility` da RevenueCat (StoreKit decide por Apple ID e por grupo).
+ * - Android: o Play so devolve ao app as ofertas para as quais a pessoa e elegivel; oferta com fase
+ *   gratis presente = [ELIGIBLE].
+ */
+enum class TrialEligibility {
+    /** A loja confirmou: quem comprar agora ganha o periodo gratis. */
+    ELIGIBLE,
+
+    /** A loja confirmou: ja usou (ou ja assinou o grupo) — paga desde o primeiro dia. */
+    INELIGIBLE,
+
+    /** O produto nao tem oferta introdutoria. */
+    NO_OFFER,
+
+    /** Nao deu para saber. Tratado como sem trial na tela — prometer e cobrar e o defeito. */
+    UNKNOWN,
+}
 
 /** Tipo padronizado de um [PurchasePackage] (subconjunto estavel do `PackageType` do RevenueCat). */
 enum class PurchasePackageType {

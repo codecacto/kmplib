@@ -30,6 +30,28 @@ interface PurchaseRepository {
     suspend fun purchasePackage(packageId: String): PurchaseResult
 
     /**
+     * Lê um offering **específico** do RevenueCat pelo id (2.231.0) — o caminho da "opção B" do iOS
+     * em produto web + app (docs/43 §6): um offering com as mesmas durações **sem** oferta
+     * introdutória, vendido a quem já usou o trial na outra ponta. Offering inexistente ⇒ lista vazia.
+     *
+     * Default (repositórios que não conhecem offerings): o catálogo normal.
+     */
+    suspend fun getOfferings(offeringId: String): Result<List<PurchasePackage>> = getOfferings()
+
+    /**
+     * Compra o pacote dizendo se a pessoa pode ou não levar o período grátis (2.231.0).
+     *
+     * [withoutFreeTrial] = `true` é o "trial já usado na outra ponta" (docs/43 §5.3): no Play compra a
+     * opção do **plano base**, sem a fase grátis ([PurchasePackage.canSkipFreeTrial]). Na Apple não há
+     * como recusar a oferta introdutória no mesmo produto — ali a decisão é de catálogo (offering sem
+     * trial, ver [getOfferings] com id) e esta chamada compra o pacote como ele é.
+     *
+     * Default: ignora o parâmetro e compra o pacote — o comportamento de antes da 2.231.0.
+     */
+    suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseResult =
+        purchasePackage(packageId)
+
+    /**
      * Retorna os produtos disponiveis para compra.
      *
      * @deprecated Assinaturas agora usam [getOfferings] (Offerings/Packages do RevenueCat). Permanece

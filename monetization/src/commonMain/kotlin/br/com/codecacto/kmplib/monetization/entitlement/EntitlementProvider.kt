@@ -74,6 +74,20 @@ interface EntitlementProvider {
     /** Compra o pacote de assinatura [packageId]. Stub/sem pacote ⇒ [PurchaseOutcome.Indisponivel]. */
     suspend fun purchasePackage(packageId: String): PurchaseOutcome
 
+    /**
+     * Lê um offering ESPECÍFICO (2.231.0) — o offering "sem trial" da opção B do iOS (docs/43 §6).
+     * Default: o catálogo normal ([loadOfferings]).
+     */
+    suspend fun loadOfferings(offeringId: String): OfferingsOutcome = loadOfferings()
+
+    /**
+     * Compra dizendo se a pessoa pode levar o período grátis (2.231.0). `withoutFreeTrial = true` =
+     * trial já usado na outra ponta: no Play compra o plano base sem a fase grátis. Default: compra
+     * normal ([purchasePackage]).
+     */
+    suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome =
+        purchasePackage(packageId)
+
     /** Restaura compras anteriores (novo device/reinstalação). */
     suspend fun restore(): PurchaseOutcome
 }
@@ -178,9 +192,21 @@ class PurchaseManagerEntitlementProvider : EntitlementProvider {
         return runCatching { repo.getSubscriptionInfo() }.getOrNull()
     }
 
-    override suspend fun purchasePackage(packageId: String): PurchaseOutcome {
+    override suspend fun loadOfferings(offeringId: String): OfferingsOutcome {
+        val repo = PurchaseManager.repository ?: return OfferingsOutcome.Indisponivel
+        val outcome = OfferingsOutcome.deResultado(repo.getOfferings(offeringId))
+        if (outcome is OfferingsOutcome.Falha) {
+            AppLogger.w(TAG, "Falha ao ler offering '$offeringId' (${outcome.code.name}): ${outcome.mensagem}")
+        }
+        return outcome
+    }
+
+    override suspend fun purchasePackage(packageId: String): PurchaseOutcome =
+        purchasePackage(packageId, withoutFreeTrial = false)
+
+    override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome {
         val repo = PurchaseManager.repository ?: return PurchaseOutcome.Indisponivel
-        return when (val r = repo.purchasePackage(packageId)) {
+        return when (val r = repo.purchasePackage(packageId, withoutFreeTrial)) {
             is PurchaseResult.Success -> PurchaseOutcome.Ativado
             is PurchaseResult.Cancelled -> PurchaseOutcome.Cancelado
             is PurchaseResult.Error -> PurchaseOutcome.Falha(r.message, r.code)
@@ -222,6 +248,11 @@ class StubEntitlementProvider : EntitlementProvider {
     override suspend fun subscriptionInfo(): SubscriptionInfo? = null
 
     override suspend fun purchasePackage(packageId: String): PurchaseOutcome =
+        PurchaseOutcome.Indisponivel
+
+    override suspend fun loadOfferings(offeringId: String): OfferingsOutcome = OfferingsOutcome.Indisponivel
+
+    override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome =
         PurchaseOutcome.Indisponivel
 
     override suspend fun restore(): PurchaseOutcome = PurchaseOutcome.Indisponivel

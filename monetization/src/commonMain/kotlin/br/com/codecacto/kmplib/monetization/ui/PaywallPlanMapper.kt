@@ -11,9 +11,13 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_plan_yearly
 import br.com.codecacto.kmplib.generated.resources.kmplib_duration_one_month
 import br.com.codecacto.kmplib.generated.resources.kmplib_duration_one_year
 import br.com.codecacto.kmplib.generated.resources.kmplib_duration_months
+import br.com.codecacto.kmplib.generated.resources.kmplib_duration_one_day
+import br.com.codecacto.kmplib.generated.resources.kmplib_duration_days
 import br.com.codecacto.kmplib.monetization.entitlement.Plan
 import br.com.codecacto.kmplib.monetization.entitlement.PlanInterval
 import br.com.codecacto.kmplib.monetization.entitlement.isPaidPlan
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialPeriod
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialUnit
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 
 /**
@@ -110,11 +114,14 @@ fun withDerivedHighlight(
  * @param recommendedDurationMonths forca o plano recomendado por duracao; `null` => maior duracao
  *   elegivel. So e honrado se o plano daquela duracao for elegivel ao selo.
  * @param durationLabel deriva o rotulo de duracao a partir de `durationMonths`; `null` => sem rotulo.
+ * @param trialLabel escreve a duracao do teste gratis ("7 dias") — so chamado para pacote cujo trial a
+ *   loja CONFIRMOU ([PurchasePackage.offerableFreeTrial]); sem isso o card nao tem trial (2.231.0).
  */
 fun List<Plan>.toPaywallPlans(
     packages: List<PurchasePackage>,
     recommendedDurationMonths: Int? = null,
     durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
+    trialLabel: (FreeTrialPeriod) -> String = ::defaultTrialLabel,
 ): List<PaywallPlan> {
     val resolved = this
         .filter { it.ativo && it.isPaidPlan }
@@ -131,6 +138,9 @@ fun List<Plan>.toPaywallPlans(
                 highlights = plan.destaques,
                 durationMonths = months,
                 isFree = false,
+                // Sem duração não há período de cobrança para o termo ("depois R$ X/mês") — e trial
+                // sem o termo completo não se oferece.
+                trial = if (months != null) pkg.paywallTrial(trialLabel) else null,
             )
         }
 
@@ -175,12 +185,14 @@ fun List<Plan>.toPaywallPlans(
  * @param durationLabel rótulo de duração; `null` => sem rótulo.
  * @param highlights destaques por duração — no fallback não há `Plan.destaques` do catálogo, então os
  *   benefícios vêm do app (`composeResources`). Default: nenhum.
+ * @param trialLabel duração do teste grátis no idioma da tela; só para trial CONFIRMADO pela loja.
  */
 fun List<PurchasePackage>.toPaywallPlansFromStore(
     recommendedDurationMonths: Int? = null,
     planName: (durationMonths: Int) -> String = ::defaultPlanName,
     durationLabel: (durationMonths: Int) -> String? = ::defaultDurationLabel,
     highlights: (durationMonths: Int) -> List<String> = { emptyList() },
+    trialLabel: (FreeTrialPeriod) -> String = ::defaultTrialLabel,
 ): List<PaywallPlan> {
     val resolved = this.mapNotNull { pkg ->
         val months = pkg.durationMonths?.takeIf { PlanInterval.isCanonical(it) } ?: return@mapNotNull null
@@ -193,6 +205,7 @@ fun List<PurchasePackage>.toPaywallPlansFromStore(
             highlights = highlights(months),
             durationMonths = months,
             isFree = false,
+            trial = pkg.paywallTrial(trialLabel),
         )
     }
 
@@ -201,6 +214,13 @@ fun List<PurchasePackage>.toPaywallPlansFromStore(
 
     return withDerivedHighlight(resolved, forcedPlanId)
 }
+
+/** Trial do card: SÓ o que a loja confirmou ([PurchasePackage.offerableFreeTrial]). */
+private fun PurchasePackage.paywallTrial(trialLabel: (FreeTrialPeriod) -> String): PaywallTrial? =
+    offerableFreeTrial?.let { PaywallTrial(period = it, periodLabel = trialLabel(it)) }
+
+/** Duração do teste grátis em pt-BR ("7 dias", "1 mês") — default dos mapeadores. */
+fun defaultTrialLabel(period: FreeTrialPeriod): String = PaywallPlanLabels().trialLabel(period)
 
 /** Correlacao Plan x Package: duracao canonica primeiro, `storeProductId` como fallback. */
 private fun Plan.matchPackage(packages: List<PurchasePackage>): PurchasePackage? {
@@ -304,7 +324,22 @@ data class PaywallPlanLabels(
     val oneYear: String = "1 ano",
     /** Modelo com `%1$d` = número de meses ("6 meses"). */
     val monthsTemplate: String = "%1\$d meses",
+    val oneDay: String = "1 dia",
+    /** Modelo com `%1$d` = número de dias ("7 dias") — duração do teste grátis (2.231.0). */
+    val daysTemplate: String = "%1\$d dias",
 ) {
+    /**
+     * Duração do teste grátis como a pessoa lê: semana vira dias ("1 WEEK" → "7 dias", que é como a
+     * fábrica promete o trial), mês e ano usam os rótulos de duração.
+     */
+    fun trialLabel(period: FreeTrialPeriod): String {
+        period.days?.let { dias -> return if (dias == 1) oneDay else daysTemplate.replace("%1\$d", dias.toString()) }
+        return when (period.unit) {
+            FreeTrialUnit.MONTH -> durationLabel(period.value)
+            else -> durationLabel(period.value * 12)
+        }
+    }
+
     /** Nome do card: Mensal / Semestral / Anual; fora dos 3, "N meses". */
     fun planName(durationMonths: Int): String = when (PlanInterval.fromDurationMonths(durationMonths)) {
         PlanInterval.Monthly -> monthly
@@ -333,6 +368,8 @@ suspend fun loadPaywallPlanLabels(): PaywallPlanLabels =
             oneMonth = getString(Res.string.kmplib_duration_one_month),
             oneYear = getString(Res.string.kmplib_duration_one_year),
             monthsTemplate = getString(Res.string.kmplib_duration_months),
+            oneDay = getString(Res.string.kmplib_duration_one_day),
+            daysTemplate = getString(Res.string.kmplib_duration_days),
         )
     } catch (e: CancellationException) {
         throw e
@@ -349,4 +386,6 @@ fun rememberPaywallPlanLabels(): PaywallPlanLabels = PaywallPlanLabels(
     oneMonth = stringResource(Res.string.kmplib_duration_one_month),
     oneYear = stringResource(Res.string.kmplib_duration_one_year),
     monthsTemplate = stringResource(Res.string.kmplib_duration_months),
+    oneDay = stringResource(Res.string.kmplib_duration_one_day),
+    daysTemplate = stringResource(Res.string.kmplib_duration_days),
 )

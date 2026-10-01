@@ -200,6 +200,14 @@
     <string name="kmplib_paywall_nothing_to_restore">No purchases found to restore.</string>
     <string name="kmplib_paywall_unavailable">Subscription unavailable right now.</string>
     <string name="kmplib_paywall_savings">Save %1$s</string>
+    <string name="kmplib_paywall_start_trial">Try %1$s free</string>
+    <string name="kmplib_paywall_trial_terms">Free for %1$s, then %2$s. Renews automatically; cancel anytime.</string>
+    <string name="kmplib_paywall_price_per_month">%1$s/month</string>
+    <string name="kmplib_paywall_price_per_semester">%1$s/6 months</string>
+    <string name="kmplib_paywall_price_per_year">%1$s/year</string>
+    <string name="kmplib_paywall_price_per_months">%1$s every %2$d months</string>
+    <string name="kmplib_duration_one_day">1 day</string>
+    <string name="kmplib_duration_days">%1$d days</string>
     <!-- Erros de compra (monetization/purchase — a frase diz O QUE FAZER) -->
     <string name="kmplib_purchase_network">No internet connection. Check your network and try again.</string>
     <string name="kmplib_purchase_store">The store is unavailable right now. Try again in a few minutes.</string>

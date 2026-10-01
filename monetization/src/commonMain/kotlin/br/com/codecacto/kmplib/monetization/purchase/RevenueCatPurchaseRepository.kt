@@ -3,6 +3,11 @@ package br.com.codecacto.kmplib.monetization.purchase
 import br.com.codecacto.kmplib.core.util.AppLogger
 import com.revenuecat.purchases.kmp.Purchases
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
+import com.revenuecat.purchases.kmp.models.DiscountPaymentMode
+import com.revenuecat.purchases.kmp.models.IntroEligibilityStatus
+import com.revenuecat.purchases.kmp.models.OfferPaymentMode
+import com.revenuecat.purchases.kmp.models.Period
+import com.revenuecat.purchases.kmp.models.PeriodUnit
 import com.revenuecat.purchases.kmp.models.Package
 import com.revenuecat.purchases.kmp.models.PackageType
 import com.revenuecat.purchases.kmp.models.ProductCategory
@@ -14,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 internal class RevenueCatPurchaseRepository(
@@ -28,12 +34,27 @@ internal class RevenueCatPurchaseRepository(
     /** Cache dos `Package` do offering, por `identifier`, para o [purchasePackage]. */
     private var cachedPackages: Map<String, Package> = emptyMap()
 
+    /** Offering de onde veio o [cachedPackages] (`null` = o configurado). */
+    private var cachedOfferingId: String? = null
+
     override suspend fun isPremium(): Boolean {
         return getSubscriptionInfo().isActive
     }
 
-    override suspend fun getOfferings(): Result<List<PurchasePackage>> {
-        return suspendCancellableCoroutine { continuation ->
+    override suspend fun getOfferings(): Result<List<PurchasePackage>> = readOffering(null)
+
+    override suspend fun getOfferings(offeringId: String): Result<List<PurchasePackage>> =
+        readOffering(offeringId)
+
+    /**
+     * Lê o offering [offeringId] (ou o configurado, com fallback para o `current`, quando `null`) e
+     * mapeia os pacotes **com o trial e a elegibilidade da loja** (2.231.0).
+     *
+     * O offering pedido por id NÃO cai no `current`: quem pede o offering "sem trial" e não o acha
+     * precisa saber (lista vazia), e não receber em silêncio justamente o catálogo COM trial.
+     */
+    private suspend fun readOffering(offeringId: String?): Result<List<PurchasePackage>> {
+        val lidos: Result<List<Package>> = suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.getOfferings(
                 onError = { error ->
                     val code = error.code.toPurchaseErrorCode()
@@ -41,27 +62,72 @@ internal class RevenueCatPurchaseRepository(
                     continuation.resume(Result.failure(PurchaseException(code, error.message)))
                 },
                 onSuccess = { offerings ->
-                    // Offering configurado (config.offeringId) com fallback para o `current`.
-                    val offering = offerings.all[config.offeringId] ?: offerings.current
+                    val offering = if (offeringId != null) {
+                        offerings.all[offeringId]
+                    } else {
+                        // Offering configurado (config.offeringId) com fallback para o `current`.
+                        offerings.all[config.offeringId] ?: offerings.current
+                    }
                     if (offering == null) {
-                        AppLogger.w(TAG, "Offering '${config.offeringId}' ausente e sem `current`")
-                        cachedPackages = emptyMap()
+                        AppLogger.w(TAG, "Offering '${offeringId ?: config.offeringId}' ausente")
                         continuation.resume(Result.success(emptyList()))
                     } else {
-                        val packages = offering.availablePackages
-                        cachedPackages = packages.associateBy { it.identifier }
-                        continuation.resume(Result.success(packages.map { it.toPurchasePackage() }))
+                        continuation.resume(Result.success(offering.availablePackages))
                     }
                 }
             )
         }
+        val packages = lidos.getOrElse { return Result.failure(it) }
+        // Offering pedido por id e VAZIO não substitui o cache: o paywall volta ao catálogo normal
+        // (que continua na tela), e a compra recarregaria o offering vazio — PRODUCT_NOT_FOUND para
+        // um plano que a pessoa está vendo.
+        if (offeringId == null || packages.isNotEmpty()) {
+            cachedPackages = packages.associateBy { it.identifier }
+            cachedOfferingId = offeringId
+        }
+        val eligibility = trialEligibilityOf(packages.map { it.storeProduct })
+        return Result.success(packages.map { it.toPurchasePackage(eligibility[it.storeProduct.id]) })
     }
 
-    override suspend fun purchasePackage(packageId: String): PurchaseResult {
-        // Recarrega os offerings se o pacote nao esta em cache (ex.: primeira compra sem getOfferings).
+    /**
+     * Elegibilidade ao trial, por id de produto — **só para produtos que TÊM período grátis**.
+     *
+     * Caminho oficial da RevenueCat: `checkTrialOrIntroPriceEligibility`. No iOS ele pergunta ao
+     * StoreKit (por Apple ID e grupo). No Android ele devolve `UNKNOWN` por desenho — o Play só
+     * entrega ao app as ofertas para as quais a pessoa é elegível, então a fase grátis presente em
+     * `subscriptionOptions` JÁ É a confirmação. Leitura que não volta em [ELIGIBILITY_TIMEOUT_MS]
+     * vira `UNKNOWN` (sem promessa) — o catálogo não espera a loja para sempre.
+     */
+    private suspend fun trialEligibilityOf(products: List<StoreProduct>): Map<String, TrialEligibility> {
+        val comTrial = products.filter { it.freeTrialPeriod() != null }
+        if (comTrial.isEmpty()) return emptyMap()
+        val status: Map<StoreProduct, IntroEligibilityStatus> = withTimeoutOrNull(ELIGIBILITY_TIMEOUT_MS) {
+            suspendCancellableCoroutine { continuation ->
+                Purchases.sharedInstance.checkTrialOrIntroPriceEligibility(comTrial) { mapa ->
+                    if (continuation.isActive) continuation.resume(mapa)
+                }
+            }
+        } ?: emptyMap<StoreProduct, IntroEligibilityStatus>().also {
+            AppLogger.w(TAG, "elegibilidade ao trial nao respondeu — sem promessa de trial")
+        }
+        val porId = status.entries.associate { (produto, s) -> produto.id to s }
+        return comTrial.associate { produto ->
+            produto.id to resolveTrialEligibility(
+                status = porId[produto.id],
+                filteredByStore = produto.subscriptionOptions?.freeTrial != null,
+            )
+        }
+    }
+
+    override suspend fun purchasePackage(packageId: String): PurchaseResult =
+        purchasePackage(packageId, withoutFreeTrial = false)
+
+    override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseResult {
+        // Recarrega o MESMO offering que estava na tela se o pacote nao esta em cache (ex.: primeira
+        // compra sem getOfferings) — o identifier `$rc_monthly` existe nos dois offerings.
         val pkg = cachedPackages[packageId]
             ?: run {
-                getOfferings()
+                readOffering(cachedOfferingId)
                 cachedPackages[packageId]
             }
             ?: return PurchaseResult.Error(
@@ -69,18 +135,33 @@ internal class RevenueCatPurchaseRepository(
                 code = PurchaseErrorCode.PRODUCT_NOT_FOUND
             )
 
+        // Trial ja usado na outra ponta: no Play, compra o PLANO BASE (sem a fase gratis). Na Apple
+        // nao ha opcao sem a oferta no mesmo produto — compra o pacote (docs/43 §6).
+        val planoBase = if (withoutFreeTrial) pkg.storeProduct.subscriptionOptions?.basePlan else null
+
         return suspendCancellableCoroutine { continuation ->
-            Purchases.sharedInstance.purchase(
-                packageToPurchase = pkg,
-                onError = { error, userCancelled ->
-                    continuation.resume(error.toPurchaseResult(userCancelled))
-                },
-                onSuccess = { _, customerInfo ->
+            val onError: (PurchasesError, Boolean) -> Unit = { error, userCancelled ->
+                continuation.resume(error.toPurchaseResult(userCancelled))
+            }
+            val onSuccess: (com.revenuecat.purchases.kmp.models.StoreTransaction, com.revenuecat.purchases.kmp.models.CustomerInfo) -> Unit =
+                { _, customerInfo ->
                     val subscriptionInfo = customerInfo.toSubscriptionInfo()
                     _subscriptionState.value = subscriptionInfo
                     continuation.resume(PurchaseResult.Success(subscriptionInfo))
                 }
-            )
+            if (planoBase != null) {
+                Purchases.sharedInstance.purchase(
+                    subscriptionOption = planoBase,
+                    onError = onError,
+                    onSuccess = onSuccess,
+                )
+            } else {
+                Purchases.sharedInstance.purchase(
+                    packageToPurchase = pkg,
+                    onError = onError,
+                    onSuccess = onSuccess,
+                )
+            }
         }
     }
 
@@ -556,9 +637,10 @@ internal class RevenueCatPurchaseRepository(
     }
 
     /** Mapeia um `Package` do offering para o DTO uniforme [PurchasePackage] da lib. */
-    private fun Package.toPurchasePackage(): PurchasePackage {
+    private fun Package.toPurchasePackage(eligibility: TrialEligibility?): PurchasePackage {
         val product = storeProduct
         val type = packageType.toPurchasePackageType()
+        val freeTrial = product.freeTrialPeriod()
         return PurchasePackage(
             packageId = identifier,
             packageType = type,
@@ -566,8 +648,37 @@ internal class RevenueCatPurchaseRepository(
             priceLabel = product.price.formatted,
             priceAmountMicros = product.price.amountMicros,
             currencyCode = product.price.currencyCode,
-            durationMonths = resolveDurationMonths(type, product)
+            durationMonths = resolveDurationMonths(type, product),
+            freeTrial = freeTrial,
+            trialEligibility = if (freeTrial == null) TrialEligibility.NO_OFFER else eligibility ?: TrialEligibility.UNKNOWN,
+            canSkipFreeTrial = product.subscriptionOptions?.basePlan != null,
         )
+    }
+
+    /**
+     * Período grátis que a loja tem para o produto: no Play, a fase `FREE_TRIAL` da oferta de trial
+     * (`subscriptionOptions.freeTrial`); na Apple, o `introductoryDiscount` em `FREE_TRIAL`
+     * (`numberOfPeriods` × período). Oferta de preço reduzido (não grátis) não é trial.
+     */
+    private fun StoreProduct.freeTrialPeriod(): FreeTrialPeriod? {
+        subscriptionOptions?.freeTrial?.pricingPhases
+            ?.firstOrNull { it.offerPaymentMode == OfferPaymentMode.FREE_TRIAL }
+            ?.let { fase -> return fase.billingPeriod.toFreeTrialPeriod(fase.billingCycleCount ?: 1) }
+        val intro = introductoryDiscount?.takeIf { it.paymentMode == DiscountPaymentMode.FREE_TRIAL }
+            ?: return null
+        return intro.subscriptionPeriod.toFreeTrialPeriod(intro.numberOfPeriods.toInt().coerceAtLeast(1))
+    }
+
+    private fun Period.toFreeTrialPeriod(cycles: Int): FreeTrialPeriod? {
+        val unidade = when (unit) {
+            PeriodUnit.DAY -> FreeTrialUnit.DAY
+            PeriodUnit.WEEK -> FreeTrialUnit.WEEK
+            PeriodUnit.MONTH -> FreeTrialUnit.MONTH
+            PeriodUnit.YEAR -> FreeTrialUnit.YEAR
+            PeriodUnit.UNKNOWN -> return null
+        }
+        val total = value * cycles
+        return if (total > 0) FreeTrialPeriod(total, unidade) else null
     }
 
     private fun PackageType.toPurchasePackageType(): PurchasePackageType = when (this) {
@@ -623,5 +734,27 @@ internal class RevenueCatPurchaseRepository(
 
     companion object {
         private const val TAG = "RevenueCatPurchaseRepo"
+
+        /** Teto da pergunta de elegibilidade ao StoreKit — sem resposta, a tela mostra o preço. */
+        private const val ELIGIBILITY_TIMEOUT_MS = 5_000L
     }
+}
+
+/**
+ * Status da RevenueCat → [TrialEligibility] da lib. Puro, para teste.
+ *
+ * [filteredByStore] = o produto trouxe a oferta com fase grátis em `subscriptionOptions` (Play): ali a
+ * presença da oferta já é a confirmação, e o `UNKNOWN` que a RevenueCat devolve no Android vira
+ * [TrialEligibility.ELIGIBLE]. Em qualquer outro caso `UNKNOWN` continua `UNKNOWN` — sem promessa.
+ */
+internal fun resolveTrialEligibility(
+    status: IntroEligibilityStatus?,
+    filteredByStore: Boolean,
+): TrialEligibility = when (status) {
+    IntroEligibilityStatus.ELIGIBLE -> TrialEligibility.ELIGIBLE
+    IntroEligibilityStatus.INELIGIBLE -> TrialEligibility.INELIGIBLE
+    IntroEligibilityStatus.NO_INTRO_OFFER_EXISTS ->
+        if (filteredByStore) TrialEligibility.ELIGIBLE else TrialEligibility.NO_OFFER
+    IntroEligibilityStatus.UNKNOWN, null ->
+        if (filteredByStore) TrialEligibility.ELIGIBLE else TrialEligibility.UNKNOWN
 }

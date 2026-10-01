@@ -28,7 +28,14 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_help_descripti
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_help_button
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
 import br.com.codecacto.kmplib.generated.resources.kmplib_ok
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_month
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_months
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_semester
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_year
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_start_trial
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_trial_terms
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialPeriod
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 
 /**
@@ -55,6 +62,10 @@ import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
  *   selo**. Nunca substitua desconhecido por um numero grande para "mandar pro fim".
  * @property isFree Plano gratuito — exibivel, mas **jamais** recebe o selo (nem empatando em duracao
  *   com o mensal).
+ * @property trial Teste gratis que a LOJA confirmou para esta pessoa neste plano (2.231.0). `null` =
+ *   sem trial: a tela diz "Assinar" e nao promete nada. **Nunca preencha a mao** — vem de
+ *   `PurchasePackage.offerableFreeTrial` pelos mapeadores ([toPaywallPlans]/[toPaywallPlansFromStore]).
+ *   Botao "X dias gratis" que cobra na hora e recusa 3.1.2 da Apple (docs/43).
  */
 data class PaywallPlan(
     val id: String,
@@ -68,6 +79,18 @@ data class PaywallPlan(
     val isRecommended: Boolean = false,
     val durationMonths: Int? = null,
     val isFree: Boolean = false,
+    val trial: PaywallTrial? = null,
+)
+
+/**
+ * Teste gratis oferecido no card (2.231.0).
+ *
+ * @property period a duracao como a loja a descreve.
+ * @property periodLabel a duracao ja escrita no idioma da tela ("7 dias").
+ */
+data class PaywallTrial(
+    val period: FreeTrialPeriod,
+    val periodLabel: String,
 )
 
 /**
@@ -161,7 +184,55 @@ data class PaywallTexts(
     // Acessibilidade / acoes
     val backContentDescription: String = "Voltar",
     val errorDismiss: String = "OK",
-)
+    // Teste gratis pela loja (2.231.0) — so aparecem em plano com [PaywallPlan.trial].
+    /** CTA de plano com trial; `%1$s` = duracao ("7 dias"). */
+    val ctaStartTrialTemplate: String = "Começar %1\$s grátis",
+    /**
+     * Termo de cobranca junto do botao (exigencia das duas lojas). `%1$s` = duracao do trial,
+     * `%2$s` = preco por periodo da loja ("R$ 29,90/mês").
+     */
+    val trialTermsTemplate: String = "Grátis por %1\$s, depois %2\$s. Renova automaticamente; cancele quando quiser.",
+    /** `%1$s` = preco da loja. */
+    val pricePerMonthTemplate: String = "%1\$s/mês",
+    val pricePerSemesterTemplate: String = "%1\$s/semestre",
+    val pricePerYearTemplate: String = "%1\$s/ano",
+    /** Duracao fora dos 3 tipos: `%1$s` = preco, `%2$d` = meses. */
+    val pricePerMonthsTemplate: String = "%1\$s a cada %2\$d meses",
+) {
+    /**
+     * Texto do botao de compra de [plan]: "Começar 7 dias grátis" quando a loja confirmou o trial,
+     * senao "Assinar". Use tambem em tela propria (protótipo) — a regra e uma so.
+     */
+    fun ctaLabel(plan: PaywallPlan): String =
+        plan.trial?.takeIf { plan.durationMonths != null }
+            ?.let { ctaStartTrialTemplate.replace("%1\$s", it.periodLabel) }
+            ?: ctaSubscribe
+
+    /**
+     * Termo de cobranca do trial ("Grátis por 7 dias, depois R$ 29,90/mês. Renova
+     * automaticamente; cancele quando quiser.") — `null` sem trial. Fica **junto do botao**.
+     */
+    fun trialTerms(plan: PaywallPlan): String? {
+        val trial = plan.trial ?: return null
+        // O termo exige o período de cobrança; os mapeadores já não dão trial a plano sem duração.
+        if (plan.durationMonths == null) return null
+        return trialTermsTemplate
+            .replace("%1\$s", trial.periodLabel)
+            .replace("%2\$s", pricePerPeriod(plan))
+    }
+
+    /** "R$ 29,90/mês" — o preco da loja com o periodo de cobranca. */
+    fun pricePerPeriod(plan: PaywallPlan): String {
+        val template = when (plan.durationMonths) {
+            1 -> pricePerMonthTemplate
+            6 -> pricePerSemesterTemplate
+            12 -> pricePerYearTemplate
+            null -> return plan.priceLabel
+            else -> pricePerMonthsTemplate.replace("%2\$d", plan.durationMonths.toString())
+        }
+        return template.replace("%1\$s", plan.priceLabel)
+    }
+}
 
 /** [PaywallTexts] no idioma do aparelho (2.219.0). O disclosure legal vem traduzido nos 4 idiomas. */
 @Composable
@@ -191,4 +262,10 @@ fun rememberPaywallTexts(): PaywallTexts = PaywallTexts(
     needHelpButton = stringResource(Res.string.kmplib_paywall_help_button),
     backContentDescription = stringResource(Res.string.kmplib_back),
     errorDismiss = stringResource(Res.string.kmplib_ok),
+    ctaStartTrialTemplate = stringResource(Res.string.kmplib_paywall_start_trial),
+    trialTermsTemplate = stringResource(Res.string.kmplib_paywall_trial_terms),
+    pricePerMonthTemplate = stringResource(Res.string.kmplib_paywall_price_per_month),
+    pricePerSemesterTemplate = stringResource(Res.string.kmplib_paywall_price_per_semester),
+    pricePerYearTemplate = stringResource(Res.string.kmplib_paywall_price_per_year),
+    pricePerMonthsTemplate = stringResource(Res.string.kmplib_paywall_price_per_months),
 )

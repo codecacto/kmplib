@@ -453,7 +453,7 @@ private fun PlanCard(
             // (acento), preservando "primaria so como acento" no resto do card.
             if (highlighted) {
                 AppButton(
-                    text = texts.ctaSubscribe,
+                    text = texts.ctaLabel(plan),
                     onClick = onSelect,
                     enabled = !isPurchasing,
                     isLoading = isThisPurchasing,
@@ -482,12 +482,27 @@ private fun PlanCard(
                         )
                     } else {
                         Text(
-                            text = texts.ctaSubscribe,
+                            text = texts.ctaLabel(plan),
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
+            }
+
+            // Termo de cobrança do trial JUNTO do botão (Apple 3.1.2 / política do Play): duração,
+            // preço depois e renovação — com o preço e o período da loja.
+            texts.trialTerms(plan)?.let { terms ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = terms,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(PaywallTestTags.termoDoTrial(plan)),
+                )
             }
         }
     }

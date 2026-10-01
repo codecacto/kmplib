@@ -2,6 +2,8 @@ package br.com.codecacto.kmplib.testing
 
 import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialPeriod
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialUnit
 import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
 import br.com.codecacto.kmplib.monetization.purchase.OwnedStoreItem
@@ -22,6 +24,7 @@ import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
 import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
 import br.com.codecacto.kmplib.monetization.purchase.StoreVerification
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,6 +117,8 @@ class FakePurchaseRepository(
     private val lojaDoDuble: PurchaseStore = PurchaseStore.PLAY_STORE,
     /** Resultado de verificação simulado — `FAILED` exercita o caminho de adulteração. */
     private val verificacao: StoreVerification = StoreVerification.VERIFIED,
+    /** Offerings pedidos POR ID ([getOfferings] com id) — o offering "sem trial" (2.231.0). */
+    private val ofertasPorOffering: Map<String, List<PurchasePackage>> = emptyMap(),
 ) : PurchaseRepository {
 
     /**
@@ -151,6 +156,25 @@ class FakePurchaseRepository(
             return Result.failure(PurchaseException(codigo, "catálogo indisponível (dublê de teste)"))
         }
         return Result.success(ofertas)
+    }
+
+    override suspend fun getOfferings(offeringId: String): Result<List<PurchasePackage>> {
+        leiturasDoCatalogo++
+        falhaDoCatalogo?.let { codigo ->
+            return Result.failure(PurchaseException(codigo, "catálogo indisponível (dublê de teste)"))
+        }
+        // Offering inexistente = lista vazia, como no SDK — nunca o catálogo normal (que tem trial).
+        return Result.success(ofertasPorOffering[offeringId].orEmpty())
+    }
+
+    /** Pacotes comprados com `withoutFreeTrial = true` (plano base, sem a fase grátis) — 2.231.0. */
+    val comprasSemTrial: List<String> get() = _comprasSemTrial.toList()
+    private val _comprasSemTrial = mutableListOf<String>()
+
+    override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseResult {
+        val resultado = purchasePackage(packageId)
+        if (withoutFreeTrial && resultado is PurchaseResult.Success) _comprasSemTrial += packageId
+        return resultado
     }
 
     override suspend fun purchasePackage(packageId: String): PurchaseResult {
@@ -332,6 +356,27 @@ class FakePurchaseRepository(
 
         /** Só o mensal — para o app cujo catálogo tem um plano só. */
         val SO_MENSAL: List<PurchasePackage> = listOf(PLANOS_PADRAO.first())
+
+        /**
+         * Os mesmos [planos] com **teste grátis da loja** (2.231.0) — para o build de QA e o teste
+         * mostrarem o paywall com "Começar 7 dias grátis".
+         *
+         * @param elegibilidade o que a "loja" responde sobre o direito ao trial.
+         * @param podePularTrial `true` = Play (dá para comprar o plano base sem a fase grátis);
+         *   `false` = Apple.
+         */
+        fun comTrial(
+            planos: List<PurchasePackage> = PLANOS_PADRAO,
+            dias: Int = 7,
+            elegibilidade: TrialEligibility = TrialEligibility.ELIGIBLE,
+            podePularTrial: Boolean = true,
+        ): List<PurchasePackage> = planos.map {
+            it.copy(
+                freeTrial = FreeTrialPeriod(dias, FreeTrialUnit.DAY),
+                trialEligibility = elegibilidade,
+                canSkipFreeTrial = podePularTrial,
+            )
+        }
 
         /** Um [PurchasePackage] avulso, para montar catálogo fora do padrão. */
         fun plano(

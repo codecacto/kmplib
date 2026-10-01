@@ -8,10 +8,13 @@ import br.com.codecacto.kmplib.monetization.entitlement.Plan
 import br.com.codecacto.kmplib.monetization.entitlement.PlansResult
 import br.com.codecacto.kmplib.monetization.entitlement.PurchaseOutcome
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialPeriod
+import br.com.codecacto.kmplib.monetization.purchase.FreeTrialUnit
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackageType
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import br.com.codecacto.kmplib.observability.CrashLevel
 import br.com.codecacto.kmplib.observability.CrashReporter
 import br.com.codecacto.kmplib.observability.CrashReporterConfig
@@ -65,6 +68,21 @@ private class FakeStore(
         return purchaseResult
     }
     override suspend fun restore(): PurchaseOutcome = restoreResult
+
+    /** Offerings por id — o "sem trial" da opção B do iOS. */
+    var offeringsById: Map<String, OfferingsOutcome> = emptyMap()
+    val requestedOfferings = mutableListOf<String>()
+    var purchasedWithoutFreeTrial: Boolean? = null
+
+    override suspend fun loadOfferings(offeringId: String): OfferingsOutcome {
+        requestedOfferings += offeringId
+        return offeringsById[offeringId] ?: OfferingsOutcome.Vazio
+    }
+
+    override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome {
+        purchasedWithoutFreeTrial = withoutFreeTrial
+        return purchasePackage(packageId)
+    }
 }
 
 /** Oferta central de mentira: registra o `forceReload` de cada leitura. */
@@ -157,6 +175,7 @@ class PaywallViewModelTest {
         afterActivation: PaywallAfterActivation = PaywallAfterActivation.ShowActive,
         storeHighlights: (Int) -> List<String> = { emptyList() },
         onActivated: suspend () -> Unit = {},
+        trialPolicy: PaywallTrialPolicy = PaywallTrialPolicy(),
     ) = PaywallViewModel(
         entitlementProvider = store,
         config = PaywallConfig(
@@ -167,6 +186,7 @@ class PaywallViewModelTest {
             savings = savings,
             afterActivation = afterActivation,
             onPremiumActivated = onActivated,
+            trialPolicy = trialPolicy,
         ),
         paymentAlerts = PaymentAlertReporter(crash, projeto = "teste", umaVezPorSessao = false),
         loadMessages = { PaywallMessages() },
@@ -642,5 +662,95 @@ class PaywallViewModelTest {
         val vm = viewModel(FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL, ANUAL))))
         vm.onAction(PaywallHostAction.Load)
         assertTrue(vm.paywall.plans.all { it.badgeLabel == null && it.pricePerMonthLabel == null })
+    }
+
+    // ------------------------------------------------------------ teste grátis pela loja (2.231.0)
+
+    private fun comTrial(p: PurchasePackage, eligibility: TrialEligibility, canSkip: Boolean = true) =
+        p.copy(freeTrial = FreeTrialPeriod(1, FreeTrialUnit.WEEK), trialEligibility = eligibility, canSkipFreeTrial = canSkip)
+
+    @Test
+    fun `trial confirmado pela loja vira 7 dias gratis no card com o termo de cobranca`() {
+        val vm = viewModel(FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE)))))
+        vm.onAction(PaywallHostAction.Load)
+
+        val plano = vm.paywall.plans.single()
+        assertEquals("7 dias", plano.trial?.periodLabel)
+        assertEquals("Começar 7 dias grátis", PaywallTexts().ctaLabel(plano))
+        assertEquals(
+            "Grátis por 7 dias, depois R$ 10/mês. Renova automaticamente; cancele quando quiser.",
+            PaywallTexts().trialTerms(plano),
+        )
+    }
+
+    @Test
+    fun `elegibilidade desconhecida ou negada nunca promete trial`() {
+        listOf(TrialEligibility.UNKNOWN, TrialEligibility.INELIGIBLE, TrialEligibility.NO_OFFER).forEach { e ->
+            val vm = viewModel(FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, e)))))
+            vm.onAction(PaywallHostAction.Load)
+            val plano = vm.paywall.plans.single()
+            assertNull(plano.trial, "elegibilidade $e")
+            assertEquals("Assinar", PaywallTexts().ctaLabel(plano))
+            assertNull(PaywallTexts().trialTerms(plano))
+        }
+    }
+
+    @Test
+    fun `trial ja usado no backend - Android compra o plano base e mostra Assinar`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE))))
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy(alreadyUsed = { true }))
+        vm.onAction(PaywallHostAction.Load)
+
+        assertNull(vm.paywall.plans.single().trial)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(true, store.purchasedWithoutFreeTrial)
+    }
+
+    @Test
+    fun `trial ja usado - iOS sem offering alternativo (opcao A) mostra o que a Apple vai dar`() {
+        val store = FakeStore(
+            offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
+        )
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy(alreadyUsed = { true }))
+        vm.onAction(PaywallHostAction.Load)
+
+        assertEquals("7 dias", vm.paywall.plans.single().trial?.periodLabel)
+        assertTrue(store.requestedOfferings.isEmpty())
+    }
+
+    @Test
+    fun `trial ja usado - iOS com offering sem trial (opcao B) vende o offering alternativo`() {
+        val semTrial = MENSAL.copy(packageId = "\$rc_monthly", storeProductId = "premium_mensal_teste_sem_trial")
+        val store = FakeStore(
+            offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
+        ).apply { offeringsById = mapOf("sem-trial" to OfferingsOutcome.Disponivel(listOf(semTrial))) }
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy(alreadyUsed = { true }, offeringWithoutTrial = "sem-trial"))
+        vm.onAction(PaywallHostAction.Load)
+
+        assertEquals(listOf("sem-trial"), store.requestedOfferings)
+        assertNull(vm.paywall.plans.single().trial)
+    }
+
+    @Test
+    fun `offering sem trial vazio volta ao catalogo normal - nunca tela vazia`() {
+        val store = FakeStore(
+            offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
+        )
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy(alreadyUsed = { true }, offeringWithoutTrial = "sem-trial"))
+        vm.onAction(PaywallHostAction.Load)
+
+        assertEquals(1, vm.paywall.plans.size)
+        assertEquals("7 dias", vm.paywall.plans.single().trial?.periodLabel)
+    }
+
+    @Test
+    fun `falha ao ler o trial usado deixa a loja decidir`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE))))
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy(alreadyUsed = { error("sem rede") }))
+        vm.onAction(PaywallHostAction.Load)
+
+        assertEquals("7 dias", vm.paywall.plans.single().trial?.periodLabel)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(false, store.purchasedWithoutFreeTrial)
     }
 }

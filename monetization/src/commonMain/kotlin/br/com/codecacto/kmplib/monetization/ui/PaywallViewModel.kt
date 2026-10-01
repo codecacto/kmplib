@@ -9,6 +9,8 @@ import br.com.codecacto.kmplib.monetization.entitlement.OfferingsOutcome
 import br.com.codecacto.kmplib.monetization.entitlement.PlansResult
 import br.com.codecacto.kmplib.monetization.entitlement.PurchaseOutcome
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
+import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
+import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import br.com.codecacto.kmplib.monetization.purchase.isPaymentIncident
 import br.com.codecacto.kmplib.monetization.purchase.userMessage
 import br.com.codecacto.kmplib.ui.mvi.BaseViewModel
@@ -78,6 +80,9 @@ class PaywallViewModel(
     private var cachedMessages: PaywallMessages? = null
     private var loadJob: Job? = null
 
+    /** A conta já usou o trial na outra ponta: compra sem a fase grátis onde a loja deixa. */
+    private var withoutFreeTrial: Boolean = false
+
     private suspend fun messages(): PaywallMessages =
         cachedMessages ?: loadMessages().also { cachedMessages = it }
 
@@ -139,13 +144,16 @@ class PaywallViewModel(
         }
 
         val central = config.offerSource as? PaywallOfferSource.CentralWithStoreFallback
-        val (centralResult, store) = coroutineScope {
+        val (centralResult, storeRead, trialUsed) = coroutineScope {
             val c = async { central?.readPlans?.invoke(forceReload) }
             val s = async { entitlementProvider.loadOfferings() }
-            c.await() to s.await()
+            val t = async { readTrialUsed() }
+            Triple(c.await(), s.await(), t.await())
         }
+        withoutFreeTrial = trialUsed
+        val store = if (trialUsed) offeringForUsedTrial(storeRead) else storeRead
 
-        val plans = buildPlans(centralResult, store, m)
+        val plans = buildPlans(centralResult, packagesFor(store.pacotes, trialUsed), m)
         reportOffer(central != null, centralResult, store, plans)
 
         val subscription = entitlementProvider.subscriptionInfo()
@@ -173,13 +181,56 @@ class PaywallViewModel(
         }
     }
 
-    private fun buildPlans(central: PlansResult?, store: OfferingsOutcome, m: PaywallMessages): List<PaywallPlan> {
-        val packages = store.pacotes
+    // ---------------------------------------------------------------- uma conta = um trial
+
+    /** Trial já usado na outra ponta (backend). Falha de leitura = `false`: a loja decide. */
+    private suspend fun readTrialUsed(): Boolean = try {
+        config.trialPolicy.alreadyUsed()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // Só o tipo: a mensagem de uma falha de rede pode trazer URL/corpo.
+        AppLogger.w(TAG, "leitura do trial usado falhou (${e::class.simpleName}) — a loja decide")
+        false
+    }
+
+    /**
+     * Opção B do iOS (docs/43 §6): se há pacote com trial que a loja NÃO deixa pular e o app
+     * configurou o offering sem trial, a vitrine vem dele. Offering sem trial vazio ou ilegível volta
+     * ao catálogo normal — com o card dizendo a verdade (a Apple dará o trial), nunca com tela vazia.
+     */
+    private suspend fun offeringForUsedTrial(store: OfferingsOutcome): OfferingsOutcome {
+        val alternative = config.trialPolicy.offeringWithoutTrial ?: return store
+        val needs = store.pacotes.any { it.offerableFreeTrial != null && !it.canSkipFreeTrial }
+        if (!needs) return store
+        val other = entitlementProvider.loadOfferings(alternative)
+        return if (other is OfferingsOutcome.Disponivel && other.pacotes.isNotEmpty()) {
+            other
+        } else {
+            AppLogger.w(TAG, "offering sem trial '$alternative' indisponível — catálogo normal")
+            store
+        }
+    }
+
+    /**
+     * Com o trial já usado, o pacote que a loja deixa comprar SEM a fase grátis (Play) deixa de
+     * mostrá-la — a compra vai pelo plano base ([withoutFreeTrial]). O que a loja não deixa pular
+     * (iOS sem offering alternativo) fica como a loja disse: é o que vai acontecer na compra.
+     */
+    private fun packagesFor(packages: List<PurchasePackage>, trialUsed: Boolean): List<PurchasePackage> =
+        if (!trialUsed) {
+            packages
+        } else {
+            packages.map { if (it.canSkipFreeTrial) it.copy(trialEligibility = TrialEligibility.INELIGIBLE) else it }
+        }
+
+    private fun buildPlans(central: PlansResult?, packages: List<PurchasePackage>, m: PaywallMessages): List<PaywallPlan> {
         val plans = if (central is PlansResult.Available) {
             central.plans.toPaywallPlans(
                 packages = packages,
                 recommendedDurationMonths = config.recommendedDurationMonths,
                 durationLabel = m.planLabels::durationLabel,
+                trialLabel = m.planLabels::trialLabel,
             )
         } else {
             // Só loja (configurado) ou FALLBACK (central ilegível): mesma função, mais restritiva.
@@ -188,6 +239,7 @@ class PaywallViewModel(
                 planName = m.planLabels::planName,
                 durationLabel = m.planLabels::durationLabel,
                 highlights = config.storeHighlights,
+                trialLabel = m.planLabels::trialLabel,
             )
         }
         val savings = config.savings ?: return plans
@@ -272,7 +324,7 @@ class PaywallViewModel(
             )
         }
         viewModelScope.launch {
-            finish(entitlementProvider.purchasePackage(packageId), PaymentAlertKind.CompraFalhou)
+            finish(entitlementProvider.purchasePackage(packageId, withoutFreeTrial), PaymentAlertKind.CompraFalhou)
         }
     }
 

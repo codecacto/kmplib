@@ -18,8 +18,20 @@ data class Entitlement(
     @SerialName("features") val features: Set<String> = emptySet(),
     @SerialName("validoAte") val validoAte: String? = null,
     @SerialName("fonte") val fonte: String = "manual",
-    @SerialName("atualizadoEm") val atualizadoEm: String? = null
+    @SerialName("atualizadoEm") val atualizadoEm: String? = null,
+    /**
+     * Quando esta conta usou o teste grátis — em qualquer ponta (2.231.0, docs/43 §5). `null` = nunca
+     * usou. Vem do registro `trial_usage` do admin-api central: **uma conta = um trial**, seja ele o
+     * da web (nosso backend) ou o da loja (oferta introdutória). Sobrevive ao rebaixamento para free:
+     * é justamente com o acesso vencido que o paywall precisa saber que o trial já foi usado.
+     */
+    @SerialName("trialUsadoEm") val trialUsadoEm: String? = null,
+    /** Onde o trial foi usado: `web` · `apple` · `google` (2.231.0). */
+    @SerialName("trialOrigem") val trialOrigem: String? = null,
 ) {
+    /** A conta já usou o teste grátis (em qualquer ponta) — o paywall não oferece outro. */
+    val trialUsed: Boolean get() = trialUsadoEm != null
+
     /**
      * Plano gratuito (estado degradado/inicial OU entitlement sem direito pago vigente).
      *

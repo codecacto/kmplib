@@ -24,6 +24,9 @@ object PaywallTestTags {
      */
     fun botaoAssinar(plan: PaywallPlan): String = "paywall-btn-assinar-${planSuffix(plan)}"
 
+    /** Termo de cobrança do teste grátis ao lado do botão — só existe com trial confirmado (2.231.0). */
+    fun termoDoTrial(plan: PaywallPlan): String = "paywall-termo-trial-${planSuffix(plan)}"
+
     /**
      * Os ids dos **três planos do padrão da fábrica**, prontos.
      *
