@@ -1,5 +1,53 @@
 # Changelog — kmplib
 
+## 2.239.0 — `LoginScreen`: o "Concluído" do teclado na senha ENVIA o login
+
+Minor, **mudança de comportamento** (sem API nova para o app). Origem: 02/out/2026, Todos a Bordo —
+o `testar-no-emulador --login` do iOS reprovou em `sessao-nasce` com o formulário PREENCHIDO e
+parado na tela. O campo de senha era `ImeAction.Done` **sem** `keyboardActions`, e a ação padrão do
+Compose para Done é só baixar o teclado: a pessoa digitava a senha, tocava em "Concluído" e nada
+acontecia — tinha de achar o botão. O padrão das duas plataformas (e do exemplo oficial de login do
+Compose, `onImeAction = { onSubmit() }`) é o último campo do formulário enviar.
+
+- **`LoginScreen`**: o campo de senha passa `KeyboardActions(onDone = …)` — baixa o teclado
+  (`defaultKeyboardAction(ImeAction.Done)`, como antes) **e** dispara `LoginAction.Click.Login`, a
+  MESMA ação do botão Entrar. A validação continua no ViewModel do app; nada muda no contrato.
+- **Não envia duas vezes**: `loginImeDoneAction(state)` (interna, pura) devolve `null` com
+  `isLoading = true` — a mesma condição que desabilita o botão. Travado por `LoginImeDoneActionTest`.
+- **Só o login.** `RegisterScreen` e `ForcePasswordChangeDialog` seguem com o Done baixando o
+  teclado: ali ainda há o aceite dos Termos / a conferência antes do envio.
+
+**Flows Maestro — o que muda (e corrige a nota da 2.237.0):** `pressKey: Enter` com a senha focada
+no iOS passa a **enviar** o login em app nesta versão; em app com kmplib < 2.239.0 ele só baixa o
+teclado. O flow tem de servir aos dois: depois do Enter, tocar em `login-btn-entrar` **se o
+formulário ainda está na tela**, e sem reprovar se a tela já trocou —
+
+```yaml
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: Enter
+      - runFlow:
+          when:
+            visible:
+              id: "login-input-senha"
+          commands:
+            - scrollUntilVisible:
+                element:
+                  id: "login-btn-entrar"
+                direction: DOWN
+                optional: true
+            - tapOn:
+                id: "login-btn-entrar"
+                optional: true
+```
+
+O Android não muda (`pressKey: back`/`hideKeyboard` + toque no botão, obrigatório). Flow que só faz
+o Enter e espera a Home quebra em app antigo; flow que faz Enter + toque OBRIGATÓRIO quebra em app
+novo (a Home já abriu e o botão não existe mais). A `casca-mobile` e os flows do portfólio já estão
+no padrão acima.
+
 ## 2.238.0 — Modo automação: build de teste nunca pede avaliação (`AutomationMode`)
 
 Minor, **aditiva**. Origem: teste do agente de 02/out/2026, Chamada Fácil — o `AppReviewDialog`,
@@ -62,6 +110,7 @@ tela e torce para o layout reagir — em tela Compose, não reage. A documentaç
 - **Login da lib** (`LoginScreen`): não há barra superior; no iOS o flow usa `pressKey: Enter` com a
   SENHA focada — o campo é `ImeAction.Done` sem `keyboardActions` próprio, e a ação padrão do Compose
   para Done é baixar o teclado (não envia o formulário).
+  **⚠️ Desde a 2.239.0 o Done da senha ENVIA o login** — o padrão do flow está na nota daquela versão.
 - Padrão do flow (Android segue com `hideKeyboard`, que lá é o "voltar" do sistema e é confiável):
   `runFlow` com `when: { platform: Android }` → `hideKeyboard`; `when: { platform: iOS }` →
   `tapOn: { id: "topbar-titulo" }`. Comandos **inline** (`commands:`), não `file:` — vários runners

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import br.com.codecacto.kmplib.auth.AuthIdentifierMode
 import androidx.compose.material.icons.filled.Person
@@ -98,6 +99,17 @@ data class LoginTexts(
     /** O "e" entre "Termos de Uso" e "Política de Privacidade" (2.219.0 — era " e " fixo). Sem espaços: a tela os põe. */
     val andText: @Composable () -> String = { stringResource(Res.string.kmplib_and) },
 )
+
+/**
+ * O que o **"Concluído" do teclado** faz no campo de senha da [LoginScreen]: a MESMA ação do botão
+ * Entrar, e só quando o botão também a aceitaria — durante o envio (`isLoading`) o botão está
+ * desabilitado, e o teclado não pode ser o caminho de um segundo envio.
+ *
+ * É função pura de propósito: a regra "o teclado envia o que o botão envia" fica travada por teste
+ * de unidade (`LoginImeDoneActionTest`), sem depender de teste de UI.
+ */
+internal fun loginImeDoneAction(state: LoginState): LoginAction? =
+    if (state.isLoading) null else LoginAction.Click.Login
 
 /**
  * Tela de login stateless que aceita estado externo
@@ -260,6 +272,16 @@ fun LoginScreen(
                             leadingIcon = Icons.Default.Lock,
                             isPassword = true,
                             imeAction = ImeAction.Done,
+                            // O "Concluído" do teclado na senha ENVIA o login — é o último campo do
+                            // formulário, e é o que Android e iOS fazem (2.239.0). Antes o Done só
+                            // baixava o teclado: a pessoa terminava de digitar, tocava em Concluído
+                            // e nada acontecia. `defaultKeyboardAction` mantém o teclado baixando.
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    defaultKeyboardAction(ImeAction.Done)
+                                    loginImeDoneAction(state)?.let(onAction)
+                                }
+                            ),
                             errorMessage = state.passwordError,
                             primaryColor = colors.primary,
                             borderColor = colors.border,
