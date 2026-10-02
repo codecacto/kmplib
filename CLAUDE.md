@@ -252,13 +252,11 @@ Mudanças importantes:
 
 ## Dependências Nativas iOS
 
-Projetos consumidores precisam adicionar via SPM:
-
-| Package | URL |
-|---------|-----|
-| Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` |
-| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` |
-| Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` |
+Projetos consumidores adicionam via SPM — com o guarda-chuva, **todos** (o cinterop da lib exige no
+link, mesmo sem usar): `Sentry` (versão exata), `FirebaseAuth`, `FirebaseStorage`,
+`FirebaseRemoteConfig`, **`FirebaseMessaging`** (KMPNotifier), `RevenueCat`, `PurchasesHybridCommon`;
+`GoogleSignIn` só com login Google nativo. Tabela, URLs e o mapa símbolo → produto do *Undefined
+symbols*: `IOS_INTEGRATION.md` (revisado na 2.233.0).
 
 ## Documentação Adicional
 
@@ -271,7 +269,8 @@ Projetos consumidores precisam adicionar via SPM:
 Projeto consumidor não está usando `api()` + `export()`.
 
 ### "Undefined symbols for architecture arm64"
-Faltam dependências SPM no Xcode (Firebase, RevenueCat).
+Falta produto SPM no target — o símbolo diz qual (`FIRMessaging` → `FirebaseMessaging`, `RC…` →
+`RevenueCat`/`PurchasesHybridCommon`, `Sentry…` → `Sentry`). Tabela em `IOS_INTEGRATION.md`.
 
 ### "cannot convert KotlinUnit to Void"
 Usar `_ = callback(...)` no Swift.

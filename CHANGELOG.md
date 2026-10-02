@@ -1,5 +1,58 @@
 # Changelog — kmplib
 
+## 2.233.0 — A compra pela loja amarrada à conta logada, e o dublê da loja travado pela variante
+
+Minor, **aditiva**. Origem: lições da 3ª leva (02/out/2026) que cada app remendava à mão — a compra
+saía ANÔNIMA quando o app esquecia `identify`/`resetIdentity` (Folha de Axé, Arroba Certa, Minha
+Despensa; 5 apps e a casca com cópias de `StoreIdentity`), e a trava do dublê de QA passava por
+abreviação de tarefa (`aR`) e por `Release-<flavor>` no Xcode (Diária Certa). Fecha **GAP-MON-IDENT-01**.
+
+- **`kmplib-monetization` — identidade da loja amarrada à sessão (`StoreIdentityBinder`).**
+  `MonetizationManager.bindIdentity(auth: IAuthRepository, alerts, subjectOf = { it.id })` (uma linha na
+  raiz do app, suspende enquanto a sessão emitir) e `bindIdentity(subjectIds: Flow<String?>, alerts)`
+  (multi-tenant: o id da ORGANIZAÇÃO), `syncIdentity(subjectId)` (pontual) e a porta
+  **`ensureIdentityForPurchase(): StoreIdentityStatus`** (`BOUND`/`UNMANAGED`/`NO_STORE`/`NO_SUBJECT`/
+  `MISMATCH`, `allowsPurchase`). Regras: identifica no login e na sessão restaurada; anonimiza quando o
+  sujeito SOME (logout, conta excluída, refresh expirado) — abrir sem sessão não chama a loja; tudo
+  serializado por `Mutex`; a porta compara **igualdade** com a conta logada (não "não é anônimo": com
+  reset e identify falhando em sequência a loja seguiria na conta ANTERIOR do aparelho), tenta
+  identificar de novo antes de responder e recusa id reservado/anônimo. O sujeito já declarado entra
+  na **configuração** do SDK quando a loja é inicializada depois (`appUserID` — o caminho recomendado
+  pela RevenueCat), validado por `PurchaseIdentity.check`.
+- **`PaywallViewModel` recusa comprar/restaurar** quando a porta não libera (novo parâmetro
+  `identityGate`, default `MonetizationManager::ensureIdentityForPurchase`), com a mensagem
+  `PaywallMessages.identityUnconfirmed` (`kmplib_paywall_identity_unconfirmed`, 4 idiomas). Porta que
+  lança também recusa. **App que não declarou a identidade (`UNMANAGED`, app sem conta) compra como
+  sempre** — nada muda para quem não chama `bindIdentity`.
+- **Alertas novos**: `PaymentAlertKind.IdentificacaoNaLojaFalhou` (identify recusado — rede e build sem
+  loja não alertam) e `CompraSemIdentidade` (compra recusada pela porta). `detalhe` só com o motivo
+  tipado — o id da conta não sai do aparelho.
+- **Novo artefato `br.com.codecacto:kmplib-gradle-plugin`** (build próprio em `gradle-plugin/`, mesma
+  versão da lib, publicado junto pelo `publishToMavenLocal`/Central da raiz) com o plugin
+  **`br.com.codecacto.kmplib.store-double`**: lê `-Pqa.paywallDemo=true`/`QA_PAYWALL_DEMO=1`, expõe
+  `kmplibStoreDouble.enabled` e **reprova na execução** qualquer build publicável com o dublê —
+  variante Android de build type **não-debuggable** (guarda antes do `pre<Variante>Build`: `assemble`,
+  `bundle`, `build`, `publish`, abreviações, flavors), link Kotlin/Native **RELEASE** e o Xcode com
+  `CONFIGURATION` `Release*`, `KOTLIN_FRAMEWORK_BUILD_TYPE=release` ou `ACTION=install` (Archive). O
+  build de QA (debug) segue passando. App aplica com `alias(libs.plugins.kmplib.storeDouble)` e resolve
+  por `pluginManagement { includeBuild(<kmplib>/gradle-plugin) }` (ou mavenLocal/Central).
+- **`IOS_INTEGRATION.md` corrigido**: `FirebaseMessaging` é obrigatório com o guarda-chuva (cinterop do
+  KMPNotifier, com ou sem push), `PurchasesHybridCommon` na tabela, `FirebaseCore` vem junto, tabela
+  símbolo → produto no *Undefined symbols*, checklist com `export` granular (o `export(libs.kmplib)`
+  da seção Gradle era anterior à 2.163.0).
+
+Testes: `StoreIdentityBinderTest` (18) e 5 novos no `PaywallViewModelTest` (porta recusa compra e
+restauração, `UNMANAGED` compra, exceção recusa); `kmplib-gradle-plugin`: `StoreDoubleRulesTest` (6) +
+`StoreDoublePluginFunctionalTest` (6, TestKit com AGP 8.11 + Kotlin 2.3 reais e configuration cache:
+release e flavor-release por abreviação reprovam, debug passa, link nativo release ganha a guarda,
+Xcode `Release-<flavor>` reprova e `Debug` passa). Suíte `testDebugUnitTest`: 3.174 testes, 0 falhas;
+`:kmplib-monetization:compileKotlinIosArm64` executado (não SKIPPED).
+**Não é aviso**: aditivo e opt-in — quem não chama `bindIdentity` segue igual; a casca já nasce com
+as duas peças. Plano para os apps que têm cópia (Backhand, Acervo, TaFeito, PalpiteCerto, Meu Fisio,
+ChecklistVeicular, ControleDeValidade…): trocar a cópia por `bindIdentity` + o paywall da lib (ou
+`ensureIdentityForPurchase` no paywall próprio) e o bloco de trava pelo plugin, **quando cada um for
+tocado** (baseline).
+
 ## 2.232.0 — Publicidade com prova automatizada: ids de "o anúncio APARECEU" para o Maestro
 
 Minor, **aditiva** (+ uma correção de automação). Origem: pedido do fundador (02/out/2026) — antes da

@@ -199,6 +199,7 @@
     <!-- PaywallViewModel (2.224.0) — o %1$s do selo recebe o percentual JA com o sinal ("33%"): %% nao desescapa igual no iOS -->
     <string name="kmplib_paywall_nothing_to_restore">No se encontraron compras para restaurar.</string>
     <string name="kmplib_paywall_unavailable">Suscripción no disponible en este momento.</string>
+    <string name="kmplib_paywall_identity_unconfirmed">No pudimos vincular la compra a tu cuenta. Inténtalo de nuevo en unos instantes.</string>
     <string name="kmplib_paywall_savings">Ahorra %1$s</string>
     <string name="kmplib_paywall_start_trial">Probar %1$s gratis</string>
     <string name="kmplib_paywall_trial_terms">Gratis durante %1$s, luego %2$s. Se renueva automáticamente; cancela cuando quieras.</string>

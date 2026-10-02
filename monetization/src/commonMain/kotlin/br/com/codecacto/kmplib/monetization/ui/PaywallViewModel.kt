@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.screens.paywall
 
 import androidx.lifecycle.viewModelScope
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.monetization.alert.PaymentAlertKind
 import br.com.codecacto.kmplib.monetization.alert.PaymentAlertReporter
 import br.com.codecacto.kmplib.monetization.entitlement.EntitlementProvider
@@ -10,6 +11,7 @@ import br.com.codecacto.kmplib.monetization.entitlement.PlansResult
 import br.com.codecacto.kmplib.monetization.entitlement.PurchaseOutcome
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
+import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityStatus
 import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import br.com.codecacto.kmplib.monetization.purchase.isPaymentIncident
 import br.com.codecacto.kmplib.monetization.purchase.userMessage
@@ -69,12 +71,16 @@ import kotlinx.coroutines.launch
  * @param entitlementProvider a loja. App que inicializa o `MonetizationManager` sozinho (depois do
  *   login) usa `PurchaseManagerEntitlementProvider()`; os demais, `createEntitlementProvider(config)`.
  * @param loadMessages textos fora da composição; o default lê o idioma da tela. Teste passa um fixo.
+ * @param identityGate a porta da compra (2.233.0): só segue para a loja se a loja está com a conta
+ *   logada. O default é `MonetizationManager.ensureIdentityForPurchase()` — que só recusa quando o app
+ *   declarou a identidade (`MonetizationManager.bindIdentity`); app sem conta compra como sempre.
  */
 class PaywallViewModel(
     private val entitlementProvider: EntitlementProvider,
     private val config: PaywallConfig,
     private val paymentAlerts: PaymentAlertReporter,
     private val loadMessages: suspend () -> PaywallMessages = ::loadPaywallMessages,
+    private val identityGate: suspend () -> StoreIdentityStatus = { MonetizationManager.ensureIdentityForPurchase() },
 ) : BaseViewModel<PaywallHostState, PaywallHostAction, PaywallHostEffect>(PaywallHostState()) {
 
     private var cachedMessages: PaywallMessages? = null
@@ -324,6 +330,7 @@ class PaywallViewModel(
             )
         }
         viewModelScope.launch {
+            if (!identityAllowsPurchase()) return@launch
             finish(entitlementProvider.purchasePackage(packageId, withoutFreeTrial), PaymentAlertKind.CompraFalhou)
         }
     }
@@ -334,8 +341,32 @@ class PaywallViewModel(
             copy(paywall = paywall.copy(isPurchasing = true, purchasingPlanId = null, error = null))
         }
         viewModelScope.launch {
+            if (!identityAllowsPurchase()) return@launch
             finish(entitlementProvider.restore(), PaymentAlertKind.RestauracaoFalhou)
         }
+    }
+
+    /**
+     * A porta da identidade antes de compra e restauração: com a loja anônima ou na conta anterior do
+     * aparelho, a assinatura iria para outra pessoa (ou para ninguém). Recusa com mensagem na tela; o
+     * alerta (`CompraSemIdentidade`) já saiu da porta. Falha inesperada da porta também recusa — na
+     * dúvida sobre de quem é a compra, não se vende.
+     */
+    private suspend fun identityAllowsPurchase(): Boolean {
+        val status = try {
+            identityGate()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "porta da identidade falhou (${e::class.simpleName})")
+            StoreIdentityStatus.MISMATCH
+        }
+        if (status.allowsPurchase) return true
+        val m = messages()
+        setState {
+            copy(paywall = paywall.copy(isPurchasing = false, purchasingPlanId = null, error = m.identityUnconfirmed))
+        }
+        return false
     }
 
     private suspend fun finish(outcome: PurchaseOutcome, failureKind: PaymentAlertKind) {

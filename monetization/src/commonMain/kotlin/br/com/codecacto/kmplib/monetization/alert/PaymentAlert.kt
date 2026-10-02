@@ -106,6 +106,31 @@ enum class PaymentAlertKind(
         titulo = "PAGAMENTO: verificação da resposta da loja falhou (possível adulteração)",
         nivel = CrashLevel.Error,
     ),
+
+    /**
+     * **Identidade da loja (2.233.0).** O `identify` da conta logada foi recusado pela loja (id
+     * inválido, loja fora, repositório sem suporte) — `StoreIdentityBinder`. Rede e build sem loja
+     * **não** entram: são transitórios/estado válido, e a porta da compra tenta de novo.
+     *
+     * Enquanto isso durar, a compra dessa pessoa é recusada pela porta ([CompraSemIdentidade]) — é
+     * dinheiro que não entra, por isso `Error`.
+     */
+    IdentificacaoNaLojaFalhou(
+        slug = "identificacao_na_loja_falhou",
+        titulo = "PAGAMENTO: a loja recusou identificar a conta logada",
+        nivel = CrashLevel.Error,
+    ),
+
+    /**
+     * **Identidade da loja (2.233.0).** A compra (ou restauração) foi **recusada** porque a loja não
+     * estava com a conta logada — seguia anônima ou com a conta anterior do aparelho — mesmo depois de
+     * tentar de novo. Vender ali entregaria a assinatura a outra pessoa (ou a ninguém).
+     */
+    CompraSemIdentidade(
+        slug = "compra_sem_identidade",
+        titulo = "PAGAMENTO: compra recusada — loja não identificada com a conta logada",
+        nivel = CrashLevel.Error,
+    ),
 }
 
 /**

@@ -207,6 +207,8 @@ sqldelight-dialect-sqlite = { module = "app.cash.sqldelight:sqlite-3-38-dialect"
 # e o build-logic nunca divergem de versão de plugin.
 plugin-kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 plugin-android-gradle = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+# API pública do AGP (Variant API/DSL) — compileOnly do `kmplib-gradle-plugin`.
+plugin-android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
 plugin-compose-multiplatform = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
 plugin-compose-compiler = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 plugin-maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "vanniktechMavenPublish" }
@@ -215,6 +217,7 @@ plugin-maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", 
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

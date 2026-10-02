@@ -10,11 +10,15 @@
       `testTagsAsResourceId` da raiz — o conteúdo se embrulha em `WithTestTagsAsResourceId`. Em 02/out só o
       `CustomInterstitialAd` tinha tag dentro de diálogo (corrigido na 2.232.0); todo diálogo da lib que ganhar
       `testTag` daqui em diante segue a mesma regra.
-- [ ] **GAP-MON-IDENT-01 (P2) — amarrar a identidade da loja à sessão** (`monetization`): a cola "identify no login,
-      resetIdentity no logout" está escrita à mão em 5 apps (Backhand `IdentidadeNaLoja`, Acervo `BillingIdentity`,
-      TaFeito, PalpiteCerto, Meu Fisio) e, desde 02/out, na casca (`core/monetization/StoreIdentity.kt`,
-      `syncStoreIdentity(userIds, identify, reset)` + `storeIdentityChange`, testados). Promover para
-      `MonetizationManager.bindIdentity(userIds: Flow<String?>)` com a mesma regra (null→null não chama a loja).
+- [x] **GAP-MON-IDENT-01 (P2) — amarrar a identidade da loja à sessão** (`monetization`): a cola "identify no login,
+      resetIdentity no logout" estava escrita à mão em 5 apps (Backhand `IdentidadeNaLoja`, Acervo `BillingIdentity`,
+      TaFeito, PalpiteCerto, Meu Fisio), nos repasses da 3ª leva (ChecklistVeicular, ControleDeValidade) e na casca.
+      ✅ **2.233.0** — `MonetizationManager.bindIdentity(auth|Flow, alerts)` + porta `ensureIdentityForPurchase()`
+      (igualdade com a conta logada), `PaywallViewModel` recusando sem ela. Junto: plugin
+      `br.com.codecacto.kmplib.store-double` (trava do dublê pela variante) e `IOS_INTEGRATION.md` corrigido.
+- [ ] **GAP-QA-DEMO-01 (P3) — o plugin `store-double` gerar o catálogo de demonstração** (`monetizacao.yaml` →
+      `PlanosDeDemonstracao.kt`) e trocar o `srcDir` `*QaDemo`/`*QaNoop` sozinho. Hoje ~60 linhas disso seguem
+      copiadas no `build.gradle.kts` de cada app (casca → apps). Só a trava subiu na 2.233.0.
 
 ### Registrado nesta rodada (29/set/2026) — origem: design do **Folha de Axé** (`8-Sistemas-Portal-App/FolhaDeAxe/docs/design/wireframes.md` §16)
 > Nenhum bloqueia o projeto (contorno local mínimo em cada um). Par web em `Lib/weblib/docs/backlog.md`.

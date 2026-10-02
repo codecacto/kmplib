@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
 import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_identity_unconfirmed
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_nothing_to_restore
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_savings
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_unavailable
@@ -201,6 +202,8 @@ data class PaywallMessages(
     val unavailable: String = "Assinatura indisponível no momento.",
     /** Modelo com `%1$s` = o percentual JÁ com o sinal ("33%"). */
     val savingsTemplate: String = "Economize %1\$s",
+    /** Compra/restauração recusada: a loja não ficou com a conta logada (2.233.0). */
+    val identityUnconfirmed: String = "Não foi possível vincular a compra à sua conta. Tente de novo em instantes.",
 ) {
     /** "Economize 33%". O `%` vai no argumento: `%%` na string não desescapa igual no iOS. */
     fun savingsLabel(percent: Int): String = savingsTemplate.replace("%1\$s", "$percent%")
@@ -213,6 +216,7 @@ suspend fun loadPaywallMessages(): PaywallMessages {
             nothingToRestore = getString(Res.string.kmplib_paywall_nothing_to_restore),
             unavailable = getString(Res.string.kmplib_paywall_unavailable),
             savingsTemplate = getString(Res.string.kmplib_paywall_savings),
+            identityUnconfirmed = getString(Res.string.kmplib_paywall_identity_unconfirmed),
         )
     } catch (e: CancellationException) {
         throw e

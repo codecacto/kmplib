@@ -13,6 +13,7 @@ import br.com.codecacto.kmplib.monetization.purchase.FreeTrialUnit
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackageType
+import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityStatus
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import br.com.codecacto.kmplib.observability.CrashLevel
@@ -67,7 +68,11 @@ private class FakeStore(
         if (purchaseResult == PurchaseOutcome.Ativado) _isPremium.value = true
         return purchaseResult
     }
-    override suspend fun restore(): PurchaseOutcome = restoreResult
+    var restoreCount = 0
+    override suspend fun restore(): PurchaseOutcome {
+        restoreCount++
+        return restoreResult
+    }
 
     /** Offerings por id — o "sem trial" da opção B do iOS. */
     var offeringsById: Map<String, OfferingsOutcome> = emptyMap()
@@ -176,6 +181,7 @@ class PaywallViewModelTest {
         storeHighlights: (Int) -> List<String> = { emptyList() },
         onActivated: suspend () -> Unit = {},
         trialPolicy: PaywallTrialPolicy = PaywallTrialPolicy(),
+        identityGate: suspend () -> StoreIdentityStatus = { StoreIdentityStatus.UNMANAGED },
     ) = PaywallViewModel(
         entitlementProvider = store,
         config = PaywallConfig(
@@ -190,6 +196,7 @@ class PaywallViewModelTest {
         ),
         paymentAlerts = PaymentAlertReporter(crash, projeto = "teste", umaVezPorSessao = false),
         loadMessages = { PaywallMessages() },
+        identityGate = identityGate,
     )
 
     private val PaywallViewModel.paywall get() = state.value.paywall
@@ -752,5 +759,59 @@ class PaywallViewModelTest {
         assertEquals("7 dias", vm.paywall.plans.single().trial?.periodLabel)
         vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
         assertEquals(false, store.purchasedWithoutFreeTrial)
+    }
+
+    // ------------------------------------------------------------ porta da identidade (2.233.0)
+
+    @Test
+    fun `loja fora da conta logada recusa a compra sem chamar a loja`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)))
+        val vm = viewModel(store, identityGate = { StoreIdentityStatus.MISMATCH })
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+
+        assertNull(store.purchasedPackageId)
+        assertFalse(vm.paywall.isPurchasing)
+        assertFalse(vm.paywall.isPremium)
+        assertEquals(PaywallMessages().identityUnconfirmed, vm.paywall.error)
+    }
+
+    @Test
+    fun `sem ninguem logado a restauracao e recusada`() {
+        val store = FakeStore(restoreResult = PurchaseOutcome.Ativado)
+        val vm = viewModel(store, identityGate = { StoreIdentityStatus.NO_SUBJECT })
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.Restore))
+        assertEquals(0, store.restoreCount)
+        assertEquals(PaywallMessages().identityUnconfirmed, vm.paywall.error)
+        assertFalse(vm.paywall.isPremium)
+    }
+
+    @Test
+    fun `loja identificada com a conta logada compra normalmente`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)))
+        val vm = viewModel(store, identityGate = { StoreIdentityStatus.BOUND })
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(MENSAL.packageId, store.purchasedPackageId)
+        assertTrue(vm.paywall.isPremium)
+    }
+
+    @Test
+    fun `app sem conta (identidade nao declarada) compra como sempre`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)))
+        val vm = viewModel(store, identityGate = { StoreIdentityStatus.UNMANAGED })
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(MENSAL.packageId, store.purchasedPackageId)
+    }
+
+    @Test
+    fun `porta que falha por excecao recusa — na duvida de quem e a compra nao se vende`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)))
+        val vm = viewModel(store, identityGate = { error("boom") })
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertNull(store.purchasedPackageId)
+        assertEquals(PaywallMessages().identityUnconfirmed, vm.paywall.error)
     }
 }

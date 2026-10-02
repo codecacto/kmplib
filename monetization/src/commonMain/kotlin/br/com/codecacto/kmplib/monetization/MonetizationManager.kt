@@ -1,6 +1,10 @@
 package br.com.codecacto.kmplib.monetization
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
+import br.com.codecacto.kmplib.firebase.auth.User
+import br.com.codecacto.kmplib.monetization.alert.PaymentAlertReporter
+import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
@@ -9,16 +13,22 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityError
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityException
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
+import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityBinder
+import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityGateway
+import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityStatus
 import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
 import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 /**
  * Orquestrador central de monetizacao.
@@ -109,7 +119,15 @@ object MonetizationManager {
         _shouldShowAds.value = config.shouldShowAds(isPremium = false)
 
         config.purchaseConfig?.let { purchase ->
-            PurchaseManager.initialize(purchase, userId)
+            // O sujeito que o app já declarou ([bindIdentity]) entra na CONFIGURAÇÃO do SDK — é o
+            // jeito recomendado pelo fornecedor, e evita nascer um id anônimo só para trocá-lo em
+            // seguida. Ver `StoreIdentityBinder`.
+            // Sujeito inválido para a loja (reservado, anônimo do SDK) não entra na configuração: o SDK
+            // nasce anônimo, o `identify` da porta da compra recusa com alerta, e nada se vende.
+            val declared = userId ?: storeIdentity.subject.value
+                ?.let { (PurchaseIdentity.check(it) as? AppUserIdCheck.Valid)?.appUserId }
+            PurchaseManager.initialize(purchase, declared)
+            if (storeIdentity.isManaged) scope.launch { storeIdentity.reconcile() }
             PurchaseManager.subscriptionState.onEach { info ->
                 _isPremium.value = info.isActive
                 _shouldShowAds.value = config.shouldShowAds(info.isActive)
@@ -218,6 +236,61 @@ object MonetizationManager {
      */
     suspend fun resetIdentity(): Result<Unit> = PurchaseManager.resetIdentity()
 
+    // ---------------------------------------------------------------------------------------------
+    // Identidade da loja amarrada à sessão (2.233.0, GAP-MON-IDENT-01). Ver `StoreIdentityBinder`.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * A instância única do processo — a loja é uma só, e a trava que serializa login/logout/compra
+     * também tem de ser.
+     */
+    val storeIdentity: StoreIdentityBinder = StoreIdentityBinder(
+        object : StoreIdentityGateway {
+            override suspend fun identify(appUserId: String) = PurchaseManager.identify(appUserId)
+            override suspend fun resetIdentity() = PurchaseManager.resetIdentity()
+            override fun currentAppUserId() = PurchaseManager.currentAppUserId()
+        },
+    )
+
+    /**
+     * **Amarra a loja à sessão — o jeito oficial, uma linha na raiz do app.** Identifica no login (e
+     * na sessão restaurada), anonimiza no logout (inclusive o forçado por refresh expirado), tudo
+     * serializado. Suspende enquanto [auth] emitir: chame em `LaunchedEffect(Unit)` na raiz.
+     *
+     * ```kotlin
+     * LaunchedEffect(Unit) { MonetizationManager.bindIdentity(authRepository, alerts = paymentAlerts) }
+     * ```
+     *
+     * Com isto declarado, o `PaywallViewModel` da lib **recusa comprar/restaurar** quando a loja não
+     * está com a conta logada ([ensureIdentityForPurchase]). Paywall próprio chama a porta à mão.
+     *
+     * @param subjectOf quem assina, a partir do usuário: a conta (`User.id`, default). Produto
+     *   multi-tenant em que assina a ORGANIZAÇÃO usa a sobrecarga de `Flow` com o id da organização.
+     * @param alerts alertas de pagamento (`IdentificacaoNaLojaFalhou`, `CompraSemIdentidade`).
+     */
+    suspend fun bindIdentity(
+        auth: IAuthRepository,
+        alerts: PaymentAlertReporter? = null,
+        subjectOf: (User) -> String? = { it.id },
+    ) = storeIdentity.bind(auth.currentUser.map { user -> user?.let(subjectOf) }, alerts)
+
+    /**
+     * Variante por [Flow] — o id de QUEM ASSINA (`null` = ninguém logado). É a forma do multi-tenant:
+     * `bindIdentity(sessao.map { it?.organizacaoId })`. Ver [bindIdentity].
+     */
+    suspend fun bindIdentity(subjectIds: Flow<String?>, alerts: PaymentAlertReporter? = null) =
+        storeIdentity.bind(subjectIds, alerts)
+
+    /** Aplica um sujeito pontualmente (app que já observa a sessão). Ver `StoreIdentityBinder.sync`. */
+    suspend fun syncIdentity(subjectId: String?) = storeIdentity.sync(subjectId)
+
+    /**
+     * **Porta da compra e da restauração**: tenta identificar de novo e responde se a loja pode vender
+     * para a conta logada. Só [StoreIdentityStatus.allowsPurchase] segue; o resto vira mensagem na
+     * tela ("não foi possível vincular a compra à sua conta"). O `PaywallViewModel` já chama sozinho.
+     */
+    suspend fun ensureIdentityForPurchase(): StoreIdentityStatus = storeIdentity.ensureForPurchase()
+
     /**
      * App user id corrente na loja — para log/diagnóstico ("identifiquei quem?"). `null` sem loja
      * configurada; anônimo devolve o id do próprio SDK (ver [PurchaseIdentity.isAnonymous]).
@@ -231,5 +304,6 @@ object MonetizationManager {
         _isPremium.value = false
         _shouldShowAds.value = false
         PurchaseManager.reset()
+        storeIdentity.reset()
     }
 }

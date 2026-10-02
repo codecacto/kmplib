@@ -30,6 +30,11 @@ rootProject.name = "kmplib-build"
 // =============================================================================
 includeBuild("build-logic")
 
+// O plugin Gradle que o APP aplica (`br.com.codecacto.kmplib.store-double`, 2.233.0). Build próprio
+// (ver gradle-plugin/settings.gradle.kts); incluído aqui só para o `publishToMavenLocal`/Central da
+// lib publicá-lo junto, na MESMA versão — ver o build.gradle.kts raiz.
+includeBuild("gradle-plugin")
+
 // =============================================================================
 // Módulos da lib
 // =============================================================================
