@@ -456,6 +456,8 @@ fun LoginScreen(
             // Painel de marca só em EXPANDIDA (GAP-NCX-T-01). Em telefone e tablet-retrato ele é
             // IGNORADO, não empilhado: um lockup em cima do formulário empurraria os campos para
             // fora da tela justamente onde a tela é escassa.
+            // Barras do sistema + recorte da câmera, sem o teclado (esse é do `imePadding`). (2.235.0)
+            val insetsDoFormulario = WindowInsets.systemBars.union(WindowInsets.displayCutout)
             if (brandPanel != null && LocalWindowSizeClass.current == WindowSizeClass.EXPANDIDA) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Box(
@@ -468,13 +470,22 @@ fun LoginScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .weight(1f - FormDefaults.BrandPanelFraction),
+                            .weight(1f - FormDefaults.BrandPanelFraction)
+                            .windowInsetsPadding(
+                                insetsDoFormulario.only(WindowInsetsSides.Vertical + WindowInsetsSides.End),
+                            ),
                     ) {
                         formulario(true)
                     }
                 }
             } else {
-                formulario(false)
+                // Tela cheia (destino de navegação, sem Scaffold): o fundo do Surface vai de borda a
+                // borda e o formulário respeita status bar, barra de gestos e recorte — com o
+                // edge-to-edge forçado no Android 15 (e sempre no iOS) o fim da rolagem ficava sob a
+                // barra de gestos. `imePadding` do FormContainer desconta o que já foi aplicado aqui.
+                Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(insetsDoFormulario)) {
+                    formulario(false)
+                }
             }
 
             // Dialog esqueci senha

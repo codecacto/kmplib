@@ -1,5 +1,40 @@
 # Changelog — kmplib
 
+## 2.235.0 — Barras da lib respeitam o edge-to-edge (status bar, barra de gestos, notch)
+
+Minor, **aditiva**. Origem: Chamada Fácil no Android (02/out/2026) — o título da Home nascia sob o
+relógio. Com `targetSdk` 35+ o Android 15 **força** o edge-to-edge (e o Compose no iOS sempre desenha sob
+o notch e o home indicator): `TopAppBar`/`NavigationBar` do Material aplicam o inset sozinhos, mas uma
+barra feita de `Row`/`Box`/`Column`/`Surface` não — e compila verde. A varredura da lib achou o mesmo
+defeito nela:
+
+- **`AdaptiveScaffold`** — a barra de abas de telefone (`Row` própria no `bottomBar`) ficava sob a barra de
+  gestos: agora aplica `WindowInsets.navigationBars` (fundo atrás, itens acima). O **rail** de tablet
+  pinta atrás da status bar/barra de navegação e começa abaixo/acima delas (e depois da barra de 3 botões
+  ou do recorte na borda inicial, em paisagem); o `Scaffold` ao lado **consome** a borda inicial para não
+  somá-la de novo.
+- **`ConnectivityGate` (`ConnectivityStyle.Banner`)** — o banner "sem conexão" fica no topo da janela e
+  nascia sob a status bar. Agora aplica a status bar dentro do próprio fundo e o app embaixo a recebe como
+  **consumida** enquanto o banner aparece (sem vão duplo sob a `TopAppBar` da tela).
+- **`OfflineBanner(…, windowInsets = WindowInsets(0))`** — parâmetro novo, nas duas sobrecargas: o inset
+  aplicado DENTRO do fundo. Default = nenhum (no meio do conteúdo não deve somar status bar); no topo da
+  janela, passe `WindowInsets.statusBars`.
+- **`ManagedBannerAd`** desligado (`AdProvider.OFF`) reserva a barra de navegação, como o `CustomBannerAd`
+  já fazia: o `Spacer` de altura zero no `bottomBar` zerava o padding inferior do `Scaffold` e o último
+  item da lista passava sob a barra de gestos.
+- **`LoginScreen`/`RegisterScreen`, `HardUpdateScreen`, `MaintenanceScreen` (platform)** — telas cheias
+  sem `Scaffold`: o conteúdo respeita barras do sistema e recorte (`systemBars ∪ displayCutout`/
+  `safeDrawing`); o fundo continua de borda a borda. O `imePadding` do `FormContainer` desconta o que já
+  foi aplicado.
+- **Teste-trava** `BarrasRespeitamInsetsTest` (`kmplib-ui` androidUnitTest): varre os fontes de todos os
+  módulos e reprova slot `topBar`/`bottomBar` feito de layout cru sem inset; confere as barras acima.
+
+**Para o APP (o que a lib não alcança):** barra PRÓPRIA no `topBar` → `.background(cor)` e DEPOIS
+`.windowInsetsPadding(WindowInsets.statusBars)` (ou `TopAppBarDefaults.windowInsets`); no `bottomBar` →
+`WindowInsets.navigationBars`; tela cheia sem `Scaffold` → `WindowInsets.safeDrawing`. O `padding` que o
+`Scaffold` passa ao conteúdo já inclui a altura da barra — não somar inset de novo. E `enableEdgeToEdge()`
+na `MainActivity` (a `casca-mobile` já nasce com ele).
+
 ## 2.234.0 — Diálogos, folhas e menus da lib visíveis ao Maestro (ids `dialogo-*`)
 
 Minor, **aditiva**. Origem: teste do Mac no Palpite Certo (02/out/2026) — no Android todo diálogo da lib

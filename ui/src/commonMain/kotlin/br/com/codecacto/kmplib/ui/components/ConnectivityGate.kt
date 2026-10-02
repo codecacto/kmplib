@@ -13,6 +13,9 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -315,12 +318,25 @@ fun ConnectivityGate(
 
         ConnectivityStyle.Banner -> {
             Column(modifier.fillMaxSize()) {
+                // O banner fica no TOPO da janela, acima do app: com edge-to-edge (forçado no
+                // Android 15; sempre no iOS) o texto nascia sob a status bar. Ele aplica o inset
+                // dentro do próprio fundo, e o app embaixo recebe a status bar como JÁ consumida
+                // enquanto o banner aparece — senão a `TopAppBar` da tela somaria a mesma faixa de
+                // novo, deixando um vão. Online, nada é consumido e o app volta a ser dono do topo.
                 OfflineBanner(
                     isOnline = isOnline,
                     text = texts.bannerText,
                     modifier = Modifier.fillMaxWidth(),
+                    windowInsets = WindowInsets.statusBars,
                 )
-                content()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .then(if (isOnline) Modifier else Modifier.consumeWindowInsets(WindowInsets.statusBars)),
+                ) {
+                    content()
+                }
             }
         }
 

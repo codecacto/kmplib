@@ -7,6 +7,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -96,6 +105,7 @@ fun AdaptiveScaffold(
     // Tablet: a navegação vira coluna à esquerda e o conteúdo ocupa o resto. O `Row` externo é o que
     // faz o rail e o conteúdo dividirem a ALTURA — num `Scaffold` com `bottomBar` eles dividiriam a
     // vertical, que é o layout de telefone esticado.
+    val insetsDoRail = WindowInsets.systemBars.union(WindowInsets.displayCutout)
     Row(modifier = modifier.fillMaxSize()) {
         AdaptiveRail(
             destinations = destinations,
@@ -104,7 +114,12 @@ fun AdaptiveScaffold(
             largo = windowSizeClass == WindowSizeClass.EXPANDIDA,
         )
         Scaffold(
-            modifier = Modifier.fillMaxHeight().weight(1f),
+            // O rail já descontou a borda inicial (barra de navegação de 3 botões em paisagem,
+            // recorte da câmera): o Scaffold não pode somá-la de novo no conteúdo.
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(1f)
+                .consumeWindowInsets(insetsDoRail.only(WindowInsetsSides.Start)),
             topBar = topBar,
             content = content,
         )
@@ -121,6 +136,10 @@ private fun AdaptiveBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            // Barra PRÓPRIA no `bottomBar`: o Scaffold não lhe dá inset nenhum. Com o edge-to-edge
+            // (forçado no Android 15; sempre no iOS) os destinos ficavam sob a barra de gestos / o
+            // home indicator. O fundo pinta atrás dela; os itens começam acima. (2.235.0)
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
@@ -176,6 +195,13 @@ private fun AdaptiveRail(
             .fillMaxHeight()
             .widthIn(min = if (largo) 220.dp else 88.dp)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            // A coluna vai do topo ao rodapé da janela: o fundo pinta atrás da status bar e da barra
+            // de navegação, e os destinos começam abaixo/acima delas — e depois da barra de 3 botões
+            // ou do recorte da câmera, quando eles ficam na borda inicial (paisagem). (2.235.0)
+            .windowInsetsPadding(
+                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Vertical + WindowInsetsSides.Start),
+            )
             // Rolagem própria: com muitos destinos num tablet em retrato, a coluna precisa rolar
             // DENTRO de si mesma — sem isso o último item fica inalcançável.
             .verticalScroll(rememberScrollState())

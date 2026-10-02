@@ -3,6 +3,9 @@ package br.com.codecacto.kmplib.appupdate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -284,7 +287,9 @@ fun MaintenanceScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Box(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            // Tela cheia por cima do app: o conteúdo respeita status bar, barra de gestos e recorte
+            // (edge-to-edge no Android 15 / iOS); o fundo do Surface vai até a borda.
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
             contentAlignment = Alignment.Center,
         ) {
             Column(

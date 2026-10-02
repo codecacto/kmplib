@@ -6,6 +6,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -101,6 +104,9 @@ fun HardUpdateScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // Tela cheia por cima do app: com edge-to-edge (Android 15 / iOS) o conteúdo
+                // respeita status bar, barra de gestos e recorte; o fundo do Surface vai até a borda.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(24.dp),
             contentAlignment = Alignment.Center,
         ) {

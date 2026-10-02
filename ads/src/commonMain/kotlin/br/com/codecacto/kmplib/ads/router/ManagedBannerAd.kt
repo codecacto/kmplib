@@ -1,6 +1,9 @@
 package br.com.codecacto.kmplib.ads.router
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +39,10 @@ fun ManagedBannerAd(
             size = size,
             height = customHeight,
         )
-        AdProvider.OFF -> Spacer(modifier = modifier)
+        // Desligado, o banner continua reservando a barra de gestos / home indicator (2.235.0): no
+        // `bottomBar` do Scaffold, um Spacer de altura zero zerava o padding inferior do conteúdo e
+        // o último item da lista passava por baixo da barra de navegação. Mesmo inset do
+        // [CustomBannerAd], para o rodapé ter a mesma base com o anúncio ligado ou desligado.
+        AdProvider.OFF -> Spacer(modifier = modifier.windowInsetsPadding(WindowInsets.navigationBars))
     }
 }

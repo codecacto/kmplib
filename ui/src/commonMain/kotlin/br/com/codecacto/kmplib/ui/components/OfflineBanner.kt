@@ -8,6 +8,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +34,11 @@ import br.com.codecacto.kmplib.core.network.ConnectivityObserver
  * Banner que aparece quando o app está offline.
  *
  * Overload "puro" — recebe diretamente o estado [isOnline]. Útil para:
+ *
+ * **`windowInsets` (2.235.0):** o inset que o banner aplica DENTRO do próprio fundo. Default = nenhum
+ * (no meio do conteúdo, sob uma `TopAppBar`, ele não deve somar status bar). Quando o banner é a
+ * PRIMEIRA coisa da tela — no topo da janela, acima de tudo, como no `ConnectivityStyle.Banner` —
+ * passe `WindowInsets.statusBars`: o fundo pinta atrás da status bar e o texto fica abaixo dela.
  * - testes (passar valores fixos)
  * - apps que já têm seu próprio observador de conectividade
  *
@@ -44,7 +51,8 @@ fun OfflineBanner(
     modifier: Modifier = Modifier,
     text: String = stringResource(Res.string.kmplib_offline_short),
     backgroundColor: Color = MaterialTheme.colorScheme.errorContainer,
-    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
+    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer,
+    windowInsets: WindowInsets = WindowInsets(0, 0, 0, 0)
 ) {
     AnimatedVisibility(
         visible = !isOnline,
@@ -59,6 +67,9 @@ fun OfflineBanner(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // Dentro do Surface: o fundo do banner pinta atrás da barra do sistema e o texto
+                    // começa depois dela. No `modifier` (fora do Surface) a faixa ficaria sem cor.
+                    .windowInsetsPadding(windowInsets)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
@@ -97,7 +108,8 @@ fun OfflineBanner(
     modifier: Modifier = Modifier,
     text: String = stringResource(Res.string.kmplib_offline_short),
     backgroundColor: Color = MaterialTheme.colorScheme.errorContainer,
-    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
+    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer,
+    windowInsets: WindowInsets = WindowInsets(0, 0, 0, 0)
 ) {
     LaunchedEffect(observer) { observer.start() }
     DisposableEffect(observer) {
@@ -111,6 +123,7 @@ fun OfflineBanner(
         modifier = modifier,
         text = text,
         backgroundColor = backgroundColor,
-        contentColor = contentColor
+        contentColor = contentColor,
+        windowInsets = windowInsets
     )
 }
