@@ -1,5 +1,12 @@
 # Changelog — kmplib
 
+## 2.235.1 — `OnboardingPager` respeita as barras do sistema
+
+Patch. O carrossel de introdução é tela cheia sem `Scaffold`: com o edge-to-edge (Android 15 forçado;
+iOS sempre) o "Pular" nascia sob o relógio e o "Próximo"/"Começar" sob a barra de gestos. Agora aplica
+`WindowInsets.safeDrawing` na raiz. Quem já passava o inset no `modifier` (Cidade Conectada) não dobra —
+o inset consumido vira zero aqui. Coberto pelo `BarrasRespeitamInsetsTest`.
+
 ## 2.235.0 — Barras da lib respeitam o edge-to-edge (status bar, barra de gestos, notch)
 
 Minor, **aditiva**. Origem: Chamada Fácil no Android (02/out/2026) — o título da Home nascia sob o

@@ -111,6 +111,7 @@ class BarrasRespeitamInsetsTest {
             "auth/src/commonMain/kotlin/br/com/codecacto/kmplib/auth/ui/RegisterScreen.kt",
             "platform/src/commonMain/kotlin/br/com/codecacto/kmplib/appupdate/AppUpdateGate.kt",
             "platform/src/commonMain/kotlin/br/com/codecacto/kmplib/appupdate/AppServiceGate.kt",
+            "ui/src/commonMain/kotlin/br/com/codecacto/kmplib/ui/components/OnboardingPager.kt",
         ).forEach { caminho ->
             assertTrue(inset.containsMatchIn(fonte(caminho)), "$caminho sem inset das barras do sistema")
         }

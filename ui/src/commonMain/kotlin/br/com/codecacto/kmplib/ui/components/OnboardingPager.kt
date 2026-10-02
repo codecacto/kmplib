@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -160,7 +163,11 @@ fun OnboardingPager(
     val current = pagerState.currentPage
     val skipAction = onSkip ?: onFinish
 
-    Column(modifier = modifier.fillMaxSize()) {
+    // Tela cheia (destino de navegação, sem Scaffold): o "Pular" no topo e o "Próximo" no rodapé
+    // respeitam status bar, barra de gestos e recorte — com o edge-to-edge forçado no Android 15 (e
+    // sempre no iOS) eles nasciam sob o relógio e sob a barra de gestos (2.235.1). Quem já aplicava o
+    // inset por fora não dobra: `windowInsetsPadding` consome, e aqui ele vira zero.
+    Column(modifier = modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         // Barra superior: "Pular" alinhado à direita (some no último slide).
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
             if (showSkip && onboardingShowSkip(current, total)) {
