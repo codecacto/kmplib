@@ -196,6 +196,7 @@ kotlin {
             api(project(":kmplib-brdata"))
             api(project(":kmplib-astro"))
             api(project(":kmplib-mask"))
+            api(project(":kmplib-navigation"))
 
             // =================================================================
             // api() vs implementation() — regra do Gradle, não preferência

@@ -1,5 +1,52 @@
 # Changelog — kmplib
 
+## 2.243.0 — `kmplib-navigation`: `NavType` de enum para rota type-safe (o app não fecha mais ao abrir no iOS)
+
+Módulo novo, `br.com.codecacto:kmplib-navigation` (pacote `br.com.codecacto.kmplib.navigation`), e no
+umbrella `kmplib`.
+
+### Por quê
+
+Rota type-safe com argumento `enum` **fecha o app ao abrir no iOS**: a navegação (2.9.x) resolve enum
+sozinha só no Android, por reflexão; fora dele o tipo é desconhecido e o `NavHost` lança
+`IllegalArgumentException: Route … could not find any NavType for argument … - typeMap received was {}`
+no primeiro frame. O Android do mesmo commit passa em tudo. Caso de origem: Esquecido (02/out/2026); o
+mesmo defeito estava em Barista de Casa, MinhaObra e ReciboFacil — os quatro ganharam hoje uma cópia
+local do mesmo arquivo. Era a promoção pendente registrada no docs/42.
+
+### API
+
+- `enumNavType<T>()` / `enumNullableNavType<T>()` — o `NavType` (valor pelo `name` da constante; nulo
+  como o literal `"null"`, a convenção dos anuláveis da própria navegação).
+- `enumTypeMap<T>()` / `enumNullableTypeMap<T>()` — o `typeMap` pronto (chave `typeOf<T>()` ou
+  `typeOf<T?>()`). Dois enums na mesma rota: `enumTypeMap<A>() + enumTypeMap<B>()`.
+
+```kotlin
+@Serializable enum class Aba { RESUMO, HISTORICO }      // @Serializable na declaração: no iOS é obrigatório
+@Serializable data class Detalhe(val id: String, val aba: Aba)
+
+composable<Detalhe>(typeMap = enumTypeMap<Aba>()) { … }
+// e no ViewModel que lê a rota: savedStateHandle.toRoute<Detalhe>(enumTypeMap<Aba>())
+```
+
+Dependência: só o `org.jetbrains.androidx.navigation:navigation-common` **2.9.1** (onde mora o
+`NavType`), a versão que todo app do portfólio já pina — nada novo entra no app. Nenhum outro módulo da
+lib depende de navegação; por isso módulo próprio.
+
+### Migração (quando o app for tocado — não é campanha)
+
+Esquecido, Barista de Casa, MinhaObra e ReciboFacil: apagar `core/navigation/EnumNavType.kt` e importar
+de `br.com.codecacto.kmplib.navigation` (mesmos nomes, mesma assinatura). App por módulos declara
+`api(libs.kmplib.navigation)`; com o umbrella, já vem.
+
+### Prova
+
+`EnumNavTypeTest` (7 casos, `commonTest`: ida e volta pela rota de cada constante, nulo, valor inválido
+falha alto, chave do `typeMap` exata e anulável, soma de mapas) e `EnumNavTypeSavedStateIosTest` (3 casos,
+`iosTest`: `put`/`get` no `SavedState` de verdade, com e sem nulo, chave ausente — compila aqui, roda no
+Mac com `./gradlew :kmplib-navigation:iosSimulatorArm64Test`; no Android o `SavedState` é o `Bundle`,
+que na JVM do teste de unidade é um dublê vazio).
+
 ## 2.242.1 — `ScrollableFillBox`, `ErrorState` e `FormContainer` não derrubam mais o app dentro de rolagem
 
 Os três rolam por conta própria (`verticalScroll`). Colocados dentro de outro rolável vertical —

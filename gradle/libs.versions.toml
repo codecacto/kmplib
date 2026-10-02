@@ -32,6 +32,12 @@ sentryCocoa = "8.58.2"
 # módulos Koin prontos da lib (ex.: crashReporterModule).
 koin = "4.1.1"
 
+# Navigation (JetBrains, multiplataforma) — só o `navigation-common` (onde mora o `NavType`) para o
+# `kmplib-navigation`. Mesma versão que TODO app do portfólio pina (`navigationCompose = "2.9.1"`):
+# ao subir aqui, os apps sobem junto, senão o Gradle resolve a maior e o app roda numa navegação que
+# ninguém testou.
+navigation = "2.9.1"
+
 # RevenueCat
 # O sufixo depois do `+` é a versão do PurchasesHybridCommon contra a qual o binding cinterop do iOS foi
 # gerado (core.podspec do purchases-kmp). Ao subir este número, suba NA MESMA RODADA o SPM da casca-mobile:
@@ -97,6 +103,7 @@ sqldelight = "2.0.2"
 media3 = "1.11.1"
 
 [libraries]
+navigation-common = { module = "org.jetbrains.androidx.navigation:navigation-common", version.ref = "navigation" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 # Coroutines

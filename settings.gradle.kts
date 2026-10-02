@@ -120,6 +120,12 @@ project(":kmplib-video-download").projectDir = file("video-download")
 include(":kmplib-ads")
 project(":kmplib-ads").projectDir = file("ads")
 
+// `kmplib-navigation` (2.243.0) — helpers da navegação type-safe (`NavType` de enum). Separado porque
+// nenhum outro módulo da lib depende de `androidx.navigation`, e dependência de navegação dentro do
+// `kmplib-ui` cairia até em quem só usa um componente.
+include(":kmplib-navigation")
+project(":kmplib-navigation").projectDir = file("navigation")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO
