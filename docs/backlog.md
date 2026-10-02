@@ -10,6 +10,11 @@
       `testTagsAsResourceId` da raiz — o conteúdo se embrulha em `WithTestTagsAsResourceId`. Em 02/out só o
       `CustomInterstitialAd` tinha tag dentro de diálogo (corrigido na 2.232.0); todo diálogo da lib que ganhar
       `testTag` daqui em diante segue a mesma regra.
+- [ ] **GAP-MON-IDENT-01 (P2) — amarrar a identidade da loja à sessão** (`monetization`): a cola "identify no login,
+      resetIdentity no logout" está escrita à mão em 5 apps (Backhand `IdentidadeNaLoja`, Acervo `BillingIdentity`,
+      TaFeito, PalpiteCerto, Meu Fisio) e, desde 02/out, na casca (`core/monetization/StoreIdentity.kt`,
+      `syncStoreIdentity(userIds, identify, reset)` + `storeIdentityChange`, testados). Promover para
+      `MonetizationManager.bindIdentity(userIds: Flow<String?>)` com a mesma regra (null→null não chama a loja).
 
 ### Registrado nesta rodada (29/set/2026) — origem: design do **Folha de Axé** (`8-Sistemas-Portal-App/FolhaDeAxe/docs/design/wireframes.md` §16)
 > Nenhum bloqueia o projeto (contorno local mínimo em cada um). Par web em `Lib/weblib/docs/backlog.md`.
