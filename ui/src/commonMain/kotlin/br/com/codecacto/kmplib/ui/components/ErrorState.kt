@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_offline_message
@@ -58,26 +60,53 @@ fun rememberErrorStateTexts(): ErrorStateTexts = ErrorStateTexts(
  * funcionando sobre uma área "vazia" — sem um filho rolável, o `PullToRefreshBox` não recebe o gesto.
  * Também garante que o conteúdo permaneça alcançável em tela pequena / com teclado aberto.
  *
- * ⚠️ **Já rola (`fillMaxSize().verticalScroll(...)`) — não aninhe em outro rolável vertical.** Dentro
- * de `Column(Modifier.verticalScroll)`, de um item de `LazyColumn`/`LazyVerticalGrid` ou de outro
- * `ScrollableFillBox`, ela é medida com altura máxima infinita e o app cai (*"Vertically scrollable
- * component was measured with an infinity maximum height constraints"*). Em particular,
- * **`ScrollableFillBox { ErrorState(...) }` é o erro**: o [ErrorState] já é um `ScrollableFillBox`.
- * Estado vazio dentro de um item de lista usa `Box` comum.
+ * ## Dentro de outra rolagem: não derruba mais o app (2.242.1)
+ *
+ * Com altura limitada (o caso certo — corpo de tela, filho do [RefreshableBox]) ela preenche e rola.
+ * **Medida sem teto de altura** — dentro de `Column(Modifier.verticalScroll)`, de um item de
+ * `LazyColumn`/`LazyVerticalGrid`, de outro `ScrollableFillBox`, ou com `verticalScroll` no
+ * [modifier] — ela **não rola**: ocupa a altura do conteúdo e quem rola é o pai. Até a 2.242.0 ela
+ * aplicava `verticalScroll` assim mesmo e o Compose abortava (*"Vertically scrollable component was
+ * measured with an infinity maximum height constraints"*; no iOS, `SIGABRT` em
+ * `MetalRedrawer.draw`) — 68 casos em 21 apps na varredura de 02/out/2026, todos compilando verde.
+ *
+ * Aninhar continua **não sendo o desenho certo**: dentro de rolagem não há "espaço disponível" a
+ * preencher, então o conteúdo deixa de ficar centrado na tela. Erro dentro de lista: um item com
+ * altura limitada (`Modifier.heightIn(max = 320.dp)`) volta a centrar. `ScrollableFillBox { ErrorState(...) }`
+ * é redundante — o [ErrorState] já é um `ScrollableFillBox`.
  */
 @Composable
 fun ScrollableFillBox(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center,
-        content = content,
-    )
+    // O estado fica fora da troca de ramo: se a altura ficar limitada depois, a posição sobrevive.
+    val scrollState = rememberScrollState()
+    BoxWithConstraints(modifier = modifier) {
+        if (scrollsItself(constraints)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        }
+    }
 }
+
+/**
+ * O componente que rola por conta própria ([ScrollableFillBox], [ErrorState], [FormContainer]) só
+ * aplica `verticalScroll` quando é medido com **altura limitada**. Sem teto, rolar é do pai — e
+ * `verticalScroll` ali é exatamente o que o Compose recusa abortando o app.
+ */
+internal fun scrollsItself(constraints: Constraints): Boolean = constraints.hasBoundedHeight
 
 /**
  * **Estado de erro de carregamento, rolável e com retry** — o que uma tela de lista/detalhe deve
@@ -96,15 +125,16 @@ fun ScrollableFillBox(
  *
  * Tema 100% via [MaterialTheme] (sem cor hardcoded).
  *
- * ## ⚠️ Já rola — é o corpo da tela, não um bloco dentro de uma rolagem
+ * ## Já rola — é o corpo da tela, não um bloco dentro de uma rolagem
  *
- * Por baixo é um [ScrollableFillBox] (`fillMaxSize().verticalScroll(...)`). Use-o **direto** no ramo
- * de erro do `when` (inclusive como filho do [RefreshableBox]) — **sem** embrulhar em
- * `ScrollableFillBox`/`Box(Modifier.verticalScroll)`. Dentro de um pai que rola na vertical
- * (`Column(Modifier.verticalScroll)`, item de `LazyColumn`/`LazyVerticalGrid`) ele é medido com
- * altura infinita e **o app cai justamente na tela de erro** — o ramo que ninguém abre no teste.
- * A varredura de 02/out/2026 achou isso em 20 apps. Quando o erro precisa mesmo aparecer **dentro**
- * de uma rolagem (o cabeçalho e os filtros ficam, só o miolo falhou), limite a altura dele:
+ * Por baixo é um [ScrollableFillBox]. Use-o **direto** no ramo de erro do `when` (inclusive como
+ * filho do [RefreshableBox]) — **sem** embrulhar em `ScrollableFillBox`/`Box(Modifier.verticalScroll)`.
+ * Até a 2.242.0, dentro de um pai que rola na vertical (`Column(Modifier.verticalScroll)`, item de
+ * `LazyColumn`/`LazyVerticalGrid`) **o app caía justamente na tela de erro** — o ramo que ninguém
+ * abre no teste (a varredura de 02/out/2026 achou isso em 20 apps). **Desde a 2.242.1 não cai**: sem
+ * teto de altura ele ocupa a altura do conteúdo e quem rola é o pai. Ainda assim, quando o erro
+ * precisa aparecer **dentro** de uma rolagem (o cabeçalho e os filtros ficam, só o miolo falhou),
+ * limite a altura dele, para voltar a centrar:
  *
  * ```kotlin
  * item { ErrorState(msg, onRetry, modifier = Modifier.heightIn(max = 320.dp)) }

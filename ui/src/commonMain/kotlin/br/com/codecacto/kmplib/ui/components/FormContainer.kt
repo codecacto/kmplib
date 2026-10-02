@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,13 +72,14 @@ object FormDefaults {
  * Até a 2.150.x não havia teto nenhum: num tablet em paisagem (1280dp) o campo de e-mail nascia com
  * 1184dp de largura, **em todo app da fábrica**.
  *
- * ## ⚠️ JÁ ROLA — é a ÚNICA região rolável do formulário
+ * ## JÁ ROLA — é a ÚNICA região rolável do formulário
  *
- * O container aplica `fillMaxSize().imePadding().verticalScroll(...)` por conta própria. **Não o
- * coloque dentro de um pai que rola na vertical, nem passe `verticalScroll` no [modifier]:**
+ * O container aplica `fillMaxSize().imePadding().verticalScroll(...)` por conta própria. O desenho
+ * certo é **não** colocá-lo dentro de um pai que rola na vertical, nem passar `verticalScroll` no
+ * [modifier]:
  *
  * ```kotlin
- * // ❌ os dois caem ao ABRIR a tela — compilam verde
+ * // ❌ até a 2.242.0 os dois caíam ao ABRIR a tela — compilando verde
  * Column(Modifier.verticalScroll(rememberScrollState())) { FormContainer { … } }
  * FormContainer(modifier = modifier.verticalScroll(rememberScrollState())) { … }
  *
@@ -85,11 +87,14 @@ object FormDefaults {
  * FormContainer(modifier = Modifier.padding(innerPadding)) { … }
  * ```
  *
- * Aninhado, o `verticalScroll` de dentro é medido com altura máxima infinita e o Compose aborta:
+ * Aninhado, o `verticalScroll` de dentro era medido com altura máxima infinita e o Compose abortava:
  * *"Vertically scrollable component was measured with an infinity maximum height constraints"*
- * (no iOS, `SIGABRT` em `MetalRedrawer.draw`). Vale o mesmo para item de `LazyColumn`. Caso de
- * origem: Todos a Bordo, 02/out/2026 — e a varredura achou o mesmo erro em PalpiteCerto, PontoFirme
- * (6 telas) e MinhasHoras. O auditor (`Nexus/fabrica/rolagem_aninhada.py`) cobra.
+ * (no iOS, `SIGABRT` em `MetalRedrawer.draw`). Caso de origem: Todos a Bordo, 02/out/2026 — e a
+ * varredura achou o mesmo erro em PalpiteCerto, PontoFirme (6 telas) e MinhasHoras.
+ * **Desde a 2.242.1 o container é tolerante:** medido sem teto de altura ele não aplica a própria
+ * rolagem — ocupa a altura do formulário e quem rola é o pai. Não cai mais, mas o aninhamento
+ * continua errado (rolagem dupla, `imePadding` sem efeito útil); o auditor
+ * (`Nexus/fabrica/rolagem_aninhada.py`) segue cobrando.
  *
  * Cabeçalho fixo acima do formulário: `Column { Cabecalho(); FormContainer(Modifier.weight(1f)) { … } }`
  * — a coluna de fora **não** rola.
@@ -114,29 +119,35 @@ fun FormContainer(
 ) {
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding()
-            // Não é `clickable { clearFocus() }`: aquilo consumia o toque e anunciava o formulário
-            // inteiro como um botão no leitor de tela. Ver `dismissKeyboardOnTapOutside`.
-            .dismissKeyboardOnTapOutside()
-            .verticalScroll(scrollState),
-        // Centraliza a coluna de conteúdo quando ela tem teto. Sem isto o formulário limitado
-        // ficaria colado na borda esquerda de um tablet.
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    // As restrições que valem são as que chegam DEPOIS do `modifier` do app — é assim que um
+    // `verticalScroll` passado nele também é percebido como "sem teto".
+    BoxWithConstraints(modifier = modifier) {
+        val rolaAqui = scrollsItself(constraints)
         Column(
-            // `widthIn` ANTES de `fillMaxWidth`: invertido, o `fillMaxWidth` fixa a largura do pai
-            // e o teto passa a não ter efeito nenhum — o defeito compila e some na revisão.
             modifier = Modifier
-                .widthIn(max = maxContentWidth)
-                .fillMaxWidth()
-                .padding(horizontal = horizontalPadding, vertical = verticalPadding),
-            horizontalAlignment = horizontalAlignment,
-            verticalArrangement = verticalArrangement
+                .then(if (rolaAqui) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .imePadding()
+                // Não é `clickable { clearFocus() }`: aquilo consumia o toque e anunciava o formulário
+                // inteiro como um botão no leitor de tela. Ver `dismissKeyboardOnTapOutside`.
+                .dismissKeyboardOnTapOutside()
+                // Sem teto de altura, rolar é do pai (ver `scrollsItself`).
+                .then(if (rolaAqui) Modifier.verticalScroll(scrollState) else Modifier),
+            // Centraliza a coluna de conteúdo quando ela tem teto. Sem isto o formulário limitado
+            // ficaria colado na borda esquerda de um tablet.
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            content()
+            Column(
+                // `widthIn` ANTES de `fillMaxWidth`: invertido, o `fillMaxWidth` fixa a largura do pai
+                // e o teto passa a não ter efeito nenhum — o defeito compila e some na revisão.
+                modifier = Modifier
+                    .widthIn(max = maxContentWidth)
+                    .fillMaxWidth()
+                    .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                horizontalAlignment = horizontalAlignment,
+                verticalArrangement = verticalArrangement
+            ) {
+                content()
+            }
         }
     }
 }

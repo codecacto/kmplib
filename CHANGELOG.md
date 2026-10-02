@@ -1,5 +1,48 @@
 # Changelog — kmplib
 
+## 2.242.1 — `ScrollableFillBox`, `ErrorState` e `FormContainer` não derrubam mais o app dentro de rolagem
+
+Os três rolam por conta própria (`verticalScroll`). Colocados dentro de outro rolável vertical —
+`Column(Modifier.verticalScroll)`, item de `LazyColumn`/`LazyVerticalGrid`, outro `ScrollableFillBox`,
+ou com `verticalScroll` no próprio `modifier` — eram medidos com altura máxima infinita e o Compose
+abortava: *"Vertically scrollable component was measured with an infinity maximum height
+constraints"* (no iOS, `SIGABRT` em `MetalRedrawer.draw`). Compila verde, cai ao abrir a tela — e,
+no caso do `ErrorState`, só na hora do erro, o ramo que ninguém abre no teste. A varredura de
+02/out/2026 achou 68 casos em 21 apps (Todos a Bordo, PalpiteCerto, PontoFirme, MinhasHoras…); hoje
+restam 4, todos no LocaSys (`ErrorState` dentro de `Column(verticalScroll)` em Fechamento do dia,
+Locação de caçamba, Financeiro e Relatórios).
+
+### O que mudou
+
+- **Medidos sem teto de altura, não aplicam a própria rolagem**: ocupam a altura do conteúdo e quem
+  rola é o pai. Com altura limitada (o uso certo — corpo de tela, filho do `RefreshableBox`) nada muda:
+  preenchem, centram e rolam como antes.
+- A decisão lê as restrições que chegam **depois** do `modifier` do app (`BoxWithConstraints`, a API
+  oficial do Compose para adaptar o layout às restrições recebidas) — por isso um `verticalScroll`
+  passado no `modifier` também é percebido.
+- Regra única e testada: `scrollsItself(constraints) = constraints.hasBoundedHeight` (interna).
+- A posição da rolagem fica fora da troca de ramo (`rememberScrollState` antes do `BoxWithConstraints`).
+
+### O que continua valendo
+
+Aninhar segue **não sendo o desenho certo** — dentro de rolagem não há "espaço disponível" para
+preencher, então o estado de erro deixa de ficar centrado e o formulário perde a rolagem própria com
+teclado. Erro dentro de lista: item com `Modifier.heightIn(max = 320.dp)` volta a centrar. O auditor
+(`Nexus/fabrica/rolagem_aninhada.py`) continua cobrando. Os outros roláveis da lib que são
+`LazyColumn` (`RefreshableBox`, `MultiSelectList`, `UploadQueueView`, `SyncQueueView`…) **não** ficaram
+tolerantes: lista preguiçosa sem teto não tem como existir — limite a altura deles.
+
+### O que o app faz
+
+**Nada — basta subir a versão** (app que compila a kmplib por `includeBuild` pega no próximo build).
+
+### Prova
+
+`ScrollsItselfTest` (5 casos: altura limitada e fixa rolam; sem teto não, mesmo com mínimo; largura
+infinita não decide); suíte da lib e `compileKotlinIosArm64` de todos os módulos. Sem teste de UI
+automatizado (decisão da casa para mobile); a prova visual é abrir uma das 4 telas do LocaSys no ramo
+de erro.
+
 ## 2.242.0 — iOS: exceção de Kotlin não tratada chega ao GlitchTip como exceção de Kotlin
 
 ### O defeito
