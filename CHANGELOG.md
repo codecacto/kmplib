@@ -1,5 +1,43 @@
 # Changelog — kmplib
 
+## 2.240.1 — `LoginScreen`: botão Entrar e "Concluído" do teclado decidem pela MESMA condição
+
+Patch, **sem API nova**. Origem: os dois itens de severidade Baixa do review de segurança da
+2.239.0 (`373f1e6`, veredito aprovado). A 2.239.0 fez o Done da senha enviar o login, com a guarda
+`!isLoading` repetida em dois lugares (o `enabled` do botão e `loginImeDoneAction`) — e nenhum dos
+dois olhava as outras operações de entrada da tela.
+
+- **`loginSubmitEnabled(state)`** (interna, pura) passa a ser a condição ÚNICA dos dois gatilhos:
+  `!isLoading && !isGoogleLoading && !isAppleLoading && !showForgotPasswordDialog`. O botão Entrar
+  usa em `enabled`; `loginImeDoneAction` devolve `null` fora dela.
+- Efeito visível: com o login do Google/Apple em andamento, ou com o diálogo de "esqueci a senha"
+  aberto, o botão Entrar fica desabilitado e o Done da senha só baixa o teclado. Antes os dois
+  enviavam um segundo login por cima da operação em curso.
+- Travado por `LoginImeDoneActionTest`: um caso por condição, e um que varre os estados e exige
+  que botão e teclado nunca divirjam.
+
+**Limite conhecido, anterior a esta versão (backlog `GAP-AUTH-SOCIAL-01`):** no Android em modo
+`BACKEND`, fechar a aba do navegador sem concluir o login social deixa `isGoogleLoading = true` até a
+tela morrer — nada cancela o pedido pendente. Antes o Entrar ficava clicável (e girando sem navegar,
+porque o coletor de efeitos da rota está suspenso no login social); agora fica desabilitado. Nos
+dois casos a saída é reabrir o app; a correção é do fluxo social, não desta guarda.
+
+**No ViewModel do app (não é da lib, e a guarda de tela não substitui):** o envio tem de ser
+idempotente no ponto único de entrada —
+
+```kotlin
+private fun signIn() {
+    if (currentState.isLoading) return                       // 1ª linha
+    …validação…
+    setState { copy(isLoading = true, errorMessage = null) } // ANTES do launch
+    launch { … }
+}
+```
+
+Com o `setState` dentro do `launch`, dois gatilhos no mesmo frame (botão + Done) leem
+`isLoading = false` os dois e saem duas requisições de login. A `casca-mobile` já nasce assim, com
+`LoginViewModelTest` cobrindo o disparo duplo.
+
 ## 2.240.0 — `AppBottomNavBar`: id de automação POR ITEM (`nav-item-<route>`)
 
 Minor, **aditiva**. Origem: 02/out/2026, Minha Agenda — a suíte `funcionalidades` reprovou no iOS em

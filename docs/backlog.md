@@ -3,6 +3,21 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 02/out/2026 — login social pelo navegador sem desfecho (achado no re-review da 2.240.1)
+- [ ] **GAP-AUTH-SOCIAL-01 (P1) — aba do navegador fechada sem concluir deixa o login social pendente** (`auth/social`,
+      Android, modo `BACKEND`): `SocialBrowserLogin.authenticate` (`SocialBrowserLogin.android.kt`) só termina por
+      `SocialBrowserRedirect.handleRedirect` ou `cancel()`, e nada chama o `cancel()` quando a pessoa fecha a Custom Tab
+      com o voltar (`kmpLibAuthOnResume` só entrega a Activity). `isGoogleLoading` fica `true` e, no molde da casca, o
+      coletor de efeitos da `LoginRoute` fica suspenso dentro do `signIn` — a tela de login só volta a responder
+      reabrindo o app. Desde a 2.240.1 o botão Entrar também lê `isGoogleLoading`/`isAppleLoading`
+      (`loginSubmitEnabled`), então o estado pendente passa a desabilitar o Entrar em vez de deixá-lo girando sem
+      navegar. iOS não tem o defeito (`ASWebAuthenticationSession` devolve o cancelamento), nem o modo `NATIVE`.
+      **Correção certa** (o que o AppAuth-Android faz): a Activity que abriu o navegador voltar a `RESUMED` com o
+      pedido ainda pendente = cancelado — `Application.ActivityLifecycleCallbacks` registrado no `authenticate`
+      (pausou depois de abrir → retomou sem `handleRedirect`), sem depender de o app chamar nada. O redirect chega
+      antes (a `AuthCallbackActivity` entrega no `onCreate`/`onNewIntent`, e só depois a de baixo é retomada).
+      É mudança no fluxo de autenticação: passa pelo `security-reviewer` e precisa de prova em aparelho.
+
 ### Registrado em 02/out/2026 — intersticial de abertura perdido (teste do agente, Piadaria Android)
 - [x] **GAP-ADS-OPEN-01 (P0) — o intersticial pedido no 1º frame era descartado** (`ads`): lista do apps-api ainda
       vazia (e, no gerenciado, roteamento ainda no `defaults`) → `onDismiss` na hora, sessão sem abertura. ~30 apps de

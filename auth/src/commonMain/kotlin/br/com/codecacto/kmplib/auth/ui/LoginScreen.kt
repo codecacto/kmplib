@@ -101,15 +101,37 @@ data class LoginTexts(
 )
 
 /**
+ * Se a tela aceita **enviar o login** agora — a condição ÚNICA dos dois gatilhos de envio: o botão
+ * Entrar (`enabled`) e o "Concluído" do teclado na senha ([loginImeDoneAction]).
+ *
+ * Não aceita enquanto há outra operação de entrada em curso ou outra superfície por cima:
+ * - `isLoading` — o próprio envio de e-mail e senha;
+ * - `isGoogleLoading` / `isAppleLoading` — um login social aberto (duas entradas simultâneas
+ *   disputariam a mesma sessão);
+ * - `showForgotPasswordDialog` — o diálogo de "esqueci a senha" está por cima do formulário, e o
+ *   envio por baixo dele não é o que a pessoa está fazendo.
+ *
+ * Os dois gatilhos leem daqui para nunca divergirem (2.240.1): até a 2.240.0 cada um repetia
+ * `!isLoading` por conta própria e nenhum olhava as outras três condições. Isto é guarda de TELA;
+ * a idempotência do envio continua sendo do ViewModel do app (`if (isLoading) return` antes do
+ * `launch`), porque dois gatilhos no mesmo frame leem o mesmo estado.
+ */
+internal fun loginSubmitEnabled(state: LoginState): Boolean =
+    !state.isLoading &&
+        !state.isGoogleLoading &&
+        !state.isAppleLoading &&
+        !state.showForgotPasswordDialog
+
+/**
  * O que o **"Concluído" do teclado** faz no campo de senha da [LoginScreen]: a MESMA ação do botão
- * Entrar, e só quando o botão também a aceitaria — durante o envio (`isLoading`) o botão está
- * desabilitado, e o teclado não pode ser o caminho de um segundo envio.
+ * Entrar, e só quando o botão também a aceitaria ([loginSubmitEnabled]) — o teclado não pode ser o
+ * caminho de um envio que o botão recusa.
  *
  * É função pura de propósito: a regra "o teclado envia o que o botão envia" fica travada por teste
  * de unidade (`LoginImeDoneActionTest`), sem depender de teste de UI.
  */
 internal fun loginImeDoneAction(state: LoginState): LoginAction? =
-    if (state.isLoading) null else LoginAction.Click.Login
+    if (loginSubmitEnabled(state)) LoginAction.Click.Login else null
 
 /**
  * Tela de login stateless que aceita estado externo
@@ -332,7 +354,7 @@ fun LoginScreen(
                             text = texts.loginButton(),
                             onClick = { onAction(LoginAction.Click.Login) },
                             isLoading = state.isLoading,
-                            enabled = !state.isLoading,
+                            enabled = loginSubmitEnabled(state),
                             primaryColor = colors.primary,
                             contentColor = colors.onPrimary
                         )
