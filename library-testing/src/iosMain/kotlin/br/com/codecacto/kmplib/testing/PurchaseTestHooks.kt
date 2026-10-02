@@ -2,6 +2,9 @@ package br.com.codecacto.kmplib.testing
 
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
+import br.com.codecacto.kmplib.platform.automation.AutomationModeApi
+import br.com.codecacto.kmplib.platform.automation.AutomationSignal
 
 /**
  * **Ponto de injeção da loja em teste instrumentado.** Troca a implementação de compra que o app
@@ -69,8 +72,14 @@ object PurchaseTestHooks {
      *
      * Não passa pelo `PurchaseInitializer` (que configura o SDK nativo), então não precisa de chave
      * de API, de rede nem de Play Services.
+     *
+     * **Liga também o [AutomationMode]** (2.238.0): processo com o dublê da loja é processo de teste,
+     * e a lib cala os pedidos automáticos (avaliação por contagem, atualização opcional) que abririam
+     * por cima da tela no meio da suíte. O [limpar] NÃO desliga — o processo continua sendo de teste.
      */
+    @OptIn(AutomationModeApi::class)
     fun instalar(repository: PurchaseRepository) {
+        AutomationMode.activate(AutomationSignal.STORE_DOUBLE)
         PurchaseManager.initializeWith(repository)
     }
 

@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.platform
 
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
+import br.com.codecacto.kmplib.platform.automation.AutomationModeApi
+import br.com.codecacto.kmplib.platform.automation.AutomationSignal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -149,5 +152,45 @@ class AppReviewManagerTest {
 
         repeat(4) { assertFalse(manager.onCompletion()) }
         assertTrue(manager.onCompletion())  // 5
+    }
+
+    // ====== Build de teste nunca pede avaliação (2.238.0) ======
+
+    @Test
+    fun `suprimido nao pede avaliacao nem conta`() {
+        val store = FakeReviewStore()
+        val manager = AppReviewManager(triggerCount = 1, store = store, suppressed = { true })
+
+        repeat(5) { assertFalse(manager.onCompletion()) }
+        assertEquals(0, store.getCompletionCount())
+        assertFalse(manager.shouldShow())
+    }
+
+    @Test
+    fun `suprimido esconde o pedido mesmo com contador ja no gatilho`() {
+        // O emulador que já acumulou rodadas: o contador gravado passou do gatilho.
+        val store = FakeReviewStore()
+        repeat(7) { store.incrementCompletionCount() }
+        val manager = AppReviewManager(triggerCount = 3, store = store, suppressed = { true })
+
+        assertFalse(manager.shouldShow())
+        assertFalse(manager.onCompletion())
+        assertEquals(7, store.getCompletionCount())
+    }
+
+    @OptIn(AutomationModeApi::class)
+    @Test
+    fun `duble da loja instalado cala o pedido pelo default`() {
+        val store = FakeReviewStore()
+        val manager = AppReviewManager(triggerCount = 1, store = store)
+        try {
+            AutomationMode.activate(AutomationSignal.STORE_DOUBLE)
+            assertFalse(manager.onCompletion())
+            assertEquals(0, store.getCompletionCount())
+        } finally {
+            AutomationMode.reset()
+        }
+        // Fora da automação, o mesmo manager volta a pedir.
+        assertTrue(manager.onCompletion())
     }
 }

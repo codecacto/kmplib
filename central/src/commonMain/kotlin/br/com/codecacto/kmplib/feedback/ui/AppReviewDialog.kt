@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.components
 
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
 import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -96,6 +97,11 @@ private enum class ReviewStep {
  * @param thankYouMessage Mensagem da tela de agradecimento
  * @param yesText Texto do botão "Sim"
  * @param noText Texto do botão "Não"
+ * @param suppressInAutomation (2.238.0) com o [AutomationMode] ligado — dublê da loja instalado,
+ *   Test Harness do Android ou `AutomationMode.activate` — o diálogo **não desenha**, mesmo com
+ *   [show] `true`: build de teste nunca pede avaliação (o pedido automático abria no meio da suíte
+ *   Maestro e escondia a tela). Passe `false` só quando o diálogo é aberto por GESTO da pessoa (item
+ *   "Avaliar o app" do menu), que o flow aciona de propósito.
  */
 @Composable
 fun AppReviewDialog(
@@ -122,7 +128,8 @@ fun AppReviewDialog(
     thankYouTitle: String = "Obrigado! \uD83C\uDF89",
     thankYouMessage: String = "Seu feedback é muito valioso para nós",
     yesText: String = "Sim",
-    noText: String = "Não"
+    noText: String = "Não",
+    suppressInAutomation: Boolean = true,
 ) {
     var currentStep by remember { mutableStateOf(ReviewStep.Initial) }
     var feedbackText by remember { mutableStateOf("") }
@@ -148,7 +155,7 @@ fun AppReviewDialog(
         }
     }
 
-    if (show) {
+    if (show && !(suppressInAutomation && AutomationMode.suppressesAutomaticPrompts)) {
         Dialog(
             onDismissRequest = {
                 if (currentStep != ReviewStep.ThankYou) {

@@ -1,5 +1,45 @@
 # Changelog — kmplib
 
+## 2.238.0 — Modo automação: build de teste nunca pede avaliação (`AutomationMode`)
+
+Minor, **aditiva**. Origem: teste do agente de 02/out/2026, Chamada Fácil — o `AppReviewDialog`,
+disparado por `AppReviewManager(triggerCount = 3)` (o `ReviewGate` do app), abriu no meio da suíte
+Maestro e escondeu a tela. O contador fica gravado no APARELHO; rodada após rodada no mesmo emulador,
+ele chega ao gatilho. Todo app que pede avaliação por contagem quebraria a suíte do mesmo jeito, num
+passo diferente a cada vez.
+
+**A regra:** build de teste não pede avaliação nem oferece atualização opcional.
+
+- **Novo `AutomationMode`** (`platform.automation`, artefato `kmplib-platform`): `isActive`,
+  `signal: AutomationSignal?`, `suppressesAutomaticPrompts`. Liga por três sinais:
+  - **`STORE_DOUBLE`** — `PurchaseTestHooks.instalar(...)` (`kmplib-testing`) liga sozinho. É o sinal
+    que o build de QA já tem: a `kmplib-testing` só entra no binário com `-Pqa.paywallDemo=true` /
+    `QA_PAYWALL_DEMO=1`, e o plugin `kmplib.store-double` reprova a variante publicável. **Nenhuma linha
+    no app.** `PurchaseTestHooks.limpar()` não desliga (o processo continua sendo de teste).
+  - **`DEVICE_TEST_HARNESS`** — Android em *Test Harness Mode* (`ActivityManager.isRunningInUserTestHarness()`,
+    API 29+, ligado por `adb shell cmd testharness enable`) ou sob o Monkey (`isUserAMonkey()`): o sinal
+    oficial do sistema para "aparelho de teste automatizado". Lido a cada consulta. iOS: sem equivalente.
+  - **`TEST_BUILD`** — `AutomationMode.activate()` explícito, para build de teste sem o dublê. Exige
+    `@OptIn(AutomationModeApi::class)` (nível ERROR) — não é API de produção.
+- **`AppReviewManager`**: com o modo ligado, `onCompletion()`/`shouldShow()` devolvem `false` e o
+  **contador não anda**. Novo parâmetro `suppressed: () -> Boolean` (default = o modo), para teste.
+- **`AppReviewDialog`**: com o modo ligado não desenha, mesmo com `show = true` — cobre o app que conta
+  por conta própria. Novo `suppressInAutomation: Boolean = true`; passe `false` quando o diálogo abre
+  por GESTO da pessoa ("Avaliar o app" no menu), que o flow aciona de propósito.
+- **`AppServiceGate`/`AppUpdateGate`**: o `SoftUpdateDialog` (atualização OPCIONAL) não é oferecido.
+  Atualização **obrigatória** e **manutenção** continuam bloqueando — são estados reais, e o teste tem
+  de enxergá-los.
+- **Fora, de propósito:** o intersticial (é testado como produto, `AdsTestTags`) e pedidos de
+  permissão (o app pede quando quer; o Maestro responde com `permissions:` no `launchApp` — calar o
+  pedido mudaria o comportamento sob teste). A lib não chama In-App Review do Play nem
+  `SKStoreReviewController`: o pedido nativo é o "Sim" do `AppReviewDialog`, que já não aparece.
+- **Release não muda:** sem `kmplib-testing` no binário, sem Test Harness no aparelho do usuário (ligar
+  o modo apaga o aparelho) e sem `activate()` (opt-in de erro), `suppressesAutomaticPrompts` é `false`.
+
+**Migração:** nenhuma. O app que bumpar e rodar a suíte com o dublê (`--loja simulada`) deixa de ver o
+diálogo. App cujo build de QA NÃO usa o dublê: chamar `AutomationMode.activate()` no ponto em que o build
+de teste já se distingue (ex.: o `*QaDemo`), ou ligar o Test Harness no emulador.
+
 ## 2.237.0 — Título da `AppTopBar` com id para automação (`topbar-titulo`): fechar o teclado no iOS
 
 Minor, **aditiva**. Origem: teste do agente de 02/out/2026, Minha Voz no **iOS** — o flow que

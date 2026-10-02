@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
+
 /**
  * Storage abstrato para o estado de avaliação. Permite injetar fakes em testes.
  *
@@ -50,12 +52,21 @@ class PreferencesReviewStore(
  * val manager = AppReviewManager(triggerCount = 3, store = store)
  * ```
  *
+ * ## Build de teste nunca pede avaliação (2.238.0)
+ *
+ * Com o [AutomationMode] ligado (dublê da loja instalado, Test Harness do Android ou
+ * `AutomationMode.activate`), [onCompletion] e [shouldShow] devolvem `false` e o contador **não anda**.
+ * Sem isso, o contador salvo no emulador chegava ao gatilho rodada após rodada e o diálogo abria no
+ * meio da suíte Maestro, escondendo a tela (Chamada Fácil, 02/out/2026). O app não faz nada.
+ *
  * @param triggerCount número de completions antes de mostrar o dialog.
  * @param store storage persistente. Default usa [PreferencesReviewStore].
+ * @param suppressed quando `true`, nenhum pedido sai e nada é contado. Default: [AutomationMode].
  */
 class AppReviewManager(
     private val triggerCount: Int = 3,
-    private val store: ReviewStore = PreferencesReviewStore()
+    private val store: ReviewStore = PreferencesReviewStore(),
+    private val suppressed: () -> Boolean = { AutomationMode.suppressesAutomaticPrompts },
 ) {
     /**
      * Incrementa contador de completions e retorna `true` se for hora de mostrar
@@ -63,6 +74,7 @@ class AppReviewManager(
      * trigger.
      */
     fun onCompletion(): Boolean {
+        if (suppressed()) return false
         if (store.hasReviewed()) return false
         val count = store.incrementCompletionCount()
         return count >= triggerCount
@@ -72,7 +84,7 @@ class AppReviewManager(
      * Verifica se deve mostrar (sem incrementar). Útil para checagens passivas.
      */
     fun shouldShow(): Boolean =
-        !store.hasReviewed() && store.getCompletionCount() >= triggerCount
+        !suppressed() && !store.hasReviewed() && store.getCompletionCount() >= triggerCount
 
     /** Marca como avaliado — não mostra mais o dialog. */
     fun markShown() {

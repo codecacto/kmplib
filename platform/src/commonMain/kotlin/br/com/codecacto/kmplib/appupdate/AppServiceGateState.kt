@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.appupdate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
 import kotlinx.coroutines.sync.Mutex
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -20,8 +21,17 @@ import kotlin.coroutines.cancellation.CancellationException
  *
  * Aqui o estado vive o tempo da composição do gate. Reconsultar só **substitui** o status quando a
  * resposta chega; até lá vale o último conhecido.
+ *
+ * ## Build de teste não oferece atualização opcional (2.238.0)
+ *
+ * Com o [AutomationMode] ligado, [softUpdateToOffer] é sempre `null`: o diálogo dispensável não abre
+ * por cima da tela que a suíte Maestro procura. Atualização OBRIGATÓRIA e manutenção continuam
+ * bloqueando — são estados reais do produto, e o teste tem de enxergá-los.
  */
-internal class AppServiceGateState(initial: AppServiceStatus = AppServiceStatus()) {
+internal class AppServiceGateState(
+    initial: AppServiceStatus = AppServiceStatus(),
+    private val suppressPrompts: () -> Boolean = { AutomationMode.suppressesAutomaticPrompts },
+) {
 
     /** Último status conhecido. Uma reconsulta em andamento NÃO o apaga. */
     var status: AppServiceStatus by mutableStateOf(initial)
@@ -43,6 +53,7 @@ internal class AppServiceGateState(initial: AppServiceStatus = AppServiceStatus(
     val softUpdateToOffer: AppUpdateStatus.Soft?
         get() {
             if (isBlocking) return null
+            if (suppressPrompts()) return null
             val soft = status.update as? AppUpdateStatus.Soft ?: return null
             return soft.takeIf { softIdentity(it) != dismissedSoft }
         }

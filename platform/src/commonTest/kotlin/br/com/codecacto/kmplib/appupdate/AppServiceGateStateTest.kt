@@ -161,4 +161,23 @@ class AppServiceGateStateTest {
         assertTrue(recheck.onStart())
         assertFalse(recheck.onStart())
     }
+
+    // ====== Build de teste não oferece atualização opcional (2.238.0) ======
+
+    @Test
+    fun automacaoNaoOfereceAtualizacaoOpcional() = runTest {
+        val state = AppServiceGateState(suppressPrompts = { true })
+        state.refresh { soft1 }
+        assertNull(state.softUpdateToOffer)
+        assertFalse(state.isBlocking)
+    }
+
+    @Test
+    fun automacaoContinuaBloqueandoAtualizacaoObrigatoriaEManutencao() = runTest {
+        val state = AppServiceGateState(suppressPrompts = { true })
+        state.refresh { hard }
+        assertTrue(state.isBlocking)
+        state.refresh { manutencao }
+        assertTrue(state.isBlocking)
+    }
 }
