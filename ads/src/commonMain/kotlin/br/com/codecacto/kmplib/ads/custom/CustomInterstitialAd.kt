@@ -22,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import br.com.codecacto.kmplib.ads.AdDefaults
+import br.com.codecacto.kmplib.ads.router.AdRouter
 import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
 import br.com.codecacto.kmplib.ads.stats.AdProviderTag
 import br.com.codecacto.kmplib.ads.stats.AdStats
@@ -37,6 +40,7 @@ import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.ui.theme.WithTestTagsAsResourceId
 import coil3.compose.AsyncImage
+import kotlin.time.Duration
 
 /**
  * Modo de fechamento do [CustomInterstitialAd]. **Definido por quem chama** (o app), NAO pelo anuncio.
@@ -56,8 +60,17 @@ enum class InterstitialCloseMode {
  *
  * - Renderizado como [Dialog] full-screen quando [show] e `true`.
  * - Imagem em TELA CHEIA com [ContentScale.Crop] (criativo recomendado 1080x1920, 9:16).
- * - Respeita [MonetizationManager.shouldShowAds] (chama [onDismiss] imediatamente se ads estao off).
+ * - Respeita [MonetizationManager.shouldShowAds] (chama [onDismiss] imediatamente se ads estao off,
+ *   e fecha se virar premium com o anuncio na tela).
  * - Filtra por formato `"interstitial"` e escolhe um por rotacao simples.
+ * - **Espera a primeira carga dos anuncios** (2.236.0): pedido feito antes de a lista do apps-api
+ *   chegar (o intersticial "ao abrir") aguarda ate [firstLoadTimeout] em vez de desistir no primeiro
+ *   frame. Nada e desenhado durante a espera — a tela de baixo segue usavel. Sem criativo ou com o
+ *   teto estourado, chama [onDismiss] sem contar impressao.
+ * - [onShown] dispara so quando o anuncio de fato aparece — e o lugar de contar frequencia ("uma
+ *   vez por sessao"); [onDismiss] chega nos dois casos (exibido e fechado, ou pulado).
+ * - Intersticial que **segura uma navegacao** (abre e so navega no `onDismiss`) pode passar
+ *   `firstLoadTimeout = Duration.ZERO` para nunca atrasar o passo seguinte nos primeiros segundos.
  * - [closeMode] decide se o "X" aparece na hora ([InterstitialCloseMode.IMMEDIATE]) ou apos uma
  *   contagem regressiva com barra de progresso ([InterstitialCloseMode.TIMED]).
  * - Clique na imagem abre [CustomAd.targetUrl] e dispara [onDismiss] (vale nos dois modos).
@@ -87,29 +100,90 @@ fun CustomInterstitialAd(
     onDismiss: () -> Unit,
     closeMode: InterstitialCloseMode = InterstitialCloseMode.IMMEDIATE,
     onAdClick: ((CustomAd) -> Unit)? = null,
+    onShown: ((CustomAd) -> Unit)? = null,
+    firstLoadTimeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT,
+) {
+    InterstitialAdHost(
+        show = show,
+        onDismiss = onDismiss,
+        closeMode = closeMode,
+        onAdClick = onAdClick,
+        onShown = onShown,
+        firstLoadTimeout = firstLoadTimeout,
+        withRouting = false,
+    )
+}
+
+/**
+ * Corpo comum de [CustomInterstitialAd] e do `ManagedInterstitialAd` (que passa [withRouting]).
+ *
+ * Enquanto a decisão espera a primeira carga ([decideInterstitial]), **nada é desenhado**: a tela
+ * de baixo continua viva e respondendo ao toque — o anúncio só entra por cima quando o criativo
+ * existe. Pular (premium, `off`, sem criativo, teto estourado) chama [onDismiss] sem contar
+ * impressão e sem [onShown].
+ */
+@Composable
+internal fun InterstitialAdHost(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    closeMode: InterstitialCloseMode,
+    onAdClick: ((CustomAd) -> Unit)?,
+    onShown: ((CustomAd) -> Unit)?,
+    firstLoadTimeout: Duration,
+    withRouting: Boolean,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
-    val ads by CustomAdManager.ads.collectAsState()
 
     if (!show) return
 
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    // Escolhido UMA vez por pedido: a lista mudar com o anúncio na tela não troca o criativo.
+    var chosen by remember { mutableStateOf<CustomAd?>(null) }
+
+    LaunchedEffect(Unit) {
+        val decision = decideInterstitial(
+            showAds = MonetizationManager.shouldShowAds,
+            ads = CustomAdManager.ads,
+            adsLoad = CustomAdManager.loadState,
+            timeout = firstLoadTimeout,
+            routing = if (withRouting) AdRouter.routing else null,
+            routingLoad = if (withRouting) AdRouter.loadState else null,
+        )
+        when (decision) {
+            is InterstitialDecision.Show -> chosen = decision.ad
+            is InterstitialDecision.Skip -> currentOnDismiss()
+        }
+    }
+
+    val ad = chosen ?: return
+
+    // Virou premium com o anúncio na tela (a assinatura chegou depois): fecha.
     if (!showAds) {
-        LaunchedEffect(Unit) { onDismiss() }
+        LaunchedEffect(Unit) { currentOnDismiss() }
         return
     }
 
-    val ad = remember(ads) {
-        selectAd(ads, format = CustomAd.FORMAT_INTERSTITIAL)
-    }
+    InterstitialAdDialog(
+        ad = ad,
+        onDismiss = onDismiss,
+        closeMode = closeMode,
+        onAdClick = onAdClick,
+        onShown = onShown,
+    )
+}
 
-    if (ad == null) {
-        LaunchedEffect(Unit) { onDismiss() }
-        return
-    }
-
+@Composable
+private fun InterstitialAdDialog(
+    ad: CustomAd,
+    onDismiss: () -> Unit,
+    closeMode: InterstitialCloseMode,
+    onAdClick: ((CustomAd) -> Unit)?,
+    onShown: ((CustomAd) -> Unit)?,
+) {
     LaunchedEffect(ad.id, ad.imageUrl) {
         CustomAdManager.notifyImpression(ad)
         AdStats.recordImpression(AdProviderTag.CUSTOM, StatAdFormat.INTERSTITIAL, ad.id)
+        onShown?.invoke(ad)
     }
 
     // Modo TIMED: barra de progresso no topo enche em durationSeconds; so entao libera o fechar.

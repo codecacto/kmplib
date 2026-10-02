@@ -1,6 +1,13 @@
 package br.com.codecacto.kmplib.ads.custom
 
+import br.com.codecacto.kmplib.ads.AdLoadState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
@@ -124,5 +131,90 @@ class CustomAdManagerTest {
 
         assertEquals(listOf(ad), impressions)
         assertEquals(listOf(ad, ad), clicks)
+    }
+
+    @Test
+    fun `loadState vai de IDLE a LOADING e a READY na primeira resposta`() = runTest {
+        assertEquals(AdLoadState.IDLE, CustomAdManager.loadState.value)
+        val pending = PendingSource()
+        CustomAdManager.initialize(CustomAdConfig(), pending, backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.LOADING, CustomAdManager.loadState.value)
+
+        pending.respond(listOf(CustomAd(id = "a", imageUrl = "https://x/a.png")))
+        runCurrent()
+        assertEquals(AdLoadState.READY, CustomAdManager.loadState.value)
+    }
+
+    @Test
+    fun `resposta vazia tambem e READY - nao ha o que esperar`() = runTest {
+        CustomAdManager.initialize(CustomAdConfig(), FakeCustomAdSource(emptyList()), backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.READY, CustomAdManager.loadState.value)
+    }
+
+    @Test
+    fun `fonte que lanca vira FAILED e nao derruba o app`() = runTest {
+        CustomAdManager.initialize(CustomAdConfig(), ThrowingSource, backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.FAILED, CustomAdManager.loadState.value)
+        assertEquals(emptyList(), CustomAdManager.ads.value)
+    }
+
+    @Test
+    fun `fonte que termina sem emitir vira FAILED`() = runTest {
+        CustomAdManager.initialize(CustomAdConfig(), SilentSource, backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.FAILED, CustomAdManager.loadState.value)
+    }
+
+    @Test
+    fun `awaitFirstLoad espera a resposta e respeita o teto`() = runTest {
+        val pending = PendingSource()
+        CustomAdManager.initialize(CustomAdConfig(), pending, backgroundScope)
+        val waited = async { CustomAdManager.awaitFirstLoad() }
+        runCurrent()
+        assertFalse(waited.isCompleted)
+        pending.respond(emptyList())
+        assertTrue(waited.await())
+
+        CustomAdManager.initialize(CustomAdConfig(), PendingSource(), backgroundScope)
+        val start = currentTime
+        assertFalse(CustomAdManager.awaitFirstLoad())
+        assertEquals(5_000L, currentTime - start)
+    }
+
+    @Test
+    fun `reinicializar nao deixa o observer antigo mexer no estado novo`() = runTest {
+        CustomAdManager.initialize(CustomAdConfig(), SilentSource, backgroundScope)
+        CustomAdManager.initialize(CustomAdConfig(), PendingSource(), backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.LOADING, CustomAdManager.loadState.value)
+    }
+
+    @Test
+    fun `reset volta a IDLE`() = runTest {
+        CustomAdManager.initialize(CustomAdConfig(), FakeCustomAdSource(), backgroundScope)
+        runCurrent()
+        CustomAdManager.reset()
+        assertEquals(AdLoadState.IDLE, CustomAdManager.loadState.value)
+    }
+
+    /** Fonte cuja primeira resposta só chega quando o teste manda — a rede lenta da abertura. */
+    private class PendingSource : CustomAdSource {
+        private val responses = MutableSharedFlow<List<CustomAd>>(replay = 1)
+        fun respond(ads: List<CustomAd>) { responses.tryEmit(ads) }
+        override fun observeAds(): Flow<List<CustomAd>> = responses
+        override suspend fun fetchAds(): Result<List<CustomAd>> = Result.success(emptyList())
+    }
+
+    private object ThrowingSource : CustomAdSource {
+        override fun observeAds(): Flow<List<CustomAd>> = flow { throw IllegalStateException("boom") }
+        override suspend fun fetchAds(): Result<List<CustomAd>> = Result.success(emptyList())
+    }
+
+    private object SilentSource : CustomAdSource {
+        override fun observeAds(): Flow<List<CustomAd>> = emptyFlow()
+        override suspend fun fetchAds(): Result<List<CustomAd>> = Result.success(emptyList())
     }
 }

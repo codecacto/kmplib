@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ads.custom
 
+import br.com.codecacto.kmplib.ads.AdDefaults
+import br.com.codecacto.kmplib.ads.AdLoadState
+import br.com.codecacto.kmplib.ads.awaitSettled
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -8,9 +11,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlin.concurrent.Volatile
+import kotlin.time.Duration
 
 /**
  * Orquestrador singleton dos house ads (anuncios proprios do app).
@@ -44,6 +51,11 @@ object CustomAdManager {
 
     private val _ads = MutableStateFlow<List<CustomAd>>(emptyList())
     private val _initialized = MutableStateFlow(false)
+    private val _loadState = MutableStateFlow(AdLoadState.IDLE)
+
+    /** Conta as chamadas de [initialize]: o observer antigo, ao terminar, nao mexe no estado do novo. */
+    @Volatile
+    private var generation = 0
 
     /** Configuracao atual (null se nao inicializado). */
     val config: CustomAdConfig? get() = _config
@@ -53,6 +65,22 @@ object CustomAdManager {
 
     /** Se o manager ja foi inicializado. */
     val initialized: StateFlow<Boolean> = _initialized.asStateFlow()
+
+    /**
+     * Situacao da PRIMEIRA carga de [ads] (2.236.0). Com [ads] vazio, e isto que diz se nao ha
+     * anuncio ([AdLoadState.READY]) ou se a resposta do apps-api ainda nao voltou
+     * ([AdLoadState.LOADING]). Volta a [AdLoadState.LOADING] a cada [initialize].
+     */
+    val loadState: StateFlow<AdLoadState> = _loadState.asStateFlow()
+
+    /**
+     * Suspende ate a primeira carga de [ads] se resolver ou ate [timeout] (2.236.0). Devolve `true`
+     * quando a carga se resolveu (com ou sem anuncio), `false` quando o tempo acabou ou a fonte falhou.
+     *
+     * Os composables de intersticial ja esperam sozinhos; isto e para quem decide por conta propria.
+     */
+    suspend fun awaitFirstLoad(timeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT): Boolean =
+        awaitSettled(_loadState, timeout) == AdLoadState.READY
 
     /**
      * Inicializa o manager e comeca a buscar os house ads.
@@ -78,8 +106,26 @@ object CustomAdManager {
         val resolvedSource = source ?: resolveDefaultSource(config)
         _source = resolvedSource
 
+        val myGeneration = ++generation
+        _loadState.value = AdLoadState.LOADING
+
         observerJob = resolvedSource.observeAds()
-            .onEach { _ads.value = it }
+            .onEach {
+                _ads.value = it
+                if (myGeneration == generation) _loadState.value = AdLoadState.READY
+            }
+            // Regra de ouro: anuncio nunca derruba o app. Uma fonte que lanca (sem `catch`, a excecao
+            // subiria ao handler do scope e encerraria o processo) vira carga FALHA.
+            .catch { e ->
+                AppLogger.w(TAG, "Falha na fonte de house ads: ${e.message}")
+                if (myGeneration == generation) _loadState.value = AdLoadState.FAILED
+            }
+            // Fonte que termina sem emitir nada: nao ha o que esperar.
+            .onCompletion { cause ->
+                if (cause == null && myGeneration == generation && _loadState.value == AdLoadState.LOADING) {
+                    _loadState.value = AdLoadState.FAILED
+                }
+            }
             .launchIn(this.scope)
 
         _initialized.value = true
@@ -128,6 +174,8 @@ object CustomAdManager {
         _source = null
         _ads.value = emptyList()
         _initialized.value = false
+        _loadState.value = AdLoadState.IDLE
+        generation++
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 

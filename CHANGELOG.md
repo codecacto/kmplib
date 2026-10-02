@@ -1,5 +1,55 @@
 # Changelog — kmplib
 
+## 2.236.0 — Intersticial espera a primeira carga dos anúncios (a abertura não se perde mais)
+
+Minor, **aditiva** — e corrige a corrida que fazia o intersticial "ao abrir" nunca aparecer.
+Origem: teste do agente de 02/out/2026, Piadaria no Android (o iOS passou por sorte).
+
+**O defeito (todas as versões até a 2.235.1).** O intersticial de abertura é pedido na primeira
+exibição da tela, quando a lista de house ads do apps-api (`CustomAdManager.ads`) ainda está
+**vazia** — a resposta não voltou. Sem anúncio, o `CustomInterstitialAd` chamava `onDismiss` na hora
+e a sessão perdia a abertura. A mesma corrida existia no `ManagedInterstitialAd` com o roteamento:
+até a `/public/ad-config` responder, o `AdRouter.routing` é o `defaults` do app — com `defaults = OFF`
+e o painel em `custom`, o pedido também era descartado no primeiro frame. Lista vazia não dizia se
+não havia anúncio ou se ele ainda não tinha chegado.
+
+**A correção.**
+- `CustomInterstitialAd` e `ManagedInterstitialAd` **esperam a primeira carga** (anúncios e, no
+  gerenciado, também o roteamento) até `firstLoadTimeout` — default
+  **`AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT` = 5 s** (primeiro pedido de um app frio em rede
+  móvel; o valor provado no Piadaria). **Nada é desenhado durante a espera** — a tela de baixo segue
+  usável; o anúncio entra por cima quando o criativo existe. Criativo já carregado exibe na hora.
+- Carga resolvida sem criativo, fonte que falhou ou teto estourado → `onDismiss` **sem** contar
+  impressão. Criativo que chega depois do teto **não** aparece (não cai no meio do uso).
+- **Premium nunca vê**: `shouldShowAds = false` pula na hora, também se virar `false` durante a
+  espera; com o anúncio na tela, fecha.
+- **`off` do painel respeitado**: o gerenciado espera o roteamento para lê-lo, mesmo com criativo
+  pronto e `defaults = ALL_CUSTOM`. Roteamento que falhou → vale o `defaults` do app.
+- Fonte nunca inicializada (`IDLE`) não é esperada — inicialize `CustomAdManager`/`AdRouter` no
+  bootstrap, como a casca faz.
+
+**API nova (aditiva):**
+- `AdLoadState` (`IDLE`/`LOADING`/`READY`/`FAILED`, `isSettled`).
+- `CustomAdManager.loadState` / `CustomAdManager.awaitFirstLoad(timeout)`;
+  `AdRouter.loadState` / `AdRouter.awaitFirstLoad(timeout)`.
+- `CustomInterstitialAd(…, onShown, firstLoadTimeout)` e `ManagedInterstitialAd(…, onShown,
+  firstLoadTimeout)`. **`onShown`** dispara só quando o anúncio aparece de fato — é o lugar de contar
+  frequência ("uma vez por sessão"); `onDismiss` continua chegando nos dois casos. Intersticial que
+  segura uma navegação no `onDismiss` pode passar `firstLoadTimeout = Duration.ZERO`.
+- Fonte de anúncios/roteamento que **lança** deixou de subir ao handler do scope (podia derrubar o
+  processo): vira `FAILED`.
+
+**Banner não tinha a corrida:** o `CustomBannerAd` observa a lista e aparece quando ela chega, com
+impressão viewable — nada se perde.
+
+**Para o app:** subir a versão basta. Quem contornou no app (Piadaria `JokeRoute`, commit `dd6927d`:
+`withTimeoutOrNull` sobre `CustomAdManager.ads`) pode voltar a pedir o intersticial direto. Quem conta
+frequência no `onDismiss` deve passar a contar no `onShown`.
+
+Testes: `InterstitialDecisionTest` (14 — carregando → espera e exibe; falha/teto → segue sem anúncio;
+premium → nunca; `off` do painel; roteamento OFF→CUSTOM), `CustomAdManagerTest` e `AdRouterTest`
+(estado da carga, fonte que lança, fonte muda, reinicialização).
+
 ## 2.235.1 — `OnboardingPager` respeita as barras do sistema
 
 Patch. O carrossel de introdução é tela cheia sem `Scaffold`: com o edge-to-edge (Android 15 forçado;

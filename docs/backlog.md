@@ -3,6 +3,19 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 02/out/2026 — intersticial de abertura perdido (teste do agente, Piadaria Android)
+- [x] **GAP-ADS-OPEN-01 (P0) — o intersticial pedido no 1º frame era descartado** (`ads`): lista do apps-api ainda
+      vazia (e, no gerenciado, roteamento ainda no `defaults`) → `onDismiss` na hora, sessão sem abertura. ~30 apps de
+      `1-Apps-Offline-Ads` pedem o intersticial na primeira tela. ✅ **2.236.0** — espera a primeira carga até 5 s
+      (`AdLoadState`, `loadState`/`awaitFirstLoad` no `CustomAdManager` e no `AdRouter`, `onShown`, `firstLoadTimeout`).
+- [ ] **GAP-MON-PREMIUM-01 (P2) — "é premium?" não tem estado de "ainda não sei"** (`monetization`): o
+      `MonetizationManager.shouldShowAds` nasce `true` no Freemium (assinatura `isActive=false` até alguém chamar
+      `syncSubscriptionState`, hoje só o `EntitlementProvider`). Um assinante Freemium pode ver o intersticial de
+      abertura antes de a loja responder — o anúncio FECHA quando o premium chega (2.236.0), mas aparece. Correção
+      certa: o repositório publicar a primeira leitura do `customerInfo` (sync no `initialize` + listener
+      `UpdatedCustomerInfo` do SDK) e um `entitlementLoadState`, que o `decideInterstitial` passa a esperar junto.
+      Não afeta `AdsOnly` (sem premium) — a categoria do defeito acima.
+
 ### Registrado em 02/out/2026 — prova de publicidade no Maestro
 - [x] **GAP-ADS-QA-01 (P1) — ids de "o anúncio apareceu"** (`ads`): `ads-banner`/`ads-banner-carregado`,
       `ads-interstitial`/`ads-interstitial-carregado`. ✅ **2.232.0**.

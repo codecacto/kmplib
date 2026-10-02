@@ -1,6 +1,9 @@
 package br.com.codecacto.kmplib.ads.router
 
+import br.com.codecacto.kmplib.ads.AdLoadState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
@@ -88,5 +91,34 @@ class AdRouterTest {
         runCurrent()
         assertEquals("app-b", AdRouter.appId)
         assertEquals(AdRouting.ALL_CUSTOM, AdRouter.routing.value)
+    }
+
+    @Test
+    fun `loadState READY na primeira config - enquanto LOADING o routing e so o defaults`() = runTest {
+        assertEquals(AdLoadState.IDLE, AdRouter.loadState.value)
+        val source = FakeAdRoutingSource(initialRouting = AdRouting.ALL_CUSTOM)
+        AdRouter.initialize("meu-app", defaults = AdRouting.OFF, source = source, scope = backgroundScope)
+        assertEquals(AdLoadState.LOADING, AdRouter.loadState.value)
+        assertEquals(AdRouting.OFF, AdRouter.routing.value)
+
+        runCurrent()
+        assertEquals(AdLoadState.READY, AdRouter.loadState.value)
+        assertEquals(AdRouting.ALL_CUSTOM, AdRouter.routing.value)
+        assertTrue(AdRouter.awaitFirstLoad())
+    }
+
+    @Test
+    fun `fonte que lanca fica nos defaults e vira FAILED`() = runTest {
+        val throwing = object : AdRoutingSource {
+            override fun observeRouting(appId: String, default: AdRouting): Flow<AdRouting> =
+                flow { throw IllegalStateException("boom") }
+            override suspend fun fetchRouting(appId: String, default: AdRouting): Result<AdRouting> =
+                Result.success(default)
+        }
+        AdRouter.initialize("meu-app", defaults = AdRouting.ALL_CUSTOM, source = throwing, scope = backgroundScope)
+        runCurrent()
+        assertEquals(AdLoadState.FAILED, AdRouter.loadState.value)
+        assertEquals(AdRouting.ALL_CUSTOM, AdRouter.routing.value)
+        assertFalse(AdRouter.awaitFirstLoad())
     }
 }

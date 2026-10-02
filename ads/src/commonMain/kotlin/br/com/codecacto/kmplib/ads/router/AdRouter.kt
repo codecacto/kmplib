@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ads.router
 
+import br.com.codecacto.kmplib.ads.AdDefaults
+import br.com.codecacto.kmplib.ads.AdLoadState
+import br.com.codecacto.kmplib.ads.awaitSettled
 import br.com.codecacto.kmplib.core.util.AppLogger
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -9,8 +12,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlin.concurrent.Volatile
+import kotlin.time.Duration
 
 /**
  * Decide em runtime qual provider de publicidade usar pra cada formato, baseado em config remota do
@@ -40,12 +47,32 @@ object AdRouter {
 
     private val _routing = MutableStateFlow(AdRouting.OFF)
     private val _initialized = MutableStateFlow(false)
+    private val _loadState = MutableStateFlow(AdLoadState.IDLE)
+
+    /** Conta as chamadas de [initialize]: o observer antigo, ao terminar, nao mexe no estado do novo. */
+    @Volatile
+    private var generation = 0
 
     /** Routing atual (em tempo real). */
     val routing: StateFlow<AdRouting> = _routing.asStateFlow()
 
     /** Se o router ja foi inicializado. */
     val initialized: StateFlow<Boolean> = _initialized.asStateFlow()
+
+    /**
+     * Situacao da PRIMEIRA carga do [routing] (2.236.0). Enquanto [AdLoadState.LOADING], o
+     * [routing] ainda e o `defaults` do app, nao a decisao do painel — quem decide exibir um
+     * intersticial espera isto se resolver, para respeitar o `off` publicado no admin.
+     */
+    val loadState: StateFlow<AdLoadState> = _loadState.asStateFlow()
+
+    /**
+     * Suspende ate a primeira carga do [routing] se resolver ou ate [timeout] (2.236.0). `true` =
+     * resolveu (a config do servidor, ou o `defaults` porque ele nao respondeu); `false` = o tempo
+     * acabou ou a fonte falhou.
+     */
+    suspend fun awaitFirstLoad(timeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT): Boolean =
+        awaitSettled(_loadState, timeout) == AdLoadState.READY
 
     /** AppId em uso (null se nao inicializado). */
     val appId: String? get() = _appId
@@ -88,8 +115,24 @@ object AdRouter {
         _source = resolvedSource
         _routing.value = defaults
 
+        val myGeneration = ++generation
+        _loadState.value = AdLoadState.LOADING
+
         observerJob = resolvedSource.observeRouting(appId, defaults)
-            .onEach { _routing.value = it }
+            .onEach {
+                _routing.value = it
+                if (myGeneration == generation) _loadState.value = AdLoadState.READY
+            }
+            // Anuncio nunca derruba o app: fonte que lanca fica nos `defaults` e a carga vira FALHA.
+            .catch { e ->
+                AppLogger.w(TAG, "Falha na fonte de ad-config: ${e.message}")
+                if (myGeneration == generation) _loadState.value = AdLoadState.FAILED
+            }
+            .onCompletion { cause ->
+                if (cause == null && myGeneration == generation && _loadState.value == AdLoadState.LOADING) {
+                    _loadState.value = AdLoadState.FAILED
+                }
+            }
             .launchIn(this.scope)
 
         _initialized.value = true
@@ -104,6 +147,8 @@ object AdRouter {
         _source = null
         _routing.value = AdRouting.OFF
         _initialized.value = false
+        _loadState.value = AdLoadState.IDLE
+        generation++
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 }

@@ -3,6 +3,8 @@ package br.com.codecacto.kmplib.ads
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ads.custom.CustomAd
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /** Medidas padrão dos house ads, num lugar só. */
 object AdDefaults {
@@ -25,6 +27,19 @@ object AdDefaults {
      * "a largura da tela", e é isso que a proporção entrega em qualquer aparelho.
      */
     val BANNER_SQUARE_HEIGHT: Dp = 360.dp
+
+    /**
+     * Quanto o intersticial espera a **primeira** carga dos anúncios (e do roteamento) antes de
+     * desistir daquela exibição — 2.236.0.
+     *
+     * A espera não bloqueia nada: a tela abre normalmente e o anúncio só entra por cima quando o
+     * criativo chega. O teto existe para o anúncio de abertura não cair no meio do uso. **5 s**
+     * cobre o primeiro pedido de um app recém-aberto em rede móvel (DNS + TLS + resposta, com o
+     * processo frio), que é o caso em que a corrida acontecia; foi também o valor provado no
+     * Piadaria. Depois disso a pessoa já está usando o app, e um anúncio em tela cheia vira
+     * interrupção — a exibição é pulada, sem contar impressão.
+     */
+    val INTERSTITIAL_FIRST_LOAD_TIMEOUT: Duration = 5.seconds
 }
 
 /**
