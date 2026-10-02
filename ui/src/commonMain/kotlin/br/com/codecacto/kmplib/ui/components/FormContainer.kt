@@ -71,6 +71,29 @@ object FormDefaults {
  * Até a 2.150.x não havia teto nenhum: num tablet em paisagem (1280dp) o campo de e-mail nascia com
  * 1184dp de largura, **em todo app da fábrica**.
  *
+ * ## ⚠️ JÁ ROLA — é a ÚNICA região rolável do formulário
+ *
+ * O container aplica `fillMaxSize().imePadding().verticalScroll(...)` por conta própria. **Não o
+ * coloque dentro de um pai que rola na vertical, nem passe `verticalScroll` no [modifier]:**
+ *
+ * ```kotlin
+ * // ❌ os dois caem ao ABRIR a tela — compilam verde
+ * Column(Modifier.verticalScroll(rememberScrollState())) { FormContainer { … } }
+ * FormContainer(modifier = modifier.verticalScroll(rememberScrollState())) { … }
+ *
+ * // ✅ o padding do Scaffold entra pelo modifier; quem rola é o container
+ * FormContainer(modifier = Modifier.padding(innerPadding)) { … }
+ * ```
+ *
+ * Aninhado, o `verticalScroll` de dentro é medido com altura máxima infinita e o Compose aborta:
+ * *"Vertically scrollable component was measured with an infinity maximum height constraints"*
+ * (no iOS, `SIGABRT` em `MetalRedrawer.draw`). Vale o mesmo para item de `LazyColumn`. Caso de
+ * origem: Todos a Bordo, 02/out/2026 — e a varredura achou o mesmo erro em PalpiteCerto, PontoFirme
+ * (6 telas) e MinhasHoras. O auditor (`Nexus/fabrica/rolagem_aninhada.py`) cobra.
+ *
+ * Cabeçalho fixo acima do formulário: `Column { Cabecalho(); FormContainer(Modifier.weight(1f)) { … } }`
+ * — a coluna de fora **não** rola.
+ *
  * @param modifier Modifier to apply to the container
  * @param horizontalPadding Horizontal padding for the content (default: 24.dp)
  * @param verticalPadding Vertical padding for the content (default: 16.dp)

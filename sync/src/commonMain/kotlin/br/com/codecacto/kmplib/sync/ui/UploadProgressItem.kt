@@ -114,6 +114,9 @@ fun UploadProgressItem(
  *
  * Uso: `val items by queue.items.collectAsState()` → `UploadQueueView(items, onRetry = queue::retry)`
  * (o retry deve ser disparado numa coroutine pelo app/ViewModel).
+ *
+ * ⚠️ **Já rola (`LazyColumn`).** Dentro de um pai que rola na vertical passe uma altura limitada
+ * (`modifier = Modifier.heightIn(max = 360.dp)`), senão é medida com altura infinita e o app cai.
  */
 @Composable
 fun UploadQueueView(

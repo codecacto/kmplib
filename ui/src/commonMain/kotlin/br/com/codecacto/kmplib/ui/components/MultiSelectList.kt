@@ -151,6 +151,10 @@ fun toggleAllSelection(current: Set<String>, enabledIds: List<String>): Set<Stri
  * @param header slot opcional renderizado **acima** da lista e abaixo do header de seleção (ex.:
  *   `FilterChipRow` de faixa etária/lote). Recebe o [MultiSelectSummary] atual.
  * @param contentPadding padding em torno do conteúdo da `LazyColumn`.
+ *
+ * ⚠️ **Já rola (`LazyColumn`).** Dentro de um pai que rola na vertical (formulário com
+ * `verticalScroll`) passe uma altura limitada — `modifier = Modifier.heightIn(max = 360.dp)` —, senão
+ * a lista é medida com altura infinita e o app cai ao abrir a tela (MinhasVacinas, 02/out/2026).
  */
 @Composable
 fun <T> MultiSelectList(

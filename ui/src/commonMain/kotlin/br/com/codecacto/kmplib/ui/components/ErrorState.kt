@@ -57,6 +57,13 @@ fun rememberErrorStateTexts(): ErrorStateTexts = ErrorStateTexts(
  * Existe para que gestos verticais (notadamente o **pull-to-refresh** do [RefreshableBox]) continuem
  * funcionando sobre uma área "vazia" — sem um filho rolável, o `PullToRefreshBox` não recebe o gesto.
  * Também garante que o conteúdo permaneça alcançável em tela pequena / com teclado aberto.
+ *
+ * ⚠️ **Já rola (`fillMaxSize().verticalScroll(...)`) — não aninhe em outro rolável vertical.** Dentro
+ * de `Column(Modifier.verticalScroll)`, de um item de `LazyColumn`/`LazyVerticalGrid` ou de outro
+ * `ScrollableFillBox`, ela é medida com altura máxima infinita e o app cai (*"Vertically scrollable
+ * component was measured with an infinity maximum height constraints"*). Em particular,
+ * **`ScrollableFillBox { ErrorState(...) }` é o erro**: o [ErrorState] já é um `ScrollableFillBox`.
+ * Estado vazio dentro de um item de lista usa `Box` comum.
  */
 @Composable
 fun ScrollableFillBox(
@@ -88,6 +95,22 @@ fun ScrollableFillBox(
  *   **rolável** (funciona sob pull-to-refresh e em tela pequena com teclado aberto).
  *
  * Tema 100% via [MaterialTheme] (sem cor hardcoded).
+ *
+ * ## ⚠️ Já rola — é o corpo da tela, não um bloco dentro de uma rolagem
+ *
+ * Por baixo é um [ScrollableFillBox] (`fillMaxSize().verticalScroll(...)`). Use-o **direto** no ramo
+ * de erro do `when` (inclusive como filho do [RefreshableBox]) — **sem** embrulhar em
+ * `ScrollableFillBox`/`Box(Modifier.verticalScroll)`. Dentro de um pai que rola na vertical
+ * (`Column(Modifier.verticalScroll)`, item de `LazyColumn`/`LazyVerticalGrid`) ele é medido com
+ * altura infinita e **o app cai justamente na tela de erro** — o ramo que ninguém abre no teste.
+ * A varredura de 02/out/2026 achou isso em 20 apps. Quando o erro precisa mesmo aparecer **dentro**
+ * de uma rolagem (o cabeçalho e os filtros ficam, só o miolo falhou), limite a altura dele:
+ *
+ * ```kotlin
+ * item { ErrorState(msg, onRetry, modifier = Modifier.heightIn(max = 320.dp)) }
+ * ```
+ *
+ * O auditor (`Nexus/fabrica/rolagem_aninhada.py`) cobra o aninhamento.
  *
  * ```kotlin
  * when {

@@ -43,6 +43,9 @@ import br.com.codecacto.kmplib.ui.theme.AppColors
  *     onRetryAll = { scope.launch { (engine as DefaultSyncEngine).retryAll() } },
  *     onDiscard = { scope.launch { (engine as DefaultSyncEngine).discard(it.entity, it.localId) } })
  * ```
+ *
+ * ⚠️ **Já rola (`LazyColumn`).** Dentro de um pai que rola na vertical passe uma altura limitada
+ * (`modifier = Modifier.heightIn(max = 360.dp)`), senão é medida com altura infinita e o app cai.
  */
 @Composable
 fun SyncQueueView(

@@ -54,6 +54,8 @@ fun resolveRefreshAction(isOnline: Boolean?, enabled: Boolean = true): RefreshAc
  *
  * `isRefreshing` é hoisted (vem do State do ViewModel). Para que o gesto funcione com a lista vazia,
  * o filho deve ser rolável — use [ScrollableFillBox] / [ErrorState] no branch de erro/vazio.
+ * ⚠️ O [ErrorState] **já é** um `ScrollableFillBox`: vai direto, nunca `ScrollableFillBox { ErrorState(...) }`
+ * (dois roláveis verticais aninhados derrubam o app — ver o KDoc do [ScrollableFillBox]).
  *
  * ```kotlin
  * RefreshableBox(isRefreshing = state.isRefreshing, onRefresh = { vm.dispatch(Action.Refresh) }) {
