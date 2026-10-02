@@ -1,5 +1,53 @@
 # Changelog — kmplib
 
+## 2.241.2 — `MapView` (Android): `animateTo` antes de o mapa carregar derrubava o app
+
+`CameraPositionState.animateTo` montava o comando com `CameraUpdateFactory.newLatLngZoom(...)`, e a
+fábrica só existe **depois de o Maps SDK inicializar** — o que acontece quando o primeiro mapa é
+criado. Chamado antes (o `LaunchedEffect` que centra no GPS ou no primeiro pino, que roda junto com a
+primeira composição), o app fechava com `NullPointerException: CameraUpdateFactory is not initialized`.
+É o mesmo crash achado no Prospecta (02/out/2026), que usava o SDK direto.
+
+Quem chamava cedo: o próprio `route/PlacePicker` (`LaunchedEffect(initial)`, sem posição inicial e com
+`locationProvider`) e, nos apps, o Exiba (`MapaScreen`) e o Meu Frete (pelo `PlacePicker`).
+
+### O defeito era maior que o crash
+
+No Android o `CameraPositionState` embrulhava um estado do maps-compose **que nunca era ligado a mapa
+nenhum** — o `MapView` cria o dele, e só lia a `cameraPosition` na primeira composição. Ou seja:
+chamado cedo, `animateTo` derrubava o app; chamado tarde, **não movia nada**. "Centrar no primeiro
+pino", "minha localização" e "ir para o resultado da busca" do `PlacePicker` nunca funcionaram no
+Android (no iOS, sim: lá o estado é uma posição observável e o mapa a segue).
+
+### O que mudou
+
+- **`CameraPositionState` (Android) virou o que já era no iOS: o pedido de câmera**, uma posição
+  observável. `animateTo`/`position = …` não tocam no SDK — podem ser chamados a qualquer momento,
+  antes ou depois de o mapa existir.
+- **`MapView` (Android) passou a seguir a `cameraPosition`**: mudou depois de o mapa carregar → anima
+  até lá; mudou antes → escreve a posição no estado (`position = …`, que não passa pela fábrica) e o
+  mapa nasce nela. É o mesmo portão do `NativeMap`: "carregado" vem do `onMapLoaded`, encadeado com o
+  callback do consumidor. A decisão é `cameraSyncFor(requested, applied, loaded)`, pura e testada —
+  **sem mapa carregado ela nunca devolve o caminho que usa `CameraUpdateFactory`**.
+- Posição igual à já aplicada não gera comando: o carregamento do mapa não anima até onde ele já está.
+- KDoc de `CameraPositionState`: é o **pedido**, não o espelho do mapa — `position` não acompanha o
+  arrasto do dedo. Para o estado real da câmera, use o `NativeMap` com `rememberMapController()`.
+
+### O que o app faz
+
+**Nada — basta subir a versão.** A API pública não mudou (`rememberCameraPositionState`, `position`,
+`animateTo`, `MapView(cameraPosition = state.position)`). Atenção a um efeito que agora APARECE: no
+Android a câmera passa a obedecer ao `animateTo`; tela que dependia de ele não fazer nada (não achei
+nenhuma) vai ver o mapa se mover.
+
+### Prova
+
+`MapViewCameraTest` (6 casos, `androidUnitTest`) — a JVM do teste é o cenário do crash (Maps SDK não
+inicializado): `animateTo` e `position = …` antes de existir mapa não lançam e guardam o pedido; mapa
+não carregado nunca anima; carregado anima; posição já aplicada não gera comando; só o zoom mudar é
+pedido novo. O movimento na tela precisa de prova em aparelho: abrir o mapa do Exiba (centra no
+primeiro pino, botão "minha localização") e o `PlacePicker` do Meu Frete sem posição inicial.
+
 ## 2.241.1 — login social pelo navegador: fechar a aba sem concluir encerra o login (Android)
 
 Fecha o **GAP-AUTH-SOCIAL-01**. No modo `BACKEND`, quem tocava em "Entrar com Google", via o navegador

@@ -72,8 +72,9 @@ expect class MapScope
  * pontos), use [NativeMap] — este aqui é o mapa simples de pinos declarados como filhos.
  *
  * @param modifier modificador Compose.
- * @param cameraPosition posição inicial da câmera. Para câmera controlável
- *   use [rememberCameraPositionState] e passe `state.position`.
+ * @param cameraPosition posição da câmera. Para câmera controlável use
+ *   [rememberCameraPositionState] e passe `state.position`: quando ela muda, o mapa vai até lá
+ *   (nas duas plataformas desde a 2.241.2 — antes o Android só lia o valor inicial).
  * @param onMapLoaded chamado quando o mapa termina de carregar.
  * @param onMapLongClick chamado em toque longo no mapa (útil para arrastar/
  *   posicionar um pin de cadastro). Recebe a [LatLng] tocada.
@@ -124,12 +125,22 @@ expect fun MapScope.MapMarker(
  * Estado controlável da câmera. Crie via [rememberCameraPositionState].
  *
  * Permite ler/escrever [position] e animar para um novo ponto com [animateTo].
+ *
+ * É o **pedido** de câmera, não o espelho do mapa: [position] devolve a última posição pedida, e
+ * não acompanha o arrasto de quem mexe no mapa com o dedo. Para o estado real da câmera, enquadrar
+ * pontos e saber quando o mapa parou, use o [NativeMap] com `rememberMapController()`.
+ *
+ * Pode ser usado **antes de o mapa existir** (ex.: num `LaunchedEffect` que centra no GPS): o
+ * pedido fica guardado e o mapa nasce nele.
  */
 @Stable
 expect class CameraPositionState {
     var position: CameraPosition
 
-    /** Anima suavemente a câmera até [position]. */
+    /**
+     * Leva a câmera até [position]: animada se o mapa já carregou; se ainda não, é onde ele abre.
+     * Pedir a posição que já é a pedida não faz nada.
+     */
     fun animateTo(position: CameraPosition)
 }
 
