@@ -1,5 +1,26 @@
 # Changelog — kmplib
 
+## 2.237.0 — Título da `AppTopBar` com id para automação (`topbar-titulo`): fechar o teclado no iOS
+
+Minor, **aditiva**. Origem: teste do agente de 02/out/2026, Minha Voz no **iOS** — o flow que
+passou no Android quebrou no `hideKeyboard` ("Hide Keyboard... FAILED | Instead of hideKeyboard, try
+tapping on non-interactive element to hide keyboard").
+
+**Por quê.** No iOS não há API para baixar o teclado: o `hideKeyboard` do Maestro dá swipes no meio da
+tela e torce para o layout reagir — em tela Compose, não reage. A documentação oficial do Maestro
+(`hideKeyboard` → *Workarounds*) indica tocar num elemento **não interativo** (título, cabeçalho).
+
+- **Novo `TopBarTestTags.TITULO = "topbar-titulo"`** (`platform.automation`, artefato
+  `kmplib-platform`), no texto do título da `AppTopBar` — e por ela `BackTopBar`, `MenuTopBar`,
+  `SimpleTopBar`. Literal travado por `TopBarTestTagsTest` (é contrato com os flows dos apps).
+- O toque só baixa o teclado com **`Modifier.dismissKeyboardOnTapOutside()` na raiz do app**
+  (2.194.0; a `casca-mobile` já nasce com ele). App sem o modifier: aplicar no `Box` que envolve o
+  `AppNavHost` — é também o comportamento que o usuário de iPhone espera.
+- Padrão do flow (Android segue com `hideKeyboard`, que lá é o "voltar" do sistema e é confiável):
+  `runFlow` com `when: { platform: Android }` → `hideKeyboard`; `when: { platform: iOS }` →
+  `tapOn: { id: "topbar-titulo" }`. Comandos **inline** (`commands:`), não `file:` — vários runners
+  copiam o flow para outra pasta antes de rodar, e o caminho relativo do subflow quebraria.
+
 ## 2.236.0 — Intersticial espera a primeira carga dos anúncios (a abertura não se perde mais)
 
 Minor, **aditiva** — e corrige a corrida que fazia o intersticial "ao abrir" nunca aparecer.

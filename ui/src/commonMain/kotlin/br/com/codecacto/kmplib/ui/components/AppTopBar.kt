@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 /**
  * Tipo de navegação na TopBar
@@ -41,6 +43,9 @@ enum class NavigationType {
  * @param contentColor Cor do conteúdo (texto e ícones)
  * @param elevation Elevação da barra
  * @param titleSize Tamanho da fonte do título
+ * O texto do título leva a `testTag` [TopBarTestTags.TITULO] (`topbar-titulo`, 2.237.0): é o alvo
+ * NÃO interativo que os flows do Maestro tocam para baixar o teclado no iOS (ver [TopBarTestTags]).
+ *
  * @param subtitle Segunda linha da barra, abaixo do título (2.181.0). `null` = barra de uma linha,
  *   como sempre foi.
  *
@@ -140,6 +145,7 @@ private fun TopBarTitle(
     if (subtitle == null) {
         Text(
             text = title,
+            modifier = Modifier.testTag(TopBarTestTags.TITULO),
             fontSize = titleSize,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
@@ -152,6 +158,7 @@ private fun TopBarTitle(
     ) {
         Text(
             text = title,
+            modifier = Modifier.testTag(TopBarTestTags.TITULO),
             fontSize = titleSize,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
