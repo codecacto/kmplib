@@ -1,5 +1,30 @@
 # Changelog — kmplib
 
+## 2.244.0 — `AppTopBar`: ids `topbar-voltar` e `topbar-menu` no ícone de navegação (voltar portável no Maestro)
+
+`TopBarTestTags.VOLTAR` (`topbar-voltar`) e `TopBarTestTags.MENU` (`topbar-menu`), postos no `IconButton`
+de navegação da `AppTopBar` (e portanto da `BackTopBar` e da `MenuTopBar`). Aditivo: nada muda na tela.
+
+### Por quê
+
+O `- back` (e o `pressKey: back`) do Maestro é o botão Voltar do **Android**. No iOS ele **não existe**
+e o comando passa sem fazer nada: o flow continua na mesma tela e quebra no passo seguinte, esperando a
+tela de baixo. Caso de origem: Minha OS, `funcionalidades/02-cadastros` (02/out/2026) — Android verde,
+iPhone parado na lista de Clientes com `home-tela is visible` falso. O ícone de voltar é desenhado pela
+lib, então um id posto no app não chegava nele; agora o flow tem um passo único que vale nas duas:
+
+```yaml
+- tapOn:
+    id: "topbar-voltar"
+```
+
+Tela sem barra da lib (ou voltar que só existe pelo gesto do sistema) → `testTag` próprio no app; `- back`
+só dentro de `runFlow when platform: Android`. O auditor de prontidão (`auditar-prontidao-loja.py`) cobra.
+
+### Prova
+
+`TopBarTestTagsTest` trava os literais (são contrato com os flows de todos os apps).
+
 ## 2.243.0 — `kmplib-navigation`: `NavType` de enum para rota type-safe (o app não fecha mais ao abrir no iOS)
 
 Módulo novo, `br.com.codecacto:kmplib-navigation` (pacote `br.com.codecacto.kmplib.navigation`), e no

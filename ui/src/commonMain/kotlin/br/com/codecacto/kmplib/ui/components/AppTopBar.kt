@@ -45,6 +45,7 @@ enum class NavigationType {
  * @param titleSize Tamanho da fonte do título
  * O texto do título leva a `testTag` [TopBarTestTags.TITULO] (`topbar-titulo`, 2.237.0): é o alvo
  * NÃO interativo que os flows do Maestro tocam para baixar o teclado no iOS (ver [TopBarTestTags]).
+ * O ícone de navegação leva `topbar-voltar` / `topbar-menu` (2.244.0) — o voltar portável do flow.
  *
  * @param subtitle Segunda linha da barra, abaixo do título (2.181.0). `null` = barra de uma linha,
  *   como sempre foi.
@@ -106,7 +107,16 @@ fun AppTopBar(
         modifier = modifier,
         navigationIcon = {
             navIcon?.let {
-                IconButton(onClick = onNavigationClick) {
+                // Id para o flow Maestro voltar nas DUAS plataformas: o `- back` não existe no iOS.
+                val navTag = when (navigationType) {
+                    NavigationType.BACK -> TopBarTestTags.VOLTAR
+                    NavigationType.MENU -> TopBarTestTags.MENU
+                    NavigationType.NONE -> null
+                }
+                IconButton(
+                    onClick = onNavigationClick,
+                    modifier = if (navTag != null) Modifier.testTag(navTag) else Modifier,
+                ) {
                     Icon(
                         imageVector = it,
                         contentDescription = when (navigationType) {

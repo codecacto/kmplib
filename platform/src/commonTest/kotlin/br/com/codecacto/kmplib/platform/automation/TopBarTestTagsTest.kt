@@ -14,4 +14,10 @@ class TopBarTestTagsTest {
     fun `id literal do titulo e estavel`() {
         assertEquals("topbar-titulo", TopBarTestTags.TITULO)
     }
+
+    @Test
+    fun `ids literais de voltar e menu sao estaveis`() {
+        assertEquals("topbar-voltar", TopBarTestTags.VOLTAR)
+        assertEquals("topbar-menu", TopBarTestTags.MENU)
+    }
 }
