@@ -1,5 +1,62 @@
 # Changelog — kmplib
 
+## 2.241.1 — login social pelo navegador: fechar a aba sem concluir encerra o login (Android)
+
+Fecha o **GAP-AUTH-SOCIAL-01**. No modo `BACKEND`, quem tocava em "Entrar com Google", via o navegador
+abrir e **fechava a aba sem concluir** voltava para uma tela de login morta: `isGoogleLoading` preso em
+`true`, botões desligados, e nada além de reabrir o app resolvia. `SocialBrowserLogin.authenticate` só
+terminava pelo *deep link* de volta (`SocialBrowserRedirect.handleRedirect`) ou por um `cancel()` que
+ninguém chamava — o navegador não avisa quando a pessoa desiste. iOS nunca teve o defeito
+(`ASWebAuthenticationSession` devolve o cancelamento), nem o modo `NATIVE`.
+
+### O que mudou
+
+- **Voltar ao aplicativo com o pedido ainda sem resposta = cancelado.** É a regra do AppAuth-Android
+  (`AuthorizationManagementActivity`: retomou sem resposta → `RESULT_CANCELED`). Aqui, sem Activity
+  própria, quem observa é um `Application.ActivityLifecycleCallbacks` registrado dentro do
+  `authenticate`, antes de abrir o navegador, e removido no `finally` — por qualquer saída.
+- O login termina com `SocialBrowserException(reason = "cancelado")`, o mesmo de quem fecha a folha do
+  Google no modo nativo: `foiCancelado()` responde `true` e a tela fica quieta, sem "falha no login".
+- **Folga de 750 ms** entre a volta e o cancelamento (`BROWSER_RETURN_TOLERANCE_MILLIS`). No caminho
+  normal ela nem é usada — a `AuthCallbackActivity` entrega o *deep link* no `onCreate`/`onNewIntent`,
+  e a tela de baixo só é retomada depois, com o pedido já concluído. Cobre a tela que aparece um
+  instante enquanto o seletor "abrir com" entrega o navegador (nova pausa dentro da folga desarma o
+  cancelamento) e o aparelho em que os dois eventos chegam invertidos.
+- Observa **todas** as telas do app, não só a que abriu o navegador: girar o aparelho com o navegador
+  na frente faz o Android recriar a tela na volta, e a instância que retoma é outra.
+- **Tela dividida não cancela sozinha** (`isInMultiWindowMode`): o navegador pode estar vivo ao lado,
+  com a pessoa no meio do login. Ali continua valendo `SocialBrowserRedirect.cancel()`.
+- *Deep link* que chega **depois** do cancelamento é ignorado — não há pedido para ele completar, e o
+  código que ele traz não vale sem o `verifier`, descartado junto com a tentativa.
+- Falha ao abrir o navegador que **não** seja `ActivityNotFoundException` também desfaz o pedido
+  (antes ele ficava pendente, e o próximo *deep link* completaria um login que nunca abriu).
+
+### O que o app faz
+
+**Nada — basta subir a versão.** O `SocialBrowserRedirect.cancel()` continua existindo, para cancelar
+por decisão do app (sair da tela de login com o navegador aberto).
+
+### Prova
+
+- `BrowserReturnWatchTest` (8 casos, `androidUnitTest`): fechar a aba cancela depois da folga · o
+  `onResume` de quem vai abrir o navegador não cancela · login concluído antes da volta não é
+  cancelado · *deep link* dentro da folga vence · volta de um instante seguida de nova saída não
+  cancela · tela dividida · dois retornos cancelam uma vez · login encerrado desarma o agendado.
+- A regra é uma classe pura (`BrowserReturnWatch`), sem `Activity` nem relógio; a ligação com o
+  Android (`BrowserReturnWatchRegistration`) **precisa de prova em aparelho** — roteiro: modo
+  `BACKEND`, tocar em "Entrar com Google", fechar a aba com o voltar → o botão volta a responder em
+  menos de 1 s, sem mensagem de erro; repetir concluindo o login → entra normalmente; repetir
+  girando o aparelho com o navegador aberto e fechando a aba.
+- Security review (checklist do `security-reviewer`): conforme; um item Baixo registrado no backlog
+  (`GAP-AUTH-SOCIAL-02`).
+
+### Também nesta versão (documentação)
+
+`IOS_INTEGRATION.md` §"Versão do RevenueCat no iOS": `PurchasesHybridCommon` **exato 17.23.0** (o sufixo
+do `purchases-kmp` `2.2.13+17.23.0`) e `purchases-ios-spm` **exato 5.50.0**. A casca pedia "14.x / 5.x"
+e 111 repos resolviam 14.3.0 + 5.32.0 com link verde; corrigidos na casca e nos apps
+(`Nexus/fabrica/spm_ios.py`), e o auditor de loja passou a cobrar a versão.
+
 ## 2.241.0 — login com a cara do app: status bar legível, um idioma só, marca no topo
 
 Origem: os prints da tela de login do Meu Estacionamento (02/out/2026). A suíte automática passou;

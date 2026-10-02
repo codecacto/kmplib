@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth.social
 
+import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -9,6 +10,8 @@ import java.security.SecureRandom
 
 /** O login em andamento. Um por vez, por construção — ver [SocialBrowserLogin.authenticate]. */
 internal object SocialBrowserLoginState {
+    // Escrito pela corrotina do login e lido na thread principal (redirect, vigia de retorno).
+    @Volatile
     var pendente: CompletableDeferred<String>? = null
 }
 
@@ -53,6 +56,16 @@ internal object SocialBrowserLoginState {
  * 8252 pede o navegador do sistema — no Android, uma Custom Tab, que o usa sem tirar a pessoa do
  * aplicativo. Sem navegador com suporte a Custom Tabs, o mesmo `Intent` abre o navegador comum e o
  * fluxo funciona igual.
+ *
+ * ## Fechar a aba sem concluir = cancelado
+ * O navegador não avisa quando a pessoa desiste. Quem percebe é o próprio aplicativo: uma tela dele
+ * voltar à frente com o pedido ainda sem resposta encerra o login como **cancelado**
+ * ([SocialBrowserException] com `reason = "cancelado"`), depois de uma folga curta para o *deep link*
+ * que chega junto com a volta ([BrowserReturnWatch] — a regra do AppAuth-Android). Não depende de o
+ * aplicativo chamar nada. O *deep link* que chegar DEPOIS do cancelamento é ignorado: não há mais
+ * pedido para ele completar, e o código que ele traz não vale sem o `verifier` que foi descartado.
+ * A exceção é a tela dividida, onde o navegador pode estar vivo ao lado: ali vale só o
+ * [SocialBrowserRedirect.cancel].
  */
 actual class SocialBrowserLogin actual constructor() {
 
@@ -78,16 +91,37 @@ actual class SocialBrowserLogin actual constructor() {
             putExtra("android.support.customtabs.extra.SHARE_STATE", 2 /* SHARE_STATE_OFF */)
         }
 
+        // Registrado ANTES de abrir o navegador: é a pausa da tela, logo em seguida, que arma o vigia.
+        val vigia = (context.applicationContext as? Application)?.let { app ->
+            BrowserReturnWatchRegistration(
+                application = app,
+                isPending = { SocialBrowserLoginState.pendente === aguardando && !aguardando.isCompleted },
+                onAbandoned = {
+                    if (SocialBrowserLoginState.pendente === aguardando) SocialBrowserLoginState.pendente = null
+                    aguardando.completeExceptionally(
+                        SocialBrowserException("Login cancelado.", reason = "cancelado"),
+                    )
+                },
+            ).also { it.register() }
+        }
+
         try {
             context.startActivity(intent)
-        } catch (e: ActivityNotFoundException) {
-            SocialBrowserLoginState.pendente = null
-            throw SocialBrowserException("Nenhum navegador disponível para concluir o login.")
+        } catch (e: Exception) {
+            // Qualquer falha ao abrir (não só a falta de navegador) desfaz o pedido: sem isto o vigia
+            // ficaria registrado e o próximo deep link completaria um login que nunca abriu.
+            vigia?.unregister()
+            if (SocialBrowserLoginState.pendente === aguardando) SocialBrowserLoginState.pendente = null
+            if (e is ActivityNotFoundException) {
+                throw SocialBrowserException("Nenhum navegador disponível para concluir o login.")
+            }
+            throw e
         }
 
         return try {
             aguardando.await()
         } finally {
+            vigia?.unregister()
             if (SocialBrowserLoginState.pendente === aguardando) SocialBrowserLoginState.pendente = null
         }
     }
@@ -125,8 +159,10 @@ object SocialBrowserRedirect {
     /**
      * Cancela um login em andamento.
      *
-     * Chame ao descartar a tela de login: sem isto, quem fecha a aba do navegador com o gesto de
-     * voltar deixa a corrotina suspensa até a tela morrer.
+     * Desde a 2.241.1 **não é preciso chamar** para o caso comum: fechar a aba e voltar ao aplicativo
+     * já encerra o login como cancelado, sozinho (ver [SocialBrowserLogin]). Continua útil para
+     * cancelar por decisão do aplicativo — sair da tela de login com o navegador ainda aberto, ou em
+     * tela dividida, onde o cancelamento automático não age.
      */
     fun cancel() {
         SocialBrowserLoginState.pendente?.completeExceptionally(

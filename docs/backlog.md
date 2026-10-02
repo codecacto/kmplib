@@ -20,19 +20,21 @@
       novos (Meu Estacionamento) já copiam o `cfg.identifierMode`; a casca não. Achado de leitura, fora do escopo da 2.241.0.
 
 ### Registrado em 02/out/2026 — login social pelo navegador sem desfecho (achado no re-review da 2.240.1)
-- [ ] **GAP-AUTH-SOCIAL-01 (P1) — aba do navegador fechada sem concluir deixa o login social pendente** (`auth/social`,
-      Android, modo `BACKEND`): `SocialBrowserLogin.authenticate` (`SocialBrowserLogin.android.kt`) só termina por
-      `SocialBrowserRedirect.handleRedirect` ou `cancel()`, e nada chama o `cancel()` quando a pessoa fecha a Custom Tab
-      com o voltar (`kmpLibAuthOnResume` só entrega a Activity). `isGoogleLoading` fica `true` e, no molde da casca, o
-      coletor de efeitos da `LoginRoute` fica suspenso dentro do `signIn` — a tela de login só volta a responder
-      reabrindo o app. Desde a 2.240.1 o botão Entrar também lê `isGoogleLoading`/`isAppleLoading`
-      (`loginSubmitEnabled`), então o estado pendente passa a desabilitar o Entrar em vez de deixá-lo girando sem
-      navegar. iOS não tem o defeito (`ASWebAuthenticationSession` devolve o cancelamento), nem o modo `NATIVE`.
-      **Correção certa** (o que o AppAuth-Android faz): a Activity que abriu o navegador voltar a `RESUMED` com o
-      pedido ainda pendente = cancelado — `Application.ActivityLifecycleCallbacks` registrado no `authenticate`
-      (pausou depois de abrir → retomou sem `handleRedirect`), sem depender de o app chamar nada. O redirect chega
-      antes (a `AuthCallbackActivity` entrega no `onCreate`/`onNewIntent`, e só depois a de baixo é retomada).
-      É mudança no fluxo de autenticação: passa pelo `security-reviewer` e precisa de prova em aparelho.
+- [x] **GAP-AUTH-SOCIAL-01 (P1) — aba do navegador fechada sem concluir deixa o login social pendente** (`auth/social`,
+      Android, modo `BACKEND`): `SocialBrowserLogin.authenticate` só terminava por `handleRedirect` ou `cancel()`, e
+      nada chamava o `cancel()` quando a pessoa fechava a aba — `isGoogleLoading` preso até reabrir o app.
+      ✅ **2.241.1** — `Application.ActivityLifecycleCallbacks` registrado no `authenticate` (`BrowserReturnWatch`): uma
+      tela do app voltar à frente com o pedido pendente = cancelado, com folga de 750 ms para o redirect que chega
+      junto e sem agir em tela dividida. `BrowserReturnWatchTest`. **Falta a prova em aparelho** (roteiro no CHANGELOG).
+- [ ] **GAP-AUTH-SOCIAL-02 (P2) — o *deep link* de volta não é amarrado ao pedido que o originou, e a "Custom Tab"
+      é aberta sem `androidx.browser`** (`auth/social`, Android). (a) O redirect traz só `codigo`; o cliente entrega
+      ao pedido pendente do momento, seja qual for. Um redirect atrasado de uma tentativa anterior completa a tentativa
+      nova com o código da antiga — o backend recusa na troca (PKCE: o `verifier` é outro), então o efeito é uma
+      tentativa que falha, não uma sessão. Correção: o `start` devolver um identificador da tentativa que volta no
+      *deep link*, e o cliente só completar o pedido que tem o mesmo (exige par na backlib). (b) O `Intent` leva só o
+      extra `SHARE_STATE`; sem `EXTRA_SESSION` o Chrome tende a abrir aba comum em vez de Custom Tab (conferir em
+      aparelho). O padrão é `CustomTabsIntent` do `androidx.browser` — e, com a aba dentro da tarefa do app, uma
+      Activity de gestão com `CLEAR_TOP` para fechá-la na volta, como o AppAuth. Achado do review da 2.241.1.
 
 ### Registrado em 02/out/2026 — intersticial de abertura perdido (teste do agente, Piadaria Android)
 - [x] **GAP-ADS-OPEN-01 (P0) — o intersticial pedido no 1º frame era descartado** (`ads`): lista do apps-api ainda
