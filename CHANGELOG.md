@@ -1,5 +1,67 @@
 # Changelog — kmplib
 
+## 2.242.0 — iOS: exceção de Kotlin não tratada chega ao GlitchTip como exceção de Kotlin
+
+### O defeito
+
+Num app Compose, exceção de Kotlin não tratada chegava ao GlitchTip como
+`C++ Exception: N12_GLOBAL__N_122ExceptionObjHolderImplE` — sem tipo, sem mensagem, sem pilha de
+Kotlin (issue 444 do projeto 25) — e a saída do app só mostrava
+`libc++abi: terminate_handler unexpectedly returned`. Todo crash de iOS da fábrica era indiagnosticável.
+
+O Kotlin/Native lança exceção, por dentro, como exceção de C++ (`ExceptionObjHolderImpl`). Num app
+Compose quase todo código roda num callback chamado pelo UIKit; quando a exceção escapa dali, o
+**monitor de C++ do Sentry Cocoa** a vê primeiro e grava o relatório genérico — e o gancho de exceção
+não tratada do `sentry-kotlin-multiplatform`, que sabe transformar o `Throwable` em tipo + mensagem +
+causas + pilha, nem chega a rodar.
+
+### A correção (o caminho oficial)
+
+- **`sentry-kotlin-multiplatform` 0.13.0 → 0.27.0.** A 0.27.0 trouxe a opção
+  `enableUnhandledCppExceptionMonitoring`, com a recomendação expressa no CHANGELOG dela (#554): *em
+  Compose Multiplatform, desligue no Apple — exceções de Kotlin não tratadas podem chegar como crash de
+  C++ genérico (`ExceptionObjHolderImpl`) em vez de pilha de Kotlin útil.* No caminho, a 0.23.0 passou a
+  gravar o crash de Kotlin pelo `uncaughtExceptionHandler` do SentryCrash, **com o escopo** (tags,
+  usuário, breadcrumbs) e pilha correta.
+- **O `CrashReporter` desliga o monitor de C++** — `applyCrashReporterPolicy` (interna), a política da
+  casa sobre as `SentryOptions`, agora separada do `Sentry.init` e testada.
+- **O crash nativo não se perde:** continuam monitorados Mach exception, sinal (o `abort()` de um C++ de
+  verdade chega como SIGABRT) e NSException. Só some o relatório que carimbava "C++ Exception" em cima
+  de exceção de Kotlin. No Android a opção não tem efeito.
+- Android: o sentry-kmp 0.27.0 traz o Sentry Java 8.41.0 (era 8.15.1). API usada pela lib inalterada.
+
+### ⚠️ O que o app TEM de fazer no iOS: `sentry-cocoa` EXATO 8.58.2
+
+O binding cinterop do sentry-kmp 0.27.0 é gerado contra o **Sentry Cocoa 8.58.2** (era 8.49.1 na
+0.13.0). Com a versão velha no SPM, **o link para** (`_OBJC_CLASS_$_SentrySDKInternal`, classe que não
+existe na 8.49.1). App que compila a kmplib por `includeBuild` pega o binding novo na hora — por isso a
+casca e os apps já foram alinhados nesta rodada (`Nexus/fabrica/spm_ios.py`, pbxproj + `Package.resolved`).
+Projeto que ficou de fora: `python3 Nexus/fabrica/spm_ios.py <pasta-mobile>` antes do próximo build iOS.
+
+A versão nativa passou a morar **na lib**: `gradle/libs.versions.toml` ganhou `sentryCocoa = "8.58.2"`
+e `revenuecatIosSpm = "5.50.0"` (não são dependências Gradle — são o número do pacote SPM, que o
+`spm_ios.py` lê e cobra da casca).
+
+### Prova
+
+- Servidor: `CrashReporterPolicyTest` (4 casos — o default do SDK liga o monitor de C++ e a política
+  desliga; DSN/ambiente/release da config; sem PII, sem tracing, sem sessão, sem screenshot/view
+  hierarchy; PII e tracing só mudam se a config mandar); suíte inteira (3270 testes) e
+  `compileKotlinIosArm64` de todos os módulos com `-Pkmplib.forceAppleTargets=true`, executados.
+- **Mac (a prova real) — roteiro:**
+  1. `git pull` na kmplib e no app; no Xcode, *File → Packages → Resolve Package Versions*; conferir
+     Sentry **8.58.2**, PurchasesHybridCommon 17.23.0, RevenueCat 5.50.0.
+  2. Build **Release** no aparelho com o DSN do projeto configurado (`isActive = true` no log de boot).
+  3. Provocar uma exceção de Kotlin não tratada num callback de Compose (ex.: botão de teste num build
+     de QA com `onClick = { error("teste-crash-kotlin 2.242.0") }`). O app fecha.
+  4. Abrir o app de novo (o relatório sobe na abertura seguinte) e conferir no GlitchTip: título com o
+     **tipo** (`IllegalStateException`) e a **mensagem** (`teste-crash-kotlin 2.242.0`), pilha com
+     frames do app, tags/usuário do escopo presentes — e **nenhuma** issue nova
+     `C++ Exception: …ExceptionObjHolderImpl` para o mesmo crash.
+  5. Crash nativo ainda chega: num build de QA, `kill(getpid(), SIGABRT)` (ou `NSException.raise`)
+     gera issue própria.
+  Sem o dSYM do build enviado ao GlitchTip, a pilha vem em endereços (tipo e mensagem chegam assim mesmo).
+
 ## 2.241.2 — `MapView` (Android): `animateTo` antes de o mapa carregar derrubava o app
 
 `CameraPositionState.animateTo` montava o comando com `CameraUpdateFactory.newLatLngZoom(...)`, e a

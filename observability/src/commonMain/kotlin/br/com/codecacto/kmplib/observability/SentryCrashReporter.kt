@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.observability
 
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
+import io.sentry.kotlin.multiplatform.SentryOptions
 import io.sentry.kotlin.multiplatform.protocol.Breadcrumb
 import io.sentry.kotlin.multiplatform.protocol.User
 
@@ -31,29 +32,13 @@ internal class SentryCrashReporter : CrashReporter {
         }
 
         Sentry.init { options ->
-            options.dsn = config.dsn
-            options.environment = config.environment
-            options.release = config.release
-
-            // LGPD — NUNCA enviar PII (IP, dados pessoais). Default false; travado na config.
-            options.sendDefaultPii = config.sendDefaultPii
-
-            // Performance/tracing OFF — o GlitchTip não suporta bem transações.
-            options.tracesSampleRate = config.tracesSampleRate
-
-            // GlitchTip ignora envelopes de sessão — desligar o auto session tracking.
-            options.enableAutoSessionTracking = false
-
-            // Sem session replay / screenshots / view hierarchy: o GlitchTip só entende
-            // erros/mensagens/breadcrumbs/tags/user/release/environment.
-            options.attachScreenshot = false
-            options.attachViewHierarchy = false
+            options.applyCrashReporterPolicy(config)
 
             /*
              * Traduz a tag reservada `_fingerprint` no fingerprint DE VERDADE do evento.
              *
              * Por que passar por uma tag em vez de setar direto no `captureMessage`: o `Scope` do
-             * `sentry-kotlin-multiplatform` (0.13.0, a última publicada) expõe tag, contexto, user,
+             * `sentry-kotlin-multiplatform` (conferido até a 0.27.0) expõe tag, contexto, user,
              * level e breadcrumb — e NÃO expõe fingerprint. Quem expõe é o `SentryEvent`, e o único
              * ponto comum (Android + iOS) em que se alcança o evento antes do envio é o
              * `beforeSend`. É a via oficial do próprio Sentry para agrupar; não é contorno.
@@ -149,6 +134,51 @@ internal class SentryCrashReporter : CrashReporter {
         /** `|` não aparece em slug de alerta (todos são `a-z_`), então nunca parte um termo ao meio. */
         const val SEPARADOR_FINGERPRINT = "|"
     }
+}
+
+/**
+ * A política da casa sobre as `SentryOptions` — o que vale para TODO app, além do DSN/ambiente/release
+ * que vêm da [config]. Separada do `Sentry.init` para ser provada em teste de unidade (o `init` toca o
+ * SDK nativo; montar as opções, não).
+ */
+internal fun SentryOptions.applyCrashReporterPolicy(config: CrashReporterConfig) {
+    dsn = config.dsn
+    environment = config.environment
+    release = config.release
+
+    // LGPD — NUNCA enviar PII (IP, dados pessoais). Default false; travado na config.
+    sendDefaultPii = config.sendDefaultPii
+
+    // Performance/tracing OFF — o GlitchTip não suporta bem transações.
+    tracesSampleRate = config.tracesSampleRate
+
+    // GlitchTip ignora envelopes de sessão — desligar o auto session tracking.
+    enableAutoSessionTracking = false
+
+    // Sem session replay / screenshots / view hierarchy: o GlitchTip só entende
+    // erros/mensagens/breadcrumbs/tags/user/release/environment.
+    attachScreenshot = false
+    attachViewHierarchy = false
+
+    /*
+     * iOS: exceção de Kotlin não tratada tem de chegar como EXCEÇÃO DE KOTLIN.
+     *
+     * O Kotlin/Native lança exceção por dentro como exceção de C++ (`ExceptionObjHolderImpl`). Num
+     * app Compose, quase todo código roda dentro de um callback chamado pelo UIKit; quando a exceção
+     * escapa dali, o monitor de C++ do Sentry Cocoa a vê primeiro e grava o crash como
+     * `C++ Exception: N12_GLOBAL__N_122ExceptionObjHolderImplE` — sem tipo, sem mensagem, sem pilha
+     * de Kotlin (issue 444 do projeto 25 no GlitchTip; a saída do app só trazia
+     * `libc++abi: terminate_handler unexpectedly returned`). O gancho de exceção não tratada do
+     * próprio sentry-kmp, que sabe transformar o `Throwable` em relatório com tipo, mensagem,
+     * causas e pilha, nem chega a rodar.
+     *
+     * A recomendação do sentry-kotlin-multiplatform para Compose Multiplatform (CHANGELOG 0.27.0,
+     * #554) é desligar esse monitor. NÃO se perde o crash nativo: Mach exception, sinal (o
+     * `abort()` de um C++ de verdade chega como SIGABRT) e NSException continuam monitorados — só
+     * deixa de existir o relatório que carimba "C++ Exception" em cima de exceção de Kotlin.
+     * No Android a opção não tem efeito (lá a exceção de Kotlin é exceção da JVM).
+     */
+    enableUnhandledCppExceptionMonitoring = false
 }
 
 /** Mapeamento [CrashLevel] -> `SentryLevel` do Sentry KMP. */

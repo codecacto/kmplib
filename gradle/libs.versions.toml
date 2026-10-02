@@ -18,7 +18,15 @@ kmpnotifier = "1.6.0"
 firebaseGitlive = "2.1.0"
 
 # Observabilidade de crashes — sentry-kotlin-multiplatform (Android + iOS reais → Sentry/GlitchTip)
-sentry = "0.13.0"
+# 0.27.0 é a primeira com `enableUnhandledCppExceptionMonitoring` — sem desligá-lo, exceção de Kotlin não
+# tratada num app Compose chega ao GlitchTip como "C++ Exception: …ExceptionObjHolderImpl", sem tipo,
+# mensagem nem pilha (SentryCrashReporter). O binding cinterop do iOS é gerado contra UMA versão do Sentry
+# Cocoa (`sentryCocoaVersion` no buildSrc/Config.kt do sentry-kmp): é o `sentryCocoa` abaixo, e é a versão
+# EXATA que o SPM do app tem de pedir. Ao subir `sentry`, suba `sentryCocoa`, a casca-mobile e reaplique
+# nos apps (Nexus/fabrica/spm_ios.py lê estas linhas). Detalhe: IOS_INTEGRATION.md §"SDK nativo em versão amarrada".
+sentry = "0.27.0"
+# NÃO é dependência Gradle: é a versão do pacote SPM `sentry-cocoa` que o app linka (lida pelo spm_ios.py).
+sentryCocoa = "8.58.2"
 
 # Koin — DI padrão do ecossistema (usado por todos os apps consumidores). Necessário para expor
 # módulos Koin prontos da lib (ex.: crashReporterModule).
@@ -31,6 +39,8 @@ koin = "4.1.1"
 # hybrid-common nessa tag (17.23.0 → 5.50.0) — e reaplique nos apps (Nexus/fabrica/spm_ios.py, que lê
 # este arquivo e recusa a casca desalinhada). Detalhe: IOS_INTEGRATION.md §"Versão do RevenueCat no iOS".
 revenuecatKmp = "2.2.13+17.23.0"
+# NÃO é dependência Gradle: a versão do pacote SPM `purchases-ios-spm` que o hybrid-common acima fixa.
+revenuecatIosSpm = "5.50.0"
 
 # Compose
 composeMultiplatform = "1.10.0"

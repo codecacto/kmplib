@@ -75,16 +75,31 @@ docs/42 do monorepo).
 
 | Package (SPM) | URL | Produtos a adicionar ao target | Quem exige | Observação |
 |---|---|---|---|---|
-| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | `Sentry` | `kmplib-observability` (todo app) | **Versão EXATA** compatível com o `sentry-kotlin-multiplatform` da kmplib (hoje **8.49.1** para o sentry-kmp 0.13.0). Faixa aberta pega uma major nova e quebra o cinterop |
+| Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | `Sentry` | `kmplib-observability` (todo app) | **Versão EXATA: 8.58.2** — a do binding cinterop do `sentry-kotlin-multiplatform` 0.27.0 da kmplib (`sentryCocoa` no `libs.versions.toml`). Com 8.49.1 (o par da 0.13.0, até a kmplib 2.241.x) o link para em `_OBJC_CLASS_$_SentrySDKInternal` |
 | Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` (11.x) | `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, **`FirebaseMessaging`** | GitLive (`kmplib-firebase`) e KMPNotifier (`kmplib-push`) — ambos no guarda-chuva | **Mesmo em app own-auth e sem push.** O `FirebaseCore` entra junto como dependência desses produtos — não precisa ser adicionado à parte |
 | RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | `RevenueCat` | `kmplib-monetization` (no guarda-chuva) | Todo app que declara o guarda-chuva ou a monetização — mesmo sem vender. **Versão EXATA: 5.50.0** — a que o `Package.swift` do PurchasesHybridCommon 17.23.0 fixa (`exact: "5.50.0"`) |
 | Purchases Hybrid Common | `https://github.com/RevenueCat/purchases-hybrid-common` | `PurchasesHybridCommon` | `purchases-kmp` (cinterop) | **Versão EXATA: 17.23.0** — o sufixo depois do `+` no `revenuecatKmp` da kmplib (`2.2.13+17.23.0`). Sem ele, *undefined symbols* `_OBJC_CLASS_$_RCCommonFunctionality`; **na versão errada o link passa** e a diferença aparece em runtime (ver abaixo) |
 | Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | `GoogleMaps` | Só quem usa o mapa Google (o `NativeMap` usa MapKit e não precisa) | **SPM — o pod foi descontinuado no Q2/2026** |
 | Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | `GoogleSignIn` | Só login Google NATIVO | Login pelo backend (BFF) não precisa |
 
-O que a `casca-mobile` já traz no `iosApp.xcodeproj` (e é o molde): Sentry (8.49.1 exato), Firebase
+O que a `casca-mobile` já traz no `iosApp.xcodeproj` (e é o molde): Sentry (8.58.2 exato), Firebase
 (`FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`), `RevenueCat`
 (5.50.0 exato), `PurchasesHybridCommon` (17.23.0 exato) e `GoogleSignIn`.
+
+#### SDK nativo em versão amarrada — a kmplib é a dona do número (02/out/2026)
+
+Três pacotes SPM têm versão **exata**, e quem decide é a kmplib (`gradle/libs.versions.toml`), não o app:
+
+| Pacote SPM | Versão | De onde sai (na kmplib) |
+|---|---|---|
+| `sentry-cocoa` | **8.58.2** | `sentryCocoa` — o `sentryCocoaVersion` do `sentry-kotlin-multiplatform` 0.27.0 (`sentry`) |
+| `purchases-hybrid-common` | **17.23.0** | o sufixo depois do `+` em `revenuecatKmp` |
+| `purchases-ios-spm` | **5.50.0** | `revenuecatIosSpm` — o `exact:` do `Package.swift` do hybrid-common |
+
+`Nexus/fabrica/spm_ios.py` lê essas linhas, recusa a casca se ela divergir e iguala os apps à casca
+(pbxproj + `Package.resolved`); o auditor de loja cobra a versão. Quem sobe `sentry` ou `revenuecatKmp`
+sobe a linha nativa correspondente, a casca e reaplica nos apps — na mesma rodada, porque o app que
+compila a kmplib pelo `includeBuild` pega o binding novo na hora.
 
 #### Versão do RevenueCat no iOS — amarrada ao `purchases-kmp` (02/out/2026)
 
@@ -122,6 +137,16 @@ não só a presença do produto.
 > `configure()` sem o plist derruba o app no start. Ou seja: SDK no target, plist fora. Vale igual
 > para o `FirebaseMessaging`: o push iOS da fábrica é **APNs direto** (`ApplePushBridge`), e o produto
 > está lá só para o link fechar.
+
+> ⚠️ **Exceção de Kotlin não tratada chega como exceção de Kotlin desde a kmplib 2.242.0.** Até a
+> 2.241.x, num app Compose, ela chegava ao GlitchTip como `C++ Exception:
+> N12_GLOBAL__N_122ExceptionObjHolderImplE` — sem tipo, mensagem nem pilha — e o console do app só
+> mostrava `libc++abi: terminate_handler unexpectedly returned`: o monitor de C++ do Sentry Cocoa via
+> a exceção (o Kotlin/Native a lança como C++) antes do gancho do sentry-kmp. O `CrashReporter`
+> desliga esse monitor (`enableUnhandledCppExceptionMonitoring = false`, sentry-kmp ≥ 0.27.0, a
+> recomendação oficial para Compose Multiplatform). Mach exception, sinal e NSException seguem
+> monitorados. Pilha **simbolizada** (nome de função) depende do dSYM do build no GlitchTip; sem ele
+> chegam tipo, mensagem e endereços.
 
 > ⚠️ **"Sentry" aqui é o SDK, não o serviço.** Os crashes vão para o **GlitchTip self-host**
 > (`errors.codecacto.com.br`), que fala o protocolo do Sentry — por isso o cliente É o Sentry Cocoa /
@@ -546,8 +571,9 @@ AppBuildConfigKt.googleMapsApiKey
 - [ ] SPM no target, **todos obrigatórios com o guarda-chuva** (mesmo own-auth, mesmo sem push, mesmo
       sem vender): `Sentry` (versão exata), `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`,
       **`FirebaseMessaging`**, `RevenueCat`, `PurchasesHybridCommon`
-- [ ] RevenueCat na versão do binding: `purchases-hybrid-common` **exato** = sufixo do `revenuecatKmp`
-      (hoje 17.23.0) e `purchases-ios-spm` **exato** = o que ele fixa (hoje 5.50.0) — `spm_ios.py --check`
+- [ ] SDKs nativos na versão do binding — `sentry-cocoa` **exato** = `sentryCocoa` (hoje 8.58.2),
+      `purchases-hybrid-common` **exato** = sufixo do `revenuecatKmp` (hoje 17.23.0) e `purchases-ios-spm`
+      **exato** = `revenuecatIosSpm` (hoje 5.50.0) — `spm_ios.py --check`
 - [ ] Usa SQLDelight? `linkerOpts("-lsqlite3")` no Gradle **e** `-lsqlite3` em `OTHER_LDFLAGS`
 - [ ] App own-auth: linka o Firebase, mas **sem** `GoogleService-Info.plist` e **sem**
       `FirebaseApp.configure()` (configurar sem o plist derruba o app no start)
@@ -561,4 +587,4 @@ AppBuildConfigKt.googleMapsApiKey
 
 ---
 
-*Documento gerado em 2026-07-01; revisado em 24/07/2026 (link do Firebase é obrigatório mas a CONFIGURAÇÃO não, `-lsqlite3` do SQLDelight, Sentry Cocoa fixado = cliente do GlitchTip) e em 02/10/2026 (2.233.0: `FirebaseMessaging` sempre — cinterop do KMPNotifier —, `PurchasesHybridCommon`, tabela de símbolos do "Undefined symbols", checklist com `export` granular e o plugin do dublê; e versão EXATA do RevenueCat no iOS — `PurchasesHybridCommon` 17.23.0 + `purchases-ios-spm` 5.50.0, amarrada ao `purchases-kmp`).*
+*Documento gerado em 2026-07-01; revisado em 24/07/2026 (link do Firebase é obrigatório mas a CONFIGURAÇÃO não, `-lsqlite3` do SQLDelight, Sentry Cocoa fixado = cliente do GlitchTip) e em 02/10/2026 (2.233.0: `FirebaseMessaging` sempre — cinterop do KMPNotifier —, `PurchasesHybridCommon`, tabela de símbolos do "Undefined symbols", checklist com `export` granular e o plugin do dublê; e versão EXATA do RevenueCat no iOS — `PurchasesHybridCommon` 17.23.0 + `purchases-ios-spm` 5.50.0, amarrada ao `purchases-kmp`; Sentry Cocoa 8.58.2 com o sentry-kmp 0.27.0 e a exceção de Kotlin não tratada chegando inteira, 2.242.0).*
