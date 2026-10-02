@@ -77,7 +77,7 @@ class LoginIdentifierModeTest {
             identifierMode = br.com.codecacto.kmplib.auth.AuthIdentifierMode.BOTH,
             identifierLabel = "Matrícula",
         )
-        kotlin.test.assertEquals("Matrícula", state.identifierLabel.ifBlank { "E-mail ou usuário" })
+        kotlin.test.assertEquals("Matrícula", resolveIdentifierLabel(state.identifierLabel, "E-mail ou usuário"))
     }
 
     @kotlin.test.Test

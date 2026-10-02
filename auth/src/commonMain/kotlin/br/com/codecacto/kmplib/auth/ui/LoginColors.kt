@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.screens
 
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -26,6 +29,41 @@ data class LoginColors(
     val textSecondary: Color = Color(0xFF757575),
     val border: Color = Color(0xFFE0E0E0)
 )
+
+/**
+ * As cores das telas de autenticação tiradas de um [ColorScheme] — regra pura, testável.
+ *
+ * O mapeamento é o dos próprios componentes da lib (`AppTextField` usa `outlineVariant` na borda e
+ * `onSurfaceVariant` no rótulo), para o login não destoar do resto do app.
+ */
+fun loginColorsFrom(scheme: ColorScheme): LoginColors = LoginColors(
+    primary = scheme.primary,
+    secondary = scheme.secondary,
+    onPrimary = scheme.onPrimary,
+    background = scheme.background,
+    surface = scheme.surface,
+    error = scheme.error,
+    textPrimary = scheme.onBackground,
+    textSecondary = scheme.onSurfaceVariant,
+    border = scheme.outlineVariant,
+)
+
+/** Defaults das telas de autenticação (`LoginScreen`, `RegisterScreen`). */
+object LoginDefaults {
+    /**
+     * As cores do **tema em volta** — o `AppTheme` do app, com a paleta dele e o modo
+     * claro/escuro efetivo. É o default de `colors` desde a 2.241.0.
+     *
+     * Até a 2.240.x o default era `LoginColors()`: roxo `#6C63FF` sobre cinza-claro, FIXO. Quem não
+     * passava `colors` abria o app com um login de outra marca; e, passando ou não, a tela era
+     * sempre clara — num aparelho em modo escuro, o app inteiro escuro e o login claro, com os
+     * ícones da status bar (claros, do modo escuro) apagados em cima dele.
+     *
+     * `LoginColors(...)` explícito continua valendo como sempre.
+     */
+    @Composable
+    fun colors(): LoginColors = loginColorsFrom(MaterialTheme.colorScheme)
+}
 
 /**
  * Configuração de autenticação disponível

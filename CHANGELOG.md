@@ -1,5 +1,93 @@
 # Changelog — kmplib
 
+## 2.241.0 — login com a cara do app: status bar legível, um idioma só, marca no topo
+
+Origem: os prints da tela de login do Meu Estacionamento (02/out/2026). A suíte automática passou;
+quem olhou a imagem viu três defeitos — e os três eram da lib, valendo para todo app com o
+`LoginScreen` (49 rotas no portfólio).
+
+### 1. Ícones das barras do sistema pela cor que o app DE FATO desenha (`SystemBarsAppearance`)
+
+O relógio e a bateria saíam **brancos sobre fundo claro**. Quem escolhia a cor era o
+`enableEdgeToEdge()` da Activity (`SystemBarStyle.auto`): pelo modo do APARELHO, uma vez, no
+`onCreate`. A tela pode discordar dele — login claro num aparelho em modo escuro, `darkTheme` fixo,
+troca de modo com o app aberto (`configChanges="uiMode"` não recria a Activity). E app sem
+`enableEdgeToEdge()` em Android 15+ (edge-to-edge forçado) ficava com o que o tema da janela dissesse.
+
+- **`AppTheme` aplica sozinho** (`systemBars: Boolean = true`, parâmetro novo): ícones escuros sobre
+  fundo claro e claros sobre fundo escuro, pelo `background` da paleta EFETIVA. App nenhum precisa
+  lembrar; basta subir a versão.
+- **`SystemBarsAppearance(statusBarBackground, navigationBarBackground = statusBarBackground)`**
+  (`ui.theme`, público) para a tela que pinta OUTRO fundo atrás da barra — faixa de marca, foto de
+  capa, tema próprio sem `AppTheme`. Os pedidos formam uma pilha: o da tela vale enquanto ela está em
+  cena e, ao sair, volta o do tema. `LoginScreen` e `RegisterScreen` já chamam com o `colors.background`.
+- Android: `WindowInsetsControllerCompat.isAppearanceLightStatusBars`/`…NavigationBars` na janela da
+  Activity (a API oficial; é o que o `enableEdgeToEdge()` usa por dentro). Barra transparente decide
+  pelo conteúdo; barra opaca (Android ≤ 14 sem edge-to-edge) decide pela cor dela; película
+  translúcida, pela mistura — `needsDarkSystemBarIcons(barColor, contentBackground)`, pura e testada.
+- **iOS: não faz nada, de propósito.** A status bar segue o `userInterfaceStyle` da janela, e mudá-lo
+  por código (`overrideUserInterfaceStyle`, o mesmo do `.preferredColorScheme`) muda também o que o
+  `isSystemInDarkTheme()` do Compose devolve — um app que segue o sistema ficaria preso no modo
+  forçado. No iOS a correção é a origem (item 2): a tela segue o tema. App de tema FIXO declara
+  `UIUserInterfaceStyle` no `Info.plist`. Controle por tela no iOS: backlog `GAP-IOS-STATUSBAR-01`.
+
+### 2. Login e cadastro usam as cores do tema (`LoginDefaults.colors()`)
+
+O default de `colors` era `LoginColors()`: roxo `#6C63FF` sobre cinza-claro, **fixo**. Quem não
+passava `colors` abria o app com um login de outra marca; e, passando ou não, a tela era sempre
+clara — é ela que ficava com a status bar apagada em aparelho escuro, nas duas plataformas.
+
+- `LoginScreen`/`RegisterScreen`: `colors: LoginColors = LoginDefaults.colors()` — as cores do
+  `MaterialTheme` em volta (a paleta do app e o claro/escuro efetivo). `loginColorsFrom(ColorScheme)`
+  é a regra pura. **`LoginColors(...)` explícito continua valendo como sempre.**
+- **Mudança visível para quem NÃO passava `colors`:** sai o roxo, entra a paleta do app; em modo
+  escuro o login fica escuro como o resto do app.
+- O esquema interno das duas telas passou a levar também `onBackground`/`onSurface`/
+  `onSurfaceVariant`/`outlineVariant` do `LoginColors`: só fundo e superfície eram trocados, e com
+  `colors` claro num app em modo escuro o texto digitado saía claro sobre campo claro.
+- **Recomendado a quem passa `LoginColors` fixo e claro** (o molde antigo da casca,
+  `AppConfig.loginColors()`): tirar o argumento. No Android a status bar já fica certa só com o bump;
+  no iOS, só seguindo o tema.
+
+### 3. Rótulo do identificador: o default do SERVIDOR não vence mais a tradução
+
+Aparelho em inglês mostrava "E-mail ou usuário" ao lado de "Password / Forgot my password / Sign
+in". A lib tinha o texto nos quatro idiomas (`kmplib_identifier_label` e irmãos) e nunca o usava: a
+regra era `state.identifierLabel.ifBlank { local }`, e a `backlib-auth-local` **nunca manda vazio**
+— sem rótulo configurado, `GET /config` devolve o default do modo, em português fixo.
+
+- **`resolveIdentifierLabel(serverLabel, localLabel)`** (pública, pura): o rótulo do servidor só
+  vence quando é PRÓPRIO do produto ("Matrícula"); o default do servidor ("E-mail", "Usuário",
+  "E-mail ou usuário") cede ao texto local. Nada muda no ViewModel do app.
+- **No app:** não escreva o rótulo à mão — `LoginTexts(identifierLabel = { "E-mail ou usuário" })`
+  é a segunda origem do mesmo defeito (era o caso do Meu Estacionamento). Sem `texts`, a tela sai
+  inteira no idioma do aparelho.
+- A paridade de chaves entre `values`, `values-en`, `values-es` e `values-pt-rPT` já é travada por
+  `LibStringResourcesParityTest` (2.219.0) — as 252 chaves conferem.
+
+### 4. Marca no topo do login (`AppBrandHeader`, `rememberAppIconPainter`)
+
+Sem `logo` e sem título a tela nascia só com os campos e um vazio em cima, sem dizer de qual app era.
+
+- **`LoginScreen(appBrand = true)`** (parâmetro novo, no fim): sem `logo` e sem `LoginTexts.title`,
+  desenha o **ícone do app + o nome**, lidos do sistema. Quem passa `logo` ou título não é afetado;
+  com o `brandPanel` em cena (janela expandida) também não. `appBrand = false` desliga.
+- **`AppBrandHeader(appName, icon, tagline, …)`** (`ui.components`, público) — o mesmo cabeçalho para
+  a tela de entrada escrita no app. `AppBrandDefaults.iconModifier` (88dp, cantos de 20dp) serve de
+  `logoModifier` para quem passa o ícone como `logo`. Id de automação: `app-marca`.
+- **`rememberAppIconPainter(): Painter?`** (`platform.brand`) — o ícone do launcher
+  (`PackageManager.getApplicationIcon`, adaptativo incluído) no Android; no iOS, o `AppIcon` do bundle
+  (`CFBundleIcons` → `UIImage(named:)`). `null` quando não dá para ler: sai só o nome. O nome é o
+  `BuildInfo.appName` de sempre (rótulo do launcher / `CFBundleDisplayName`) — certo por flavor e por idioma.
+
+### Testes
+`SystemBarsTest` (régua de cor + pilha de pedidos), `LoginRulesTest` (rótulo, marca, cores do tema),
+`AppIconCandidatesTest`. Suíte: 3252 testes verdes; `compileKotlinIosArm64` executado em todos os módulos.
+
+**Sem validação visual nesta entrega** (o build do app é do Mac/Windows do fundador): conferir no
+print, em modo claro e escuro, o login de um app que subiu para esta versão — em especial o ícone do
+app no iOS (resolução do arquivo do bundle).
+
 ## 2.240.1 — `LoginScreen`: botão Entrar e "Concluído" do teclado decidem pela MESMA condição
 
 Patch, **sem API nova**. Origem: os dois itens de severidade Baixa do review de segurança da

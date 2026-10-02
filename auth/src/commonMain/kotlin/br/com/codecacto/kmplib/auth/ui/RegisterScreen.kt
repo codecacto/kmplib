@@ -31,6 +31,8 @@ import br.com.codecacto.kmplib.ui.components.*
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import br.com.codecacto.kmplib.ui.screens.LoginColors
+import br.com.codecacto.kmplib.ui.screens.LoginDefaults
+import br.com.codecacto.kmplib.ui.theme.SystemBarsAppearance
 import br.com.codecacto.kmplib.auth.SocialProvider
 import br.com.codecacto.kmplib.auth.social.disponivelNestaPlataforma
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
@@ -80,7 +82,7 @@ fun RegisterScreen(
     // um lockup horizontal para uma fração da largura. Quem troca de tela vê a marca mudar de
     // tamanho no meio do fluxo, que é o tipo de defeito que build verde nunca acusa.
     logoModifier: Modifier = Modifier.size(120.dp),
-    colors: LoginColors = LoginColors(),
+    colors: LoginColors = LoginDefaults.colors(),
     texts: RegisterTexts = RegisterTexts(),
     fields: RegisterFields = RegisterFields(),
     authMethods: AuthMethods = AuthMethods(emailPassword = true),
@@ -123,13 +125,22 @@ fun RegisterScreen(
      */
     brandPanel: (@Composable () -> Unit)? = null
 ) {
+    // Mesma regra da `LoginScreen`: ícones da status bar pelo fundo que esta tela pinta.
+    SystemBarsAppearance(colors.background)
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = colors.primary,
             onPrimary = colors.onPrimary,
             background = colors.background,
             surface = colors.surface,
-            error = colors.error
+            error = colors.error,
+            // O CONTEÚDO acompanha as superfícies (2.241.0): só fundo e superfície eram trocados, e
+            // o texto digitado nos campos seguia o `onSurface` do tema em volta — com `colors`
+            // claro num app em modo escuro, texto claro sobre campo claro.
+            onBackground = colors.textPrimary,
+            onSurface = colors.textPrimary,
+            onSurfaceVariant = colors.textSecondary,
+            outlineVariant = colors.border,
         )
     ) {
         Surface(

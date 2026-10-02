@@ -3,6 +3,22 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 02/out/2026 — barras do sistema e login (achados da 2.241.0)
+- [ ] **GAP-IOS-STATUSBAR-01 (P2) — cor da status bar POR TELA no iOS** (`ui/theme/SystemBars.ios.kt` é no-op de
+      propósito). Num app Compose hospedado em SwiftUI, o `preferredStatusBarStyle` do controller do Compose não é
+      consultado, e `overrideUserInterfaceStyle` na janela muda o trait que o `isSystemInDarkTheme()` lê (app que segue
+      o sistema ficaria preso no modo forçado). Caminho a avaliar NO MAC: o controller do Compose como raiz da janela
+      (ciclo de vida UIKit, sem `UIViewControllerRepresentable`) com `ComposeUIViewControllerDelegate`, na casca — e só
+      então `SystemBarsAppearance` passa a valer no iOS. Até lá: tela segue o tema; app de tema fixo usa
+      `UIUserInterfaceStyle` no `Info.plist`. Atinge quem pinta faixa de marca escura no topo de um app claro.
+- [ ] **GAP-AUTH-LABEL-01 (P3) — a `backlib-auth-local` manda o rótulo default como se fosse configurado**
+      (`GET /config` → `identifierLabel` nunca vazio). A kmplib 2.241.0 reconhece os defaults pelo TEXTO
+      (`resolveIdentifierLabel`); o contrato certo é o servidor dizer se o rótulo é próprio (campo booleano, ou omitir
+      o default). Pedido ao `lib-backend`; ao sair, a lista de textos em `LoginRules.kt` vira legado.
+- [ ] **GAP-CASCA-LOGIN-01 (P2) — a `LoginViewModel` da casca não consulta `OwnAuthApi.identifierConfig()`**: o campo
+      nasce em modo `EMAIL` (rótulo "E-mail", teclado de e-mail) num produto cujo servidor está em `BOTH`. Apps mais
+      novos (Meu Estacionamento) já copiam o `cfg.identifierMode`; a casca não. Achado de leitura, fora do escopo da 2.241.0.
+
 ### Registrado em 02/out/2026 — login social pelo navegador sem desfecho (achado no re-review da 2.240.1)
 - [ ] **GAP-AUTH-SOCIAL-01 (P1) — aba do navegador fechada sem concluir deixa o login social pendente** (`auth/social`,
       Android, modo `BACKEND`): `SocialBrowserLogin.authenticate` (`SocialBrowserLogin.android.kt`) só termina por

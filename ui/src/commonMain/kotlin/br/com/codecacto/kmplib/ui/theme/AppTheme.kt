@@ -43,6 +43,10 @@ import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
  * @param displayFontFamily família dos TÍTULOS — display, headline e titleLarge (o papel *brand* da
  *   escala do Material 3; ver [createAppTypography]). Padrão: a própria [fontFamily], ou seja, quem
  *   não passa nada continua com uma família só. Desde 2.228.0.
+ * @param systemBars `true` (padrão) = o tema escolhe a cor dos **ícones das barras do sistema**
+ *   (relógio, bateria, botões de navegação) pelo fundo da paleta EFETIVA — o que o app de fato
+ *   desenha, e não o modo do aparelho. Ver [SystemBarsAppearance]. `false` só para o app que
+ *   controla as barras por conta própria. Desde 2.241.0.
  * @param content Conteúdo da aplicação
  *
  * O tema também provê `LocalReduceMotion` (`kmplib-platform`, 2.228.0) com o valor vivo da
@@ -56,6 +60,7 @@ fun AppTheme(
     fontScale: Float = 1f,
     highContrast: Boolean = false,
     displayFontFamily: FontFamily = fontFamily,
+    systemBars: Boolean = true,
     content: @Composable () -> Unit
 ) {
     // Memoiza o esquema por (palette, darkTheme, highContrast): evita recomputar as derivações de
@@ -94,6 +99,12 @@ fun AppTheme(
             colorScheme = colorScheme,
             typography = typography,
         ) {
+            // Ícones das barras do sistema pela cor que o tema REALMENTE pinta atrás delas. O
+            // `enableEdgeToEdge()` da Activity decide pelo modo do aparelho, uma vez, no `onCreate`
+            // — e o tema pode discordar dele (`darkTheme` fixo, paleta de superfícies própria,
+            // troca de modo com o app aberto). Fica na BASE da pilha: a tela que pinta outro fundo
+            // chama `SystemBarsAppearance` e vence enquanto estiver em cena.
+            if (systemBars) SystemBarsAppearance(colorScheme.background)
             // Publica as `Modifier.testTag()` da árvore como `resource-id` da plataforma, para a
             // automação de UI (Maestro/Appium) poder se ancorar por id em vez de por texto de tela.
             // Uma vez, na raiz — ver `WithTestTagsAsResourceId`. No iOS é no-op.

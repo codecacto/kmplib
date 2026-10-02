@@ -27,6 +27,8 @@ import br.com.codecacto.kmplib.ui.components.*
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import br.com.codecacto.kmplib.ui.screens.LoginColors
+import br.com.codecacto.kmplib.ui.screens.LoginDefaults
+import br.com.codecacto.kmplib.ui.theme.SystemBarsAppearance
 import br.com.codecacto.kmplib.auth.SocialProvider
 import br.com.codecacto.kmplib.auth.social.disponivelNestaPlataforma
 import br.com.codecacto.kmplib.ui.screens.AuthMethods
@@ -144,7 +146,8 @@ internal fun loginImeDoneAction(state: LoginState): LoginAction? =
  * @param logo Logo da aplicação (opcional). **Ignorado quando o [brandPanel] está em cena**
  *   (janela EXPANDIDA): ali a marca é o painel lateral, e desenhar o lockup também no topo do
  *   formulário mostra a mesma logo duas vezes, lado a lado.
- * @param colors Configuração de cores
+ * @param colors Configuração de cores. Default: as do tema em volta ([LoginDefaults.colors]) — a
+ *   paleta do app e o modo claro/escuro efetivo (2.241.0; antes, roxo fixo sobre fundo claro).
  * @param texts Configuração de textos (suporta i18n)
  * @param authMethods Métodos de autenticação habilitados
  * @param termsUrl URL dos termos (se null, não mostra)
@@ -152,6 +155,9 @@ internal fun loginImeDoneAction(state: LoginState): LoginAction? =
  * @param onGoogleSignInSuccess Callback quando Google Sign-In retorna sucesso
  * @param onAppleSignInSuccess Callback quando Apple Sign-In retorna sucesso
  * @param brandPanel Painel de marca lateral, só em janela EXPANDIDA (GAP-NCX-T-01)
+ * @param appBrand `true` (padrão) = sem `logo` e sem título, a tela desenha a **marca do app** no
+ *   topo — ícone do launcher + nome (`AppBrandHeader`), lidos do sistema. `false` para o login que
+ *   é sem marca de propósito. Quem passa `logo` ou `LoginTexts.title` não é afetado (2.241.0).
  */
 @Composable
 fun LoginScreen(
@@ -162,7 +168,7 @@ fun LoginScreen(
     // Dimensiona a logo. Default = 120dp quadrado (logos-ícone). Logos LARGAS/horizontais passam,
     // ex.: `Modifier.fillMaxWidth(0.9f)` (a `Image` usa ContentScale.Fit, então preserva o aspecto).
     logoModifier: Modifier = Modifier.size(120.dp),
-    colors: LoginColors = LoginColors(),
+    colors: LoginColors = LoginDefaults.colors(),
     texts: LoginTexts = LoginTexts(),
     authMethods: AuthMethods = AuthMethods(),
     termsUrl: String? = null,
@@ -191,15 +197,26 @@ fun LoginScreen(
      * procura não tropeça. Aparece nas duas formas (telefone e tablet com painel de marca), porque é
      * parte do formulário — ao contrário do [brandPanel], que só existe em janela expandida.
      */
-    footerSlot: (@Composable () -> Unit)? = null
+    footerSlot: (@Composable () -> Unit)? = null,
+    appBrand: Boolean = true,
 ) {
+    // Ícones da status bar pela cor que ESTA tela pinta atrás deles: o `colors` pode ser claro num
+    // app (ou aparelho) em modo escuro. Sai da pilha quando a tela sai — volta o pedido do tema.
+    SystemBarsAppearance(colors.background)
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = colors.primary,
             onPrimary = colors.onPrimary,
             background = colors.background,
             surface = colors.surface,
-            error = colors.error
+            error = colors.error,
+            // O CONTEÚDO acompanha as superfícies (2.241.0): só fundo e superfície eram trocados, e
+            // o texto digitado nos campos seguia o `onSurface` do tema em volta — com `colors`
+            // claro num app em modo escuro, texto claro sobre campo claro.
+            onBackground = colors.textPrimary,
+            onSurface = colors.textPrimary,
+            onSurfaceVariant = colors.textSecondary,
+            outlineVariant = colors.border,
         )
     ) {
         Surface(
@@ -228,6 +245,11 @@ fun LoginScreen(
                             modifier = logoModifier
                         )
                         Spacer(modifier = Modifier.height(24.dp))
+                    } else if (loginShowsAppBrand(appBrand, logo != null, texts.title != null, comPainelDeMarca)) {
+                        // O app não trouxe marca nenhuma: a tela diz de quem é, com o ícone e o
+                        // nome que o sistema já conhece. Sem isto o login nascia só com os campos.
+                        AppBrandHeader(nameColor = colors.textPrimary, taglineColor = colors.textSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
                     // Título
@@ -259,9 +281,10 @@ fun LoginScreen(
                             modifier = Modifier.testTag(LoginTestTags.INPUT_EMAIL),
                             value = state.email,
                             onValueChange = { onAction(LoginAction.Input.EmailChanged(it)) },
-                            // O rótulo do servidor vence: num sistema configurado como "Matrícula", o app
-                            // tem de dizer "Matrícula".
-                            label = state.identifierLabel.ifBlank { rotuloLocal },
+                            // O rótulo PRÓPRIO do servidor vence: num sistema configurado como
+                            // "Matrícula", o app tem de dizer "Matrícula". O default do servidor
+                            // (texto fixo em português) cede ao local, que tem os quatro idiomas.
+                            label = resolveIdentifierLabel(state.identifierLabel, rotuloLocal),
                             placeholder = when (state.identifierMode) {
                                 AuthIdentifierMode.EMAIL -> texts.emailPlaceholder()
                                 AuthIdentifierMode.USERNAME -> texts.usernamePlaceholder()
