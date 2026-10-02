@@ -323,8 +323,13 @@ fun InputDialog(
                 }
             },
             // `AlertDialog` também é outra janela; o `modifier` dele cai na superfície DE DENTRO
-            // dela, então é ali que a flag se religa.
-            modifier = modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER)
+            // dela, então é ali que a flag se religa. Pelo mesmo motivo o `dismissKeyboardOnTapOutside`
+            // da raiz do app não alcança o diálogo: religado aqui (2.237.0), tocar no título ou na
+            // mensagem baixa o teclado — no iPhone ele não tem botão de fechar.
+            modifier = modifier
+                .exposeTestTagsAsResourceId()
+                .dismissKeyboardOnTapOutside()
+                .testTag(DialogTestTags.CONTAINER)
         )
     }
 }

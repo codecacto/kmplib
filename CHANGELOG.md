@@ -16,6 +16,12 @@ tela e torce para o layout reagir — em tela Compose, não reage. A documentaç
 - O toque só baixa o teclado com **`Modifier.dismissKeyboardOnTapOutside()` na raiz do app**
   (2.194.0; a `casca-mobile` já nasce com ele). App sem o modifier: aplicar no `Box` que envolve o
   `AppNavHost` — é também o comportamento que o usuário de iPhone espera.
+- **`InputDialog`** (o `AlertDialog` com campo) passa a trazer `dismissKeyboardOnTapOutside()` na
+  superfície, como `AppDialog`/`AppBottomSheet` já traziam: diálogo é outra janela e o modifier da
+  raiz não o alcança. Alvo do toque no flow: `dialogo-titulo`.
+- **Login da lib** (`LoginScreen`): não há barra superior; no iOS o flow usa `pressKey: Enter` com a
+  SENHA focada — o campo é `ImeAction.Done` sem `keyboardActions` próprio, e a ação padrão do Compose
+  para Done é baixar o teclado (não envia o formulário).
 - Padrão do flow (Android segue com `hideKeyboard`, que lá é o "voltar" do sistema e é confiável):
   `runFlow` com `when: { platform: Android }` → `hideKeyboard`; `when: { platform: iOS }` →
   `tapOn: { id: "topbar-titulo" }`. Comandos **inline** (`commands:`), não `file:` — vários runners
