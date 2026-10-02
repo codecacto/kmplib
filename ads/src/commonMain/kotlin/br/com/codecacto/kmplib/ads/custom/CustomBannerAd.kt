@@ -1,7 +1,9 @@
 package br.com.codecacto.kmplib.ads.custom
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -11,9 +13,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import br.com.codecacto.kmplib.ads.stats.AdFormat as StatAdFormat
 import br.com.codecacto.kmplib.ads.stats.AdProviderTag
@@ -31,6 +36,9 @@ import coil3.compose.AsyncImage
  *   ou a monetizacao desliga ads).
  * - Filtra anuncios por formato `"banner"` e escolhe um por rotacao simples.
  * - No clique abre [CustomAd.targetUrl] no navegador via [getUrlLauncher].
+ *
+ * - Ids para automação: `ads-banner` no contêiner e `ads-banner-carregado` só com a arte pintada
+ *   ([AdsTestTags]).
  *
  * Pre-requisito: chamar `CustomAdManager.initialize(...)` no boot do app.
  */
@@ -71,10 +79,15 @@ fun CustomBannerAd(
         AdStats.recordImpression(AdProviderTag.CUSTOM, StatAdFormat.BANNER, ad.id)
     }
 
-    AsyncImage(
-        model = ad.imageUrl,
-        contentDescription = ad.title.ifBlank { "Anuncio" },
-        contentScale = ContentScale.Crop,
+    // Carga da arte, para o id `ads-banner-carregado` (ver `AdsTestTags`). Chaveado no criativo:
+    // trocar de anúncio volta a "carregando" até a arte nova pintar.
+    var load by remember(ad.id, ad.imageUrl) { mutableStateOf(AdCreativeLoad.Loading) }
+
+    // Dois nós, de propósito: o CONTÊINER leva o id `ads-banner` (montado = anúncio escolhido) e a
+    // IMAGEM leva `ads-banner-carregado` só depois de pintada. O `clickable` fica na imagem, não no
+    // contêiner — um pai clicável mescla a semântica dos filhos e, na mescla, a `testTag` do pai
+    // vence: o id de "carregado" sumiria da árvore que o Maestro lê.
+    Box(
         modifier = modifier
             .fillMaxWidth()
             // Barra de gestos / home indicator. Com `targetSdk` 35+ o Android desenha edge-to-edge
@@ -92,13 +105,25 @@ fun CustomBannerAd(
                 else Modifier.aspectRatio(BannerSize.aspectRatioOf(ad.format, fallback = size)),
             )
             .then(viewableModifier)
-            .clickable {
-                CustomAdManager.notifyClick(ad)
-                AdStats.recordClick(AdProviderTag.CUSTOM, StatAdFormat.BANNER, ad.id)
-                onAdClick?.invoke(ad)
-                if (ad.targetUrl.isNotBlank()) {
-                    getUrlLauncher().openUrl(ad.targetUrl)
-                }
-            }
-    )
+            .testTag(AdsTestTags.BANNER),
+    ) {
+        val loadedTag = creativeTestTag(load, AdsTestTags.BANNER_CARREGADO)
+        AsyncImage(
+            model = ad.imageUrl,
+            contentDescription = ad.title.ifBlank { "Anuncio" },
+            contentScale = ContentScale.Crop,
+            onState = { load = it.toAdCreativeLoad() },
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (loadedTag != null) Modifier.testTag(loadedTag) else Modifier)
+                .clickable {
+                    CustomAdManager.notifyClick(ad)
+                    AdStats.recordClick(AdProviderTag.CUSTOM, StatAdFormat.BANNER, ad.id)
+                    onAdClick?.invoke(ad)
+                    if (ad.targetUrl.isNotBlank()) {
+                        getUrlLauncher().openUrl(ad.targetUrl)
+                    }
+                },
+        )
+    }
 }

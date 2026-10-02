@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.232.0 — Publicidade com prova automatizada: ids de "o anúncio APARECEU" para o Maestro
+
+Minor, **aditiva** (+ uma correção de automação). Origem: pedido do fundador (02/out/2026) — antes da
+1ª publicação, o teste automatizado (Maestro, pela fila do Mac) tem de **provar** que a publicidade
+aparece nos apps com anúncio. Até aqui só o "X" do intersticial tinha id.
+
+- **`kmplib-ads` — `AdsTestTags` ganhou quatro ids** (vocabulário `tela-elemento-acao`):
+  `ads-banner` (contêiner do banner, montado quando há criativo escolhido), **`ads-banner-carregado`**
+  (só depois de a imagem do criativo ser decodificada e pintada — Coil `Success`), `ads-interstitial`
+  (contêiner em tela cheia) e **`ads-interstitial-carregado`**; mais `AdsTestTags.all`. O teste afirma
+  o `-carregado`: contêiner sem ele = anúncio escolhido mas arte que não chegou (URL/CDN/rede); nenhum
+  dos dois = nada a mostrar (premium, roteamento `off`, sem criativo do formato).
+- **`CustomBannerAd`/`CustomInterstitialAd`** (e por tabela `ManagedBannerAd`/`ManagedInterstitialAd`)
+  aplicam os ids. O banner virou `Box` (contêiner) + `AsyncImage` (criativo): o `clickable` ficou no
+  nó da imagem, porque um pai clicável mescla a semântica dos filhos e a `testTag` do pai venceria a
+  do criativo. Layout, proporção, inset, impressão viewable e clique: **inalterados**.
+- **Correção — o intersticial agora é visível ao Maestro no Android.** O `Dialog` do Compose é outra
+  janela (outro `AndroidComposeView`, árvore de semântica própria) e **não herda** o
+  `testTagsAsResourceId` que o `AppTheme` liga na raiz: desde a 2.166.0 o `ads-btn-fechar-interstitial`
+  existia para o Compose e não aparecia como `resource-id`. O conteúdo do diálogo passa a ser embrulhado
+  em `WithTestTagsAsResourceId` (no iOS é no-op; lá a tag já vira `accessibilityIdentifier`).
+- Não há AdMob na lib (house ad do apps-api desde a 2.38.0): todo anúncio é nó Compose, então não
+  existe janela nativa de SDK a detectar por fora. Como montar o flow: `kmplib-catalog` →
+  `references/monetization.md` §"Prova de publicidade no Maestro".
+
+Testes: `AdsTestTagsTest` (6) — literais travados, unicidade, vocabulário, id de carregado só no
+`Loaded`, `Empty`/`Loading` do Coil não contam. Suíte `testDebugUnitTest`: 3.151 testes, 0 falhas;
+`:kmplib-ads:build` e `:kmplib-ads:compileKotlinIosArm64` (executado, não SKIPPED) verdes.
+**Não é aviso** (aditivo; a correção é de automação de teste, nada para de funcionar para o usuário).
+
 ## 2.231.0 — Teste grátis de 7 dias PELA LOJA: o paywall só promete o que a loja confirma
 
 Minor, **aditiva**. Origem: o botão "Começar 7 dias grátis" do **Backhand** cobrava na hora — não havia

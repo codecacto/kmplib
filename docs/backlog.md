@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 02/out/2026 — prova de publicidade no Maestro
+- [x] **GAP-ADS-QA-01 (P1) — ids de "o anúncio apareceu"** (`ads`): `ads-banner`/`ads-banner-carregado`,
+      `ads-interstitial`/`ads-interstitial-carregado`. ✅ **2.232.0**.
+- [x] **Regra para diálogo com `testTag`**: `Dialog`/`ModalBottomSheet` são outra janela no Android e NÃO herdam o
+      `testTagsAsResourceId` da raiz — o conteúdo se embrulha em `WithTestTagsAsResourceId`. Em 02/out só o
+      `CustomInterstitialAd` tinha tag dentro de diálogo (corrigido na 2.232.0); todo diálogo da lib que ganhar
+      `testTag` daqui em diante segue a mesma regra.
+
 ### Registrado nesta rodada (29/set/2026) — origem: design do **Folha de Axé** (`8-Sistemas-Portal-App/FolhaDeAxe/docs/design/wireframes.md` §16)
 > Nenhum bloqueia o projeto (contorno local mínimo em cada um). Par web em `Lib/weblib/docs/backlog.md`.
 - [x] **GAP-FA-K01 (P1) — "reduzir movimento" do sistema** (`platform`): `isReduceMotionEnabled()` +

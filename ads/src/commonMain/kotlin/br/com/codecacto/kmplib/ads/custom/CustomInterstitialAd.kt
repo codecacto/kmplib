@@ -35,6 +35,7 @@ import br.com.codecacto.kmplib.ads.stats.AdProviderTag
 import br.com.codecacto.kmplib.ads.stats.AdStats
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.platform.getUrlLauncher
+import br.com.codecacto.kmplib.ui.theme.WithTestTagsAsResourceId
 import coil3.compose.AsyncImage
 
 /**
@@ -60,6 +61,8 @@ enum class InterstitialCloseMode {
  * - [closeMode] decide se o "X" aparece na hora ([InterstitialCloseMode.IMMEDIATE]) ou apos uma
  *   contagem regressiva com barra de progresso ([InterstitialCloseMode.TIMED]).
  * - Clique na imagem abre [CustomAd.targetUrl] e dispara [onDismiss] (vale nos dois modos).
+ * - Ids para automação: `ads-interstitial` (contêiner), `ads-interstitial-carregado` (só com a arte
+ *   pintada) e `ads-btn-fechar-interstitial` ([AdsTestTags]).
  *
  * Padrao de uso:
  * ```kotlin
@@ -127,6 +130,9 @@ fun CustomInterstitialAd(
         }
     }
 
+    // Carga da arte, para o id `ads-interstitial-carregado` (ver `AdsTestTags`).
+    var load by remember(ad.id, ad.imageUrl) { mutableStateOf(AdCreativeLoad.Loading) }
+
     val handleClick: () -> Unit = {
         CustomAdManager.notifyClick(ad)
         AdStats.recordClick(AdProviderTag.CUSTOM, StatAdFormat.INTERSTITIAL, ad.id)
@@ -146,52 +152,63 @@ fun CustomInterstitialAd(
             dismissOnClickOutside = false,
         )
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-        ) {
-            // Imagem em TELA CHEIA (padrão 9:16 retrato no app). Crop preenche a tela
-            // toda; o criativo deve ser gerado em 1080×1920 (ver specs no painel de Anúncios).
-            AsyncImage(
-                model = ad.imageUrl,
-                contentDescription = ad.title.ifBlank { "Anuncio" },
-                contentScale = ContentScale.Crop,
+        // O `Dialog` é OUTRA JANELA no Android (outro `AndroidComposeView`, árvore de semântica
+        // própria): o `testTagsAsResourceId` que o `AppTheme` liga na raiz NÃO chega aqui, e sem
+        // re-ligar os ids deste anúncio — inclusive o "X" de fechar, desde a 2.166.0 — ficavam
+        // invisíveis ao Maestro. No iOS é no-op (a tag já vira `accessibilityIdentifier`).
+        WithTestTagsAsResourceId {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(onClick = handleClick)
-            )
-
-            // Sem título/CTA: a arte já traz o botão. Clicar em qualquer ponto abre a URL
-            // (igual ao banner).
-
-            // TIMED: régua de progresso bem fina no topo enquanto a contagem corre.
-            if (timed && !canClose) {
-                LinearProgressIndicator(
-                    progress = { progress.value },
+                    .background(Color.Black)
+                    .testTag(AdsTestTags.INTERSTITIAL)
+            ) {
+                // Imagem em TELA CHEIA (padrão 9:16 retrato no app). Crop preenche a tela
+                // toda; o criativo deve ser gerado em 1080×1920 (ver specs no painel de Anúncios).
+                // O id de "carregado" vai NESTE nó (o clicável), não no contêiner — ver `CustomBannerAd`.
+                val loadedTag = creativeTestTag(load, AdsTestTags.INTERSTITIAL_CARREGADO)
+                AsyncImage(
+                    model = ad.imageUrl,
+                    contentDescription = ad.title.ifBlank { "Anuncio" },
+                    contentScale = ContentScale.Crop,
+                    onState = { load = it.toAdCreativeLoad() },
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(3.dp),
-                    color = Color.White,
-                    trackColor = Color.White.copy(alpha = 0.3f),
+                        .fillMaxSize()
+                        .then(if (loadedTag != null) Modifier.testTag(loadedTag) else Modifier)
+                        .clickable(onClick = handleClick)
                 )
-            }
 
-            // "X" para fechar: imediato no IMMEDIATE; só após a contagem no TIMED.
-            if (canClose) {
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp)
-                        .testTag(AdsTestTags.BTN_FECHAR_INTERSTITIAL)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Fechar",
-                        tint = Color.White
+                // Sem título/CTA: a arte já traz o botão. Clicar em qualquer ponto abre a URL
+                // (igual ao banner).
+
+                // TIMED: régua de progresso bem fina no topo enquanto a contagem corre.
+                if (timed && !canClose) {
+                    LinearProgressIndicator(
+                        progress = { progress.value },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(3.dp),
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.3f),
                     )
+                }
+
+                // "X" para fechar: imediato no IMMEDIATE; só após a contagem no TIMED.
+                if (canClose) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .testTag(AdsTestTags.BTN_FECHAR_INTERSTITIAL)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Fechar",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
