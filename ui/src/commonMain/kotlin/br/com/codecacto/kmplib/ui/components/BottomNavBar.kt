@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,8 @@ enum class BottomNavItemState { Selected, Unselected, Disabled }
  * @param enabled `false` desabilita o item (sem clique, cor esmaecida, semântica de desabilitado).
  *   Útil para feature que ainda vai ligar numa próxima onda. Padrão `true`
  * @param contentDescription Descrição do ícone para leitor de tela. `null` (padrão) = usa o [label]
+ * @param testTag Id do item para automação (Maestro/teste de UI). `null` (padrão) =
+ *   [BottomNavTestTags.item] da [route] (`nav-item-<route>`) — todo item já nasce endereçável
  */
 data class BottomNavItem(
     val icon: ImageVector,
@@ -82,13 +85,32 @@ data class BottomNavItem(
     val badge: Int? = null,
     val emphasis: BottomNavEmphasis? = null,
     val enabled: Boolean = true,
-    val contentDescription: String? = null
+    val contentDescription: String? = null,
+    val testTag: String? = null
 ) {
     /** Descrição efetiva do ícone para acessibilidade: a customizada, ou o próprio label. */
     val effectiveContentDescription: String get() = contentDescription ?: label
 
+    /** Id efetivo do item para automação: o customizado, ou `nav-item-<route>`. */
+    val effectiveTestTag: String get() = testTag ?: BottomNavTestTags.item(route)
+
     /** `true` quando há badge com contagem positiva (0 e negativos não desenham badge). */
     val hasBadge: Boolean get() = (badge ?: 0) > 0
+}
+
+/**
+ * Ids de automação da [AppBottomNavBar] — um por ITEM, no nó clicável da aba.
+ *
+ * O flow toca na aba por `id: "nav-item-<route>"`. Achar a aba pelo RÓTULO dentro do id da barra
+ * (`text` + `childOf: id`) não é portável: no iOS o `childOf` de um contêiner Compose não casa
+ * (o rótulo está na tela, o id da barra também, e o Maestro não acha um dentro do outro — Minha
+ * Agenda, 02/out/2026), e o rótulo muda com o idioma do aparelho.
+ */
+object BottomNavTestTags {
+    const val ITEM_PREFIX: String = "nav-item-"
+
+    /** Id padrão do item cuja rota é [route]. */
+    fun item(route: String): String = ITEM_PREFIX + route
 }
 
 /** Tokens e defaults da [AppBottomNavBar]. */
@@ -243,6 +265,8 @@ fun AppBottomNavBar(
                 selected = state == BottomNavItemState.Selected,
                 enabled = item.enabled,
                 onClick = { onItemClick(item) },
+                // Id por item (2.240.0): cai no nó `selectable` da aba, que é o que o Maestro toca.
+                modifier = Modifier.testTag(item.effectiveTestTag),
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = selectedContentColor,
                     selectedTextColor = selectedContentColor,

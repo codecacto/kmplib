@@ -1,5 +1,26 @@
 # Changelog — kmplib
 
+## 2.240.0 — `AppBottomNavBar`: id de automação POR ITEM (`nav-item-<route>`)
+
+Minor, **aditiva**. Origem: 02/out/2026, Minha Agenda — a suíte `funcionalidades` reprovou no iOS em
+`Element not found: Text matching regex: Serviços, Child of: id: main-nav`, com a barra e o rótulo
+"Serviços" visíveis no print. A barra só tinha o `testTag` que o app punha no contêiner, e o flow
+achava a aba pelo **rótulo dentro dele** (`text` + `childOf`): no Android funciona, no iOS o
+`childOf` de um contêiner Compose não casou. E rótulo é texto traduzido — o flow passava a depender
+do idioma do aparelho.
+
+- **`BottomNavItem.testTag: String? = null`** (parâmetro novo, no fim) e
+  **`effectiveTestTag`** = `testTag ?: BottomNavTestTags.item(route)`.
+- **`BottomNavTestTags.item(route)`** = `nav-item-<route>` (`ITEM_PREFIX = "nav-item-"`).
+- `AppBottomNavBar` aplica o id no `NavigationBarItem` — o nó `selectable` da aba, que é o que se
+  toca. **Todo item já nasce com id**, sem o app mudar nada; rota feia (com `/` ou `.`) → o app
+  passa `testTag`.
+- Travado por `BottomNavTestTagsTest`.
+
+**Flows Maestro:** tocar na aba por `tapOn: { id: "nav-item-<route>" }`. Não usar
+`text: "<rótulo>"` + `childOf: { id: "main-nav" }` — vale para qualquer contêiner Compose no iOS:
+prefira id no próprio alvo (ou `id` + `text` no MESMO nó, quando ele é clicável e funde o texto).
+
 ## 2.239.0 — `LoginScreen`: o "Concluído" do teclado na senha ENVIA o login
 
 Minor, **mudança de comportamento** (sem API nova para o app). Origem: 02/out/2026, Todos a Bordo —
