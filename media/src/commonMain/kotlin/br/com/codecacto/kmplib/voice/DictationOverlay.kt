@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.voice
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -185,19 +188,22 @@ fun DictationOverlay(
         onDismiss()
     }) {
         Surface(
-            modifier = modifier.fillMaxWidth(),
+            // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+            modifier = modifier.fillMaxWidth().exposeTestTagsAsResourceId(),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
         ) {
             Column(
                 modifier = Modifier
+                    .testTag(DialogTestTags.CONTAINER)
                     .fillMaxWidth()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = texts.title,
+                    modifier = Modifier.testTag(DialogTestTags.TITULO),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -260,6 +266,7 @@ fun DictationOverlay(
                         AppButton(
                             text = texts.confirmButton,
                             onClick = { onConfirm(current.value) },
+                            modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR),
                             primaryColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                         )

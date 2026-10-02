@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.calendar
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
@@ -99,7 +102,11 @@ fun AppDayTimePicker(
         DropdownMenu(
             expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 320.dp),
+            // O menu é um `Popup` — outra janela; religa o `testTagsAsResourceId` da raiz.
+            modifier = Modifier
+                .heightIn(max = 320.dp)
+                .exposeTestTagsAsResourceId()
+                .testTag(DialogTestTags.MENU),
         ) {
             options.forEach { opt ->
                 DropdownMenuItem(

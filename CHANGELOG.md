@@ -1,5 +1,41 @@
 # Changelog — kmplib
 
+## 2.234.0 — Diálogos, folhas e menus da lib visíveis ao Maestro (ids `dialogo-*`)
+
+Minor, **aditiva**. Origem: teste do Mac no Palpite Certo (02/out/2026) — no Android todo diálogo da lib
+abre em **outra janela** (`Dialog`/`AlertDialog`/`ModalBottomSheet`/`DropdownMenu`/`DatePickerDialog`/
+`TimePickerDialog`), que **não herda** o `testTagsAsResourceId` que o `AppTheme` liga na raiz. Na
+hierarquia, todo nó dentro deles saía com `resource-id=""` e o Maestro não tocava em nada — inclusive no
+`AppInputDialog` do "digite EXCLUIR" da exclusão de conta. A 2.232.0 já tinha corrigido só o intersticial.
+
+- **`kmplib-platform` — `Modifier.exposeTestTagsAsResourceId()`** (`br.com.codecacto.kmplib.platform.automation`,
+  `expect/actual`): liga a flag no nó-raiz de uma janela própria, sem nó de layout extra. Android =
+  `semantics { testTagsAsResourceId = true }`; iOS = no-op (a `testTag` já vira `accessibilityIdentifier`).
+  Mora no `platform` porque módulos que não dependem do `kmplib-ui` (`SoftUpdateDialog`, menus do
+  `VideoPlayer`) também abrem janela. `WithTestTagsAsResourceId` (ui) passou a usá-lo. **App que escreve o
+  próprio `Dialog {}`/`ModalBottomSheet {}` aplica no `modifier` do nó-raiz dele.**
+- **`DialogTestTags`** (mesmo pacote) — ids estáveis: `dialogo` (contêiner), `dialogo-titulo`,
+  `dialogo-mensagem`, `dialogo-input`, `dialogo-btn-confirmar` (ação principal; diálogo de um botão só usa
+  este), `dialogo-btn-cancelar`, `dialogo-btn-fechar` (X das telas cheias), `dialogo-folha`, `dialogo-menu`.
+- **Aplicado em toda janela da lib**: `AppDialog`/`AppAlertDialog`/`AppInputDialog` (e o
+  `ForcePasswordChangeDialog`, que é um `AppDialog` e mantém os ids `force_password_*`), `ConfirmationDialog`,
+  `InputDialog`, `ErrorModal`, `NoInternetDialog`, `NoInternetModal` (`ConnectivityGate`), `AppTimePicker`,
+  `AppDatePicker`/`AppDatePickerDialog`, `AppTimeField`/`AppTimePickerDialog`, `FullScreenImageViewer`,
+  `FullScreenGallery`, `AppBottomSheet`, folha "câmera ou galeria" do `rememberImagePickerLauncher`/
+  `rememberVideoPickerLauncher` (Android), `AppDropdownField`/`AppMultiDropdownField`, menus do
+  `AppDayTimePicker`/`AppWeeklyScheduleEditor`, `SoftUpdateDialog`, `AppReviewDialog`, `DictationOverlay`,
+  menus de velocidade/legenda do `VideoPlayer`. O id do contêiner vai num nó da lib — um `testTag` que o app
+  passe no `modifier` continua valendo.
+- **Teste-trava** (`ExposeTestTagsAsResourceIdTest`, `kmplib-platform` androidUnitTest): confere que o
+  modificador liga a flag e **varre os fontes de todos os módulos** — janela própria nova sem
+  `exposeTestTagsAsResourceId()`/`WithTestTagsAsResourceId` reprova o `testDebugUnitTest`.
+- Flow de exemplo:
+  ```yaml
+  - tapOn: { id: "dialogo-input" }
+  - inputText: "EXCLUIR"
+  - tapOn: { id: "dialogo-btn-confirmar" }
+  ```
+
 ## 2.233.0 — A compra pela loja amarrada à conta logada, e o dublê da loja travado pela variante
 
 Minor, **aditiva**. Origem: lições da 3ª leva (02/out/2026) que cada app remendava à mão — a compra

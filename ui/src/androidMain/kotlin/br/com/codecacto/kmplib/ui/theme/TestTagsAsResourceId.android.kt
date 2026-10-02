@@ -2,10 +2,8 @@ package br.com.codecacto.kmplib.ui.theme
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 
 /**
  * Ver [WithTestTagsAsResourceId] (commonMain) para o porquê.
@@ -19,10 +17,10 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
  * a declaração é `expect/actual` em vez de morar direto no [AppTheme], que é `commonMain` e compila
  * para iOS também.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun WithTestTagsAsResourceId(content: @Composable () -> Unit) {
-    Box(Modifier.semantics { testTagsAsResourceId = true }) {
+    Box(Modifier.exposeTestTagsAsResourceId()) {
         content()
     }
 }
+

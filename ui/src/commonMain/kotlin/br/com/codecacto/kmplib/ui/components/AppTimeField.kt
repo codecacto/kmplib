@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -302,6 +305,8 @@ fun AppTimePickerDialog(
 
     TimePickerDialog(
         onDismissRequest = onDismiss,
+        // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+        modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER),
         title = { TimePickerDialogDefaults.Title(displayMode = displayMode) },
         modeToggleButton = {
             TimePickerDialogDefaults.DisplayModeToggle(
@@ -322,12 +327,13 @@ fun AppTimePickerDialog(
                     onDismiss()
                 },
                 enabled = limitMessage == null,
+                modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR),
             ) {
                 Text(texts.confirm)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag(DialogTestTags.BTN_CANCELAR)) {
                 Text(texts.dismiss)
             }
         },

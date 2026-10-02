@@ -11,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,9 +67,11 @@ fun ConfirmationDialog(
             )
         ) {
             Card(
+                // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
                 modifier = modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .exposeTestTagsAsResourceId(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -74,6 +79,7 @@ fun ConfirmationDialog(
             ) {
                 Column(
                     modifier = Modifier
+                        .testTag(DialogTestTags.CONTAINER)
                         .fillMaxWidth()
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -88,7 +94,8 @@ fun ConfirmationDialog(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.testTag(DialogTestTags.TITULO)
                     )
 
                     // Mensagem
@@ -97,7 +104,8 @@ fun ConfirmationDialog(
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        modifier = Modifier.testTag(DialogTestTags.MENSAGEM)
                     )
 
                     // ⚠️ **Os botões EMPILHAM quando os rótulos não cabem lado a lado**
@@ -162,7 +170,7 @@ private fun BotoesDeConfirmacao(
         val confirmar: @Composable (Modifier) -> Unit = { m ->
             Button(
                 onClick = onConfirm,
-                modifier = m,
+                modifier = m.testTag(DialogTestTags.BTN_CONFIRMAR),
                 enabled = !isLoading,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -185,7 +193,7 @@ private fun BotoesDeConfirmacao(
             cancelText?.let {
                 OutlinedButton(
                     onClick = onDismiss,
-                    modifier = m,
+                    modifier = m.testTag(DialogTestTags.BTN_CANCELAR),
                     enabled = !isLoading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -262,7 +270,7 @@ fun InputDialog(
     if (show) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(title) },
+            title = { Text(title, modifier = Modifier.testTag(DialogTestTags.TITULO)) },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -271,7 +279,8 @@ fun InputDialog(
                         Text(
                             text = message,
                             fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag(DialogTestTags.MENSAGEM)
                         )
                     }
 
@@ -283,14 +292,16 @@ fun InputDialog(
                         errorMessage = textFieldError,
                         isPassword = isPassword,
                         primaryColor = primaryColor,
-                        enabled = !isLoading
+                        enabled = !isLoading,
+                        modifier = Modifier.testTag(DialogTestTags.INPUT)
                     )
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = onConfirm,
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -305,12 +316,15 @@ fun InputDialog(
             dismissButton = {
                 TextButton(
                     onClick = onDismiss,
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    modifier = Modifier.testTag(DialogTestTags.BTN_CANCELAR)
                 ) {
                     Text(cancelText)
                 }
             },
-            modifier = modifier
+            // `AlertDialog` também é outra janela; o `modifier` dele cai na superfície DE DENTRO
+            // dela, então é ali que a flag se religa.
+            modifier = modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER)
         )
     }
 }

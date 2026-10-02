@@ -11,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -54,15 +57,21 @@ fun AppDialog(
             )
         ) {
             Surface(
-                // O diálogo é outra janela: o `dismissKeyboardOnTapOutside` da raiz do app não o
-                // alcança, e o `AppInputDialog` tem campo.
-                modifier = modifier.fillMaxWidth().dismissKeyboardOnTapOutside(),
+                // O diálogo é outra janela: nem o `dismissKeyboardOnTapOutside` nem o
+                // `testTagsAsResourceId` da raiz do app o alcançam (este último deixava todo nó do
+                // diálogo com `resource-id=""` para o Maestro até a 2.233.0). Os dois se religam aqui.
+                modifier = modifier
+                    .fillMaxWidth()
+                    .dismissKeyboardOnTapOutside()
+                    .exposeTestTagsAsResourceId(),
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    // O id do contêiner fica num nó NOSSO, não no `modifier` do app — um `testTag`
+                    // que o app passe lá continua valendo.
+                    modifier = Modifier.testTag(DialogTestTags.CONTAINER).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -83,7 +92,8 @@ fun AppDialog(
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.testTag(DialogTestTags.TITULO)
                         )
                     }
 
@@ -140,7 +150,8 @@ fun AppAlertDialog(
             text = message,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(DialogTestTags.MENSAGEM)
         )
 
         // Botões de ação
@@ -153,7 +164,7 @@ fun AppAlertDialog(
                 AppOutlinedButton(
                     text = it,
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
                     enabled = !isLoading,
                     primaryColor = Color.Gray,
                     height = 48.dp
@@ -164,7 +175,7 @@ fun AppAlertDialog(
             AppButton(
                 text = confirmText,
                 onClick = onConfirm,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CONFIRMAR),
                 isLoading = isLoading,
                 primaryColor = confirmButtonColor,
                 height = 48.dp
@@ -222,7 +233,8 @@ fun AppInputDialog(
                 text = it,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag(DialogTestTags.MENSAGEM)
             )
         }
 
@@ -233,7 +245,8 @@ fun AppInputDialog(
             label = textFieldLabel,
             placeholder = textFieldPlaceholder,
             errorMessage = textFieldError,
-            enabled = !isLoading
+            enabled = !isLoading,
+            modifier = Modifier.testTag(DialogTestTags.INPUT)
         )
 
         // Botões de ação
@@ -244,7 +257,7 @@ fun AppInputDialog(
             AppOutlinedButton(
                 text = dismissText,
                 onClick = onDismiss,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
                 enabled = !isLoading,
                 primaryColor = Color.Gray,
                 height = 48.dp
@@ -253,7 +266,7 @@ fun AppInputDialog(
             AppButton(
                 text = confirmText,
                 onClick = onConfirm,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CONFIRMAR),
                 isLoading = isLoading,
                 height = 48.dp
             )

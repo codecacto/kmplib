@@ -10,6 +10,13 @@
       `testTagsAsResourceId` da raiz — o conteúdo se embrulha em `WithTestTagsAsResourceId`. Em 02/out só o
       `CustomInterstitialAd` tinha tag dentro de diálogo (corrigido na 2.232.0); todo diálogo da lib que ganhar
       `testTag` daqui em diante segue a mesma regra.
+- [x] **GAP-UI-QA-02 (P1) — TODA janela própria da lib visível ao Maestro** (`ui`/`platform`/`central`/`media`/`video`):
+      a regra acima só valia para o intersticial; `AppDialog` (e `AppAlertDialog`, `AppInputDialog` — o "digite
+      EXCLUIR"), `ConfirmationDialog`, folhas e menus saíam com `resource-id=""` (teste do Mac, Palpite Certo, 02/out).
+      ✅ **2.234.0** — `Modifier.exposeTestTagsAsResourceId()` (`platform.automation`) no nó-raiz de cada janela,
+      ids `DialogTestTags` (`dialogo`, `dialogo-titulo`, `dialogo-mensagem`, `dialogo-input`, `dialogo-btn-confirmar`,
+      `dialogo-btn-cancelar`, `dialogo-btn-fechar`, `dialogo-folha`, `dialogo-menu`) e um teste que VARRE a lib e
+      reprova janela nova sem a flag.
 - [x] **GAP-MON-IDENT-01 (P2) — amarrar a identidade da loja à sessão** (`monetization`): a cola "identify no login,
       resetIdentity no logout" estava escrita à mão em 5 apps (Backhand `IdentidadeNaLoja`, Acervo `BillingIdentity`,
       TaFeito, PalpiteCerto, Meu Fisio), nos repasses da 3ª leva (ChecklistVeicular, ControleDeValidade) e na casca.

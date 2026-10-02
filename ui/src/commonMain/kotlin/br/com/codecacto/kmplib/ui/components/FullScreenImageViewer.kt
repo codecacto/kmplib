@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_close
 import org.jetbrains.compose.resources.stringResource
@@ -187,9 +190,11 @@ fun FullScreenImageViewer(
         )
     ) {
         Box(
+            // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
+                .exposeTestTagsAsResourceId()
         ) {
             // Imagem com zoom
             ZoomableBox(
@@ -204,7 +209,8 @@ fun FullScreenImageViewer(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
-                    .size(40.dp),
+                    .size(40.dp)
+                    .testTag(DialogTestTags.BTN_FECHAR),
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White
@@ -275,7 +281,8 @@ fun FullScreenGallery(
             dismissOnClickOutside = false,
         ),
     ) {
-        Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+        // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+        Box(modifier = modifier.fillMaxSize().background(Color.Black).exposeTestTagsAsResourceId()) {
             // ⚠️ A escala é do PAGER, não de cada página: é ele que precisa saber se pode
             // receber o arrasto. Guardada por fora, ela zera ao trocar de foto — que é o
             // comportamento certo, porque o zoom da página anterior não vale para a nova.
@@ -323,7 +330,8 @@ fun FullScreenGallery(
 
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).size(40.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).size(40.dp)
+                    .testTag(DialogTestTags.BTN_FECHAR),
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White,

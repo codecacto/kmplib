@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -192,15 +195,18 @@ fun AppDatePickerDialog(
                     }
                     onDismiss()
                 },
+                modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR),
             ) {
                 Text(confirmText)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag(DialogTestTags.BTN_CANCELAR)) {
                 Text(dismissText)
             }
         },
+        // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+        modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER),
     ) {
         DatePicker(state = datePickerState)
     }

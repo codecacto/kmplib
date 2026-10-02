@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -119,6 +122,8 @@ actual fun rememberVideoPickerLauncher(
             onDismissRequest = { mostrarEscolha = false },
             sheetState = estadoDaFolha,
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+            modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.FOLHA),
         ) {
             Column(
                 modifier = Modifier

@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -82,7 +85,7 @@ fun AppTimePicker(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = if (title.isNotEmpty()) {
-            { Text(text = title, style = MaterialTheme.typography.titleLarge) }
+            { Text(text = title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.testTag(DialogTestTags.TITULO)) }
         } else {
             null
         },
@@ -99,17 +102,22 @@ fun AppTimePicker(
         },
         confirmButton = {
             TextButton(
-                onClick = { onTimeSelected(timePickerState.hour, timePickerState.minute) }
+                onClick = { onTimeSelected(timePickerState.hour, timePickerState.minute) },
+                modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR)
             ) {
                 Text(confirmLabel)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag(DialogTestTags.BTN_CANCELAR)) {
                 Text(dismissLabel)
             }
         },
-        modifier = Modifier.padding(16.dp)
+        // `AlertDialog` é outra janela; o `modifier` cai na superfície de dentro dela.
+        modifier = Modifier
+            .padding(16.dp)
+            .exposeTestTagsAsResourceId()
+            .testTag(DialogTestTags.CONTAINER)
     )
 }
 

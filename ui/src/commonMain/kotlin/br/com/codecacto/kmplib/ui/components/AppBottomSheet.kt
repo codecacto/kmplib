@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -32,9 +35,13 @@ fun AppBottomSheet(
         )
         ModalBottomSheet(
             onDismissRequest = onDismiss,
-            // A folha é outra janela: o `dismissKeyboardOnTapOutside` da raiz do app não a alcança,
-            // e folha com campo (contato, orçamento) é comum.
-            modifier = Modifier.dismissKeyboardOnTapOutside(),
+            // A folha é outra janela: nem o `dismissKeyboardOnTapOutside` nem o
+            // `testTagsAsResourceId` da raiz do app a alcançam — folha com campo (contato,
+            // orçamento) é comum, e sem a flag o Maestro não toca em nada dentro dela.
+            modifier = Modifier
+                .dismissKeyboardOnTapOutside()
+                .exposeTestTagsAsResourceId()
+                .testTag(DialogTestTags.FOLHA),
             sheetState = sheetState,
             content = content
         )

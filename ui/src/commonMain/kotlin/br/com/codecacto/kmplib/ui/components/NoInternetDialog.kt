@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_offline_short
 import br.com.codecacto.kmplib.generated.resources.kmplib_no_internet_message
@@ -48,12 +51,15 @@ fun NoInternetDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
+            // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+            modifier = Modifier.exposeTestTagsAsResourceId(),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
         ) {
             Column(
                 modifier = Modifier
+                    .testTag(DialogTestTags.CONTAINER)
                     .fillMaxWidth()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -70,6 +76,7 @@ fun NoInternetDialog(
                     text = title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag(DialogTestTags.TITULO),
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
@@ -77,13 +84,14 @@ fun NoInternetDialog(
                 Text(
                     text = message,
                     fontSize = 14.sp,
+                    modifier = Modifier.testTag(DialogTestTags.MENSAGEM),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag(DialogTestTags.BTN_CONFIRMAR),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,

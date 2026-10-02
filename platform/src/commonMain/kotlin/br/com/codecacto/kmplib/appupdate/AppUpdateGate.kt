@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.appupdate
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -162,13 +165,19 @@ fun SoftUpdateDialog(
                 tint = MaterialTheme.colorScheme.primary,
             )
         },
-        title = { Text(texts.softTitle) },
-        text = { Text(message) },
+        title = { Text(texts.softTitle, modifier = Modifier.testTag(DialogTestTags.TITULO)) },
+        text = { Text(message, modifier = Modifier.testTag(DialogTestTags.MENSAGEM)) },
         confirmButton = {
-            Button(onClick = onUpdate) { Text(texts.softUpdateButton) }
+            Button(onClick = onUpdate, modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR)) {
+                Text(texts.softUpdateButton)
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(texts.softDismissButton) }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag(DialogTestTags.BTN_CANCELAR)) {
+                Text(texts.softDismissButton)
+            }
         },
+        // `AlertDialog` é outra janela; o `modifier` cai na superfície de dentro dela.
+        modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER),
     )
 }

@@ -49,3 +49,9 @@ import androidx.compose.runtime.Composable
  */
 @Composable
 expect fun WithTestTagsAsResourceId(content: @Composable () -> Unit)
+
+//
+// Para JANELA PRÓPRIA (diálogo, folha, menu, popup) a mesma flag existe como modificador, sem nó de
+// layout extra: `br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId` (2.234.0).
+// Mora no `kmplib-platform` porque diálogos de módulos que não dependem do `kmplib-ui`
+// (`SoftUpdateDialog`, menus do `VideoPlayer`) também precisam dela.

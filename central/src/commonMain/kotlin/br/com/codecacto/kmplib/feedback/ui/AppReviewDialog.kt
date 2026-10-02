@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -158,7 +161,11 @@ fun AppReviewDialog(
             )
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .exposeTestTagsAsResourceId()
+                    .testTag(DialogTestTags.CONTAINER),
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 6.dp
@@ -301,6 +308,7 @@ private fun InitialStep(
             OutlinedButton(
                 onClick = onNo,
                 modifier = Modifier
+                    .testTag(DialogTestTags.BTN_CANCELAR)
                     .weight(1f)
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -324,6 +332,7 @@ private fun InitialStep(
             Button(
                 onClick = onYes,
                 modifier = Modifier
+                    .testTag(DialogTestTags.BTN_CONFIRMAR)
                     .weight(1f)
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
@@ -481,6 +490,7 @@ private fun FeedbackStep(
         Button(
             onClick = onSubmit,
             modifier = Modifier
+                .testTag(DialogTestTags.BTN_CONFIRMAR)
                 .fillMaxWidth()
                 .height(48.dp),
             enabled = isEnabled,

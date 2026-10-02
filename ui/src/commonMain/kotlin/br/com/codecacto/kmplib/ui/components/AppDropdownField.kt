@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -247,9 +250,12 @@ private fun AncoraDeMenu(
         DropdownMenu(
             expanded = aberto,
             onDismissRequest = { aberto = false },
+            // O menu é um `Popup` — outra janela; religa o `testTagsAsResourceId` da raiz.
             modifier = Modifier
                 .width(larguraDoCampo)
-                .heightIn(max = maxMenuHeight),
+                .heightIn(max = maxMenuHeight)
+                .exposeTestTagsAsResourceId()
+                .testTag(DialogTestTags.MENU),
         ) {
             itens { aberto = false }
         }

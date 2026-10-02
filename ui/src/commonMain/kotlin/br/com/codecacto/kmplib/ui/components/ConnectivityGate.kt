@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_modal_message
@@ -104,10 +107,12 @@ fun NoInternetModal(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
-            modifier = modifier,
+            // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
+            modifier = modifier.exposeTestTagsAsResourceId(),
         ) {
             Column(
                 modifier = Modifier
+                    .testTag(DialogTestTags.CONTAINER)
                     .fillMaxWidth()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,6 +139,7 @@ fun NoInternetModal(
 
                 Text(
                     text = texts.modalTitle,
+                    modifier = Modifier.testTag(DialogTestTags.TITULO),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
@@ -141,6 +147,7 @@ fun NoInternetModal(
 
                 Text(
                     text = texts.modalMessage,
+                    modifier = Modifier.testTag(DialogTestTags.MENSAGEM),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -149,6 +156,7 @@ fun NoInternetModal(
                 AppButton(
                     text = texts.retryButton,
                     onClick = onRetry,
+                    modifier = Modifier.testTag(DialogTestTags.BTN_CONFIRMAR),
                     primaryColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 )

@@ -1,5 +1,8 @@
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
+import br.com.codecacto.kmplib.platform.automation.DialogTestTags
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -222,7 +225,12 @@ private fun SpeedControl(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+        DropdownMenu(
+            expanded = aberto,
+            onDismissRequest = { aberto = false },
+            // O menu é um `Popup` — outra janela; religa o `testTagsAsResourceId` da raiz.
+            modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.MENU),
+        ) {
             VIDEO_SPEEDS.forEach { velocidade ->
                 DropdownMenuItem(
                     text = {
@@ -264,7 +272,12 @@ private fun SubtitleControl(
             onInteraction()
             aberto = true
         }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+        DropdownMenu(
+            expanded = aberto,
+            onDismissRequest = { aberto = false },
+            // O menu é um `Popup` — outra janela; religa o `testTagsAsResourceId` da raiz.
+            modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.MENU),
+        ) {
             DropdownMenuItem(
                 text = {
                     Text(
