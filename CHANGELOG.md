@@ -1,5 +1,13 @@
 # Changelog — kmplib
 
+## 2.244.1 — `topbar-voltar` também nas telas da lib que desenham o próprio voltar
+
+`DeveloperScreen`, `ContactScreen`, `FeedbackScreen`, `PaywallScreen` e a `SearchTopBar` (fora do modo
+busca; `topbar-menu` no hambúrguer dela) não usam a `AppTopBar` — desenham o `IconButton` de voltar à
+mão — e por isso ficaram sem o id da 2.244.0. Flow que voltava da tela "Desenvolvido por" precisou tocar
+pelo texto de acessibilidade ("Voltar|Back|Volver", CréditoNaMão `05-mais`). Agora `tapOn id
+"topbar-voltar"` vale em toda tela da lib com voltar. Aditivo; nada muda na tela.
+
 ## 2.244.0 — `AppTopBar`: ids `topbar-voltar` e `topbar-menu` no ícone de navegação (voltar portável no Maestro)
 
 `TopBarTestTags.VOLTAR` (`topbar-voltar`) e `TopBarTestTags.MENU` (`topbar-menu`), postos no `IconButton`

@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.NeedHelpSection
 import br.com.codecacto.kmplib.ui.components.UsageMeter
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 /**
  * Paywall **canonico** da kmplib — stateless, parametrizavel por [PaywallTexts] e tematizado 100%
@@ -100,7 +101,10 @@ fun PaywallScreen(
                     Text(text = texts.screenTitle, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
-                    IconButton(onClick = { onAction(PaywallAction.Back) }) {
+                    IconButton(
+                        onClick = { onAction(PaywallAction.Back) },
+                        modifier = Modifier.testTag(TopBarTestTags.VOLTAR),
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,

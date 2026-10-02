@@ -49,6 +49,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_search
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_clear
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_close
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 /**
  * Textos do [SearchTopBar]. Sem `texts`, o componente usa [rememberSearchTopBarTexts] (idioma do
@@ -263,11 +265,17 @@ fun SearchTopBar(
                     )
                 }
 
-                navigationType == NavigationType.BACK -> IconButton(onClick = onNavigationClick) {
+                navigationType == NavigationType.BACK -> IconButton(
+                    onClick = onNavigationClick,
+                    modifier = Modifier.testTag(TopBarTestTags.VOLTAR),
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = texts.backDescription)
                 }
 
-                navigationType == NavigationType.MENU -> IconButton(onClick = onNavigationClick) {
+                navigationType == NavigationType.MENU -> IconButton(
+                    onClick = onNavigationClick,
+                    modifier = Modifier.testTag(TopBarTestTags.MENU),
+                ) {
                     Icon(Icons.Default.Menu, contentDescription = texts.menuDescription)
                 }
 

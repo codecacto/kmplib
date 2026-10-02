@@ -62,6 +62,8 @@ import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 private val WhatsAppGreen = Color(0xFF25D366)
 
@@ -169,7 +171,7 @@ fun DeveloperScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag(TopBarTestTags.VOLTAR)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,

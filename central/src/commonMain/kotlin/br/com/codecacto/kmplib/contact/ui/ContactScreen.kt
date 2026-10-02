@@ -57,6 +57,8 @@ import br.com.codecacto.kmplib.ui.components.PickerOption
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 /**
  * Formulário "Entrar em contato" reutilizável (paridade com o `ContactForm` da weblib).
@@ -156,7 +158,7 @@ fun ContactScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag(TopBarTestTags.VOLTAR)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,

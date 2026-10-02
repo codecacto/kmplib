@@ -33,6 +33,8 @@ import br.com.codecacto.kmplib.feedback.FeedbackSource
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 /**
  * Tela completa de feedback com formulário.
@@ -165,7 +167,7 @@ fun FeedbackScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag(TopBarTestTags.VOLTAR)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,
