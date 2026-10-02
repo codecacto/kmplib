@@ -77,14 +77,44 @@ docs/42 do monorepo).
 |---|---|---|---|---|
 | Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | `Sentry` | `kmplib-observability` (todo app) | **Versão EXATA** compatível com o `sentry-kotlin-multiplatform` da kmplib (hoje **8.49.1** para o sentry-kmp 0.13.0). Faixa aberta pega uma major nova e quebra o cinterop |
 | Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` (11.x) | `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, **`FirebaseMessaging`** | GitLive (`kmplib-firebase`) e KMPNotifier (`kmplib-push`) — ambos no guarda-chuva | **Mesmo em app own-auth e sem push.** O `FirebaseCore` entra junto como dependência desses produtos — não precisa ser adicionado à parte |
-| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | `RevenueCat` | `kmplib-monetization` (no guarda-chuva) | Todo app que declara o guarda-chuva ou a monetização — mesmo sem vender |
-| Purchases Hybrid Common | `https://github.com/RevenueCat/purchases-hybrid-common` | `PurchasesHybridCommon` | `purchases-kmp` (cinterop) | Versão compatível com o `purchases-kmp` da kmplib — sem ele, *undefined symbols* `_OBJC_CLASS_$_RCCommonFunctionality` |
+| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | `RevenueCat` | `kmplib-monetization` (no guarda-chuva) | Todo app que declara o guarda-chuva ou a monetização — mesmo sem vender. **Versão EXATA: 5.50.0** — a que o `Package.swift` do PurchasesHybridCommon 17.23.0 fixa (`exact: "5.50.0"`) |
+| Purchases Hybrid Common | `https://github.com/RevenueCat/purchases-hybrid-common` | `PurchasesHybridCommon` | `purchases-kmp` (cinterop) | **Versão EXATA: 17.23.0** — o sufixo depois do `+` no `revenuecatKmp` da kmplib (`2.2.13+17.23.0`). Sem ele, *undefined symbols* `_OBJC_CLASS_$_RCCommonFunctionality`; **na versão errada o link passa** e a diferença aparece em runtime (ver abaixo) |
 | Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | `GoogleMaps` | Só quem usa o mapa Google (o `NativeMap` usa MapKit e não precisa) | **SPM — o pod foi descontinuado no Q2/2026** |
 | Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | `GoogleSignIn` | Só login Google NATIVO | Login pelo backend (BFF) não precisa |
 
 O que a `casca-mobile` já traz no `iosApp.xcodeproj` (e é o molde): Sentry (8.49.1 exato), Firebase
-(`FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`), `RevenueCat`,
-`PurchasesHybridCommon` e `GoogleSignIn`.
+(`FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`), `RevenueCat`
+(5.50.0 exato), `PurchasesHybridCommon` (17.23.0 exato) e `GoogleSignIn`.
+
+#### Versão do RevenueCat no iOS — amarrada ao `purchases-kmp` (02/out/2026)
+
+O binding cinterop do `purchases-kmp` é gerado contra **uma** versão do PurchasesHybridCommon, e é a
+que vem escrita na própria versão da biblioteca, depois do `+`:
+
+| Onde | O que diz |
+|---|---|
+| `gradle/libs.versions.toml` da kmplib | `revenuecatKmp = "2.2.13+17.23.0"` |
+| `core/core.podspec` do purchases-kmp nessa tag | `spec.dependency 'PurchasesHybridCommon', '17.23.0'` |
+| `Package.swift` do purchases-hybrid-common 17.23.0 | `.package(url: ".../purchases-ios-spm", exact: "5.50.0")` |
+
+Logo, no `project.pbxproj`: **`purchases-hybrid-common` = `exactVersion 17.23.0`** e
+**`purchases-ios-spm` = `exactVersion 5.50.0`**. Faixa (`upToNextMajorVersion`) não serve: a casca
+pedia "14.x / 5.x", o Xcode resolvia **14.3.0 + 5.32.0** e 115 apps linkavam um SDK nativo três majors
+atrás do binding. **O link passa** — os símbolos de classe existem nas duas —, e o que muda entre
+majors (seletores, assinaturas, chaves dos dicionários que o hybrid-common devolve) só aparece na
+hora de configurar a loja, ler oferta ou comprar.
+
+**Quem sobe o `purchases-kmp` na kmplib sobe os dois números na casca na mesma rodada** (o segundo
+sai do `Package.swift` do hybrid-common na tag nova) e reaplica nos apps:
+
+```bash
+python3 Nexus/fabrica/spm_ios.py --check <mobile>   # diz o que diverge (exit 1)
+python3 Nexus/fabrica/spm_ios.py <mobile>           # iguala o requirement e os pins do Package.resolved à casca
+```
+
+O `spm_ios.py` recusa a própria casca como molde se o hybrid-common dela não for exatamente o sufixo
+do `revenuecatKmp`, e o auditor de prontidão de loja (`auditar-prontidao-loja.py`) cobra a **versão**,
+não só a presença do produto.
 
 > **Linkar ≠ configurar.** É a distinção que importa: o app **linka** o Firebase (obrigatório, acima),
 > mas só precisa de **`GoogleService-Info.plist` + `FirebaseApp.configure()`** se REALMENTE usar
@@ -516,6 +546,8 @@ AppBuildConfigKt.googleMapsApiKey
 - [ ] SPM no target, **todos obrigatórios com o guarda-chuva** (mesmo own-auth, mesmo sem push, mesmo
       sem vender): `Sentry` (versão exata), `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`,
       **`FirebaseMessaging`**, `RevenueCat`, `PurchasesHybridCommon`
+- [ ] RevenueCat na versão do binding: `purchases-hybrid-common` **exato** = sufixo do `revenuecatKmp`
+      (hoje 17.23.0) e `purchases-ios-spm` **exato** = o que ele fixa (hoje 5.50.0) — `spm_ios.py --check`
 - [ ] Usa SQLDelight? `linkerOpts("-lsqlite3")` no Gradle **e** `-lsqlite3` em `OTHER_LDFLAGS`
 - [ ] App own-auth: linka o Firebase, mas **sem** `GoogleService-Info.plist` e **sem**
       `FirebaseApp.configure()` (configurar sem o plist derruba o app no start)
@@ -529,4 +561,4 @@ AppBuildConfigKt.googleMapsApiKey
 
 ---
 
-*Documento gerado em 2026-07-01; revisado em 24/07/2026 (link do Firebase é obrigatório mas a CONFIGURAÇÃO não, `-lsqlite3` do SQLDelight, Sentry Cocoa fixado = cliente do GlitchTip) e em 02/10/2026 (2.233.0: `FirebaseMessaging` sempre — cinterop do KMPNotifier —, `PurchasesHybridCommon`, tabela de símbolos do "Undefined symbols", checklist com `export` granular e o plugin do dublê).*
+*Documento gerado em 2026-07-01; revisado em 24/07/2026 (link do Firebase é obrigatório mas a CONFIGURAÇÃO não, `-lsqlite3` do SQLDelight, Sentry Cocoa fixado = cliente do GlitchTip) e em 02/10/2026 (2.233.0: `FirebaseMessaging` sempre — cinterop do KMPNotifier —, `PurchasesHybridCommon`, tabela de símbolos do "Undefined symbols", checklist com `export` granular e o plugin do dublê; e versão EXATA do RevenueCat no iOS — `PurchasesHybridCommon` 17.23.0 + `purchases-ios-spm` 5.50.0, amarrada ao `purchases-kmp`).*

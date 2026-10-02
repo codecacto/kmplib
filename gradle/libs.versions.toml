@@ -25,6 +25,11 @@ sentry = "0.13.0"
 koin = "4.1.1"
 
 # RevenueCat
+# O sufixo depois do `+` é a versão do PurchasesHybridCommon contra a qual o binding cinterop do iOS foi
+# gerado (core.podspec do purchases-kmp). Ao subir este número, suba NA MESMA RODADA o SPM da casca-mobile:
+# `purchases-hybrid-common` exato = o sufixo, `purchases-ios-spm` exato = o `exact:` do Package.swift do
+# hybrid-common nessa tag (17.23.0 → 5.50.0) — e reaplique nos apps (Nexus/fabrica/spm_ios.py, que lê
+# este arquivo e recusa a casca desalinhada). Detalhe: IOS_INTEGRATION.md §"Versão do RevenueCat no iOS".
 revenuecatKmp = "2.2.13+17.23.0"
 
 # Compose
