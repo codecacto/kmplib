@@ -15,9 +15,13 @@
       (`GET /config` → `identifierLabel` nunca vazio). A kmplib 2.241.0 reconhece os defaults pelo TEXTO
       (`resolveIdentifierLabel`); o contrato certo é o servidor dizer se o rótulo é próprio (campo booleano, ou omitir
       o default). Pedido ao `lib-backend`; ao sair, a lista de textos em `LoginRules.kt` vira legado.
-- [ ] **GAP-CASCA-LOGIN-01 (P2) — a `LoginViewModel` da casca não consulta `OwnAuthApi.identifierConfig()`**: o campo
+- [x] **GAP-CASCA-LOGIN-01 (P2) — a `LoginViewModel` da casca não consulta `OwnAuthApi.identifierConfig()`**: o campo
       nasce em modo `EMAIL` (rótulo "E-mail", teclado de e-mail) num produto cujo servidor está em `BOTH`. Apps mais
       novos (Meu Estacionamento) já copiam o `cfg.identifierMode`; a casca não. Achado de leitura, fora do escopo da 2.241.0.
+      ✅ **casca-mobile, 02/out** — a `LoginViewModel` recebe `identifierConfig` (o DI passa `OwnAuth.api.identifierConfig()`)
+      e o consulta no `init`; falha = o login de sempre. Na mesma rodada o `signIn()` passou a soltar o `isLoading` em
+      qualquer saída menos o sucesso (repositório que lança não deixa mais a tela morta, e a mensagem é fixa — a da
+      exceção pode trazer trecho da resposta, com token). Só casca: sem versão nova da lib.
 
 ### Registrado em 02/out/2026 — login social pelo navegador sem desfecho (achado no re-review da 2.240.1)
 - [x] **GAP-AUTH-SOCIAL-01 (P1) — aba do navegador fechada sem concluir deixa o login social pendente** (`auth/social`,
