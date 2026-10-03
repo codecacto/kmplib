@@ -37,6 +37,9 @@ import kotlin.time.Duration
  * @param onShown chamado so quando o anuncio aparece de fato — o lugar de contar frequencia.
  * @param firstLoadTimeout teto da espera pela primeira carga. `Duration.ZERO` = decidir na hora
  *   (para intersticial que segura uma navegacao no `onDismiss`).
+ * @param creativeLoadTimeout teto do download da ARTE, depois de escolhido o anuncio (2.246.0). O
+ *   dialogo so abre com a imagem pronta; nao carregou no teto (ou falhou) = exibicao pulada, sem
+ *   impressao — nunca a tela preta com so o "X".
  */
 @Composable
 fun ManagedInterstitialAd(
@@ -44,6 +47,7 @@ fun ManagedInterstitialAd(
     onDismiss: () -> Unit,
     onShown: ((CustomAd) -> Unit)? = null,
     firstLoadTimeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT,
+    creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
 ) {
     InterstitialAdHost(
         show = show,
@@ -52,6 +56,7 @@ fun ManagedInterstitialAd(
         onAdClick = null,
         onShown = onShown,
         firstLoadTimeout = firstLoadTimeout,
+        creativeLoadTimeout = creativeLoadTimeout,
         withRouting = true,
     )
 }

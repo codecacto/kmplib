@@ -40,6 +40,17 @@ object AdDefaults {
      * interrupção — a exibição é pulada, sem contar impressão.
      */
     val INTERSTITIAL_FIRST_LOAD_TIMEOUT: Duration = 5.seconds
+
+    /**
+     * Quanto o intersticial espera a **arte** (download + decodificação) depois de escolhido o
+     * anúncio, antes de desistir daquela exibição — 2.246.0.
+     *
+     * O diálogo só abre com a imagem pronta; até a 2.245.0 ele abria antes, e a pessoa via uma tela
+     * preta com só o "X" durante o download (e para sempre se a URL falhasse). A arte de 1440×2560
+     * em WebP pesa ~100–150 KB e sai do Storage em ~1,5 s; **5 s** cobrem rede móvel fraca. Passou
+     * disso, a exibição é pulada sem impressão — mesmo raciocínio do [INTERSTITIAL_FIRST_LOAD_TIMEOUT].
+     */
+    val INTERSTITIAL_CREATIVE_LOAD_TIMEOUT: Duration = 5.seconds
 }
 
 /**

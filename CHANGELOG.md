@@ -1,5 +1,30 @@
 # Changelog — kmplib
 
+## 2.246.0 — Intersticial só abre com a ARTE pronta (fim da tela preta com só o "X")
+
+Origem: print da abertura do Piadaria no emulador Android (02/out/2026), ~5 s depois de abrir — o
+intersticial "ao abrir" em **tela preta com só o "X"**. A arte do apps-api estava no ar (5 criativos,
+HTTP 200, WebP 1440×2560 de ~100–150 KB, ~1,5 s do Firebase Storage); o defeito era a ordem: escolhido
+o anúncio, o `Dialog` abria **na hora** e a imagem só começava a baixar depois. Durante o download a
+pessoa via o fundo preto do diálogo; com a URL fora do ar, via isso para sempre — e a impressão já
+tinha sido contada no `LaunchedEffect` de montagem. O check `anuncio-intersticial` da suíte passava
+porque espera o `ads-interstitial-carregado` por até 30 s, e a arte chegava segundos depois.
+
+- **`kmplib-ads` — o host do intersticial (`CustomInterstitialAd` e `ManagedInterstitialAd`) pré-carrega
+  a arte** pelo Coil (`SingletonImageLoader.execute`, no tamanho da janela, precisão inexata) **antes**
+  de abrir o diálogo, até o novo `creativeLoadTimeout` (default
+  `AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT` = 5 s). Com a arte no cache de memória, o
+  `AsyncImage` a pinta no primeiro frame. Falhou, URL em branco ou teto estourado → `onDismiss` sem
+  impressão e sem `onShown` (mesma regra do `firstLoadTimeout` da 2.236.0).
+- **Impressão e `onShown` contam com a arte PINTADA** (Coil `Success`), não com o diálogo montado. Se
+  a arte falhar com o diálogo aberto (cache despejado + rede caída), ele fecha em vez de ficar preto.
+- `awaitInterstitialCreative` (interno, puro) + `InterstitialCreativeTest`: carregou → exibe; falhou,
+  exceção, URL em branco ou teto → pula.
+
+Aditivo na API (parâmetro novo com default); quem já usa não muda nada. Flow Maestro mais forte em
+`kmplib-catalog` → `references/monetization.md` §"Intersticial só abre com a ARTE pronta". Compila
+Android + iosArm64.
+
 ## 2.245.0 — `AdaptiveScaffold`: id `nav-item-<id>` em cada destino (barra e rail)
 
 O id por item da 2.240.0 entrou só na `AppBottomNavBar`; a barra e o rail do `AdaptiveScaffold` (que

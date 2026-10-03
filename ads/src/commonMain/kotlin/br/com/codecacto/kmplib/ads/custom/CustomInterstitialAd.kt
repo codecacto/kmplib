@@ -74,6 +74,10 @@ enum class InterstitialCloseMode {
  * - [closeMode] decide se o "X" aparece na hora ([InterstitialCloseMode.IMMEDIATE]) ou apos uma
  *   contagem regressiva com barra de progresso ([InterstitialCloseMode.TIMED]).
  * - Clique na imagem abre [CustomAd.targetUrl] e dispara [onDismiss] (vale nos dois modos).
+ * - **Só entra na tela com a arte pronta** (2.246.0): escolhido o anúncio, a imagem é baixada e
+ *   decodificada ANTES do diálogo abrir, até [creativeLoadTimeout]. Imagem que não carrega (URL fora
+ *   do ar, rede caída, teto estourado) = intersticial pulado, sem impressão — nunca a tela preta com
+ *   só o "X". A impressão conta quando a arte foi pintada.
  * - Ids para automação: `ads-interstitial` (contêiner), `ads-interstitial-carregado` (só com a arte
  *   pintada) e `ads-btn-fechar-interstitial` ([AdsTestTags]).
  *
@@ -102,6 +106,7 @@ fun CustomInterstitialAd(
     onAdClick: ((CustomAd) -> Unit)? = null,
     onShown: ((CustomAd) -> Unit)? = null,
     firstLoadTimeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT,
+    creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
 ) {
     InterstitialAdHost(
         show = show,
@@ -110,6 +115,7 @@ fun CustomInterstitialAd(
         onAdClick = onAdClick,
         onShown = onShown,
         firstLoadTimeout = firstLoadTimeout,
+        creativeLoadTimeout = creativeLoadTimeout,
         withRouting = false,
     )
 }
@@ -130,6 +136,7 @@ internal fun InterstitialAdHost(
     onAdClick: ((CustomAd) -> Unit)?,
     onShown: ((CustomAd) -> Unit)?,
     firstLoadTimeout: Duration,
+    creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
     withRouting: Boolean,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
@@ -139,6 +146,8 @@ internal fun InterstitialAdHost(
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     // Escolhido UMA vez por pedido: a lista mudar com o anúncio na tela não troca o criativo.
     var chosen by remember { mutableStateOf<CustomAd?>(null) }
+
+    val loadCreative = rememberCreativeLoader()
 
     LaunchedEffect(Unit) {
         val decision = decideInterstitial(
@@ -150,7 +159,14 @@ internal fun InterstitialAdHost(
             routingLoad = if (withRouting) AdRouter.loadState else null,
         )
         when (decision) {
-            is InterstitialDecision.Show -> chosen = decision.ad
+            // 2.246.0: só entra na tela com a ARTE pronta — antes, o diálogo abria preto (só o "X")
+            // enquanto a imagem baixava, e para sempre se ela falhasse.
+            is InterstitialDecision.Show ->
+                if (awaitInterstitialCreative(decision.ad.imageUrl, creativeLoadTimeout, loadCreative)) {
+                    chosen = decision.ad
+                } else {
+                    currentOnDismiss()
+                }
             is InterstitialDecision.Skip -> currentOnDismiss()
         }
     }
@@ -180,11 +196,6 @@ private fun InterstitialAdDialog(
     onAdClick: ((CustomAd) -> Unit)?,
     onShown: ((CustomAd) -> Unit)?,
 ) {
-    LaunchedEffect(ad.id, ad.imageUrl) {
-        CustomAdManager.notifyImpression(ad)
-        AdStats.recordImpression(AdProviderTag.CUSTOM, StatAdFormat.INTERSTITIAL, ad.id)
-        onShown?.invoke(ad)
-    }
 
     // Modo TIMED: barra de progresso no topo enche em durationSeconds; so entao libera o fechar.
     // Modo IMMEDIATE: pode fechar de cara.
@@ -206,6 +217,21 @@ private fun InterstitialAdDialog(
 
     // Carga da arte, para o id `ads-interstitial-carregado` (ver `AdsTestTags`).
     var load by remember(ad.id, ad.imageUrl) { mutableStateOf(AdCreativeLoad.Loading) }
+
+    // A impressão (e o `onShown`) contam quando a ARTE foi pintada, não quando o diálogo montou
+    // (2.246.0). A arte já vem pré-carregada pelo host, então isso acontece no primeiro frame; se
+    // mesmo assim falhar (cache despejado + rede caída), o anúncio fecha em vez de ficar preto.
+    LaunchedEffect(ad.id, ad.imageUrl, load) {
+        when (load) {
+            AdCreativeLoad.Loaded -> {
+                CustomAdManager.notifyImpression(ad)
+                AdStats.recordImpression(AdProviderTag.CUSTOM, StatAdFormat.INTERSTITIAL, ad.id)
+                onShown?.invoke(ad)
+            }
+            AdCreativeLoad.Failed -> onDismiss()
+            AdCreativeLoad.Loading -> Unit
+        }
+    }
 
     val handleClick: () -> Unit = {
         CustomAdManager.notifyClick(ad)
