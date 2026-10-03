@@ -7,7 +7,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import br.com.codecacto.kmplib.ui.theme.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -38,6 +40,14 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *   não basta. Numa **matriz** de opções (várias linhas com as mesmas 3 escolhas), "Ver" isolado não
  *   diz a que se refere — passe "Agenda, Ver" para o leitor de tela anunciar a linha. `null`
  *   (default) usa o próprio rótulo. Índices ausentes caem no rótulo.
+ * @param testTag Id do GRUPO para automação (`tela-elemento`, ex.: `calculadora-unidade`), aplicado
+ *   na linha e usado como prefixo do id de cada segmento. `null` (default) = sem id na linha e
+ *   segmentos com o prefixo [OptionTestTags.SEGMENTED_GROUP]. Passe-o aqui em vez de
+ *   `Modifier.testTag` — pelo modifier o componente não o enxerga e os segmentos ficam no prefixo
+ *   genérico.
+ * @param optionTestKeys Chave por opção para o id do segmento (`<testTag>-<chave>`, ex.:
+ *   `listOf("arroba", "kg")` → `calculadora-unidade-kg`). `null` (default) = o índice
+ *   (`calculadora-unidade-1`). Ver [OptionTestTags].
  */
 @Composable
 fun SegmentedControl(
@@ -47,10 +57,19 @@ fun SegmentedControl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     optionContentDescriptions: List<String>? = null,
+    testTag: String? = null,
+    optionTestKeys: List<String>? = null,
 ) {
     if (options.isEmpty()) return
 
-    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+    val optionTags = OptionTestTags.options(
+        group = testTag ?: OptionTestTags.SEGMENTED_GROUP,
+        count = options.size,
+        keys = optionTestKeys,
+    )
+    SingleChoiceSegmentedButtonRow(
+        modifier = if (testTag != null) modifier.testTag(testTag) else modifier
+    ) {
         options.forEachIndexed { index, label ->
             val selected = index == selectedIndex
             SegmentedButton(
@@ -68,7 +87,10 @@ fun SegmentedControl(
                     activeContentColor = MaterialTheme.colorScheme.onPrimary,
                     activeBorderColor = MaterialTheme.colorScheme.primary,
                 ),
-                modifier = Modifier.semantics {
+                modifier = Modifier.testTag(optionTags[index]).semantics {
+                    // O SegmentedButton já é `selectable` (Role.RadioButton); explícito para o
+                    // contrato de automação (`selected: true` no Maestro) não depender do M3.
+                    this.selected = selected
                     val base = optionContentDescriptions?.getOrNull(index)?.takeIf { it.isNotBlank() }
                         ?: label
                     contentDescription =

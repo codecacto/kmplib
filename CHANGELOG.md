@@ -1,5 +1,30 @@
 # Changelog — kmplib
 
+## 2.247.0 — Id por OPÇÃO em `SegmentedControl`, `ChoiceChipGroup` e `FilterChipRow`
+
+Origem: o flow `funcionalidades/03-calculo` do Arroba Certa (03/out/2026) escolhia "Kg" tocando a
+**metade direita** do id do grupo (`point: "75%,50%"`) — o `SegmentedControl` só tinha id no
+contêiner, e o segmento não era endereçável. Frágil a qualquer mudança de largura, de ordem ou de
+número de opções; e tocar pelo rótulo quebra no idioma do aparelho. Os dois irmãos de escolha única
+(`ChoiceChipGroup`, `FilterChipRow`) tinham o mesmo buraco.
+
+- **`OptionTestTags`** (`ui.components`, público): `option(group, key)`, `options(group, count, keys)`,
+  `normalizeKey`, e os prefixos padrão `SEGMENTED_GROUP` (`segmento`), `CHOICE_CHIP_GROUP`
+  (`chip-escolha`), `FILTER_CHIP_GROUP` (`chip-filtro`). Id da opção = **`<grupo>-<chave>`**.
+- **Parâmetros novos, no fim e com default, nos três componentes:** `testTag: String? = null` (id do
+  GRUPO, aplicado no contêiner e prefixo das opções — passe aqui em vez de `Modifier.testTag`, que o
+  componente não enxerga) e `optionTestKeys: List<String>? = null` (chave por opção, normalizada para
+  minúsculo com hífen; sem ela, o **índice** — que não muda com o idioma). Chave repetida ou em branco
+  não gera id duplicado (desempate pelo índice).
+- **Estado selecionado** exposto explicitamente na semântica (`selected`) de cada segmento/chip — o M3
+  já o fazia via `selectable` (`Role.RadioButton` no segmento, `Role.Checkbox` no chip); explícito para
+  o contrato `assertVisible: { id: …, selected: true }` não depender do interno do Material.
+- `OptionTestTagsTest` (8 casos).
+
+Aditivo: assinatura existente intacta, ids novos só acrescentam. A `contentDescription` com o sufixo
+", selecionado" **não mudou** (há flow que o afirma — MinhasHoras); a troca dela pela semântica nativa
+fica no backlog (GAP-A11Y-SELECIONADO-01). Compila Android + iosArm64.
+
 ## 2.246.0 — Intersticial só abre com a ARTE pronta (fim da tela preta com só o "X")
 
 Origem: print da abertura do Piadaria no emulador Android (02/out/2026), ~5 s depois de abrir — o

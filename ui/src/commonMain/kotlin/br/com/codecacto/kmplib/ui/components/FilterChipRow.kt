@@ -8,7 +8,9 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.AppTheme
@@ -36,18 +38,30 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * @param selectedIndex Índice da opção atualmente selecionada.
  * @param onOptionSelected Callback com o índice da opção escolhida.
  * @param modifier Modificador externo.
+ * @param testTag Id do GRUPO para automação, aplicado na linha e prefixo do id de cada chip.
+ *   `null` (default) = chips com o prefixo [OptionTestTags.FILTER_CHIP_GROUP].
+ * @param optionTestKeys Chave por opção para o id do chip (`<testTag>-<chave>`). `null` (default) =
+ *   o índice. Ver [OptionTestTags]. ⚠️ É `LazyRow`: o chip fora da tela não existe na árvore — o
+ *   flow rola até ele (`scrollUntilVisible`) antes de tocar.
  */
 @Composable
 fun FilterChipRow(
     options: List<String>,
     selectedIndex: Int,
     onOptionSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+    optionTestKeys: List<String>? = null,
 ) {
     if (options.isEmpty()) return
 
+    val optionTags = OptionTestTags.options(
+        group = testTag ?: OptionTestTags.FILTER_CHIP_GROUP,
+        count = options.size,
+        keys = optionTestKeys,
+    )
     LazyRow(
-        modifier = modifier,
+        modifier = if (testTag != null) modifier.testTag(testTag) else modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
@@ -57,7 +71,8 @@ fun FilterChipRow(
                 selected = selected,
                 onClick = { onOptionSelected(index) },
                 label = { Text(text = label) },
-                modifier = Modifier.semantics {
+                modifier = Modifier.testTag(optionTags[index]).semantics {
+                    this.selected = selected
                     contentDescription =
                         if (selected) "$label, selecionado" else label
                 }

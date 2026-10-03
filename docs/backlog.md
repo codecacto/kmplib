@@ -3,6 +3,16 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 03/out/2026 — id por opção (2.247.0)
+- [x] **Id por segmento/chip de escolha única** — ✅ **2.247.0**: `OptionTestTags` + `testTag`/`optionTestKeys` em
+      `SegmentedControl`, `ChoiceChipGroup` e `FilterChipRow` (Arroba Certa tocava "Kg" por posição).
+- [ ] **GAP-A11Y-SELECIONADO-01 (P3) — sufixo ", selecionado" fixo em pt-BR na `contentDescription`** de
+      `SegmentedControl`, `ChoiceChipGroup`, `FilterChipRow` e `ThemeChipGrid`. O nó já tem `selected` (M3
+      `selectable`), então o leitor de tela anuncia o estado DUAS vezes, e em en/es/pt-PT uma delas sai em
+      português. Correção: tirar o sufixo e só pôr `contentDescription` quando `optionContentDescriptions` vier.
+      **Não é aditivo** — o flow do MinhasHoras (`04-status.yaml`) afirma `".*Pago, selecionado.*"`; migração:
+      flows passam a `assertVisible: { id: <grupo>-<chave>, selected: true }` (2.247.0) e só então a lib troca.
+
 ### Registrado em 02/out/2026 — barras do sistema e login (achados da 2.241.0)
 - [ ] **GAP-IOS-STATUSBAR-01 (P2) — cor da status bar POR TELA no iOS** (`ui/theme/SystemBars.ios.kt` é no-op de
       propósito). Num app Compose hospedado em SwiftUI, o `preferredStatusBarStyle` do controller do Compose não é

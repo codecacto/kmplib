@@ -11,7 +11,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.AppTheme
@@ -61,6 +63,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * @param enabled `false` desabilita todos os chips (ex.: formulário enviando).
  * @param optionContentDescriptions Descrição por opção para o leitor de tela, quando o rótulo
  *   sozinho não diz a que se refere. `null` (default) usa o próprio rótulo.
+ * @param testTag Id do GRUPO para automação, aplicado no `FlowRow` e prefixo do id de cada chip.
+ *   `null` (default) = chips com o prefixo [OptionTestTags.CHOICE_CHIP_GROUP].
+ * @param optionTestKeys Chave por opção para o id do chip (`<testTag>-<chave>`). `null` (default) =
+ *   o índice. Ver [OptionTestTags].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -71,11 +77,18 @@ fun ChoiceChipGroup(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     optionContentDescriptions: List<String>? = null,
+    testTag: String? = null,
+    optionTestKeys: List<String>? = null,
 ) {
     if (options.isEmpty()) return
 
+    val optionTags = OptionTestTags.options(
+        group = testTag ?: OptionTestTags.CHOICE_CHIP_GROUP,
+        count = options.size,
+        keys = optionTestKeys,
+    )
     FlowRow(
-        modifier = modifier.fillMaxWidth(),
+        modifier = (if (testTag != null) modifier.testTag(testTag) else modifier).fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -99,7 +112,9 @@ fun ChoiceChipGroup(
                 modifier = Modifier
                     // 48dp: o mínimo de alvo do Material. O FilterChip nasce com 32dp.
                     .defaultMinSize(minHeight = 48.dp)
+                    .testTag(optionTags[index])
                     .semantics {
+                        this.selected = selected
                         val base = optionContentDescriptions?.getOrNull(index)
                             ?.takeIf { it.isNotBlank() }
                             ?: label
