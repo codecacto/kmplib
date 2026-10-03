@@ -15,9 +15,12 @@ package br.com.codecacto.kmplib.ui.components
  * ("Arroba"/"Arrobas") quebraria o flow em outra língua. Chave semântica (`kg`) é melhor para quem lê
  * o flow — e sobrevive a reordenar as opções.
  *
- * No Maestro: `tapOn: { id: "calculadora-unidade-kg" }` e, para afirmar a escolha,
- * `assertVisible: { id: "calculadora-unidade-kg", selected: true }` — o segmento expõe a semântica
- * `selected` (o leitor de tela lê o estado no idioma do sistema). Antes da 2.247.0 o segmento só se
+ * No Maestro: `tapOn: { id: "calculadora-unidade-kg" }`. Para afirmar a escolha, atenção ao mapa da
+ * semântica `selected`: no **Android** o Compose só a publica como *selected* para `Role.Tab`; o
+ * segmento (`Role.RadioButton`) e o chip (`Role.Checkbox`) saem como **`checked`** — então
+ * `assertVisible: { id: …, checked: true }` dentro de `runFlow when platform Android`. No **iOS** vira o
+ * trait *selected* do UIAccessibility; prefira provar a escolha pelo EFEITO na tela (o valor que muda),
+ * que vale nas duas plataformas. Antes da 2.247.0 o segmento só se
  * tocava por POSIÇÃO (`point: "75%,50%"` no id do grupo — Arroba Certa, 03/out/2026): frágil a
  * qualquer mudança de largura ou de ordem.
  */

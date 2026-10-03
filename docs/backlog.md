@@ -11,7 +11,8 @@
       `selectable`), então o leitor de tela anuncia o estado DUAS vezes, e em en/es/pt-PT uma delas sai em
       português. Correção: tirar o sufixo e só pôr `contentDescription` quando `optionContentDescriptions` vier.
       **Não é aditivo** — o flow do MinhasHoras (`04-status.yaml`) afirma `".*Pago, selecionado.*"`; migração:
-      flows passam a `assertVisible: { id: <grupo>-<chave>, selected: true }` (2.247.0) e só então a lib troca.
+      flows passam a tocar `<grupo>-<chave>` (2.247.0) e afirmar pelo efeito na tela (ou `checked: true` em
+      `runFlow when platform Android` — o Compose publica `selected` como checked fora de `Role.Tab`); só então a lib troca.
 
 ### Registrado em 02/out/2026 — barras do sistema e login (achados da 2.241.0)
 - [ ] **GAP-IOS-STATUSBAR-01 (P2) — cor da status bar POR TELA no iOS** (`ui/theme/SystemBars.ios.kt` é no-op de

@@ -18,7 +18,9 @@ número de opções; e tocar pelo rótulo quebra no idioma do aparelho. Os dois 
   não gera id duplicado (desempate pelo índice).
 - **Estado selecionado** exposto explicitamente na semântica (`selected`) de cada segmento/chip — o M3
   já o fazia via `selectable` (`Role.RadioButton` no segmento, `Role.Checkbox` no chip); explícito para
-  o contrato `assertVisible: { id: …, selected: true }` não depender do interno do Material.
+  o contrato não depender do interno do Material. ⚠️ No Android o Compose publica `selected` como
+  **`checked`** para todo papel que não seja `Role.Tab` — no Maestro, `checked: true` (só Android);
+  `selected: true` não casa. Melhor ainda: provar a escolha pelo efeito na tela.
 - `OptionTestTagsTest` (8 casos).
 
 Aditivo: assinatura existente intacta, ids novos só acrescentam. A `contentDescription` com o sufixo
