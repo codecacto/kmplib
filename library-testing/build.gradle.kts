@@ -45,6 +45,11 @@ android {
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
+    // Mesma opção do convention plugin (`kmplib.module`): o `AppLogger` da lib chama
+    // `android.util.Log`, que no teste de JVM só existe como stub.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin {

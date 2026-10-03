@@ -1,5 +1,50 @@
 # Changelog — kmplib
 
+## 2.249.0 — `monetization`: premium com resolução explícita (`PremiumStatus`) — o gate para de tratar assinante como grátis na abertura
+
+Origem: revisão do Super 8. `MonetizationManager.isPremium` nasce `false` e não tinha como dizer "a loja
+ainda não respondeu": um gate premium decidido na abertura (antes do 1º `CustomerInfo`) tratava o
+assinante como grátis — no Super 8, o assinante que abria o Chaveamento via o modal "recurso premium" e,
+tocando "Agora não", era expulso da tela. Vale para todo app com gate premium. **Aditivo**: `isPremium`
+continua igual.
+
+- **`PremiumStatus`** (`br.com.codecacto.kmplib.monetization`): `Unknown` · `Premium` ·
+  `Free(reason)` com `FreeReason` `STORE` (a loja disse) · `NOT_SOLD` (modo sem assinatura / app sem
+  monetização) · `STORE_FAILURE` · `TIMEOUT` (os dois últimos = `isAssumed`). `isResolved`, `isPremium`,
+  `PremiumStatus.DEFAULT_TIMEOUT` (4 s).
+- **`MonetizationManager.premiumStatus: StateFlow<PremiumStatus>`** e
+  **`isPremiumResolved: StateFlow<Boolean>`** — saem de `Unknown` no 1º estado de assinatura lido da
+  loja (cache do SDK ou rede), na leitura que falhou (`Free(STORE_FAILURE)`), no teto
+  (`Free(TIMEOUT)`), na hora em `AdsOnly` (`Free(NOT_SOLD)`), e na instalação do dublê
+  (`kmplib-testing`: `jaAssinante` abre `Premium`). **Nunca voltam a `Unknown`**; free presumido é
+  corrigido pela leitura que chegar depois.
+- **`awaitPremiumStatus(timeout)`** / **`awaitPremiumResolved(timeout): Boolean`** — espera suspensa com
+  teto; estourado, devolve `Free(TIMEOUT)`/`false` sem mexer no estado global. Funciona chamado antes do
+  `initialize` (app que inicializa a loja depois do login).
+- **`initialize(config, userId, premiumResolutionTimeout = PremiumStatus.DEFAULT_TIMEOUT)`** — teto
+  configurável (parâmetro novo com default).
+- **`declareNotMonetized()`** — app sem monetização (`MonetizationMode.NONE` da casca) resolve na hora
+  como `Free(NOT_SOLD)`; não marca o manager como inicializado.
+- **`PurchaseRepository.subscriptionReadState: Flow<SubscriptionReadState>`** (`PENDING`/`READ`/`FAILED`)
+  com **default `READ`** — dublês e repositórios dos apps seguem iguais. `PurchaseManager.subscriptionReadState`
+  repassa.
+- **Correção de comportamento (RevenueCat):**
+  - o `initialize` passa a **pedir a primeira leitura** (`getCustomerInfo`, `CACHED_OR_FETCHED` — o
+    caminho da RevenueCat). Até a 2.248.0 nada lia na abertura: o premium só aparecia quando alguma tela
+    chamava `syncSubscriptionState()`;
+  - **`syncSubscriptionState()` que falha não rebaixa mais o assinante** — até a 2.248.0 a leitura que
+    falhava publicava `isActive = false` (assinante sem rede ao voltar ao app virava grátis). Agora a
+    falha preserva o último estado lido. `getSubscriptionInfo()` mantém o contrato (falha → inativa).
+- `MonetizationManager.reset()` cancela a coleta e o teto pendente (isolamento entre testes).
+- `kmplib-testing`: `unitTests.isReturnDefaultValues = true` (a mesma opção da convenção) + teste do
+  dublê com `PurchaseTestHooks`.
+
+**Como usar num gate** (ver `kmplib-catalog` → `references/monetization.md` §"Gate premium"):
+`Unknown` = carregando (não bloquear, não liberar); `Free` = paywall; `Premium` = libera.
+
+Testes: `PremiumStatusTest` (18) no `kmplib-monetization` (336 no módulo) + `PremiumStatusComDubleTest`
+(2) no `kmplib-testing` (28). Compila Android + `iosArm64` (cross-compilation, executada).
+
 ## 2.248.0 — Módulo novo `kmplib-tournament`: motor de torneio (chaveamento) para pênalti e raquete
 
 Origem: o estudo de chaveamento do Super 8 (`1-Apps-Offline-Ads/super8/docs/estudo-chaveamento.md`,

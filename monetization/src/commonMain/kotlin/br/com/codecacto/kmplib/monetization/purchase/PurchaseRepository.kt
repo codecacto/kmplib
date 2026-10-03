@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.monetization.purchase
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Interface para operacoes de compra e assinatura.
@@ -9,6 +10,20 @@ interface PurchaseRepository {
 
     /** Flow que emite o estado atual da assinatura. */
     val subscriptionState: Flow<SubscriptionInfo>
+
+    /**
+     * Se o [subscriptionState] corrente já é uma **leitura da loja** ou ainda o valor de partida
+     * (2.249.0) — é o que permite ao `MonetizationManager` publicar `PremiumStatus.Unknown` em vez de
+     * tratar o assinante como grátis antes do primeiro `CustomerInfo`.
+     *
+     * **Default: [SubscriptionReadState.READ]** — toda emissão de [subscriptionState] vale como
+     * resposta. É o certo para dublês e repositórios cujo estado nasce conhecido
+     * (`FakePurchaseRepository.jaAssinante`, loja de demonstração), e mantém exatamente o
+     * comportamento de antes para qualquer implementação que não sobrescreva. Só o adaptador da
+     * RevenueCat, cujo valor inicial é um marcador, sobrescreve.
+     */
+    val subscriptionReadState: Flow<SubscriptionReadState>
+        get() = flowOf(SubscriptionReadState.READ)
 
     /** Verifica se o usuario tem assinatura premium ativa. */
     suspend fun isPremium(): Boolean

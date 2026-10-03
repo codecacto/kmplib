@@ -18,17 +18,26 @@ import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityGateway
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityStatus
 import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
 import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
+import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import br.com.codecacto.kmplib.monetization.purchase.SubscriptionReadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
 
 /**
  * Orquestrador central de monetizacao.
@@ -64,6 +73,13 @@ object MonetizationManager {
     private val _isPremium = MutableStateFlow(false)
     private val _shouldShowAds = MutableStateFlow(false)
 
+    private val _premiumStatus = MutableStateFlow<PremiumStatus>(PremiumStatus.Unknown)
+    private val _isPremiumResolved = MutableStateFlow(false)
+
+    /** Coleta do estado da assinatura e teto de espera — guardados para o [reset] os cancelar. */
+    private var subscriptionJob: Job? = null
+    private var resolutionTimeoutJob: Job? = null
+
     /** Configuracao atual. */
     val config: MonetizationConfig? get() = _config
 
@@ -88,8 +104,72 @@ object MonetizationManager {
      * Se o usuario e premium.
      * - AdsOnly: sempre false (o modo nao vende assinatura)
      * - demais modos: segue o estado da assinatura
+     *
+     * ⚠️ Nasce `false` e **não distingue "não é assinante" de "a loja ainda não respondeu"**. Para
+     * decidir um **gate premium** (bloquear tela, abrir paywall), leia [premiumStatus] ou espere
+     * [awaitPremiumResolved] — senão o assinante é tratado como grátis na abertura do app.
      */
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
+
+    /**
+     * **Premium com resolução explícita** (2.249.0): [PremiumStatus.Unknown] até a loja responder,
+     * depois [PremiumStatus.Premium] ou [PremiumStatus.Free] — e nunca volta a `Unknown`.
+     *
+     * É o que um **gate premium** deve ler: [isPremium] nasce `false` e não distingue "não é
+     * assinante" de "a loja ainda não respondeu", então o gate decidido na abertura do app trata o
+     * assinante como grátis. Com este, o gate espera (`Unknown` = carregando) e decide só com
+     * resposta. Sai de `Unknown`:
+     * - no primeiro estado de assinatura **lido da loja** (cache do SDK ou rede) — o [initialize] já
+     *   pede essa leitura, sem o app chamar nada;
+     * - na leitura que **falhou** → `Free(STORE_FAILURE)`;
+     * - no **teto** (`premiumResolutionTimeout` do [initialize]) → `Free(TIMEOUT)`;
+     * - **na hora** em modo sem assinatura (`AdsOnly` → `Free(NOT_SOLD)`) ou com
+     *   [declareNotMonetized];
+     * - com dublê da loja (`kmplib-testing`), na instalação — o estado dele já nasce lido.
+     *
+     * Free presumido (falha/timeout) **é corrigido** quando a leitura chega: gate que observa reabre.
+     * Para decidir uma vez, numa função suspensa, use [awaitPremiumResolved]/[awaitPremiumStatus].
+     */
+    val premiumStatus: StateFlow<PremiumStatus> = _premiumStatus.asStateFlow()
+
+    /** `true` depois que [premiumStatus] saiu de [PremiumStatus.Unknown] — e não volta (2.249.0). */
+    val isPremiumResolved: StateFlow<Boolean> = _isPremiumResolved.asStateFlow()
+
+    /**
+     * Espera a resposta da loja e devolve o [PremiumStatus] **resolvido** (2.249.0). Se [timeout]
+     * passar sem resposta, devolve `Free(TIMEOUT)` — nunca prende quem chamou — sem alterar o
+     * [premiumStatus] global (que tem o próprio teto, a partir do [initialize]).
+     *
+     * Chamado **antes** do [initialize] (app que inicializa a loja depois do login, como o Super 8),
+     * espera a inicialização também, dentro do mesmo [timeout].
+     */
+    suspend fun awaitPremiumStatus(timeout: Duration = PremiumStatus.DEFAULT_TIMEOUT): PremiumStatus =
+        withTimeoutOrNull(timeout) { premiumStatus.first { it.isResolved } }
+            ?: PremiumStatus.Free(PremiumStatus.FreeReason.TIMEOUT)
+
+    /**
+     * `true` se a loja disser que é assinante dentro de [timeout]; `false` se disser que não, se a
+     * leitura falhar ou se o teto passar (fail-closed). Ver [awaitPremiumStatus].
+     *
+     * ```kotlin
+     * if (!MonetizationManager.awaitPremiumResolved()) abrirPaywall()
+     * ```
+     */
+    suspend fun awaitPremiumResolved(timeout: Duration = PremiumStatus.DEFAULT_TIMEOUT): Boolean =
+        awaitPremiumStatus(timeout).isPremium
+
+    /**
+     * **App que não monetiza** (a `casca-mobile` em `MonetizationMode.NONE`): declara que não há loja
+     * a esperar, e [premiumStatus] resolve na hora como `Free(NOT_SOLD)` (2.249.0). Sem isto, quem
+     * lesse [awaitPremiumResolved] num app sem monetização esperaria o teto inteiro.
+     *
+     * Não marca o manager como inicializado: um [initialize] posterior funciona normalmente.
+     */
+    fun declareNotMonetized() {
+        updatePremiumStatus { current ->
+            if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
+        }
+    }
 
     /**
      * Se ads (house ads) devem ser exibidos — [MonetizationConfig.shouldShowAds] aplicado ao estado
@@ -106,8 +186,14 @@ object MonetizationManager {
      * @param config Modo de monetizacao ([MonetizationConfig.AdsOnly], [MonetizationConfig.PremiumOnly],
      *   [MonetizationConfig.Freemium] ou [MonetizationConfig.FreemiumQuota])
      * @param userId ID opcional do usuario para o RevenueCat
+     * @param premiumResolutionTimeout teto de espera pela primeira resposta da loja; passado o teto
+     *   sem resposta, [premiumStatus] resolve como `Free(TIMEOUT)` (2.249.0).
      */
-    fun initialize(config: MonetizationConfig, userId: String? = null) {
+    fun initialize(
+        config: MonetizationConfig,
+        userId: String? = null,
+        premiumResolutionTimeout: Duration = PremiumStatus.DEFAULT_TIMEOUT,
+    ) {
         if (_initialized.value) {
             AppLogger.w(TAG, "MonetizationManager ja inicializado")
             return
@@ -128,10 +214,40 @@ object MonetizationManager {
                 ?.let { (PurchaseIdentity.check(it) as? AppUserIdCheck.Valid)?.appUserId }
             PurchaseManager.initialize(purchase, declared)
             if (storeIdentity.isManaged) scope.launch { storeIdentity.reconcile() }
-            PurchaseManager.subscriptionState.onEach { info ->
-                _isPremium.value = info.isActive
-                _shouldShowAds.value = config.shouldShowAds(info.isActive)
-            }.launchIn(scope)
+            subscriptionJob = combine(
+                PurchaseManager.subscriptionState,
+                PurchaseManager.subscriptionReadState,
+            ) { info, read -> info to read }
+                .onEach { (info, read) ->
+                    _isPremium.value = info.isActive
+                    _shouldShowAds.value = config.shouldShowAds(info.isActive)
+                    updatePremiumStatus { current -> resolvePremiumStatus(current, info, read) }
+                }
+                .launchIn(scope)
+
+            // A primeira leitura da assinatura (cache do SDK ou rede) — o caminho recomendado pela
+            // RevenueCat (`getCustomerInfo`). Até a 2.248.0 nada lia na abertura: o premium só
+            // aparecia quando alguma tela chamava `syncSubscriptionState()`.
+            scope.launch {
+                runCatching { PurchaseManager.repository?.syncSubscriptionState() }
+                    .onFailure { AppLogger.w(TAG, "Primeira leitura da assinatura falhou: ${it.message}") }
+            }
+            resolutionTimeoutJob = scope.launch {
+                delay(premiumResolutionTimeout)
+                updatePremiumStatus { current ->
+                    if (current.isResolved) current
+                    else PremiumStatus.Free(PremiumStatus.FreeReason.TIMEOUT).also {
+                        AppLogger.w(TAG, "Loja sem resposta em $premiumResolutionTimeout: premium presumido FREE")
+                    }
+                }
+            }
+        }
+
+        if (config.purchaseConfig == null) {
+            // Modo que não vende assinatura: não há loja a esperar.
+            updatePremiumStatus { current ->
+                if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
+            }
         }
 
         AppLogger.d(TAG, "Modo: ${config.modeName}")
@@ -297,13 +413,49 @@ object MonetizationManager {
      */
     fun currentAppUserId(): String? = PurchaseManager.currentAppUserId()
 
+    /** Aplica a transição garantindo que um estado resolvido nunca volta a `Unknown`. */
+    private fun updatePremiumStatus(transition: (PremiumStatus) -> PremiumStatus) {
+        val next = _premiumStatus.updateAndGet { current ->
+            val candidate = transition(current)
+            if (current.isResolved && !candidate.isResolved) current else candidate
+        }
+        if (next.isResolved) _isPremiumResolved.value = true
+    }
+
     /** Reseta o estado (util para testes). */
     fun reset() {
+        subscriptionJob?.cancel()
+        subscriptionJob = null
+        resolutionTimeoutJob?.cancel()
+        resolutionTimeoutJob = null
         _config = null
         _initialized.value = false
         _isPremium.value = false
         _shouldShowAds.value = false
+        _premiumStatus.value = PremiumStatus.Unknown
+        _isPremiumResolved.value = false
         PurchaseManager.reset()
         storeIdentity.reset()
     }
+}
+
+/**
+ * Transição do [PremiumStatus] a cada estado de assinatura (regra pura, testada).
+ *
+ * - `isActive = true` é sempre [PremiumStatus.Premium]: assinatura ativa só vem da loja.
+ * - [SubscriptionReadState.READ] → [PremiumStatus.Free] confirmado.
+ * - [SubscriptionReadState.FAILED] → `Free(STORE_FAILURE)` se ainda não havia resposta; se havia,
+ *   mantém (falha numa releitura não rebaixa quem já foi lido).
+ * - [SubscriptionReadState.PENDING] → mantém: o valor corrente é o marcador de partida.
+ */
+internal fun resolvePremiumStatus(
+    current: PremiumStatus,
+    info: SubscriptionInfo,
+    read: SubscriptionReadState,
+): PremiumStatus = when {
+    info.isActive -> PremiumStatus.Premium
+    read == SubscriptionReadState.READ -> PremiumStatus.Free(PremiumStatus.FreeReason.STORE)
+    read == SubscriptionReadState.FAILED ->
+        if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.STORE_FAILURE)
+    else -> current
 }

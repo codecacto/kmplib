@@ -3,6 +3,18 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 03/out/2026 — premium sem estado "não resolvido" (2.249.0, achado de revisão no Super 8)
+- [x] **GAP-MON-PREMIUM-RESOLVED-01** — ✅ **2.249.0**: `PremiumStatus` (`Unknown`/`Premium`/`Free(reason)`),
+      `MonetizationManager.premiumStatus`/`isPremiumResolved`/`awaitPremiumResolved`, teto configurável,
+      `declareNotMonetized()`; `initialize` lê o `CustomerInfo` na abertura; sync que falha não rebaixa o assinante.
+- [ ] **GAP-MON-CUSTOMERINFO-LISTENER-01 (P2)** — escutar `CustomerInfo` em tempo real (`Purchases.delegate` /
+      `onCustomerInfoUpdated`, o listener recomendado pela RevenueCat) para renovação/expiração com o app aberto
+      e compra feita em outro aparelho. Hoje a atualização depende de compra/restauração/identify/sync. Cuidado
+      ao ligar: o delegate também recebe `onPurchasePromoProduct` (compra promovida da App Store) e precisa
+      chamar `startPurchase` para não travar essa compra — exige validação no Mac.
+- [ ] **Migrar consumidores com gate premium** para `premiumStatus` quando forem tocados (Super 8 primeiro:
+      `BracketAccessUseCase.canUse()`, `CanCreateTournamentUseCase` com `isPremium.first()`).
+
 ### Registrado em 03/out/2026 — motor de torneio (2.248.0)
 - [x] **Chaveamento compartilhado** — ✅ **2.248.0**: módulo `kmplib-tournament` (promovido do TorneioDePenalti,
       generalizado para raquete: placar por sets, `MatchFormat`, `StandingsRules` com presets `BEACH_TENNIS`/`FOOTBALL`,

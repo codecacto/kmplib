@@ -26,6 +26,15 @@ object PurchaseManager {
         get() = _repository?.subscriptionState
             ?: MutableStateFlow(SubscriptionInfo(isActive = false)).asStateFlow()
 
+    /**
+     * Se o [subscriptionState] corrente já é leitura da loja (2.249.0) — ver
+     * [PurchaseRepository.subscriptionReadState]. Sem repositório (build sem billing) responde
+     * [SubscriptionReadState.FAILED]: não há loja a esperar.
+     */
+    val subscriptionReadState: Flow<SubscriptionReadState>
+        get() = _repository?.subscriptionReadState
+            ?: MutableStateFlow(SubscriptionReadState.FAILED).asStateFlow()
+
     /** Flow que indica se o usuario e premium. */
     val isPremium: Flow<Boolean>
         get() = _repository?.subscriptionState?.map { it.isActive }
