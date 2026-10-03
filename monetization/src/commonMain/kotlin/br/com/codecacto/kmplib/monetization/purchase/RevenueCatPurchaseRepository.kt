@@ -2,6 +2,9 @@ package br.com.codecacto.kmplib.monetization.purchase
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import com.revenuecat.purchases.kmp.Purchases
+import com.revenuecat.purchases.kmp.PurchasesDelegate
+import com.revenuecat.purchases.kmp.models.CustomerInfo
+import com.revenuecat.purchases.kmp.models.StoreTransaction
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
 import com.revenuecat.purchases.kmp.models.DiscountPaymentMode
 import com.revenuecat.purchases.kmp.models.IntroEligibilityStatus
@@ -16,8 +19,6 @@ import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
 import com.revenuecat.purchases.kmp.models.StoreProduct
 import com.revenuecat.purchases.kmp.models.VerificationResult
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -27,19 +28,64 @@ internal class RevenueCatPurchaseRepository(
 ) : PurchaseRepository {
 
     /**
-     * `isActive = false` aqui é **marcador**, não resposta: nada foi lido da loja ainda. Quem diz se o
-     * valor já é leitura é [subscriptionReadState] (2.249.0).
+     * Estado da assinatura + sinal de leitura + geração de identidade (2.250.0). O `isActive = false`
+     * inicial é **marcador**, não resposta — ver [SubscriptionStateHolder].
      */
-    private val _subscriptionState = MutableStateFlow(SubscriptionInfo(isActive = false))
-    override val subscriptionState: Flow<SubscriptionInfo> = _subscriptionState.asStateFlow()
+    private val holder = SubscriptionStateHolder()
+    override val subscriptionState: Flow<SubscriptionInfo> = holder.subscriptionState
+    override val subscriptionReadState: Flow<SubscriptionReadState> = holder.readState
 
-    private val _readState = MutableStateFlow(SubscriptionReadState.PENDING)
-    override val subscriptionReadState: Flow<SubscriptionReadState> = _readState.asStateFlow()
+    /** Estado vindo de um `CustomerInfo` do sujeito corrente (compra, restauração, listener). */
+    private fun publish(info: SubscriptionInfo) = holder.publish(info)
 
-    /** Único caminho de escrita do estado vindo de um `CustomerInfo`: marca a leitura como feita. */
-    private fun publish(info: SubscriptionInfo) {
-        _subscriptionState.value = info
-        _readState.value = SubscriptionReadState.READ
+    init {
+        installCustomerInfoListener()
+    }
+
+    /**
+     * **Listener de atualização do `CustomerInfo`** (2.250.0) — o caminho que a RevenueCat recomenda
+     * para manter o estado vivo: o SDK avisa ao voltar ao primeiro plano, depois de transações (inclusive
+     * renovação, expiração e compra feita em outro aparelho) e quando o cache muda. Sem ele, uma leitura
+     * de abertura que falhou (sem rede, sem cache) deixava o assinante como grátis a sessão inteira.
+     *
+     * **Encadeia** o delegate que já existir (nenhum app da fábrica define um hoje): quem o registrou
+     * antes continua recebendo tudo. App não deve sobrescrever `Purchases.sharedInstance.delegate`
+     * depois da inicialização — isso desligaria este listener.
+     *
+     * **Compra promovida da App Store** (`onPurchasePromoProduct`, só iOS): com um delegate registrado
+     * o SDK ADIA a compra até alguém chamar `startPurchase`. Sem delegate anterior, a lib inicia na hora
+     * — o mesmo comportamento de quando não havia delegate nenhum — e publica o resultado. Validação
+     * pendente no Mac: ver `references/monetization.md` §"Gate premium".
+     */
+    private fun installCustomerInfoListener() {
+        runCatching {
+            val previous = Purchases.sharedInstance.delegate
+            Purchases.sharedInstance.delegate = object : PurchasesDelegate {
+                override fun onCustomerInfoUpdated(customerInfo: CustomerInfo) {
+                    publish(customerInfo.toSubscriptionInfo())
+                    previous?.onCustomerInfoUpdated(customerInfo)
+                }
+
+                override fun onPurchasePromoProduct(
+                    product: StoreProduct,
+                    startPurchase: (
+                        onError: (error: PurchasesError, userCancelled: Boolean) -> Unit,
+                        onSuccess: (storeTransaction: StoreTransaction, customerInfo: CustomerInfo) -> Unit,
+                    ) -> Unit,
+                ) {
+                    if (previous != null) {
+                        previous.onPurchasePromoProduct(product, startPurchase)
+                        return
+                    }
+                    startPurchase(
+                        { error, userCancelled ->
+                            if (!userCancelled) AppLogger.w(TAG, "Compra promovida falhou: ${error.message}")
+                        },
+                        { _, customerInfo -> publish(customerInfo.toSubscriptionInfo()) },
+                    )
+                }
+            }
+        }.onFailure { AppLogger.e(TAG, "Listener de CustomerInfo nao registrado: ${it.message}", it) }
     }
 
     private var cachedProducts: List<StoreProduct> = emptyList()
@@ -587,7 +633,7 @@ internal class RevenueCatPurchaseRepository(
         cachedPackages = emptyMap()
         cachedProducts = emptyList()
         cachedItems = emptyMap()
-        publish(customerInfo.toSubscriptionInfo())
+        holder.identityChanged(customerInfo.toSubscriptionInfo())
     }
 
     private fun identityFailure(reason: PurchaseIdentityError, message: String): Result<Unit> =
@@ -614,16 +660,16 @@ internal class RevenueCatPurchaseRepository(
     }
 
     override suspend fun getSubscriptionInfo(): SubscriptionInfo =
-        readSubscriptionInfo() ?: SubscriptionInfo(isActive = false)
+        fetchSubscriptionInfo(CacheFetchPolicy.CACHED_OR_FETCHED) ?: SubscriptionInfo(isActive = false)
 
     /**
-     * Lê o `CustomerInfo` (`CACHED_OR_FETCHED`: o cache do SDK quando existe, a rede quando não) —
-     * `null` quando a leitura falha, para quem chama separar "não é assinante" de "não consegui ler".
+     * Lê o `CustomerInfo` com [policy] — `null` quando a leitura falha, para quem chama separar "não é
+     * assinante" de "não consegui ler".
      */
-    private suspend fun readSubscriptionInfo(): SubscriptionInfo? =
+    private suspend fun fetchSubscriptionInfo(policy: CacheFetchPolicy): SubscriptionInfo? =
         suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.getCustomerInfo(
-                fetchPolicy = CacheFetchPolicy.CACHED_OR_FETCHED,
+                fetchPolicy = policy,
                 onError = { error ->
                     AppLogger.e(TAG, "Erro ao buscar subscription info: ${error.message}")
                     continuation.resume(null)
@@ -635,22 +681,25 @@ internal class RevenueCatPurchaseRepository(
         }
 
     /**
-     * Relê a assinatura e publica. **Falha não rebaixa ninguém** (2.249.0): até a 2.248.0 a leitura
-     * que falhava publicava `isActive = false`, e um assinante que voltava ao app sem rede virava
-     * grátis até a próxima leitura boa. Agora a falha preserva o último estado lido — e, se nada foi
-     * lido ainda, marca [SubscriptionReadState.FAILED] para o `MonetizationManager` resolver como
-     * grátis presumido em vez de esperar o teto.
+     * Lê e publica — **descartando** a resposta se o sujeito mudou enquanto ela estava em voo (2.250.0:
+     * a leitura de boot que chegasse depois de um `logIn` publicava o premium do sujeito anterior).
+     * Falha não rebaixa ninguém: preserva o último estado lido, ou marca `FAILED` se nada foi lido.
      */
-    override suspend fun syncSubscriptionState() {
-        val info = readSubscriptionInfo()
-        if (info == null) {
-            _readState.compareAndSet(SubscriptionReadState.PENDING, SubscriptionReadState.FAILED)
-            AppLogger.w(TAG, "Subscription state NAO sincronizado: mantendo o ultimo estado lido")
-            return
+    private suspend fun readAndPublish(policy: CacheFetchPolicy) {
+        val token = holder.beginRead()
+        val info = fetchSubscriptionInfo(policy)
+        val applied = holder.completeRead(token, info)
+        when {
+            info == null -> AppLogger.w(TAG, "Subscription state NAO sincronizado: mantendo o ultimo estado lido")
+            !applied -> AppLogger.d(TAG, "Leitura descartada: a identidade mudou durante a leitura")
+            else -> AppLogger.d(TAG, "Subscription state synced ($policy): active=${info.isActive}")
         }
-        publish(info)
-        AppLogger.d(TAG, "Subscription state synced: active=${info.isActive}")
     }
+
+    override suspend fun syncSubscriptionState() = readAndPublish(CacheFetchPolicy.CACHED_OR_FETCHED)
+
+    /** Ignora o cache (`FETCH_CURRENT`) — para depois de uma compra feita fora da lib (ponte nativa iOS). */
+    override suspend fun refreshSubscriptionState() = readAndPublish(CacheFetchPolicy.FETCH_CURRENT)
 
     private fun com.revenuecat.purchases.kmp.models.CustomerInfo.toSubscriptionInfo(): SubscriptionInfo {
         val premiumEntitlement = entitlements.active[config.entitlementId]

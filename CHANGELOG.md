@@ -1,5 +1,36 @@
 # Changelog — kmplib
 
+## 2.250.0 — `monetization`: o premium se corrige sozinho (listener de `CustomerInfo`), sem corrida de identidade, e releitura sem cache pós-compra
+
+Ajustes da segunda revisão da 2.249.0. **Aditivo.**
+
+- **Listener de atualização do `CustomerInfo`** no adaptador da RevenueCat (`Purchases.sharedInstance.delegate`
+  → `onCustomerInfoUpdated`), o caminho recomendado pelo fornecedor. Na 2.249.0, `Free(STORE_FAILURE)` só era
+  corrigido se alguém relesse: o assinante que reinstalava e abria sem rede e sem cache ficava grátis a sessão
+  inteira. Agora o SDK avisa ao voltar ao primeiro plano, após transações (renovação, expiração, compra em
+  outro aparelho) e o `premiumStatus` se corrige. Fecha o `GAP-MON-CUSTOMERINFO-LISTENER-01`.
+  - **Encadeia** o delegate que já existir (nenhum app da fábrica define um hoje). O app NÃO deve sobrescrever
+    `Purchases.sharedInstance.delegate` depois da inicialização.
+  - **Compra promovida da App Store** (`onPurchasePromoProduct`, só iOS): com delegate registrado o SDK adia a
+    compra até `startPurchase`. Sem delegate anterior a lib inicia na hora (o comportamento de quando não havia
+    delegate) e publica o resultado. **Validar no Mac** (ver `kmplib-catalog` → `references/monetization.md`).
+- **Corrida de identidade corrigida:** a leitura de abertura podia publicar o `CustomerInfo` do sujeito ANTERIOR
+  se respondesse depois de um `logIn`. Agora o `initialize` faz `reconcile()` da identidade e SÓ DEPOIS lê, no
+  mesmo `launch`, e o adaptador tem uma **geração de identidade** (avança em `logIn`/`logOut`) que descarta a
+  leitura iniciada antes da última troca.
+- **`PurchaseRepository.refreshSubscriptionState()`** (default: `syncSubscriptionState()`) e
+  **`MonetizationManager.refreshSubscriptionState()`**: releitura **ignorando o cache** (`FETCH_CURRENT`). Para
+  a ponte `onNativePurchaseCompleted` do iOS (`SubscriptionStoreView`): com `CACHED_OR_FETCHED` ela tende a
+  voltar sem a compra recém-feita.
+- `isPremiumResolved` agora é **derivado** de `premiumStatus` (`map` + `stateIn` em escopo `Unconfined`) e nunca
+  diverge dele; `reset()` também cancela a primeira leitura em voo.
+- Regras do adaptador extraídas para `SubscriptionStateHolder` (interno, puro): `nextReadState` (sucesso → READ;
+  falha → FAILED só de PENDING; falha após READ preserva) e a geração.
+
+Testes: `SubscriptionStateHolderTest` (11) + 4 novos em `PremiumStatusTest` (22: guarda de "nunca volta a
+Unknown", derivado em sincronia, `refreshSubscriptionState`, `reset` cancelando a leitura em voo) — 351 no
+`kmplib-monetization`, 28 no `kmplib-testing`. Compila Android + `iosArm64` (executado).
+
 ## 2.249.0 — `monetization`: premium com resolução explícita (`PremiumStatus`) — o gate para de tratar assinante como grátis na abertura
 
 Origem: revisão do Super 8. `MonetizationManager.isPremium` nasce `false` e não tinha como dizer "a loja

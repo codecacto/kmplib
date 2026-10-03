@@ -255,4 +255,13 @@ interface PurchaseRepository {
 
     /** Sincroniza o estado com o backend. Chamar no app launch e ao voltar do background. */
     suspend fun syncSubscriptionState()
+
+    /**
+     * Relê a assinatura **ignorando o cache** (2.250.0) — RevenueCat `FETCH_CURRENT`. Para depois de
+     * uma compra feita **fora** da lib (a `SubscriptionStoreView` nativa do iOS, via ponte): o
+     * [syncSubscriptionState] lê `CACHED_OR_FETCHED` e tende a devolver o cache de antes da compra.
+     *
+     * Default: [syncSubscriptionState] (repositório sem cache não tem o que ignorar).
+     */
+    suspend fun refreshSubscriptionState() = syncSubscriptionState()
 }

@@ -177,6 +177,51 @@ class PremiumStatusTest {
         assertTrue(MonetizationManager.isPremiumResolved.value)
     }
 
+    @Test
+    fun `a guarda nunca deixa voltar a Unknown`() {
+        MonetizationManager.initialize(MonetizationConfig.AdsOnly)
+        assertTrue(MonetizationManager.premiumStatus.value.isResolved)
+
+        MonetizationManager.updatePremiumStatus { PremiumStatus.Unknown }
+
+        assertEquals(PremiumStatus.Free(FreeReason.NOT_SOLD), MonetizationManager.premiumStatus.value)
+        assertTrue(MonetizationManager.isPremiumResolved.value)
+    }
+
+    @Test
+    fun `isPremiumResolved acompanha o premiumStatus na mesma hora`() {
+        assertFalse(MonetizationManager.isPremiumResolved.value)
+        MonetizationManager.declareNotMonetized()
+        assertTrue(MonetizationManager.isPremiumResolved.value)
+        MonetizationManager.reset()
+        assertFalse(MonetizationManager.isPremiumResolved.value)
+    }
+
+    @Test
+    fun `refreshSubscriptionState rele pela loja e o default delega ao sync`() = runBlocking<Unit> {
+        val loja = LojaControlada()
+        PurchaseManager.initializeWith(loja)
+        MonetizationManager.initialize(MonetizationConfig.Freemium(purchaseConfig), premiumResolutionTimeout = 30.seconds)
+        assertTrue(aguardar { loja.syncCalls == 1 })
+
+        MonetizationManager.refreshSubscriptionState()
+
+        assertEquals(2, loja.syncCalls)
+    }
+
+    @Test
+    fun `reset cancela a primeira leitura em voo`() = runBlocking<Unit> {
+        val loja = LojaControlada(leituraLenta = true)
+        PurchaseManager.initializeWith(loja)
+        MonetizationManager.initialize(MonetizationConfig.Freemium(purchaseConfig), premiumResolutionTimeout = 30.seconds)
+        assertTrue(aguardar { loja.syncCalls == 1 })
+
+        MonetizationManager.reset()
+        delay(400)
+
+        assertFalse(loja.leituraConcluida, "a leitura do processo anterior não pode concluir depois do reset")
+    }
+
     // ------------------------------------------------------------------ modos sem loja
 
     @Test
@@ -284,10 +329,15 @@ class PremiumStatusTest {
      * Loja que se comporta como o adaptador da RevenueCat: nasce com o marcador (`PENDING`) e só
      * responde quando o teste manda.
      */
-    private class LojaControlada(private val primeiraLeituraFalha: Boolean = false) : PurchaseRepository {
+    private class LojaControlada(
+        private val primeiraLeituraFalha: Boolean = false,
+        private val leituraLenta: Boolean = false,
+    ) : PurchaseRepository {
         val estado = MutableStateFlow(SubscriptionInfo(isActive = false))
         val leitura = MutableStateFlow(SubscriptionReadState.PENDING)
         var syncCalls = 0
+            private set
+        var leituraConcluida = false
             private set
 
         override val subscriptionState: Flow<SubscriptionInfo> = estado.asStateFlow()
@@ -300,6 +350,8 @@ class PremiumStatusTest {
 
         override suspend fun syncSubscriptionState() {
             syncCalls++
+            if (leituraLenta) delay(200)
+            leituraConcluida = true
             if (primeiraLeituraFalha) leitura.compareAndSet(SubscriptionReadState.PENDING, SubscriptionReadState.FAILED)
         }
 
