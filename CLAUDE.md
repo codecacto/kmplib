@@ -24,7 +24,7 @@ kmplib/
 ├── build-logic/convention/   # convention plugins: kmplib.module e kmplib.module.compose
 ├── core/  ui/  platform/  auth/  sync/  monetization/  central/  firebase/
 ├── mask/  brdata/  qr/  map/  location/  push/  observability/  camera/
-├── pdf/  media/  video/  ads/  astro/    # 22 módulos, cada um um artefato Maven
+├── pdf/  media/  video/  ads/  astro/  navigation/  tournament/    # cada um um artefato Maven
 │   └── src/{commonMain,androidMain,iosMain,commonTest}/
 ├── library/                  # o UMBRELLA `br.com.codecacto:kmplib` — só KmpLib.kt e KmpLibInit.kt
 ├── library-testing/          # `kmplib-testing`, dublês de loja para build de QA

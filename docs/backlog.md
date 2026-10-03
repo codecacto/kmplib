@@ -3,6 +3,16 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 03/out/2026 — motor de torneio (2.248.0)
+- [x] **Chaveamento compartilhado** — ✅ **2.248.0**: módulo `kmplib-tournament` (promovido do TorneioDePenalti,
+      generalizado para raquete: placar por sets, `MatchFormat`, `StandingsRules` com presets `BEACH_TENNIS`/`FOOTBALL`,
+      3º lugar, W.O./desistência, semeadura por campanha). Consumidores: Super 8 (chaveamento premium), app novo de
+      beach tennis, TorneioDePenalti (migra quando tocado).
+- [ ] **GAP-TOURNAMENT-UI-01 (P3) — componentes de chave/tabela** (árvore do mata-mata, tabela de grupo). Só quando o
+      Super 8 e o app novo mostrarem o MESMO desenho — sem dois desenhos iguais é abstração especulativa (estudo §3).
+- [ ] **GAP-TOURNAMENT-02 (P3) — "melhores 2ºs/3ºs" quando a conta de vagas não fecha potência de 2** como opção do
+      `Qualifiers` (hoje o app monta com `Standings.rankAcrossGroups`). Promover quando o 1º app pedir.
+
 ### Registrado em 03/out/2026 — id por opção (2.247.0)
 - [x] **Id por segmento/chip de escolha única** — ✅ **2.247.0**: `OptionTestTags` + `testTag`/`optionTestKeys` em
       `SegmentedControl`, `ChoiceChipGroup` e `FilterChipRow` (Arroba Certa tocava "Kg" por posição).

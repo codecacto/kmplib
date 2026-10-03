@@ -195,6 +195,7 @@ kotlin {
             api(project(":kmplib-observability"))
             api(project(":kmplib-brdata"))
             api(project(":kmplib-astro"))
+            api(project(":kmplib-tournament"))
             api(project(":kmplib-mask"))
             api(project(":kmplib-navigation"))
 

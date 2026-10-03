@@ -56,6 +56,10 @@ project(":kmplib-mask").projectDir = file("mask")
 include(":kmplib-astro")
 project(":kmplib-astro").projectDir = file("astro")
 
+// 2.248.0 — motor de torneio (chaveamento), domínio puro. Promovido do TorneioDePenalti.
+include(":kmplib-tournament")
+project(":kmplib-tournament").projectDir = file("tournament")
+
 include(":kmplib-brdata")
 project(":kmplib-brdata").projectDir = file("brdata")
 

@@ -1,5 +1,52 @@
 # Changelog — kmplib
 
+## 2.248.0 — Módulo novo `kmplib-tournament`: motor de torneio (chaveamento) para pênalti e raquete
+
+Origem: o estudo de chaveamento do Super 8 (`1-Apps-Offline-Ads/super8/docs/estudo-chaveamento.md`,
+aprovado pelo fundador em 03/out/2026) — chaveamento como recurso premium do Super 8 e um app próprio de
+beach tennis, com **a mesma lógica**. O motor já existia, puro, no TorneioDePenalti; com três consumidores
+ele vira fundação em vez de cópia. Promovido e generalizado para esporte de raquete.
+
+- **Artefato `br.com.codecacto:kmplib-tournament`** (pacote `br.com.codecacto.kmplib.tournament`), no
+  umbrella. **Domínio puro**: só stdlib — sem Compose, Koin, datetime nem persistência. Nenhum texto sai
+  da lib (fase e grupo são dados: `PhaseIdentity`; erro de placar é código: `ScoreError`). Acaso
+  injetável (`RandomSource`, default `SystemRandomSource`).
+- **Estrutura (do TorneioDePenalti, invariantes preservadas)**: `RoundRobin` (método do círculo com
+  folga), `Groups.split` (tamanhos nunca diferem > 1, nº de grupos ≤ total/2) **+ `singleGroupBelow`**
+  (regra SESC: < 6 duplas = grupo único), `Knockout` (potência de 2, semeadura recursiva — cabeças 1 e 2
+  em metades opostas —, BYE nas melhores cabeças), `TournamentGenerator` com os 3 formatos
+  (`KNOCKOUT`, `ROUND_ROBIN`, `GROUPS_THEN_KNOCKOUT`), plano puro (`TournamentPlan`; BYE ≠ vaga a
+  definir), `Advancement`, `TournamentConclusion` (pódio). Novo: **disputa de 3º lugar opcional**
+  (`thirdPlaceMatch`, default `false` — o comportamento do TorneioDePenalti), fase `THIRD_PLACE` e
+  `Advancement.thirdPlaceDestination`; com 3 participantes a fase não nasce e o pódio dá o 3º ao único
+  semifinalista derrotado. Turno e returno (`doubleRoundRobin`).
+- **Placar genérico**: `Score.Points(a, b)` (games = pontos, sets 0) e `Score.Sets(SetScore(a, b,
+  TieBreak?))`, com `SetScore.matchTieBreak` para o super tie-break (um set e um game, ITF).
+- **`MatchFormat`** (raquete): `ONE_SET_OF_SIX` (padrão beach tennis), `PRO_SET_OF_EIGHT`,
+  `BEST_OF_THREE_MATCH_TIE_BREAK`; `validate` → `ScoreValidation`/`ScoreError` (6-4 ✓, 6-5 ✗, 7-6 exige
+  tie-break, 8-6 impossível num set de 6…), vencedor derivado do placar (raquete não empata),
+  `walkoverScore`/`walkover` (6-0).
+- **`MatchOutcome`**: `InProgress`, `Decided`, `Draw`, `Walkover`.
+- **Classificação configurável**: `Standings.compute(participants, results, StandingsRules, withdrawn)`;
+  `StandingsRules` com pontos por V/E/D, `tieBreakers` (lista ordenada de `TieBreaker`: confronto direto,
+  saldo de sets/games, sets/games ganhos, média de sets/games, aproveitamento, vitórias, sorteio) e
+  `twoWayTieBreakers` (todo empate de 2, inclusive o que sobra no meio de um de 3+). Presets
+  **`BEACH_TENNIS`** (SESC/ITF, recursivo 3→2) e **`FOOTBALL`** — este dá a **tabela idêntica** à
+  `Classificacao` do TorneioDePenalti (provado contra o algoritmo antigo em 3.000 tabelas aleatórias).
+  Comparação de média/aproveitamento **exata** (produto cruzado), nunca `Double`.
+- **Desistência**: `WithdrawalPolicy.AnnulMatches` (SESC) ou `CountAsLosses(placar do W.O.)`; quem
+  desistiu vai para o fim e nunca se classifica.
+- **Classificados**: `Qualifiers.forKnockout` (1ºs, depois 2ºs, com o cruzamento que evita reencontro do
+  mesmo grupo na estreia) **+ `KnockoutSeeding.ByCampaign`** (SESC: cabeças = melhores campanhas entre os
+  1ºs, grupos de 3 e de 4 comparados por média, não por soma); `Standings.rankAcrossGroups`.
+- Suíte `tournament/src/commonTest` (46 testes): as invariantes do `VerificacaoDoMotorTest` portadas
+  (2 a 32 participantes nos 3 formatos, semeadura, simulação até a final, varredura 1–8 grupos × 1–4
+  classificados), validação de placar, os dois regulamentos de desempate (recursão 3→2, ciclo de 3),
+  grupos desiguais por média, 3º lugar, W.O., desistência, BYE, `singleGroupBelow`.
+
+Aditivo (módulo novo). Ninguém precisa bumpar; o TorneioDePenalti migra quando for tocado (tabela
+antigo → novo em `kmplib-catalog/references/tournament.md`). Compila Android + iosArm64.
+
 ## 2.247.0 — Id por OPÇÃO em `SegmentedControl`, `ChoiceChipGroup` e `FilterChipRow`
 
 Origem: o flow `funcionalidades/03-calculo` do Arroba Certa (03/out/2026) escolhia "Kg" tocando a
