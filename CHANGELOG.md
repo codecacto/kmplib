@@ -1,5 +1,21 @@
 # Changelog — kmplib
 
+## 2.245.0 — `AdaptiveScaffold`: id `nav-item-<id>` em cada destino (barra e rail)
+
+O id por item da 2.240.0 entrou só na `AppBottomNavBar`; a barra e o rail do `AdaptiveScaffold` (que
+desenham os próprios itens) ficaram sem ele, e o flow tocava a aba pelo rótulo. Rótulo de aba é palavra
+comum — e o Maestro casa o **primeiro** texto igual na tela: no Palpite Certo, `tapOn text "Jogos"` saindo
+da aba Gerar caiu no rótulo "Jogos" do contador do card "Gerar vários jogos", a tela não mudou e o passo
+quebrou em `jogos-lista is visible` (02/out/2026, Android e iOS). Agora cada destino leva
+`BottomNavTestTags.item(destino.id)` — `nav-item-<id>`, o mesmo contrato da `AppBottomNavBar`:
+
+```yaml
+- tapOn:
+    id: "nav-item-JOGOS"   # AdaptiveDestination(id = Aba.JOGOS.name, …)
+```
+
+Aditivo; nada muda na tela. Compila Android + iosArm64.
+
 ## 2.244.1 — `topbar-voltar` também nas telas da lib que desenham o próprio voltar
 
 `DeveloperScreen`, `ContactScreen`, `FeedbackScreen`, `PaywallScreen` e a `SearchTopBar` (fora do modo

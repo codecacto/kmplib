@@ -38,10 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.ui.components.BottomNavTestTags
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 
@@ -50,6 +52,10 @@ import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
  *
  * `selectedIcon`/`unselectedIcon` separados porque **estado nunca é só cor** (WCAG 1.4.1): o ativo é
  * preenchido, o inativo é vazado.
+ *
+ * Automação: o item (barra ou rail) leva o id `nav-item-<id>` ([BottomNavTestTags.item]) — no Maestro,
+ * `tapOn: { id: "nav-item-<id>" }`. Tocar pelo rótulo casa com qualquer texto igual na tela ("Jogos"
+ * da aba e o "Jogos" de um contador no conteúdo) e o toque cai no conteúdo. (2.245.0)
  */
 data class AdaptiveDestination(
     val id: String,
@@ -153,6 +159,7 @@ private fun AdaptiveBottomBar(
                         role = Role.Tab,
                         onClick = { onSelect(destino.id) },
                     )
+                    .testTag(BottomNavTestTags.item(destino.id))
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -228,6 +235,7 @@ private fun AdaptiveRail(
                             role = Role.Tab,
                             onClick = { onSelect(destino.id) },
                         )
+                        .testTag(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -256,6 +264,7 @@ private fun AdaptiveRail(
                             role = Role.Tab,
                             onClick = { onSelect(destino.id) },
                         )
+                        .testTag(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
