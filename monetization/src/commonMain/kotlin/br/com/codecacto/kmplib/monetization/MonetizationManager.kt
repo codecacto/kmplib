@@ -30,6 +30,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -64,6 +67,7 @@ import kotlin.time.Duration
  * [MonetizationConfig], nao de `is`-check aqui: modo novo na lib obriga o compilador a responder as
  * tres perguntas, em vez de este objeto responder `false` em silencio.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 object MonetizationManager {
     private const val TAG = "MonetizationManager"
 
@@ -121,7 +125,8 @@ object MonetizationManager {
 
     /**
      * **Premium com resolução explícita** (2.249.0): [PremiumStatus.Unknown] até a loja responder,
-     * depois [PremiumStatus.Premium] ou [PremiumStatus.Free] — e nunca volta a `Unknown`.
+     * depois [PremiumStatus.Premium] ou [PremiumStatus.Free] — e nunca volta a `Unknown` (exceto na troca
+     * de repositório da loja, que é uma geração nova — ver `applyStoreSnapshot`).
      *
      * É o que um **gate premium** deve ler: [isPremium] nasce `false` e não distingue "não é
      * assinante" de "a loja ainda não respondeu", então o gate decidido na abertura do app trata o
@@ -141,7 +146,7 @@ object MonetizationManager {
      */
     val premiumStatus: StateFlow<PremiumStatus> = _premiumStatus.asStateFlow()
 
-    /** `true` depois que [premiumStatus] saiu de [PremiumStatus.Unknown] — e não volta (2.249.0). */
+    /** `true` enquanto [premiumStatus] está resolvido — derivado dele, nunca diverge (2.249.0). */
     val isPremiumResolved: StateFlow<Boolean> =
         _premiumStatus.map { it.isResolved }.stateIn(derivedScope, SharingStarted.Eagerly, false)
 
@@ -234,38 +239,22 @@ object MonetizationManager {
             val declared = userId ?: storeIdentity.subject.value
                 ?.let { (PurchaseIdentity.check(it) as? AppUserIdCheck.Valid)?.appUserId }
             PurchaseManager.initialize(purchase, declared)
-            subscriptionJob = combine(
-                PurchaseManager.subscriptionState,
-                PurchaseManager.subscriptionReadState,
-            ) { info, read -> info to read }
-                .onEach { (info, read) ->
-                    _isPremium.value = info.isActive
-                    _shouldShowAds.value = config.shouldShowAds(info.isActive)
-                    updatePremiumStatus { current -> resolvePremiumStatus(current, info, read) }
-                }
-                .launchIn(scope)
-
-            // A primeira leitura da assinatura (cache do SDK ou rede) — o caminho recomendado pela
-            // RevenueCat (`getCustomerInfo`). Até a 2.248.0 nada lia na abertura: o premium só
-            // aparecia quando alguma tela chamava `syncSubscriptionState()`.
-            //
-            // Identidade ANTES da leitura, no mesmo launch (2.250.0): a leitura pedida em paralelo com o
-            // `reconcile` podia responder depois do `logIn` com o CustomerInfo do sujeito anterior. O
-            // adaptador também descarta leitura iniciada antes de uma troca de identidade.
-            firstReadJob = scope.launch {
-                if (storeIdentity.isManaged) storeIdentity.reconcile()
-                runCatching { PurchaseManager.repository?.syncSubscriptionState() }
-                    .onFailure { AppLogger.w(TAG, "Primeira leitura da assinatura falhou: ${it.message}") }
-            }
-            resolutionTimeoutJob = scope.launch {
-                delay(premiumResolutionTimeout)
-                updatePremiumStatus { current ->
-                    if (current.isResolved) current
-                    else PremiumStatus.Free(PremiumStatus.FreeReason.TIMEOUT).also {
-                        AppLogger.w(TAG, "Loja sem resposta em $premiumResolutionTimeout: premium presumido FREE")
+            // Assina o repositório CORRENTE (2.251.0), não o do instante da inicialização: o
+            // `PurchaseTestHooks.instalar/limpar` (e `PurchaseManager.initializeWith/reset`) trocam o
+            // repositório depois, e até a 2.250.0 o manager continuava ouvindo o antigo — `isPremium` e
+            // `premiumStatus` paravam enquanto o paywall (que lê o `PurchaseManager`) via o novo.
+            subscriptionJob = PurchaseManager.currentRepository
+                .flatMapLatest { repo ->
+                    if (repo == null) {
+                        flowOf(StoreSnapshot(null, SubscriptionInfo(isActive = false), SubscriptionReadState.FAILED))
+                    } else {
+                        combine(repo.subscriptionState, repo.subscriptionReadState) { info, read ->
+                            StoreSnapshot(repo, info, read)
+                        }
                     }
                 }
-            }
+                .onEach { snapshot -> applyStoreSnapshot(config, snapshot, premiumResolutionTimeout) }
+                .launchIn(scope)
         }
 
         if (config.purchaseConfig == null) {
@@ -438,6 +427,79 @@ object MonetizationManager {
      */
     fun currentAppUserId(): String? = PurchaseManager.currentAppUserId()
 
+    /** O estado de uma loja (repositório) num instante — `repo == null` = nenhuma loja instalada. */
+    private data class StoreSnapshot(
+        val repo: PurchaseRepository?,
+        val info: SubscriptionInfo,
+        val read: SubscriptionReadState,
+    )
+
+    /** O repositório que o manager está ouvindo, para detectar a troca. Só a coleta escreve. */
+    private var observedRepository: PurchaseRepository? = null
+    private var hasObservedRepository = false
+
+    /**
+     * Aplica um estado de loja. Na **troca de repositório** começa uma geração nova: o
+     * [premiumStatus] é REAVALIADO a partir de `Unknown` (resolve na hora se o novo já nasce lido,
+     * como os dublês; senão espera a 1ª leitura dele, com teto próprio) — é a única exceção ao
+     * "resolvido nunca volta a `Unknown`", e existe porque a resposta anterior era de OUTRA loja.
+     * Sem loja (`repo == null`, `PurchaseTestHooks.limpar()`), resolve `Free(NOT_SOLD)`.
+     */
+    private fun applyStoreSnapshot(config: MonetizationConfig, snapshot: StoreSnapshot, timeout: Duration) {
+        _isPremium.value = snapshot.info.isActive
+        _shouldShowAds.value = config.shouldShowAds(snapshot.info.isActive)
+
+        val switched = !hasObservedRepository || snapshot.repo !== observedRepository
+        if (!switched) {
+            updatePremiumStatus { current -> resolvePremiumStatus(current, snapshot.info, snapshot.read) }
+            return
+        }
+        val firstRepository = !hasObservedRepository
+        hasObservedRepository = true
+        observedRepository = snapshot.repo
+        firstReadJob?.cancel()
+        resolutionTimeoutJob?.cancel()
+
+        val repo = snapshot.repo
+        val fresh = if (repo == null) {
+            PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
+        } else {
+            resolvePremiumStatus(PremiumStatus.Unknown, snapshot.info, snapshot.read)
+        }
+        if (firstRepository) {
+            // A primeira loja segue a regra de sempre: não desfaz uma resposta que já existia.
+            updatePremiumStatus { current ->
+                when {
+                    repo != null -> resolvePremiumStatus(current, snapshot.info, snapshot.read)
+                    current.isResolved -> current
+                    else -> fresh
+                }
+            }
+        } else {
+            _premiumStatus.value = fresh
+        }
+        if (repo == null) return
+
+        // A primeira leitura desta loja (cache do SDK ou rede) — o caminho recomendado pela RevenueCat
+        // (`getCustomerInfo`). Identidade ANTES da leitura, no mesmo launch (2.250.0): a leitura em
+        // paralelo com o `reconcile` podia responder depois do `logIn` com o CustomerInfo do sujeito
+        // anterior; o adaptador também descarta leitura iniciada antes de uma troca de identidade.
+        firstReadJob = scope.launch {
+            if (storeIdentity.isManaged) storeIdentity.reconcile()
+            runCatching { repo.syncSubscriptionState() }
+                .onFailure { AppLogger.w(TAG, "Primeira leitura da assinatura falhou: ${it.message}") }
+        }
+        resolutionTimeoutJob = scope.launch {
+            delay(timeout)
+            updatePremiumStatus { current ->
+                if (current.isResolved) current
+                else PremiumStatus.Free(PremiumStatus.FreeReason.TIMEOUT).also {
+                    AppLogger.w(TAG, "Loja sem resposta em $timeout: premium presumido FREE")
+                }
+            }
+        }
+    }
+
     /** Aplica a transição garantindo que um estado resolvido nunca volta a `Unknown`. */
     internal fun updatePremiumStatus(transition: (PremiumStatus) -> PremiumStatus) {
         _premiumStatus.update { current ->
@@ -454,6 +516,8 @@ object MonetizationManager {
         firstReadJob = null
         resolutionTimeoutJob?.cancel()
         resolutionTimeoutJob = null
+        observedRepository = null
+        hasObservedRepository = false
         _config = null
         _initialized.value = false
         _isPremium.value = false

@@ -222,6 +222,75 @@ class PremiumStatusTest {
         assertFalse(loja.leituraConcluida, "a leitura do processo anterior não pode concluir depois do reset")
     }
 
+    // ------------------------------------------------------------------ troca de repositório (2.251.0)
+
+    private fun iniciarCom(loja: PurchaseRepository) {
+        PurchaseManager.initializeWith(loja)
+        MonetizationManager.initialize(MonetizationConfig.Freemium(purchaseConfig), premiumResolutionTimeout = 30.seconds)
+    }
+
+    @Test
+    fun `trocar de nao assinante para assinante depois do initialize vira Premium`() = runBlocking<Unit> {
+        iniciarCom(LojaControlada(jaLida = inativa()))
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Free(FreeReason.STORE) })
+
+        PurchaseManager.initializeWith(LojaControlada(jaLida = ativa()))
+
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
+        assertTrue(MonetizationManager.isPremium.value)
+    }
+
+    @Test
+    fun `trocar de assinante para nao assinante vira Free`() = runBlocking<Unit> {
+        iniciarCom(LojaControlada(jaLida = ativa()))
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
+
+        PurchaseManager.initializeWith(LojaControlada(jaLida = inativa()))
+
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Free(FreeReason.STORE) })
+        assertFalse(MonetizationManager.isPremium.value)
+    }
+
+    @Test
+    fun `loja nova que ainda nao leu volta a Unknown e e lida`() = runBlocking<Unit> {
+        iniciarCom(LojaControlada(jaLida = ativa()))
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
+
+        val nova = LojaControlada()
+        PurchaseManager.initializeWith(nova)
+
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Unknown })
+        assertTrue(aguardar { nova.syncCalls == 1 }, "a loja nova recebe a primeira leitura")
+        nova.responder(inativa())
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Free(FreeReason.STORE) })
+    }
+
+    @Test
+    fun `limpar a loja resolve Free sem loja`() = runBlocking<Unit> {
+        iniciarCom(LojaControlada(jaLida = ativa()))
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
+
+        PurchaseManager.reset()
+
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Free(FreeReason.NOT_SOLD) })
+        assertFalse(MonetizationManager.isPremium.value)
+    }
+
+    @Test
+    fun `a loja antiga nao publica mais depois da troca`() = runBlocking<Unit> {
+        val antiga = LojaControlada(jaLida = inativa())
+        iniciarCom(antiga)
+        PurchaseManager.initializeWith(LojaControlada(jaLida = inativa()))
+        assertTrue(aguardar { PurchaseManager.currentRepository.value !== antiga })
+        delay(100)
+
+        antiga.responder(ativa())
+        delay(200)
+
+        assertEquals(PremiumStatus.Free(FreeReason.STORE), MonetizationManager.premiumStatus.value)
+        assertFalse(MonetizationManager.isPremium.value)
+    }
+
     // ------------------------------------------------------------------ modos sem loja
 
     @Test
@@ -332,9 +401,11 @@ class PremiumStatusTest {
     private class LojaControlada(
         private val primeiraLeituraFalha: Boolean = false,
         private val leituraLenta: Boolean = false,
+        /** Não-nulo = loja que já nasce lida (como os dublês). */
+        jaLida: SubscriptionInfo? = null,
     ) : PurchaseRepository {
-        val estado = MutableStateFlow(SubscriptionInfo(isActive = false))
-        val leitura = MutableStateFlow(SubscriptionReadState.PENDING)
+        val estado = MutableStateFlow(jaLida ?: SubscriptionInfo(isActive = false))
+        val leitura = MutableStateFlow(if (jaLida != null) SubscriptionReadState.READ else SubscriptionReadState.PENDING)
         var syncCalls = 0
             private set
         var leituraConcluida = false

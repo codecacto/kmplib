@@ -18,6 +18,7 @@ import com.revenuecat.purchases.kmp.models.PurchasesError
 import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
 import com.revenuecat.purchases.kmp.models.StoreProduct
 import com.revenuecat.purchases.kmp.models.VerificationResult
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -36,7 +37,31 @@ internal class RevenueCatPurchaseRepository(
     override val subscriptionReadState: Flow<SubscriptionReadState> = holder.readState
 
     /** Estado vindo de um `CustomerInfo` do sujeito corrente (compra, restauração, listener). */
-    private fun publish(info: SubscriptionInfo) = holder.publish(info)
+    private fun publish(info: SubscriptionInfo) {
+        if (!detached) holder.publish(info)
+    }
+
+    /** `true` depois de [detach]: este repositório saiu de uso e não publica mais nada. */
+    @Volatile
+    private var detached = false
+
+    /** O delegate que este repositório registrou, e o que existia antes dele. */
+    private var installedDelegate: PurchasesDelegate? = null
+    private var previousDelegate: PurchasesDelegate? = null
+
+    /**
+     * Tira este repositório de uso (2.251.0) — o `PurchaseManager` chama ao trocar de repositório
+     * (`PurchaseTestHooks.instalar`/`limpar`). O listener para de publicar e, se o delegate da
+     * RevenueCat ainda for o nosso, volta o anterior.
+     */
+    internal fun detach() {
+        detached = true
+        runCatching {
+            if (Purchases.sharedInstance.delegate === installedDelegate) {
+                Purchases.sharedInstance.delegate = previousDelegate
+            }
+        }
+    }
 
     init {
         installCustomerInfoListener()
@@ -60,7 +85,8 @@ internal class RevenueCatPurchaseRepository(
     private fun installCustomerInfoListener() {
         runCatching {
             val previous = Purchases.sharedInstance.delegate
-            Purchases.sharedInstance.delegate = object : PurchasesDelegate {
+            previousDelegate = previous
+            val delegate = object : PurchasesDelegate {
                 override fun onCustomerInfoUpdated(customerInfo: CustomerInfo) {
                     publish(customerInfo.toSubscriptionInfo())
                     previous?.onCustomerInfoUpdated(customerInfo)
@@ -85,6 +111,8 @@ internal class RevenueCatPurchaseRepository(
                     )
                 }
             }
+            installedDelegate = delegate
+            Purchases.sharedInstance.delegate = delegate
         }.onFailure { AppLogger.e(TAG, "Listener de CustomerInfo nao registrado: ${it.message}", it) }
     }
 

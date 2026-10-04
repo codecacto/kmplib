@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.monetization.purchase
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 
@@ -14,8 +15,17 @@ import kotlinx.coroutines.flow.map
 object PurchaseManager {
     private const val TAG = "PurchaseManager"
 
-    private var _repository: PurchaseRepository? = null
+    private val _currentRepository = MutableStateFlow<PurchaseRepository?>(null)
+    private val _repository: PurchaseRepository? get() = _currentRepository.value
     private val _initialized = MutableStateFlow(false)
+
+    /**
+     * O repositório **corrente**, observável (2.251.0). [initializeWith] (o `PurchaseTestHooks`) e
+     * [reset] trocam o repositório depois da inicialização; quem assinou o `subscriptionState` de um
+     * repositório fixo continuaria ouvindo o ANTIGO. O `MonetizationManager` assina este fluxo e
+     * troca junto (`flatMapLatest`).
+     */
+    val currentRepository: StateFlow<PurchaseRepository?> = _currentRepository.asStateFlow()
 
     /** Repository para operacoes de compra. Null se o modo nao inclui purchase. */
     val repository: PurchaseRepository?
@@ -47,7 +57,7 @@ object PurchaseManager {
         }
 
         PurchaseInitializer.initialize(config, userId)
-        _repository = RevenueCatPurchaseRepository(config)
+        replaceRepository(RevenueCatPurchaseRepository(config))
         _initialized.value = true
 
         AppLogger.d(TAG, "PurchaseManager inicializado com ${config.products.size} produtos")
@@ -127,12 +137,24 @@ object PurchaseManager {
      * [PurchaseInitializer], que toca o SDK nativo e nao roda em unit test. Nao e visivel aos apps.
      */
     internal fun initializeWith(repository: PurchaseRepository) {
-        _repository = repository
+        replaceRepository(repository)
         _initialized.value = true
     }
 
     internal fun reset() {
-        _repository = null
+        replaceRepository(null)
         _initialized.value = false
+    }
+
+    /**
+     * Troca o repositório corrente. O que sai é **desligado** — no adaptador da RevenueCat, o listener
+     * de `CustomerInfo` deixa de publicar e devolve o delegate anterior —, para não vazar estado entre
+     * repositórios.
+     */
+    private fun replaceRepository(repository: PurchaseRepository?) {
+        val previous = _currentRepository.value
+        if (previous === repository) return
+        (previous as? RevenueCatPurchaseRepository)?.detach()
+        _currentRepository.value = repository
     }
 }

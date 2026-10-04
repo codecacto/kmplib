@@ -4,7 +4,11 @@ import br.com.codecacto.kmplib.monetization.MonetizationConfig
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.monetization.PremiumStatus
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -41,6 +45,43 @@ class PremiumStatusComDubleTest {
 
         assertTrue(MonetizationManager.awaitPremiumResolved(timeout = 3.seconds))
         assertEquals(PremiumStatus.Premium, MonetizationManager.premiumStatus.value)
+    }
+
+    @Test
+    fun `instalar jaAssinante DEPOIS do initialize vira Premium`() = runBlocking<Unit> {
+        PurchaseTestHooks.instalar(FakePurchaseRepository.comOfertas())
+        MonetizationManager.initialize(config, premiumResolutionTimeout = 30.seconds)
+        assertEquals(PremiumStatus.Free(PremiumStatus.FreeReason.STORE), MonetizationManager.awaitPremiumStatus(3.seconds))
+
+        PurchaseTestHooks.instalar(FakePurchaseRepository.jaAssinante())
+
+        assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
+        assertTrue(MonetizationManager.isPremium.value)
+    }
+
+    @Test
+    fun `instalar comOfertas depois de jaAssinante vira Free e limpar resolve sem loja`() = runBlocking<Unit> {
+        PurchaseTestHooks.instalar(FakePurchaseRepository.jaAssinante())
+        MonetizationManager.initialize(config, premiumResolutionTimeout = 30.seconds)
+        assertTrue(MonetizationManager.awaitPremiumResolved(3.seconds))
+
+        PurchaseTestHooks.instalar(FakePurchaseRepository.comOfertas())
+        assertTrue(aguardar {
+            MonetizationManager.premiumStatus.value == PremiumStatus.Free(PremiumStatus.FreeReason.STORE)
+        })
+        assertFalse(MonetizationManager.isPremium.value)
+
+        PurchaseTestHooks.limpar()
+        assertTrue(aguardar {
+            MonetizationManager.premiumStatus.value == PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
+        })
+    }
+
+    private suspend fun aguardar(condicao: () -> Boolean): Boolean = withContext(Dispatchers.Default) {
+        withTimeoutOrNull(3_000) {
+            while (!condicao()) delay(10)
+            true
+        } ?: false
     }
 
     @Test

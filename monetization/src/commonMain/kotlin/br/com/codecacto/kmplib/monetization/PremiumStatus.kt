@@ -28,7 +28,9 @@ import kotlin.time.Duration.Companion.seconds
  * - [Free] ↔ [Premium] — a vida normal (compra, restauração, expiração, troca de conta). Um [Free]
  *   presumido (timeout/falha) **é corrigido** pela leitura que chegar depois: gate que observa o
  *   estado reabre sozinho.
- * - **Nunca volta a [Unknown]** depois de resolvido (só `MonetizationManager.reset()`, de teste).
+ * - **Nunca volta a [Unknown]** depois de resolvido — com uma exceção: a **troca de repositório da
+ *   loja** (`PurchaseTestHooks.instalar`, 2.251.0) abre uma geração nova, porque a resposta anterior era
+ *   de OUTRA loja; o novo repositório resolve na hora se já nasce lido (dublês). E `reset()`, de teste.
  */
 sealed interface PremiumStatus {
 

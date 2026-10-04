@@ -1,5 +1,31 @@
 # Changelog — kmplib
 
+## 2.251.0 — `monetization`: o `MonetizationManager` acompanha a TROCA do repositório da loja
+
+Achado no E2E instrumentado do Super 8 (emulador). O `initialize` assinava o `subscriptionState` do repositório
+instalado **naquele instante**; quando o repositório era trocado depois (`PurchaseTestHooks.instalar(jaAssinante())`
+no meio do teste, `PurchaseManager.initializeWith`/`reset`, `PurchaseTestHooks.limpar()`), o manager continuava
+ouvindo o ANTIGO: `premiumStatus` ficava `Free` e `isPremium` não mudava, enquanto o paywall (que lê o
+`PurchaseManager`) já via o novo.
+
+- **`PurchaseManager.currentRepository: StateFlow<PurchaseRepository?>`** — `initialize`, `initializeWith` e
+  `reset` emitem. O `PurchaseTestHooks` repropaga sem mudar nada.
+- **`MonetizationManager` assina o repositório corrente** (`flatMapLatest` sobre `subscriptionState` +
+  `subscriptionReadState`). **A troca de repositório é uma geração nova:** `premiumStatus` é reavaliado a partir de
+  `Unknown` — resolve na hora se o novo já nasce lido (dublês: `jaAssinante` → `Premium`, `comOfertas` → `Free`),
+  senão recebe a 1ª leitura (com `reconcile` da identidade antes) e um teto próprio. É a única exceção documentada
+  ao "resolvido nunca volta a `Unknown`". Sem repositório (`limpar()`) → `Free(NOT_SOLD)`.
+- **Nada vaza entre repositórios:** o repositório que sai é desligado — no adaptador da RevenueCat o listener de
+  `CustomerInfo` para de publicar e, se o delegate ainda for o dele, volta o anterior (`detach()`); a geração de
+  identidade é por repositório; a leitura e o teto do repositório anterior são cancelados; o fluxo antigo deixa
+  de ser coletado.
+
+Testes: 5 novos em `PremiumStatusTest` (27: não assinante → assinante, assinante → não assinante, loja nova
+ainda não lida volta a `Unknown` e é lida, `limpar` → `Free(NOT_SOLD)`, a loja antiga não publica mais) e 2 no
+`kmplib-testing` pelo `PurchaseTestHooks` (`comOfertas`→`jaAssinante` depois do `initialize`;
+`jaAssinante`→`comOfertas`→`limpar`) — 356 no `kmplib-monetization`, 30 no `kmplib-testing`. Compila Android +
+`iosArm64` (executado).
+
 ## 2.250.0 — `monetization`: o premium se corrige sozinho (listener de `CustomerInfo`), sem corrida de identidade, e releitura sem cache pós-compra
 
 Ajustes da segunda revisão da 2.249.0. **Aditivo.**
