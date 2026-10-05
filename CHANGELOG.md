@@ -1,5 +1,31 @@
 # Changelog — kmplib
 
+## 2.252.1 — `core/data`: `RestRepository` não mostra mais o registro excluído/antigo depois de gravar (geração do cache)
+
+Achado no teste do LocAki no iOS: "exclui o cliente" fez `DELETE` 204, o app releu (`GET` 200 no mesmo segundo) e a
+lista **continuou mostrando o cliente por 30 s**. Corrida mutação × leitura em voo: uma `list()` que saiu ANTES da
+mutação (recarga do `ON_RESUME`, por exemplo) e voltou DEPOIS do `clearCache()`
+1. **gravava a lista antiga no cache recém-limpo** — defeito que já existia em todas as versões com o cache de TTL;
+2. **servia de carona à releitura pós-mutação** pela coalescência da 2.252.0, que alargou a janela.
+
+Correção — **geração do cache**:
+- o estado do cache virou um valor imutável trocado por compare-and-set (`kotlin.concurrent.atomics.AtomicReference`,
+  sem `java.util.concurrent` no commonMain) com um contador `generation` que avança a cada `create`/`update`/`delete`
+  bem-sucedido e a cada `refresh()`;
+- a chave da coalescência leva a geração: leitura pedida depois de uma mutação **nunca** reaproveita a que saiu antes;
+- o resultado só é gravado em `listCache`/`byIdCache` se a geração ainda for a de quando a leitura começou.
+
+Quem pediu a leitura antiga continua recebendo o que pediu (ela não é cancelada); só deixa de contaminar o cache e
+as releituras. Mesma geração continua coalescendo e cacheando como antes. Sem mudança de API.
+
+**Afeta** quem usa `RestRepository`/`RestRepositoryFactory`: o efeito (1) em qualquer versão com cache; o (2) só na
+2.252.0. **Ação:** subir para 2.252.1.
+
+Testes: `RestRepositoryGenerationTest` (5 — releitura pós-`delete` com leitura antiga em voo vai à rede e vê o dado
+novo; o resultado antigo não fica no cache; `refresh` no meio descarta; coalescência na mesma geração;
+`getById` + `update`). 4 deles **reprovam contra a 2.252.0** (conferido). Suíte da lib: 3.455 verdes. Compila
+`iosArm64` (main e test, executado).
+
 ## 2.252.0 — `core/network`: nova tentativa automática no `createHttpClient` (rede móvel que pisca) + leituras idênticas em voo viram UMA no `RestRepository`
 
 Origem: LocAki em produção (05/out/2026). Cliente num moto g15, rede móvel Vivo/IPv6: o app abre, 12–15 GETs

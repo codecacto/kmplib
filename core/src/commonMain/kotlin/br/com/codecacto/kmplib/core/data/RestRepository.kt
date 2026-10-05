@@ -19,6 +19,8 @@ import io.ktor.http.contentType
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.TimeSource
 
 /**
@@ -45,7 +47,8 @@ import kotlin.time.TimeSource
  * **Cache curto em memória** (TTL de [RestConfig.cacheTtlMillis]) aplicado a `getById`/`list`.
  * NUNCA é offline: se não houver cache válido e a rede falhar, o erro é propagado — o app trata
  * como "sem informação", nunca como dado válido. Qualquer mutação (`create`/`update`/`delete`) e
- * o [refresh] limpam todo o cache desta entidade. Erros nunca são cacheados.
+ * o [refresh] limpam todo o cache desta entidade. Erros nunca são cacheados. Leitura que começou
+ * ANTES de uma mutação e terminou depois dela não entra no cache nem serve de carona (2.252.1).
  *
  * **Leituras idênticas simultâneas viram uma requisição só** (2.252.0): `list` com os mesmos
  * filtros/página e `getById` com o mesmo id, pedidos enquanto o primeiro ainda está em voo, esperam
@@ -79,16 +82,56 @@ class RestRepository<T, ID>(
 
     private data class CacheEntry<V>(val value: V, val mark: TimeSource.Monotonic.ValueTimeMark)
 
-    private val byIdCache: MutableMap<String, CacheEntry<T>> = mutableMapOf()
-    private val listCache: MutableMap<String, CacheEntry<PaginatedResponse<T>>> = mutableMapOf()
+    /**
+     * Estado do cache como valor IMUTÁVEL trocado por compare-and-set (2.252.1). A [generation] avança
+     * a cada mutação/[refresh]; uma leitura só grava no cache se a geração ainda for a de quando ela
+     * começou, e só pega carona numa leitura em voo da MESMA geração.
+     *
+     * Por quê: uma `list()` que sai ANTES de um `delete` (recarga do `ON_RESUME`, por exemplo) e volta
+     * DEPOIS dele trazia a lista antiga — gravava-a no cache recém-limpo (30 s mostrando o registro
+     * excluído) e, com a coalescência da 2.252.0, a releitura pós-exclusão entrava de carona nela.
+     * Achado no LocAki (iOS): DELETE 204, GET 200 no mesmo segundo, cliente ainda na lista.
+     */
+    private class CacheState<T>(
+        val generation: Long,
+        val byId: Map<String, CacheEntry<T>>,
+        val lists: Map<String, CacheEntry<PaginatedResponse<T>>>,
+    )
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private val cache = AtomicReference(CacheState<T>(0L, emptyMap(), emptyMap()))
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private inline fun updateCache(transform: (CacheState<T>) -> CacheState<T>?) {
+        while (true) {
+            val atual = cache.load()
+            val novo = transform(atual) ?: return
+            if (cache.compareAndSet(atual, novo)) return
+        }
+    }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private fun cacheSnapshot(): CacheState<T> = cache.load()
+
+    /** Grava só se nenhuma mutação aconteceu desde [startedAt] — senão o dado já nasceu velho. */
+    private fun storeList(startedAt: Long, key: String, value: PaginatedResponse<T>) = updateCache { atual ->
+        if (atual.generation != startedAt) null
+        else CacheState(atual.generation, atual.byId, atual.lists + (key to CacheEntry(value, timeSource.markNow())))
+    }
+
+    private fun storeById(startedAt: Long, key: String, value: T) = updateCache { atual ->
+        if (atual.generation != startedAt) null
+        else CacheState(atual.generation, atual.byId + (key to CacheEntry(value, timeSource.markNow())), atual.lists)
+    }
 
     /**
      * Leitura idêntica em voo vira UMA requisição (2.252.0) — o app que abre e pede a mesma página
      * em 2–3 telas/ViewModels ao mesmo tempo não multiplica o GET (nem a chance de uma piscada de
      * rede derrubar um deles). A chave leva o TOKEN: duas sessões diferentes nunca compartilham
-     * resposta. Não é cache — a chave sai do mapa quando a leitura termina.
+     * resposta. E leva a GERAÇÃO do cache (2.252.1): leitura pedida depois de uma mutação nunca
+     * reaproveita a que saiu antes dela. Não é cache — a chave sai do mapa quando a leitura termina.
      */
-    private data class InFlightKey(val token: String?, val request: String)
+    private data class InFlightKey(val token: String?, val generation: Long, val request: String)
 
     private val listInFlight = InFlightRequests<InFlightKey, ApiResult<PaginatedResponse<T>>>()
     private val byIdInFlight = InFlightRequests<InFlightKey, ApiResult<T>>()
@@ -109,10 +152,12 @@ class RestRepository<T, ID>(
         pageSize: Int,
     ): ApiResult<PaginatedResponse<T>> {
         val cacheKey = listCacheKey(filters, page, pageSize)
-        listCache[cacheKey].takeFresh()?.let { return ApiResult.Success(it) }
+        val snapshot = cacheSnapshot()
+        snapshot.lists[cacheKey].takeFresh()?.let { return ApiResult.Success(it) }
+        val generation = snapshot.generation
 
         val token = currentToken()
-        return listInFlight.run(InFlightKey(token, cacheKey)) {
+        return listInFlight.run(InFlightKey(token, generation, cacheKey)) {
             fetch {
                 config.httpClient.get(resourcePath) {
                     expectSuccess = true
@@ -122,23 +167,25 @@ class RestRepository<T, ID>(
                     filters.forEach { (k, v) -> parameter(k, v) }
                 }.bodyAsText()
             }.map { json.decodeFromString(pageSerializer, it) }
-                .also { if (it is ApiResult.Success) listCache[cacheKey] = CacheEntry(it.data, timeSource.markNow()) }
+                .also { if (it is ApiResult.Success) storeList(generation, cacheKey, it.data) }
         }
     }
 
     override suspend fun getById(id: ID): ApiResult<T> {
         val key = idToPath(id)
-        byIdCache[key].takeFresh()?.let { return ApiResult.Success(it) }
+        val snapshot = cacheSnapshot()
+        snapshot.byId[key].takeFresh()?.let { return ApiResult.Success(it) }
+        val generation = snapshot.generation
 
         val token = currentToken()
-        return byIdInFlight.run(InFlightKey(token, key)) {
+        return byIdInFlight.run(InFlightKey(token, generation, key)) {
             fetch {
                 config.httpClient.get("$resourcePath/$key") {
                     expectSuccess = true
                     applyAuth(token)
                 }.bodyAsText()
             }.map { json.decodeFromString(entitySerializer, it) }
-                .also { if (it is ApiResult.Success) byIdCache[key] = CacheEntry(it.data, timeSource.markNow()) }
+                .also { if (it is ApiResult.Success) storeById(generation, key, it.data) }
         }
     }
 
@@ -203,9 +250,9 @@ class RestRepository<T, ID>(
 
     private suspend fun currentToken(): String? = config.tokenProvider?.invoke()
 
-    private fun clearCache() {
-        byIdCache.clear()
-        listCache.clear()
+    /** Esvazia o cache e avança a geração: toda leitura que começou antes deixa de valer. */
+    private fun clearCache() = updateCache { atual ->
+        CacheState(atual.generation + 1, emptyMap(), emptyMap())
     }
 
     private fun listCacheKey(filters: Map<String, String>, page: Int, pageSize: Int): String =

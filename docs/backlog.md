@@ -7,6 +7,11 @@
 - [x] **GAP-NET-RETRY-01** — ✅ **2.252.0**: `HttpClientOptions.retry` (`HttpRequestRetry` oficial, só
       GET/HEAD/OPTIONS, transporte + 502/503/504, 2 tentativas, jitter, teto total = `requestTimeoutMillis`).
 - [x] **GAP-DATA-SINGLEFLIGHT-01** — ✅ **2.252.0**: `RestRepository.list`/`getById` idênticos em voo = 1 GET.
+- [x] **GAP-DATA-CACHE-GENERATION-01** — ✅ **2.252.1**: leitura em voo durante mutação não grava cache nem serve de
+      carona (geração do cache). Era defeito antigo (cache gravado depois do `clearCache`), alargado pela 2.252.0.
+- [ ] **GAP-DATA-MUTATION-ERROR-01 (P3)** — mutação que FALHA (ex.: timeout com o servidor tendo aplicado) não
+      invalida o cache; o registro pode ficar até 30 s com o valor anterior. Avaliar invalidar em toda mutação
+      concluída, sucesso ou erro (custo: um GET a mais depois de erro de validação).
 - [ ] **GAP-DATA-CACHE-TOKEN-01 (P2)** — o cache de 30 s do `RestRepository` é chaveado SEM o token: logout +
       login de OUTRA conta em < 30 s pode servir a lista da conta anterior se o app não chamar `refresh()`.
       Correção: chavear o cache pelo token (como a coalescência já faz) ou limpar na troca de sessão.
