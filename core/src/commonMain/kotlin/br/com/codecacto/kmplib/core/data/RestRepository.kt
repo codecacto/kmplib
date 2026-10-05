@@ -47,6 +47,10 @@ import kotlin.time.TimeSource
  * como "sem informação", nunca como dado válido. Qualquer mutação (`create`/`update`/`delete`) e
  * o [refresh] limpam todo o cache desta entidade. Erros nunca são cacheados.
  *
+ * **Leituras idênticas simultâneas viram uma requisição só** (2.252.0): `list` com os mesmos
+ * filtros/página e `getById` com o mesmo id, pedidos enquanto o primeiro ainda está em voo, esperam
+ * por ele e recebem o mesmo resultado. Mutação nunca é coalescida.
+ *
  * @param config Configuração compartilhada do backend (cliente, baseUrl, token, 401, cache TTL).
  * @param pathPrefix Caminho do recurso APÓS a baseUrl, COM barra inicial e SEM barra final
  *  (ex.: `"/meu-advogado/v1/requests"`).
@@ -78,6 +82,17 @@ class RestRepository<T, ID>(
     private val byIdCache: MutableMap<String, CacheEntry<T>> = mutableMapOf()
     private val listCache: MutableMap<String, CacheEntry<PaginatedResponse<T>>> = mutableMapOf()
 
+    /**
+     * Leitura idêntica em voo vira UMA requisição (2.252.0) — o app que abre e pede a mesma página
+     * em 2–3 telas/ViewModels ao mesmo tempo não multiplica o GET (nem a chance de uma piscada de
+     * rede derrubar um deles). A chave leva o TOKEN: duas sessões diferentes nunca compartilham
+     * resposta. Não é cache — a chave sai do mapa quando a leitura termina.
+     */
+    private data class InFlightKey(val token: String?, val request: String)
+
+    private val listInFlight = InFlightRequests<InFlightKey, ApiResult<PaginatedResponse<T>>>()
+    private val byIdInFlight = InFlightRequests<InFlightKey, ApiResult<T>>()
+
     private fun <V> CacheEntry<V>?.takeFresh(): V? {
         val entry = this ?: return null
         if (config.cacheTtlMillis <= 0L) return null
@@ -96,29 +111,35 @@ class RestRepository<T, ID>(
         val cacheKey = listCacheKey(filters, page, pageSize)
         listCache[cacheKey].takeFresh()?.let { return ApiResult.Success(it) }
 
-        return fetch {
-            config.httpClient.get(resourcePath) {
-                expectSuccess = true
-                applyAuth()
-                parameter("page", page)
-                parameter("pageSize", pageSize)
-                filters.forEach { (k, v) -> parameter(k, v) }
-            }.bodyAsText()
-        }.map { json.decodeFromString(pageSerializer, it) }
-            .also { if (it is ApiResult.Success) listCache[cacheKey] = CacheEntry(it.data, timeSource.markNow()) }
+        val token = currentToken()
+        return listInFlight.run(InFlightKey(token, cacheKey)) {
+            fetch {
+                config.httpClient.get(resourcePath) {
+                    expectSuccess = true
+                    applyAuth(token)
+                    parameter("page", page)
+                    parameter("pageSize", pageSize)
+                    filters.forEach { (k, v) -> parameter(k, v) }
+                }.bodyAsText()
+            }.map { json.decodeFromString(pageSerializer, it) }
+                .also { if (it is ApiResult.Success) listCache[cacheKey] = CacheEntry(it.data, timeSource.markNow()) }
+        }
     }
 
     override suspend fun getById(id: ID): ApiResult<T> {
         val key = idToPath(id)
         byIdCache[key].takeFresh()?.let { return ApiResult.Success(it) }
 
-        return fetch {
-            config.httpClient.get("$resourcePath/$key") {
-                expectSuccess = true
-                applyAuth()
-            }.bodyAsText()
-        }.map { json.decodeFromString(entitySerializer, it) }
-            .also { if (it is ApiResult.Success) byIdCache[key] = CacheEntry(it.data, timeSource.markNow()) }
+        val token = currentToken()
+        return byIdInFlight.run(InFlightKey(token, key)) {
+            fetch {
+                config.httpClient.get("$resourcePath/$key") {
+                    expectSuccess = true
+                    applyAuth(token)
+                }.bodyAsText()
+            }.map { json.decodeFromString(entitySerializer, it) }
+                .also { if (it is ApiResult.Success) byIdCache[key] = CacheEntry(it.data, timeSource.markNow()) }
+        }
     }
 
     // -----------------------------------------------------------------------------------------
@@ -174,11 +195,13 @@ class RestRepository<T, ID>(
         return result
     }
 
-    private suspend fun HttpRequestBuilder.applyAuth() {
-        config.tokenProvider?.invoke()?.let { token ->
-            header(HttpHeaders.Authorization, "Bearer $token")
-        }
+    private suspend fun HttpRequestBuilder.applyAuth() = applyAuth(currentToken())
+
+    private fun HttpRequestBuilder.applyAuth(token: String?) {
+        token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
     }
+
+    private suspend fun currentToken(): String? = config.tokenProvider?.invoke()
 
     private fun clearCache() {
         byIdCache.clear()

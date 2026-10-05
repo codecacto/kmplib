@@ -3,6 +3,16 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 05/out/2026 — rede móvel que pisca (2.252.0, LocAki em produção)
+- [x] **GAP-NET-RETRY-01** — ✅ **2.252.0**: `HttpClientOptions.retry` (`HttpRequestRetry` oficial, só
+      GET/HEAD/OPTIONS, transporte + 502/503/504, 2 tentativas, jitter, teto total = `requestTimeoutMillis`).
+- [x] **GAP-DATA-SINGLEFLIGHT-01** — ✅ **2.252.0**: `RestRepository.list`/`getById` idênticos em voo = 1 GET.
+- [ ] **GAP-DATA-CACHE-TOKEN-01 (P2)** — o cache de 30 s do `RestRepository` é chaveado SEM o token: logout +
+      login de OUTRA conta em < 30 s pode servir a lista da conta anterior se o app não chamar `refresh()`.
+      Correção: chavear o cache pelo token (como a coalescência já faz) ou limpar na troca de sessão.
+- [ ] **Coalescência no `DomainApiClient` (sync/rest)** — só se um app com `DomainApiClient` mostrar o mesmo
+      padrão de GET repetido na abertura (hoje o caso é só `RestRepository`).
+
 ### Registrado em 03/out/2026 — premium sem estado "não resolvido" (2.249.0, achado de revisão no Super 8)
 - [x] **GAP-MON-PREMIUM-RESOLVED-01** — ✅ **2.249.0**: `PremiumStatus` (`Unknown`/`Premium`/`Free(reason)`),
       `MonetizationManager.premiumStatus`/`isPremiumResolved`/`awaitPremiumResolved`, teto configurável,

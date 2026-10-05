@@ -1,5 +1,45 @@
 # Changelog — kmplib
 
+## 2.252.0 — `core/network`: nova tentativa automática no `createHttpClient` (rede móvel que pisca) + leituras idênticas em voo viram UMA no `RestRepository`
+
+Origem: LocAki em produção (05/out/2026). Cliente num moto g15, rede móvel Vivo/IPv6: o app abre, 12–15 GETs
+saem juntos ao apps-api, uma queda momentânea (`java.net.SocketException: Connection reset`) vira erro na hora —
+com **todos os servidores respondendo 200** (logs do Traefik/apps-api) e a mesma conta carregando tudo pelo Wi-Fi.
+O `createHttpClient` não tinha política nenhuma de nova tentativa. **Aditivo; ligado por default.**
+
+- **`HttpClientOptions.retry: HttpRetryPolicy`** (default ligada) — plugin oficial `HttpRequestRetry` do Ktor.
+  - **Repete:** só **GET, HEAD, OPTIONS**; em falha de **transporte** (`IOException`: connection reset,
+    unexpected end of stream, conexão recusada, DNS na troca de rede, `ConnectTimeoutException`,
+    `SocketTimeoutException` — no iOS todo `NSURLErrorTimedOut` —, perda de conexão `-1005` do Darwin, corpo
+    interrompido) e em **502/503/504**. Até **2 tentativas a mais**, espera exponencial com *equal jitter*
+    (200–400 ms, depois 400–800 ms; teto 2 s por espera). `Retry-After` ≤ 2 s é respeitado como piso; maior que
+    isso, **não repete**.
+  - **Nunca repete:** **POST/PATCH** (o construtor recusa — duplicaria cobrança/registro); PUT/DELETE fora do
+    default (entram por `methods`, para quem garante o contrato); **4xx**; **500** e demais 5xx;
+    `CancellationException` (a tela saiu); `HttpRequestTimeoutException`; falha **permanente** de transporte
+    (certificado recusado, cleartext proibido, ATS, URL inválida — `expect/actual` por engine).
+  - **O teto de tempo não cresce:** o retry é instalado DEPOIS do `HttpTimeout` e fica dentro dele — o
+    `requestTimeoutMillis` (30 s) vale para a chamada INTEIRA com as tentativas (provado em teste: 2ª tentativa
+    travada termina no teto, sem abrir a 3ª).
+  - **Log:** cada nova tentativa sai no `AppLogger` (tag `HttpClient`, aviso) com método · URL · `n/2` · tipo e
+    mensagem curta da falha — nunca cabeçalho nem corpo. O log de requisição continua em `INFO`. Desligado junto
+    com `enableLogging = false`/`HttpLogLevel.NONE`.
+  - `HttpRetryPolicy.Disabled` volta ao comportamento anterior.
+- **`RestRepository`: `list`/`getById` idênticos e simultâneos fazem UM GET** (*single-flight*,
+  `InFlightRequests`, interno). Quem chega enquanto a leitura está em voo espera por ela e recebe o mesmo
+  `ApiResult`. A chave inclui o **token** (sessões diferentes nunca compartilham resposta); não é cache (sai do
+  mapa ao terminar — o TTL continua o do `RestConfig`); mutação nunca é coalescida. Sem escopo próprio: líder
+  cancelado não cancela quem esperava (um deles assume); quem espera e é cancelado sai sozinho. O token passou a
+  ser lido uma vez por leitura (antes dentro do builder, igual na prática).
+- ⚠️ App que monta o próprio `HttpClient` em vez de usar o `createHttpClient` **não ganha** a nova tentativa.
+
+Testes: `HttpRetryTest` (23, sobre a configuração REAL do factory com `MockEngine`: GET recupera de
+`Connection reset`; HEAD/OPTIONS; 503 até o teto; 502/504; com `expectSuccess`; timeouts de conexão/socket;
+POST/PATCH/PUT/DELETE não repetem; 4xx e 500 não; `Retry-After` longo não; cancelamento lançado e cancelamento
+de quem chamou não; teto total; regras puras de jitter/política), `HttpRetryAndroidTest` (2, exceções reais do
+OkHttp), `InFlightRequestsTest` (6), `RestRepositoryCoalescingTest` (5). Suíte da lib: 3.450 testes verdes.
+Compila `iosArm64` (main e test, executado — não SKIPPED).
+
 ## 2.251.0 — `monetization`: o `MonetizationManager` acompanha a TROCA do repositório da loja
 
 Achado no E2E instrumentado do Super 8 (emulador). O `initialize` assinava o `subscriptionState` do repositório

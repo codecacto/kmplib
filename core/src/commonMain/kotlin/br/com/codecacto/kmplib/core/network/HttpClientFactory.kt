@@ -11,6 +11,7 @@ import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlin.random.Random
 import io.ktor.client.plugins.logging.LogLevel as KtorLogLevel
 
 /**
@@ -19,7 +20,8 @@ import io.ktor.client.plugins.logging.LogLevel as KtorLogLevel
  * Números da Sorte, confirmado em ≥2 apps offline do arquétipo A).
  *
  * Usa o **engine oficial recomendado de cada plataforma** (OkHttp no Android, Darwin no iOS/K/N),
- * aplica timeouts sensatos, **pede a resposta comprimida** (`ContentEncoding`, ligado por default
+ * aplica timeouts sensatos, **repete sozinho o GET que a rede móvel derrubou** (`HttpRequestRetry`,
+ * ligado por default desde 2.252.0 — ver [HttpRetryPolicy]), **pede a resposta comprimida** (`ContentEncoding`, ligado por default
  * desde 2.162.0 — ver [HttpClientOptions]), loga a requisição e deixa **opt-in** a negociação de
  * conteúdo JSON (Ktor `ContentNegotiation`).
  *
@@ -46,7 +48,20 @@ import io.ktor.client.plugins.logging.LogLevel as KtorLogLevel
 fun createHttpClient(
     options: HttpClientOptions = HttpClientOptions(),
     configure: HttpClientConfig<*>.() -> Unit = {},
-): HttpClient = HttpClient(createPlatformHttpClientEngine()) {
+): HttpClient = createHttpClient(createPlatformHttpClientEngine(), options, configure = configure)
+
+/**
+ * O mesmo [createHttpClient] sobre um [engine] dado — é por aqui que os testes passam o `MockEngine`
+ * e provam a configuração REAL do factory (timeout, nova tentativa, log), não uma cópia dela.
+ * [retryRandom]/[retryDelay] trocam o sorteio do jitter e a espera entre tentativas no teste.
+ */
+internal fun createHttpClient(
+    engine: HttpClientEngine,
+    options: HttpClientOptions,
+    retryRandom: Random = Random.Default,
+    retryDelay: (suspend (Long) -> Unit)? = null,
+    configure: HttpClientConfig<*>.() -> Unit = {},
+): HttpClient = HttpClient(engine) {
     // Deixa 4xx/5xx virarem resposta normal — quem trata é o `handleApiCall`/serviço chamador.
     expectSuccess = false
 
@@ -55,6 +70,16 @@ fun createHttpClient(
         connectTimeoutMillis = options.connectTimeoutMillis
         socketTimeoutMillis = options.socketTimeoutMillis
     }
+
+    // Nova tentativa em falha de transporte / 502-503-504, só em GET/HEAD/OPTIONS (ver
+    // [HttpRetryPolicy]). Instalada DEPOIS do HttpTimeout de propósito: assim fica dentro dele, e o
+    // `requestTimeoutMillis` é o teto da chamada inteira, com as novas tentativas — nunca 3×.
+    installRetry(
+        policy = options.retry,
+        logRetries = options.enableLogging && options.logLevel != HttpLogLevel.NONE,
+        random = retryRandom,
+        delay = retryDelay,
+    )
 
     if (options.enableLogging) {
         install(Logging) {
@@ -155,6 +180,11 @@ fun createHttpClient(
  *   idioma da tela e `X-Time-Zone` com o fuso IANA do aparelho em toda requisição. **Default
  *   `false`** para não mudar a resposta de servidor que já existe; app global liga (a `casca-mobile`
  *   já nasce com ele). Para configurar hosts/idiomas, instale o plugin no bloco `configure`.
+ * @property retry política de **nova tentativa automática** (2.252.0). **Default LIGADA**: até 2
+ *   tentativas a mais, só em GET/HEAD/OPTIONS, em falha de transporte (`Connection reset`,
+ *   `unexpected end of stream`, timeout de conexão/socket) e em 502/503/504 — nunca POST/PATCH,
+ *   nunca 4xx, nunca cancelamento. O `requestTimeoutMillis` continua sendo o teto da chamada
+ *   inteira. [HttpRetryPolicy.Disabled] desliga. Detalhe em [HttpRetryPolicy].
  */
 data class HttpClientOptions(
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
@@ -166,6 +196,7 @@ data class HttpClientOptions(
     val installJsonContentNegotiation: Boolean = false,
     val json: Json = DefaultHttpClientJson,
     val sendLocaleHeaders: Boolean = false,
+    val retry: HttpRetryPolicy = HttpRetryPolicy(),
 ) {
     companion object {
         const val DEFAULT_REQUEST_TIMEOUT_MILLIS: Long = 30_000
