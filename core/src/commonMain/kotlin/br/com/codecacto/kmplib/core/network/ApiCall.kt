@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.core.network
 
+import br.com.codecacto.kmplib.core.util.AppLogger
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ResponseException
@@ -30,14 +31,53 @@ suspend inline fun <T> handleApiCall(
         message = backendMessage ?: defaultHttpErrorMessage(statusCode, e.message)
     )
 } catch (e: SerializationException) {
+    logApiCallFailure(e)
     ApiResult.Error(code = -1, message = "Resposta inválida do servidor")
 } catch (e: ConnectTimeoutException) {
+    logApiCallFailure(e)
     ApiResult.Error(code = -1, message = "Não foi possível falar com o servidor. Tente novamente.")
 } catch (e: HttpRequestTimeoutException) {
+    logApiCallFailure(e)
     ApiResult.Error(code = -1, message = "Servidor demorou para responder. Tente novamente.")
 } catch (e: Throwable) {
+    logApiCallFailure(e)
     ApiResult.Error(code = -1, message = mapGenericNetworkMessage(e))
 }
+
+/**
+ * Registra a causa REAL de uma falha sem resposta HTTP (2.252.4). Antes, o `catch (Throwable)` virava
+ * uma frase genérica para a tela e a exceção sumia: no LocAki, `list()` voltava "Não foi possível
+ * falar com o servidor" logo depois de um `RESPONSE: 200` no log, e não havia como saber por quê.
+ *
+ * Sai no `AppLogger` (tag [API_CALL_LOG_TAG], aviso): classe + mensagem da exceção e de até 3 causas.
+ * Nada de cabeçalho nem corpo (não estão na exceção), e a query de qualquer URL que a mensagem traga
+ * é cortada — ela pode carregar filtro com dado pessoal.
+ */
+@PublishedApi
+internal fun logApiCallFailure(error: Throwable) {
+    AppLogger.w(API_CALL_LOG_TAG, "Falha sem resposta HTTP: ${describeFailureChain(error)}")
+}
+
+/** "Tipo: mensagem ← causa: Tipo: mensagem …", sem query de URL, no máximo 3 causas. */
+internal fun describeFailureChain(error: Throwable): String = buildString {
+    var atual: Throwable? = error
+    var nivel = 0
+    while (atual != null && nivel <= MAX_LOGGED_CAUSES) {
+        if (nivel > 0) append(" ← causa: ")
+        append(atual::class.simpleName ?: "Throwable")
+        atual.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(redactUrlQueries(it).take(200)) }
+        if (atual.cause === atual) break
+        atual = atual.cause
+        nivel++
+    }
+}
+
+private val URL_QUERY = Regex("""(https?://[^\s?#\]]+)\?[^\s\]]*""")
+
+internal fun redactUrlQueries(text: String): String = URL_QUERY.replace(text) { "${it.groupValues[1]}?…" }
+
+const val API_CALL_LOG_TAG: String = "ApiCall"
+private const val MAX_LOGGED_CAUSES = 3
 
 fun defaultHttpErrorMessage(statusCode: Int, fallback: String?): String {
     return when (statusCode) {

@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.252.4 — `core/network`: corpo cortado depois do `200` agora entra na nova tentativa + `handleApiCall` registra a causa real
+
+LocAki (Android real, OkHttp) com 2.252.3: depois de cadastrar/excluir cliente, `list()` voltava
+`ApiResult.Error(-1, …)` — na tela, "Não foi possível falar com o servidor" e "0 clientes cadastrados" — com
+`RESPONSE: 200` no log do `HttpClient` e o Traefik registrando 200 com o corpo inteiro (23.220 B).
+
+**Causa (provada):** o `HttpRequestRetry` decide pelos **cabeçalhos**. Chegou o `200`, a chamada sai do plugin e o
+corpo é lido depois, no `HttpStatement` — fora do alcance da nova tentativa. Um corte do corpo no meio (conexão móvel
+que cai, stream HTTP/2 resetado) virava `Error(-1, "unexpected end of stream")`; a mensagem crua não é uma das
+frases da lib, e o app a traduziu na frase genérica de conexão. Reproduzido em `RestRepositoryOkHttpTest` (OkHttp
+REAL contra um servidor HTTP real que manda `200` + metade do corpo e derruba a conexão): **sem a correção a rodada
+1 reprova com exatamente esse erro; com ela, 30 de 30 leituras chegam em 3 execuções seguidas**. O corte acontecer
+justo após uma mutação vem do leque de recargas que a mutação dispara (várias leituras saindo juntas na rede móvel).
+
+- **`ReadBodyInsideRetry`** (plugin interno, instalado pelo `createHttpClient` junto da nova tentativa, por dentro
+  dela): para GET/HEAD/OPTIONS cuja resposta o próprio Ktor já guardaria em memória (`isSaved`), faz o mesmo
+  `HttpClientCall.save()` que o Ktor faria logo depois — só que **antes** da decisão de repetir. Falha de leitura vira
+  `IOException` e segue a política normal (até 2 tentativas, teto total de 30 s). Downloads em fluxo
+  (`prepareGet { execute { } }`) não são tocados; POST/PATCH continuam sem repetir.
+- **`handleApiCall` registra a causa real** em todo `ApiResult.Error(-1)` (sem resposta HTTP): `AppLogger.w`, tag
+  **`ApiCall`**, "Falha sem resposta HTTP: Tipo: mensagem ← causa: …" (até 3 causas, query de URL cortada, nunca
+  cabeçalho nem corpo). Antes o `catch (Throwable)` sumia com ela.
+- Descartado com prova: a coalescência/geração não entrega dado nem erro de uma leitura a outra (`InFlightRequestsTest`,
+  `RestRepositoryOkHttpTest` com recargas cancelando no meio e estresse de 6 telas + cadastros/exclusões, OkHttp real);
+  o `catch (CancellationException)` do `handleApiCall` relança.
+
+Testes: `RestRepositoryOkHttpTest` (5, OkHttp real + gzip + corpo em pedaços), `ApiCallFailureLogTest` (4), +1 no
+`HttpRetryTest` (download em fluxo continua em fluxo). Suíte da lib: 3.474 verdes. Compila `iosArm64` (main e test,
+executado).
+
 ## 2.252.3 — `core/data`: `RestConfig.requestDispatcher` — o dispatcher das leituras compartilhadas é injetável (testabilidade)
 
 A 2.252.2 passou a rodar a leitura coalescida do `RestRepository` num escopo próprio fixado em `Dispatchers.Default`.

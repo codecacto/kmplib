@@ -11,6 +11,8 @@ import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
+import io.ktor.client.plugins.isSaved
 import io.ktor.client.request.head
 import io.ktor.client.request.options
 import io.ktor.client.request.patch
@@ -367,5 +369,18 @@ class HttpRetryTest {
         assertFalse(p.shouldRetryResponse(HttpMethod.Post, 503, null))
         assertFalse(p.shouldRetryException(HttpMethod.Post, IOException("reset")))
         assertTrue(p.shouldRetryException(HttpMethod.Get, IOException("reset")))
+    }
+
+    @Test
+    fun `leitura em fluxo com prepareGet execute continua em fluxo e funciona`() = runTest {
+        val servidor = Servidor { _, _ -> ok("conteudo-em-fluxo") }
+        val http = cliente(servidor)
+        assertNotNull(http.pluginOrNull(ReadBodyInsideRetry))
+        val texto = http.prepareGet("https://api.example.com/arquivo").execute { resp ->
+            assertFalse(resp.isSaved, "download em fluxo não pode ser guardado em memória pela lib")
+            resp.bodyAsText()
+        }
+        assertEquals("conteudo-em-fluxo", texto)
+        assertEquals(1, servidor.envios)
     }
 }

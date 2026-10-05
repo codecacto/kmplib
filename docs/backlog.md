@@ -7,6 +7,8 @@
 - [x] **GAP-NET-RETRY-01** — ✅ **2.252.0**: `HttpClientOptions.retry` (`HttpRequestRetry` oficial, só
       GET/HEAD/OPTIONS, transporte + 502/503/504, 2 tentativas, jitter, teto total = `requestTimeoutMillis`).
 - [x] **GAP-DATA-SINGLEFLIGHT-01** — ✅ **2.252.0**: `RestRepository.list`/`getById` idênticos em voo = 1 GET.
+- [x] **GAP-NET-RETRY-BODY-01** — ✅ **2.252.4**: corpo cortado depois do `200` entra na nova tentativa
+      (`ReadBodyInsideRetry`); `handleApiCall` registra a causa real (tag `ApiCall`).
 - [x] **GAP-DATA-SINGLEFLIGHT-TESTABILITY-01** — ✅ **2.252.3**: `RestConfig.requestDispatcher` (o teste injeta o
       dispatcher do `runTest`); falha de leitura compartilhada nunca vai ao tratador de não tratadas.
 - [x] **GAP-DATA-SINGLEFLIGHT-SCOPE-01** — ✅ **2.252.2**: a leitura compartilhada roda no escopo do repositório

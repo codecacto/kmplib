@@ -3,7 +3,11 @@ package br.com.codecacto.kmplib.core.network
 import br.com.codecacto.kmplib.core.util.AppLogger
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.call.save
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.api.Send
+import io.ktor.client.plugins.api.createClientPlugin
+import io.ktor.client.plugins.isSaved
 import io.ktor.client.utils.unwrapCancellationException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -178,6 +182,17 @@ internal fun HttpClientConfig<*>.installRetry(
     delay: (suspend (Long) -> Unit)? = null,
 ) {
     if (!policy.enabled || policy.maxRetries == 0) return
+    installRetryPlugin(policy, logRetries, random, delay)
+    // DEPOIS do retry = dentro dele: o corpo é lido enquanto ainda dá para repetir.
+    install(ReadBodyInsideRetry) { methods = policy.methods }
+}
+
+private fun HttpClientConfig<*>.installRetryPlugin(
+    policy: HttpRetryPolicy,
+    logRetries: Boolean,
+    random: Random,
+    delay: (suspend (Long) -> Unit)?,
+) {
     install(HttpRequestRetry) {
         maxRetries = policy.maxRetries
         retryIf { request, response ->
@@ -206,6 +221,42 @@ internal fun HttpClientConfig<*>.installRetry(
 }
 
 internal const val RETRY_LOG_TAG: String = "HttpClient"
+
+/**
+ * Lê o corpo INTEIRO **dentro** da janela da nova tentativa (2.252.4).
+ *
+ * O `HttpRequestRetry` decide com os cabeçalhos: uma vez que o `200` chega, a chamada sai do plugin e
+ * o corpo é lido depois, no `HttpStatement` — fora do alcance da nova tentativa. Corpo cortado no
+ * meio (conexão móvel que cai, stream HTTP/2 resetado) virava `ApiResult.Error(-1, "unexpected end
+ * of stream")` com o `RESPONSE: 200` já no log — o defeito do LocAki depois de cadastrar/excluir.
+ * Provado em `RestRepositoryOkHttpTest` (OkHttp real, servidor que corta o corpo).
+ *
+ * Instalado DEPOIS do `HttpRequestRetry` (fica dentro dele): para os métodos que repetem e só quando a
+ * resposta já seria guardada em memória pelo próprio Ktor (`isSaved` — o `SaveBodyPlugin` já mantém o
+ * corpo inteiro; `prepareGet { execute { } }` e downloads em fluxo NÃO são tocados), faz o mesmo
+ * `HttpClientCall.save()` que o Ktor faria logo depois, só que antes da decisão de repetir. Uma falha
+ * de leitura vira `IOException` e entra na política normal.
+ */
+internal class ReadBodyInsideRetryConfig {
+    var methods: Set<HttpMethod> = HttpRetryPolicy.DEFAULT_METHODS
+}
+
+internal val ReadBodyInsideRetry = createClientPlugin("KmplibReadBodyInsideRetry", ::ReadBodyInsideRetryConfig) {
+    val methods = pluginConfig.methods
+    on(Send) { request ->
+        val call = proceed(request)
+        if (call.request.method !in methods || !call.response.isSaved) return@on call
+        try {
+            call.save()
+        } catch (e: IllegalStateException) {
+            // `SavedHttpCall` confere o Content-Length: corpo que fechou "limpo" mas curto é corte.
+            if (e.message?.startsWith("Content-Length mismatch") == true) {
+                throw IOException("Corpo da resposta incompleto", e)
+            }
+            throw e
+        }
+    }
+}
 
 /** Tipo + mensagem curta da falha; nada de cabeçalho nem corpo (não estão na exceção). */
 private fun Throwable.describeForLog(): String {
