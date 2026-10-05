@@ -8,8 +8,10 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -25,6 +27,7 @@ private data class Item(val id: String = "", val nome: String = "")
  * 2.252.0: o app que abre e pede a MESMA página em 2–3 ViewModels ao mesmo tempo (LocAki, out/2026)
  * faz UM GET, não três.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RestRepositoryCoalescingTest {
 
     private class Api {
@@ -120,5 +123,21 @@ class RestRepositoryCoalescingTest {
         r.list(page = 1)
         r.list(page = 1)
         assertEquals(2, api.envios)
+    }
+
+    @Test
+    fun `tela que pediu primeiro cancela a carga e quem pegou carona recebe a lista`() = runTest {
+        val api = Api()
+        val r = repo(api)
+        val loadJobDosClientes = async { r.list(page = 2) }      // ClientesViewModel (líder)
+        withContext(Dispatchers.Default) { api.entrou.await() }
+        val locacoes = async { r.list(page = 2) }                // LocacoesViewModel (carona)
+        advanceUntilIdle()
+        loadJobDosClientes.cancel()                              // `loadJob?.cancel()` + recomeçar
+        api.libera.complete(Unit)
+
+        val res = locacoes.await()
+        assertTrue(res is ApiResult.Success && res.data.data.single().nome == "Betoneira", "veio $res")
+        assertEquals(1, api.envios, "uma requisição só")
     }
 }

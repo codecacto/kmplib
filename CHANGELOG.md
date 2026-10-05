@@ -1,5 +1,33 @@
 # Changelog — kmplib
 
+## 2.252.2 — `core/data`: cancelar a carga de uma tela não derruba mais a leitura de outra que pegou carona
+
+Achado no aparelho com o LocAki. Na coalescência da 2.252.0 o primeiro chamador executava a requisição
+compartilhada **dentro da própria corrotina**. O padrão comum de ViewModel (`loadJob?.cancel()` e recomeçar)
+interrompia então a leitura de quem estava esperando por ela: o `ClientesViewModel` iniciou `GET clientes page=2`,
+o `LocacoesViewModel` pediu a mesma página (carona), o `ClientesViewModel` cancelou o `loadJob` 4 ms depois — e o
+`combine` de locações + clientes + equipamentos caiu ("Parent job is Cancelling; job=FlowCoroutine"), com a tela
+parando de carregar.
+
+Correção (`InFlightRequests`, interno):
+- a requisição compartilhada roda num **escopo próprio do `RestRepository`** (`SupervisorJob` + `Dispatchers.Default`,
+  vivo enquanto o repositório viver — nada de `GlobalScope`), via `async(start = LAZY)`;
+- **todo** chamador, inclusive o primeiro, só faz `await()`: cancelar um chamador cancela só a espera DELE;
+- a requisição só é cancelada quando o **último** interessado desiste (contagem de referências);
+- falha real chega a todos como a **exceção original**, nunca como a `CancellationException` de outra corrotina.
+
+Mantidos: a geração do cache da 2.252.1 (leitura de geração antiga não grava cache nem serve quem pediu depois da
+mutação) e o token na chave. Sem mudança de API.
+
+**Afeta** quem está na 2.252.0 ou 2.252.1 com `RestRepository`. **Ação:** subir para 2.252.2.
+
+Testes: `InFlightRequestsTest` (9 — uma execução para chamadas iguais; chaves separadas; líder cancelado e o outro
+recebe o resultado de UMA requisição; seguidor cancelado não afeta o líder; todos desistem → a requisição é
+cancelada e a chave volta a funcionar; falha `IOException` chega aos 3 com a exceção original; **`combine` de 3
+flows sobrevive ao cancelamento do líder externo**), `RestRepositoryCoalescingTest` +1 (tela que pediu primeiro
+cancela e a outra recebe a lista, 1 GET), `RestRepositoryGenerationTest` (5) seguem verdes; 5 execuções seguidas
+sem intermitência. Suíte da lib: 3.459 verdes. Compila `iosArm64` (main e test, executado).
+
 ## 2.252.1 — `core/data`: `RestRepository` não mostra mais o registro excluído/antigo depois de gravar (geração do cache)
 
 Achado no teste do LocAki no iOS: "exclui o cliente" fez `DELETE` 204, o app releu (`GET` 200 no mesmo segundo) e a

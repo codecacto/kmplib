@@ -7,6 +7,8 @@
 - [x] **GAP-NET-RETRY-01** — ✅ **2.252.0**: `HttpClientOptions.retry` (`HttpRequestRetry` oficial, só
       GET/HEAD/OPTIONS, transporte + 502/503/504, 2 tentativas, jitter, teto total = `requestTimeoutMillis`).
 - [x] **GAP-DATA-SINGLEFLIGHT-01** — ✅ **2.252.0**: `RestRepository.list`/`getById` idênticos em voo = 1 GET.
+- [x] **GAP-DATA-SINGLEFLIGHT-SCOPE-01** — ✅ **2.252.2**: a leitura compartilhada roda no escopo do repositório
+      (cancelar o primeiro chamador não derruba quem pegou carona; contagem de referências; exceção original a todos).
 - [x] **GAP-DATA-CACHE-GENERATION-01** — ✅ **2.252.1**: leitura em voo durante mutação não grava cache nem serve de
       carona (geração do cache). Era defeito antigo (cache gravado depois do `clearCache`), alargado pela 2.252.0.
 - [ ] **GAP-DATA-MUTATION-ERROR-01 (P3)** — mutação que FALHA (ex.: timeout com o servidor tendo aplicado) não

@@ -16,6 +16,9 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -52,7 +55,9 @@ import kotlin.time.TimeSource
  *
  * **Leituras idênticas simultâneas viram uma requisição só** (2.252.0): `list` com os mesmos
  * filtros/página e `getById` com o mesmo id, pedidos enquanto o primeiro ainda está em voo, esperam
- * por ele e recebem o mesmo resultado. Mutação nunca é coalescida.
+ * por ele e recebem o mesmo resultado. Mutação nunca é coalescida. A leitura compartilhada roda num
+ * escopo do repositório (2.252.2): cancelar quem pediu primeiro não interrompe quem pegou carona, e
+ * ela só é cancelada quando o último interessado desiste.
  *
  * @param config Configuração compartilhada do backend (cliente, baseUrl, token, 401, cache TTL).
  * @param pathPrefix Caminho do recurso APÓS a baseUrl, COM barra inicial e SEM barra final
@@ -133,8 +138,16 @@ class RestRepository<T, ID>(
      */
     private data class InFlightKey(val token: String?, val generation: Long, val request: String)
 
-    private val listInFlight = InFlightRequests<InFlightKey, ApiResult<PaginatedResponse<T>>>()
-    private val byIdInFlight = InFlightRequests<InFlightKey, ApiResult<T>>()
+    /**
+     * Onde a leitura COMPARTILHADA roda (2.252.2): escopo próprio do repositório, não a corrotina de
+     * quem pediu — cancelar a carga de uma tela cancela só a espera dela, nunca a de outra tela que
+     * pegou carona. `SupervisorJob`: a falha de uma leitura não derruba as outras. Vive o tempo do
+     * repositório (singleton no Koin), como o próprio `HttpClient`.
+     */
+    private val inFlightScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private val listInFlight = InFlightRequests<InFlightKey, ApiResult<PaginatedResponse<T>>>(inFlightScope)
+    private val byIdInFlight = InFlightRequests<InFlightKey, ApiResult<T>>(inFlightScope)
 
     private fun <V> CacheEntry<V>?.takeFresh(): V? {
         val entry = this ?: return null
