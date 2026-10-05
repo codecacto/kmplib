@@ -17,7 +17,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -142,9 +141,12 @@ class RestRepository<T, ID>(
      * Onde a leitura COMPARTILHADA roda (2.252.2): escopo próprio do repositório, não a corrotina de
      * quem pediu — cancelar a carga de uma tela cancela só a espera dela, nunca a de outra tela que
      * pegou carona. `SupervisorJob`: a falha de uma leitura não derruba as outras. Vive o tempo do
-     * repositório (singleton no Koin), como o próprio `HttpClient`.
+     * repositório (singleton no Koin), como o próprio `HttpClient`. O dispatcher é
+     * [RestConfig.requestDispatcher] (2.252.3) — injetável, para o teste passar o do `runTest`. Uma
+     * falha aqui fica guardada no `Deferred` do `async` e só chega a quem faz `await()`; nunca vai ao
+     * tratador de exceções não tratadas, nem quando ninguém mais espera por ela.
      */
-    private val inFlightScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val inFlightScope = CoroutineScope(SupervisorJob() + config.requestDispatcher)
 
     private val listInFlight = InFlightRequests<InFlightKey, ApiResult<PaginatedResponse<T>>>(inFlightScope)
     private val byIdInFlight = InFlightRequests<InFlightKey, ApiResult<T>>(inFlightScope)

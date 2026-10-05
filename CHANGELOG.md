@@ -1,5 +1,25 @@
 # Changelog — kmplib
 
+## 2.252.3 — `core/data`: `RestConfig.requestDispatcher` — o dispatcher das leituras compartilhadas é injetável (testabilidade)
+
+A 2.252.2 passou a rodar a leitura coalescida do `RestRepository` num escopo próprio fixado em `Dispatchers.Default`.
+Em teste de CONSUMIDOR isso quebrou (LocAki, 4 de 670): a requisição corria fora do agendador do `runTest`, o
+`advanceUntilIdle()` não a via e as asserções rodavam antes da resposta; e uma resposta que chegava depois do fim do
+teste retomava o ViewModel com o `Main` já resetado, vazando como `UncaughtExceptionsBeforeTest` no teste seguinte.
+
+- **`RestConfig(…, requestDispatcher: CoroutineDispatcher = Dispatchers.Default)`** — onde rodam as leituras
+  compartilhadas. Produção não muda nada. **Em teste, passe o dispatcher do `runTest`**
+  (`StandardTestDispatcher(testScheduler)`/`UnconfinedTestDispatcher(testScheduler)`) — o mesmo que o
+  `MockEngine.create { dispatcher = … }` já precisava receber.
+- Nenhuma falha de leitura compartilhada vai ao tratador de exceções não tratadas: ela fica no `Deferred` do `async`
+  (filho de `SupervisorJob`) e só chega a quem faz `await()` — inclusive quando todos desistiram e a leitura falha
+  ao ser cancelada (coberto em teste).
+
+Aditivo (parâmetro com default no fim do construtor). Testes: `RestRepositoryDispatcherTest` (5 — default;
+`StandardTestDispatcher` injetado + `advanceUntilIdle` vê a resposta e o fluxo excluir→reler; `UnconfinedTestDispatcher`;
+falha depois de todos desistirem não vira exceção não tratada; falha com chamador chega só a ele). Suíte da lib:
+3.464 verdes. Compila `iosArm64` (main e test, executado).
+
 ## 2.252.2 — `core/data`: cancelar a carga de uma tela não derruba mais a leitura de outra que pegou carona
 
 Achado no aparelho com o LocAki. Na coalescência da 2.252.0 o primeiro chamador executava a requisição

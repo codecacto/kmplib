@@ -1,6 +1,8 @@
 package br.com.codecacto.kmplib.core.data
 
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 
 /**
  * Configuração compartilhada por todos os [RestRepository] de um app que falam com o **mesmo**
@@ -26,6 +28,12 @@ import io.ktor.client.HttpClient
  * @param cacheTtlMillis TTL do cache curto em memória das leituras (`getById`/`list`), em ms. Use
  *  `0` para desabilitar. NUNCA é cache offline persistente — apenas evita refazer a mesma chamada
  *  em navegações rápidas, e nunca cacheia erros.
+ * @param requestDispatcher Onde rodam as leituras COMPARTILHADAS do [RestRepository] (2.252.3) — a
+ *  requisição coalescida roda num escopo do repositório, não na corrotina de quem pediu. Default
+ *  `Dispatchers.Default`. **Em teste, passe o dispatcher do `runTest`**
+ *  (`StandardTestDispatcher(testScheduler)` ou `UnconfinedTestDispatcher(testScheduler)`): sem ele a
+ *  requisição corre fora do agendador do teste, o `advanceUntilIdle()` não a vê e a resposta pode
+ *  chegar depois das asserções — ou depois do fim do teste.
  */
 class RestConfig(
     val httpClient: HttpClient,
@@ -34,6 +42,7 @@ class RestConfig(
     val tokenProvider: (suspend () -> String?)? = null,
     val onUnauthorized: (suspend () -> Unit)? = null,
     val cacheTtlMillis: Long = DEFAULT_CACHE_TTL_MILLIS,
+    val requestDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     /** Base já normalizada (sem barra final). */
     val baseUrl: String = baseUrl.trimEnd('/')
