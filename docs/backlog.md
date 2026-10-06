@@ -153,6 +153,11 @@
       ids `DialogTestTags` (`dialogo`, `dialogo-titulo`, `dialogo-mensagem`, `dialogo-input`, `dialogo-btn-confirmar`,
       `dialogo-btn-cancelar`, `dialogo-btn-fechar`, `dialogo-folha`, `dialogo-menu`) e um teste que VARRE a lib e
       reprova janela nova sem a flag.
+- [x] **GAP-UI-QA-03 (P1) — janela do Material3 chamada DIRETO pelo app** (Prospecta, Meu Fisio, LocAki — 06/out):
+      ✅ **2.257.0** — invólucros `AppAlertDialog`/`AppBasicAlertDialog`/`AppDialog`/`AppDatePickerDialog`/
+      `AppModalBottomSheet`/`AppDropdownMenu`/`AppExposedDropdownMenu`/`AppPopup`, mesma API, travados contra o
+      bytecode do Material3 (`AppMaterialWindowsTest`). Migração dos apps: lote a lote (lista no handoff de 06/out).
+      Sem invólucro: `TimePickerDialog`, `TooltipBox` (nenhum app usa).
 - [x] **GAP-MON-IDENT-01 (P2) — amarrar a identidade da loja à sessão** (`monetization`): a cola "identify no login,
       resetIdentity no logout" estava escrita à mão em 5 apps (Backhand `IdentidadeNaLoja`, Acervo `BillingIdentity`,
       TaFeito, PalpiteCerto, Meu Fisio), nos repasses da 3ª leva (ChecklistVeicular, ControleDeValidade) e na casca.

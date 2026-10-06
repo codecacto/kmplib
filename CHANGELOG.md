@@ -1,5 +1,36 @@
 # Changelog — kmplib
 
+## 2.257.0 — `ui`: invólucros das janelas do Material3 que o Maestro enxerga
+
+**Por quê.** Teste do agente (06/out/2026, docs/42): no Android, `AlertDialog`, `DropdownMenu`,
+`ExposedDropdownMenu`, `ModalBottomSheet`, `DatePickerDialog`, `Dialog` e `Popup` abrem OUTRA janela, que não herda
+o `testTagsAsResourceId` ligado na raiz (`AppTheme`/`WithTestTagsAsResourceId`) — os ids das opções e dos botões
+saem com `resource-id=""` e o flow reprova sem defeito de UX (Prospecta: opções da categoria; Meu Fisio: menu ⋮ e
+diálogo de excluir; LocAki já tinha escrito um `LocakiAlertDialog` só para isso). Os componentes da lib já se
+expunham desde a 2.234.0 (`DialogTestTags`); faltava o caminho para o app que chama o Material3 direto.
+
+**Novo (aditivo, `br.com.codecacto.kmplib.ui.components`, arquivo `AppMaterialWindows.kt`):** mesma assinatura do
+original (nomes, ordem e defaults), só acrescentam `Modifier.exposeTestTagsAsResourceId()` no nó-raiz da janela —
+migrar é trocar o nome:
+- `AppAlertDialog(onDismissRequest, confirmButton, …)` — sobrecarga do `AppAlertDialog(show, …)` pronto.
+- `AppBasicAlertDialog(…)` (`@ExperimentalMaterial3Api`, como o original).
+- `AppDialog(onDismissRequest, properties) { }` — sobrecarga do `AppDialog(show, …)`; conteúdo num
+  `Box(propagateMinConstraints = true)` (o `Dialog` não tem `modifier`).
+- `AppDatePickerDialog(onDismissRequest, confirmButton, …) { }` — sobrecarga do seletor pronto; experimental.
+- `AppModalBottomSheet(…)` (experimental), `AppDropdownMenu(…)`, `ExposedDropdownMenuBoxScope.AppExposedDropdownMenu(…)`
+  (experimental), `AppPopup(…)` (as duas sobrecargas do `Popup`).
+
+Nenhum id é acrescentado (o `testTag` é do app) e nada mais muda — teclado, insets, cores. No iOS delegam ao original
+(lá a `testTag` já vira `accessibilityIdentifier`).
+
+**Auditoria das janelas da lib:** todas as 23 chamadas de janela própria nos módulos (`ui`, `platform`, `central`,
+`media`, `video`, `ads`) já religavam a flag; o `ExposeTestTagsAsResourceIdTest` continua reprovando janela nova sem ela.
+
+**Teste:** `AppMaterialWindowsTest` (8) — a lista de parâmetros de cada invólucro é comparada com a do Material3
+lida do PRÓPRIO bytecode em uso (source information `C(X)N(…)` do compilador do Compose), então um bump do Material3
+que acrescente parâmetro reprova aqui; e todo invólucro chama o original e religa a flag. Compilado Android +
+`compileKotlinIosArm64`/`compileTestKotlinIosArm64` (executados, não SKIPPED). **Não é crítico** (aditivo) → sem aviso.
+
 ## 2.256.0 — `ui`: `FullScreenImageViewer` com botão de BAIXAR (opcional)
 
 **Por quê.** LocaSys (06/out/2026): a listagem de produtos mostra a foto pequena, o toque amplia e dali tem de

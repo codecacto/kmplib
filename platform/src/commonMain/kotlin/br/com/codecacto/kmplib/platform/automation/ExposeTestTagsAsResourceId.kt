@@ -15,8 +15,11 @@ import androidx.compose.ui.Modifier
  * dentro dele (teste do Mac, Palpite Certo, 02/out/2026 — o "digite EXCLUIR" da exclusão de conta
  * ficou inalcançável).
  *
- * Todos os diálogos, folhas e menus da kmplib já aplicam isto. **App que abre a própria janela**
- * (um `Dialog {}` ou `ModalBottomSheet {}` escrito na tela) aplica no `modifier` do nó-raiz dela:
+ * Todos os diálogos, folhas e menus da kmplib já aplicam isto. **App que chama a janela do
+ * Material3 direto** troca pelo invólucro do `kmplib-ui` (2.257.0), de mesma API — `AppAlertDialog`,
+ * `AppBasicAlertDialog`, `AppDialog`, `AppDatePickerDialog`, `AppModalBottomSheet`, `AppDropdownMenu`,
+ * `AppExposedDropdownMenu`, `AppPopup` (`br.com.codecacto.kmplib.ui.components`). Só quem não depende
+ * do `kmplib-ui`, ou usa uma janela sem invólucro, aplica este modificador no nó-raiz dela:
  * ```kotlin
  * ModalBottomSheet(onDismissRequest = …, modifier = Modifier.exposeTestTagsAsResourceId()) { … }
  * Dialog(onDismissRequest = …) { Surface(Modifier.exposeTestTagsAsResourceId()) { … } }
