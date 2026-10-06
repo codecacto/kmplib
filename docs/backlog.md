@@ -3,6 +3,10 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 06/out/2026 — rótulo da barra de abas cortado (Meu Estacionamento, iPhone 17 Pro)
+- [x] **GAP-UI-BOTTOMNAV-LABEL-01** — ✅ **2.255.0**: `AppBottomNavBar` mede o rótulo (`TextMeasurer`) e reduz a
+      fonte até 10 sp antes de usar reticência; insets laterais com `displayCutout`. "Configurações" em 4 abas.
+
 ### Registrado em 06/out/2026 — banner que acompanha a lista (Piadaria, Favoritas vazias)
 - [x] **GAP-ADS-LIST-01** — ✅ **2.254.0**: `ListFooterBannerAd` + `EmptyStateWithBannerAd` + `listAdStateOf` —
       lista vazia = banner grande (quadrado/3:1 pela altura medida) no estado vazio; com itens = `STANDARD` no

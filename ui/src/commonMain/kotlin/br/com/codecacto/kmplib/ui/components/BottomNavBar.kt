@@ -2,24 +2,37 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -135,6 +148,56 @@ object BottomNavDefaults {
 
     /** Opacidade do CONTÊINER desabilitado (Material 3 disabled container). */
     const val DisabledContainerAlpha: Float = 0.12f
+
+    /**
+     * Piso legível do rótulo (2.255.0). O rótulo nasce no `labelMedium` do tema (12sp) e, se não
+     * couber numa linha na largura do item, a fonte desce até aqui — só abaixo dele entra a
+     * reticência. 10sp é o menor tamanho da escala tipográfica usado em rótulo curto de navegação
+     * (o `labelSmall` do M3 é 11sp; o badge desta barra já usa 10sp). Ver [bottomNavLabelFit].
+     */
+    val LabelMinFontSize: TextUnit = 10.sp
+
+    /** Passo de redução da fonte do rótulo. Meio sp: a descida é imperceptível entre abas. */
+    val LabelFontStep: TextUnit = 0.5.sp
+
+    /** Fonte de partida quando o tema não especifica tamanho no `LocalTextStyle` (= `labelMedium`). */
+    val LabelMaxFontSizeFallback: TextUnit = 12.sp
+
+    /**
+     * Insets padrão da barra: os do Material (`systemBars` na horizontal e embaixo) **somados ao
+     * recorte do display na horizontal** — em paisagem, a Dynamic Island / o notch ficam na lateral
+     * e o primeiro/último item não pode nascer embaixo dele.
+     */
+    val windowInsets: WindowInsets
+        @Composable get() = NavigationBarDefaults.windowInsets
+            .union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+}
+
+/**
+ * Resultado da medição do rótulo de um item da [AppBottomNavBar]: o tamanho de fonte escolhido e se,
+ * mesmo no piso, o rótulo ainda não cabe (só então a reticência aparece).
+ */
+data class BottomNavLabelFit(val fontSizeSp: Float, val ellipsized: Boolean)
+
+/**
+ * Escolhe a fonte do rótulo da barra (2.255.0) — função pura, a régua do componente:
+ *
+ * - cabe em UMA linha em [maxSp] → fica em [maxSp];
+ * - não cabe → desce de [stepSp] em [stepSp] até o maior tamanho em que cabe;
+ * - não cabe nem em [minSp] → fica em [minSp] e [BottomNavLabelFit.ellipsized] = `true`.
+ *
+ * [fits] responde se o rótulo, numa linha só e sem quebra, cabe na largura do item naquele tamanho.
+ * Rótulo nunca quebra linha nem parte palavra: ou cabe, ou encolhe, ou (abaixo do piso) reticência.
+ */
+fun bottomNavLabelFit(maxSp: Float, minSp: Float, stepSp: Float, fits: (Float) -> Boolean): BottomNavLabelFit {
+    require(stepSp > 0f) { "stepSp precisa ser positivo" }
+    if (maxSp <= minSp) return BottomNavLabelFit(minSp, !fits(minSp))
+    var size = maxSp
+    while (size > minSp) {
+        if (fits(size)) return BottomNavLabelFit(size, false)
+        size -= stepSp
+    }
+    return BottomNavLabelFit(minSp, !fits(minSp))
 }
 
 /**
@@ -215,6 +278,10 @@ internal fun resolveEmphasisContentColor(
  * @param disabledContentColor Cor do conteúdo de item desabilitado
  * @param emphasisContainerColor Cor de fundo padrão da pill de realce (tema)
  * @param emphasisContentColor Cor do ícone padrão dentro da pill de realce (tema)
+ * @param windowInsets Insets da barra. Padrão [BottomNavDefaults.windowInsets] (barras do sistema +
+ *   recorte do display nas laterais — Dynamic Island/notch em paisagem)
+ * @param labelMinFontSize Piso da fonte do rótulo. Rótulo que não cabe numa linha na largura do item
+ *   encolhe até aqui; só abaixo dele usa reticência. Padrão [BottomNavDefaults.LabelMinFontSize]
  */
 @Composable
 fun AppBottomNavBar(
@@ -229,13 +296,18 @@ fun AppBottomNavBar(
     tonalElevation: Dp = 3.dp,
     disabledContentColor: Color = contentColor.copy(alpha = BottomNavDefaults.DisabledContentAlpha),
     emphasisContainerColor: Color = MaterialTheme.colorScheme.primaryContainer,
-    emphasisContentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+    emphasisContentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    windowInsets: WindowInsets = BottomNavDefaults.windowInsets,
+    labelMinFontSize: TextUnit = BottomNavDefaults.LabelMinFontSize
 ) {
+    // Cada item ocupa a MESMA fração da largura: o `NavigationBar` dá `weight(1f)` a cada
+    // `NavigationBarItem` (não use item de largura própria aqui).
     NavigationBar(
         modifier = modifier,
         containerColor = containerColor,
         contentColor = contentColor,
-        tonalElevation = tonalElevation
+        tonalElevation = tonalElevation,
+        windowInsets = windowInsets
     ) {
         items.forEach { item ->
             val state = bottomNavItemState(item, selectedRoute)
@@ -250,18 +322,7 @@ fun AppBottomNavBar(
                         emphasisContentColor = emphasisContentColor
                     )
                 },
-                label = {
-                    // UMA linha, sempre (2.213.0). Sem o limite, um rótulo de duas palavras ("Minha
-                    // avaliação") quebrava num aparelho de 360dp e só aquele item ficava mais alto —
-                    // ícone e texto desalinhados do resto da barra. O Material pede rótulo curto e
-                    // numa linha; a reticência é a rede de segurança, não o layout esperado.
-                    Text(
-                        text = item.label,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
+                label = { BottomNavLabel(text = item.label, minFontSize = labelMinFontSize) },
                 selected = state == BottomNavItemState.Selected,
                 enabled = item.enabled,
                 onClick = { onItemClick(item) },
@@ -280,6 +341,53 @@ fun AppBottomNavBar(
                 )
             )
         }
+    }
+}
+
+/**
+ * Rótulo do item: UMA linha, sempre (2.213.0), e **nunca cortado** (2.255.0).
+ *
+ * Sem o limite de linha, "Minha avaliação" quebrava num aparelho de 360dp e só aquele item ficava
+ * mais alto. Só com o limite, "Configurações" — numa barra de 4 abas do iPhone 17 Pro (Meu
+ * Estacionamento, 06/out/2026) — encostava na borda direita do item e saía cortado. Por isso a fonte
+ * é escolhida medindo o rótulo com o `TextMeasurer` no estilo real, na largura que o item recebe
+ * ([bottomNavLabelFit]): cabe → tamanho do tema; não cabe → reduz até [minFontSize]; abaixo do piso
+ * → reticência. A altura da linha é a do tema, então a barra não muda de altura com a fonte menor.
+ */
+@Composable
+private fun BottomNavLabel(text: String, minFontSize: TextUnit) {
+    val style = LocalTextStyle.current
+    val measurer = rememberTextMeasurer()
+    val maxSp = if (style.fontSize.isSpecified) style.fontSize.value else BottomNavDefaults.LabelMaxFontSizeFallback.value
+    BoxWithConstraints(contentAlignment = Alignment.Center) {
+        val maxWidthPx = constraints.maxWidth
+        val bounded = constraints.hasBoundedWidth
+        val fit = remember(text, maxWidthPx, bounded, style, minFontSize, maxSp) {
+            if (!bounded) {
+                BottomNavLabelFit(maxSp, false)
+            } else {
+                bottomNavLabelFit(
+                    maxSp = maxSp,
+                    minSp = minFontSize.value,
+                    stepSp = BottomNavDefaults.LabelFontStep.value,
+                ) { sp ->
+                    measurer.measure(
+                        text = text,
+                        style = style.copy(fontSize = sp.sp),
+                        maxLines = 1,
+                        softWrap = false,
+                        constraints = Constraints(),
+                    ).size.width <= maxWidthPx
+                }
+            }
+        }
+        Text(
+            text = text,
+            style = style.copy(fontSize = fit.fontSizeSp.sp),
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

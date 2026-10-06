@@ -1,5 +1,27 @@
 # Changelog — kmplib
 
+## 2.255.0 — `ui`: rótulo da `AppBottomNavBar` nunca é cortado (fonte reduz até o piso) + insets laterais
+
+**Por quê.** Print do teste do Meu Estacionamento no iPhone 17 Pro (06/out/2026): com 4 abas "Pátio · Mensalistas ·
+Relatórios · Configurações", o rótulo "Configurações" encostava na borda direita do item e saía cortado (no
+Android coube por pouco). O `maxLines = 1` + reticência da 2.213.0 só segurava a linha; não garantia o rótulo inteiro.
+
+**Mudou (sem quebra de API):**
+- O rótulo de cada item é **medido com o `TextMeasurer`** no estilo do tema (`labelMedium`, 12 sp) na largura que
+  o item recebe. Cabe numa linha → fica igual. Não cabe → a fonte **reduz de 0,5 em 0,5 sp** até caber, com
+  piso de **10 sp**; só abaixo do piso entra a reticência. Nunca quebra linha nem parte palavra. A altura de
+  linha é a do tema — a barra não muda de altura. Cada item continua com a mesma fração da largura (`weight(1f)`
+  do `NavigationBar`).
+- **Insets:** default novo `BottomNavDefaults.windowInsets` = insets do Material (`systemBars` horizontal +
+  embaixo) **∪ `displayCutout` horizontal** — em paisagem a Dynamic Island/notch não cobre o 1º/último item.
+
+**Novo (aditivo):** `AppBottomNavBar(…, windowInsets, labelMinFontSize)`; `BottomNavDefaults.LabelMinFontSize`
+(10 sp), `LabelFontStep` (0,5 sp), `LabelMaxFontSizeFallback`, `windowInsets`; função pura
+`bottomNavLabelFit(maxSp, minSp, stepSp, fits): BottomNavLabelFit(fontSizeSp, ellipsized)`.
+
+**Teste:** `BottomNavLabelFitTest` (7). Compilado Android + `compileKotlinIosArm64`/`compileTestKotlinIosArm64`
+(executados, não SKIPPED). **Não é crítico** (não para nada; visual) → sem aviso.
+
 ## 2.254.0 — `ads`: banner que acompanha o conteúdo da lista · `ui`: `CommunicationTile` não parte palavra
 
 **Por quê.** Pedido do fundador (06/out/2026, Favoritas do Piadaria): com a lista vazia sobra quase a tela inteira
