@@ -79,7 +79,7 @@ class StoreIdentityBinderTest {
     // ------------------------------------------------------------------ segue a sessão
 
     @Test
-    fun `sessao inteira - abre deslogado, entra, reemite, sai, entra outra`() = runTest {
+    fun `sessao inteira - abre deslogado - entra - reemite - sai - entra outra`() = runTest {
         val store = RecordingStore()
         val binder = StoreIdentityBinder(store)
         binder.bind(flowOf(null, "u1", "u1", null, "u2"), alerts)
@@ -182,7 +182,7 @@ class StoreIdentityBinderTest {
     }
 
     @Test
-    fun `sem rede a porta recusa sem alertar — e o usuario, nao a loja`() = runTest {
+    fun `sem rede a porta recusa sem alertar — e o usuario e nao a loja`() = runTest {
         val store = RecordingStore()
         val binder = StoreIdentityBinder(store)
         binder.bind(flowOf("u1"), alerts)

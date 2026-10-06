@@ -254,7 +254,8 @@ Mudanças importantes:
 
 Projetos consumidores adicionam via SPM — com o guarda-chuva, **todos** (o cinterop da lib exige no
 link, mesmo sem usar): `Sentry` (versão exata), `FirebaseAuth`, `FirebaseStorage`,
-`FirebaseRemoteConfig`, **`FirebaseMessaging`** (KMPNotifier), `RevenueCat`, `PurchasesHybridCommon`;
+`FirebaseRemoteConfig`, **`FirebaseMessaging`** (KMPNotifier) — **sem** `RevenueCat`/`PurchasesHybridCommon`
+desde a 2.253.0 (purchases-kmp 3.x traz o SDK no klib; declarar os dois = RevenueCat duplicado);
 `GoogleSignIn` só com login Google nativo. Tabela, URLs e o mapa símbolo → produto do *Undefined
 symbols*: `IOS_INTEGRATION.md` (revisado na 2.233.0).
 
@@ -270,7 +271,7 @@ Projeto consumidor não está usando `api()` + `export()`.
 
 ### "Undefined symbols for architecture arm64"
 Falta produto SPM no target — o símbolo diz qual (`FIRMessaging` → `FirebaseMessaging`, `RC…` →
-`RevenueCat`/`PurchasesHybridCommon`, `Sentry…` → `Sentry`). Tabela em `IOS_INTEGRATION.md`.
+`Sentry…` → `Sentry`; `RC…` = kmplib < 2.253.0 no build). Tabela em `IOS_INTEGRATION.md`.
 
 ### "cannot convert KotlinUnit to Void"
 Usar `_ = callback(...)` no Swift.

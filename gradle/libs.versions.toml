@@ -39,14 +39,13 @@ koin = "4.1.1"
 navigation = "2.9.1"
 
 # RevenueCat
-# O sufixo depois do `+` é a versão do PurchasesHybridCommon contra a qual o binding cinterop do iOS foi
-# gerado (core.podspec do purchases-kmp). Ao subir este número, suba NA MESMA RODADA o SPM da casca-mobile:
-# `purchases-hybrid-common` exato = o sufixo, `purchases-ios-spm` exato = o `exact:` do Package.swift do
-# hybrid-common nessa tag (17.23.0 → 5.50.0) — e reaplique nos apps (Nexus/fabrica/spm_ios.py, que lê
-# este arquivo e recusa a casca desalinhada). Detalhe: IOS_INTEGRATION.md §"Versão do RevenueCat no iOS".
-revenuecatKmp = "2.2.13+17.23.0"
-# NÃO é dependência Gradle: a versão do pacote SPM `purchases-ios-spm` que o hybrid-common acima fixa.
-revenuecatIosSpm = "5.50.0"
+# purchases-kmp 3.x (2.253.0): o SDK do iOS vem DENTRO do klib (cinterop `kn-core-…-RevenueCat`, com a
+# biblioteca estática). O app NÃO declara mais os produtos SPM `PurchasesHybridCommon` nem `RevenueCat` —
+# manter os dois liga o RevenueCat duas vezes e o app trava na abertura (purchases-kmp#882). Não há mais
+# versão de pacote SPM amarrada a este número (antes: sufixo `+17.23.0` e `revenuecatIosSpm`); o
+# `Nexus/fabrica/spm_ios.py` lê o MAJOR daqui para saber se remove ou cobra os dois produtos.
+# Por que a 3.x: a 2.x não linka com Kotlin 2.3.20 (`_kniprot_…_RCPurchasesDelegate`, purchases-kmp#759).
+revenuecatKmp = "3.11.0"
 
 # Compose
 composeMultiplatform = "1.10.0"

@@ -77,59 +77,46 @@ docs/42 do monorepo).
 |---|---|---|---|---|
 | Sentry Cocoa | `https://github.com/getsentry/sentry-cocoa` | `Sentry` | `kmplib-observability` (todo app) | **Versão EXATA: 8.58.2** — a do binding cinterop do `sentry-kotlin-multiplatform` 0.27.0 da kmplib (`sentryCocoa` no `libs.versions.toml`). Com 8.49.1 (o par da 0.13.0, até a kmplib 2.241.x) o link para em `_OBJC_CLASS_$_SentrySDKInternal` |
 | Firebase iOS SDK | `https://github.com/firebase/firebase-ios-sdk` (11.x) | `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, **`FirebaseMessaging`** | GitLive (`kmplib-firebase`) e KMPNotifier (`kmplib-push`) — ambos no guarda-chuva | **Mesmo em app own-auth e sem push.** O `FirebaseCore` entra junto como dependência desses produtos — não precisa ser adicionado à parte |
-| RevenueCat | `https://github.com/RevenueCat/purchases-ios-spm` | `RevenueCat` | `kmplib-monetization` (no guarda-chuva) | Todo app que declara o guarda-chuva ou a monetização — mesmo sem vender. **Versão EXATA: 5.50.0** — a que o `Package.swift` do PurchasesHybridCommon 17.23.0 fixa (`exact: "5.50.0"`) |
-| Purchases Hybrid Common | `https://github.com/RevenueCat/purchases-hybrid-common` | `PurchasesHybridCommon` | `purchases-kmp` (cinterop) | **Versão EXATA: 17.23.0** — o sufixo depois do `+` no `revenuecatKmp` da kmplib (`2.2.13+17.23.0`). Sem ele, *undefined symbols* `_OBJC_CLASS_$_RCCommonFunctionality`; **na versão errada o link passa** e a diferença aparece em runtime (ver abaixo) |
+| ~~RevenueCat~~ / ~~Purchases Hybrid Common~~ | — | **NENHUM — e é proibido declarar** | `kmplib-monetization` (no guarda-chuva) | **Desde a kmplib 2.253.0 (purchases-kmp 3.x) o SDK do RevenueCat vem DENTRO do klib.** Os produtos SPM `PurchasesHybridCommon` e `RevenueCat` saem do alvo do app: mantê-los liga o RevenueCat duas vezes e o app trava na abertura (purchases-kmp#882). Ver §"RevenueCat no iOS" |
 | Google Maps iOS SDK | `https://github.com/googlemaps/ios-maps-sdk` | `GoogleMaps` | Só quem usa o mapa Google (o `NativeMap` usa MapKit e não precisa) | **SPM — o pod foi descontinuado no Q2/2026** |
 | Google Sign-In | `https://github.com/google/GoogleSignIn-iOS` | `GoogleSignIn` | Só login Google NATIVO | Login pelo backend (BFF) não precisa |
 
 O que a `casca-mobile` já traz no `iosApp.xcodeproj` (e é o molde): Sentry (8.58.2 exato), Firebase
-(`FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`), `RevenueCat`
-(5.50.0 exato), `PurchasesHybridCommon` (17.23.0 exato) e `GoogleSignIn`.
+(`FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`) e `GoogleSignIn`.
+**Sem RevenueCat e sem PurchasesHybridCommon** desde a 2.253.0.
 
-#### SDK nativo em versão amarrada — a kmplib é a dona do número (02/out/2026)
+#### SDK nativo em versão amarrada — a kmplib é a dona do número
 
-Três pacotes SPM têm versão **exata**, e quem decide é a kmplib (`gradle/libs.versions.toml`), não o app:
+Um pacote SPM tem versão **exata**, e quem decide é a kmplib (`gradle/libs.versions.toml`), não o app:
 
 | Pacote SPM | Versão | De onde sai (na kmplib) |
 |---|---|---|
 | `sentry-cocoa` | **8.58.2** | `sentryCocoa` — o `sentryCocoaVersion` do `sentry-kotlin-multiplatform` 0.27.0 (`sentry`) |
-| `purchases-hybrid-common` | **17.23.0** | o sufixo depois do `+` em `revenuecatKmp` |
-| `purchases-ios-spm` | **5.50.0** | `revenuecatIosSpm` — o `exact:` do `Package.swift` do hybrid-common |
 
-`Nexus/fabrica/spm_ios.py` lê essas linhas, recusa a casca se ela divergir e iguala os apps à casca
-(pbxproj + `Package.resolved`); o auditor de loja cobra a versão. Quem sobe `sentry` ou `revenuecatKmp`
-sobe a linha nativa correspondente, a casca e reaplica nos apps — na mesma rodada, porque o app que
-compila a kmplib pelo `includeBuild` pega o binding novo na hora.
+`Nexus/fabrica/spm_ios.py` lê essa linha, recusa a casca se ela divergir e iguala os apps à casca
+(pbxproj + `Package.resolved`); o auditor de loja cobra a versão.
 
-#### Versão do RevenueCat no iOS — amarrada ao `purchases-kmp` (02/out/2026)
+#### RevenueCat no iOS — o SDK vem no klib (2.253.0, purchases-kmp 3.x)
 
-O binding cinterop do `purchases-kmp` é gerado contra **uma** versão do PurchasesHybridCommon, e é a
-que vem escrita na própria versão da biblioteca, depois do `+`:
+**MIGRAÇÃO OBRIGATÓRIA ao subir para a 2.253.0** (e, como todo app compila a kmplib pela FONTE via
+`includeBuild`, no primeiro build iOS depois que ela estiver na `main`):
 
-| Onde | O que diz |
-|---|---|
-| `gradle/libs.versions.toml` da kmplib | `revenuecatKmp = "2.2.13+17.23.0"` |
-| `core/core.podspec` do purchases-kmp nessa tag | `spec.dependency 'PurchasesHybridCommon', '17.23.0'` |
-| `Package.swift` do purchases-hybrid-common 17.23.0 | `.package(url: ".../purchases-ios-spm", exact: "5.50.0")` |
+1. Tirar do alvo do app os produtos SPM **`PurchasesHybridCommon`** e **`RevenueCat`** e os pacotes
+   `purchases-hybrid-common` / `purchases-ios-spm` do projeto (e os pins do `Package.resolved`):
+   ```bash
+   python3 Nexus/fabrica/spm_ios.py <mobile>          # remove os dois e valida o pbxproj por parse
+   python3 Nexus/fabrica/spm_ios.py --check <mobile>  # exit 1 se algum dos dois ainda estiver lá
+   ```
+2. Nada no Kotlin do app muda (a API da kmplib é a mesma).
 
-Logo, no `project.pbxproj`: **`purchases-hybrid-common` = `exactVersion 17.23.0`** e
-**`purchases-ios-spm` = `exactVersion 5.50.0`**. Faixa (`upToNextMajorVersion`) não serve: a casca
-pedia "14.x / 5.x", o Xcode resolvia **14.3.0 + 5.32.0** e 115 apps linkavam um SDK nativo três majors
-atrás do binding. **O link passa** — os símbolos de classe existem nas duas —, e o que muda entre
-majors (seletores, assinaturas, chaves dos dicionários que o hybrid-common devolve) só aparece na
-hora de configurar a loja, ler oferta ou comprar.
+**Por quê:** a purchases-kmp 3.x embute o SDK nativo (cinterop `kn-core-…-RevenueCat`, com a biblioteca
+estática). Os dois produtos SPM no alvo = **RevenueCat ligado duas vezes**: o build passa e o app trava
+na abertura em `Purchases.configure` (purchases-kmp#882). E a 2.x não tinha conserto: com Kotlin 2.3.20
+o link parava em `_kniprot_…_RCPurchasesDelegate` (purchases-kmp#759), desde que a 2.250.0 passou a
+registrar o listener de `CustomerInfo`.
 
-**Quem sobe o `purchases-kmp` na kmplib sobe os dois números na casca na mesma rodada** (o segundo
-sai do `Package.swift` do hybrid-common na tag nova) e reaplica nos apps:
-
-```bash
-python3 Nexus/fabrica/spm_ios.py --check <mobile>   # diz o que diverge (exit 1)
-python3 Nexus/fabrica/spm_ios.py <mobile>           # iguala o requirement e os pins do Package.resolved à casca
-```
-
-O `spm_ios.py` recusa a própria casca como molde se o hybrid-common dela não for exatamente o sufixo
-do `revenuecatKmp`, e o auditor de prontidão de loja (`auditar-prontidao-loja.py`) cobra a **versão**,
-não só a presença do produto.
+**Kotlin do app:** a purchases-kmp 3.11.0 é compilada com Kotlin **2.3.20** (a casca já está nele). App
+ainda em 2.3.0 deve subir junto.
 
 > **Linkar ≠ configurar.** É a distinção que importa: o app **linka** o Firebase (obrigatório, acima),
 > mas só precisa de **`GoogleService-Info.plist` + `FirebaseApp.configure()`** se REALMENTE usar
@@ -530,14 +517,13 @@ o encontra. O símbolo diz qual:
 | `_OBJC_CLASS_$_FIRRemoteConfig`… | `FirebaseRemoteConfig` |
 | `_OBJC_CLASS_$_FIRApp`, `FIROptions` | qualquer um dos produtos Firebase acima (o `FirebaseCore` vem com eles) |
 | `_OBJC_CLASS_$_SentrySDK`, `Sentry…` | `Sentry` (sentry-cocoa, versão exata) |
-| `_OBJC_CLASS_$_RCPurchases`, `RC…` | `RevenueCat` |
-| `_OBJC_CLASS_$_RCCommonFunctionality`, `RCHybrid…` | `PurchasesHybridCommon` |
+| `_OBJC_CLASS_$_RCPurchases`, `RC…` | **nenhum** — desde a 2.253.0 o SDK vem no klib da purchases-kmp; confira se a kmplib que entrou no build é ≥ 2.253.0 (`includeBuild` na `main`) |
 | `_sqlite3_*` | `-lsqlite3` (Gradle `linkerOpts` **e** `OTHER_LDFLAGS`) |
 
 **Solução**: adicionar o produto ao target `iosApp` (Xcode → General → *Frameworks, Libraries, and
 Embedded Content*, ou no `project.pbxproj`). Com o guarda-chuva `libs.kmplib`, o conjunto mínimo é:
-`Sentry`, `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`, `RevenueCat`,
-`PurchasesHybridCommon`.
+`Sentry`, `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging` (sem
+`RevenueCat`/`PurchasesHybridCommon` desde a 2.253.0).
 
 ### Erro: `_kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` (ou `_kniprot_swiftPMImport_…_RCPurchasesDelegate`)
 
@@ -549,10 +535,8 @@ protocolo `RCPurchasesDelegate`, e o Kotlin/Native 2.3.20 passou a exigi-lo. Apa
 referência ao protocolo. Não tem a ver com guarda-chuva × módulos nem com loja simulada × real: app em
 **Kotlin 2.3.0 linka** (LocAki), app em **2.3.20 não** (Chamada Fácil, Piadaria, casca).
 
-**Saída correta:** `purchases-kmp` 3.x (compilado com Kotlin 2.3.20; o SDK iOS vem no próprio klib e os
-produtos SPM `PurchasesHybridCommon`/`RevenueCat` SAEM do app — guia de migração 3.0.0 do fornecedor).
-Enquanto a kmplib não migrar (ver `docs/backlog.md` GAP-MON-RCKMP3-01), app que consome a monetização
-fica em **Kotlin 2.3.0**.
+**Resolvido na 2.253.0** (purchases-kmp 3.11.0): suba a kmplib e aplique a migração de §"RevenueCat no
+iOS" (tirar os dois produtos SPM).
 
 ### Erro: "cannot convert KotlinUnit to Void"
 
@@ -585,10 +569,9 @@ AppBuildConfigKt.googleMapsApiKey
       `kmplib-auth` e `kmplib-push`) — nunca `export(libs.kmplib)` (OOM no link release, 2.163.0)
 - [ ] SPM no target, **todos obrigatórios com o guarda-chuva** (mesmo own-auth, mesmo sem push, mesmo
       sem vender): `Sentry` (versão exata), `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`,
-      **`FirebaseMessaging`**, `RevenueCat`, `PurchasesHybridCommon`
-- [ ] SDKs nativos na versão do binding — `sentry-cocoa` **exato** = `sentryCocoa` (hoje 8.58.2),
-      `purchases-hybrid-common` **exato** = sufixo do `revenuecatKmp` (hoje 17.23.0) e `purchases-ios-spm`
-      **exato** = `revenuecatIosSpm` (hoje 5.50.0) — `spm_ios.py --check`
+      **`FirebaseMessaging`** — e **SEM** `RevenueCat`/`PurchasesHybridCommon` (2.253.0: o SDK vem no klib)
+- [ ] SDK nativo na versão do binding — `sentry-cocoa` **exato** = `sentryCocoa` (hoje 8.58.2) —
+      `spm_ios.py --check`
 - [ ] Usa SQLDelight? `linkerOpts("-lsqlite3")` no Gradle **e** `-lsqlite3` em `OTHER_LDFLAGS`
 - [ ] App own-auth: linka o Firebase, mas **sem** `GoogleService-Info.plist` e **sem**
       `FirebaseApp.configure()` (configurar sem o plist derruba o app no start)

@@ -4,7 +4,7 @@
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
 ### Registrado em 05/out/2026 — link iOS com Kotlin 2.3.20 (purchases-kmp 2.x)
-- [ ] **GAP-MON-RCKMP3-01 (P0 para quem está em Kotlin 2.3.20)** — `Undefined symbols:
+- [x] ✅ **2.253.0** (purchases-kmp 3.11.0; link a validar no Mac — piloto Chamada Fácil; demais apps migram o SPM depois) **GAP-MON-RCKMP3-01 (P0 para quem está em Kotlin 2.3.20)** — `Undefined symbols:
       _kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` no link iOS de todo app em Kotlin 2.3.20 com
       a monetização (Chamada Fácil, Piadaria e a casca-mobile, que está em 2.3.20). Causa: defeito conhecido do
       purchases-kmp 2.x com K/N 2.3.20 (RevenueCat/purchases-kmp#759); exposto na kmplib 2.250.0 (listener de

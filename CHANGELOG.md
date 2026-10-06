@@ -1,5 +1,37 @@
 # Changelog — kmplib
 
+## 2.253.0 — `monetization`: purchases-kmp 3.11.0 — o SDK do RevenueCat vem no klib (⚠️ MIGRAÇÃO OBRIGATÓRIA no Xcode)
+
+**Por quê.** Com a purchases-kmp 2.x, todo app em **Kotlin 2.3.20** (a casca, Chamada Fácil, Piadaria) parava no
+link do iOS em `Undefined symbols: _kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` — defeito conhecido
+do fornecedor (purchases-kmp#759), exposto pela 2.250.0, que passou a registrar o listener de `CustomerInfo`
+(primeira referência ao protocolo `RCPurchasesDelegate`). Não era guarda-chuva × módulos nem loja simulada × real:
+Kotlin 2.3.0 linkava, 2.3.20 não. A saída do fornecedor é a 3.x.
+
+**O que muda na lib:** só `revenuecatKmp = "3.11.0"` (era `2.2.13+17.23.0`). A API pública da kmplib é a mesma; o
+código Kotlin compilou sem mudança. `revenuecatIosSpm` saiu do catálogo de versões (não há mais pacote SPM amarrado).
+
+### ⚠️ Migração obrigatória — projeto Xcode do app
+
+A purchases-kmp 3.x **embute o SDK nativo** (cinterop `kn-core-…-RevenueCat`, com a biblioteca estática). Portanto:
+
+1. **Tirar do alvo do app os produtos SPM `PurchasesHybridCommon` e `RevenueCat`**, e os pacotes
+   `purchases-hybrid-common`/`purchases-ios-spm` do projeto e do `Package.resolved`:
+   `python3 Nexus/fabrica/spm_ios.py <mobile>` faz isso e valida o pbxproj por parse;
+   `--check` acusa quem ainda os tem.
+2. **Manter os dois = RevenueCat ligado DUAS vezes: o build passa e o app trava na abertura** em
+   `Purchases.configure` (purchases-kmp#882). Por isso o `spm_ios.py --check` reprova.
+3. A purchases-kmp 3.11.0 é compilada com **Kotlin 2.3.20** — app em 2.3.0 sobe junto.
+4. Nenhuma mudança no Kotlin do app.
+
+⚠️ **Todo app compila a kmplib pela FONTE (`includeBuild`)**: no primeiro build iOS depois que esta versão estiver na
+`main` da kmplib, o app recebe a purchases-kmp 3.x — com ou sem bump do `libs.versions.toml`. Quem não tirar os dois
+produtos SPM sai com o app travando na abertura.
+
+Testes: suíte inteira (3.474) verde; compila `iosArm64` em todos os 26 módulos (main e test, executado). De
+passagem: 5 nomes de teste do `kmplib-monetization` com `,`/`()` (proibidos no Kotlin/Native) renomeados — o
+`compileTestKotlinIosArm64` do módulo falhava desde a 2.233.0. **Link validado só no Mac** (piloto: Chamada Fácil).
+
 ## 2.252.4 — `core/network`: corpo cortado depois do `200` agora entra na nova tentativa + `handleApiCall` registra a causa real
 
 LocAki (Android real, OkHttp) com 2.252.3: depois de cadastrar/excluir cliente, `list()` voltava

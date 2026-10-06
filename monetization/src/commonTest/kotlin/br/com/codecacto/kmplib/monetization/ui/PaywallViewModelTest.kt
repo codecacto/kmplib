@@ -714,7 +714,7 @@ class PaywallViewModelTest {
     }
 
     @Test
-    fun `trial ja usado - iOS sem offering alternativo (opcao A) mostra o que a Apple vai dar`() {
+    fun `trial ja usado - iOS sem offering alternativo - opcao A - mostra o que a Apple vai dar`() {
         val store = FakeStore(
             offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
         )
@@ -726,7 +726,7 @@ class PaywallViewModelTest {
     }
 
     @Test
-    fun `trial ja usado - iOS com offering sem trial (opcao B) vende o offering alternativo`() {
+    fun `trial ja usado - iOS com offering sem trial - opcao B - vende o offering alternativo`() {
         val semTrial = MENSAL.copy(packageId = "\$rc_monthly", storeProductId = "premium_mensal_teste_sem_trial")
         val store = FakeStore(
             offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
@@ -797,7 +797,7 @@ class PaywallViewModelTest {
     }
 
     @Test
-    fun `app sem conta (identidade nao declarada) compra como sempre`() {
+    fun `app sem conta - identidade nao declarada - compra como sempre`() {
         val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)))
         val vm = viewModel(store, identityGate = { StoreIdentityStatus.UNMANAGED })
         vm.onAction(PaywallHostAction.Load)
