@@ -4,6 +4,10 @@
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
 ### Registrado em 05/out/2026 — link iOS com Kotlin 2.3.20 (purchases-kmp 2.x)
+- [ ] **Publicar a 2.253.0 no Maven Central — só do Mac** (os alvos iOS existem só em `HostManager.hostIsMac`;
+      no servidor saiu só o mavenLocal). Piloto Chamada Fácil já linkou e abriu no simulador (05/out, 21:56).
+- [ ] Migrar os apps com monetização no iOS (`spm_ios.py` + Kotlin 2.3.20) — aviso `f2ec305c` no Nexus, com a
+      lista dos de produção com cliente (LocAki, LocaSys, Meu Barbeiro).
 - [x] ✅ **2.253.0** (purchases-kmp 3.11.0; link a validar no Mac — piloto Chamada Fácil; demais apps migram o SPM depois) **GAP-MON-RCKMP3-01 (P0 para quem está em Kotlin 2.3.20)** — `Undefined symbols:
       _kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` no link iOS de todo app em Kotlin 2.3.20 com
       a monetização (Chamada Fácil, Piadaria e a casca-mobile, que está em 2.3.20). Causa: defeito conhecido do
