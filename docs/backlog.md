@@ -3,6 +3,20 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 05/out/2026 — link iOS com Kotlin 2.3.20 (purchases-kmp 2.x)
+- [ ] **GAP-MON-RCKMP3-01 (P0 para quem está em Kotlin 2.3.20)** — `Undefined symbols:
+      _kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` no link iOS de todo app em Kotlin 2.3.20 com
+      a monetização (Chamada Fácil, Piadaria e a casca-mobile, que está em 2.3.20). Causa: defeito conhecido do
+      purchases-kmp 2.x com K/N 2.3.20 (RevenueCat/purchases-kmp#759); exposto na kmplib 2.250.0 (listener de
+      `CustomerInfo` = 1ª referência ao protocolo). LocAki (Kotlin 2.3.0) linka.
+      Saída do fornecedor: purchases-kmp **3.x** (3.11.0 compilado com Kotlin 2.3.20). Viabilidade conferida em
+      05/out: com `revenuecatKmp = "3.11.0"` a kmplib compila Android + `iosArm64` e a suíte (3.474) passa sem
+      mudar código. Falta, e por isso não saiu como patch: (1) link no Mac; (2) casca-mobile e cada app tiram os
+      produtos SPM `PurchasesHybridCommon` e `RevenueCat` (o SDK vem no klib — manter os dois linka o RevenueCat
+      duas vezes, purchases-kmp#882); (3) `Nexus/fabrica/spm_ios.py` e `IOS_INTEGRATION.md` deixam de amarrar
+      `revenuecatKmp`/`revenuecatIosSpm`; (4) sai como **2.253.0** com plano de migração (quebra o iOS de quem
+      não tirar o SPM). Até lá: app com monetização fica em Kotlin 2.3.0.
+
 ### Registrado em 05/out/2026 — rede móvel que pisca (2.252.0, LocAki em produção)
 - [x] **GAP-NET-RETRY-01** — ✅ **2.252.0**: `HttpClientOptions.retry` (`HttpRequestRetry` oficial, só
       GET/HEAD/OPTIONS, transporte + 502/503/504, 2 tentativas, jitter, teto total = `requestTimeoutMillis`).

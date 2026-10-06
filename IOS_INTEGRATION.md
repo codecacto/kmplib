@@ -539,6 +539,21 @@ Embedded Content*, ou no `project.pbxproj`). Com o guarda-chuva `libs.kmplib`, o
 `Sentry`, `FirebaseAuth`, `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging`, `RevenueCat`,
 `PurchasesHybridCommon`.
 
+### Erro: `_kniprot_cocoapods_PurchasesHybridCommon1_RCPurchasesDelegate` (ou `_kniprot_swiftPMImport_…_RCPurchasesDelegate`)
+
+**NÃO é produto SPM faltando.** É o defeito conhecido do `purchases-kmp` 2.x com **Kotlin 2.3.20**
+([RevenueCat/purchases-kmp#759](https://github.com/RevenueCat/purchases-kmp/issues/759), aberto): o
+binding cinterop publicado (compilado com Kotlin 2.1.21, `cstubs` vazios) não define o *getter* do
+protocolo `RCPurchasesDelegate`, e o Kotlin/Native 2.3.20 passou a exigi-lo. Aparece desde a kmplib
+2.250.0, que registra o listener de `CustomerInfo` (`Purchases.sharedInstance.delegate`) — é a primeira
+referência ao protocolo. Não tem a ver com guarda-chuva × módulos nem com loja simulada × real: app em
+**Kotlin 2.3.0 linka** (LocAki), app em **2.3.20 não** (Chamada Fácil, Piadaria, casca).
+
+**Saída correta:** `purchases-kmp` 3.x (compilado com Kotlin 2.3.20; o SDK iOS vem no próprio klib e os
+produtos SPM `PurchasesHybridCommon`/`RevenueCat` SAEM do app — guia de migração 3.0.0 do fornecedor).
+Enquanto a kmplib não migrar (ver `docs/backlog.md` GAP-MON-RCKMP3-01), app que consome a monetização
+fica em **Kotlin 2.3.0**.
+
 ### Erro: "cannot convert KotlinUnit to Void"
 
 **Causa**: Callback Kotlin retorna `Unit` que vira `KotlinUnit` no Swift.
