@@ -3,6 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 06/out/2026 — banner que acompanha a lista (Piadaria, Favoritas vazias)
+- [x] **GAP-ADS-LIST-01** — ✅ **2.254.0**: `ListFooterBannerAd` + `EmptyStateWithBannerAd` + `listAdStateOf` —
+      lista vazia = banner grande (quadrado/3:1 pela altura medida) no estado vazio; com itens = `STANDARD` no
+      rodapé; carregando = nenhum. Casca-mobile (`ItemListScreen`) e Piadaria (Favoritas) adotados.
+- [x] **GAP-UI-TILE-WORDBREAK-01** — ✅ **2.254.0**: `CommunicationTile` não parte palavra ("Sentiment / os" no
+      iPhone 17 Pro, Minha Voz): fonte teto pela palavra mais longa + `TextAutoSize.StepBased`, piso 12 sp.
+
 ### Registrado em 05/out/2026 — link iOS com Kotlin 2.3.20 (purchases-kmp 2.x)
 - [ ] **Publicar a 2.253.0 no Maven Central — só do Mac** (os alvos iOS existem só em `HostManager.hostIsMac`;
       no servidor saiu só o mavenLocal). Piloto Chamada Fácil já linkou e abriu no simulador (05/out, 21:56).

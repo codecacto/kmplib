@@ -29,6 +29,20 @@ object AdDefaults {
     val BANNER_SQUARE_HEIGHT: Dp = 360.dp
 
     /**
+     * Teto de largura do banner grande no **estado vazio** de uma lista (2.254.0,
+     * [EmptyStateWithBannerAd]). Num telefone não morde (a coluna útil é ~330 dp); num tablet impede
+     * que o quadrado — cuja altura é a largura — vire uma peça de 800 dp que empurra tudo.
+     */
+    val EMPTY_STATE_BANNER_MAX_WIDTH: Dp = 400.dp
+
+    /**
+     * Menor lado aceitável para o **quadrado** no estado vazio. Abaixo disso a arte 1:1 fica pequena
+     * demais para ler, e a faixa 3:1 em largura cheia comunica melhor — é quando se desce para
+     * [BannerSize.LARGE].
+     */
+    val EMPTY_STATE_SQUARE_MIN_SIDE: Dp = 240.dp
+
+    /**
      * Quanto o intersticial espera a **primeira** carga dos anúncios (e do roteamento) antes de
      * desistir daquela exibição — 2.236.0.
      *

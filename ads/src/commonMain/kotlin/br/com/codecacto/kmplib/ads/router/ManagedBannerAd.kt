@@ -25,12 +25,15 @@ import br.com.codecacto.kmplib.ads.custom.CustomBannerAd
  * @param size tamanho do banner (define o FORMATO pedido ao backend e a altura).
  * @param customHeight altura FIXA, quando o layout exige uma. Nulo (default) = a altura sai da
  *   proporção da arte, que é o que mantém o criativo inteiro em qualquer largura de tela.
+ * @param windowInsets folga do sistema (default: barra de gestos, o certo no `bottomBar`). Dentro do
+ *   conteúdo, `WindowInsets(0)` — ver `CustomBannerAd`.
  */
 @Composable
 fun ManagedBannerAd(
     modifier: Modifier = Modifier,
     size: BannerSize = BannerSize.STANDARD,
     customHeight: Dp? = null,
+    windowInsets: WindowInsets = WindowInsets.navigationBars,
 ) {
     val routing by AdRouter.routing.collectAsState()
     when (routing.banner) {
@@ -38,11 +41,12 @@ fun ManagedBannerAd(
             modifier = modifier,
             size = size,
             height = customHeight,
+            windowInsets = windowInsets,
         )
         // Desligado, o banner continua reservando a barra de gestos / home indicator (2.235.0): no
         // `bottomBar` do Scaffold, um Spacer de altura zero zerava o padding inferior do conteúdo e
         // o último item da lista passava por baixo da barra de navegação. Mesmo inset do
         // [CustomBannerAd], para o rodapé ter a mesma base com o anúncio ligado ou desligado.
-        AdProvider.OFF -> Spacer(modifier = modifier.windowInsetsPadding(WindowInsets.navigationBars))
+        AdProvider.OFF -> Spacer(modifier = modifier.windowInsetsPadding(windowInsets))
     }
 }

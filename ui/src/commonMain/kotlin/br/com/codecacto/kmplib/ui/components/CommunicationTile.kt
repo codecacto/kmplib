@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,8 +14,10 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -25,10 +28,18 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.ui.theme.LocalHighContrast
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
 
@@ -178,13 +189,98 @@ fun CommunicationTile(
                 modifier = Modifier.size(iconSize),
                 tint = content,
             )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                color = content,
+            TileLabel(
+                label = label,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    color = content,
+                ),
             )
         }
+    }
+}
+
+/** Piso legível do rótulo do [CommunicationTile] quando a palavra mais longa não cabe (2.254.0). */
+val COMMUNICATION_TILE_MIN_FONT_SIZE: TextUnit = 12.sp
+
+/** Passo de redução da fonte do rótulo do [CommunicationTile]. */
+val COMMUNICATION_TILE_FONT_STEP: TextUnit = 1.sp
+
+/** Máximo de linhas do rótulo (frases quebram ENTRE palavras até aqui; passou, a fonte reduz). */
+const val COMMUNICATION_TILE_MAX_LINES: Int = 3
+
+/** Palavras do rótulo (separadas por espaço) — cada uma tem de caber INTEIRA numa linha. */
+internal fun communicationTileWords(label: String): List<String> =
+    label.split(Regex("\\s+")).filter { it.isNotEmpty() }
+
+/**
+ * Maior tamanho de fonte, de [maxSp] descendo de [stepSp] em [stepSp] até [minSp], em que [fits]
+ * responde `true` — função pura. Nenhum cabe = [minSp] (o piso legível vence; abaixo dele o texto
+ * deixaria de servir a quem precisa de prancha de comunicação).
+ */
+internal fun largestFittingFontSize(maxSp: Float, minSp: Float, stepSp: Float, fits: (Float) -> Boolean): Float {
+    require(stepSp > 0f) { "stepSp precisa ser positivo" }
+    if (maxSp <= minSp) return minSp
+    var size = maxSp
+    while (size > minSp) {
+        if (fits(size)) return size
+        size -= stepSp
+    }
+    return minSp
+}
+
+/**
+ * Rótulo do tile: **palavra nunca se parte** (2.254.0). No iPhone 17 Pro, "Sentimentos" saía
+ * "Sentiment / os" — o quebrador de linha parte a palavra que não cabe na largura, e isso não conta
+ * como "transbordou" para o `autoSize` do Compose (a linha cabe; quem sobra é a palavra). Por isso
+ * são dois passos:
+ *
+ * 1. a fonte TETO é a maior em que a palavra mais longa cabe inteira na largura ([largestFittingFontSize],
+ *    medida com o `TextMeasurer` no estilo real);
+ * 2. o `autoSize` oficial (`TextAutoSize.StepBased`) reduz a partir desse teto se a frase passar de
+ *    [COMMUNICATION_TILE_MAX_LINES] linhas.
+ *
+ * Frases continuam quebrando entre palavras (`LineBreak.Heading`, sem hifenização).
+ */
+@Composable
+private fun TileLabel(label: String, style: TextStyle) {
+    val measurer = rememberTextMeasurer()
+    val maxFont = if (style.fontSize.isSpecified) style.fontSize else 16.sp
+    val labelStyle = style.copy(lineBreak = LineBreak.Heading, hyphens = Hyphens.None)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val widthPx = constraints.maxWidth
+        val words = remember(label) { communicationTileWords(label) }
+        val wordFitSp = remember(label, widthPx, labelStyle) {
+            if (!constraints.hasBoundedWidth || words.isEmpty()) {
+                maxFont.value
+            } else {
+                largestFittingFontSize(
+                    maxSp = maxFont.value,
+                    minSp = COMMUNICATION_TILE_MIN_FONT_SIZE.value,
+                    stepSp = COMMUNICATION_TILE_FONT_STEP.value,
+                ) { sp ->
+                    words.all { word ->
+                        measurer.measure(
+                            text = word,
+                            style = labelStyle.copy(fontSize = sp.sp),
+                            maxLines = 1,
+                            softWrap = false,
+                            constraints = Constraints(),
+                        ).size.width <= widthPx
+                    }
+                }
+            }
+        }
+        BasicText(
+            text = label,
+            style = labelStyle,
+            maxLines = COMMUNICATION_TILE_MAX_LINES,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = minOf(COMMUNICATION_TILE_MIN_FONT_SIZE.value, wordFitSp).sp,
+                maxFontSize = wordFitSp.sp,
+                stepSize = COMMUNICATION_TILE_FONT_STEP,
+            ),
+        )
     }
 }

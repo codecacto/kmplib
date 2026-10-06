@@ -1,5 +1,43 @@
 # Changelog — kmplib
 
+## 2.254.0 — `ads`: banner que acompanha o conteúdo da lista · `ui`: `CommunicationTile` não parte palavra
+
+**Por quê.** Pedido do fundador (06/out/2026, Favoritas do Piadaria): com a lista vazia sobra quase a tela inteira
+em branco abaixo do estado vazio, e o banner de rodapé continuava pequeno. Com itens, o grande atrapalha a leitura.
+
+**Novo (aditivo, `br.com.codecacto.kmplib.ads`):**
+- `ListAdState` (`LOADING`/`EMPTY`/`CONTENT`) + `listAdStateOf(isLoading, isEmpty)` — **carregando ≠ vazio**:
+  enquanto carrega não há banner nenhum (nunca o grande e depois o pequeno; sem impressão dupla).
+  Erro e "busca sem resultado" contam como `CONTENT` (o quadrado não aparece e some a cada tecla).
+- `footerBannerSizeFor(state): BannerSize?` e **`ListFooterBannerAd(state, modifier)`** — o `bottomBar`:
+  `STANDARD` com itens; carregando/vazia, só a folga da barra de gestos (o `innerPadding` da lista não muda de base).
+- **`EmptyStateWithBannerAd(icon, title, modifier, description, action, maxBannerWidth, minSquareSide)`** e a
+  variante de slot `EmptyStateWithBannerAd(modifier, …) { emptyContent }` — o texto do estado vazio é medido
+  primeiro e nunca é empurrado; o banner recebe a altura que SOBROU e `emptyStateBannerSpec(availableWidth,
+  availableHeight, maxWidth, minSquareSide)` escolhe **quadrado** (lado ≥ 240 dp, encolhe para caber inteiro),
+  **grande** (3:1 na largura útil) ou **padrão** (tela baixa demais; rola). Teto de 400 dp de largura (tablet).
+  Rola quando a altura é limitada: filho direto do `RefreshableBox`, sem `ScrollableFillBox` em volta.
+  Sem anúncio (premium, `off`, sem criativo) a tela fica igual a um `EmptyState` comum.
+- `AdDefaults.EMPTY_STATE_BANNER_MAX_WIDTH` (400 dp) e `EMPTY_STATE_SQUARE_MIN_SIDE` (240 dp).
+- `CustomBannerAd`/`ManagedBannerAd(…, windowInsets = WindowInsets.navigationBars)` — dentro do conteúdo passe
+  `WindowInsets(0)` (o `innerPadding` já desconta a barra). Default inalterado.
+
+Impressão: a mesma VIEWABLE (≥50% por ≥1 s, uma por exibição); ids `ads-banner`/`ads-banner-carregado` valem nos
+dois lugares. Testes: `ListBannerAdTest` (9). Compila Android + `iosArm64` (main e test, executado).
+
+### `ui` — `CommunicationTile`: palavra nunca se parte no rótulo
+
+Print do teste do Minha Voz no iOS (06/out): "Sentimentos" saiu **"Sentiment / os"** no iPhone 17 Pro (no Android
+coube). O quebrador de linha parte a palavra que não cabe na largura do tile — e isso não é "transbordo" para o
+`autoSize` do Compose (a linha cabe; quem sobra é a palavra). Agora o rótulo:
+1. calcula a fonte TETO = a maior (do `titleMedium` para baixo, passo 1 sp) em que a **palavra mais longa** cabe
+   inteira na largura, medida com o `TextMeasurer` no estilo real; piso legível `COMMUNICATION_TILE_MIN_FONT_SIZE`
+   (12 sp);
+2. desenha com `BasicText(autoSize = TextAutoSize.StepBased(…))` (oficial) a partir desse teto, até
+   `COMMUNICATION_TILE_MAX_LINES` (3) linhas — frases continuam quebrando **entre** palavras
+   (`LineBreak.Heading`, `Hyphens.None`).
+Sem mudança de API. Testes: `CommunicationTileLabelTest` (7).
+
 ## 2.253.0 — `monetization`: purchases-kmp 3.11.0 — o SDK do RevenueCat vem no klib (⚠️ MIGRAÇÃO OBRIGATÓRIA no Xcode)
 
 **Por quê.** Com a purchases-kmp 2.x, todo app em **Kotlin 2.3.20** (a casca, Chamada Fácil, Piadaria) parava no

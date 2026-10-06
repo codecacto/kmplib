@@ -41,12 +41,18 @@ import coil3.compose.AsyncImage
  *   ([AdsTestTags]).
  *
  * Pre-requisito: chamar `CustomAdManager.initialize(...)` no boot do app.
+ *
+ * @param windowInsets folga do sistema aplicada embaixo da arte. Default = barra de gestos / home
+ *   indicator, que é o certo no `bottomBar` do Scaffold. **No meio do conteúdo** (o banner grande do
+ *   estado vazio, 2.254.0) passe `WindowInsets(0)`: o `innerPadding` do Scaffold já desconta a barra,
+ *   e aplicar de novo deixaria uma faixa vazia embaixo do criativo.
  */
 @Composable
 fun CustomBannerAd(
     modifier: Modifier = Modifier,
     size: BannerSize = BannerSize.STANDARD,
     height: Dp? = null,
+    windowInsets: WindowInsets = WindowInsets.navigationBars,
     onAdClick: ((CustomAd) -> Unit)? = null,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
@@ -95,7 +101,7 @@ fun CustomBannerAd(
             // navegação fica por cima do rodapé do criativo. `windowInsetsPadding` respeita o
             // consumo de insets: no `bottomBar` ele aplica, no meio do conteúdo (onde o Scaffold já
             // consumiu) vira zero, então o mesmo composable serve nos dois lugares.
-            .windowInsetsPadding(WindowInsets.navigationBars)
+            .windowInsetsPadding(windowInsets)
             // Altura pela PROPORÇÃO da arte, não por um dp fixo. Com `height` fixa, o
             // `ContentScale.Crop` preenche a caixa e corta o que sobra na largura: uma faixa 6:1 numa
             // caixa de 360x90 perde um terço do criativo, e o que some é a borda — onde costuma

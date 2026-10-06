@@ -101,7 +101,10 @@ class BarrasRespeitamInsetsTest {
     @Test
     fun `banner de anuncio desligado ainda reserva a barra de navegacao`() {
         val f = fonte("ads/src/commonMain/kotlin/br/com/codecacto/kmplib/ads/router/ManagedBannerAd.kt")
-        assertTrue(Regex("""AdProvider\.OFF\s*->.*WindowInsets\.navigationBars""").containsMatchIn(f))
+        // 2.254.0: o inset virou parâmetro (`WindowInsets(0)` dentro do conteúdo — banner do estado
+        // vazio); o DEFAULT continua sendo a barra de navegação, e o ramo OFF aplica o recebido.
+        assertTrue(Regex("""windowInsets:\s*WindowInsets\s*=\s*WindowInsets\.navigationBars""").containsMatchIn(f))
+        assertTrue(Regex("""AdProvider\.OFF\s*->.*windowInsetsPadding\(windowInsets\)""").containsMatchIn(f))
     }
 
     @Test
