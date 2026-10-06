@@ -30,6 +30,7 @@
     <string name="kmplib_cancel">Cancelar</string>
     <string name="kmplib_back">Volver</string>
     <string name="kmplib_close">Cerrar</string>
+    <string name="kmplib_download_image">Descargar imagen</string>
     <string name="kmplib_menu">Menú</string>
     <string name="kmplib_retry">Reintentar</string>
     <string name="kmplib_continue">Continuar</string>

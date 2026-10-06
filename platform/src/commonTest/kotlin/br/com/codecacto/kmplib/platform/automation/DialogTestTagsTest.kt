@@ -20,13 +20,14 @@ class DialogTestTagsTest {
         assertEquals("dialogo-btn-confirmar", DialogTestTags.BTN_CONFIRMAR)
         assertEquals("dialogo-btn-cancelar", DialogTestTags.BTN_CANCELAR)
         assertEquals("dialogo-btn-fechar", DialogTestTags.BTN_FECHAR)
+        assertEquals("dialogo-btn-baixar", DialogTestTags.BTN_BAIXAR)
         assertEquals("dialogo-folha", DialogTestTags.FOLHA)
         assertEquals("dialogo-menu", DialogTestTags.MENU)
     }
 
     @Test
     fun `todos os ids estao listados e sao unicos`() {
-        assertEquals(9, DialogTestTags.all.size)
+        assertEquals(10, DialogTestTags.all.size)
         assertEquals(DialogTestTags.all.size, DialogTestTags.all.toSet().size)
     }
 
@@ -41,7 +42,7 @@ class DialogTestTagsTest {
     @Test
     fun `botoes seguem o padrao prefixo-btn-acao dos demais TestTags da lib`() {
         // Mesmo desenho de `login-btn-entrar`, `paywall-btn-assinar`, `ads-btn-fechar-interstitial`.
-        listOf(DialogTestTags.BTN_CONFIRMAR, DialogTestTags.BTN_CANCELAR, DialogTestTags.BTN_FECHAR)
+        listOf(DialogTestTags.BTN_CONFIRMAR, DialogTestTags.BTN_CANCELAR, DialogTestTags.BTN_FECHAR, DialogTestTags.BTN_BAIXAR)
             .forEach { assertTrue(it.startsWith("dialogo-btn-"), it) }
     }
 }

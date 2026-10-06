@@ -1,5 +1,22 @@
 # Changelog — kmplib
 
+## 2.256.0 — `ui`: `FullScreenImageViewer` com botão de BAIXAR (opcional)
+
+**Por quê.** LocaSys (06/out/2026): a listagem de produtos mostra a foto pequena, o toque amplia e dali tem de
+dar para baixar o arquivo — o mesmo que a weblib 0.235.0 entregou no `ImageLightbox`.
+
+**Novo (aditivo, sem quebra):**
+- `FullScreenImageViewer(onDismiss, onDownload = null, isDownloading = false, content)`: com `onDownload`, o
+  botão de baixar aparece ao lado do X (mesmo estilo); `isDownloading` troca o ícone por um indicador e
+  desliga o botão. O viewer não sabe de onde a imagem vem (o `content` é livre), então quem chama busca os
+  bytes e salva — `rememberFileSaver` (`platform/print`, SAF / seletor do iOS).
+- `imageDownloadFileName(url, mimeType, nome)`: nome do arquivo (o dado, ou o último trecho do caminho — o
+  Firebase codifica `/` como `%2F`), extensão pelo tipo, `/`, `\` e `:` viram hífen. Mesma regra da weblib.
+- `DialogTestTags.BTN_BAIXAR` = `dialogo-btn-baixar` (flows Maestro).
+- String `kmplib_download_image` nos 4 idiomas.
+
+Quem não passa `onDownload` não vê diferença. Sem aviso.
+
 ## 2.255.0 — `ui`: rótulo da `AppBottomNavBar` nunca é cortado (fonte reduz até o piso) + insets laterais
 
 **Por quê.** Print do teste do Meu Estacionamento no iPhone 17 Pro (06/out/2026): com 4 abas "Pátio · Mensalistas ·

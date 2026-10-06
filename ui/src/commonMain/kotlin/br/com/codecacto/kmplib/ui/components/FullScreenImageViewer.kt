@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_close
+import br.com.codecacto.kmplib.generated.resources.kmplib_download_image
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -24,6 +25,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -175,11 +180,17 @@ fun ZoomableBox(
  * ```
  *
  * @param onDismiss Callback chamado ao fechar o viewer (botao X ou toque no fundo)
+ * @param onDownload (2.256.0) quando informado, mostra o botão de BAIXAR ao lado do X. O viewer não
+ *   sabe de onde a imagem vem (o `content` é livre), então quem chama busca os bytes e salva — em
+ *   geral com `rememberFileSaver` (`platform/print`). `null` (default) = sem botão, como antes.
+ * @param isDownloading troca o ícone de baixar por um indicador e desliga o botão enquanto salva.
  * @param content Conteudo da imagem (ex: AsyncImage, Image, etc.)
  */
 @Composable
 fun FullScreenImageViewer(
     onDismiss: () -> Unit,
+    onDownload: (() -> Unit)? = null,
+    isDownloading: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     Dialog(
@@ -203,27 +214,63 @@ fun FullScreenImageViewer(
                 content()
             }
 
-            // Botao fechar
-            IconButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .size(40.dp)
-                    .testTag(DialogTestTags.BTN_FECHAR),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = Color.Black.copy(alpha = 0.5f),
-                    contentColor = Color.White
-                )
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(Res.string.kmplib_close)
-                )
+                // Botao baixar (opcional)
+                if (onDownload != null) {
+                    IconButton(
+                        onClick = onDownload,
+                        enabled = !isDownloading,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag(DialogTestTags.BTN_BAIXAR),
+                        colors = viewerButtonColors()
+                    ) {
+                        if (isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = stringResource(Res.string.kmplib_download_image)
+                            )
+                        }
+                    }
+                }
+
+                // Botao fechar
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag(DialogTestTags.BTN_FECHAR),
+                    colors = viewerButtonColors()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(Res.string.kmplib_close)
+                    )
+                }
             }
         }
     }
 }
+
+/** Botão redondo sobre a foto: fundo preto translúcido (lê sobre foto clara e escura). */
+@Composable
+private fun viewerButtonColors() = IconButtonDefaults.iconButtonColors(
+    containerColor = Color.Black.copy(alpha = 0.5f),
+    contentColor = Color.White,
+    disabledContainerColor = Color.Black.copy(alpha = 0.5f),
+    disabledContentColor = Color.White
+)
 
 /**
  * **Galeria em TELA CHEIA, passando de uma foto para a outra** (2.153.0).
@@ -379,3 +426,36 @@ internal fun gestoEDoZoom(dedos: Int, escalaAtual: Float): Boolean =
  * com igualdade faria a imagem "voltar ao normal" continuar capturando o arrasto para sempre.
  */
 private const val ESCALA_NEUTRA = 1.01f
+
+private val EXTENSAO_POR_TIPO = mapOf(
+    "image/jpeg" to "jpg",
+    "image/png" to "png",
+    "image/webp" to "webp",
+    "image/gif" to "gif",
+    "image/heic" to "heic",
+    "image/avif" to "avif",
+)
+
+/**
+ * Nome do arquivo para o "baixar" do [FullScreenImageViewer] (2.256.0) — mesma regra do
+ * `ImageLightbox` da weblib: o [nome] dado (o do produto, por exemplo) ou, sem ele, o último trecho
+ * do caminho da [url] (o Firebase codifica `/` como `%2F`); sem extensão, ela vem do [mimeType]
+ * (`image/webp` → `.webp`). Barras e dois-pontos viram hífen — o SAF e o seletor do iOS recusam.
+ */
+fun imageDownloadFileName(url: String, mimeType: String?, nome: String? = null): String {
+    var base = nome?.trim().orEmpty()
+    if (base.isEmpty()) {
+        val semQuery = url.substringBefore('?').substringBefore('#')
+        // Só o caminho, sem esquema e host: "https://x/" não pode virar um arquivo chamado "x".
+        val caminho = semQuery.substringAfter("://", semQuery).substringAfter('/', "")
+        base = caminho.replace("%2F", "/", ignoreCase = true)
+            .trimEnd('/')
+            .substringAfterLast('/')
+            .replace("%20", " ")
+    }
+    base = base.replace(Regex("[/\\\\:]"), "-").trim()
+    if (base.isEmpty()) base = "imagem"
+    if (Regex("\\.[A-Za-z0-9]{2,5}$").containsMatchIn(base)) return base
+    val ext = EXTENSAO_POR_TIPO[mimeType?.substringBefore(';')?.trim()?.lowercase()]
+    return if (ext != null) "$base.$ext" else base
+}

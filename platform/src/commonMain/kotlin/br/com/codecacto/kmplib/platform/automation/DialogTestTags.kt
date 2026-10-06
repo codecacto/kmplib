@@ -16,6 +16,7 @@ package br.com.codecacto.kmplib.platform.automation
  * | [BTN_CANCELAR] | a ação de recuar — cancelar, "Agora não", "Depois" |
  * | — | `ForcePasswordChangeDialog` mantém os ids próprios de antes (`force_password_new`, `force_password_confirm`, `force_password_submit`) — contrato já em uso |
  * | [BTN_FECHAR] | o "X" das telas cheias (`FullScreenImageViewer`, `FullScreenGallery`) |
+ * | [BTN_BAIXAR] | o "baixar" do `FullScreenImageViewer` (2.256.0, quando há `onDownload`) |
  * | [FOLHA] | `AppBottomSheet` e a folha "câmera ou galeria" dos seletores de foto/vídeo (Android) |
  * | [MENU] | os menus suspensos (`AppDropdownField`, `AppMultiDropdownField`, seletores do calendário, velocidade/legenda do `VideoPlayer`) |
  *
@@ -62,6 +63,9 @@ object DialogTestTags {
     /** "X" que fecha uma tela cheia modal. */
     const val BTN_FECHAR: String = "dialogo-btn-fechar"
 
+    /** "Baixar" da tela cheia de imagem (2.256.0). */
+    const val BTN_BAIXAR: String = "dialogo-btn-baixar"
+
     /** Folha inferior modal. */
     const val FOLHA: String = "dialogo-folha"
 
@@ -77,6 +81,7 @@ object DialogTestTags {
         BTN_CONFIRMAR,
         BTN_CANCELAR,
         BTN_FECHAR,
+        BTN_BAIXAR,
         FOLHA,
         MENU,
     )
