@@ -20,11 +20,12 @@ class AdsTestTagsTest {
         assertEquals("ads-interstitial", AdsTestTags.INTERSTITIAL)
         assertEquals("ads-interstitial-carregado", AdsTestTags.INTERSTITIAL_CARREGADO)
         assertEquals("ads-btn-fechar-interstitial", AdsTestTags.BTN_FECHAR_INTERSTITIAL)
+        assertEquals("ads-estado-vazio-banner", AdsTestTags.BANNER_ESTADO_VAZIO)
     }
 
     @Test
     fun `todos os ids estao listados e sao unicos`() {
-        assertEquals(5, AdsTestTags.all.size)
+        assertEquals(6, AdsTestTags.all.size)
         assertEquals(AdsTestTags.all.size, AdsTestTags.all.toSet().size)
     }
 

@@ -48,6 +48,13 @@ object AdsTestTags {
     /** O criativo do banner, só depois de a imagem carregar. **É este que o teste afirma.** */
     const val BANNER_CARREGADO: String = "ads-banner-carregado"
 
+    /**
+     * Lugar do banner GRANDE dentro do estado vazio de uma lista (`EmptyStateWithBannerAd`, 2.254.0).
+     * Sempre montado no estado vazio — prova o LUGAR; o anúncio em si continua sendo
+     * [BANNER_CARREGADO]. Lista vazia: afirme os dois. Prefixo próprio (não `ads-banner-`) para o regex `ads-banner.*` não casar com ele mesmo sem anúncio.
+     */
+    const val BANNER_ESTADO_VAZIO: String = "ads-estado-vazio-banner"
+
     /** Contêiner em tela cheia do intersticial, montado assim que ele abre. */
     const val INTERSTITIAL: String = "ads-interstitial"
 
@@ -61,6 +68,7 @@ object AdsTestTags {
     val all: List<String> = listOf(
         BANNER,
         BANNER_CARREGADO,
+        BANNER_ESTADO_VAZIO,
         INTERSTITIAL,
         INTERSTITIAL_CARREGADO,
         BTN_FECHAR_INTERSTITIAL,

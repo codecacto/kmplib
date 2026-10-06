@@ -18,9 +18,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import br.com.codecacto.kmplib.ads.custom.AdsTestTags
 import br.com.codecacto.kmplib.ads.router.ManagedBannerAd
 import br.com.codecacto.kmplib.ui.components.EmptyState
 
@@ -147,7 +149,8 @@ private val EMPTY_STATE_BANNER_MARGIN: Dp = 16.dp
  *
  * Sem anúncio para mostrar (premium, roteamento `off`, nenhum criativo) o banner não ocupa altura e a
  * tela fica igual a um `EmptyState` comum. Impressão: a mesma VIEWABLE de sempre (≥50% por ≥1 s, uma
- * por exibição). Ids `ads-banner`/`ads-banner-carregado` valem aqui também.
+ * por exibição). Ids `ads-banner`/`ads-banner-carregado` valem aqui também; o lugar leva
+ * `ads-estado-vazio-banner` ([AdsTestTags.BANNER_ESTADO_VAZIO]).
  */
 @Composable
 fun EmptyStateWithBannerAd(
@@ -175,7 +178,10 @@ fun EmptyStateWithBannerAd(
             // `fill = false`: o slot RECEBE a altura que sobrou como teto, mas ocupa só a do banner —
             // é o que deixa texto + banner centralizados juntos em vez de o texto colar no topo.
             val slot = if (bounded) Modifier.weight(1f, fill = false) else Modifier
-            BoxWithConstraints(modifier = slot.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            BoxWithConstraints(
+                modifier = slot.fillMaxWidth().testTag(AdsTestTags.BANNER_ESTADO_VAZIO),
+                contentAlignment = Alignment.TopCenter,
+            ) {
                 val spec = emptyStateBannerSpec(
                     availableWidth = maxWidth - EMPTY_STATE_BANNER_MARGIN * 2,
                     availableHeight = if (constraints.hasBoundedHeight) maxHeight - EMPTY_STATE_BANNER_MARGIN else Dp.Infinity,

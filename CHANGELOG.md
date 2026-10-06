@@ -23,7 +23,8 @@ em branco abaixo do estado vazio, e o banner de rodapé continuava pequeno. Com 
   `WindowInsets(0)` (o `innerPadding` já desconta a barra). Default inalterado.
 
 Impressão: a mesma VIEWABLE (≥50% por ≥1 s, uma por exibição); ids `ads-banner`/`ads-banner-carregado` valem nos
-dois lugares. Testes: `ListBannerAdTest` (9). Compila Android + `iosArm64` (main e test, executado).
+dois lugares, e o lugar do grande leva **`AdsTestTags.BANNER_ESTADO_VAZIO` = `ads-estado-vazio-banner`** (o flow
+Maestro prova o banner grande no vazio afirmando este + `ads-banner-carregado`). Testes: `ListBannerAdTest` (9). Compila Android + `iosArm64` (main e test, executado).
 
 ### `ui` — `CommunicationTile`: palavra nunca se parte no rótulo
 
