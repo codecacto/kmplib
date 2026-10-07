@@ -36,6 +36,7 @@ import br.com.codecacto.kmplib.map.MapView
 import br.com.codecacto.kmplib.map.rememberCameraPositionState
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.AppTextField
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -76,6 +77,7 @@ fun PlacePicker(
     val cameraState = rememberCameraPositionState(CameraPosition(startCenter, zoom = if (initial != null) 14f else 4f))
 
     var query by remember { mutableStateOf("") }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
     var results by remember { mutableStateOf<List<GeocodeResult>>(emptyList()) }
     var pinned by remember { mutableStateOf<GeocodeResult?>(initial?.let { GeocodeResult("Local selecionado", it) }) }
     var offlineNotice by remember { mutableStateOf(false) }
@@ -96,7 +98,10 @@ fun PlacePicker(
             value = query,
             onValueChange = { value ->
                 query = value
-                scope.launch {
+                // Uma busca por vez: a resposta de "rua" chegando DEPOIS da de "rua das flores"
+                // trocaria a lista pela do termo velho, e o toque cairia no endereço errado.
+                searchJob?.cancel()
+                searchJob = scope.launch {
                     if (value.length >= 3) {
                         geocoding.search(value, near = cameraState.position.target)
                             .onSuccess { results = it; offlineNotice = false }
@@ -138,6 +143,7 @@ fun PlacePicker(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                searchJob?.cancel()
                                 pinned = r
                                 query = r.label
                                 results = emptyList()

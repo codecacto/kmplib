@@ -1,5 +1,44 @@
 # Changelog — kmplib
 
+## 2.258.0 — `ui`: busca que não perde letra — `AppSearchField`, `rememberSyncedTextFieldState`, `AppTextField(keepTextLocally)`
+
+**Por quê.** MinhaOS, rodada R8 do teste do agente (06/out/2026, docs/42): o campo de busca era
+`AppTextField(value = state.query, onValueChange = { onAction(QueryChanged(it)) })`. Cada letra fazia a ida e volta
+pelo `StateFlow` do ViewModel e voltava ao campo um quadro depois; na digitação rápida do iOS o campo era recomposto
+com o valor VELHO entre duas teclas e a letra seguinte caía sobre ele — "teste qa" virou "tete a" e a lista mostrou
+"Nenhum resultado". A regra oficial do Google (*Effective state management for TextField* / *state-based TextField*)
+é o texto morar na UI, atualizado no mesmo quadro, e o ViewModel só RECEBER. A lib não tinha campo de busca que
+fizesse isso — todo app escrevia o seu sobre o `AppTextField` controlado (50 campos em 27 apps).
+
+**Novo (aditivo, `br.com.codecacto.kmplib.ui.components`):**
+- **`AppSearchField(query, onQueryChange, modifier, placeholder, label, enabled, helperText, onSearch, …)`** — o campo
+  de busca padrão sobre o `OutlinedTextField(state = TextFieldState)` oficial: lupa, "x" que limpa (id
+  `SearchFieldTestTags.LIMPAR` = `busca-btn-limpar`), teclado com ação Buscar, sem autocorreção, uma linha.
+  Migrar = trocar `AppTextField(value = state.query, onValueChange = { … }, leadingIcon = Icons.Default.Search)`
+  por `AppSearchField(query = state.query, onQueryChange = { … })`.
+- **`rememberSyncedTextFieldState(text, onTextChange): TextFieldState`** — a mesma sincronização para o projeto que
+  desenha o próprio campo (protótipo) com `BasicTextField(state = …)`. *Saveable*: sobrevive a rotação/morte de
+  processo, e o texto restaurado é reenviado ao ViewModel que nasceu vazio.
+- **`AppTextField(…, keepTextLocally = true)`** — o `AppTextField` de sempre com o texto local, para a busca que
+  já tem estilo próprio (troca de uma linha). Default `false`: campo que RECUSA a tecla (`if (ok) set(it)`) depende
+  do caminho controlado e continua nele.
+- Regra de ressincronização (`TextInputReconciler`, interno): o valor de fora só reescreve o campo quando muda para
+  um valor que ninguém digitou (limpar, restaurar, preencher pela escolha de um item, transformar); o eco atrasado
+  — inclusive conflado pelo `StateFlow` — é reconhecido e ignorado.
+
+**Corrigido:** `PlacePicker` (map) cancela a busca de endereço anterior a cada tecla — a resposta de "rua" chegando
+depois da de "rua das flores" trocava a lista pela do termo velho.
+
+**Auditoria dos componentes da lib:** `SearchTopBar` (texto no `SearchTopBarState`, local), `AppPickerField`
+(busca do sheet em `remember` local — inclui a cidade do `AddressFields`), `AppDropdownField`/`AppMultiDropdownField`
+(sem campo de busca) e `PlacePicker` já guardavam o texto na UI; o furo era a ausência de um campo de busca da lib.
+
+**Teste:** `TextInputReconcilerTest` (11) — reproduz o defeito no modelo do campo controlado e prova que, com o
+ViewModel atrasado de 1 a 5 teclas e com `StateFlow` conflado, "teste qa" chega inteiro; apagar e redigitar em
+rajada, limpar/restaurar pela tela, valor transformado, estado restaurado. Suíte `kmplib-ui` 704 (0 falhas);
+Android de todos os módulos; `compileKotlinIosArm64` de `ui`/`map`/`brdata` e `compileTestKotlinIosArm64` de `ui`
+executados (não SKIPPED). **Não é crítico** (o defeito é do app que monta o campo; aditivo) → sem aviso.
+
 ## 2.257.0 — `ui`: invólucros das janelas do Material3 que o Maestro enxerga
 
 **Por quê.** Teste do agente (06/out/2026, docs/42): no Android, `AlertDialog`, `DropdownMenu`,

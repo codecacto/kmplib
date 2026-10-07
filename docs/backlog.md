@@ -5155,3 +5155,13 @@ do Obra em Conta) fica com botão/topo abaixo de AA. O app contorna na camada de
 `AppColors`/componentes que leem da lib continuam brancos. Proposta: derivar `onPrimary` por
 `ColorContrast.pickOnColor` (ou campo opcional `onPrimary` na paleta). 2º item: flavors/branding no KMP
 (AppFlavor + paleta + ícone iOS por configuração) já tem 2 consumidores (Meu Advogado, Rede de Ofertas).
+
+## Busca que perde letra no iOS — ENTREGUE 2.258.0 (06/out/2026, MinhaOS R8)
+
+`AppSearchField` + `rememberSyncedTextFieldState` + `AppTextField(keepTextLocally)`: o texto da busca mora na UI e o
+ViewModel só recebe (ver CHANGELOG 2.258.0). **Migração pendente nos apps** (não é campanha — cada onda de preparação
+corrige o seu): varredura de 06/out achou 50 campos de busca controlados pelo ViewModel em 27 apps (ExtinRota 6;
+Meu Fisio, PalpiteCerto, Exiba, LocaSys 3; Salmos, LocAki, Emprestei, FX Investimentos, LocaFesta, Meu Barbeiro,
+MinhaArena, MinhaEstadia, PontoFirme, Suzy 2; Colinha do Voto, MeuEstacionamento, MinhaAgenda, MinhaDespensa,
+PapelStudio, FolhaDeAxe, LiveCount, MeuFrete, MinhaObra, QueiMap, RedeDeOfertas, TattooStudio 1). Candidato a
+auditor no `Nexus/fabrica` (padrão `value = <x>.<query>` + `onValueChange = { onAction(…) }`).

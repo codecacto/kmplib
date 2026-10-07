@@ -16,7 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -89,9 +91,38 @@ fun AppTextField(
     showCharCounter: Boolean = false,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
-    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    /**
+     * O texto **mora no campo** e o [value] de fora só o reescreve quando muda por outro motivo que
+     * não a digitação (limpar, restaurar, preencher) — 2.258.0.
+     *
+     * Ligue em campo de BUSCA/FILTRO cujo [value] vem do `StateFlow` do ViewModel: sem isto, cada
+     * letra faz a ida e volta pelo ViewModel, o campo é recomposto um quadro atrasado com o valor
+     * velho e o iOS **perde letras** na digitação rápida ("teste qa" → "tete a", MinhaOS, docs/42).
+     * O eco atrasado é reconhecido e ignorado ([TextInputReconciler]).
+     *
+     * **Não ligue** em campo que RECUSA a tecla (`if (it.all(Char::isDigit)) set(it)`): recusar é não
+     * mudar o [value], e com o texto local a letra recusada ficaria na tela. Transformar (filtrar,
+     * cortar) funciona — o valor transformado chega diferente do digitado e vence.
+     *
+     * Para busca nova, prefira o [AppSearchField] (já traz lupa, "x" e o teclado de busca).
+     */
+    keepTextLocally: Boolean = false,
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
+
+    // Com o texto local, [value] vira só o sinal de "a tela mudou o texto"; o que se desenha e o
+    // que o contador conta é o texto do campo.
+    val reconciler = if (keepTextLocally) remember { TextInputReconciler(value) } else null
+    var localValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (reconciler != null) {
+        SideEffect {
+            reconciler.onExternal(value, localValue.text)?.let {
+                localValue = TextFieldValue(it, TextRange(it.length))
+            }
+        }
+    }
+    val shownText = if (keepTextLocally) localValue.text else value
 
     // Supporting text: erro > dica > contador. Só um por vez — três linhas sob o campo é ruído.
     val supportingText: (@Composable () -> Unit)? = when {
@@ -100,11 +131,86 @@ fun AppTextField(
         helperText != null -> {{ Text(helperText) }}
         showCharCounter && maxLength != null -> {{
             Text(
-                text = "${value.length}/$maxLength",
+                text = "${shownText.length}/$maxLength",
                 style = MaterialTheme.typography.bodySmall
             )
         }}
         else -> null
+    }
+
+    val fieldModifier = modifier.fillMaxWidth()
+    val labelSlot: (@Composable () -> Unit)? = label?.let { { Text(it) } }
+    val placeholderSlot: (@Composable () -> Unit)? = placeholder?.let { { Text(it) } }
+    val leadingSlot: (@Composable () -> Unit)? = leadingIcon?.let {
+        { Icon(imageVector = it, contentDescription = null) }
+    }
+    val trailingSlot: (@Composable () -> Unit)? = if (isPassword) {
+        {
+            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                Icon(
+                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    contentDescription = stringResource(
+                        if (passwordVisible) Res.string.kmplib_password_hide else Res.string.kmplib_password_show,
+                    )
+                )
+            }
+        }
+    } else null
+    val effectiveTransformation = when {
+        isPassword && !passwordVisible -> PasswordVisualTransformation()
+        else -> visualTransformation
+    }
+    // Capitalização/autocorreção derivadas do tipo (ver `appKeyboardOptions`): sem isso, o teclado
+    // do iOS capitaliza e AUTOCORRIGE e-mail/senha/telefone — o campo envia uma palavra que a
+    // pessoa não digitou. Campo de senha entra como identificador, nunca como texto corrido.
+    val effectiveKeyboardType = if (isPassword) KeyboardType.Password else keyboardType
+    val keyboardOptions = appKeyboardOptions(
+        keyboardType = effectiveKeyboardType,
+        imeAction = imeAction,
+        capitalization = capitalization ?: defaultCapitalizationFor(effectiveKeyboardType),
+        autoCorrect = autoCorrect ?: defaultAutoCorrectFor(effectiveKeyboardType),
+    )
+    val shape = RoundedCornerShape(12.dp)
+    val colors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = primaryColor,
+        unfocusedBorderColor = borderColor,
+        focusedLabelColor = primaryColor,
+        unfocusedLabelColor = labelColor,
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorLabelColor = MaterialTheme.colorScheme.error
+    )
+
+    if (reconciler != null) {
+        OutlinedTextField(
+            value = localValue,
+            onValueChange = { novo ->
+                val cortado = if (maxLength != null && novo.text.length > maxLength) {
+                    TextFieldValue(novo.text.take(maxLength), TextRange(maxLength))
+                } else {
+                    novo
+                }
+                val mudouTexto = cortado.text != localValue.text
+                // Mesmo quadro: o campo nunca espera o ViewModel para mostrar a letra.
+                localValue = cortado
+                if (mudouTexto && reconciler.onLocalText(cortado.text)) onValueChange(cortado.text)
+            },
+            modifier = fieldModifier,
+            label = labelSlot,
+            placeholder = placeholderSlot,
+            leadingIcon = leadingSlot,
+            trailingIcon = trailingSlot,
+            visualTransformation = effectiveTransformation,
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            singleLine = singleLine,
+            isError = errorMessage != null,
+            supportingText = supportingText,
+            enabled = enabled,
+            readOnly = readOnly,
+            shape = shape,
+            colors = colors,
+        )
+        return
     }
 
     OutlinedTextField(
@@ -117,56 +223,21 @@ fun AppTextField(
                 onValueChange(newValue)
             }
         },
-        modifier = modifier.fillMaxWidth(),
-        label = label?.let { { Text(it) } },
-        placeholder = placeholder?.let { { Text(it) } },
-        leadingIcon = leadingIcon?.let {
-            { Icon(imageVector = it, contentDescription = null) }
-        },
-        trailingIcon = if (isPassword) {
-            {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(
-                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                        contentDescription = stringResource(
-                            if (passwordVisible) Res.string.kmplib_password_hide else Res.string.kmplib_password_show,
-                        )
-                    )
-                }
-            }
-        } else null,
-        visualTransformation = when {
-            isPassword && !passwordVisible -> PasswordVisualTransformation()
-            else -> visualTransformation
-        },
-        // Capitalização/autocorreção derivadas do tipo (ver `appKeyboardOptions`): sem isso, o teclado
-        // do iOS capitaliza e AUTOCORRIGE e-mail/senha/telefone — o campo envia uma palavra que a
-        // pessoa não digitou. Campo de senha entra como identificador, nunca como texto corrido.
-        keyboardOptions = appKeyboardOptions(
-            keyboardType = if (isPassword) KeyboardType.Password else keyboardType,
-            imeAction = imeAction,
-            capitalization = capitalization ?: defaultCapitalizationFor(
-                if (isPassword) KeyboardType.Password else keyboardType,
-            ),
-            autoCorrect = autoCorrect ?: defaultAutoCorrectFor(
-                if (isPassword) KeyboardType.Password else keyboardType,
-            ),
-        ),
+        modifier = fieldModifier,
+        label = labelSlot,
+        placeholder = placeholderSlot,
+        leadingIcon = leadingSlot,
+        trailingIcon = trailingSlot,
+        visualTransformation = effectiveTransformation,
+        keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         singleLine = singleLine,
         isError = errorMessage != null,
         supportingText = supportingText,
         enabled = enabled,
         readOnly = readOnly,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = primaryColor,
-            unfocusedBorderColor = borderColor,
-            focusedLabelColor = primaryColor,
-            unfocusedLabelColor = labelColor,
-            errorBorderColor = MaterialTheme.colorScheme.error,
-            errorLabelColor = MaterialTheme.colorScheme.error
-        )
+        shape = shape,
+        colors = colors,
     )
 }
 
