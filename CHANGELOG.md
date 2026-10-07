@@ -1,5 +1,23 @@
 # Changelog — kmplib
 
+## 2.259.1 — `monetization`: compra PROMOVIDA da App Store também passa pelo portão de pais
+
+**Correção (achado de revisão de segurança, ABC Divertido).** Na 2.259.0 a compra promovida da App Store
+(`PurchasesDelegate.onPurchasePromoProduct`, só iOS — inclui o *purchase intent*) chamava o `startPurchase` sem
+passar pelo `ParentalGate`, também no modo infantil; os outros caminhos de compra (`purchasePackage`,
+`purchaseProduct`, consumível, item) já exigiam `awaitPass()`.
+
+- No modo KIDS o `startPurchase` da promo agora só roda **depois** de o adulto passar no portão; negado (errou,
+  cancelou, sem host na tela, outro portão já aberto) a compra é **descartada** — o `startPurchase` não é chamado,
+  que é como a RevenueCat trata "não comprar agora" — e fica um `AppLogger.i`.
+- Vale também quando um delegate anterior do app recebe a promo: ele recebe o `startPurchase` já embrulhado.
+- Callback não suspenso → mesmo padrão não suspenso das outras saídas (`ParentalGate.request`, par do `guard`),
+  sem escopo de corrotina novo. Interno: `gatePromoPurchase`.
+- Fora do modo infantil nada muda (compra na hora, mesma thread).
+- Teste: `PromoPurchaseGateTest` (5).
+
+**Quem precisa subir:** só app em `AppAudience.KIDS` (hoje só o ABC Divertido, não publicado). Sem aviso.
+
 ## 2.259.0 — `platform`/`ui`: PORTÃO DE PAIS para app infantil — `KmpLibAudience`, `ParentalGate`, `ParentalGateDialog`
 
 **Por quê.** O ABC Divertido vai para a categoria INFANTIL (Google Play **Famílias** / Apple **Kids**), decisão do

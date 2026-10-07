@@ -80,7 +80,8 @@ internal class RevenueCatPurchaseRepository(
      *
      * **Compra promovida da App Store** (`onPurchasePromoProduct`, só iOS): com um delegate registrado
      * o SDK ADIA a compra até alguém chamar `startPurchase`. Sem delegate anterior, a lib inicia na hora
-     * — o mesmo comportamento de quando não havia delegate nenhum — e publica o resultado. Validação
+     * — o mesmo comportamento de quando não havia delegate nenhum — e publica o resultado. No modo
+     * infantil (2.259.1) o `startPurchase` passa antes pelo portão de pais ([gatePromoPurchase]). Validação
      * pendente no Mac: ver `references/monetization.md` §"Gate premium".
      */
     private fun installCustomerInfoListener() {
@@ -100,11 +101,16 @@ internal class RevenueCatPurchaseRepository(
                         onSuccess: (storeTransaction: StoreTransaction, customerInfo: CustomerInfo) -> Unit,
                     ) -> Unit,
                 ) {
+                    // App infantil (2.259.1): a compra promovida também passa pelo portão de pais,
+                    // inclusive quando é um delegate anterior que a dispara. Negado = descartada.
+                    val gatedStart = gatePromoPurchase(startPurchase) {
+                        AppLogger.i(TAG, "Compra promovida descartada: portão de pais não passou")
+                    }
                     if (previous != null) {
-                        previous.onPurchasePromoProduct(product, startPurchase)
+                        previous.onPurchasePromoProduct(product, gatedStart)
                         return
                     }
-                    startPurchase(
+                    gatedStart(
                         { error, userCancelled ->
                             if (!userCancelled) AppLogger.w(TAG, "Compra promovida falhou: ${error.message}")
                         },
