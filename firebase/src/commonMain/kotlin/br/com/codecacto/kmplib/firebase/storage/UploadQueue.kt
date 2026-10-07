@@ -5,37 +5,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Estado de um item individual da fila de upload.
- *
- * Modelo de UI puro (commonMain, serializável de fato apenas pelos campos primitivos) que o
- * `UploadProgressItem` (ui/components) renderiza. Reflete o ciclo de vida de um upload sobre
- * [StorageService.uploadBytesWithProgress].
- *
- * @property id identificador estável do item (ex.: UUID local). Use para `key` em listas.
- * @property fileName nome amigável exibido na UI.
- * @property fraction progresso 0.0..1.0 (clamped).
- * @property status estado atual.
- * @property downloadUrl preenchido quando [status] = [UploadStatus.COMPLETED].
- * @property errorMessage preenchido quando [status] = [UploadStatus.FAILED].
- */
-data class UploadItem(
-    val id: String,
-    val fileName: String,
-    val fraction: Float = 0f,
-    val status: UploadStatus = UploadStatus.PENDING,
-    val downloadUrl: String? = null,
-    val errorMessage: String? = null,
-) {
-    val percent: Int get() = (fraction.coerceIn(0f, 1f) * 100).toInt()
-    val isTerminal: Boolean get() = status == UploadStatus.COMPLETED || status == UploadStatus.FAILED
-    val isFailed: Boolean get() = status == UploadStatus.FAILED
-    val isUploading: Boolean get() = status == UploadStatus.UPLOADING
-}
-
-/** Estados possíveis de um [UploadItem]. */
-enum class UploadStatus { PENDING, UPLOADING, COMPLETED, FAILED }
-
-/**
  * Fila reativa de uploads, resiliente a rede ruim (canteiro de obra — NFR do MinhaObra).
  *
  * Reusa [StorageService.uploadBytesWithProgress] para cada item, expõe o agregado como
@@ -138,36 +107,5 @@ class UploadQueue(
 
     private fun update(id: String, transform: (UploadItem) -> UploadItem) {
         _items.value = _items.value.map { if (it.id == id) transform(it) else it }
-    }
-}
-
-/**
- * Pedido de upload enfileirável. Os bytes ficam em memória até o upload — para muitas fotos,
- * comprima antes (via [br.com.codecacto.kmplib.platform.ImageCompressor]) e enfileire em lotes.
- */
-data class UploadRequest(
-    val id: String,
-    val fileName: String,
-    val path: String,
-    val bytes: ByteArray,
-    val mimeType: String? = null,
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is UploadRequest) return false
-        return id == other.id &&
-            fileName == other.fileName &&
-            path == other.path &&
-            mimeType == other.mimeType &&
-            bytes.contentEquals(other.bytes)
-    }
-
-    override fun hashCode(): Int {
-        var result = id.hashCode()
-        result = 31 * result + fileName.hashCode()
-        result = 31 * result + path.hashCode()
-        result = 31 * result + (mimeType?.hashCode() ?: 0)
-        result = 31 * result + bytes.contentHashCode()
-        return result
     }
 }

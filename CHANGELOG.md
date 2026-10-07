@@ -1,5 +1,24 @@
 # Changelog — kmplib
 
+## 2.260.0 — `sync`: deixa de depender do `kmplib-firebase` (app com banco local não leva mais `firebase-analytics`)
+
+**Por quê.** O `kmplib-sync` declarava `api(project(":kmplib-firebase"))` só para usar três modelos de dados
+(`UploadItem`, `UploadStatus`, `UploadRequest`) na fila REST e no `UploadProgressItem`. Com isso, todo app que
+usa banco local (`LocalRepository`/SQLDelight) — mesmo declarando a kmplib por módulo — recebia o SDK do Firebase
+inteiro, inclusive **`firebase-analytics`** (e a permissão `AD_ID` que ele mescla). Achado na revisão de segurança
+do ABC Divertido (app infantil, declaração de dados sem analytics).
+
+- `UploadItem`, `UploadStatus` e `UploadRequest` mudaram para o **`kmplib-core`**, **no mesmo pacote**
+  (`br.com.codecacto.kmplib.firebase.storage`) — nenhum import muda; o `kmplib-firebase` continua expondo-os
+  (ele tem `api(kmplib-core)`).
+- `kmplib-sync` passa a depender só de `core`, `ui` e `monetization`.
+- **Compatibilidade:** app que usa Firebase (Auth/Storage) e declarava só `kmplib-sync` passando a receber o
+  Firebase de carona precisa declarar `kmplib-firebase` — conferido: os 5 apps da casa que usam `kmplib-sync`
+  por módulo já o declaram; o umbrella `kmplib` segue com tudo.
+- Suítes: core 426, firebase 28, sync 214 verdes; Android + iosArm64 compilados.
+
+Sem aviso (ninguém deixa de funcionar).
+
 ## 2.259.1 — `monetization`: compra PROMOVIDA da App Store também passa pelo portão de pais
 
 **Correção (achado de revisão de segurança, ABC Divertido).** Na 2.259.0 a compra promovida da App Store

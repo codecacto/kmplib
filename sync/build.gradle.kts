@@ -21,8 +21,9 @@ kotlin {
         commonMain.dependencies {
             api(project(":kmplib-core"))
             api(project(":kmplib-ui"))
-            // A fila de upload sobe para o Firebase Storage.
-            api(project(":kmplib-firebase"))
+            // SEM kmplib-firebase (2.260.0): a fila REST só usa os modelos neutros de upload
+            // (UploadItem/UploadStatus/UploadRequest), que moram no kmplib-core. Depender do módulo
+            // Firebase levava firebase-analytics a todo app com banco local.
             // O banner de sincronização respeita a cota do plano.
             api(project(":kmplib-monetization"))
 
