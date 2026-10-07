@@ -22,9 +22,24 @@ import kotlinx.serialization.json.Json
  * ```kotlin
  * single { createSyncDatabase() }                 // 1 banco por app
  * single<SyncStore> { SyncStore(get()) }
- * single { LocalRepository(TournamentLocal, get()) }   // 1 por entidade
+ * // 1 por entidade, CADA UM com `named` — o qualificador escrito LITERAL, aqui dentro:
+ * single<LocalRepository<Tournament>>(named("tournament")) { LocalRepository(TournamentLocal, get()) }
+ * single<LocalRepository<Player>>(named("player")) { LocalRepository(PlayerLocal, get()) }
+ * // quem usa: get<LocalRepository<Tournament>>(named("tournament"))
  * ```
  * onde `TournamentLocal : SyncableEntity<Tournament>` descreve nome/serializer/clientId da entidade.
+ *
+ * ⚠️ **Duas armadilhas do Koin, as duas compilam e só aparecem em runtime:**
+ * 1. **Sem `named`, a segunda declaração SOBRESCREVE a primeira.** O Koin indexa pela classe
+ *    APAGADA (`LocalRepository`, sem o genérico): `get<LocalRepository<Tournament>>()` devolve o
+ *    repositório do ÚLTIMO `single`, de outra entidade — tela vazia, dado gravado na entidade errada
+ *    ou `ClassCastException`.
+ * 2. **Qualificador em `val` de topo declarada DEPOIS do `module { }` no mesmo arquivo chega `null`.**
+ *    O `module { }` roda o bloco na hora, e as `val` de topo inicializam na ordem do arquivo: o
+ *    `single(qualificador)` registra SEM qualificador, e o `get(qualificador)` — avaliado depois,
+ *    já com o valor — não acha nada (`NoDefinitionFoundException … and qualifier '…'`, o app fecha
+ *    ao abrir). Escreva `named("…")` literal no `single`, ou declare a `val` ANTES do módulo.
+ * O par está travado em `LocalRepositoryKoinTest`.
  * Leitura é SEMPRE reativa do banco ([observeAll]/[observeById]) — a UI reflete na hora.
  *
  * @param T modelo de domínio (`@Serializable`).

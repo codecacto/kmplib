@@ -35,6 +35,9 @@ kotlin {
         }
 
         commonTest.dependencies {
+            // Só no teste: trava o registro do LocalRepository num grafo core+sync (sem firebase),
+            // e as duas armadilhas do Koin que o KDoc descreve (LocalRepositoryKoinTest).
+            implementation(libs.koin.core)
             implementation(libs.ktor.client.mock)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
