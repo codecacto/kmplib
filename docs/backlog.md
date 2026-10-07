@@ -3,6 +3,18 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 07/out/2026 — textos fixos em pt-BR achados na tradução dos apps GLOBAL (Call Recorder, Esquecido)
+> Decisão do fundador (06/out): app GLOBAL sai com o app traduzido nos 4 idiomas. A tradução dos apps esbarrou em dois textos que
+> moram na lib e não passam pelos recursos `kmplib_*` — o app não tem como trocá-los.
+- [ ] **GAP-I18N-AUDIOBAR-01 (P1) — `kmplib-media`: `AudioPlayerBar` com `contentDescription` fixo em pt-BR** ("Reproduzir",
+      "Pausar", "Reproduzir novamente", "Progresso da reprodução") e **sem `testTag`** no botão. Pedido: textos nos recursos da lib
+      (4 idiomas, `rememberAudioPlayerBarTexts()`) + ids `audio-player-btn-play`/`audio-player-progresso`. Hoje o flow do Call Recorder
+      toca o botão pela descrição com regex dos 4 idiomas (`.maestro/funcionalidades/03-reproduzir.yaml`) — trocar por id quando sair.
+- [ ] **GAP-I18N-NOTIFCHANNEL-01 (P1) — `kmplib-platform`: canais de notificação do Android com nome fixo em pt-BR**
+      (`NotificationScheduler.android.kt`: "Notificações", "Notificações gerais do aplicativo", "Notificações Importantes", …) — é o
+      que aparece em Configurações → Apps → Notificações para quem usa o app em inglês/espanhol. Pedido: nome/descrição dos canais
+      nos recursos nativos da lib (`res/values-*`) — e, ao trocar de idioma, `createNotificationChannel` de novo atualiza o nome.
+
 ### Registrado em 06/out/2026 — origem: design do **App do Personal** (`Estudo-App-Personal/docs/design/gaps-de-lib.md`)
 > Plataforma de personal trainer (2 apps + portal + relógio), arquétipo D+B, protótipo aprovado (protótipo vence a lib: o desenho vira primitivo do
 > projeto; aqui só **capacidade ausente** e o que ≥ 2 apps vão repetir). Par web em `Lib/weblib/docs/backlog.md` (GAP-PT-W*). Detalhe de cada item no arquivo de origem.
