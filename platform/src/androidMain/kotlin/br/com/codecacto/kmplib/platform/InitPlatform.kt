@@ -28,6 +28,8 @@ fun initKmpLibPlatform(context: Context) {
     DeviceLocaleHolder.init(context)
     br.com.codecacto.kmplib.platform.motion.ReduceMotionHolder.init(context)
     br.com.codecacto.kmplib.platform.links.InstallReferrerHolder.init(context)
+    // Modo automação: a marca do runner de QA só vale em app depurável — 2.262.0.
+    br.com.codecacto.kmplib.platform.automation.AutomationContextHolder.init(context)
     // Original de câmera deixado por captura interrompida (EXIF/GPS, resolução cheia) — 2.218.0.
     // Fora da main thread (é disco); a folga protege a captura que esta abertura veio receber.
     val app = context.applicationContext

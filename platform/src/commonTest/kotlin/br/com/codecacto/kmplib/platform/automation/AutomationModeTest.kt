@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform.automation
 
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,8 +11,39 @@ import kotlin.test.assertTrue
 @OptIn(AutomationModeApi::class)
 class AutomationModeTest {
 
+    @BeforeTest
+    fun antes() {
+        // O simulador da fila do Mac pode estar marcado pelo runner: o teste decide a marca.
+        qaRunnerMarkOverride = { false }
+    }
+
     @AfterTest
-    fun depois() = AutomationMode.reset()
+    fun depois() {
+        AutomationMode.reset()
+        qaRunnerMarkOverride = null
+    }
+
+    @Test
+    fun marcaDoRunnerLigaOModoECalaOsPedidos() {
+        qaRunnerMarkOverride = { true }
+        assertEquals(AutomationSignal.QA_RUNNER, AutomationMode.signal)
+        assertTrue(AutomationMode.suppressesAutomaticPrompts)
+    }
+
+    @Test
+    fun declaracaoVenceAMarcaDoRunner() {
+        qaRunnerMarkOverride = { true }
+        AutomationMode.activate(AutomationSignal.STORE_DOUBLE)
+        assertEquals(AutomationSignal.STORE_DOUBLE, AutomationMode.signal)
+    }
+
+    @Test
+    fun resetNaoDesligaAMarcaDoRunner() {
+        qaRunnerMarkOverride = { true }
+        AutomationMode.activate()
+        AutomationMode.reset()
+        assertEquals(AutomationSignal.QA_RUNNER, AutomationMode.signal, "a marca é do aparelho, não declaração")
+    }
 
     @Test
     fun processoComumNaoEAutomacao() {

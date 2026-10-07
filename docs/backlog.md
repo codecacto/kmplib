@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 07/out/2026 — modo automação para app sem dublê da loja
+- [x] **GAP-AUTOMACAO-SEM-LOJA-01 — entregue na 2.262.0** (`AutomationSignal.QA_RUNNER`): ~46 apps só com anúncio
+  ficavam sem `AutomationMode` e o "Está gostando…?" reprovava a suíte Maestro (Lua Certa). Marca do qa-runner no
+  aparelho (`setprop`/`defaults write -g`), lida só em binário depurável. Pendente fora da lib: atualizar o runner
+  no Mac; depois, os subflows `fechar-avaliacao.yaml` dos apps podem sair quando cada app for tocado.
+
 ### Registrado em 07/out/2026 — GAP-B-REAUTH-ADOCAO-01 (step-up), pendências do security-review da 2.261.0
 > Entregue na 2.261.0: `RecentAuthCoordinator`/`RecentAuthHost` + 401 `REAUTH_REQUIRED` tipado no `DomainApiClient`/`RestRepository`.
 - [ ] **GAP-REAUTH-SOCIAL-PROVA-01 (Médio) — reautenticação SOCIAL não força nova prova no provedor.** `SocialSignIn.reauthenticate`

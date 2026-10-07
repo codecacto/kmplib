@@ -1,5 +1,35 @@
 # Changelog — kmplib
 
+## 2.262.0 — `platform`: modo automação ligado pelo RUNNER DE QA (`AutomationSignal.QA_RUNNER`), sem linha no app
+
+**Por quê.** O `AutomationMode` (2.238.0) só ligava pelo dublê da loja (app que vende pela loja), pelo Test
+Harness do Android (o runner não pode ligar: apaga o aparelho) ou por `activate()` no app. Os ~46 apps que só
+vivem de anúncio ficavam sem o modo; com `clearState: false` o contador de avaliação sobrevive entre rodadas e o
+"Está gostando da experiência?" abria no meio da suíte Maestro (Lua Certa, 07/out). A correção por subflow em
+cada app é exatamente o que não se quer repetir 46 vezes.
+
+- **`AutomationSignal.QA_RUNNER`** — 4º sinal, lido a cada consulta (folga `QaRunnerSignal.CACHE_TTL` = 5 s,
+  porque o `AppReviewDialog` consulta na composição). Nomes do contrato em **`QaRunnerSignal`**
+  (`ANDROID_PROPERTY` = `debug.codecacto.automacao`, `IOS_DEFAULTS_KEY` = `CodecactoAutomacao`, `isOnValue`).
+  - **Android:** o runner faz `adb shell setprop debug.codecacto.automacao 1` (espaço `debug.*`: `shell` grava,
+    app lê, some no reboot); a lib lê pelo binário `getprop` (`ProcessBuilder`, API pública — sem reflexão em
+    `SystemProperties`, fora do SDK; `Settings.Global` descartado: app comum não lê chave não pública no 12+).
+    **Só em app depurável** (`ApplicationInfo.FLAG_DEBUGGABLE`, lido do `Context` que `initKmpLibPlatform`/
+    `KmpLib.init` registram — sem ele, desligado). Não há detecção oficial de emulador no Android.
+  - **iOS:** o runner grava `xcrun simctl spawn <udid> defaults write -g CodecactoAutomacao -bool YES`
+    (domínio GLOBAL — vale para app recém-instalado/reinstalado); a lib lê `NSUserDefaults.standardUserDefaults`.
+    **Só em binário Kotlin debug** (`Platform.isDebugBinary`), **só em alvo de simulador** (decidido na
+    compilação: `iosArm64` não tem o caminho) e só num processo `.app` (o `test.kexe` da suíte não conta).
+  - **Nunca vale em release:** em binário não depurável a marca nem é lida (`getprop`/`NSUserDefaults` não rodam).
+  - **Efeito:** o mesmo dos outros sinais, e só ele — `suppressesAutomaticPrompts` (avaliação e atualização
+    opcional). Anúncio, paywall, cobrança e atualização obrigatória não mudam. Declaração (`activate`, dublê)
+    vence a marca; `reset()` não a desliga (é do aparelho).
+- Runner: `Ferramentas/qa-runner` liga a marca no aparelho antes de cada execução (`src/sinal-automacao.ts`).
+- Testes: platform 431 (+13: `QaRunnerSignalTest` 7, `QaRunnerSignalAndroidTest` 3, `AutomationModeTest` +3) +
+  `QaRunnerSignalIosTest` (compilado; roda no Mac) — verdes; Android + iosArm64/iosSimulatorArm64/iosX64 compilados.
+- Aditivo: nenhum app precisa mudar. App que compila a kmplib pela fonte (`includeBuild`) ganha o sinal no
+  próximo build.
+
 ## 2.261.0 — `auth`/`core`: reautenticação para ação sensível (step-up, par do `requireRecentAuth` da backlib 0.151.0)
 
 **Por quê.** A backlib passou a exigir, nas rotas que não se desfazem (primeiro: excluir a conta), que a pessoa
