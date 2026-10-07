@@ -246,12 +246,14 @@ class RestRepository<T, ID>(
     // -----------------------------------------------------------------------------------------
 
     /**
-     * Wrapper sobre `handleApiCall` que, em caso de erro 401, dispara [RestConfig.onUnauthorized]
-     * (best-effort) sem mascarar o erro — o `ApiResult.Error(code = 401, ...)` é devolvido normalmente.
+     * Wrapper sobre `handleApiCall` que, em caso de erro 401 (exceto `REAUTH_REQUIRED`), dispara
+     * [RestConfig.onUnauthorized] (best-effort) sem mascarar o erro — o `ApiResult.Error(code = 401, ...)` é devolvido normalmente.
      */
     private suspend fun <R> fetch(block: suspend () -> R): ApiResult<R> {
         val result = handleApiCall(block)
-        if (result is ApiResult.Error && result.code == UNAUTHORIZED) {
+        // 401 `REAUTH_REQUIRED` (2.261.0) NÃO é sessão inválida: o app pede a credencial de novo
+        // (`withRecentAuth`), e avisar `onUnauthorized` o deslogaria no meio da ação.
+        if (result is ApiResult.Error && result.code == UNAUTHORIZED && !result.isReauthRequired) {
             config.onUnauthorized?.invoke()
         }
         return result

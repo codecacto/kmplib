@@ -47,6 +47,12 @@ import kotlinx.serialization.json.JsonPrimitive
  * compartilhamento e chama [AccountLocalDataPurger.purgeAccount]. Falha local **não** muda o
  * resultado (a exclusão no servidor aconteceu e não se desfaz); fica no log.
  *
+ * ### Reautenticação recente (2.261.0)
+ * Se o backend protege o wipe com `requireRecentAuth()` (backlib ≥ 0.151.0), a resposta 401
+ * `REAUTH_REQUIRED` vira `Result.failure(ReauthRequiredException)` — **nada foi apagado e a sessão
+ * continua**. Chame pelo `RecentAuthCoordinator.withRecentAuth { deleteAccountAndData(…) }` (ou pelo
+ * `RecentAuthHost` na tela), que pede a senha, confere a conta e repete uma vez.
+ *
  * ### Conta nomeada e motor segurado (2.218.0)
  * - A conta a limpar é capturada ([AccountLocalDataPurger.activeAccountId]) **antes** do wipe e
  *   passada explicitamente. Até a 2.217.0 a limpeza lia o escopo do espelho **depois** do
@@ -147,6 +153,13 @@ class AccountDeletionService(
                 return Result.failure(IllegalStateException(texts.deleteFailed))
             }
             is DomainResult.Error -> {
+                // 2.261.0: a rota exige autenticação RECENTE (backlib `requireRecentAuth`). Nada foi
+                // apagado e a sessão vale: o erro tipado sobe para o `withRecentAuth`/`RecentAuthHost`
+                // pedir a senha e repetir — nunca vira "sessão expirada".
+                if (r.isReauthRequired) {
+                    AppLogger.i(TAG, "Wipe LGPD pede reautenticação recente; nada foi apagado")
+                    return Result.failure(r.toReauthRequiredException())
+                }
                 AppLogger.e(TAG, "Falha no wipe server-side LGPD (conta preservada): ${r.message}")
                 return Result.failure(IllegalStateException(r.message.ifBlank { texts.deleteFailed }))
             }
@@ -228,6 +241,7 @@ class AccountDeletionService(
                 Result.failure(IllegalStateException(texts.exportFailed))
             }
             is DomainResult.Error -> {
+                if (r.isReauthRequired) return Result.failure(r.toReauthRequiredException())
                 AppLogger.e(TAG, "Falha na exportação de dados LGPD: ${r.message}")
                 Result.failure(IllegalStateException(r.message.ifBlank { texts.exportFailed }))
             }

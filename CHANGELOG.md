@@ -1,5 +1,51 @@
 # Changelog — kmplib
 
+## 2.261.0 — `auth`/`core`: reautenticação para ação sensível (step-up, par do `requireRecentAuth` da backlib 0.151.0)
+
+**Por quê.** A backlib passou a exigir, nas rotas que não se desfazem (primeiro: excluir a conta), que a pessoa
+tenha provado a credencial há pouco (`auth_time` do access token; o refresh NÃO o renova). Fora da janela a rota
+responde **401 `REAUTH_REQUIRED`** (`details.maxAgeSeconds` + `WWW-Authenticate: Bearer
+error="insufficient_user_authentication", …, max_age=<s>`, RFC 9470). Sem esta versão, esse 401 caía no
+tratamento de sessão expirada: o `DomainApiClient` renovava e repetia (voltava o mesmo 401, gastando uma rotação),
+o `RestRepository` chamava `onUnauthorized` (o app deslogava) e a exclusão de conta mostrava "Sessão expirada".
+
+- **`core`** — `RecentAuthChallenge` (`matches(status, serverCode, wwwAuthenticate)`, `maxAgeSeconds(details,
+  header)`; o cabeçalho é lido parâmetro a parâmetro, um `error=` dentro de outro texto entre aspas não conta),
+  **`ReauthRequiredException(maxAgeSeconds)`**, `Throwable.isReauthRequired()`.
+  - `DomainApiClient`: o 401 de reautenticação **não** renova nem repete; vira `DomainResult.Error` com
+    **`isReauthRequired`**, `reauthMaxAgeSeconds`, `toReauthRequiredException()` e a frase
+    `DomainApiTexts.reauthRequired` (traduzida pelo `loadDomainApiTexts()`). O 401 comum segue igual.
+  - `ApiResult.Error` ganhou `serverCode`/`details` (com default — fonte compatível) + `isReauthRequired`/
+    `toReauthRequiredException()`; `handleApiCall` os preenche e o `RestRepository` **não** chama
+    `onUnauthorized` no 401 de reautenticação.
+- **`auth`** — **`RecentAuthCoordinator`** (`ownAuth.recentAuth(social = socialSignIn)`):
+  `withRecentAuth(prompt: ReauthPrompt) { ação }` executa; no `ReauthRequiredException` pede a credencial
+  (`ReauthRequest` → `ReauthCredential.Password`/`.Social`), reautentica **sem adotar**, confere que o `sub` do
+  token novo é o da sessão (`OwnAuthTokenManager.adoptIfSameAccount`, atômico sob a trava da renovação),
+  troca, revoga a família antiga e **repete a ação UMA vez** — nova recusa volta como erro, sem laço. Outra
+  conta → `ReauthAccountMismatchException`, tokens novos revogados; sessão encerrada no meio →
+  `NotAuthenticated`; desistiu → `ReauthCancelledException` (`isReauthCancelled()`); senha errada/rede →
+  pergunta de novo com `previousError`, até `maxAttempts` (5). Troca + revogação em `NonCancellable`.
+  `SocialSignIn` implementa `SocialReauthenticator` (`reauthenticate(provider)`: mesmo fluxo, nos dois modos,
+  devolvendo os tokens sem adotar).
+  - **UI pronta:** `rememberRecentAuthState(coordinator)` → `RecentAuthState.run { ação }` +
+    **`RecentAuthHost(state)`** — diálogo com a senha **com o olho**, "Concluído" envia, senha errada no campo,
+    resto junto do botão, botões "Continuar com Google/Apple" (provedor da sessão primeiro), 4 idiomas
+    (`RecentAuthTexts`/`rememberRecentAuthTexts()`, `errorMessage(e)` = `null` no cancelamento). Ids:
+    `dialogo-input`/`dialogo-btn-confirmar`/`dialogo-btn-cancelar` + `reauth-btn-google`/`reauth-btn-apple`.
+  - `AccountDeletionService`: wipe/exportação com `REAUTH_REQUIRED` → `Result.failure(ReauthRequiredException)`,
+    nada apagado, sessão intacta.
+- Testes: core 432 (+6), auth 295 (+15: `RecentAuthCoordinatorTest` 14, `AccountDeletionServiceTest` +1), ui 711,
+  sync 217 — verdes; Android (todos os módulos) + iosArm64 (core/ui/auth/sync) compilados.
+- **Pendência (security-review, Médio):** no caminho SOCIAL a reautenticação refaz o login normal — o provedor não
+  é forçado a pedir a credencial de novo (`prompt=login`/`max_age=0`), nem o backend confere o `auth_time` do
+  id_token do provedor. Por senha não há essa lacuna. Registrado em `docs/backlog.md` (mudança cruzada
+  kmplib + backlib).
+
+Sem aviso: aditivo (nada deixa de funcionar para quem está na 2.260.0; só passa a funcionar quando o backend ligar
+`requireRecentAuth`). **Quem ligar `requireRecentAuth` num backend precisa do app nesta versão**, usando
+`withRecentAuth`/`RecentAuthHost` na tela sensível — a casca já nasce assim.
+
 ## 2.260.0 — `sync`: deixa de depender do `kmplib-firebase` (app com banco local não leva mais `firebase-analytics`)
 
 **Por quê.** O `kmplib-sync` declarava `api(project(":kmplib-firebase"))` só para usar três modelos de dados

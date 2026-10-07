@@ -2,7 +2,27 @@ package br.com.codecacto.kmplib.core.network
 
 sealed class ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>()
-    data class Error(val code: Int = -1, val message: String) : ApiResult<Nothing>()
+    /**
+     * @param serverCode o `code` do envelope de erro do servidor (2.261.0), quando veio — é por ele
+     *   que um 401 de **reautenticação** ([isReauthRequired]) se distingue do 401 de sessão expirada.
+     * @param details os `details` do envelope (2.261.0) — em `REAUTH_REQUIRED`, `maxAgeSeconds`.
+     */
+    data class Error(
+        val code: Int = -1,
+        val message: String,
+        val serverCode: String? = null,
+        val details: Map<String, String> = emptyMap(),
+    ) : ApiResult<Nothing>() {
+        /**
+         * `true` no 401 `REAUTH_REQUIRED` (step-up, backlib ≥ 0.151.0): **não é logout** — ver
+         * [RecentAuthChallenge]. O `RestRepository` não chama `onUnauthorized` nele.
+         */
+        val isReauthRequired: Boolean get() = code == 401 && serverCode == RecentAuthChallenge.CODE
+
+        /** O erro tipado para atravessar `Result`/`withRecentAuth`; só tem sentido se [isReauthRequired]. */
+        fun toReauthRequiredException(): ReauthRequiredException =
+            ReauthRequiredException(RecentAuthChallenge.maxAgeSeconds(details, null), message)
+    }
     data object Loading : ApiResult<Nothing>()
 
     val isSuccess: Boolean get() = this is Success

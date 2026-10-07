@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.sync.rest
 
+import br.com.codecacto.kmplib.core.network.ReauthRequiredException
+import br.com.codecacto.kmplib.core.network.RecentAuthChallenge
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.monetization.entitlement.QuotaExceeded
@@ -46,7 +48,9 @@ import kotlinx.serialization.json.jsonObject
  * - **Bearer Firebase** (`Authorization: Bearer <ID token>`) via [DomainTokenProvider].
  *
  * ### Resiliência (memória `app-baseline-resilience-ux`)
- *  - **401 → refresh de token** (`token(forceRefresh = true)`) e **1 retry** automático.
+ *  - **401 → refresh de token** (`token(forceRefresh = true)`) e **1 retry** automático — **exceto
+ *    o 401 `REAUTH_REQUIRED`** (2.261.0), que volta direto como [DomainResult.Error.isReauthRequired]:
+ *    renovar não muda o `auth_time`, e quem resolve é a pessoa provar a credencial de novo.
  *  - **402 → [DomainResult.Quota]** (paywall) — extrai o [QuotaExceeded] do corpo (`error.details`).
  *  - **429 → [DomainResult.Error]** amigável de rate-limit (semântica distinta da cota do plano).
  *  - Erros de rede/transporte **nunca lançam** para a UI: viram [DomainResult.Error] com
@@ -398,11 +402,16 @@ class DomainApiClient(
         return try {
             val token = tokenProvider.token(forceRefresh = false)
             val response = block(token)
-            if (response.status.value == 401) {
-                val fresh = tokenProvider.token(forceRefresh = true)
-                classify(block(fresh))
-            } else {
-                classify(response)
+            when {
+                response.status.value != 401 -> classify(response)
+                // 2.261.0: o 401 de REAUTENTICAÇÃO não renova nem repete. O refresh preserva o
+                // `auth_time`, então a repetição voltaria o mesmo 401 (gastando uma rotação de
+                // refresh) — e quem resolve é a pessoa provar a credencial (`withRecentAuth`).
+                isReauthChallenge(response) -> classify(response)
+                else -> {
+                    val fresh = tokenProvider.token(forceRefresh = true)
+                    classify(block(fresh))
+                }
             }
         } catch (e: CancellationException) {
             // Sair da tela cancela o escopo, e o `catch (Exception)` abaixo capturaria isso como se
@@ -425,21 +434,40 @@ class DomainApiClient(
             }
             else -> {
                 val envelope = envelopeDeErro(response)
-                val mensagemLocal = when (status) {
-                    429 -> currentTexts().rateLimited
-                    401 -> currentTexts().sessionExpired
+                val wwwAuthenticate = response.headers[HttpHeaders.WWWAuthenticate]
+                val reauth = RecentAuthChallenge.matches(status, envelope?.code, wwwAuthenticate)
+                val mensagemLocal = when {
+                    reauth -> currentTexts().reauthRequired
+                    status == 429 -> currentTexts().rateLimited
+                    status == 401 -> currentTexts().sessionExpired
                     else -> currentTexts().serverError(status)
                 }
+                val detalhes = envelope?.details.orEmpty()
                 DomainResult.Error(
                     code = status,
                     message = mensagemLocal,
-                    serverCode = envelope?.code,
+                    // Só o cabeçalho veio (corpo vazio de um proxy): o código é o do desafio.
+                    serverCode = if (reauth) RecentAuthChallenge.CODE else envelope?.code,
                     serverMessage = envelope?.message,
-                    details = envelope?.details.orEmpty(),
+                    details = if (reauth && !detalhes.containsKey(RecentAuthChallenge.DETAIL_MAX_AGE)) {
+                        RecentAuthChallenge.maxAgeSeconds(detalhes, wwwAuthenticate)
+                            ?.let { detalhes + (RecentAuthChallenge.DETAIL_MAX_AGE to it.toString()) }
+                            ?: detalhes
+                    } else {
+                        detalhes
+                    },
                 )
             }
         }
     }
+
+    /** `true` se o 401 é o desafio de step-up (RFC 9470), não sessão inválida. */
+    private suspend fun isReauthChallenge(response: HttpResponse): Boolean =
+        RecentAuthChallenge.matches(
+            response.status.value,
+            envelopeDeErro(response)?.code,
+            response.headers[HttpHeaders.WWWAuthenticate],
+        )
 
     private suspend fun envelopeDeErro(response: HttpResponse): ServerErrorEnvelope? =
         parseServerErrorEnvelope(runCatching { response.bodyAsText() }.getOrNull())
@@ -494,6 +522,8 @@ data class DomainApiTexts(
     val offline: String = "Sem conexão com o servidor.",
     val rateLimited: String = "Muitas requisições. Tente novamente em instantes.",
     val sessionExpired: String = "Sessão expirada. Entre novamente.",
+    /** 401 `REAUTH_REQUIRED` (2.261.0): a sessão vale, a ação pede a credencial de novo. */
+    val reauthRequired: String = ReauthRequiredException.DEFAULT_MESSAGE,
     val quotaReached: String = "Limite atingido.",
     val serverError: (Int) -> String = { code -> "Erro do servidor ($code)." },
 )
@@ -550,6 +580,20 @@ sealed class DomainResult<out T> {
          * servidor mandou: o primeiro é o campo que deve receber o foco.
          */
         val fieldErrors: Map<String, String> get() = details
+
+        /**
+         * `true` no 401 `REAUTH_REQUIRED` (2.261.0) — a ação sensível pede que a pessoa prove a
+         * credencial de novo. **Não é logout**: não limpe a sessão; passe a ação pelo
+         * `RecentAuthCoordinator.withRecentAuth`. Ver [RecentAuthChallenge].
+         */
+        val isReauthRequired: Boolean get() = code == 401 && serverCode == RecentAuthChallenge.CODE
+
+        /** A janela exigida pelo servidor (segundos), quando [isReauthRequired]. */
+        val reauthMaxAgeSeconds: Long? get() = RecentAuthChallenge.maxAgeSeconds(details, null)
+
+        /** O erro tipado para atravessar um `Result` (`Result.failure(e.toReauthRequiredException())`). */
+        fun toReauthRequiredException(): ReauthRequiredException =
+            ReauthRequiredException(reauthMaxAgeSeconds, message)
 
         /** `true` se o servidor apontou ao menos um campo. */
         val hasFieldErrors: Boolean get() = details.isNotEmpty()

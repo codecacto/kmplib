@@ -77,6 +77,38 @@ class OwnAuthTokenManager(
     }
 
     /**
+     * **Troca o par de tokens só se for da MESMA conta** (2.261.0, reautenticação de step-up).
+     *
+     * Atômico sob a trava da renovação: confere que a sessão corrente ainda é de [expectedAccountId]
+     * **e** que o `sub` de [tokens] é o mesmo, e só então grava — preservando e-mail, nome, usuário e
+     * a origem do login. Conta sem `sub` legível nunca casa (falha fechada).
+     */
+    internal suspend fun adoptIfSameAccount(tokens: OwnAuthTokens, expectedAccountId: String): AdoptOutcome =
+        mutex.withLock {
+            val current = _session.value
+            if (current == null || expectedAccountId.isBlank() || current.accountId != expectedAccountId) {
+                return@withLock AdoptOutcome.SessionChanged
+            }
+            if (JwtDecoder.subject(tokens.accessToken).orEmpty() != expectedAccountId) {
+                return@withLock AdoptOutcome.OtherAccount
+            }
+            val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
+            store.save(renewed)
+            _session.value = renewed
+            AdoptOutcome.Adopted(replaced = current)
+        }
+
+    /** Resultado de [adoptIfSameAccount]. */
+    internal sealed interface AdoptOutcome {
+        /** Trocou; [replaced] é a sessão anterior (a família dela fica órfã e deve ser revogada). */
+        class Adopted(val replaced: OwnAuthSession) : AdoptOutcome
+        /** Os tokens são de outra conta — nada foi trocado. */
+        data object OtherAccount : AdoptOutcome
+        /** A sessão acabou (ou virou outra conta) durante a reautenticação — nada foi trocado. */
+        data object SessionChanged : AdoptOutcome
+    }
+
+    /**
      * Mescla o perfil lido do servidor (`GET`/`PATCH {authBasePath}/me`) na sessão corrente e
      * publica — é o que faz `currentUser` passar a ter nome, e-mail e **nome de usuário** reais
      * (2.229.0). Devolve a sessão resultante, ou `null` quando não aplicou.

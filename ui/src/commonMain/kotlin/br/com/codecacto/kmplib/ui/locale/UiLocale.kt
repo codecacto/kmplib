@@ -14,6 +14,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_error_quota_reached
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_rate_limited
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_server
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_session_expired
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_required
 import br.com.codecacto.kmplib.generated.resources.kmplib_locale_tag
 import br.com.codecacto.kmplib.sync.rest.DomainApiTexts
 import kotlinx.coroutines.CancellationException
@@ -62,6 +63,7 @@ suspend fun loadDomainApiTexts(): DomainApiTexts =
             offline = getString(Res.string.kmplib_error_network),
             rateLimited = getString(Res.string.kmplib_error_rate_limited),
             sessionExpired = getString(Res.string.kmplib_error_session_expired),
+            reauthRequired = getString(Res.string.kmplib_reauth_required),
             quotaReached = getString(Res.string.kmplib_error_quota_reached),
             serverError = { codigo -> formatStatusTemplate(servidor, codigo) },
         )

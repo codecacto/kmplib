@@ -194,6 +194,21 @@ class RestRepositoryTest {
     }
 
     @Test
+    fun `401 REAUTH_REQUIRED nao dispara onUnauthorized e chega tipado`() = runTest {
+        var called = false
+        val r = repo(onUnauthorized = { called = true }) { _, _ ->
+            HttpStatusCode.Unauthorized to
+                """{"message":"Confirme sua identidade para continuar.","code":"REAUTH_REQUIRED","details":{"maxAgeSeconds":"300"}}"""
+        }
+        val res = r.delete("1")
+        assertIs<ApiResult.Error>(res)
+        assertEquals(401, res.code)
+        assertTrue(res.isReauthRequired)
+        assertEquals(300L, res.toReauthRequiredException().maxAgeSeconds)
+        assertTrue(!called, "reautenticação não é sessão expirada: nada de onUnauthorized")
+    }
+
+    @Test
     fun `cache em memoria evita segunda chamada de getById dentro do TTL`() = runTest {
         var calls = 0
         val r = repo(cacheTtl = 60_000L) { _, _ ->

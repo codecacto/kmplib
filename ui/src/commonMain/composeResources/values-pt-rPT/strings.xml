@@ -284,4 +284,18 @@
     <string name="kmplib_parental_gate_number_7">sete</string>
     <string name="kmplib_parental_gate_number_8">oito</string>
     <string name="kmplib_parental_gate_number_9">nove</string>
+
+    <!-- Reautenticação para ação sensível (2.261.0) -->
+    <string name="kmplib_reauth_title">Confirme a sua identidade</string>
+    <string name="kmplib_reauth_message">Por segurança, introduza a sua palavra-passe para continuar.</string>
+    <string name="kmplib_reauth_message_social">Por segurança, inicie sessão novamente para continuar.</string>
+    <string name="kmplib_reauth_password">Palavra-passe</string>
+    <string name="kmplib_reauth_wrong_password">Palavra-passe incorreta</string>
+    <string name="kmplib_reauth_confirm">Confirmar</string>
+    <string name="kmplib_reauth_continue_google">Continuar com Google</string>
+    <string name="kmplib_reauth_continue_apple">Continuar com Apple</string>
+    <string name="kmplib_reauth_account">Conta: %1$s</string>
+    <string name="kmplib_reauth_account_mismatch">Esta não é a conta com sessão iniciada. Confirme com a conta desta sessão.</string>
+    <string name="kmplib_reauth_required">Confirme a sua identidade para continuar.</string>
+    <string name="kmplib_reauth_failed">Não foi possível confirmar. Tente novamente.</string>
 </resources>

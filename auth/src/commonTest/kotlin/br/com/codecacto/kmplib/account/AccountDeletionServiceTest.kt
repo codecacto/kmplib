@@ -81,6 +81,24 @@ class AccountDeletionServiceTest {
     }
 
     @Test
+    fun `wipe que pede reautenticacao devolve o erro tipado e nao desloga`() = runTest {
+        val auth = FakeAuth(user = user)
+        val service = AccountDeletionService(
+            api = api { _, _ ->
+                HttpStatusCode.Unauthorized to
+                    """{"message":"Confirme sua identidade para continuar.","code":"REAUTH_REQUIRED","details":{"maxAgeSeconds":"300"}}"""
+            },
+            auth = auth,
+            credencialSaiNoWipe = true,
+        )
+        val e = service.deleteAccountAndData(confirmation = "EXCLUIR").exceptionOrNull()
+        val reauth = kotlin.test.assertIs<br.com.codecacto.kmplib.core.network.ReauthRequiredException>(e)
+        assertEquals(300L, reauth.maxAgeSeconds)
+        assertFalse(auth.signOutCalled, "reautenticação não é logout")
+        assertFalse(auth.deleteCalled)
+    }
+
+    @Test
     fun `wipe ok e conta excluida retorna Completed`() = runTest {
         val auth = FakeAuth(user = user)
         val service = AccountDeletionService(

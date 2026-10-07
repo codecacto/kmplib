@@ -2,6 +2,8 @@ package br.com.codecacto.kmplib.auth.social
 
 import br.com.codecacto.kmplib.auth.OwnAuthApi
 import br.com.codecacto.kmplib.auth.OwnAuthSocialService
+import br.com.codecacto.kmplib.auth.OwnAuthTokens
+import br.com.codecacto.kmplib.auth.SocialReauthenticator
 import br.com.codecacto.kmplib.auth.SocialProvider
 import br.com.codecacto.kmplib.firebase.auth.User
 
@@ -47,13 +49,41 @@ class SocialSignIn(
     private val nativeWebClientId: String = "",
     private val backendAppId: String = "",
     private val redirectScheme: String = "",
-) {
+) : SocialReauthenticator {
 
     /** Executa o fluxo completo e devolve o usuário já com a sessão adotada. */
     suspend fun signIn(provider: SocialProvider): Result<User> = when (caminhoDoLogin(mode, provider)) {
         CaminhoDoLoginSocial.NATIVO -> signInNativo(provider)
         CaminhoDoLoginSocial.NAVEGADOR -> signInPeloBackend(provider)
     }
+
+    /**
+     * **Reautenticação** (2.261.0): o mesmo fluxo de [signIn], nos dois modos, mas devolve os tokens
+     * **sem adotar a sessão**. É o que o `RecentAuthCoordinator` usa no 401 `REAUTH_REQUIRED`: ele
+     * confere que os tokens novos são da MESMA conta antes de trocar — adotar primeiro e conferir
+     * depois deixaria, por um instante, a sessão de outra pessoa no lugar da do titular.
+     *
+     * O nonce aqui sai direto do [api] (não passa pelo "nonce em voo" do repositório), e cada
+     * tentativa gera o próprio par PKCE, como no login.
+     */
+    override suspend fun reauthenticate(provider: SocialProvider): Result<OwnAuthTokens> =
+        when (caminhoDoLogin(mode, provider)) {
+            CaminhoDoLoginSocial.NATIVO -> {
+                val nonce = api.socialNonce().getOrElse { return Result.failure(it) }.nonce
+                if (nonce.isBlank()) return falha("O servidor não emitiu o nonce do login social.")
+                credencialNativa(provider, nonce).fold(
+                    onSuccess = { c -> api.social(provider, c.idToken, c.nonce, c.name, c.email) },
+                    onFailure = { Result.failure(it) },
+                )
+            }
+            CaminhoDoLoginSocial.NAVEGADOR -> {
+                val pkce = PkcePair.generate()
+                codigoPeloNavegador(provider, pkce).fold(
+                    onSuccess = { codigo -> api.socialExchange(codigo, pkce.verifier) },
+                    onFailure = { Result.failure(it) },
+                )
+            }
+        }
 
     // ── Nativo ────────────────────────────────────────────────────────────────
 
@@ -64,24 +94,34 @@ class SocialSignIn(
         if (nonce.isBlank()) {
             return falha("O servidor não emitiu o nonce do login social.")
         }
-        return when (provider) {
+        val c = credencialNativa(provider, nonce).getOrElse { return Result.failure(it) }
+        return social.signInWithSocial(
+            provider = provider,
+            idToken = c.idToken,
+            nonce = c.nonce,
+            name = c.name,
+            email = c.email,
+        )
+    }
+
+    /** O que o provedor nativo devolve e o backend precisa para emitir a sessão. */
+    private class CredencialNativa(val idToken: String, val nonce: String, val name: String?, val email: String?)
+
+    /** Passo 2 do nativo: o provedor embute [nonce] no `idToken`. Cancelamento vira [cancelado]. */
+    private suspend fun credencialNativa(provider: SocialProvider, nonce: String): Result<CredencialNativa> =
+        when (provider) {
             SocialProvider.GOOGLE -> {
                 if (nativeWebClientId.isBlank()) {
-                    return falha(
+                    falha(
                         "Login com Google não configurado nesta build: falta o client ID do tipo Web."
                     )
-                }
-                val r = GoogleAuthProvider(nativeWebClientId).signIn(nonce)
-                when {
-                    r.isCancelled -> cancelado()
-                    r.idToken.isNullOrBlank() -> falha(r.error ?: "O Google não devolveu o idToken.")
-                    else -> social.signInWithSocial(
-                        provider = SocialProvider.GOOGLE,
-                        idToken = r.idToken!!,
-                        nonce = nonce,
-                        name = r.displayName,
-                        email = r.email,
-                    )
+                } else {
+                    val r = GoogleAuthProvider(nativeWebClientId).signIn(nonce)
+                    when {
+                        r.isCancelled -> cancelado()
+                        r.idToken.isNullOrBlank() -> falha(r.error ?: "O Google não devolveu o idToken.")
+                        else -> Result.success(CredencialNativa(r.idToken!!, nonce, r.displayName, r.email))
+                    }
                 }
             }
 
@@ -90,39 +130,37 @@ class SocialSignIn(
                 when {
                     r.isCancelled -> cancelado()
                     r.idToken.isNullOrBlank() -> falha(r.error ?: "A Apple não devolveu o identityToken.")
-                    else -> social.signInWithSocial(
-                        provider = SocialProvider.APPLE,
-                        idToken = r.idToken!!,
-                        // O valor CRU: a Apple recebeu o SHA-256 dele, e é o cru que o backend
-                        // precisa para refazer o hash.
-                        nonce = r.nonce ?: nonce,
-                        name = r.fullName,
-                        email = r.email,
-                    )
+                    // O valor CRU: a Apple recebeu o SHA-256 dele, e é o cru que o backend precisa
+                    // para refazer o hash.
+                    else -> Result.success(CredencialNativa(r.idToken!!, r.nonce ?: nonce, r.fullName, r.email))
                 }
             }
         }
-    }
 
     // ── Pelo backend ──────────────────────────────────────────────────────────
 
     private suspend fun signInPeloBackend(provider: SocialProvider): Result<User> {
+        // O par PKCE é gerado a CADA tentativa e vive só nesta função: guardá-lo em campo faria duas
+        // tentativas simultâneas trocarem de verifier, e o backend recusaria as duas.
+        val pkce = PkcePair.generate()
+        val codigo = codigoPeloNavegador(provider, pkce).getOrElse { return Result.failure(it) }
+        return social.signInWithSocialCode(codigo, pkce.verifier)
+    }
+
+    /** Abre o navegador do sistema no `/social/start` e devolve o código do *deep link* de volta. */
+    private suspend fun codigoPeloNavegador(provider: SocialProvider, pkce: PkcePair): Result<String> {
         if (backendAppId.isBlank() || redirectScheme.isBlank()) {
             return falha(
                 "Login social pelo backend não configurado nesta build: falta o identificador do " +
                     "app ou o esquema do deep link de volta."
             )
         }
-        // O par PKCE é gerado a CADA tentativa e vive só nesta função: guardá-lo em campo faria duas
-        // tentativas simultâneas trocarem de verifier, e o backend recusaria as duas.
-        val pkce = PkcePair.generate()
         val url = api.socialStartUrl(provider, appId = backendAppId, codeChallenge = pkce.challenge)
-        val codigo = try {
-            SocialBrowserLogin().authenticate(url, redirectScheme)
+        return try {
+            Result.success(SocialBrowserLogin().authenticate(url, redirectScheme))
         } catch (e: SocialBrowserException) {
-            return Result.failure(e)
+            Result.failure(e)
         }
-        return social.signInWithSocialCode(codigo, pkce.verifier)
     }
 
     // ── Erros ─────────────────────────────────────────────────────────────────

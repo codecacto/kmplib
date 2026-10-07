@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 07/out/2026 — GAP-B-REAUTH-ADOCAO-01 (step-up), pendências do security-review da 2.261.0
+> Entregue na 2.261.0: `RecentAuthCoordinator`/`RecentAuthHost` + 401 `REAUTH_REQUIRED` tipado no `DomainApiClient`/`RestRepository`.
+- [ ] **GAP-REAUTH-SOCIAL-PROVA-01 (Médio) — reautenticação SOCIAL não força nova prova no provedor.** `SocialSignIn.reauthenticate`
+      refaz o login normal: com a sessão do Google viva no aparelho, confirmar vira escolher a conta. Correção cruzada: no fluxo de
+      reautenticação mandar `prompt=login` + `max_age=0` (Credential Manager/`GIDSignIn` no nativo; `/social/start?reauth=1` no BFF) **e**
+      a backlib conferir o `auth_time` do id_token do provedor dentro da janela antes de emitir `auth_time` novo. Par em `Lib/backlib/docs/backlog.md`.
+      Por senha não há lacuna; Apple nativa já pede biometria.
+- [ ] **GAP-REAUTH-OUTBOX-01 (Baixo) — `kmplib-sync`: `classifyRestFailure` trata todo 401 como retentável.** Uma escrita da fila numa rota
+      com `requireRecentAuth` seria repetida até expirar. Hoje nenhuma ação sensível passa pela outbox; quando passar, classificar
+      `REAUTH_REQUIRED` como terminal (precisa do `serverCode` no `RestWriteState`).
+
 ### Registrado em 07/out/2026 — textos fixos em pt-BR achados na tradução dos apps GLOBAL (Call Recorder, Esquecido)
 > Decisão do fundador (06/out): app GLOBAL sai com o app traduzido nos 4 idiomas. A tradução dos apps esbarrou em dois textos que
 > moram na lib e não passam pelos recursos `kmplib_*` — o app não tem como trocá-los.

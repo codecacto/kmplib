@@ -20,15 +20,26 @@ suspend inline fun <T> handleApiCall(
     throw e
 } catch (e: ResponseException) {
     val statusCode = e.response.status.value
+    val body = runCatching { e.response.bodyAsText() }.getOrNull()
     val backendMessage = runCatching {
-        val body = e.response.bodyAsText()
-        val json = Json.parseToJsonElement(body).jsonObject
+        val json = Json.parseToJsonElement(body.orEmpty()).jsonObject
         json["message"]?.jsonPrimitive?.contentOrNull
             ?: json["error"]?.jsonPrimitive?.contentOrNull
     }.getOrNull()
+    // 2.261.0: o `code` e os `details` do envelope viajam junto — é o que separa o 401
+    // `REAUTH_REQUIRED` (step-up: pedir a senha de novo) do 401 de sessão expirada (deslogar).
+    val envelope = br.com.codecacto.kmplib.sync.rest.parseServerErrorEnvelope(body)
+    val wwwAuthenticate = e.response.headers[io.ktor.http.HttpHeaders.WWWAuthenticate]
+    val reauth = RecentAuthChallenge.matches(statusCode, envelope?.code, wwwAuthenticate)
     ApiResult.Error(
         code = statusCode,
-        message = backendMessage ?: defaultHttpErrorMessage(statusCode, e.message)
+        message = backendMessage ?: defaultHttpErrorMessage(statusCode, e.message),
+        serverCode = if (reauth) RecentAuthChallenge.CODE else envelope?.code,
+        details = envelope?.details.orEmpty().let { d ->
+            if (!reauth || d.containsKey(RecentAuthChallenge.DETAIL_MAX_AGE)) d
+            else RecentAuthChallenge.maxAgeSeconds(d, wwwAuthenticate)
+                ?.let { d + (RecentAuthChallenge.DETAIL_MAX_AGE to it.toString()) } ?: d
+        },
     )
 } catch (e: SerializationException) {
     logApiCallFailure(e)

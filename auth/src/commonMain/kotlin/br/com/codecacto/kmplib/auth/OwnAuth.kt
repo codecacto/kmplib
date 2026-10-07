@@ -49,6 +49,14 @@ class OwnAuth internal constructor(
      */
     val social: OwnAuthSocialService get() = repositoryImpl
 
+    /**
+     * O coordenador de **reautenticação para ação sensível** (2.261.0) — o lado do app do
+     * `requireRecentAuth()` da backlib. Passe o `SocialSignIn` do app em [social] para a conta
+     * social poder confirmar pelo provedor; sem ele, só senha. Ver [RecentAuthCoordinator].
+     */
+    fun recentAuth(social: SocialReauthenticator? = null): RecentAuthCoordinator =
+        RecentAuthCoordinator(api, tokenManager, social)
+
     /** Lê o cofre e semeia a sessão em memória. Chamar uma vez no start do app. */
     suspend fun restore(): OwnAuthSession? = tokenManager.restore()
 }
