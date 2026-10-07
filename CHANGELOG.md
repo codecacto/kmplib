@@ -1,5 +1,42 @@
 # Changelog — kmplib
 
+## 2.259.0 — `platform`/`ui`: PORTÃO DE PAIS para app infantil — `KmpLibAudience`, `ParentalGate`, `ParentalGateDialog`
+
+**Por quê.** O ABC Divertido vai para a categoria INFANTIL (Google Play **Famílias** / Apple **Kids**), decisão do
+fundador em 06/out/2026. As duas lojas exigem que, em app infantil, todo toque que leva para FORA do app (link,
+loja, e-mail, compra, anúncio que abre site) passe por um **portão de pais** — um desafio que só adulto resolve
+(Apple App Review Guideline 1.3 + Kids Category; Google Play Families Policy). A lib não tinha, e cada saída mora
+num lugar diferente (house ad, "Desenvolvido por", "Avaliar", termos, compartilhar, compra).
+
+**Novo (aditivo):**
+- **`KmpLibAudience.configure(AppAudience.KIDS)`** (`platform.audience`) — uma linha na inicialização. Default
+  `GENERAL`: nada muda para os apps atuais.
+- **`ParentalGate`** — `guard { ação }`, `request(onResult)`, `awaitPass()` (suspenso), `pending`, `resolve`. Fora
+  do modo infantil executa na hora (mesma thread, exceções como antes). No infantil: a ação só roda se o adulto
+  acertar; errar/cancelar/fechar = não roda; segundo pedido com o portão aberto é negado (sem empilhar); **sem host
+  na tela, NEGA** (fecha em segurança) e loga.
+- **`ParentalGateDialog`** + **`ParentalGateHost`** (`ui.components`) — desafio "toque nos números nesta ordem:
+  sete, dois, nove" (3 dígitos distintos de 1–9 por extenso, teclado 0–9 de 64×56 dp, andamento lido pelo leitor
+  de tela), pelos wrappers de janela da lib, em pt-BR/en/es/pt-PT, sem coletar nada. `ParentalGateChallenge`
+  (puro), `ParentalGateTexts`/`rememberParentalGateTexts()`, ids `ParentalGateTestTags` (`portao-pais`,
+  `portao-pais-desafio`, `portao-pais-digito-<n>`, `portao-pais-btn-cancelar`; `portao-pais-digito-0` é sempre
+  resposta errada — o flow Maestro usa). **O `AppTheme` já instala o host**; app com tema próprio chama
+  `ParentalGateHost()` na raiz.
+- `UrlLauncher.withParentalGate()` / `ShareHandler.withParentalGate()` para implementação própria do app.
+
+**Automático no modo infantil (nenhuma linha por tela):** todo `getUrlLauncher()` (URL, e-mail, telefone,
+WhatsApp, mapa, loja, assinaturas, Configurações) e todo `getShareHandler()` passam pelo portão — logo clique em
+house ad (banner e intersticial), `DeveloperScreen`, `HtmlDocumentView`, `PaywallHost`, `PermissionBanner`,
+`AppServiceGate`; `LocalUriHandler` do `AppTheme` (link em texto); "Entrar em contato" da `DeveloperScreen`
+(formulário com nome/e-mail); compra no `RevenueCatPurchaseRepository` (negado = `Cancelled`); `AppReviewDialog`
+não desenha o formulário (e-mail/WhatsApp) e vai à loja pelo portão; `AppReviewManager` não pede avaliação sozinho.
+Embed do YouTube (`ui.components.video`, Android): "assistir no YouTube"/canal passa pelo portão no player inline;
+na tela cheia (`KmplibVideoActivity`, Activity de View sem host do portão) a saída é negada.
+House ads de app infantil só com criativos aprovados = `contentPolicy: CURATED` no apps-api (o app não sabe).
+
+**Limite conhecido:** compra disparada por ponte NATIVA em Swift (fora do repositório da lib) não passa pelo
+portão — app infantil que venda pelo Swift chama `ParentalGate.awaitPass()` antes.
+
 ## 2.258.0 — `ui`: busca que não perde letra — `AppSearchField`, `rememberSyncedTextFieldState`, `AppTextField(keepTextLocally)`
 
 **Por quê.** MinhaOS, rodada R8 do teste do agente (06/out/2026, docs/42): o campo de busca era

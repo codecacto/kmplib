@@ -13,6 +13,7 @@ import platform.Foundation.NSOperatingSystemVersion
 import kotlinx.cinterop.cValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.audience.withParentalGate
 
 class IosUrlLauncher : UrlLauncher {
 
@@ -136,4 +137,5 @@ class IosUrlLauncher : UrlLauncher {
     }
 }
 
-actual fun getUrlLauncher(): UrlLauncher = IosUrlLauncher()
+// Portão de pais em app infantil (2.259.0) — fora dele, chamada direta.
+actual fun getUrlLauncher(): UrlLauncher = IosUrlLauncher().withParentalGate()

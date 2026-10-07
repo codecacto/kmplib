@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components.video
 
+import br.com.codecacto.kmplib.platform.audience.ParentalGate
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
@@ -119,11 +120,14 @@ actual fun VideoPlayerInline(
                         ): Boolean {
                             val url = request?.url?.toString() ?: return false
                             if (SAIDAS.any { url.contains(it) }) {
-                                runCatching {
-                                    ctx.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                    )
+                                // App infantil (2.259.0): sair para o YouTube só depois do portão de pais.
+                                ParentalGate.guard {
+                                    runCatching {
+                                        ctx.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                        )
+                                    }
                                 }
                                 return true
                             }

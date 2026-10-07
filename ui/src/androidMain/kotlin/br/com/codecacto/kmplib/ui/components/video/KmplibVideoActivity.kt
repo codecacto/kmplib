@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.components.video
 
+import br.com.codecacto.kmplib.platform.audience.ParentalGate
+import br.com.codecacto.kmplib.core.util.AppLogger
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -193,7 +195,13 @@ open class KmplibVideoActivity : ComponentActivity() {
                     val url = request?.url?.toString() ?: return false
                     val saiDoPlayer = SAIDAS.any { url.contains(it) }
                     if (saiDoPlayer) {
-                        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        // App infantil (2.259.0): esta Activity é de View, sem o host do portão de
+                        // pais na tela — então a saída para o YouTube é NEGADA (fecha em segurança).
+                        if (ParentalGate.isRequired) {
+                            AppLogger.w("KmplibVideoActivity", "Saída para o YouTube negada em app infantil (tela cheia sem portão de pais)")
+                        } else {
+                            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        }
                         return true
                     }
                     return false

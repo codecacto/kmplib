@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
 import br.com.codecacto.kmplib.platform.automation.AutomationMode
+import br.com.codecacto.kmplib.platform.audience.KmpLibAudience
 
 /**
  * Storage abstrato para o estado de avaliação. Permite injetar fakes em testes.
@@ -59,14 +60,22 @@ class PreferencesReviewStore(
  * Sem isso, o contador salvo no emulador chegava ao gatilho rodada após rodada e o diálogo abria no
  * meio da suíte Maestro, escondendo a tela (Chamada Fácil, 02/out/2026). O app não faz nada.
  *
+ * ## App infantil nunca pede avaliação (2.259.0)
+ *
+ * Com [KmpLibAudience] em `KIDS`, o mesmo silêncio: quem está na tela é a criança, e o pedido de
+ * avaliação é uma saída para a loja. O "Avaliar" do menu continua existindo — atrás do portão de pais.
+ *
  * @param triggerCount número de completions antes de mostrar o dialog.
  * @param store storage persistente. Default usa [PreferencesReviewStore].
- * @param suppressed quando `true`, nenhum pedido sai e nada é contado. Default: [AutomationMode].
+ * @param suppressed quando `true`, nenhum pedido sai e nada é contado. Default: [AutomationMode] ou
+ *   app infantil ([KmpLibAudience]).
  */
 class AppReviewManager(
     private val triggerCount: Int = 3,
     private val store: ReviewStore = PreferencesReviewStore(),
-    private val suppressed: () -> Boolean = { AutomationMode.suppressesAutomaticPrompts },
+    private val suppressed: () -> Boolean = {
+        AutomationMode.suppressesAutomaticPrompts || KmpLibAudience.isKids
+    },
 ) {
     /**
      * Incrementa contador de completions e retorna `true` se for hora de mostrar

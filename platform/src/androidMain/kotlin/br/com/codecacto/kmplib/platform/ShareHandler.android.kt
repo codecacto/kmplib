@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
 import android.app.Activity
+import br.com.codecacto.kmplib.platform.audience.withParentalGate
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -181,5 +182,6 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
 actual fun getShareHandler(): ShareHandler {
     val context = ShareHandlerHolder.getContext()
         ?: throw IllegalStateException("ShareHandlerHolder não foi inicializado. Chame ShareHandlerHolder.init(context) no Application.onCreate()")
-    return AndroidShareHandler(context)
+    // Portão de pais em app infantil (2.259.0) — fora dele, chamada direta.
+    return AndroidShareHandler(context).withParentalGate()
 }

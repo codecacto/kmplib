@@ -6,6 +6,7 @@ import android.os.Build
 import android.net.Uri
 import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.audience.withParentalGate
 import java.net.URLEncoder
 
 /**
@@ -181,5 +182,6 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
 actual fun getUrlLauncher(): UrlLauncher {
     val context = AndroidAppContext.get()
         ?: throw IllegalStateException("kmplib não foi inicializada. Chame initKmpLib(context) no Application.onCreate()")
-    return AndroidUrlLauncher(context)
+    // Portão de pais em app infantil (2.259.0) — fora dele, chamada direta.
+    return AndroidUrlLauncher(context).withParentalGate()
 }

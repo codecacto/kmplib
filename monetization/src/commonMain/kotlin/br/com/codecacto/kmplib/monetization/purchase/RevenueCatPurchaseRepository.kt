@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.monetization.purchase
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.audience.ParentalGate
 import com.revenuecat.purchases.kmp.Purchases
 import com.revenuecat.purchases.kmp.PurchasesDelegate
 import com.revenuecat.purchases.kmp.models.CustomerInfo
@@ -210,6 +211,8 @@ internal class RevenueCatPurchaseRepository(
         purchasePackage(packageId, withoutFreeTrial = false)
 
     override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseResult {
+        // App infantil (2.259.0): compra só depois do portão de pais; negado = desistência.
+        if (!ParentalGate.awaitPass()) return PurchaseResult.Cancelled
         // Recarrega o MESMO offering que estava na tela se o pacote nao esta em cache (ex.: primeira
         // compra sem getOfferings) — o identifier `$rc_monthly` existe nos dois offerings.
         val pkg = cachedPackages[packageId]
@@ -280,6 +283,8 @@ internal class RevenueCatPurchaseRepository(
     )
     @Suppress("DEPRECATION")
     override suspend fun purchase(productId: String): PurchaseResult {
+        // App infantil (2.259.0): compra só depois do portão de pais; negado = desistência.
+        if (!ParentalGate.awaitPass()) return PurchaseResult.Cancelled
         if (cachedProducts.none { it.id == productId }) {
             getProducts()
         }
@@ -307,6 +312,8 @@ internal class RevenueCatPurchaseRepository(
 
     @Suppress("DEPRECATION")
     override suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult {
+        // App infantil (2.259.0): compra só depois do portão de pais; negado = desistência.
+        if (!ParentalGate.awaitPass()) return ConsumablePurchaseResult.Cancelled
         if (cachedProducts.none { it.id == productId }) {
             getProducts()
         }
@@ -432,6 +439,8 @@ internal class RevenueCatPurchaseRepository(
     }
 
     override suspend fun purchaseItem(productId: String): ItemPurchaseResult {
+        // App infantil (2.259.0): compra só depois do portão de pais; negado = desistência.
+        if (!ParentalGate.awaitPass()) return ItemPurchaseResult.Cancelled
         val product = cachedItems[productId]
             ?: run {
                 getStoreItems(listOf(productId))

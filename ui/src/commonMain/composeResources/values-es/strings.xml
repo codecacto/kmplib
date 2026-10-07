@@ -270,4 +270,18 @@
     <string name="kmplib_price_history_clear">Borrar selección</string>
     <string name="kmplib_permission_banner_allow">Permitir</string>
     <string name="kmplib_permission_banner_open_settings">Abrir ajustes</string>
+    <string name="kmplib_parental_gate_title">Pregunta a un adulto</string>
+    <string name="kmplib_parental_gate_instruction">Esta parte es para adultos. Para continuar, toca los números en este orden:</string>
+    <string name="kmplib_parental_gate_cancel">Cancelar</string>
+    <string name="kmplib_parental_gate_progress">%1$d de %2$d números tocados</string>
+    <string name="kmplib_parental_gate_number_0">cero</string>
+    <string name="kmplib_parental_gate_number_1">uno</string>
+    <string name="kmplib_parental_gate_number_2">dos</string>
+    <string name="kmplib_parental_gate_number_3">tres</string>
+    <string name="kmplib_parental_gate_number_4">cuatro</string>
+    <string name="kmplib_parental_gate_number_5">cinco</string>
+    <string name="kmplib_parental_gate_number_6">seis</string>
+    <string name="kmplib_parental_gate_number_7">siete</string>
+    <string name="kmplib_parental_gate_number_8">ocho</string>
+    <string name="kmplib_parental_gate_number_9">nueve</string>
 </resources>

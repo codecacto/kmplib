@@ -33,6 +33,7 @@ import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
 import br.com.codecacto.kmplib.mask.PhoneVisualTransformation
 import br.com.codecacto.kmplib.mask.filterPhoneInput
+import br.com.codecacto.kmplib.platform.audience.KmpLibAudience
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.delay
@@ -102,6 +103,10 @@ private enum class ReviewStep {
  *   [show] `true`: build de teste nunca pede avaliação (o pedido automático abria no meio da suíte
  *   Maestro e escondia a tela). Passe `false` só quando o diálogo é aberto por GESTO da pessoa (item
  *   "Avaliar o app" do menu), que o flow aciona de propósito.
+ *
+ * **App infantil (2.259.0):** com `KmpLibAudience` em `KIDS`, [show] `true` não desenha este diálogo
+ * (ele coleta e-mail/WhatsApp): abre a página da loja direto, atrás do portão de pais, e chama
+ * [onDismiss].
  */
 @Composable
 fun AppReviewDialog(
@@ -131,6 +136,18 @@ fun AppReviewDialog(
     noText: String = "Não",
     suppressInAutomation: Boolean = true,
 ) {
+    if (KmpLibAudience.isKids) {
+        // App infantil (2.259.0): o formulário pede e-mail e WhatsApp — dado que não se coleta de
+        // criança. "Avaliar" vai direto à página da loja, e o `getUrlLauncher()` põe o portão de pais
+        // na frente. O diálogo próprio não desenha.
+        LaunchedEffect(show) {
+            if (show) {
+                runCatching { getUrlLauncher().openStorePage(androidPackage = androidPackage, iosAppId = iosAppId) }
+                onDismiss()
+            }
+        }
+        return
+    }
     var currentStep by remember { mutableStateOf(ReviewStep.Initial) }
     var feedbackText by remember { mutableStateOf("") }
     var feedbackEmail by remember { mutableStateOf("") }

@@ -7,7 +7,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
+import br.com.codecacto.kmplib.ui.components.ParentalGateHost
+import br.com.codecacto.kmplib.ui.components.ParentalGatedUriHandler
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.platform.motion.LocalReduceMotion
 import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
@@ -48,6 +51,9 @@ import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
  *   desenha, e não o modo do aparelho. Ver [SystemBarsAppearance]. `false` só para o app que
  *   controla as barras por conta própria. Desde 2.241.0.
  * @param content Conteúdo da aplicação
+ *
+ * **Portão de pais (2.259.0):** o tema instala o `ParentalGateHost` e um `LocalUriHandler` que passa
+ * pelo `ParentalGate`. Só tem efeito em app infantil (`KmpLibAudience.configure(AppAudience.KIDS)`).
  *
  * O tema também provê `LocalReduceMotion` (`kmplib-platform`, 2.228.0) com o valor vivo da
  * preferência "reduzir movimento" do sistema.
@@ -108,7 +114,16 @@ fun AppTheme(
             // Publica as `Modifier.testTag()` da árvore como `resource-id` da plataforma, para a
             // automação de UI (Maestro/Appium) poder se ancorar por id em vez de por texto de tela.
             // Uma vez, na raiz — ver `WithTestTagsAsResourceId`. No iOS é no-op.
-            WithTestTagsAsResourceId(content)
+            WithTestTagsAsResourceId {
+                // Portão de pais (2.259.0): link de texto do Compose também passa por ele, e o host
+                // que desenha o portão mora aqui, na raiz. Fora do app infantil, ambos são neutros.
+                val baseUriHandler = LocalUriHandler.current
+                val gatedUriHandler = remember(baseUriHandler) { ParentalGatedUriHandler(baseUriHandler) }
+                CompositionLocalProvider(LocalUriHandler provides gatedUriHandler) {
+                    content()
+                    ParentalGateHost()
+                }
+            }
         }
     }
 }

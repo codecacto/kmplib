@@ -58,6 +58,7 @@ import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.developer.resolveStoreUrl
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.codecacto_logo
+import br.com.codecacto.kmplib.platform.audience.ParentalGate
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import coil3.compose.AsyncImage
@@ -84,6 +85,9 @@ private val WhatsAppGreen = Color(0xFF25D366)
  *     primaryColor = Color(0xFF6D28D9)
  * )
  * ```
+ *
+ * **App infantil (2.259.0):** todos os botões e cards saem pelo `getUrlLauncher()`, que já passa
+ * pelo portão de pais, e o "Entrar em contato" (formulário que pede nome e e-mail) também.
  *
  * @param onBack Callback para voltar à tela anterior
  * @param primaryColor Cor primária (header e botão principal)
@@ -228,7 +232,8 @@ fun DeveloperScreen(
 
                 // Ação primária: abre o formulário "Entrar em contato" (mesmo lead do site).
                 Button(
-                    onClick = { showContact = true },
+                    // Formulário de contato pede nome e e-mail: em app infantil, só depois do portão de pais.
+                    onClick = { ParentalGate.guard { showContact = true } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),

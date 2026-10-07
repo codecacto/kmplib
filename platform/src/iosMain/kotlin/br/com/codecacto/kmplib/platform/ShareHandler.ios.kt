@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
 import kotlinx.cinterop.BetaInteropApi
+import br.com.codecacto.kmplib.platform.audience.withParentalGate
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -195,4 +196,5 @@ class IosShareHandler : ShareHandler {
     }
 }
 
-actual fun getShareHandler(): ShareHandler = IosShareHandler()
+// Portão de pais em app infantil (2.259.0) — fora dele, chamada direta.
+actual fun getShareHandler(): ShareHandler = IosShareHandler().withParentalGate()

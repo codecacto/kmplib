@@ -270,4 +270,18 @@
     <string name="kmplib_price_history_clear">Limpar seleção</string>
     <string name="kmplib_permission_banner_allow">Permitir</string>
     <string name="kmplib_permission_banner_open_settings">Abrir definições</string>
+    <string name="kmplib_parental_gate_title">Pede a um adulto</string>
+    <string name="kmplib_parental_gate_instruction">Esta parte é para adultos. Para continuar, toca nos números por esta ordem:</string>
+    <string name="kmplib_parental_gate_cancel">Cancelar</string>
+    <string name="kmplib_parental_gate_progress">%1$d de %2$d números tocados</string>
+    <string name="kmplib_parental_gate_number_0">zero</string>
+    <string name="kmplib_parental_gate_number_1">um</string>
+    <string name="kmplib_parental_gate_number_2">dois</string>
+    <string name="kmplib_parental_gate_number_3">três</string>
+    <string name="kmplib_parental_gate_number_4">quatro</string>
+    <string name="kmplib_parental_gate_number_5">cinco</string>
+    <string name="kmplib_parental_gate_number_6">seis</string>
+    <string name="kmplib_parental_gate_number_7">sete</string>
+    <string name="kmplib_parental_gate_number_8">oito</string>
+    <string name="kmplib_parental_gate_number_9">nove</string>
 </resources>

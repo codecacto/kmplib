@@ -270,4 +270,18 @@
     <string name="kmplib_price_history_clear">Clear selection</string>
     <string name="kmplib_permission_banner_allow">Allow</string>
     <string name="kmplib_permission_banner_open_settings">Open settings</string>
+    <string name="kmplib_parental_gate_title">Ask a grown-up</string>
+    <string name="kmplib_parental_gate_instruction">This part is for adults. To continue, tap the numbers in this order:</string>
+    <string name="kmplib_parental_gate_cancel">Cancel</string>
+    <string name="kmplib_parental_gate_progress">%1$d of %2$d numbers tapped</string>
+    <string name="kmplib_parental_gate_number_0">zero</string>
+    <string name="kmplib_parental_gate_number_1">one</string>
+    <string name="kmplib_parental_gate_number_2">two</string>
+    <string name="kmplib_parental_gate_number_3">three</string>
+    <string name="kmplib_parental_gate_number_4">four</string>
+    <string name="kmplib_parental_gate_number_5">five</string>
+    <string name="kmplib_parental_gate_number_6">six</string>
+    <string name="kmplib_parental_gate_number_7">seven</string>
+    <string name="kmplib_parental_gate_number_8">eight</string>
+    <string name="kmplib_parental_gate_number_9">nine</string>
 </resources>
