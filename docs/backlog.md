@@ -3,6 +3,23 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 06/out/2026 — origem: design do **App do Personal** (`Estudo-App-Personal/docs/design/gaps-de-lib.md`)
+> Plataforma de personal trainer (2 apps + portal + relógio), arquétipo D+B, protótipo aprovado (protótipo vence a lib: o desenho vira primitivo do
+> projeto; aqui só **capacidade ausente** e o que ≥ 2 apps vão repetir). Par web em `Lib/weblib/docs/backlog.md` (GAP-PT-W*). Detalhe de cada item no arquivo de origem.
+- [ ] **GAP-PT-M03 (P0) — `kmplib-camera`: gravar vídeo com tela própria** (`CameraVideoRecorder`: CameraX `VideoCapture` + `AVCaptureMovieFileOutput`, limite com
+      parada automática, frontal/traseira, slot de guia, erro tipado). Hoje só foto/código de barras; o picker abre a câmera do sistema.
+- [ ] **GAP-PT-M04 (P0) — `kmplib-video`: preparar vídeo no aparelho** (`VideoTranscoder`: H.264 720p ~2 Mbps, cortar início/fim, tirar áudio, miniatura; Media3 Transformer / `AVAssetExportSession`).
+- [ ] **GAP-PT-M05 (P0) — `kmplib-sync`: upload retomável direto ao storage** (`DirectUploadOutbox`: URL pré-assinada, PUT/multipart, só Wi-Fi, estado por item). Exige `S3StorageProvider` na backlib-storage.
+- [ ] **GAP-PT-M11 (P0) — `kmplib-workout` e `kmplib-health`** já recomendados em `Estudo-App-Personal/06-relogio-kmp-e-biblioteca.md` §4 (domínio puro com alvo watchOS; HealthKit/Health Connect/FC por BLE).
+- [ ] **GAP-PT-M02 (P1) — `LoopVideo`**: vídeo isolado em laço, mudo, fonte local, toque pausa (hoje `FeedVideo` exige `FeedVideoHost`).
+- [ ] **GAP-PT-M06 + M12 (P1) — `AudioRecorder` (arquivo, segurar/tocar, onda) + kit de chat** (junta com `GAP-ME-02`, 2º consumidor).
+- [ ] **GAP-PT-M07 (P1) — player de revisão**: `stepFrame(±1)` e `VideoTimeline(markers)` no `VideoPlayer`.
+- [ ] **GAP-PT-M08 (P1) — `platform`: `Haptics.vibrate(pattern)` + `NotificationScheduler.scheduleOnce/cancel`** (fim do descanso com o app em 2º plano; `SoundEffectPlayer` não toca no Silencioso).
+- [ ] **GAP-PT-M09 (P1) — `monetization`: degrau × ciclo no paywall** (`PaywallTier`; 4 degraus × 3 ciclos = 9 produtos por loja; selo "Melhor valor" derivado).
+- [ ] **GAP-PT-M17 (P1, verificação) — `AppTheme` com `colorScheme`/`displayFontFamily` trocados em runtime** (marca do personal depois do login).
+- [ ] **GAP-PT-M01 (P1, nasce no projeto) — `MuscleMap`** frente/costas, 3 níveis, leitura e seleção; **candidato** a `kmplib-ui` no 2º consumidor (Meu Fisio).
+- [ ] Candidatos P2/P3 (nascem no projeto): M13 cálculos de avaliação física · M14 `WeeklyBars`/`MonthCalendar`/`HeatGrid` · M15 `RestRing` · M16 `PhotoCompare` · M10 relógio Fase 1 (Live Activity + notificação contínua, molde na casca) · verificações M18 (`AppBottomNavBar` sem indicador) e M19 (botões sociais públicos).
+
 ### Registrado em 06/out/2026 — rótulo da barra de abas cortado (Meu Estacionamento, iPhone 17 Pro)
 - [x] **GAP-UI-BOTTOMNAV-LABEL-01** — ✅ **2.255.0**: `AppBottomNavBar` mede o rótulo (`TextMeasurer`) e reduz a
       fonte até 10 sp antes de usar reticência; insets laterais com `displayCutout`. "Configurações" em 4 abas.
