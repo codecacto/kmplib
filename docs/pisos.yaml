@@ -1,0 +1,73 @@
+# Pisos de versão da kmplib — a versão MÍNIMA que um app precisa, POR IMPACTO.
+#
+# Decisão do fundador (08/out/2026): "se o app já foi validado numa versão da kmplib e está tudo
+# certo, não tem por que ficar subindo versão — só sobe se a nova versão resolveu um problema que
+# impacta aquele app". A régua deixou de ser "a última versão" e passou a ser ESTE arquivo.
+#
+# Quem lê: `Nexus/fabrica/pisos_kmplib.py` (auditor de prontidão de loja + selo "Revisão da
+# fábrica" da sonda). Um app só tem falta de kmplib se estiver ABAIXO de um piso que o atinge:
+#   - `todos: true`  → atinge qualquer app (correção crítica: link/crash/loja para todo mundo);
+#   - `simbolos: [...]` → atinge o app cujo código Kotlin (fontes .kt do app mobile, sem build/)
+#     cita pelo menos um destes nomes como palavra inteira (grep -w);
+#   - `padrao: '<regex>'` (+ `rotulo` para a mensagem) → atinge o app em que alguma linha casa a
+#     regex estendida (grep -E). Para correção que só importa num USO específico do componente;
+#   - `condicao: <nome>` → regra calculada pelo auditor. Para defeito VISUAL, que só existe para
+#     quem tem o problema: `contraste_on` / `contraste_on_container` leem a paleta que o app passa
+#     ao `AppTheme` (`AppColorPalette(...)` com cores literais, ou `AppColorPalettes.<preset>`),
+#     refazem a conta da versão antiga e só cobram se der < 4,5:1. Paleta ilegível = não cobra.
+#
+# Quem escreve: TODO release da kmplib que CORRIGE um defeito visto pelo usuário ou pela loja
+# acrescenta a sua entrada aqui, no mesmo commit do CHANGELOG (skill `lib-evolution`, passo 1 do
+# ciclo de lib). Release puramente aditivo (API nova, id de automação, utilitário) NÃO entra —
+# ele não muda nada para quem já está validado. Correção que só vale depois de o APP mudar a
+# chamada (ex.: parâmetro novo) entra com `padrao` casando o uso DEFEITUOSO — nunca com o símbolo
+# cru, senão todo app que usa o componente corretamente é empurrado para um bump que nada muda.
+# O `motivo` diz o que migrar.
+#
+# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.262.0 e 2.238.0
+# (modo automação — só a suíte do QA), 2.261.0 (step-up: o app só precisa quando usa
+# `withRecentAuth`, que nem compila antes), 2.260.0 (sync sem firebase-analytics: só app que
+# declara a kmplib por módulo; o AD_ID tem checagem própria no auditor), 2.258.0/2.257.0/2.256.0
+# (API nova), 2.251.0 (só teste E2E), 2.255.0 e 2.254.0 (rótulo cortado na `AppBottomNavBar` /
+# palavra partida no `CommunicationTile`: defeito VISUAL que depende do tamanho do rótulo na tela, e
+# o auditor não tem como medir — piso visual só entra com `condicao` que prove o problema). Tudo abaixo de 2.253.0 é coberto pelo piso `todos` dela.
+#
+# Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
+
+pisos:
+  - versao: 2.262.5
+    motivo: "teclado soma banner e barra de gestos e espreme o formulário (migrar para FormContainer(contentPadding = innerPadding))"
+    rotulo: "FormContainer(modifier = Modifier.padding(innerPadding))"
+    padrao: 'FormContainer\((modifier = )?Modifier\.padding\((innerPadding|padding|paddingValues|it)\)\s*(,|\))'
+
+  - versao: 2.262.4
+    motivo: "quadro de assinatura mudo no leitor de tela e some da árvore no iOS (testTag do app junto)"
+    simbolos: [SignaturePad]
+
+  - versao: 2.262.3
+    motivo: "texto on*Container ilegível sobre o container tonal da marca (contraste ~1,7:1)"
+    condicao: contraste_on_container
+
+  - versao: 2.262.2
+    motivo: "texto sobre botão da marca ilegível no tema escuro / com marca clara (on* fixo, sem contraste WCAG)"
+    condicao: contraste_on
+
+  - versao: 2.262.1
+    motivo: "campo numérico engole dígito no iOS (\"120\" vira \"10\")"
+    simbolos: [NumberField, DigitBoxField, AddressFields]
+
+  - versao: 2.259.1
+    motivo: "compra promovida da App Store passava sem o portão de pais (app infantil; Kids/Famílias)"
+    simbolos: [ParentalGate, ParentalGateDialog, KmpLibAudience]
+
+  - versao: 2.253.0
+    motivo: "purchases-kmp 3.x: com a 2.x o link do iOS quebra em Kotlin 2.3.20 (o binding vai no umbrella, use o app a compra ou não)"
+    todos: true
+
+  - versao: 2.252.4
+    motivo: "rede móvel que pisca vira erro, registro excluído reaparece e carga cancelada derruba outra tela"
+    simbolos: [RestRepository, createHttpClient]
+
+  - versao: 2.250.0
+    motivo: "assinante tratado como grátis ao abrir o app (docs/45)"
+    simbolos: [MonetizationManager, PaywallHost, PurchaseManager, PremiumStatus]

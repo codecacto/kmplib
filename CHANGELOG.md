@@ -1,5 +1,10 @@
 # Changelog — kmplib
 
+> **Pisos por impacto (08/out/2026).** Todo release que CORRIGE defeito visto pelo usuário ou pela loja
+> acrescenta a sua entrada em [`docs/pisos.yaml`](docs/pisos.yaml) no mesmo commit desta nota (skill
+> `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
+> que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
+
 ## 2.262.5 — `ui`: `FormContainer(contentPadding = innerPadding)` — teclado não soma mais o banner e a barra de gestos
 
 **Por quê.** O `FormContainer` aplica `imePadding()` + `verticalScroll` por dentro, e o próprio KDoc mandava usar
