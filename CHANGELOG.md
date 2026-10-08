@@ -1,5 +1,32 @@
 # Changelog — kmplib
 
+## 2.262.4 — `platform`/`signature`: o `SignaturePad` passa a ter semântica de acessibilidade
+
+**Por quê.** O `SignaturePad` era um `Canvas` só com `pointerInput`: sem nome, o TalkBack/VoiceOver não anunciava
+o quadro e, no iOS, o nó podia sumir da árvore de acessibilidade — levando junto o `testTag` do app (o Maestro não
+achava `assinatura-pad-emitente`). O ReciboFácil contornou no app (`8a8c1cf`) com `semantics { contentDescription }`
+no `modifier`; ChecklistVeicular (`SignatureScreen.kt`) e ExtinRota (`OsAssinaturaContent.kt`/`OsDevolucaoContent.kt`)
+têm o mesmo quadro mudo.
+
+**Aditivo — nenhuma chamada existente quebra.** Parâmetros novos no fim da assinatura, com default:
+
+- `contentDescription: String` — nome do quadro; default "Quadro de assinatura" no idioma da tela. Com mais de um
+  quadro, passe o que os distingue ("Assinatura do emitente").
+- `texts: SignaturePadTexts` (`rememberSignaturePadTexts()` / `signaturePadTexts(languageTag)`) — nome, estado e
+  rótulos das ações em pt-BR, en, es e pt-PT, escolhidos por `appLanguageTag()` (o mesmo `FactoryLocales.match` da
+  pasta do compose-resources; o `kmplib-platform` não tem `Res` próprio).
+- Semântica no MESMO nó do `Canvas`, aplicada ANTES do `modifier` do app (o `testTag` do app fica nesse nó):
+  `contentDescription`; `stateDescription` "Sem assinatura"/"Assinado"; com traço, as ações de acessibilidade
+  **"Limpar assinatura"** e **"Desfazer último traço"** (menu de ações do TalkBack / rotor do VoiceOver). Sem `role`
+  (o Compose não tem papel para superfície de desenho; `Role.Image` anunciaria "imagem").
+
+**Migrar:** tirar `semantics { contentDescription = … }` do `modifier` do pad e passar `contentDescription = …` — a
+semântica da lib vem antes na cadeia e prevalece sobre a do `modifier`.
+
+Testes: `SignaturePadSemanticsTest` (4, androidUnitTest — nome, estado, ações chamando `clear`/`undo`, ordem lib →
+app com o `testTag` intacto) + `SignaturePadTextsTest` (4 — 4 idiomas e queda em pt-BR). platform 439 verdes;
+Android + iosArm64 (inclusive testes iOS) compilados.
+
 ## 2.262.3 — `ui`/tema: `on*Container` legível sobre o container tonal da marca, nos temas claro e escuro
 
 **Por quê.** Sinaleiro (08/out): o cartão "Quick" do `CommunicationTile` na Home usa `secondaryContainer`/

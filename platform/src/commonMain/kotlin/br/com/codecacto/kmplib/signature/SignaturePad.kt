@@ -23,6 +23,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.platform.encodeBitmapToPng
@@ -155,6 +160,19 @@ fun rememberSignaturePadState(): SignaturePadState = remember { SignaturePadStat
  * @param strokeWidth espessura do traço exibido.
  * @param backgroundColor cor de fundo da área (a exportação é sempre transparente).
  * @param height altura padrão quando o modifier não define uma.
+ * @param texts textos de acessibilidade (default: idioma da tela, [rememberSignaturePadTexts]).
+ * @param contentDescription o nome do quadro para o leitor de tela. Default "Quadro de assinatura"
+ *   no idioma da tela; com mais de um quadro na tela, passe um nome que os distinga
+ *   ("Assinatura do emitente"). **Não** ponha `semantics { contentDescription }` no `modifier`:
+ *   a semântica da lib vem antes na cadeia e prevalece.
+ *
+ * Acessibilidade (2.262.4): o quadro é UM nó semântico com nome ([contentDescription]), estado
+ * ("Sem assinatura"/"Assinado") e, quando há traço, as ações "Limpar assinatura" e "Desfazer
+ * último traço" no menu de ações do TalkBack/rotor do VoiceOver. A semântica é aplicada ANTES do
+ * `modifier` do app, no mesmo nó do `Canvas` — o `testTag` do app sai nesse nó, e no iOS o quadro
+ * deixa de ser um nó sem semântica (que a árvore de acessibilidade descartava, levando o id junto).
+ * Sem `role`: o Compose não tem papel para superfície de desenho, e `Role.Image` faria o leitor
+ * anunciar "imagem" num campo que se preenche.
  */
 @Composable
 fun SignaturePad(
@@ -164,9 +182,18 @@ fun SignaturePad(
     strokeWidth: Dp = 3.dp,
     backgroundColor: Color = Color.Transparent,
     height: Dp = 180.dp,
+    texts: SignaturePadTexts = rememberSignaturePadTexts(),
+    contentDescription: String = texts.contentDescription,
 ) {
     Canvas(
-        modifier = modifier
+        modifier = signaturePadRootModifier(
+            appModifier = modifier,
+            contentDescription = contentDescription,
+            isEmpty = state.isEmpty,
+            texts = texts,
+            onClear = state::clear,
+            onUndo = state::undo,
+        )
             .fillMaxWidth()
             .height(height)
             .pointerInput(Unit) {
@@ -202,5 +229,38 @@ fun SignaturePad(
                 )
             }
         }
+    }
+}
+
+/**
+ * A cadeia do nó raiz do [SignaturePad]: a semântica da lib PRIMEIRO, depois o `modifier` do app.
+ * Separada para o teste conferir a ordem sem renderizar.
+ */
+internal fun signaturePadRootModifier(
+    appModifier: Modifier,
+    contentDescription: String,
+    isEmpty: Boolean,
+    texts: SignaturePadTexts,
+    onClear: () -> Unit,
+    onUndo: () -> Unit,
+): Modifier = Modifier
+    .signaturePadSemantics(contentDescription, isEmpty, texts, onClear, onUndo)
+    .then(appModifier)
+
+/** Nome, estado e ações de acessibilidade do quadro. As ações só existem com traço desenhado. */
+internal fun Modifier.signaturePadSemantics(
+    contentDescription: String,
+    isEmpty: Boolean,
+    texts: SignaturePadTexts,
+    onClear: () -> Unit,
+    onUndo: () -> Unit,
+): Modifier = semantics {
+    this.contentDescription = contentDescription
+    stateDescription = if (isEmpty) texts.stateEmpty else texts.stateSigned
+    if (!isEmpty) {
+        customActions = listOf(
+            CustomAccessibilityAction(texts.clearAction) { onClear(); true },
+            CustomAccessibilityAction(texts.undoAction) { onUndo(); true },
+        )
     }
 }
