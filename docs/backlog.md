@@ -3,6 +3,16 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 08/out/2026 — manifesto do app herda superfície que ele não usa (security-review do Escuta)
+- [ ] **GAP-MANIFESTO-TRANSITIVO-01 (Baixo) — `kmplib-firebase` e `kmplib-monetization` mesclam no manifesto de todo app
+      o que só serve a quem usa Firebase Auth / venda na loja.** `kmplib-firebase` traz `firebase-auth` (GitLive + `firebase-auth-ktx`)
+      e, com ele, `com.google.firebase.auth.internal.GenericIdpActivity` e `RecaptchaActivity` **exportadas** — app own-auth que
+      só quer o FCM leva duas Activities expostas sem função. `kmplib-monetization` (purchases-kmp/Play Billing) traz
+      `com.android.vending.BILLING` + `<queries>` de billing para app em `MonetizationMode.NONE`. Hoje o app corrige com
+      `tools:node="remove"` (Escuta: `mobile/composeApp/src/androidMain/AndroidManifest.xml`). Pedido: separar o push do Firebase
+      Auth (artefato/feature próprio, ou `firebase-auth` só para quem o declara) e o billing do resto da monetização (house ads
+      e cota não precisam da loja); enquanto isso, documentar no catálogo o bloco de `tools:node="remove"` para app own-auth/sem loja.
+
 ### Registrado em 08/out/2026 — formulário espremido pelo teclado debaixo de Scaffold
 - [x] **GAP-FORM-INSETS-01 — entregue na 2.262.5** (`FormContainer(contentPadding = innerPadding)`): o KDoc mandava
   `Modifier.padding(innerPadding)`, que não consome inset, e o `imePadding` interno somava teclado + banner + barra
