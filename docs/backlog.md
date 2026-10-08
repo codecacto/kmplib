@@ -3,6 +3,11 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 08/out/2026 — formulário espremido pelo teclado debaixo de Scaffold
+- [x] **GAP-FORM-INSETS-01 — entregue na 2.262.5** (`FormContainer(contentPadding = innerPadding)`): o KDoc mandava
+  `Modifier.padding(innerPadding)`, que não consome inset, e o `imePadding` interno somava teclado + banner + barra
+  de gestos (10 apps corrigidos à mão em 08/out). Agora `padding(it).consumeWindowInsets(it)` na origem.
+
 ### Registrado em 07/out/2026 — modo automação para app sem dublê da loja
 - [x] **GAP-AUTOMACAO-SEM-LOJA-01 — entregue na 2.262.0** (`AutomationSignal.QA_RUNNER`): ~46 apps só com anúncio
   ficavam sem `AutomationMode` e o "Está gostando…?" reprovava a suíte Maestro (Lua Certa). Marca do qa-runner no

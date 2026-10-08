@@ -1,5 +1,25 @@
 # Changelog — kmplib
 
+## 2.262.5 — `ui`: `FormContainer(contentPadding = innerPadding)` — teclado não soma mais o banner e a barra de gestos
+
+**Por quê.** O `FormContainer` aplica `imePadding()` + `verticalScroll` por dentro, e o próprio KDoc mandava usar
+`FormContainer(modifier = Modifier.padding(innerPadding))` debaixo de um `Scaffold`. `Modifier.padding` não CONSOME
+inset: com o teclado aberto, teclado + `bottomBar` (banner) + barra de gestos se somavam e o formulário virava uma
+tira, com o "Salvar" inalcançável. Corrigido app a app em 10 apps em 08/out/2026 (Tanque Cheio `8380347`, ExtinRota
+`9e38b38`, PontoFirme `f208b49`, TorneioDePenalti `bcd908e`…) com `consumeWindowInsets(innerPadding)`.
+
+**Aditivo — nenhuma chamada quebra.** Parâmetro novo `contentPadding: PaddingValues = PaddingValues(0.dp)` (antes do
+`content`): aplica `padding(it).consumeWindowInsets(it)` ANTES do `imePadding` interno — o padrão oficial do Compose
+WindowInsets. Zero (default) não acrescenta nó à cadeia. KDoc com o exemplo certo.
+
+**Migrar (quando o app for tocado):** `FormContainer(modifier = Modifier.padding(innerPadding))` →
+`FormContainer(contentPadding = innerPadding)`. Quem já passa `Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)`
+está certo e pode ficar. `LoginScreen`/`RegisterScreen` já usavam `windowInsetsPadding` (que consome) — sem mudança;
+não há outro `imePadding` na lib.
+
+Testes: `FormContainerContentPaddingTest` (4 — `isZero` nos 4 lados/2 direções, zero não mexe na cadeia, padding
+do Scaffold = padding + consumo).
+
 ## 2.262.4 — `platform`/`signature`: o `SignaturePad` passa a ter semântica de acessibilidade
 
 **Por quê.** O `SignaturePad` era um `Canvas` só com `pointerInput`: sem nome, o TalkBack/VoiceOver não anunciava

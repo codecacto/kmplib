@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -15,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.LocalWindowSizeClass
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
@@ -83,9 +88,22 @@ object FormDefaults {
  * Column(Modifier.verticalScroll(rememberScrollState())) { FormContainer { … } }
  * FormContainer(modifier = modifier.verticalScroll(rememberScrollState())) { … }
  *
- * // ✅ o padding do Scaffold entra pelo modifier; quem rola é o container
- * FormContainer(modifier = Modifier.padding(innerPadding)) { … }
+ * // ✅ o padding do Scaffold entra por `contentPadding`; quem rola é o container
+ * Scaffold(topBar = { … }, bottomBar = { ManagedBannerAd(…) }) { innerPadding ->
+ *     FormContainer(contentPadding = innerPadding) { … }
+ * }
  * ```
+ *
+ * ## Debaixo de um `Scaffold`: `contentPadding`, NUNCA `Modifier.padding(innerPadding)` (2.262.5)
+ *
+ * O `imePadding()` interno desconta só os insets que alguém **consumiu** acima dele. O
+ * `innerPadding` do `Scaffold` já contém a barra de gestos e o `bottomBar` (banner), mas
+ * `Modifier.padding(innerPadding)` **não consome** nada — então, com o teclado aberto, teclado +
+ * banner + barra de gestos se SOMAVAM e o formulário virava uma tira, com o "Salvar" inalcançável
+ * (10 apps corrigidos um a um em 08/out/2026). [contentPadding] aplica
+ * `padding(it).consumeWindowInsets(it)` antes do `imePadding`, que é o padrão oficial do Compose
+ * WindowInsets. Quem ainda passa `Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)`
+ * no [modifier] continua certo; sem o `consumeWindowInsets`, migre para [contentPadding].
  *
  * Aninhado, o `verticalScroll` de dentro era medido com altura máxima infinita e o Compose abortava:
  * *"Vertically scrollable component was measured with an infinity maximum height constraints"*
@@ -105,6 +123,9 @@ object FormDefaults {
  * @param horizontalAlignment Horizontal alignment for the column items
  * @param verticalArrangement Vertical arrangement for the column items
  * @param maxContentWidth Teto de largura do conteúdo. [Dp.Unspecified] = sem teto.
+ * @param contentPadding O `innerPadding` do `Scaffold` (ou qualquer padding que represente barras
+ *   já desenhadas por fora). É aplicado E consumido como inset, para o `imePadding` interno não
+ *   somá-lo de novo ao teclado. Default: nenhum.
  * @param content The form content
  */
 @Composable
@@ -115,13 +136,17 @@ fun FormContainer(
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(12.dp),
     maxContentWidth: Dp = FormDefaults.maxContentWidth(LocalWindowSizeClass.current),
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scrollState = rememberScrollState()
 
     // As restrições que valem são as que chegam DEPOIS do `modifier` do app — é assim que um
     // `verticalScroll` passado nele também é percebido como "sem teto".
-    BoxWithConstraints(modifier = modifier) {
+    //
+    // `consumeWindowInsets` ANTES do `imePadding` (que está na Column abaixo): é o que faz o
+    // teclado descontar a barra de gestos e o banner que o Scaffold já reservou.
+    BoxWithConstraints(modifier = modifier.scaffoldContentPadding(contentPadding)) {
         val rolaAqui = scrollsItself(constraints)
         Column(
             modifier = Modifier
@@ -151,3 +176,17 @@ fun FormContainer(
         }
     }
 }
+
+/**
+ * Aplica [padding] e o declara consumido como inset, para todo `imePadding`/`windowInsetsPadding`
+ * abaixo descontá-lo. Padding zero não acrescenta nó nenhum à cadeia.
+ */
+internal fun Modifier.scaffoldContentPadding(padding: PaddingValues): Modifier =
+    if (padding.isZero()) this else this.padding(padding).consumeWindowInsets(padding)
+
+/** `true` quando os quatro lados são zero, nas duas direções de layout. */
+internal fun PaddingValues.isZero(): Boolean =
+    calculateTopPadding() == 0.dp && calculateBottomPadding() == 0.dp &&
+        LayoutDirection.entries.all {
+            calculateStartPadding(it) == 0.dp && calculateEndPadding(it) == 0.dp
+        }
