@@ -1,5 +1,29 @@
 # Changelog — kmplib
 
+## 2.262.2 — `ui`/tema: `onPrimary`/`onSecondary`/`onTertiary`/`onError` por contraste WCAG, nos temas claro e escuro
+
+**Por quê.** Teste do Minha Ficha (08/out): no tema escuro o `createDarkColorScheme` fixava os quatro `on*` em
+`#1C1C1C` qualquer que fosse a marca — botão vermelho `#DC2626` com texto ~3,6:1 e secundária `#111827` com texto
+praticamente invisível. O `createLightColorScheme` tinha o espelho do defeito: branco fixo, ilegível sobre
+amarelo/âmbar/verde-claro. Todo app com tema escuro (ou marca clara no tema claro) herdava.
+
+**API pública inalterada** — nada a mudar no app além do bump.
+
+- Cada `on*` passa a ser escolhido entre **branco** e o quase-preto **`#1C1C1C`** pelo MAIOR contraste WCAG
+  (luminância relativa) sobre a cor **exibida**: no claro, a marca; no escuro, a marca a 90% composta sobre o fundo
+  (`#121212`, ou `darkSurfaces.background` quando o app informa). Se nem o melhor dos dois chega a 4,5:1 (faixa
+  estreita de luminância ~0,18), o quase-preto cede ao preto puro — o par branco/preto garante ≥ 4,58:1 para
+  qualquer cor.
+- **Muda o visual (para melhor)**: no escuro, marca escura/saturada passa a ter texto branco (antes quase-preto);
+  no claro, marca clara (âmbar, amarelo, verde `#10B981`) passa a ter texto quase-preto (antes branco). Marcas que
+  já davam contraste continuam iguais (ex.: Teal claro segue branco).
+- A paleta não tem override de `on*` (nunca teve): app que quer outro tom continua usando `contentColor` no
+  componente. Alto contraste (`highContrast = true`) não muda.
+
+Testes: `OnBrandColorTest` (8 — vermelho/azul-escuro → branco, âmbar/verde/amarelo → quase-preto nos dois temas,
+fundo de superfícies próprias, paletas prontas, varredura de 256 cinzas e de 216 matizes ≥ 4,5:1). ui 732 / auth
+295 verdes; Android + iosArm64 compilados.
+
 ## 2.262.1 — `ui`/`brdata`: campo numérico que não engole dígito no iOS — `NumberField`, `DigitBoxField`, `AddressFields`
 
 **Por quê.** Fila de teste do Mac, Meu Controle `e24adea` (07/out): "120" digitado no `NumberField` virava "10" no

@@ -216,6 +216,31 @@ private fun Double.format2(): String {
 }
 
 /**
+ * Cor de **conteúdo** (`onPrimary`, `onSecondary`, `onTertiary`, `onError`) para texto/ícone sobre uma
+ * cor de MARCA preenchida (2.262.2). Escolhe entre branco e o quase-preto [ON_BRAND_DARK] o que der
+ * MAIOR contraste WCAG sobre a cor efetivamente exibida ([fill] já composta, opaca); se nem o melhor
+ * dos dois chegar a [ColorContrast.AA_TEXT] (4,5:1 — só acontece numa faixa estreita de luminância
+ * média, por volta de 0,18), troca o quase-preto por preto puro, com o qual o par branco/preto
+ * garante ≥ 4,58:1 para QUALQUER cor.
+ *
+ * Até a 2.262.1 o tema escuro fixava `#1C1C1C` e o claro fixava branco, qualquer que fosse a marca:
+ * vermelho `#DC2626` no escuro dava ~3,6:1 e um azul-marinho `#111827` deixava o texto do botão
+ * praticamente invisível; no claro, amarelo/âmbar/verde-claro com texto branco ficavam ilegíveis.
+ */
+internal fun onBrandColorFor(fill: Color): Color {
+    val opaque = if (fill.alpha < 1f) ColorContrast.compositeOver(fill, 1f, Color.Black) else fill
+    val best = ColorContrast.pickOnColor(opaque, light = Color.White, dark = ON_BRAND_DARK)
+    if (ColorContrast.meetsTextContrast(best, opaque)) return best
+    return ColorContrast.pickOnColor(opaque, light = Color.White, dark = Color.Black)
+}
+
+/** Quase-preto preferido para texto sobre cor de marca clara (o mesmo tom histórico do tema). */
+private val ON_BRAND_DARK = Color(0xFF1C1C1C)
+
+/** Alpha das cores de marca no tema escuro (histórico): a cor exibida é a marca composta sobre o fundo. */
+private const val DARK_BRAND_ALPHA = 0.9f
+
+/**
  * Cria um ColorScheme Light baseado na paleta customizada.
  *
  * Quando [AppColorPalette.lightSurfaces] é informado, o conjunto completo de superfícies do app é
@@ -227,22 +252,22 @@ fun createLightColorScheme(
 ): ColorScheme {
     val base = lightColorScheme(
         primary = palette.primary,
-        onPrimary = Color.White,
+        onPrimary = onBrandColorFor(palette.primary),
         primaryContainer = palette.primary.copy(alpha = 0.1f),
         onPrimaryContainer = palette.primary,
 
         secondary = palette.secondary,
-        onSecondary = Color.White,
+        onSecondary = onBrandColorFor(palette.secondary),
         secondaryContainer = palette.secondary.copy(alpha = 0.1f),
         onSecondaryContainer = palette.secondary,
 
         tertiary = palette.tertiary,
-        onTertiary = Color.White,
+        onTertiary = onBrandColorFor(palette.tertiary),
         tertiaryContainer = palette.tertiary.copy(alpha = 0.1f),
         onTertiaryContainer = palette.tertiary,
 
         error = palette.error,
-        onError = Color.White,
+        onError = onBrandColorFor(palette.error),
         errorContainer = palette.error.copy(alpha = 0.1f),
         onErrorContainer = palette.error,
 
@@ -278,28 +303,32 @@ fun createLightColorScheme(
 fun createDarkColorScheme(
     palette: AppColorPalette
 ): ColorScheme {
+    // A marca é desenhada a 90% sobre o fundo: o contraste do `on*` se mede na cor EXIBIDA.
+    val backdrop = palette.darkSurfaces?.background ?: DARK_BACKGROUND
+    fun onFor(brand: Color): Color =
+        onBrandColorFor(ColorContrast.compositeOver(brand, DARK_BRAND_ALPHA, backdrop))
     val base = darkColorScheme(
         primary = palette.primary.copy(alpha = 0.9f),
-        onPrimary = Color(0xFF1C1C1C),
+        onPrimary = onFor(palette.primary),
         primaryContainer = palette.primary.copy(alpha = 0.2f),
         onPrimaryContainer = palette.primary.copy(alpha = 0.9f),
 
         secondary = palette.secondary.copy(alpha = 0.9f),
-        onSecondary = Color(0xFF1C1C1C),
+        onSecondary = onFor(palette.secondary),
         secondaryContainer = palette.secondary.copy(alpha = 0.2f),
         onSecondaryContainer = palette.secondary.copy(alpha = 0.9f),
 
         tertiary = palette.tertiary.copy(alpha = 0.9f),
-        onTertiary = Color(0xFF1C1C1C),
+        onTertiary = onFor(palette.tertiary),
         tertiaryContainer = palette.tertiary.copy(alpha = 0.2f),
         onTertiaryContainer = palette.tertiary.copy(alpha = 0.9f),
 
         error = palette.error.copy(alpha = 0.9f),
-        onError = Color(0xFF1C1C1C),
+        onError = onFor(palette.error),
         errorContainer = palette.error.copy(alpha = 0.2f),
         onErrorContainer = palette.error.copy(alpha = 0.9f),
 
-        background = Color(0xFF121212),
+        background = DARK_BACKGROUND,
         onBackground = Color(0xFFE0E0E0),
 
         surface = Color(0xFF1E1E1E),
@@ -320,6 +349,9 @@ fun createDarkColorScheme(
     )
     return palette.darkSurfaces?.let { base.withSurfaces(it.resolve()) } ?: base
 }
+
+/** Fundo padrão do tema escuro sem superfícies próprias. */
+private val DARK_BACKGROUND = Color(0xFF121212)
 
 /**
  * Cria um ColorScheme Light de **alto contraste** (acessibilidade / baixa visão) derivado da paleta.
