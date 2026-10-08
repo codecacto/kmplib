@@ -1,5 +1,26 @@
 # Changelog — kmplib
 
+## 2.262.3 — `ui`/tema: `on*Container` legível sobre o container tonal da marca, nos temas claro e escuro
+
+**Por quê.** Sinaleiro (08/out): o cartão "Quick" do `CommunicationTile` na Home usa `secondaryContainer`/
+`onSecondaryContainer`, e o tema montava o par como a marca a 10% + a própria marca crua. Com marca clara
+(amarelo `#EAB308`) o texto dava ~1,7:1. O mesmo valia para `primary`/`tertiary`/`errorContainer`, e no escuro
+(marca a 90% sobre a marca a 20%) com marca escura. O app contornou sobrescrevendo `onSecondaryContainer`.
+
+**API pública inalterada** — nada a mudar no app além do bump (e retirar contorno local, se houver).
+
+- Cada `on*Container` passa a ser a **cor da marca escurecida (tema claro) / clareada (tema escuro)** só o
+  necessário para ≥ 4,5:1 sobre o container **como aparece** — a marca translúcida composta sobre o **fundo** E
+  sobre a **superfície** (`#FAFAFA`/branco no claro, `#121212`/`#1E1E1E` no escuro, ou as `lightSurfaces`/
+  `darkSurfaces` do app). Usa `ColorContrast.adjustForContrast` (mistura com o neutro → o matiz da marca fica).
+- Marca que já contrastava volta **intacta** no claro (azul, roxo, marinho…). No escuro o `on*Container` deixa de
+  ser a marca a 90% de alpha e passa a ser **opaco** (diferença imperceptível onde já era legível).
+- Alto contraste (`highContrast = true`) não muda.
+
+Testes: `OnBrandContainerColorTest` (6 — caso Sinaleiro, 11 marcas claras/escuras/extremas nos dois temas, com e
+sem superfícies próprias, paletas prontas, marca legível intacta, direção e matiz). ui 738 verdes; Android +
+iosArm64 compilados.
+
 ## 2.262.2 — `ui`/tema: `onPrimary`/`onSecondary`/`onTertiary`/`onError` por contraste WCAG, nos temas claro e escuro
 
 **Por quê.** Teste do Minha Ficha (08/out): no tema escuro o `createDarkColorScheme` fixava os quatro `on*` em
