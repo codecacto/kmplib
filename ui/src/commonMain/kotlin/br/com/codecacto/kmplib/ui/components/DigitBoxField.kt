@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -181,7 +182,17 @@ fun DigitBoxField(
     require(length in 1..DigitBoxFieldDefaults.MAX_LENGTH) {
         "DigitBoxField aceita de 1 a ${DigitBoxFieldDefaults.MAX_LENGTH} caixas (veio $length)"
     }
-    val allDigits = value.filter { it in '0'..'9' }
+    // Os algarismos MORAM NO CAMPO (2.262.1): com `value` vindo do StateFlow do ViewModel, cada tecla
+    // fazia a ida e volta antes de aparecer, e no iOS a digitação rápida engolia dígitos (docs/42,
+    // "campo numérico que engole dígitos"). A tecla é aplicada sobre o texto local no mesmo quadro; o
+    // `value` de fora só reescreve quando muda por outro motivo (limpar, preencher) — o eco atrasado
+    // do que foi digitado é ignorado ([TextInputReconciler]).
+    val externalDigits = value.filter { it in '0'..'9' }
+    val reconciler = remember { TextInputReconciler(externalDigits) }
+    var allDigits by remember { mutableStateOf(externalDigits) }
+    SideEffect {
+        reconciler.onExternal(externalDigits, allDigits)?.let { allDigits = it }
+    }
     val shown = allDigits.take(length)
     var pastedTooMany by remember(length) { mutableStateOf<Int?>(null) }
     var focused by remember { mutableStateOf(false) }
@@ -207,7 +218,8 @@ fun DigitBoxField(
                     is DigitBoxInput.Accepted -> {
                         pastedTooMany = null
                         if (result.value != shown) {
-                            onValueChange(result.value)
+                            allDigits = result.value
+                            if (reconciler.onLocalText(result.value)) onValueChange(result.value)
                             if (result.value.length == length) onFilled?.invoke(result.value)
                         }
                     }
@@ -286,7 +298,17 @@ fun DigitBoxDisplay(
     require(length in 1..DigitBoxFieldDefaults.MAX_LENGTH) {
         "DigitBoxDisplay aceita de 1 a ${DigitBoxFieldDefaults.MAX_LENGTH} caixas (veio $length)"
     }
-    val allDigits = value.filter { it in '0'..'9' }
+    // Os algarismos MORAM NO CAMPO (2.262.1): com `value` vindo do StateFlow do ViewModel, cada tecla
+    // fazia a ida e volta antes de aparecer, e no iOS a digitação rápida engolia dígitos (docs/42,
+    // "campo numérico que engole dígitos"). A tecla é aplicada sobre o texto local no mesmo quadro; o
+    // `value` de fora só reescreve quando muda por outro motivo (limpar, preencher) — o eco atrasado
+    // do que foi digitado é ignorado ([TextInputReconciler]).
+    val externalDigits = value.filter { it in '0'..'9' }
+    val reconciler = remember { TextInputReconciler(externalDigits) }
+    var allDigits by remember { mutableStateOf(externalDigits) }
+    SideEffect {
+        reconciler.onExternal(externalDigits, allDigits)?.let { allDigits = it }
+    }
     val shown = allDigits.take(length)
     val shownError = errorMessage ?: allDigits.length.takeIf { it > length }?.let { texts.tooMany(length, it) }
     val description = listOfNotNull(

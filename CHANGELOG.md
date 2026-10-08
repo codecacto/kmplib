@@ -1,5 +1,37 @@
 # Changelog — kmplib
 
+## 2.262.1 — `ui`/`brdata`: campo numérico que não engole dígito no iOS — `NumberField`, `DigitBoxField`, `AddressFields`
+
+**Por quê.** Fila de teste do Mac, Meu Controle `e24adea` (07/out): "120" digitado no `NumberField` virava "10" no
+iOS. É o mecanismo da busca da 2.258.0: o campo era CONTROLADO pelo `value` do `StateFlow` do ViewModel, o dígito
+voltava um quadro depois e, na digitação em rajada (Maestro ou pessoa), o campo era recomposto com o valor velho e a
+tecla seguinte caía sobre ele. ~43 apps usam `NumberField`.
+
+**API pública inalterada** — os apps continuam passando `value`/`onValueChange`; nada a mudar no app além do bump.
+
+- **`NumberField`** — `OutlinedTextField(state = rememberSyncedTextFieldState(value, onValueChange))` (texto no
+  campo, forma oficial *state-based TextField*) + **`InputTransformation`** com o filtro de sempre: só algarismos
+  (inteiro) ou algarismos e UMA vírgula (decimal); fora de `minValue`/`maxValue` a tecla é desfeita no próprio
+  campo. `value` que muda de fora (reset do formulário, edição carregada) reescreve o campo com o cursor no fim; o
+  eco atrasado do que foi digitado é ignorado (`TextInputReconciler`). `keyboardActions` segue valendo (adaptado
+  para `onKeyboardAction` — `KeyboardActions.toKeyboardActionHandler`, interno). **Melhoria:** no decimal, "."
+  digitado vira "," quando o texto não tem vírgula — o teclado decimal do iOS mostra "." em região que usa ponto e
+  o ponto era descartado em silêncio; "1.234,56" colado continua virando "1234,56". O contrato do `value` segue com
+  vírgula (`toDoubleFromNumberField`).
+- **`DigitBoxField`** — os algarismos moram no campo (estado local + `TextInputReconciler`), mesmo contrato.
+- **`AddressFields`** — o CEP virou campo com `TextFieldState` + `InputTransformation` (8 algarismos; colar
+  "78000-000" guarda "78000000") + `OutputTransformation` (máscara 00000-000, oficial no lugar da
+  `VisualTransformation`); logradouro/número/complemento/bairro com `keepTextLocally = true`. A busca de CEP e o
+  preenchimento por ela seguem iguais (valor de fora é aplicado).
+- Não há `MoneyField`/`PercentField` na lib: o módulo `mask` só tem `VisualTransformation` + filtros puros. Campo
+  numérico/mascarado montado no APP com `AppTextField(value = state.x, …)` tem o mesmo defeito e se corrige no app
+  (`keepTextLocally = true`, ou `rememberSyncedTextFieldState` + `inputTransformation` se o ViewModel recusa a tecla).
+
+Testes: `NumberFieldInputTest` (13 — filtro, recusa por faixa, ponto→vírgula, digitação rápida contra ViewModel
+atrasado sem perder dígito, reset externo, valor externo com cursor no fim, `DigitBoxField` em rajada, adaptador de
+`KeyboardActions`) e `CepTransformationsTest` (3). Suítes `ui` 724 e `brdata` 195 verdes; Android +
+`compileKotlinIosArm64` (ui, brdata) compilados.
+
 ## 2.262.0 — `platform`: modo automação ligado pelo RUNNER DE QA (`AutomationSignal.QA_RUNNER`), sem linha no app
 
 **Por quê.** O `AutomationMode` (2.238.0) só ligava pelo dublê da loja (app que vende pela loja), pelo Test

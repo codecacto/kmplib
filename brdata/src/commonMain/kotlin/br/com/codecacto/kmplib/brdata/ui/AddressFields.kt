@@ -6,6 +6,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldBuffer
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.insert
+import androidx.compose.foundation.text.input.placeCursorAtEnd
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.brdata.Address
@@ -27,7 +37,6 @@ import br.com.codecacto.kmplib.brdata.BrazilianStates
 import br.com.codecacto.kmplib.brdata.CepLookupResult
 import br.com.codecacto.kmplib.brdata.filterUfInput
 import br.com.codecacto.kmplib.brdata.mergedWith
-import br.com.codecacto.kmplib.mask.CepVisualTransformation
 import br.com.codecacto.kmplib.mask.filterCepInput
 import kotlinx.coroutines.launch
 
@@ -109,10 +118,13 @@ fun AddressFields(
             )
         }
 
-        AppTextField(
-            value = value.cep,
-            onValueChange = { bruto ->
-                val digitos = filterCepInput(bruto)
+        // CEP com o texto MORANDO NO CAMPO (2.262.1): era `AppTextField(value = value.cep)` e, com o
+        // endereço vindo do StateFlow do ViewModel, o iOS engolia dígitos na digitação rápida
+        // (docs/42). Filtro (só algarismos, até 8) e máscara (00000-000) são do próprio campo —
+        // `InputTransformation`/`OutputTransformation`, a forma oficial do TextField com estado.
+        CepField(
+            cep = value.cep,
+            onCepChange = { digitos ->
                 // Um `onValueChange` só: montar o próximo estado a partir de `value` duas vezes no
                 // mesmo evento faz a segunda chamada desfazer a primeira.
                 onValueChange(value.copy(cep = digitos))
@@ -131,10 +143,6 @@ fun AddressFields(
                     }
                 }
             },
-            label = "CEP",
-            placeholder = "00000-000",
-            keyboardType = KeyboardType.Number,
-            visualTransformation = CepVisualTransformation(),
             // A dica NEUTRA — não `errorMessage`, que pintaria o campo de vermelho durante uma
             // operação normal. É o que o `helperText` (2.129.0) veio resolver.
             helperText = if (buscando) "Buscando endereço…" else null,
@@ -144,6 +152,7 @@ fun AddressFields(
         AppTextField(
             value = value.logradouro,
             onValueChange = { onValueChange(value.copy(logradouro = it)) },
+            keepTextLocally = true,
             label = "Logradouro",
             placeholder = "Rua, avenida, travessa…",
             errorMessage = errors.logradouro,
@@ -153,6 +162,7 @@ fun AddressFields(
             AppTextField(
                 value = value.numero,
                 onValueChange = { onValueChange(value.copy(numero = it)) },
+                keepTextLocally = true,
                 modifier = Modifier.weight(1f).focusRequester(focoDoNumero).focusable(),
                 label = "Número",
                 placeholder = FormPlaceholders.ADDRESS_NUMBER,
@@ -162,6 +172,7 @@ fun AddressFields(
             AppTextField(
                 value = value.complemento,
                 onValueChange = { onValueChange(value.copy(complemento = it)) },
+                keepTextLocally = true,
                 modifier = Modifier.weight(1f),
                 label = "Complemento",
                 placeholder = "Apto, bloco…",
@@ -171,6 +182,7 @@ fun AddressFields(
         AppTextField(
             value = value.bairro,
             onValueChange = { onValueChange(value.copy(bairro = it)) },
+            keepTextLocally = true,
             label = "Bairro",
             errorMessage = errors.bairro,
             enabled = enabled,
@@ -236,3 +248,63 @@ private val ESTADOS: List<PickerOption> =
     BrazilianStates.all.map { PickerOption(value = it.abbreviation, label = "${it.abbreviation} · ${it.name}") }
 
 private const val DIGITOS_DO_CEP = 8
+
+/**
+ * O campo de CEP do [AddressFields] — mesmo desenho do `AppTextField`, mas com o texto no
+ * `TextFieldState` ([rememberSyncedTextFieldState]): o teclado escreve no mesmo quadro, o ViewModel só
+ * recebe os algarismos, e um CEP que muda de fora (limpar, preencher) reescreve o campo.
+ */
+@Composable
+private fun CepField(
+    cep: String,
+    onCepChange: (String) -> Unit,
+    helperText: String?,
+    errorMessage: String?,
+    enabled: Boolean,
+) {
+    val state = rememberSyncedTextFieldState(cep, onCepChange)
+    OutlinedTextField(
+        state = state,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
+        label = { Text("CEP") },
+        placeholder = { Text("00000-000") },
+        supportingText = (errorMessage ?: helperText)?.let { { Text(it) } },
+        isError = errorMessage != null,
+        inputTransformation = CepInputTransformation,
+        outputTransformation = CepOutputTransformation,
+        keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+        lineLimits = TextFieldLineLimits.SingleLine,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            errorLabelColor = MaterialTheme.colorScheme.error,
+        ),
+    )
+}
+
+/**
+ * Só algarismos, no máximo 8 ([filterCepInput]). Colar "78000-000" vira "78000000"; o 9º dígito
+ * digitado fica de fora. Testado em `CepTransformationsTest`.
+ */
+internal object CepInputTransformation : InputTransformation {
+    override fun TextFieldBuffer.transformInput() {
+        val proposed = asCharSequence().toString()
+        val digits = filterCepInput(proposed)
+        if (digits != proposed) {
+            replace(0, length, digits)
+            placeCursorAtEnd()
+        }
+    }
+}
+
+/** Máscara de exibição 00000-000 — o hífen é só visual; o estado guarda os 8 algarismos. */
+internal object CepOutputTransformation : OutputTransformation {
+    override fun TextFieldBuffer.transformOutput() {
+        if (length > 5) insert(5, "-")
+    }
+}
