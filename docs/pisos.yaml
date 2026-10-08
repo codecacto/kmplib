@@ -32,6 +32,10 @@
 # palavra partida no `CommunicationTile`: defeito VISUAL que depende do tamanho do rótulo na tela, e
 # o auditor não tem como medir — piso visual só entra com `condicao` que prove o problema). Tudo abaixo de 2.253.0 é coberto pelo piso `todos` dela.
 #
+# `bloqueia: false` → o piso vira AVISO no selo (aparece, não reprova). Usado nos de contraste
+# (fundador, 08/out/2026: os prints dos apps aprovados foram revisados pelo agente e não havia texto
+# ilegível; o bump de contraste fica para quando o app for tocado). Default: bloqueia.
+#
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
@@ -47,10 +51,12 @@ pisos:
   - versao: 2.262.3
     motivo: "texto on*Container ilegível sobre o container tonal da marca (contraste ~1,7:1)"
     condicao: contraste_on_container
+    bloqueia: false
 
   - versao: 2.262.2
     motivo: "texto sobre botão da marca ilegível no tema escuro / com marca clara (on* fixo, sem contraste WCAG)"
     condicao: contraste_on
+    bloqueia: false
 
   - versao: 2.262.1
     motivo: "campo numérico engole dígito no iOS (\"120\" vira \"10\")"
