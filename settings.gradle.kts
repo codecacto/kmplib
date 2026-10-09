@@ -130,6 +130,13 @@ project(":kmplib-ads").projectDir = file("ads")
 include(":kmplib-navigation")
 project(":kmplib-navigation").projectDir = file("navigation")
 
+// `kmplib-workout` — domínio PURO do treino guiado (App do Personal, estudo `06-relogio-kmp-e-
+// biblioteca.md`): modelo, máquina de estados, protocolo celular<->relógio, calorias, agregados.
+// Usa `kmplib.module.pure` (não `kmplib.module`): compila também para `jvm` (o backend valida a
+// MESMA regra) e para watchOS — por isso SEM Compose, Koin, Ktor ou persistência.
+include(":kmplib-workout")
+project(":kmplib-workout").projectDir = file("workout")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO

@@ -5,6 +5,50 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.263.0 — `workout` (NOVO): domínio puro do treino guiado, compilando também para watchOS e jvm
+
+**Por quê.** O App do Personal (projeto novo, `Estudo-App-Personal/`) precisa da MESMA máquina de
+estados do treino guiado no celular, no relógio (Wear OS e watchOS) e no backend (conciliação
+planejado × feito). Promovido direto como fundação — sem esperar um 2º consumidor — porque é
+exatamente esse o ponto que quebra se divergir: o celular diz "série 3", o relógio diz "série 4".
+Estudo completo: `Estudo-App-Personal/06-relogio-kmp-e-biblioteca.md`.
+
+**Módulo novo `kmplib-workout`**, domínio puro (só `kotlinx.serialization` + `kotlinx.datetime`,
+**sem Compose/Koin/Ktor/persistência**), com o convention plugin novo `kmplib.module.pure`:
+
+- `model`: `WorkoutPlan`/`Block`/`ExerciseStep`/`SetTarget.Reps|Timed`/`WorkoutRun`/`SetResult`/`SkippedExercise`.
+- `engine.GuidedWorkoutEngine.reduce(state, event, now)`: `Idle→Ready→InSet→Resting→…→Finished`,
+  mais `Paused`/`Undo`; descanso por método do bloco (`NORMAL` sempre descansa; `BI_SET`/`CIRCUIT`
+  não descansam entre exercícios do bloco; `DROP_SET` não descansa entre séries); `restEndsAt`
+  **absoluto** (nunca "segundos restantes"); nunca lê o relógio do sistema (`now` vem de fora).
+- `protocol`: `PlanSnapshot`/`StateSnapshot`/`Command`/`Ack`/`Metrics` versionados (`v`), com
+  `seq` crescente e `SequenceGuard` para deduplicar mensagem fora de ordem no canal nativo
+  (WatchConnectivity/Data Layer).
+- `energy.CalorieEstimator`: prioridade dispositivo → FC (Keytel et al. 2005, com teto de 2x a
+  estimativa por MET) → MET (*2024 Adult Compendium of Physical Activities*, citado, não
+  republicado); `Estimate(kcal, low, high, source)`, nunca sem a fonte.
+- `metrics`: `WorkoutRun.volumeKg()`/`heartRateAvgOverall()`/`timeUnderTensionSeconds()`,
+  `reconcile(plan, run)` (planejado × feito por exercício).
+- `mapping.HealthPlatformMapping`: categoria → nome da constante Health Connect/HealthKit/chave
+  Garmin (devolve `String`/`null`, nunca a constante do SDK — este módulo não pode depender dele).
+
+**Convenção de build nova — `kmplib.module.pure`** (`build-logic/convention/.../kmplib.module.pure.gradle.kts`):
+mesma base do `kmplib.module` (Android + Apple + publicação Maven), com `jvm()` e os 3 alvos watchOS
+(`watchosArm64`/`watchosDeviceArm64`/`watchosSimulatorArm64`) sob a MESMA trava de host
+(`HostManager.hostIsMac`/`-Pkmplib.forceAppleTargets=true`). Só módulo de domínio puro usa este
+plugin — `compose-runtime` não existe para `watchosDeviceArm64`.
+
+**Compilado neste servidor, sem Mac** (`compileKotlinIosArm64`/`compileKotlinWatchosArm64`/
+`compileKotlinWatchosDeviceArm64`/`compileKotlinWatchosSimulatorArm64`, nenhum `SKIPPED` no log) —
+o que falta é só o link final (Xcode) e a validação em aparelho físico, ambos do fundador.
+
+**NÃO está no umbrella `kmplib`** (como `kmplib-video-download`): artefato de propósito específico,
+declarado só por quem tem treino guiado. Testes em `commonTest`, roda em Android e `jvm`
+(`./gradlew :kmplib-workout:testDebugUnitTest :kmplib-workout:jvmTest`), cobertura total da máquina
+de estados (tabela evento → estado esperado, inclusive `BI_SET`/`DROP_SET`/`CIRCUIT`/`Undo`/`Pause`)
+e do `CalorieEstimator` (caso de referência: 60 min, 70 kg, esforço 6 → 350 kcal, fonte MET, com
+faixa). Catálogo: `kmplib-catalog` → `references/workout.md`.
+
 ## 2.262.5 — `ui`: `FormContainer(contentPadding = innerPadding)` — teclado não soma mais o banner e a barra de gestos
 
 **Por quê.** O `FormContainer` aplica `imePadding()` + `verticalScroll` por dentro, e o próprio KDoc mandava usar
