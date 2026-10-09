@@ -5,6 +5,27 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.271.0 — estado NÃO salvável para dado sensível: `rememberSyncedTextFieldState(saveable = false)` e `AppDatePicker`/`AppDatePickerDialog(ephemeral = true)`
+
+**Por quê.** App do Personal, lote MA2 (anamnese = dado de saúde; review de 09/out): o texto e a data de um formulário
+de saúde não podem ir ao `Bundle` da Activity / estado restaurado da cena. O app tinha uma cópia local do campo
+sincronizado que guardava só o último valor emitido — e perdia letra no iOS com eco atrasado.
+
+**`kmplib-ui` — aditivo (sem piso, sem aviso)**
+- `rememberSyncedTextFieldState(text, onTextChange, saveable: Boolean = true)`: com `saveable = false` o estado é
+  `remember { TextFieldState(text) }` (antes, sempre `rememberTextFieldState`). O `TextInputReconciler` com a fila de
+  pendentes é o mesmo nos dois caminhos — teste novo mostra que a guarda "último emitido" perde a letra e a fila não.
+- `AppDatePickerDialog(…, ephemeral: Boolean = false)` e `AppDatePicker(…, ephemeral: Boolean = false)` (repassa ao
+  diálogo): com `true`, `remember { DatePickerState(locale, …) }` em vez de `rememberDatePickerState` — a data marcada
+  com o calendário aberto não entra no estado salvo. `minDate`/`maxDate`, conversão UTC, botões e ids não mudam. O
+  idioma do calendário é o mesmo que o Material usa por dentro (`currentCalendarLocale`, interno: 1º locale da
+  `Configuration` no Android, `NSLocale.currentLocale` no iOS).
+- **Contrapartida (KDoc):** em recriação de processo o valor em andamento se perde (campo: volta só o que o ViewModel
+  tiver; calendário: reabre na data confirmada). Mudar `minDate`/`maxDate` com o calendário efêmero aberto recomeça a
+  marcação. Não alternar `saveable`/`ephemeral` durante a vida do componente.
+- Testes: `TextInputReconcilerTest` (+1), `EstadoNaoSalvavelTest` (androidUnitTest, 6: o caminho efêmero não passa
+  por `rememberSaveable`/`rememberTextFieldState`/`rememberDatePickerState`; data inicial UTC; min/max).
+
 ## 2.270.0 — log de rede sem query string (PII); `Clipboard` com `sensitive`, `hasText()` e `readText()`; máscaras de telefone e CEP para `TextFieldState` no `kmplib-mask`; `SecureContent { }`
 
 **Por quê.** App do Personal: revisão de segurança (dois achados médios — PII da busca no log de rede do release e

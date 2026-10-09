@@ -52,18 +52,39 @@ object SearchFieldTestTags {
  *   limpou a busca, restaurou um filtro, preencheu com o item escolhido — o campo assume o valor
  *   novo. O eco atrasado do que a pessoa acabou de digitar é reconhecido e ignorado
  *   ([TextInputReconciler]).
- * - Sobrevive a rotação e morte de processo (`rememberTextFieldState` é *saveable*); se o ViewModel
- *   voltar vazio, o texto restaurado é reenviado a ele.
+ * - Por padrão ([saveable] = `true`) sobrevive a rotação e morte de processo
+ *   (`rememberTextFieldState` é *saveable*); se o ViewModel voltar vazio, o texto restaurado é
+ *   reenviado a ele.
+ *
+ * ## Dado sensível: `saveable = false` (2.271.0)
+ * O `rememberTextFieldState` grava o texto no estado salvo — o `Bundle` da Activity no Android, o
+ * estado restaurado da cena no iOS. Para campo com **dado de saúde** ou outro dado pessoal sensível
+ * (anamnese: medicação, lesão, diagnóstico; observação clínica), isso põe o texto num lugar que o app
+ * não controla nem apaga. Com `saveable = false` o estado é `remember { TextFieldState(text) }`: só
+ * memória. O resto é o mesmo — inclusive a fila de pendentes do [TextInputReconciler], que é o que
+ * impede o eco atrasado do ViewModel de engolir letras no iOS (guardar só o último valor emitido
+ * não basta: o eco de uma tecla já superada reescreve o campo).
+ *
+ * **A contrapartida:** numa recriação **de processo** (o sistema matou o app em segundo plano) o
+ * texto do campo não volta sozinho — o que sobra é o que o ViewModel tiver (e o ViewModel também não
+ * sobrevive à morte do processo, salvo se o app persistir o rascunho por conta própria). Em rotação
+ * sem recriar o ViewModel, o campo reabre com o valor dele. Não alterne [saveable] durante a vida
+ * do campo.
  *
  * Use direto quando o projeto desenha o próprio campo (protótipo) com `BasicTextField(state = …)`;
  * para o campo padrão de busca, [AppSearchField] já faz tudo.
+ *
+ * @param text o valor do ViewModel.
+ * @param onTextChange cada mudança do texto local.
+ * @param saveable `false` = o texto não vai ao estado salvo (dado sensível, 2.271.0) — ver acima.
  */
 @Composable
 fun rememberSyncedTextFieldState(
     text: String,
     onTextChange: (String) -> Unit,
+    saveable: Boolean = true,
 ): TextFieldState {
-    val state = rememberTextFieldState(text)
+    val state = if (saveable) rememberTextFieldState(text) else remember { TextFieldState(text) }
     val reconciler = remember { TextInputReconciler(text) }
     val emit by rememberUpdatedState(onTextChange)
 

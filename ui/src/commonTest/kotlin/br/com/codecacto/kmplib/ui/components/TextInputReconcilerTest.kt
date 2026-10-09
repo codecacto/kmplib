@@ -169,4 +169,38 @@ class TextInputReconcilerTest {
         assertNull(r.onExternal("zz", "zz"))
         assertEquals(0, r.pendingCount)
     }
+
+    /**
+     * Por que o caminho `saveable = false` (2.271.0) mantém a FILA e não uma guarda "último valor
+     * emitido": com o eco atrasado, o valor de fora chega com uma tecla já superada ("t" com o campo
+     * em "te") — a guarda de um valor só toma isso por mudança da tela e reescreve o campo.
+     */
+    @Test
+    fun `guarda de ultimo valor perde letra com eco atrasado - a fila nao`() {
+        // Guarda ingênua (a cópia que o app tinha): ignora só o eco do último emitido.
+        var textoIngenuo = ""
+        var ultimoEmitido = ""
+        var ultimoExterno = ""
+        val vm2 = ViewModelAtrasado("")
+        fun teclar2(c: Char) { textoIngenuo += c; ultimoEmitido = textoIngenuo; vm2.receber(textoIngenuo) }
+        fun recompor2() {
+            val v = vm2.valor
+            if (v != ultimoExterno) { ultimoExterno = v; if (v != ultimoEmitido) textoIngenuo = v }
+        }
+        teclar2('t'); teclar2('e')
+        vm2.quadro(); recompor2() // chega o eco de "t" com o campo em "te"
+        teclar2('s')
+        vm2.drenar(); recompor2()
+        assertTrue(textoIngenuo != "tes", "a guarda de um valor só tem de perder letra: $textoIngenuo")
+
+        // O mesmo roteiro com o reconciler (os dois caminhos do rememberSyncedTextFieldState).
+        val vm = ViewModelAtrasado("")
+        val campo = Campo(vm)
+        campo.teclar('t'); campo.teclar('e')
+        vm.quadro(); campo.recompor()
+        campo.teclar('s')
+        vm.drenar(); campo.recompor()
+        assertEquals("tes", campo.texto)
+        assertEquals("tes", vm.valor)
+    }
 }

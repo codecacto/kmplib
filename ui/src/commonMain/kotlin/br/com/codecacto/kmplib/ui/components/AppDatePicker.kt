@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.CalendarLocale
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,6 +95,10 @@ import org.jetbrains.compose.resources.stringResource
  * oficial do Material, em vez de deixar escolher e acusar depois ("data da última menstruação" não
  * pode ser amanhã). Com [onClear], aparece o "x" de limpar enquanto há data escolhida (campo
  * OPCIONAL: sem ele, uma data escolhida por engano não tinha como sair).
+ *
+ * ### Dado sensível: `ephemeral = true` (2.271.0)
+ * Repassado ao [AppDatePickerDialog] — a data marcada no calendário aberto não vai para o estado
+ * salvo da Activity. Ver lá quando usar e o que se perde.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,6 +117,7 @@ fun AppDatePicker(
     maxDate: LocalDate? = null,
     onClear: (() -> Unit)? = null,
     clearText: String = stringResource(Res.string.kmplib_date_clear),
+    ephemeral: Boolean = false,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val clearable = onClear != null && selectedDate != null
@@ -184,6 +191,7 @@ fun AppDatePicker(
             dismissText = dismissText,
             minDate = minDate,
             maxDate = maxDate,
+            ephemeral = ephemeral,
         )
     }
 }
@@ -226,6 +234,22 @@ internal class DateRangeSelectableDates(private val minDate: LocalDate?, private
  * @param onDateSelected a data escolhida, ao confirmar. Cancelar não dispara.
  * @param onDismiss fechar sem escolher — e também o que roda depois de confirmar.
  * @param minDate/[maxDate] dias fora da faixa (inclusiva) ficam desligados no calendário (2.268.0).
+ * @param ephemeral `true` = o estado do calendário **não é salvável** (2.271.0) — ver abaixo.
+ *
+ * ## Dado sensível: `ephemeral = true` (2.271.0)
+ * Por padrão o calendário usa o `rememberDatePickerState` do Material, que é `rememberSaveable`: a
+ * data marcada (ainda não confirmada) entra no `Bundle` do estado salvo da Activity (Android) e no
+ * estado restaurado da cena (iOS) — e sobrevive a rotação e à morte do processo. Para data que é
+ * **dado de saúde** ou outro dado pessoal sensível (data da última menstruação, de um diagnóstico,
+ * de uma cirurgia na anamnese), esse caminho grava o dado fora do controle do app.
+ *
+ * Com `ephemeral = true` o estado é `remember { DatePickerState(…) }`: só memória, nada vai ao
+ * estado salvo. O resto é idêntico — [minDate]/[maxDate], fuso UTC, botões, ids.
+ *
+ * **A contrapartida:** se o sistema matar o processo com o calendário aberto, ao voltar a marcação
+ * em andamento se perde (o calendário reabre na data já confirmada, ou vazio). Rotação continua
+ * preservando só se a Activity não for recriada. Mudar [minDate]/[maxDate] com o calendário aberto
+ * recomeça a marcação. Não alterne o valor de `ephemeral` com o diálogo aberto.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -237,13 +261,22 @@ fun AppDatePickerDialog(
     dismissText: String = stringResource(Res.string.kmplib_cancel),
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
+    ephemeral: Boolean = false,
 ) {
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = selectedDate?.let(::dataParaMillisDoCalendario),
-        selectableDates = remember(minDate, maxDate) {
-            if (minDate == null && maxDate == null) DatePickerDefaults.AllDates else DateRangeSelectableDates(minDate, maxDate)
-        },
-    )
+    val initialMillis = selectedDate?.let(::dataParaMillisDoCalendario)
+    val selectableDates = remember(minDate, maxDate) {
+        if (minDate == null && maxDate == null) DatePickerDefaults.AllDates else DateRangeSelectableDates(minDate, maxDate)
+    }
+    val datePickerState = if (ephemeral) {
+        // Estado só em memória (sem Saver): a data marcada não vai ao estado salvo (dado sensível).
+        val locale = currentCalendarLocale()
+        remember(locale, selectableDates) { ephemeralDatePickerState(locale, selectedDate, selectableDates) }
+    } else {
+        rememberDatePickerState(
+            initialSelectedDateMillis = initialMillis,
+            selectableDates = selectableDates,
+        )
+    }
 
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -271,6 +304,22 @@ fun AppDatePickerDialog(
         DatePicker(state = datePickerState)
     }
 }
+
+/**
+ * O `DatePickerState` do caminho efêmero do [AppDatePickerDialog] (2.271.0): o construtor público do
+ * Material, sem `Saver` — nada dele vai ao estado salvo. A data inicial passa pela mesma conversão
+ * UTC do caminho salvável ([dataParaMillisDoCalendario]).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun ephemeralDatePickerState(
+    locale: CalendarLocale,
+    selectedDate: LocalDate?,
+    selectableDates: SelectableDates,
+): DatePickerState = DatePickerState(
+    locale = locale,
+    initialSelectedDateMillis = selectedDate?.let(::dataParaMillisDoCalendario),
+    selectableDates = selectableDates,
+)
 
 /** `LocalDate` → `dd/MM/yyyy` (padrão BR da UI; o ISO fica na fronteira da API). */
 fun formatDateBr(date: LocalDate): String {
