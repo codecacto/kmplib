@@ -3,6 +3,31 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 09/out/2026 — LM-K05b entregue + lacunas do bootstrap do Vitalis (lib-mobile)
+- [x] **LM-K05b — `FormRunner` sobre o FormSchema v1: ENTREGUE na 2.268.0** (`ui/form`, catálogo
+      `references/ui-form.md`). O par, no app, do `backlib-forms` 0.156.0 e do `FormRunner` da weblib 0.238.0, provado
+      pelas MESMAS fixtures (130/130). D11: a extensão do questionário da 2.265.0 (`type`, `options` com `score`,
+      `visibleIf`, `reserved`, `scores[]`, escore da avaliação) está DEPRECIADA; o `QuestionnaireRunner` Likert puro
+      continua. Pré-requisito do M1.3b (triagem) e do M1.4 (pré-consulta pelo médico) do Vitalis.
+- [ ] **GAP-MARKDOWN-01 (Médio) — renderização de Markdown em Compose.** O Vitalis guarda o termo de confidencialidade
+      da recepcionista como `body_markdown` (o mesmo texto que o portal mostra), e o app não tem com o que desenhá-lo: a
+      lib só tem o `HtmlDocumentView` (WebView nativa, para documento HTML inteiro). Pedido: `MarkdownText`/`MarkdownView`
+      em `commonMain` sobre `AnnotatedString` (títulos, ênfase, listas, links pelo `UrlLauncher`), sem WebView, com a
+      tipografia do `AppTheme` e acessível (títulos como `heading()`). Avaliar parser multiplataforma maduro antes de
+      escrever um. Interino: o app converte para texto simples. 1º consumidor: Vitalis (AM termo/aceite).
+- [ ] **GAP-INPUTDIALOG-LOCAL-01 (Médio) — `AppInputDialog` sem `keepTextLocally`.** O diálogo "digite EXCLUIR" (exclusão
+      de conta, obrigatório em todo app com conta) recebe `textFieldValue` do ViewModel: no iOS, digitação rápida perde
+      letra (o defeito que o `keepTextLocally` do `AppTextField` resolveu na 2.258.0) e o "EXCLUIR" não confere. Pedido:
+      repassar `keepTextLocally` (default `true` aqui, onde o valor sempre vem de fora) ao campo interno — aditivo.
+- [ ] **GAP-PASSWORD-FIELD-01 (Médio) — campo de senha que NÃO guarda o texto no estado salvo.** O caminho
+      state-based da lib (`rememberSyncedTextFieldState`/`rememberTextFieldState`) é *saveable*: o texto vai para o
+      `Bundle` do estado salvo — certo para busca, errado para senha (vai a disco na morte do processo). Pedido:
+      `AppPasswordField` sobre o `OutlinedSecureTextField` oficial do Material 3 (state-based, sem copiar/recortar, com o
+      olho), com o estado em `remember` comum, texto no campo (iOS não perde letra) e o ViewModel só recebendo. Serve ao
+      `RecentAuthHost`, ao primeiro acesso e às telas de login com protótipo próprio.
+> O **GAP-NUMBERFIELD-MIN-01**, também apontado no bootstrap do Vitalis, já está registrado logo abaixo — não duplicado.
+> As três lacunas da `casca-mobile` (CASCA-M-07, -08, -09) estão na seção "DEFEITOS DA `casca-mobile`" deste arquivo.
+
 ### Registrado em 09/out/2026 — GAP-VIT-K05 entregue + defeito do `NumberField` achado de passagem (lib-mobile)
 - [x] **GAP-VIT-K05 — runner de questionário/formulário configurável: ENTREGUE na 2.265.0** (`ui/questionnaire`,
       catálogo `references/ui-questionnaire.md`). O `QuestionnaireRunner` da weblib no app, sobre o MESMO JSON (documento
@@ -1623,6 +1648,24 @@ Pendências que este item deixa à vista (nenhuma bloqueia):
       (a fronteira mais restritiva ganha), manter a backlib como está, e a casca passar a exibir a
       mensagem do `PasswordValidator` com o mínimo real. Enquanto não for feito, documentar em
       destaque no KDoc do `PasswordValidator` que **o backend own-auth exige 8**.
+
+> Registrados em 09/out/2026 a partir do bootstrap do Vitalis (só registro — correção é na casca):
+
+- [ ] **CASCA-M-07 — o rename do bootstrap não troca o `APP_DISPLAY_NAME`.** `Cascas/scripts/rename-package.py` (o que o
+      `bootstrap.sh` roda) ajusta `PRODUCT_NAME` e `PRODUCT_BUNDLE_IDENTIFIER` no `iosApp/Configuration/Config.xcconfig`,
+      mas não o `APP_DISPLAY_NAME` — que é de onde o `Info.plist` lê o `CFBundleDisplayName`, o nome sob o ícone. O app
+      novo nasce com o nome da casca na tela de início do iPhone. O `rename-package.ps1` e o `preparar-ios.mjs` já fazem;
+      falta o `.py` (e um caso no `rename-package-test.py`).
+- [ ] **CASCA-M-08 — `preparar-ios.mjs` recopia o `iosApp.xcodeproj` (e o scheme) a cada execução.** O passo 1 pula o
+      que o projeto já tem, MENOS o `iosApp.xcodeproj` (`item !== 'iosApp.xcodeproj'`): rodar o script de novo num app
+      já preparado sobrescreve o projeto Xcode e o scheme compartilhado — perde target, pacote SPM e assinatura que o
+      projeto acrescentou. Correção: copiar o `.xcodeproj` só quando ele não existe (ou com `--force` explícito) e
+      reaplicar apenas os campos que o script gerencia (nome do `.app` no `project.pbxproj`).
+- [ ] **CASCA-M-09 — `wear-molde` entra em todo app que nasce da casca.** O `settings.gradle.kts` da casca faz
+      `include(":wear-molde")` incondicional: todo projeto novo carrega um módulo Wear OS que só o app com relógio usa
+      (mais um módulo para compilar, sincronizar e manter). Correção: o molde fica na casca, mas o `include` vira opt-in
+      (propriedade `casca.wear=true` no `gradle.properties`, ou o bootstrap remove o `include` quando o projeto não tem
+      relógio — e o `docs/MOLDE-RELOGIO.md` explica como ligar).
 
 ### GAPS — design do produto "Acervo" (ux-designer, 11/ago/2026, `/design` — arquétipo D, coleção
 pessoal via product flavors `moedas`/`cards`)
