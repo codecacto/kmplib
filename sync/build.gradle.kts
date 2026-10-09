@@ -24,8 +24,11 @@ kotlin {
             // SEM kmplib-firebase (2.260.0): a fila REST só usa os modelos neutros de upload
             // (UploadItem/UploadStatus/UploadRequest), que moram no kmplib-core. Depender do módulo
             // Firebase levava firebase-analytics a todo app com banco local.
-            // O banner de sincronização respeita a cota do plano.
-            api(project(":kmplib-monetization"))
+            // SEM kmplib-monetization (2.267.0): o sync nunca usou símbolo do módulo de compra — a cota
+            // (402) chega como `DomainResult.Quota(QuotaExceeded)`, que mora no kmplib-core. A aresta
+            // antiga só arrastava RevenueCat e a permissão BILLING para todo app com banco local, e
+            // impedia o app que NÃO PODE vender (ex.: o app do aluno do App do Personal, Apple 3.1.3)
+            // de usar a outbox. Quem usa paywall/compra declara `kmplib-monetization` direto.
 
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)

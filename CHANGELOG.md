@@ -5,6 +5,26 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.267.0 — `sync` não depende mais do `kmplib-monetization` (app sem loja pode ter outbox)
+
+**Por quê.** O `kmplib-sync` declarava `api(project(":kmplib-monetization"))` ("o banner de sincronização
+respeita a cota do plano"), mas **não usava nenhum símbolo do módulo**: a cota (402) chega como
+`DomainResult.Quota(QuotaExceeded)`, e os dois moram no `kmplib-core` desde a modularização. A aresta só
+arrastava o RevenueCat (`purchases-kmp`) e a permissão `com.android.vending.BILLING` para todo app com banco
+local — e impedia de usar a outbox o app que NÃO PODE ter compra no binário (o app do aluno do App do
+Personal: a compra é do personal, Apple 3.1.3; roadmap 1.1/1.10).
+
+**O que mudou.** Só o `sync/build.gradle.kts`: a dependência saiu. Grafo `kmplib-sync` (runtime) depois:
+`kmplib-core`, `kmplib-mask`, `kmplib-platform`, `kmplib-ui` — **zero** RevenueCat/purchases.
+
+**Compatibilidade.** Nenhuma API muda. Quem pegava `PaywallScreen`/`MonetizationManager`/`UsageMeter`/…
+**de carona** no `kmplib-sync` deixa de compilar e precisa declarar `kmplib-monetization` (ou o umbrella).
+Conferido no monorepo em 09/out: os 8 apps que declaram `kmplib-sync` por módulo (ExtinRota, Escuta,
+FolhaDeAxe, App do Personal, RedeDeOfertas, MinhaEstadia, Vitalis, QueiMap) declaram também
+`kmplib-monetization` no mesmo módulo — nenhum quebra. O umbrella `kmplib` continua trazendo tudo.
+
+**Sem piso** (empacotamento; ninguém que já está validado é afetado — mesmo critério da 2.260.0).
+
 ## 2.266.0 — `workout`: bi-set e circuito por VOLTA, drop-set com ESTÁGIOS (L-WK1, corrige a 2.263.0)
 
 **O defeito.** Desde a 2.263.0 o `GuidedWorkoutEngine` percorria bi-set e circuito **por exercício**
