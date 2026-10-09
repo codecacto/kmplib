@@ -213,7 +213,7 @@ private fun HttpClientConfig<*>.installRetryPlugin(
                 AppLogger.w(
                     RETRY_LOG_TAG,
                     "Nova tentativa $retryCount/${policy.maxRetries}: ${request.method.value} " +
-                        "${request.url.buildString()} — $motivo",
+                        "${redactHttpLogMessage(request.url.buildString())} — $motivo",
                 )
             }
         }
@@ -261,7 +261,7 @@ internal val ReadBodyInsideRetry = createClientPlugin("KmplibReadBodyInsideRetry
 /** Tipo + mensagem curta da falha; nada de cabeçalho nem corpo (não estão na exceção). */
 private fun Throwable.describeForLog(): String {
     val tipo = this::class.simpleName ?: "IOException"
-    val msg = message?.take(MAX_LOG_MESSAGE)?.replace('\n', ' ')
+    val msg = message?.let(::redactHttpLogMessage)?.take(MAX_LOG_MESSAGE)?.replace('\n', ' ')
     return if (msg.isNullOrBlank()) tipo else "$tipo: $msg"
 }
 

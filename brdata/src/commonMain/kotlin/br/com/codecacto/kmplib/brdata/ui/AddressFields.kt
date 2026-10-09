@@ -7,12 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.input.InputTransformation
-import androidx.compose.foundation.text.input.OutputTransformation
-import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.insert
-import androidx.compose.foundation.text.input.placeCursorAtEnd
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +32,8 @@ import br.com.codecacto.kmplib.brdata.BrazilianStates
 import br.com.codecacto.kmplib.brdata.CepLookupResult
 import br.com.codecacto.kmplib.brdata.filterUfInput
 import br.com.codecacto.kmplib.brdata.mergedWith
-import br.com.codecacto.kmplib.mask.filterCepInput
+import br.com.codecacto.kmplib.mask.CepInputTransformation
+import br.com.codecacto.kmplib.mask.CepOutputTransformation
 import kotlinx.coroutines.launch
 
 /**
@@ -285,26 +281,4 @@ private fun CepField(
             errorLabelColor = MaterialTheme.colorScheme.error,
         ),
     )
-}
-
-/**
- * Só algarismos, no máximo 8 ([filterCepInput]). Colar "78000-000" vira "78000000"; o 9º dígito
- * digitado fica de fora. Testado em `CepTransformationsTest`.
- */
-internal object CepInputTransformation : InputTransformation {
-    override fun TextFieldBuffer.transformInput() {
-        val proposed = asCharSequence().toString()
-        val digits = filterCepInput(proposed)
-        if (digits != proposed) {
-            replace(0, length, digits)
-            placeCursorAtEnd()
-        }
-    }
-}
-
-/** Máscara de exibição 00000-000 — o hífen é só visual; o estado guarda os 8 algarismos. */
-internal object CepOutputTransformation : OutputTransformation {
-    override fun TextFieldBuffer.transformOutput() {
-        if (length > 5) insert(5, "-")
-    }
 }

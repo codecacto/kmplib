@@ -5,6 +5,49 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.270.0 — log de rede sem query string (PII); `Clipboard` com `sensitive`, `hasText()` e `readText()`; máscaras de telefone e CEP para `TextFieldState` no `kmplib-mask`; `SecureContent { }`
+
+**Por quê.** App do Personal: revisão de segurança (dois achados médios — PII da busca no log de rede do release e
+senha temporária copiada sem marca de sensível) + GAP-PT-M22/M23 (máscara para campo com estado e colar).
+
+**`kmplib-core` — correção (piso em `docs/pisos.yaml`, símbolo `createHttpClient`)**
+- O `Logging` do `createHttpClient` (ligado por default, nível `INFO`) escrevia a URL inteira (`REQUEST: …`/`FROM: …`)
+  no `AppLogger`, e isso sai no **release** — a query de uma busca (`?busca=maria@x.com`, final de telefone, nome) ia
+  para o logcat/console. Agora toda linha passa por `redactHttpLogMessage` (interna): fica método · esquema · host ·
+  caminho · status, e a query vira `?…` (URL absoluta e caminho relativo). O **host fica** (é o que denuncia o
+  endereço errado). O log da nova tentativa (`HttpRetry`) redige igual, inclusive a mensagem da causa.
+- O nível mínimo do `AppLogger` **não** muda no release: a regra da fábrica é logar toda requisição; o que protege é
+  não escrever PII. O formato `OkHttp` do Ktor (que traria o tempo) foi descartado de propósito: ele omite o host.
+- **Sem aviso no Nexus** (régua de 28/set: PII em log é higiene, não deixa nada de funcionar).
+
+**`kmplib-platform` — aditivo**
+- `Clipboard.copy(text, label = "Texto", sensitive = false)`: com `sensitive = true`, Android põe
+  `ClipDescription.EXTRA_IS_SENSITIVE` nos extras do clip (API 33+; abaixo, a chave literal
+  `"android.content.extra.IS_SENSITIVE"`) e a prévia do sistema mostra pontos; iOS usa
+  `setItems(_:options:)` com `UIPasteboardOptionLocalOnly` + `UIPasteboardOptionExpirationDate` (agora + 120 s,
+  `SENSITIVE_CLIP_EXPIRATION_SECONDS`). Chamadas antigas `copy(text)`/`copy(text, label)` não mudam.
+- `Clipboard.hasText()` (não dispara o aviso de colagem: `primaryClipDescription`/`hasStrings`) e
+  `Clipboard.readText(): String?` (`coerceToText` / `UIPasteboard.string`; `null` sem texto ou leitura negada).
+  Chamar no clique de "Colar", nunca ao abrir a tela (aviso do iOS 16+ / Android 12+).
+- `SecureContent(modifier, enabled, cover) { }` (`platform.privacy`): Android = `FLAG_SECURE` enquanto composto (por
+  `HideFromRecents`, contagem aninhada) — bloqueia print/gravação/espelhamento; iOS = cobre o bloco enquanto
+  `UIScreen.captured` (gravação, espelhamento, AirPlay; `UIScreenCapturedDidChangeNotification`) + desfoque do
+  seletor de apps. **O print no iOS NÃO é bloqueado** — não há API pública; documentado no KDoc. Tag da cobertura:
+  `SECURE_CONTENT_COVER_TAG` (`conteudo-seguro-cobertura`).
+- ⚠️ Interface `Clipboard` ganhou dois membros abstratos — quem a implementa fora da lib (nenhum conhecido no
+  monorepo) precisa implementá-los.
+
+**`kmplib-mask` — aditivo (GAP-PT-M22)**
+- `PhoneInputTransformation` (só algarismos, até 11; colar "+55 (65) 99999-8888" guarda "65999998888"),
+  `PhoneBrOutputTransformation` (`(AA) NNNNN-NNNN` / `(AA) NNNN-NNNN`, a mesma regra do `PhoneVisualTransformation`),
+  `CepInputTransformation`/`CepOutputTransformation` — eram `internal` no `AddressFields` (`kmplib-brdata`), que
+  passou a usar os públicos (sem mudança de comportamento).
+
+**Testes.** `HttpRequestLogRedactionTest` (cliente real sobre `MockEngine`: nenhuma linha com a query, host e caminho
+ficam), `ClipboardContractTest`, `ClipboardAndroidTest`, `TextFieldStateMasksTest` (inclui paridade com o
+`PhoneVisualTransformation`). iOS: `compileKotlinIosArm64` de core/mask/platform/brdata/auth/central/umbrella neste
+servidor, sem `SKIPPED`; validação em aparelho (prévia sensível, aviso de colar, cobertura na gravação) é do Mac.
+
 ## 2.269.0 — `health`: FC ao vivo por BLE (`HeartRateMonitor`, `0x180D`/`0x2A37`) com dublê + regra do repositório de saúde em `commonMain`; `workout`: pausa que devolve o tempo, `Load` e as tabelas de casos para o backend (`kmplib-workout-fixtures`)
 
 **Por quê.** App do Personal, plano da Onda 1: o MA6 precisa de FC ao vivo por BLE provável com dublê no

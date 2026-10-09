@@ -39,6 +39,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.270.0
+    motivo: "log de requisição gravava a URL inteira com a query (termo de busca = e-mail/telefone/nome) no logcat/console do release"
+    simbolos: [createHttpClient]
+
   - versao: 2.269.0
     motivo: "saúde: reenviar o treino duplicava no Health Connect e o iOS gravava por cima do treino do Apple Watch (guarda e idempotência agora no writeWorkout)"
     simbolos: [writeWorkout]

@@ -60,6 +60,7 @@ internal fun createHttpClient(
     options: HttpClientOptions,
     retryRandom: Random = Random.Default,
     retryDelay: (suspend (Long) -> Unit)? = null,
+    logSink: (tag: String, message: String) -> Unit = AppLogger::d,
     configure: HttpClientConfig<*>.() -> Unit = {},
 ): HttpClient = HttpClient(engine) {
     // Deixa 4xx/5xx virarem resposta normal — quem trata é o `handleApiCall`/serviço chamador.
@@ -84,7 +85,8 @@ internal fun createHttpClient(
     if (options.enableLogging) {
         install(Logging) {
             level = options.logLevel.toKtorLogLevel()
-            logger = AppLoggerKtorLogger
+            // A query sai do log (2.270.0): ver [redactHttpLogMessage].
+            logger = RedactingKtorLogger(logSink)
         }
     }
 
@@ -135,6 +137,14 @@ internal fun createHttpClient(
  * `INFO` dá o que a investigação precisa (método, URL, status, tempo) e nada que não deveria estar
  * ali. Quem precisa de mais em depuração local sobe para `BODY` explicitamente, ciente do que isso
  * imprime.
+ *
+ * **A query string não vai para o log (2.270.0).** No `INFO` o Ktor escreve a URL inteira
+ * (`REQUEST: …`/`FROM: …`), e a query de uma busca é o que a pessoa digitou — e-mail, final de
+ * telefone, nome. Esse log sai no **release** (logcat de qualquer aparelho com depuração USB, console
+ * do iOS), então toda linha passa por [redactHttpLogMessage]: fica método · esquema · host · caminho
+ * · status, e a query vira `?…`. O host fica de propósito (é o que denuncia o endereço errado). O
+ * nível mínimo do [AppLogger] **não** muda no release: a regra é logar toda requisição, e o que
+ * protege é não escrever PII, não esconder o log. A nova tentativa ([HttpRetryPolicy]) redige igual.
  *
  * ## gzip vem LIGADO (2.162.0) — o app precisa PEDIR a compressão
  *
@@ -227,9 +237,34 @@ internal fun HttpLogLevel.toKtorLogLevel(): KtorLogLevel = when (this) {
     HttpLogLevel.ALL -> KtorLogLevel.ALL
 }
 
-private val AppLoggerKtorLogger: Logger = object : Logger {
-    override fun log(message: String) = AppLogger.d("HttpClient", message)
+/**
+ * O `Logger` do Ktor que o factory instala: toda linha passa por [redactHttpLogMessage] antes de
+ * chegar ao [AppLogger] — no `INFO` o Ktor escreve a URL INTEIRA (`REQUEST: …`, `FROM: …`), e a
+ * query de busca é dado pessoal (e-mail, final de telefone, nome digitado). Isto sai no release.
+ */
+private class RedactingKtorLogger(
+    private val sink: (tag: String, message: String) -> Unit,
+) : Logger {
+    override fun log(message: String) = sink(HTTP_LOG_TAG, redactHttpLogMessage(message))
 }
+
+/** Tag do log de requisição do [createHttpClient]. */
+internal const val HTTP_LOG_TAG: String = "HttpClient"
+
+/**
+ * Tira a **query string** (e o fragmento) de toda URL de uma linha de log de rede, deixando
+ * esquema, host e caminho: `GET https://api.x/v1/clientes?busca=maria@x.com` vira
+ * `GET https://api.x/v1/clientes?…`. Cobre URL absoluta e caminho relativo (`/v1/x?q=…`).
+ *
+ * O **host fica** de propósito: foi o host errado (`api.` em vez de `api-`) que originou a regra
+ * de logar toda requisição. O que sai é só o que o usuário DIGITOU — filtro, termo de busca,
+ * telefone, e-mail —, que é PII e não serve à investigação de rede.
+ */
+internal fun redactHttpLogMessage(message: String): String =
+    RELATIVE_PATH_QUERY.replace(redactUrlQueries(message)) { "${it.groupValues[1]}?…" }
+
+// Caminho relativo com query: começa a linha ou vem depois de espaço/aspas/parêntese.
+private val RELATIVE_PATH_QUERY = Regex("""((?:^|[\s"'(=])/[^\s?#"']*)\?(?!…)[^\s"')]*""")
 
 /**
  * Engine Ktor da plataforma (OkHttp no Android, Darwin no iOS). Retorna uma **instância** de engine

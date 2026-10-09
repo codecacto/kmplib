@@ -1,10 +1,12 @@
 package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.foundation.text.input.TextFieldState
+import br.com.codecacto.kmplib.mask.CepInputTransformation
+import br.com.codecacto.kmplib.mask.CepOutputTransformation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** O CEP do `AddressFields` com texto no campo (2.262.1): filtro e máscara são do próprio campo. */
+/** O CEP do `AddressFields` com texto no campo (2.262.1); desde 2.270.0 as transformações são as públicas do `kmplib-mask`. */
 class CepTransformationsTest {
 
     private fun TextFieldState.digitar(texto: String) = texto.forEach { c ->
