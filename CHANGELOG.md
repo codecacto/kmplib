@@ -5,6 +5,43 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.264.0 — `health` (NOVO): Health Connect (Android) + HealthKit (iOS), leitura/escrita pós-treino
+
+**Por quê.** Par do `kmplib-workout` (2.263.0): o treino guiado precisa ler FC e calorias do
+relógio/repositório de saúde depois da sessão, e gravar a nossa sessão quando o relógio não tiver
+gravado uma. Fase 1 do relógio no App do Personal (`05-relogios-integracao.md`).
+
+**Módulo novo `kmplib-health`**, Android + iOS (**sem watchOS** — a sessão ao vivo é nativa e fica
+no projeto). `HealthRepository` (`isAvailable`, `requestPermissions`, `readSessionMetrics`,
+`hasDeviceWorkoutOverlapping`, `writeWorkout`) com `HealthMetric.Unavailable`/`NoData`/`Value<T>`
+("sem dado ainda" é estado, nunca zero) e `EnergyReading`/`HeartRateSummary`. Depende de
+`kmplib-workout` por `EnergySource`/`ExerciseCategory`.
+
+- **Android**: Health Connect (`connect-client` 1.1.0 — exige minSdk 26 no app consumidor, maior
+  que o 24 padrão; artefato separado, só quem declara sobe o minSdk). Permissão pelo
+  `ActivityResultRegistry` direto (mesmo padrão do `PermissionManager` da `kmplib-platform`, sem
+  depender de registro antes do `onCreate`). `initKmpLibHealth(context)` + `HealthActivityHolder`
+  (holder próprio deste módulo).
+- **iOS**: HealthKit chamado DIRETO do Kotlin via cinterop (sem Swift), compilado neste servidor.
+  Duas armadilhas de cinterop novas (documentadas em `ios-cinterop.md` §3/§6 e no catálogo):
+  `HKQuery.predicateForSamplesWithStartDate`/`HKUnit.kilocalorieUnit` exigem import do nome da
+  função + `.Companion.` explícito (categoria ObjC); e `Energy.inKilocalories` (Android), não
+  `.kilocalories` — o getter JVM bate (`getKilocalories()`), mas o nome Kotlin é outro.
+- **Armadilha de versão**: `kotlinx.datetime.Instant` virou `typealias` de `kotlin.time.Instant` na
+  0.7.1, e as extensões `toJavaInstant()`/`toNSDate()` mudaram de pacote — a falha de resolução
+  cascateava em erros enganosos mais abaixo no código. Conversão por **época** em vez da extensão,
+  nos dois módulos (ver `references/health.md`).
+
+**O que NÃO foi escrito nesta rodada, de propósito:** `HeartRateMonitor` (FC ao vivo por BLE, perfil
+0x180D/0x2A37) — protocolo GATT/CoreBluetooth sem aparelho físico para validar é risco alto de erro
+silencioso; fica para o spike 0.7 (Onda 0 do App do Personal), com cinta/relógio reais em mãos.
+`hasDeviceWorkoutOverlapping` no iOS devolve sempre `false` (leitura de `HKWorkout` por intervalo
+não escrita ainda) — `writeWorkout` iOS não deve ir a produção antes disso.
+
+Compilado neste servidor (Android + `compileKotlinIosArm64`, sem `SKIPPED`); sem teste automatizado
+nesta rodada (integração real de SDK de saúde, sem mock disponível no projeto — validação é por
+aparelho, no spike 0.7). CHANGELOG + `kmplib-catalog` (`references/health.md`) no mesmo commit.
+
 ## 2.263.0 — `workout` (NOVO): domínio puro do treino guiado, compilando também para watchOS e jvm
 
 **Por quê.** O App do Personal (projeto novo, `Estudo-App-Personal/`) precisa da MESMA máquina de

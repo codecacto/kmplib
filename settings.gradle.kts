@@ -137,6 +137,12 @@ project(":kmplib-navigation").projectDir = file("navigation")
 include(":kmplib-workout")
 project(":kmplib-workout").projectDir = file("workout")
 
+// `kmplib-health` — Health Connect (Android) + HealthKit (iOS), SEM watchOS (a sessão ao vivo do
+// relógio é nativa e fica no projeto). Usa `kmplib.module` normal; depende de `kmplib-workout`
+// por `EnergySource`/`ExerciseCategory`.
+include(":kmplib-health")
+project(":kmplib-health").projectDir = file("health")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO
