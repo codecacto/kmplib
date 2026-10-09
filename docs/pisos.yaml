@@ -39,6 +39,15 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.269.0
+    motivo: "saúde: reenviar o treino duplicava no Health Connect e o iOS gravava por cima do treino do Apple Watch (guarda e idempotência agora no writeWorkout)"
+    simbolos: [writeWorkout]
+
+  - versao: 2.269.0
+    motivo: "treino guiado: o descanso corria durante a pausa e a série por tempo contava o tempo parado"
+    rotulo: "WorkoutEvent.Pause/Resume"
+    padrao: 'WorkoutEvent\.(Pause|Resume)\b'
+
   - versao: 2.266.0
     motivo: "treino guiado: bi-set/circuito percorridos por exercício (não por volta) e drop-set sem estágios nem descanso"
     simbolos: [GuidedWorkoutEngine, WorkoutState, ExecutionStep]

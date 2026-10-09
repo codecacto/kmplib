@@ -23,6 +23,21 @@ enum class ExerciseCategory {
  * FUNÇÃO de categoria -> tipo nativo, que é regra estável e testável. */
 object HealthPlatformMapping {
 
+    /**
+     * Nome da constante `ExerciseSessionRecord.EXERCISE_TYPE_*` do Health Connect para a SESSÃO
+     * inteira (o segmento acima é por exercício, dentro dela). O Health Connect não tem tipo de
+     * sessão "cardio" genérico: cardio e circuito vão como `EXERCISE_TYPE_OTHER_WORKOUT` e
+     * `EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING`. O `kmplib-health` confere, em teste, que cada
+     * nome existe no SDK.
+     */
+    fun healthConnectExerciseTypeName(category: ExerciseCategory): String = when (category) {
+        ExerciseCategory.STRENGTH_TRAINING -> "EXERCISE_TYPE_STRENGTH_TRAINING"
+        ExerciseCategory.CARDIO -> "EXERCISE_TYPE_OTHER_WORKOUT"
+        ExerciseCategory.MOBILITY -> "EXERCISE_TYPE_STRETCHING"
+        ExerciseCategory.CIRCUIT -> "EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING"
+        ExerciseCategory.HIIT -> "EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING"
+    }
+
     /** Nome da constante `HealthConnectExerciseSegmentType.*` esperada (Android, `kmplib-health`).
      * Devolvido como String para este módulo não depender do SDK do Health Connect (que não compila
      * em watchOS). `kmplib-health` resolve o nome para a constante real. */
@@ -37,7 +52,9 @@ object HealthPlatformMapping {
     /** Nome da constante `HKWorkoutActivityType.*` esperada (iOS, `kmplib-health`). */
     fun healthKitActivityTypeName(category: ExerciseCategory): String = when (category) {
         ExerciseCategory.STRENGTH_TRAINING -> "traditionalStrengthTraining"
-        ExerciseCategory.CARDIO -> "cardioDance" // placeholder amplo; tela usa tipo específico quando souber
+        // `mixedCardio` (iOS 11+) é o cardio genérico do HealthKit — até a 2.268.0 era `cardioDance`
+        // (dança), que classificava a esteira do aluno como aula de dança no app Saúde.
+        ExerciseCategory.CARDIO -> "mixedCardio"
         ExerciseCategory.MOBILITY -> "flexibility"
         ExerciseCategory.CIRCUIT -> "highIntensityIntervalTraining"
         ExerciseCategory.HIIT -> "highIntensityIntervalTraining"

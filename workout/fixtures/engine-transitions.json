@@ -1,0 +1,1974 @@
+{
+    "version": 1,
+    "protocolVersion": 2,
+    "epochBaseSeconds": 1700000000,
+    "cases": [
+        {
+            "name": "normal: carregar, iniciar, série, descanso, pular descanso, última série termina",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 70,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 50,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 50,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 90,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 90,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "descanso: +tempo soma ao instante absoluto; evento fora de hora não muda nada",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 60,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 35,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 60,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "addRestTime",
+                        "seconds": 15
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 75,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 80,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 80,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "pausa no descanso: o tempo parado é devolvido ao descanso",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 60,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 100,
+                    "event": {
+                        "type": "resume"
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 120,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 100,
+                    "event": {
+                        "type": "finish"
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 100,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "pausa na série: o início é empurrado; pausar de novo e retomar fora da pausa não fazem nada",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 5,
+                    "event": {
+                        "type": "resume"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 10,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 12,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 12,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 25,
+                    "event": {
+                        "type": "resume"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 15,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 31,
+                    "event": {
+                        "type": "finish"
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 31,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "undo: sem passo registrado não faz nada; no descanso volta à série desfeita",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 5,
+                    "event": {
+                        "type": "undo"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 60,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 35,
+                    "event": {
+                        "type": "undo"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 35,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 60,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 90,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "dois exercícios: o descanso do primeiro separa do segundo; o último termina sem descanso",
+            "plan": {
+                "id": "plan-2",
+                "name": "Treino B",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "lunge",
+                                "name": "Avanço",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 60,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 40,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 70,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 70,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "bi-set: sem descanso dentro da volta; ao fechar a volta, o descanso do último exercício",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 30,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 60,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 150,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 150,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 150,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "drop-set: estágios sem descanso; descanso depois do último estágio",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 20,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 12,
+                        "load": 40.0
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            1
+                        ],
+                        "setStartedAtSeconds": 20,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 32.0
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            2
+                        ],
+                        "setStartedAtSeconds": 40,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 60,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 8,
+                        "load": 25.0
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 150,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 70,
+                    "event": {
+                        "type": "undo"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            2
+                        ],
+                        "setStartedAtSeconds": 70,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "circuito com série por tempo: exercício pulado sai das voltas seguintes, sem descanso",
+            "plan": {
+                "id": "plan-circuit",
+                "name": "Treino Circuito",
+                "blocks": [
+                    {
+                        "id": "block-c",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "c-a",
+                                "exerciseRefId": "jump",
+                                "name": "Polichinelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-b",
+                                "exerciseRefId": "pushup",
+                                "name": "Flexão",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-c",
+                                "exerciseRefId": "plank",
+                                "name": "Prancha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": null,
+                        "load": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 30,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 35,
+                    "event": {
+                        "type": "skipExercise",
+                        "reason": "dor no punho"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 35,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": [
+                            "c-b"
+                        ]
+                    }
+                },
+                {
+                    "atSeconds": 75,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": null,
+                        "load": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 135,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [
+                            "c-b"
+                        ]
+                    }
+                },
+                {
+                    "atSeconds": 135,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 135,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [
+                            "c-b"
+                        ]
+                    }
+                },
+                {
+                    "atSeconds": 165,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": null,
+                        "load": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 165,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [
+                            "c-b"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "plano sem série: o Start termina na hora",
+            "plan": {
+                "id": "plan-empty",
+                "name": "Vazio",
+                "blocks": []
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 0,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "encerrar antes do fim; depois do fim só o Load volta a valer",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 10,
+                    "event": {
+                        "type": "finish"
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 10,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 20,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 10,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 20,
+                    "event": {
+                        "type": "undo"
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 10,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        },
+        {
+            "name": "antes do Load nenhum evento tem efeito; Load no meio do treino é ignorado",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IDLE",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0
+                    },
+                    "expect": {
+                        "phase": "IDLE",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "IDLE",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "resume"
+                    },
+                    "expect": {
+                        "phase": "IDLE",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "finish"
+                    },
+                    "expect": {
+                        "phase": "IDLE",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "finish"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 1,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 1,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                },
+                {
+                    "atSeconds": 2,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 1,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": []
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -6,14 +6,19 @@ import java.lang.ref.WeakReference
 
 /**
  * `applicationContext` registrado por [initKmpLibHealth] — chame no `Application.onCreate()`,
- * como os demais módulos da kmplib (`initKmpLibCore`, `initKmpLibPlatform`...).
+ * como os demais módulos da kmplib (`initKmpLibCore`, `initKmpLibPlatform`...). Vale para o
+ * `createHealthRepository()` e para o `createHeartRateMonitor()`.
  */
 fun initKmpLibHealth(context: Context) {
     HealthContextHolder.applicationContext = context.applicationContext
 }
 
 internal object HealthContextHolder {
+    @Volatile
     internal var applicationContext: Context? = null
+
+    fun requireContext(): Context = applicationContext
+        ?: error("kmplib-health: chame initKmpLibHealth(context) no Application.onCreate() antes de usar a lib.")
 }
 
 /**

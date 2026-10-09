@@ -55,4 +55,29 @@ class ProtocolTest {
         assertTrue(guard.accept(3))
         assertFalse(guard.accept(2))
     }
+
+    @Test
+    fun `Command, Ack e Metrics atravessam a ponte e levam a versao`() {
+        val command = Command(seq = 4, id = "cmd-1", event = CommandEvent.CompleteSet(8, 57.5))
+        assertEquals(command, Json.decodeFromString<Command>(Json.encodeToString(command)))
+        assertEquals(WORKOUT_PROTOCOL_VERSION, command.v)
+
+        val skip = Command(seq = 5, id = "cmd-2", event = CommandEvent.SkipExercise("dor"))
+        assertEquals(skip, Json.decodeFromString<Command>(Json.encodeToString(skip)))
+
+        val ack = Ack(seq = 6, commandId = "cmd-1")
+        assertEquals(ack, Json.decodeFromString<Ack>(Json.encodeToString(ack)))
+
+        val metrics = Metrics(seq = 7, heartRate = 132, kcal = 41.5, epochMillis = 1_700_000_000_000)
+        val decoded = Json.decodeFromString<Metrics>(Json.encodeToString(metrics))
+        assertEquals(metrics, decoded)
+        assertEquals(WORKOUT_PROTOCOL_VERSION, decoded.v)
+    }
+
+    @Test
+    fun `Metrics sem amostra nao inventa zero`() {
+        val decoded = Json.decodeFromString<Metrics>("""{"seq":8,"epochMillis":1}""")
+        assertEquals(null, decoded.heartRate)
+        assertEquals(null, decoded.kcal)
+    }
 }

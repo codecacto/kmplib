@@ -95,7 +95,10 @@
       parada automática, frontal/traseira, slot de guia, erro tipado). Hoje só foto/código de barras; o picker abre a câmera do sistema.
 - [ ] **GAP-PT-M04 (P0) — `kmplib-video`: preparar vídeo no aparelho** (`VideoTranscoder`: H.264 720p ~2 Mbps, cortar início/fim, tirar áudio, miniatura; Media3 Transformer / `AVAssetExportSession`).
 - [ ] **GAP-PT-M05 (P0) — `kmplib-sync`: upload retomável direto ao storage** (`DirectUploadOutbox`: URL pré-assinada, PUT/multipart, só Wi-Fi, estado por item). Exige `S3StorageProvider` na backlib-storage.
-- [ ] **GAP-PT-M11 (P0) — `kmplib-workout` e `kmplib-health`** já recomendados em `Estudo-App-Personal/06-relogio-kmp-e-biblioteca.md` §4 (domínio puro com alvo watchOS; HealthKit/Health Connect/FC por BLE).
+- [x] **GAP-PT-M11 (P0) — `kmplib-workout` e `kmplib-health`: ENTREGUES** (08/out; motor por volta/estágio na 2.266.0; FC por
+      BLE `HeartRateMonitor` + dublê `SimulatedHeartRateSensor`, regra do repositório em commonMain e as tabelas de casos
+      `kmplib-workout-fixtures` na 2.269.0). **Pendente de APARELHO (spike 0.7, fundador):** FC por BLE com cinta/relógio
+      reais, reconexão física, `bluetooth-central` em 2º plano, leitura/escrita real de HealthKit e Health Connect.
 - [ ] **GAP-PT-M02 (P1) — `LoopVideo`**: vídeo isolado em laço, mudo, fonte local, toque pausa (hoje `FeedVideo` exige `FeedVideoHost`).
 - [ ] **GAP-PT-M06 + M12 (P1) — `AudioRecorder` (arquivo, segurar/tocar, onda) + kit de chat** (junta com `GAP-ME-02`, 2º consumidor).
 - [ ] **GAP-PT-M07 (P1) — player de revisão**: `stepFrame(±1)` e `VideoTimeline(markers)` no `VideoPlayer`.

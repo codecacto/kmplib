@@ -137,6 +137,11 @@ project(":kmplib-navigation").projectDir = file("navigation")
 include(":kmplib-workout")
 project(":kmplib-workout").projectDir = file("workout")
 
+// `kmplib-workout-fixtures` — JAR SÓ DE TESTE com as tabelas de casos do workout em JSON
+// (`workout/fixtures/`): o backend roda o `session-validation.json` com o JAR JVM do workout.
+include(":kmplib-workout-fixtures")
+project(":kmplib-workout-fixtures").projectDir = file("workout-fixtures")
+
 // `kmplib-health` — Health Connect (Android) + HealthKit (iOS), SEM watchOS (a sessão ao vivo do
 // relógio é nativa e fica no projeto). Usa `kmplib.module` normal; depende de `kmplib-workout`
 // por `EnergySource`/`ExerciseCategory`.

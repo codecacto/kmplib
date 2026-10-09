@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  kmplib-health — o que o artefato declara para o app que o consome (só quem declara kmplib-health
+  recebe isto; os demais apps não). O app ainda precisa (ver kmplib-catalog/references/health.md):
+  - a Activity de justificativa do Health Connect (ACTION_SHOW_PERMISSIONS_RATIONALE + activity-alias
+    VIEW_PERMISSION_USAGE no Android 14+), com a Política de Privacidade — o Play reprova sem ela;
+  - pedir BLUETOOTH_SCAN/BLUETOOTH_CONNECT (12+) ou ACCESS_FINE_LOCATION (11-) em tempo de execução.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Health Connect: SÓ os tipos que a lib lê/escreve (pedir tipo sem uso reprova na revisão). -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+
+    <!-- FC por BLE (HeartRateMonitor). Android 12+: SCAN sem uso de localização. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 11 e anteriores. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- ACCESS_FINE_LOCATION (scan no Android 8-11) NÃO é declarada aqui de propósito: com
+         maxSdkVersion, o merge do manifesto pode impor o teto a um app que usa localização de verdade
+         (kmplib-location) e cortá-la do Android 12+. O app declara, com ou sem teto, conforme o caso. -->
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+
+    <!-- Visibilidade do app Health Connect (Android 11+), exigida pelo getSdkStatus. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+</manifest>

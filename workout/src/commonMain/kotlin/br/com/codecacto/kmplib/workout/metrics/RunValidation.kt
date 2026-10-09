@@ -3,6 +3,8 @@ package br.com.codecacto.kmplib.workout.metrics
 import br.com.codecacto.kmplib.workout.engine.executionOrder
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 /**
  * Inconsistência entre uma sessão gravada e o plano que ela diz ter executado. É a régua do backend
@@ -10,9 +12,16 @@ import br.com.codecacto.kmplib.workout.model.WorkoutRun
  * tem de ser um passo de `WorkoutPlan.executionOrder()`.
  *
  * Os índices ([setResultIndex]) apontam a posição em `WorkoutRun.sets`, para o log dizer QUAL linha.
+ *
+ * Serializável (discriminador `type` com os nomes em MAIÚSCULAS abaixo): é o formato dos
+ * `expectedIssues` da fixture `session-validation.json` e serve de `details` do `INVALID_SESSION`.
+ * Nenhum campo carrega dado do aluno — só ids do plano e posições.
  */
+@Serializable
 sealed interface RunIssue {
     /** `WorkoutRun.planId` não é o `WorkoutPlan.id` recebido. */
+    @Serializable
+    @SerialName("PLAN_MISMATCH")
     data class PlanMismatch(val expectedPlanId: String, val runPlanId: String) : RunIssue
 
     /**
@@ -20,15 +29,23 @@ sealed interface RunIssue {
      * volta/estágio declarados que não batem com o método (ex.: `roundIndex` num bloco `NORMAL`,
      * `stageIndex` nulo numa série com estágios).
      */
+    @Serializable
+    @SerialName("UNKNOWN_STEP")
     data class UnknownStep(val setResultIndex: Int) : RunIssue
 
     /** O mesmo passo (bloco, exercício, série, estágio) aparece mais de uma vez. */
+    @Serializable
+    @SerialName("DUPLICATE_STEP")
     data class DuplicateStep(val setResultIndex: Int) : RunIssue
 
     /** `completedAt` antes de `startedAt`. */
+    @Serializable
+    @SerialName("NEGATIVE_DURATION")
     data class NegativeDuration(val setResultIndex: Int) : RunIssue
 
     /** Pulo de exercício que não está no plano. */
+    @Serializable
+    @SerialName("UNKNOWN_SKIPPED_EXERCISE")
     data class UnknownSkippedExercise(val exerciseStepId: String) : RunIssue
 }
 

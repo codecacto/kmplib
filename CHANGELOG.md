@@ -5,6 +5,57 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.269.0 — `health`: FC ao vivo por BLE (`HeartRateMonitor`, `0x180D`/`0x2A37`) com dublê + regra do repositório de saúde em `commonMain`; `workout`: pausa que devolve o tempo, `Load` e as tabelas de casos para o backend (`kmplib-workout-fixtures`)
+
+**Por quê.** App do Personal, plano da Onda 1: o MA6 precisa de FC ao vivo por BLE provável com dublê no
+emulador/simulador; o MA3 e o A5 precisam da MESMA tabela de casos no celular e no backend (o risco do F1 era o
+servidor recusar a sessão boa que o celular produz). Retoma o trabalho que ficou sem commit na sessão de 09/out.
+
+**`kmplib-health`**
+- **`HeartRateMonitor`** (novo, `health.heartrate`): `createHeartRateMonitor()` · `scan()` (sensores com `0x180D`,
+  cada um uma vez) · `measurements(device)`/`heartRate(device)` (conecta, assina a `0x2A37`, **reconecta sozinho** pela
+  `HeartRateReconnectPolicy`; cancelar desconecta) · `state: StateFlow<HeartRateMonitorState>` (`Idle`/`Unavailable(reason)`/
+  `Scanning`/`Connecting(device, attempt)`/`Connected(device, lastBpm)` — `lastBpm = null` é "aguardando", nunca 0 —
+  /`Lost`). `HeartRateMeasurementParser` = o formato do Bluetooth SIG (UINT8/UINT16 pelo bit 0, contato, energia, RR;
+  truncado = `null`). Android pela API oficial `android.bluetooth` (`ScanFilter`, `connectGatt(TRANSPORT_LE)`, CCCD
+  `0x2902` nas duas formas, `close()` sempre); iOS por CoreBluetooth em cinterop. Manifesto da lib com
+  `BLUETOOTH_SCAN` (`neverForLocation`)/`BLUETOOTH_CONNECT` e os legados com `maxSdkVersion=30`; o app pede em runtime e
+  declara `NSBluetoothAlwaysUsageDescription` (sem ela o iOS encerra o app).
+- **Dublê público** `SimulatedHeartRateSensor` + `createSimulatedHeartRateMonitor(sensor)`: o MESMO motor com rádio de
+  mentira mandando pacotes `0x2A37` reais (`setBpm`, `dropLink`, `setUnavailable`, `connections`) — para emulador,
+  simulador e teste do app.
+- **Repositório**: a regra saiu dos `actual` e foi para `DefaultHealthRepository` (commonMain, testada com gateway
+  falso); a plataforma virou porta fina (`HealthConnectGateway`/`HealthKitGateway`, `internal` — os nomes antigos
+  `HealthConnectRepository`/`HealthKitRepository` também eram `internal`: nenhuma quebra). Aditivo na interface:
+  `availability(): HealthAvailability` (`NEEDS_PROVIDER_UPDATE` = levar à Play Store; `isAvailable()` virou default
+  sobre ela), `WorkoutWriteResult.ALREADY_WRITTEN`/`RUN_NOT_FINISHED`/`INVALID_RUN`/`FAILED`.
+- **Corrigido** (piso): `writeWorkout` passa a aplicar a guarda DENTRO dele (treino de outro app/relógio no intervalo →
+  não grava; mesmo `run.localId` → `ALREADY_WRITTEN`) e é idempotente: Android grava com
+  `Metadata.activelyRecorded(clientRecordId = run.localId)` (era `manualEntry()` sem id — reenviar DUPLICAVA o treino);
+  iOS grava pelo `HKWorkoutBuilder` com `HKMetadataKeyExternalUUID` e passou a LER os treinos do intervalo (até a
+  2.268.0 `hasDeviceWorkoutOverlapping` devolvia sempre `false` e gravava por cima do Apple Watch); cardio/mobilidade no
+  HealthKit = `mixedCardio`/`flexibility` (eram `other`). Health Connect: permissões no manifesto da lib (só os 4 tipos
+  usados) + `<queries>` do pacote, exigido pelo `getSdkStatus`.
+
+**`kmplib-workout`**
+- **Corrigido** (piso): `Resume` devolve o tempo parado — o descanso termina tanto depois quanto durou a pausa e a
+  série por tempo não conta o intervalo parado (`Paused.pausedAt`). Até a 2.268.0 o descanso corria durante a pausa.
+- `WorkoutEvent.Load(plan, localRunId?)` + `WorkoutState.Ready(plan, localRunId?)`: `Start` a partir de `Ready` com o
+  UUID do cliente (o `session.id` idempotente do backend); sem ele, id determinístico. `engine.start(...)` continua.
+- `RunIssue` `@Serializable` (`type` = `PLAN_MISMATCH`/`UNKNOWN_STEP`/`DUPLICATE_STEP`/`NEGATIVE_DURATION`/
+  `UNKNOWN_SKIPPED_EXERCISE`) — `details` do `INVALID_SESSION`.
+- `HealthPlatformMapping.healthConnectExerciseTypeName(category)` (tipo da SESSÃO); `healthKitActivityTypeName(CARDIO)`
+  = `mixedCardio` (era `cardioDance`, aula de dança).
+- **Tabelas de casos** em dados, rodando em todo alvo: `engine-transitions.json` (evento → estado, 13 casos — para
+  outra implementação da máquina, Connect IQ) e `session-validation.json` (sessão → veredito do `validateRun`: toda
+  sessão produzida pelo motor + casos à mão). Novo artefato **`br.com.codecacto:kmplib-workout-fixtures`** (JAR só de
+  teste, `kmplib/workout/fixtures/*.json`): o backend roda o `session-validation.json` com o `kmplib-workout-jvm`.
+- Kover nos dois módulos (fundação, ≥ 95% na regra; gateways e transportes de plataforma fora — só se provam em
+  aparelho).
+
+**Pendente de aparelho (spike 0.7):** FC por BLE com cinta/relógio reais, reconexão física, `bluetooth-central` em
+2º plano, leitura/escrita real de Health Connect e HealthKit.
+
 ## 2.268.0 — `ui/form`: o `FormRunner` sobre o **FormSchema v1** (LM-K05b) + depreciação da extensão do `Questionnaire` (D11)
 
 **Por quê.** D11 do Vitalis: o FormSchema v1 (`contratos-api.md` §7.1) é o formato canônico de formulário nas três libs

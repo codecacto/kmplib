@@ -1,0 +1,4051 @@
+{
+    "version": 1,
+    "protocolVersion": 2,
+    "cases": [
+        {
+            "name": "motor (tabela): normal: carregar, iniciar, série, descanso, pular descanso, última série termina",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:50Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:14:00Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:10Z",
+                        "completedAt": "2023-11-14T22:14:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): descanso: +tempo soma ao instante absoluto; evento fora de hora não muda nada",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": null,
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): pausa no descanso: o tempo parado é devolvido ao descanso",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:15:00Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): pausa na série: o início é empurrado; pausar de novo e retomar fora da pausa não fazem nada",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:13:51Z",
+                "sets": [],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): undo: sem passo registrado não faz nada; no descanso volta à série desfeita",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": null,
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:55Z",
+                        "completedAt": "2023-11-14T22:14:20Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): dois exercícios: o descanso do primeiro separa do segundo; o último termina sem descanso",
+            "plan": {
+                "id": "plan-2",
+                "name": "Treino B",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "lunge",
+                                "name": "Avanço",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-2",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:30Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:00Z",
+                        "completedAt": "2023-11-14T22:14:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): bi-set: sem descanso dentro da volta; ao fechar a volta, o descanso do último exercício",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-biset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": null,
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:14:20Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): drop-set: estágios sem descanso; descanso depois do último estágio",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": null,
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": []
+                        },
+                        "repsDone": 12,
+                        "loadDone": 40.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:40Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 0,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 32.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 32.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:14:00Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 1,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): circuito com série por tempo: exercício pulado sai das voltas seguintes, sem descanso",
+            "plan": {
+                "id": "plan-circuit",
+                "name": "Treino Circuito",
+                "blocks": [
+                    {
+                        "id": "block-c",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "c-a",
+                                "exerciseRefId": "jump",
+                                "name": "Polichinelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-b",
+                                "exerciseRefId": "pushup",
+                                "name": "Flexão",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-c",
+                                "exerciseRefId": "plank",
+                                "name": "Prancha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-circuit",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": null,
+                "sets": [
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": null,
+                        "loadDone": null,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-c",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 40
+                        },
+                        "repsDone": null,
+                        "loadDone": null,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:55Z",
+                        "completedAt": "2023-11-14T22:14:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": null,
+                        "loadDone": null,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:15:35Z",
+                        "completedAt": "2023-11-14T22:16:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    }
+                ],
+                "skippedExercises": [
+                    {
+                        "exerciseStepId": "c-b",
+                        "reason": "dor no punho",
+                        "at": "2023-11-14T22:13:55Z"
+                    }
+                ],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): plano sem série: o Start termina na hora",
+            "plan": {
+                "id": "plan-empty",
+                "name": "Vazio",
+                "blocks": []
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-empty",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:13:20Z",
+                "sets": [],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): antes do Load nenhum evento tem efeito; Load no meio do treino é ignorado",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:21Z",
+                "finishedAt": null,
+                "sets": [],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-1",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-1",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:13:35Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:30Z",
+                        "completedAt": "2023-11-14T22:13:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-2",
+            "plan": {
+                "id": "plan-2",
+                "name": "Treino B",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "lunge",
+                                "name": "Avanço",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-2",
+                "planId": "plan-2",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:13:35Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:30Z",
+                        "completedAt": "2023-11-14T22:13:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-biset",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-biset",
+                "planId": "plan-biset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:00Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:25Z",
+                        "completedAt": "2023-11-14T22:13:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:35Z",
+                        "completedAt": "2023-11-14T22:13:40Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:13:45Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:55Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:55Z",
+                        "completedAt": "2023-11-14T22:14:00Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-circuit",
+            "plan": {
+                "id": "plan-circuit",
+                "name": "Treino Circuito",
+                "blocks": [
+                    {
+                        "id": "block-c",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "c-a",
+                                "exerciseRefId": "jump",
+                                "name": "Polichinelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-b",
+                                "exerciseRefId": "pushup",
+                                "name": "Flexão",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-c",
+                                "exerciseRefId": "plank",
+                                "name": "Prancha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 40
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-circuit",
+                "planId": "plan-circuit",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-b",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:25Z",
+                        "completedAt": "2023-11-14T22:13:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-c",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 40
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:30Z",
+                        "completedAt": "2023-11-14T22:13:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:13:45Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-b",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:45Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-c",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 40
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:55Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:00Z",
+                        "completedAt": "2023-11-14T22:14:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-c",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 40
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:05Z",
+                        "completedAt": "2023-11-14T22:14:10Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    },
+                    {
+                        "blockId": "block-n",
+                        "exerciseStepId": "n-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:15Z",
+                        "completedAt": "2023-11-14T22:14:20Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-circuit-short",
+            "plan": {
+                "id": "plan-circuit-short",
+                "name": "Circuito curto",
+                "blocks": [
+                    {
+                        "id": "block-c",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "c-a",
+                                "exerciseRefId": "row",
+                                "name": "Remada",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "c-b",
+                                "exerciseRefId": "pullover",
+                                "name": "Pullover",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-circuit-short",
+                "planId": "plan-circuit-short",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:05Z",
+                "sets": [
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-b",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:25Z",
+                        "completedAt": "2023-11-14T22:13:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:35Z",
+                        "completedAt": "2023-11-14T22:13:40Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-b",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:13:45Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    },
+                    {
+                        "blockId": "block-c",
+                        "exerciseStepId": "c-a",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:55Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    },
+                    {
+                        "blockId": "block-n",
+                        "exerciseStepId": "n-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:00Z",
+                        "completedAt": "2023-11-14T22:14:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-dropset",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-dropset",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:14:05Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 0,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 32.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:25Z",
+                        "completedAt": "2023-11-14T22:13:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 1,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 8,
+                            "load": 25.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:30Z",
+                        "completedAt": "2023-11-14T22:13:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 2,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:13:45Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 0,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 32.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:45Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 1,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 8,
+                            "load": 25.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:55Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 2,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-2",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:00Z",
+                        "completedAt": "2023-11-14T22:14:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (completo): plan-dropset-flat",
+            "plan": {
+                "id": "plan-dropset-flat",
+                "name": "Drop-set sem estágios",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-press",
+                                "name": "Leg press",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-plan-dropset-flat",
+                "planId": "plan-dropset-flat",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:13:35Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:25Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:30Z",
+                        "completedAt": "2023-11-14T22:13:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "à mão: sessão vazia é válida",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "à mão: parcial e fora de ordem é válida (Undo, treino retroativo)",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "à mão: bi-set por volta, com roundIndex = setIndex",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-biset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "à mão: drop-set com os três estágios da série",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": [
+                                {
+                                    "reps": 12,
+                                    "load": 40.0
+                                },
+                                {
+                                    "reps": 10,
+                                    "load": 32.0
+                                },
+                                {
+                                    "reps": 8,
+                                    "load": 25.0
+                                }
+                            ]
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 0,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": [
+                                {
+                                    "reps": 12,
+                                    "load": 40.0
+                                },
+                                {
+                                    "reps": 10,
+                                    "load": 32.0
+                                },
+                                {
+                                    "reps": 8,
+                                    "load": 25.0
+                                }
+                            ]
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 1,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": [
+                                {
+                                    "reps": 12,
+                                    "load": 40.0
+                                },
+                                {
+                                    "reps": 10,
+                                    "load": 32.0
+                                },
+                                {
+                                    "reps": 8,
+                                    "load": 25.0
+                                }
+                            ]
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 2,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-2",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "à mão: plano trocado",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-outro",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "PLAN_MISMATCH",
+                    "expectedPlanId": "plan-1",
+                    "runPlanId": "plan-outro"
+                }
+            ]
+        },
+        {
+            "name": "à mão: a mesma série duas vezes",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "DUPLICATE_STEP",
+                    "setResultIndex": 2
+                }
+            ]
+        },
+        {
+            "name": "à mão: série além do plano",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 2,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: exercício que não está no plano",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-9",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: bloco que não está no plano",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-9",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: drop-set sem informar o estágio",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": [
+                                {
+                                    "reps": 12,
+                                    "load": 40.0
+                                },
+                                {
+                                    "reps": 10,
+                                    "load": 32.0
+                                },
+                                {
+                                    "reps": 8,
+                                    "load": 25.0
+                                }
+                            ]
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: drop-set com estágio além dos três",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 40.0,
+                            "stages": [
+                                {
+                                    "reps": 12,
+                                    "load": 40.0
+                                },
+                                {
+                                    "reps": 10,
+                                    "load": 32.0
+                                },
+                                {
+                                    "reps": 8,
+                                    "load": 25.0
+                                }
+                            ]
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 3,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: estágio em bloco normal",
+            "plan": {
+                "id": "plan-dropset",
+                "name": "Treino Drop-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "DROP_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "leg-curl",
+                                "name": "Mesa flexora",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 40.0,
+                                        "stages": [
+                                            {
+                                                "reps": 12,
+                                                "load": 40.0
+                                            },
+                                            {
+                                                "reps": 10,
+                                                "load": 32.0
+                                            },
+                                            {
+                                                "reps": 8,
+                                                "load": 25.0
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    },
+                    {
+                        "id": "block-2",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "calf",
+                                "name": "Panturrilha",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-dropset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-2",
+                        "exerciseStepId": "ex-2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": 0,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: volta em bloco normal",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: bi-set sem informar a volta",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-biset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: bi-set com a volta diferente da série",
+            "plan": {
+                "id": "plan-biset",
+                "name": "Treino Bi-set",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 60,
+                                "videoRequested": false
+                            },
+                            {
+                                "id": "ex-2",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-biset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 2
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: série que termina antes de começar",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:49Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "NEGATIVE_DURATION",
+                    "setResultIndex": 0
+                }
+            ]
+        },
+        {
+            "name": "à mão: repetida E com duração negativa: os dois apontam a mesma linha",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:50Z",
+                        "completedAt": "2023-11-14T22:13:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "DUPLICATE_STEP",
+                    "setResultIndex": 1
+                },
+                {
+                    "type": "NEGATIVE_DURATION",
+                    "setResultIndex": 1
+                }
+            ]
+        },
+        {
+            "name": "à mão: pulo de exercício que não está no plano (o que está, passa)",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "plan-1",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [],
+                "skippedExercises": [
+                    {
+                        "exerciseStepId": "ex-1",
+                        "reason": null,
+                        "at": "2023-11-14T22:13:20Z"
+                    },
+                    {
+                        "exerciseStepId": "fantasma",
+                        "reason": null,
+                        "at": "2023-11-14T22:13:20Z"
+                    }
+                ],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "UNKNOWN_SKIPPED_EXERCISE",
+                    "exerciseStepId": "fantasma"
+                }
+            ]
+        },
+        {
+            "name": "à mão: tudo junto, na ordem do validateRun: plano, linha a linha, pulos",
+            "plan": {
+                "id": "plan-1",
+                "name": "Treino A",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "ex-1",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-hand",
+                "planId": "x",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:23:20Z",
+                "sets": [
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 5,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    },
+                    {
+                        "blockId": "block-1",
+                        "exerciseStepId": "ex-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:29Z",
+                        "completedAt": "2023-11-14T22:13:28Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null
+                    }
+                ],
+                "skippedExercises": [
+                    {
+                        "exerciseStepId": "y",
+                        "reason": null,
+                        "at": "2023-11-14T22:13:20Z"
+                    }
+                ],
+                "effort": null,
+                "comment": null
+            },
+            "expectedIssues": [
+                {
+                    "type": "PLAN_MISMATCH",
+                    "expectedPlanId": "plan-1",
+                    "runPlanId": "x"
+                },
+                {
+                    "type": "UNKNOWN_STEP",
+                    "setResultIndex": 0
+                },
+                {
+                    "type": "NEGATIVE_DURATION",
+                    "setResultIndex": 1
+                },
+                {
+                    "type": "UNKNOWN_SKIPPED_EXERCISE",
+                    "exerciseStepId": "y"
+                }
+            ]
+        }
+    ]
+}

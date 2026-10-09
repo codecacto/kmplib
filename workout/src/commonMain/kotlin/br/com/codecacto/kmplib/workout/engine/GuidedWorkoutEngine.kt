@@ -37,7 +37,12 @@ data class Cursor(
 sealed interface WorkoutState {
     data object Idle : WorkoutState
 
-    data class Ready(val plan: WorkoutPlan) : WorkoutState
+    /**
+     * Plano carregado, treino ainda não começou. [localRunId] é o id que a sessão vai receber no
+     * `Start` (o cliente gera o UUID — `session.id` do backend é do CLIENTE, para o envio ser
+     * idempotente); `null` deriva um id determinístico de `plan.id` + instante do início.
+     */
+    data class Ready(val plan: WorkoutPlan, val localRunId: String? = null) : WorkoutState
 
     data class InSet(
         val plan: WorkoutPlan,
@@ -55,17 +60,29 @@ sealed interface WorkoutState {
         val restEndsAt: Instant,
     ) : WorkoutState
 
+    /**
+     * Treino pausado. [pausedAt] é o instante da pausa: no `Resume`, o tempo parado é devolvido —
+     * o descanso termina tanto depois quanto durou a pausa (`restEndsAt` empurrado) e a série por tempo
+     * não conta o intervalo parado (`setStartedAt` empurrado). `null` (estado montado à mão, sem
+     * instante) retoma sem ajuste.
+     */
     data class Paused(
         val plan: WorkoutPlan,
         val cursor: Cursor,
         val run: WorkoutRun,
         val previous: WorkoutState,
+        val pausedAt: Instant? = null,
     ) : WorkoutState
 
     data class Finished(val plan: WorkoutPlan, val run: WorkoutRun) : WorkoutState
 }
 
 sealed interface WorkoutEvent {
+    /** Carrega o plano: `Idle`/`Finished` -> `Ready`. Em qualquer outro estado não tem efeito (não se
+     * troca de plano no meio de um treino — encerre com `Finish` antes). */
+    data class Load(val plan: WorkoutPlan, val localRunId: String? = null) : WorkoutEvent
+
+    /** `Ready` -> primeiro passo do plano (`InSet`), ou `Finished` se o plano não tem série. */
     data object Start : WorkoutEvent
 
     /** Conclui o passo corrente: a série — ou, no drop-set, o ESTÁGIO corrente dela. */
@@ -119,11 +136,26 @@ class GuidedWorkoutEngine {
     }
 
     fun reduce(state: WorkoutState, event: WorkoutEvent, now: Instant): WorkoutState = when (event) {
-        WorkoutEvent.Pause -> pause(state)
-        WorkoutEvent.Resume -> if (state is WorkoutState.Paused) state.previous else state
+        is WorkoutEvent.Load -> load(state, event)
+        WorkoutEvent.Start -> if (state is WorkoutState.Ready) {
+            start(state.plan, now, state.localRunId ?: defaultRunId(state.plan, now))
+        } else {
+            state
+        }
+        WorkoutEvent.Pause -> pause(state, now)
+        WorkoutEvent.Resume -> if (state is WorkoutState.Paused) resume(state, now) else state
         WorkoutEvent.Finish -> finish(state, now)
         else -> reduceActive(state, event, now)
     }
+
+    private fun load(state: WorkoutState, event: WorkoutEvent.Load): WorkoutState = when (state) {
+        WorkoutState.Idle, is WorkoutState.Ready, is WorkoutState.Finished -> WorkoutState.Ready(event.plan, event.localRunId)
+        else -> state
+    }
+
+    /** Id determinístico quando o chamador não informou um — mesmo plano e mesmo instante dão o
+     * mesmo id em qualquer plataforma (a máquina não sorteia nada). */
+    private fun defaultRunId(plan: WorkoutPlan, now: Instant): String = "${plan.id}@${now.toEpochMilliseconds()}"
 
     /**
      * O passo que vem depois do [cursor], respeitando os exercícios já pulados em [run] — `null` quando
@@ -143,10 +175,21 @@ class GuidedWorkoutEngine {
         return restBetween(current, nextStep(order, cursor, skippedIds(run)))
     }
 
-    private fun pause(state: WorkoutState): WorkoutState = when (state) {
-        is WorkoutState.InSet -> WorkoutState.Paused(state.plan, state.cursor, state.run, state)
-        is WorkoutState.Resting -> WorkoutState.Paused(state.plan, state.cursor, state.run, state)
+    private fun pause(state: WorkoutState, now: Instant): WorkoutState = when (state) {
+        is WorkoutState.InSet -> WorkoutState.Paused(state.plan, state.cursor, state.run, state, now)
+        is WorkoutState.Resting -> WorkoutState.Paused(state.plan, state.cursor, state.run, state, now)
         else -> state
+    }
+
+    /** Devolve o tempo parado: relógio que voltou para trás (pausa "no futuro") não encurta nada. */
+    private fun resume(state: WorkoutState.Paused, now: Instant): WorkoutState {
+        val pausedAt = state.pausedAt ?: return state.previous
+        val elapsed = (now - pausedAt).coerceAtLeast(kotlin.time.Duration.ZERO)
+        return when (val previous = state.previous) {
+            is WorkoutState.Resting -> previous.copy(restEndsAt = previous.restEndsAt + elapsed)
+            is WorkoutState.InSet -> previous.copy(setStartedAt = previous.setStartedAt + elapsed)
+            else -> previous
+        }
     }
 
     private fun finish(state: WorkoutState, now: Instant): WorkoutState = when (state) {
