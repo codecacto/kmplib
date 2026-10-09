@@ -1,8 +1,16 @@
 package br.com.codecacto.kmplib.workout.protocol
 
+import br.com.codecacto.kmplib.workout.engine.Cursor
 import br.com.codecacto.kmplib.workout.engine.WorkoutEvent
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import kotlinx.serialization.Serializable
+
+/**
+ * Versão do conteúdo das mensagens. **2** (kmplib 2.266.0): `StateSnapshot.stageIndex` (drop-set) e
+ * `SetTarget.Reps.stages` dentro do `PlanSnapshot`. Quem recebe `v` maior do que conhece deve pedir um
+ * `PlanSnapshot` novo em vez de adivinhar o formato.
+ */
+const val WORKOUT_PROTOCOL_VERSION: Int = 2
 
 /**
  * Mensagens celular<->relógio, versionadas (`v`) e idempotentes por `seq` crescente (resistem a
@@ -19,11 +27,12 @@ sealed interface WorkoutMessage {
 data class PlanSnapshot(
     override val seq: Long,
     val plan: WorkoutPlan,
-    override val v: Int = 1,
+    override val v: Int = WORKOUT_PROTOCOL_VERSION,
 ) : WorkoutMessage
 
 /** Serialização textual compacta do estado, para não exigir que o outro lado conheça as classes
- * seladas de `GuidedWorkoutEngine` — a máquina de estados fica só de um lado da ponte. */
+ * seladas de `GuidedWorkoutEngine` — a máquina de estados fica só de um lado da ponte. Os índices são
+ * os do `Cursor` (em bi-set/circuito a volta é o `setIndex`; no drop-set o estágio é o `stageIndex`). */
 @Serializable
 data class StateSnapshot(
     override val seq: Long,
@@ -32,8 +41,12 @@ data class StateSnapshot(
     val setIndex: Int,
     val phase: Phase,
     val restEndsAtEpochMillis: Long? = null,
-    override val v: Int = 1,
+    override val v: Int = WORKOUT_PROTOCOL_VERSION,
+    val stageIndex: Int = 0,
 ) : WorkoutMessage {
+    /** O cursor que este instantâneo descreve. */
+    val cursor: Cursor get() = Cursor(blockIndex, exerciseIndex, setIndex, stageIndex)
+
     @Serializable
     enum class Phase { IN_SET, RESTING, PAUSED, FINISHED }
 }
@@ -43,7 +56,7 @@ data class Command(
     override val seq: Long,
     val id: String,
     val event: CommandEvent,
-    override val v: Int = 1,
+    override val v: Int = WORKOUT_PROTOCOL_VERSION,
 ) : WorkoutMessage
 
 /** Subconjunto serializável de `WorkoutEvent` — só os eventos que fazem sentido vir do OUTRO lado
@@ -87,7 +100,7 @@ fun CommandEvent.toWorkoutEvent(): WorkoutEvent = when (this) {
 }
 
 @Serializable
-data class Ack(override val seq: Long, val commandId: String, override val v: Int = 1) : WorkoutMessage
+data class Ack(override val seq: Long, val commandId: String, override val v: Int = WORKOUT_PROTOCOL_VERSION) : WorkoutMessage
 
 @Serializable
 data class Metrics(
@@ -95,7 +108,7 @@ data class Metrics(
     val heartRate: Int? = null,
     val kcal: Double? = null,
     val epochMillis: Long,
-    override val v: Int = 1,
+    override val v: Int = WORKOUT_PROTOCOL_VERSION,
 ) : WorkoutMessage
 
 /** Deduplica e ordena mensagens pelo `seq`, descartando duplicata e mensagem já vista fora de

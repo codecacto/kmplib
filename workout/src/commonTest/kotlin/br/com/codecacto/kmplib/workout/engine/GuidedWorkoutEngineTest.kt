@@ -73,36 +73,7 @@ class GuidedWorkoutEngineTest {
         assertEquals(T0.plus(kotlin.time.Duration.parse("30s")), state.restEndsAt)
     }
 
-    @Test
-    fun `bi-set nao descansa entre os exercicios do bloco, so ao fechar o bloco`() {
-        val plan = biSetPlan()
-        var state: WorkoutState = engine.start(plan, T0, "run-biset")
-
-        state = engine.reduce(state, WorkoutEvent.CompleteSet(10, 20.0), T0)
-        assertIs<WorkoutState.InSet>(state, "sem descanso entre rosca e triceps")
-        assertEquals(Cursor(0, 1, 0), state.cursor)
-
-        state = engine.reduce(state, WorkoutEvent.CompleteSet(10, 15.0), T0)
-        assertIs<WorkoutState.Finished>(state, "so 1 serie cada; acabou o bloco e o plano")
-    }
-
-    @Test
-    fun `drop-set nao descansa entre series do mesmo exercicio`() {
-        val plan = dropSetPlan()
-        var state: WorkoutState = engine.start(plan, T0, "run-dropset")
-
-        state = engine.reduce(state, WorkoutEvent.CompleteSet(12, 100.0), T0)
-        assertIs<WorkoutState.InSet>(state)
-        assertEquals(Cursor(0, 0, 1), state.cursor)
-
-        state = engine.reduce(state, WorkoutEvent.CompleteSet(10, 80.0), T0)
-        assertIs<WorkoutState.InSet>(state)
-        assertEquals(Cursor(0, 0, 2), state.cursor)
-
-        state = engine.reduce(state, WorkoutEvent.CompleteSet(8, 60.0), T0)
-        assertIs<WorkoutState.Finished>(state)
-        assertEquals(3, state.run.sets.size)
-    }
+    // Bi-set, circuito e drop-set: tabela própria em MethodExecutionTest (L-WK1, 2.266.0).
 
     @Test
     fun `pular exercicio registra o motivo e nao conta como serie concluida`() {
@@ -144,7 +115,7 @@ class GuidedWorkoutEngineTest {
     }
 
     @Test
-    fun `undo depois de concluir a 1a serie volta para ela, sem perder o plano`() {
+    fun `undo depois de concluir a 1a serie volta para ela sem perder o plano`() {
         val plan = simplePlan()
         var state: WorkoutState = engine.start(plan, T0, "run-6")
         state = engine.reduce(state, WorkoutEvent.CompleteSet(10, 20.0), T0) // Resting, cursor na serie 2
@@ -163,8 +134,17 @@ class GuidedWorkoutEngineTest {
 
         val state = engine.reduce(inSet, WorkoutEvent.Undo, T0)
 
-        assertIs<WorkoutState.InSet>(state)
-        assertEquals(Cursor(0, 0, 0), state.cursor)
+        assertEquals(inSet, state, "nada a desfazer: o estado fica igual (inclusive o inicio da serie)")
+    }
+
+    @Test
+    fun `undo sem serie concluida depois de pular nao volta ao inicio do plano`() {
+        val plan = twoExercisePlan()
+        val skipped = engine.reduce(engine.start(plan, T0, "run-7b"), WorkoutEvent.SkipExercise(), T0)
+
+        val state = engine.reduce(skipped, WorkoutEvent.Undo, T0)
+
+        assertEquals(skipped, state)
     }
 
     @Test
@@ -194,7 +174,7 @@ class GuidedWorkoutEngineTest {
     }
 
     @Test
-    fun `pausar em Idle ou Ready nao tem efeito (nao ha o que pausar)`() {
+    fun `pausar em Idle ou Ready nao tem efeito - nao ha o que pausar`() {
         assertEquals(WorkoutState.Idle, engine.reduce(WorkoutState.Idle, WorkoutEvent.Pause, T0))
     }
 

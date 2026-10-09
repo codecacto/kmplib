@@ -5,6 +5,61 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.266.0 — `workout`: bi-set e circuito por VOLTA, drop-set com ESTÁGIOS (L-WK1, corrige a 2.263.0)
+
+**O defeito.** Desde a 2.263.0 o `GuidedWorkoutEngine` percorria bi-set e circuito **por exercício**
+(rosca série 1, 2, 3 e só depois o tríceps), sem descanso nenhum dentro do bloco, e o drop-set não tinha
+estágio: fazia todas as séries do exercício emendadas, sem descanso entre elas. O treino guiado do App do
+Personal (design `wireframes.md` B.0, contrato `contratos-onda-1.md` §4.6) e a validação de sessão do
+backend dependem da regra certa.
+
+**A regra agora (uma só, em `WorkoutPlan.executionOrder()`, usada pelo motor e pelo backend):**
+
+| Método | Ordem | Descanso |
+|---|---|---|
+| `NORMAL` | exercício → série | `restSeconds` do exercício depois de cada série |
+| `DROP_SET` | exercício → série → **estágio** | nenhum entre estágios; `restSeconds` depois do último estágio |
+| `BI_SET`/`CIRCUIT` | **volta** → exercício | nenhum dentro da volta; depois do último exercício da volta, o `restSeconds` DELE |
+
+Voltas = maior número de séries entre os exercícios do bloco (`Block.roundCount`); o exercício com menos
+séries fica fora das voltas que faltam. O descanso da última série/volta de um bloco também separa o bloco
+seguinte; o último passo do plano termina sem descanso. Exercício pulado sai das voltas que faltam (se ele
+fechava a volta, o descanso passa a vir depois de quem de fato a fechou); pular nunca abre descanso.
+
+**API (pacote `br.com.codecacto.kmplib.workout`):**
+
+- **Modelo:** `DropStage(reps, load)`; `SetTarget.Reps(reps, load, stages = emptyList())` +
+  `SetTarget.Reps.dropSet(stages)`; `SetTarget.hasStages`/`stageCount`/`stageTarget(i)`;
+  `Block.isRoundBased`/`roundCount`; `SetResult.stageIndex: Int?` e `SetResult.roundIndex: Int?` (um
+  `SetResult` POR ESTÁGIO, com a meta daquele estágio — volume conta cada um com a carga dele).
+- **Motor:** `Cursor(blockIndex, exerciseIndex, setIndex, stageIndex = 0)` + `Cursor.set(plan)`;
+  `ExecutionStep` (cursor, exercício, `exerciseCount`, `setCount`, `roundIndex`/`roundCount`,
+  `stageIndex`/`stageCount`, `target` do estágio, `isLastStage`) = "Volta 2 de 3", "Série 2 de 3 ·
+  Estágio 2" sem a tela refazer regra; `WorkoutPlan.executionOrder()`/`stepAt(cursor)`/
+  `roundExercises(cursor)` (a lista do circuito)/`plannedSetCount()`;
+  `GuidedWorkoutEngine.upcoming(plan, cursor, run)` ("Próximo: …") e
+  **`restAfter(plan, cursor, run)`** (0 = "Concluir estágio", >0 = abre descanso). `CompleteSet` conclui
+  o passo corrente (série ou estágio).
+- **Backend (A5):** `validateRun(plan, run): List<RunIssue>` (`PlanMismatch`, `UnknownStep`,
+  `DuplicateStep`, `NegativeDuration`, `UnknownSkippedExercise`) — a régua do `INVALID_SESSION`;
+  `WorkoutRun.completedSetCount()` (drop-set conta a série UMA vez, mesma régua do `plannedSetCount`);
+  `reconcile` passou a contar série, não estágio.
+- **Protocolo:** `WORKOUT_PROTOCOL_VERSION = 2`; `StateSnapshot.stageIndex` (default 0 — a mensagem v1 lê
+  como estágio 0) + `StateSnapshot.cursor`; `PlanSnapshot` leva os estágios.
+
+**Outras correções de passagem:** `start` em plano sem nenhuma série termina em `Finished` (antes lançava
+índice fora do intervalo) e pula bloco vazio; `Undo` sem passo registrado não volta mais ao início do
+plano depois de um pulo (devolve o estado igual); `Undo` de volta a um exercício pulado o devolve ao
+treino. A suíte do módulo **nunca tinha compilado em nativo** (vírgula e parênteses em nome de teste —
+`Name contains illegal characters` no `compileTestKotlinIosArm64`); corrigido, 69 casos em `commonTest`.
+
+**Fatia JVM publicada no mavenLocal deste servidor** (`br.com.codecacto:kmplib-workout-jvm`, alvo puro,
+sem Mac) para o backend do App do Personal vendorizar. A release completa (iOS/watchOS) segue sendo do Mac.
+
+**Migração:** sem consumidor em produção. Fonte compatível para quem só lia `Cursor(b, e, s)` e
+`exercise.sets[setIndex]` (o `wear-molde` da casca); mudou o COMPORTAMENTO de `BI_SET`/`CIRCUIT`/`DROP_SET`
+— é o conserto. Piso em `docs/pisos.yaml` (símbolos do motor).
+
 ## 2.265.0 — `ui`: `QuestionnaireRunner` — o runner de questionário da weblib, no app, sobre o MESMO JSON (GAP-VIT-K05)
 
 **Por quê.** O Vitalis (app do médico/secretária, Onda 1) roda a triagem da secretária (AM-13) e a

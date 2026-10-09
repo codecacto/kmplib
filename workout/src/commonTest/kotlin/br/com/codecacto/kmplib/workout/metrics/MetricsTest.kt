@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.workout.metrics
 
 import br.com.codecacto.kmplib.workout.engine.T0
 import br.com.codecacto.kmplib.workout.engine.simplePlan
+import br.com.codecacto.kmplib.workout.model.DropStage
 import br.com.codecacto.kmplib.workout.model.SetResult
 import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
@@ -81,7 +82,7 @@ class MetricsTest {
     }
 
     @Test
-    fun `reconciliacao conta planejado e feito por exercicio, sem contar serie pulada`() {
+    fun `reconciliacao conta planejado e feito por exercicio sem contar serie pulada`() {
         val plan = simplePlan() // 1 exercicio, 2 series planejadas
         val run = WorkoutRun(
             "r1", plan.id, T0,
@@ -99,6 +100,23 @@ class MetricsTest {
     }
 
     @Test
+    fun `reconciliacao e completedSetCount contam a serie de drop-set uma vez so`() {
+        val plan = br.com.codecacto.kmplib.workout.engine.dropSetPlan() // ex-1: 2 séries de 3 estágios
+        val stages = (0..2).map { setResult(exerciseStepId = "ex-1", setIndex = 0) }
+        val run = WorkoutRun("r1", plan.id, T0, sets = stages + setResult(exerciseStepId = "ex-2"))
+
+        assertEquals(1, reconcile(plan, run).first { it.exerciseStepId == "ex-1" }.completedSets)
+        assertEquals(2, reconcile(plan, run).first { it.exerciseStepId == "ex-1" }.plannedSets)
+        assertEquals(2, run.completedSetCount())
+    }
+
+    @Test
+    fun `describe do drop-set lista os estagios`() {
+        val set = SetTarget.Reps.dropSet(listOf(DropStage(12, 40.0), DropStage(10, null)))
+        assertEquals("12 x 40.0 kg → 10 reps", set.describe())
+    }
+
+    @Test
     fun `describe de meta por reps e por tempo`() {
         assertEquals("10 x 20.0 kg", SetTarget.Reps(10, 20.0).describe())
         assertEquals("10 reps", SetTarget.Reps(10, null).describe())
@@ -106,7 +124,7 @@ class MetricsTest {
     }
 
     @Test
-    fun `describeDone cobre pulada, com carga, so reps e so a meta`() {
+    fun `describeDone cobre pulada com carga so reps e so a meta`() {
         assertEquals("pulada", setResult(skipped = true).describeDone())
         assertEquals("10 x 20.0 kg", setResult(reps = 10, load = 20.0).describeDone())
         assertEquals("10 reps", setResult(reps = 10, load = null).describeDone())

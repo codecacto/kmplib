@@ -1,19 +1,32 @@
 package br.com.codecacto.kmplib.workout.engine
 
 import br.com.codecacto.kmplib.workout.model.Block
+import br.com.codecacto.kmplib.workout.model.ExerciseStep
 import br.com.codecacto.kmplib.workout.model.SetResult
+import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.SkippedExercise
-import br.com.codecacto.kmplib.workout.model.WorkoutMethod
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
 import kotlinx.datetime.Instant
 import kotlin.time.Duration.Companion.seconds
 
-/** Posição corrente dentro do plano: bloco, exercício dentro do bloco, série dentro do exercício. */
-data class Cursor(val blockIndex: Int, val exerciseIndex: Int, val setIndex: Int) {
-    fun exercise(plan: WorkoutPlan) = plan.blocks[blockIndex].exercises[exerciseIndex]
+/**
+ * Posição corrente dentro do plano: bloco, exercício dentro do bloco, série dentro do exercício e
+ * estágio dentro da série (drop-set; 0 quando a série não tem estágios). Em `BI_SET`/`CIRCUIT` a volta
+ * é o próprio [setIndex] — a volta *r* faz a série *r* de cada exercício.
+ */
+data class Cursor(
+    val blockIndex: Int,
+    val exerciseIndex: Int,
+    val setIndex: Int,
+    val stageIndex: Int = 0,
+) {
+    fun exercise(plan: WorkoutPlan): ExerciseStep = plan.blocks[blockIndex].exercises[exerciseIndex]
 
     fun block(plan: WorkoutPlan): Block = plan.blocks[blockIndex]
+
+    /** A série inteira do cursor (com todos os estágios); o estágio resolvido está em `plan.stepAt`. */
+    fun set(plan: WorkoutPlan): SetTarget = exercise(plan).sets[setIndex]
 }
 
 /**
@@ -34,7 +47,7 @@ sealed interface WorkoutState {
     ) : WorkoutState
 
     /** `restEndsAt` é absoluto (não "segundos restantes"): sobrevive a app em 2º plano e troca de
-     * dispositivo, e fica testável sem mockar um timer de verdade. */
+     * dispositivo, e fica testável sem mockar um timer de verdade. `cursor` já aponta o PRÓXIMO passo. */
     data class Resting(
         val plan: WorkoutPlan,
         val cursor: Cursor,
@@ -55,6 +68,7 @@ sealed interface WorkoutState {
 sealed interface WorkoutEvent {
     data object Start : WorkoutEvent
 
+    /** Conclui o passo corrente: a série — ou, no drop-set, o ESTÁGIO corrente dela. */
     data class CompleteSet(
         val reps: Int?,
         val load: Double?,
@@ -79,17 +93,29 @@ sealed interface WorkoutEvent {
 
 /**
  * Máquina de estados pura do treino guiado: `Idle -> Ready -> InSet -> Resting -> ... -> Finished`,
- * mais `Paused`. `BI_SET`/`CIRCUIT` não têm o descanso do bloco entre os exercícios do próprio bloco
- * (só depois do último); `DROP_SET` não tem descanso entre as séries do mesmo exercício.
+ * mais `Paused`. Anda SEMPRE pela [executionOrder] do plano (a regra de cada método está lá):
+ *
+ * | Método | Ordem | Descanso |
+ * |---|---|---|
+ * | `NORMAL` | exercício → série | `restSeconds` do exercício depois de cada série |
+ * | `DROP_SET` | exercício → série → estágio | nenhum entre estágios; `restSeconds` depois do último estágio |
+ * | `BI_SET`/`CIRCUIT` | volta → exercício (→ estágio) | nenhum dentro da volta; depois do último exercício da volta, o `restSeconds` DELE |
+ *
+ * O descanso da última série/volta de um bloco também separa esse bloco do seguinte; o último passo do
+ * plano termina em `Finished`, sem descanso. Exercício pulado sai das voltas que faltam — se ele era o
+ * último da volta, o descanso passa a vir depois do exercício que de fato fechou a volta.
  *
  * `reduce` nunca lê o relógio do sistema: tudo que depende de tempo recebe `now` de fora, para o
  * mesmo teste valer em JVM, Android, iOS e watchOS.
  */
 class GuidedWorkoutEngine {
 
+    /** Entra no primeiro passo do plano; plano sem nenhuma série termina na hora (`Finished`). */
     fun start(plan: WorkoutPlan, now: Instant, localRunId: String): WorkoutState {
         val run = WorkoutRun(localId = localRunId, planId = plan.id, startedAt = now)
-        return enterSet(plan, Cursor(0, 0, 0), run, now)
+        val first = plan.executionOrder().firstOrNull()
+            ?: return WorkoutState.Finished(plan, run.copy(finishedAt = now))
+        return enterSet(plan, first.cursor, run, now)
     }
 
     fun reduce(state: WorkoutState, event: WorkoutEvent, now: Instant): WorkoutState = when (event) {
@@ -97,6 +123,24 @@ class GuidedWorkoutEngine {
         WorkoutEvent.Resume -> if (state is WorkoutState.Paused) state.previous else state
         WorkoutEvent.Finish -> finish(state, now)
         else -> reduceActive(state, event, now)
+    }
+
+    /**
+     * O passo que vem depois do [cursor], respeitando os exercícios já pulados em [run] — `null` quando
+     * o [cursor] é o último. Serve à tela ("Próximo: Tríceps corda").
+     */
+    fun upcoming(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun): ExecutionStep? =
+        nextStep(plan.executionOrder(), cursor, skippedIds(run))
+
+    /**
+     * Segundos de descanso que concluir o passo do [cursor] vai abrir — 0 quando o próximo passo entra
+     * direto (estágio que não é o último, exercício que não fecha a volta, fim do plano). É o que decide
+     * o rótulo do botão ("Concluir estágio" × "Concluir série") sem a tela conhecer a regra do método.
+     */
+    fun restAfter(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun): Int {
+        val order = plan.executionOrder()
+        val current = order.firstOrNull { it.cursor == cursor } ?: return 0
+        return restBetween(current, nextStep(order, cursor, skippedIds(run)))
     }
 
     private fun pause(state: WorkoutState): WorkoutState = when (state) {
@@ -114,9 +158,9 @@ class GuidedWorkoutEngine {
 
     private fun reduceActive(state: WorkoutState, event: WorkoutEvent, now: Instant): WorkoutState = when (state) {
         is WorkoutState.InSet -> when (event) {
-            is WorkoutEvent.CompleteSet -> completeSet(state.plan, state.cursor, state.run, state.setStartedAt, event, now)
+            is WorkoutEvent.CompleteSet -> completeStep(state, event, now)
             is WorkoutEvent.SkipExercise -> skipExercise(state.plan, state.cursor, state.run, event, now)
-            WorkoutEvent.Undo -> undo(state.plan, state.run, now)
+            WorkoutEvent.Undo -> undo(state, state.plan, state.run, now)
             else -> state
         }
 
@@ -124,47 +168,47 @@ class GuidedWorkoutEngine {
             WorkoutEvent.SkipRest -> enterSet(state.plan, state.cursor, state.run, now)
             is WorkoutEvent.AddRestTime -> state.copy(restEndsAt = state.restEndsAt + event.seconds.seconds)
             is WorkoutEvent.SkipExercise -> skipExercise(state.plan, state.cursor, state.run, event, now)
-            WorkoutEvent.Undo -> undo(state.plan, state.run, now)
+            WorkoutEvent.Undo -> undo(state, state.plan, state.run, now)
             else -> state
         }
 
         else -> state
     }
 
-    private fun completeSet(
-        plan: WorkoutPlan,
-        cursor: Cursor,
-        run: WorkoutRun,
-        setStartedAt: Instant,
-        event: WorkoutEvent.CompleteSet,
-        now: Instant,
-    ): WorkoutState {
-        val exercise = cursor.exercise(plan)
-        val target = exercise.sets[cursor.setIndex]
+    private fun completeStep(state: WorkoutState.InSet, event: WorkoutEvent.CompleteSet, now: Instant): WorkoutState {
+        val plan = state.plan
+        val order = plan.executionOrder()
+        val current = order.firstOrNull { it.cursor == state.cursor } ?: return state
         val result = SetResult(
-            blockId = cursor.block(plan).id,
-            exerciseStepId = exercise.id,
-            setIndex = cursor.setIndex,
-            target = target,
+            blockId = current.blockId,
+            exerciseStepId = current.exercise.id,
+            setIndex = current.setIndex,
+            target = current.target,
             repsDone = event.reps,
             loadDone = event.load,
-            startedAt = setStartedAt,
+            startedAt = state.setStartedAt,
             completedAt = now,
             heartRateAvg = event.heartRateAvg,
             heartRateMax = event.heartRateMax,
+            stageIndex = current.stageIndex,
+            roundIndex = current.roundIndex,
         )
-        val nextRun = run.copy(sets = run.sets + result)
-        val next = nextCursor(plan, cursor)
+        val nextRun = state.run.copy(sets = state.run.sets + result)
+        val next = nextStep(order, current.cursor, skippedIds(nextRun))
             ?: return WorkoutState.Finished(plan, nextRun.copy(finishedAt = now))
 
-        val restSeconds = restBefore(plan, cursor, next)
+        val restSeconds = restBetween(current, next)
         return if (restSeconds > 0) {
-            WorkoutState.Resting(plan, next, nextRun, now + restSeconds.seconds)
+            WorkoutState.Resting(plan, next.cursor, nextRun, now + restSeconds.seconds)
         } else {
-            enterSet(plan, next, nextRun, now)
+            enterSet(plan, next.cursor, nextRun, now)
         }
     }
 
+    /**
+     * Pula o exercício do [cursor] no RESTO do treino (em bi-set/circuito, nas voltas que faltam) e vai
+     * direto ao próximo passo, sem descanso: quem pulou não fez esforço a recuperar.
+     */
     private fun skipExercise(
         plan: WorkoutPlan,
         cursor: Cursor,
@@ -172,67 +216,60 @@ class GuidedWorkoutEngine {
         event: WorkoutEvent.SkipExercise,
         now: Instant,
     ): WorkoutState {
-        val exercise = cursor.exercise(plan)
+        val exercise = plan.stepAt(cursor)?.exercise ?: return enterSet(plan, cursor, run, now)
         val nextRun = run.copy(
             skippedExercises = run.skippedExercises + SkippedExercise(exercise.id, event.reason, now),
         )
-        val next = firstSetOfNextExercise(plan, cursor)
+        val next = nextStep(plan.executionOrder(), cursor, skippedIds(nextRun))
             ?: return WorkoutState.Finished(plan, nextRun.copy(finishedAt = now))
-        return enterSet(plan, next, nextRun, now)
+        return enterSet(plan, next.cursor, nextRun, now)
     }
 
-    /** Desfaz a última série concluída e volta o cursor para ela, sem perder o que já foi registrado
-     * antes — a sessão nunca duplica nem perde séries por causa de um "voltar". Sem série registrada
-     * ainda, `Undo` não tem efeito (nada a desfazer). */
-    private fun undo(plan: WorkoutPlan, run: WorkoutRun, now: Instant): WorkoutState {
-        val lastSet = run.sets.lastOrNull()
-            ?: return enterSet(plan, Cursor(0, 0, 0), run, now)
-        val block = plan.blocks.first { it.id == lastSet.blockId }
-        val restoredCursor = Cursor(
-            blockIndex = plan.blocks.indexOf(block),
-            exerciseIndex = block.exercises.indexOfFirst { it.id == lastSet.exerciseStepId },
-            setIndex = lastSet.setIndex,
+    /**
+     * Desfaz o último passo concluído (série ou estágio) e volta o cursor para ele, sem perder o que já
+     * foi registrado antes — a sessão nunca duplica nem perde séries por causa de um "voltar". Voltar a um
+     * exercício pulado o devolve ao treino (o pulo dele sai do registro). Sem passo registrado ainda,
+     * `Undo` não tem efeito.
+     */
+    private fun undo(state: WorkoutState, plan: WorkoutPlan, run: WorkoutRun, now: Instant): WorkoutState {
+        val lastSet = run.sets.lastOrNull() ?: return state
+        val blockIndex = plan.blocks.indexOfFirst { it.id == lastSet.blockId }
+        val exerciseIndex = plan.blocks.getOrNull(blockIndex)?.exercises
+            ?.indexOfFirst { it.id == lastSet.exerciseStepId } ?: -1
+        val restored = Cursor(blockIndex, exerciseIndex, lastSet.setIndex, lastSet.stageIndex ?: 0)
+        if (plan.stepAt(restored) == null) return state
+        val nextRun = run.copy(
+            sets = run.sets.dropLast(1),
+            skippedExercises = run.skippedExercises.filterNot { it.exerciseStepId == lastSet.exerciseStepId },
         )
-        return enterSet(plan, restoredCursor, run.copy(sets = run.sets.dropLast(1)), now)
+        return enterSet(plan, restored, nextRun, now)
     }
 
     private fun enterSet(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun, now: Instant): WorkoutState.InSet =
         WorkoutState.InSet(plan, cursor, run, now)
 
-    /** Próxima série dentro do mesmo exercício, senão o primeiro exercício do próximo bloco; `null`
-     * quando acabou o plano. */
-    private fun nextCursor(plan: WorkoutPlan, cursor: Cursor): Cursor? {
-        val exercise = cursor.exercise(plan)
-        if (cursor.setIndex + 1 < exercise.sets.size) {
-            return cursor.copy(setIndex = cursor.setIndex + 1)
-        }
-        return firstSetOfNextExercise(plan, cursor)
-    }
+    private fun skippedIds(run: WorkoutRun): Set<String> = run.skippedExercises.mapTo(HashSet()) { it.exerciseStepId }
 
-    private fun firstSetOfNextExercise(plan: WorkoutPlan, cursor: Cursor): Cursor? {
-        val block = cursor.block(plan)
-        if (cursor.exerciseIndex + 1 < block.exercises.size) {
-            return Cursor(cursor.blockIndex, cursor.exerciseIndex + 1, 0)
-        }
-        if (cursor.blockIndex + 1 < plan.blocks.size) {
-            return Cursor(cursor.blockIndex + 1, 0, 0)
+    /** Primeiro passo DEPOIS de [from] na ordem do plano cujo exercício não foi pulado. */
+    private fun nextStep(order: List<ExecutionStep>, from: Cursor, skipped: Set<String>): ExecutionStep? {
+        val index = order.indexOfFirst { it.cursor == from }
+        if (index < 0) return null
+        for (i in index + 1 until order.size) {
+            if (order[i].exercise.id !in skipped) return order[i]
         }
         return null
     }
 
     /**
-     * Descanso ANTES de entrar na próxima série/exercício, pela regra do método do bloco de ORIGEM
-     * (de onde se está saindo): `BI_SET`/`CIRCUIT` não descansam entre os exercícios do próprio
-     * bloco (só ao concluir o último); `DROP_SET` não descansa entre séries do mesmo exercício.
+     * Descanso entre o passo concluído e o próximo (tabela no KDoc da classe). Estágio que não é o
+     * último nunca descansa; em bi-set/circuito, só descansa quem FECHA a volta — o próximo passo é de
+     * outra volta ou de outro bloco.
      */
-    private fun restBefore(plan: WorkoutPlan, from: Cursor, to: Cursor): Int {
-        val fromBlock = from.block(plan)
-        val stayedInBlock = to.blockIndex == from.blockIndex
-        val stayedInExercise = stayedInBlock && to.exerciseIndex == from.exerciseIndex
-        return when (fromBlock.method) {
-            WorkoutMethod.DROP_SET -> if (stayedInExercise) 0 else from.exercise(plan).restSeconds
-            WorkoutMethod.BI_SET, WorkoutMethod.CIRCUIT -> if (stayedInBlock) 0 else from.exercise(plan).restSeconds
-            WorkoutMethod.NORMAL -> from.exercise(plan).restSeconds
-        }
+    private fun restBetween(current: ExecutionStep, next: ExecutionStep?): Int {
+        if (next == null || !current.isLastStage) return 0
+        val sameRound = current.roundIndex != null &&
+            next.cursor.blockIndex == current.cursor.blockIndex &&
+            next.roundIndex == current.roundIndex
+        return if (sameRound) 0 else current.exercise.restSeconds
     }
 }

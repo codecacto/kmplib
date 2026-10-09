@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class CalorieEstimatorTest {
 
     @Test
-    fun `60 min, 70 kg, esforco 6 (MET moderado 5,0) dao 350 kcal com fonte MET e faixa`() {
+    fun `60 min 70 kg esforco 6 - MET moderado 5 0 dao 350 kcal com fonte MET e faixa`() {
         val estimate = CalorieEstimator.fromMet(weightKg = 70.0, minutes = 60.0, type = WorkoutType.STRENGTH, effort = 6)
 
         requireNotNull(estimate)
@@ -27,7 +27,7 @@ class CalorieEstimatorTest {
     }
 
     @Test
-    fun `esforco baixo usa MET leve, alto usa MET vigoroso`() {
+    fun `esforco baixo usa MET leve alto usa MET vigoroso`() {
         val light = CalorieEstimator.fromMet(70.0, 60.0, WorkoutType.STRENGTH, effort = 2)
         val vigorous = CalorieEstimator.fromMet(70.0, 60.0, WorkoutType.STRENGTH, effort = 10)
 
@@ -37,7 +37,7 @@ class CalorieEstimatorTest {
     }
 
     @Test
-    fun `fromDevice nunca tem faixa, so o valor`() {
+    fun `fromDevice nunca tem faixa so o valor`() {
         val estimate = CalorieEstimator.fromDevice(234.0)
         assertEquals(EnergySource.DEVICE, estimate.source)
         assertNull(estimate.low)
@@ -70,7 +70,7 @@ class CalorieEstimatorTest {
     }
 
     @Test
-    fun `estimate usa FC quando nao ha dispositivo, com teto de 2x o MET`() {
+    fun `estimate usa FC quando nao ha dispositivo com teto de 2x o MET`() {
         // FC bem alta tenderia a superestimar muito em força; o teto evita um número absurdo.
         val result = CalorieEstimator.estimate(
             deviceKcal = null,
