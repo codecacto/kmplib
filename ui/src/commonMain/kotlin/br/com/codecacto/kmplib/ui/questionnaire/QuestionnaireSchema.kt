@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.ui.questionnaire
 
 import androidx.compose.runtime.Immutable
@@ -52,6 +54,13 @@ import kotlinx.serialization.json.doubleOrNull
  *
  * Tipo de pergunta que o app não conhece (versão nova do servidor) NÃO derruba a leitura: vira
  * [QuestionnaireQuestionType.UNSUPPORTED], aparece como aviso e não trava o envio.
+ *
+ * ⚠️ **Depreciado na 2.268.0 (D11 do Vitalis): tudo o que é EXTENSÃO acima** — `type` e a configuração
+ * de cada tipo, `options` com `score`, `visibleIf`, `reserved`, `scores[]` e a parte de escore da
+ * avaliação. O formato canônico de formulário nas três libs é o **FormSchema v1**, que roda no
+ * `FormRunner` (`br.com.codecacto.kmplib.ui.form`), e **pontuação clínica é só do servidor**. Quem já
+ * usa continua compilando e funcionando (aviso de compilação); documento novo vai no FormSchema v1.
+ * O `QuestionnaireRunner` Likert puro — o documento da weblib, sem extensão — continua.
  */
 
 /**
@@ -69,6 +78,7 @@ import kotlinx.serialization.json.doubleOrNull
 data class Questionnaire(
     val blocks: List<QuestionnaireBlock> = emptyList(),
     val scale: QuestionnaireScale? = null,
+    @Deprecated(DEPRECATED_SCORE)
     val scores: List<QuestionnaireScore> = emptyList(),
     val id: String? = null,
     val title: String? = null,
@@ -89,7 +99,9 @@ data class QuestionnaireBlock(
     val title: String = "",
     val context: String? = null,
     val questions: List<QuestionnaireQuestion> = emptyList(),
+    @Deprecated(DEPRECATED_CONDITION)
     val visibleIf: QuestionnaireCondition? = null,
+    @Deprecated(DEPRECATED_RESERVED)
     val reserved: Boolean = false,
 )
 
@@ -120,16 +132,26 @@ data class QuestionnaireQuestion(
     val text: String = "",
     val required: Boolean = true,
     val hint: String? = null,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val type: QuestionnaireQuestionType = QuestionnaireQuestionType.SCALE,
     val scale: QuestionnaireScale? = null,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val options: List<QuestionnaireOption> = emptyList(),
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val min: Double? = null,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val max: Double? = null,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val decimals: Int = 0,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val unit: String? = null,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val multiline: Boolean = false,
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     val maxLength: Int? = null,
+    @Deprecated(DEPRECATED_CONDITION)
     val visibleIf: QuestionnaireCondition? = null,
+    @Deprecated(DEPRECATED_RESERVED)
     val reserved: Boolean = false,
 )
 
@@ -138,6 +160,7 @@ data class QuestionnaireQuestion(
  * weblib). Valor desconhecido vira [UNSUPPORTED] em vez de exceção — o servidor pode estar uma
  * versão à frente do app instalado.
  */
+@Deprecated(DEPRECATED_QUESTION_TYPE)
 @Serializable(with = QuestionnaireQuestionTypeSerializer::class)
 enum class QuestionnaireQuestionType(val wireName: String) {
     /** Régua Likert — o tipo da weblib. Resposta: número (o ponto). */
@@ -185,6 +208,25 @@ data class QuestionnaireScale(
     val endAnchor: String? = null,
 )
 
+/**
+ * Mensagens das depreciações da 2.268.0 (D11 do Vitalis): o FormSchema v1 é o formato canônico de
+ * formulário nas três libs, e a extensão que o questionário ganhou na 2.265.0 migra para o
+ * `FormRunner` (`br.com.codecacto.kmplib.ui.form`). O `QuestionnaireRunner` continua — Likert puro,
+ * compatível com o documento da weblib.
+ */
+internal const val DEPRECATED_QUESTION_TYPE: String =
+    "Tipo de pergunta é do FormSchema v1 (D11): use o FormRunner (br.com.codecacto.kmplib.ui.form) com " +
+        "FormQuestion.type. O QuestionnaireRunner fica só com a régua Likert, como o da weblib."
+internal const val DEPRECATED_CONDITION: String =
+    "Condição é do FormSchema v1 (D11): use o FormRunner com FormSection.visibleIf/FormQuestion.visibleIf " +
+        "(FormCondition), avaliada em cascata como no servidor."
+internal const val DEPRECATED_RESERVED: String =
+    "Reservada é do FormSchema v1 (D11), resolvida pelo SERVIDOR para o público: use o FormRunner com " +
+        "FormRunnerState.markReserved (FormSection.reserved/FormQuestion.reserved)."
+internal const val DEPRECATED_SCORE: String =
+    "Pontuação clínica é só do servidor (D11): o cliente exibe o resultado pronto (FormScoreResult em " +
+        "FormRunnerState.scores, o ScoreResultDto do contrato) e nunca soma."
+
 /** Teto de pontos de uma régua — o mesmo guarda-chuva contra dado absurdo que a weblib usa. */
 const val QUESTIONNAIRE_MAX_SCALE_POINTS: Int = 101
 
@@ -220,6 +262,7 @@ fun QuestionnaireScale.points(): List<Double> {
  * @property label o que a pessoa lê. Sem ele, aparece o [value].
  * @property score pontos da alternativa num escore (ver [QuestionnaireScore]). Sem ele, 0.
  */
+@Deprecated(DEPRECATED_QUESTION_TYPE)
 @Immutable
 @Serializable
 data class QuestionnaireOption(
@@ -258,6 +301,7 @@ data class QuestionnaireOption(
  * {"score": "phq2", "gte": 3}
  * ```
  */
+@Deprecated(DEPRECATED_CONDITION)
 @Immutable
 @Serializable
 data class QuestionnaireCondition(
@@ -294,6 +338,7 @@ data class QuestionnaireCondition(
  *
  * A primeira [bands] cujo intervalo (e `when`, se houver) vale é a faixa.
  */
+@Deprecated(DEPRECATED_SCORE)
 @Immutable
 @Serializable
 data class QuestionnaireScore(
@@ -305,6 +350,7 @@ data class QuestionnaireScore(
 )
 
 /** Termo `weight × Π(resposta)` de um escore. Fator oculto por condição zera o termo (não se aplica). */
+@Deprecated(DEPRECATED_SCORE)
 @Immutable
 @Serializable
 data class QuestionnaireScoreProduct(
@@ -317,6 +363,7 @@ data class QuestionnaireScoreProduct(
  * opcionalmente, uma condição ([condition], `when` no fio) — "≥ 4 em homens, ≥ 3 em mulheres" são
  * duas faixas com `when` sobre o contexto.
  */
+@Deprecated(DEPRECATED_SCORE)
 @Immutable
 @Serializable
 data class QuestionnaireScoreBand(
@@ -328,6 +375,7 @@ data class QuestionnaireScoreBand(
 )
 
 /** Tom de uma faixa — vira o tom semântico do tema (`StatusTone`). Desconhecido = [NEUTRAL]. */
+@Deprecated(DEPRECATED_SCORE)
 @Serializable(with = QuestionnaireToneSerializer::class)
 enum class QuestionnaireTone(val wireName: String) {
     NEUTRAL("neutral"),

@@ -284,8 +284,25 @@ fun AppTextArea(
     height: Dp? = null,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
-    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    /**
+     * O texto **mora no campo** (2.268.0) — o mesmo `keepTextLocally` do [AppTextField]: o [value] de
+     * fora só reescreve o campo quando muda por outro motivo que não a digitação, e o eco atrasado do
+     * ViewModel não come letra no iOS. Ligue quando o [value] vem do `StateFlow` do ViewModel.
+     */
+    keepTextLocally: Boolean = false,
 ) {
+    val reconciler = if (keepTextLocally) remember { TextInputReconciler(value) } else null
+    var localValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (reconciler != null) {
+        SideEffect {
+            reconciler.onExternal(value, localValue.text)?.let {
+                localValue = TextFieldValue(it, TextRange(it.length))
+            }
+        }
+    }
+    val shownText = if (keepTextLocally) localValue.text else value
+
     // Supporting text: erro > dica > contador. Só um por vez — três linhas sob o campo é ruído.
     val supportingText: (@Composable () -> Unit)? = when {
         errorMessage != null -> {{ Text(errorMessage) }}
@@ -293,11 +310,47 @@ fun AppTextArea(
         helperText != null -> {{ Text(helperText) }}
         showCharCounter && maxLength != null -> {{
             Text(
-                text = "${value.length}/$maxLength",
+                text = "${shownText.length}/$maxLength",
                 style = MaterialTheme.typography.bodySmall
             )
         }}
         else -> null
+    }
+
+    if (reconciler != null) {
+        OutlinedTextField(
+            value = localValue,
+            onValueChange = { novo ->
+                val cortado = if (maxLength != null && novo.text.length > maxLength) {
+                    TextFieldValue(novo.text.take(maxLength), TextRange(maxLength))
+                } else {
+                    novo
+                }
+                val mudouTexto = cortado.text != localValue.text
+                localValue = cortado
+                if (mudouTexto && reconciler.onLocalText(cortado.text)) onValueChange(cortado.text)
+            },
+            modifier = if (height != null) modifier.fillMaxWidth().height(height) else modifier.fillMaxWidth(),
+            label = label?.let { { Text(it) } },
+            placeholder = placeholder?.let { { Text(it) } },
+            keyboardOptions = appKeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Default),
+            singleLine = false,
+            minLines = minLines,
+            maxLines = maxLines ?: Int.MAX_VALUE,
+            isError = errorMessage != null,
+            supportingText = supportingText,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = primaryColor,
+                unfocusedBorderColor = borderColor,
+                focusedLabelColor = primaryColor,
+                unfocusedLabelColor = labelColor,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error
+            )
+        )
+        return
     }
 
     OutlinedTextField(

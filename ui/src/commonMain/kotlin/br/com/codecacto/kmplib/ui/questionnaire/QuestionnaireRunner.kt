@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.ui.questionnaire
 
 import androidx.compose.animation.AnimatedContent
@@ -16,6 +18,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -84,6 +88,7 @@ import br.com.codecacto.kmplib.ui.components.FormContainer
 import br.com.codecacto.kmplib.ui.components.LikertOptionState
 import br.com.codecacto.kmplib.ui.components.LikertScaleDefaults
 import br.com.codecacto.kmplib.ui.components.LikertScaleField
+import br.com.codecacto.kmplib.ui.components.LikertScaleTexts
 import br.com.codecacto.kmplib.ui.components.NumberField
 import br.com.codecacto.kmplib.ui.components.StatusChipStyle
 import br.com.codecacto.kmplib.ui.components.StatusTone
@@ -153,7 +158,15 @@ private const val TAG = "QuestionnaireRunner"
  *
  * @param contentPadding o `innerPadding` do `Scaffold` — aplicado E consumido (ver `FormContainer`).
  * @param notice aviso persistente acima das perguntas (ex.: resposta ainda não salva).
+ * @param showScores **depreciado (2.268.0)**: pontuação é do servidor — use o `FormRunner`
+ *   (`ui.form`), que exibe o resultado que o servidor calculou.
  * @param respondentName nome exibível de uma chave de respondente; `null` = sem marca.
+ * @param progress o progresso a exibir na barra; `null` = o do próprio questionário. Quem embute o
+ *   runner num fluxo maior (a seção `likert` do `FormRunner`) passa o do fluxo inteiro — o `progress`
+ *   da weblib.
+ * @param headerExtra conteúdo sob o título e o contexto do bloco (selo, resultado) — o `headerExtra`
+ *   da weblib.
+ * @param questionExtra conteúdo sob o enunciado de cada pergunta (marca de reservada, por exemplo).
  */
 @Composable
 fun QuestionnaireRunner(
@@ -167,6 +180,9 @@ fun QuestionnaireRunner(
     respondentName: (String) -> String? = { null },
     contentPadding: PaddingValues = PaddingValues(0.dp),
     texts: QuestionnaireTexts = rememberQuestionnaireTexts(),
+    progress: QuestionnaireProgress? = null,
+    headerExtra: (@Composable () -> Unit)? = null,
+    questionExtra: (@Composable (QuestionnaireQuestion) -> Unit)? = null,
 ) {
     val evaluation = remember(state.questionnaire, state.answers, state.context) { state.evaluate() }
     val compact = LocalIsCompact.current
@@ -215,6 +231,9 @@ fun QuestionnaireRunner(
             contentPadding = contentPadding,
             texts = texts,
             reduceMotion = reduceMotion,
+            progress = progress,
+            headerExtra = headerExtra,
+            questionExtra = questionExtra,
             onAction = { latestOnAction(it) },
             onTap = onTap,
         )
@@ -250,6 +269,9 @@ private fun QuestionnairePage(
     contentPadding: PaddingValues,
     texts: QuestionnaireTexts,
     reduceMotion: Boolean,
+    progress: QuestionnaireProgress?,
+    headerExtra: (@Composable () -> Unit)?,
+    questionExtra: (@Composable (QuestionnaireQuestion) -> Unit)?,
     onAction: (QuestionnaireRunnerAction) -> Unit,
     onTap: (QuestionnaireQuestion, QuestionnaireValue) -> Unit,
 ) {
@@ -282,10 +304,10 @@ private fun QuestionnairePage(
             } else {
                 texts.blockProgress(blockIndex + 1, blocks.size)
             }
-            PageHeader(stepLabel, block)
+            PageHeader(stepLabel, block, headerExtra)
         }
 
-        ProgressSection(evaluation.progress, texts, reduceMotion)
+        ProgressSection(progress ?: evaluation.progress, texts, reduceMotion)
 
         if (!notice.isNullOrBlank()) {
             AppBanner(
@@ -315,6 +337,7 @@ private fun QuestionnairePage(
                     compact = compact,
                     respondentName = respondentName,
                     texts = texts,
+                    questionExtra = questionExtra,
                     onAction = onAction,
                     onTap = onTap,
                 )
@@ -354,7 +377,7 @@ private fun QuestionnairePage(
 }
 
 @Composable
-private fun PageHeader(stepLabel: String, block: QuestionnaireBlock) {
+private fun PageHeader(stepLabel: String, block: QuestionnaireBlock, headerExtra: (@Composable () -> Unit)?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stepLabel,
@@ -371,6 +394,7 @@ private fun PageHeader(stepLabel: String, block: QuestionnaireBlock) {
         block.context?.takeIf { it.isNotBlank() }?.let {
             Text(text = it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        headerExtra?.invoke()
     }
 }
 
@@ -412,6 +436,7 @@ private fun QuestionItem(
     compact: Boolean,
     respondentName: (String) -> String?,
     texts: QuestionnaireTexts,
+    questionExtra: (@Composable (QuestionnaireQuestion) -> Unit)?,
     onAction: (QuestionnaireRunnerAction) -> Unit,
     onTap: (QuestionnaireQuestion, QuestionnaireValue) -> Unit,
 ) {
@@ -444,6 +469,7 @@ private fun QuestionItem(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         QuestionHeader(question, number, texts)
+        questionExtra?.invoke(question)
 
         if (question.reserved && !block.reserved && usable == null) {
             QuestionnaireMark(
@@ -482,25 +508,25 @@ private fun QuestionItem(
                 onTap = onTap,
             )
             QuestionnaireQuestionType.CHOICE -> OptionList(
-                questionId = question.id,
+                tags = questionnaireOptionTags(question.id),
                 rows = question.options.map { OptionRow(value = it.value, leading = null, label = it.displayLabel, description = null) },
                 multi = false,
                 selected = setOfNotNull((usable as? QuestionnaireValue.Text)?.value),
                 enabled = enabled,
                 errorText = errorText,
-                texts = texts,
+                unansweredLabel = texts.likert.unanswered,
                 onToggle = { value -> onTap(question, QuestionnaireValue.Text(value)) },
             )
             QuestionnaireQuestionType.MULTI_CHOICE -> {
                 val current = (usable as? QuestionnaireValue.Choices)?.values.orEmpty()
                 OptionList(
-                    questionId = question.id,
+                    tags = questionnaireOptionTags(question.id),
                     rows = question.options.map { OptionRow(value = it.value, leading = null, label = it.displayLabel, description = null) },
                     multi = true,
                     selected = current.toSet(),
                     enabled = enabled,
                     errorText = errorText,
-                    texts = texts,
+                    unansweredLabel = texts.likert.unanswered,
                     onToggle = { value ->
                         val next = if (value in current) current - value else current + value
                         onAction(QuestionnaireRunnerAction.Answer(question.id, QuestionnaireValue.Choices(next)))
@@ -570,12 +596,7 @@ private fun QuestionHeader(question: QuestionnaireQuestion, number: Int?, texts:
     }
 }
 
-/**
- * A régua. Em linha (o `LikertScaleField`, com âncoras) quando os pontos cabem como alvo; EMPILHADA,
- * com o rótulo de cada ponto, no celular quando o instrumento nomeia os pontos ("Mais da metade dos
- * dias" não cabe embaixo de um número em 360 dp — e é a mesma escolha da weblib) e sempre que a régua
- * não é de inteiros consecutivos.
- */
+/** A régua de uma pergunta `scale` do questionário — com os ids `questionario-*`. */
 @Composable
 private fun ScaleAnswer(
     question: QuestionnaireQuestion,
@@ -586,6 +607,36 @@ private fun ScaleAnswer(
     errorText: String?,
     texts: QuestionnaireTexts,
     onTap: (QuestionnaireQuestion, QuestionnaireValue) -> Unit,
+) = LikertAnswerControl(
+    tags = questionnaireOptionTags(question.id),
+    scale = scale,
+    selected = selected,
+    compact = compact,
+    enabled = enabled,
+    errorText = errorText,
+    likertTexts = texts.likert,
+    onSelect = { onTap(question, QuestionnaireValue.Number(it)) },
+)
+
+/**
+ * A régua. Em linha (o `LikertScaleField`, com âncoras) quando os pontos cabem como alvo; EMPILHADA,
+ * com o rótulo de cada ponto, no celular quando o instrumento nomeia os pontos ("Mais da metade dos
+ * dias" não cabe embaixo de um número em 360 dp — e é a mesma escolha da weblib) e sempre que a régua
+ * não é de inteiros consecutivos.
+ *
+ * Interna e com os ids por parâmetro: é a MESMA régua no `QuestionnaireRunner` e nas perguntas
+ * `likert` do `FormRunner` (2.268.0).
+ */
+@Composable
+internal fun LikertAnswerControl(
+    tags: OptionTags,
+    scale: QuestionnaireScale,
+    selected: Double?,
+    compact: Boolean,
+    enabled: Boolean,
+    errorText: String?,
+    likertTexts: LikertScaleTexts,
+    onSelect: (Double) -> Unit,
 ) {
     val points = scale.points()
     val labels = scale.optionLabels
@@ -594,7 +645,7 @@ private fun ScaleAnswer(
     if (!stacked) {
         LikertScaleField(
             value = selected?.toInt(),
-            onValueChange = { onTap(question, QuestionnaireValue.Number(it.toDouble())) },
+            onValueChange = { onSelect(it.toDouble()) },
             min = points.first().toInt(),
             max = points.last().toInt(),
             optionLabels = labels,
@@ -603,14 +654,14 @@ private fun ScaleAnswer(
             enabled = enabled,
             isError = errorText != null,
             errorMessage = errorText,
-            texts = texts.likert,
-            testTag = QuestionnaireTestTags.answer(question.id),
+            texts = likertTexts,
+            testTag = tags.group,
         )
         return
     }
     val rows = points.mapIndexed { index, point ->
         val label = labels.getOrNull(index)?.takeIf { it.isNotBlank() }
-        val position = "${texts.likert.option} ${index + 1} ${texts.likert.of} ${points.size}"
+        val position = "${likertTexts.option} ${index + 1} ${likertTexts.of} ${points.size}"
         OptionRow(
             value = scalarOf(QuestionnaireValue.Number(point)).orEmpty(),
             leading = formatQuestionnaireNumber(point, maxFractionDigits = 6),
@@ -620,14 +671,14 @@ private fun ScaleAnswer(
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OptionList(
-            questionId = question.id,
+            tags = tags,
             rows = rows,
             multi = false,
             selected = setOfNotNull(selected?.let { scalarOf(QuestionnaireValue.Number(it)) }),
             enabled = enabled,
             errorText = errorText,
-            texts = texts,
-            onToggle = { value -> value.toDoubleOrNull()?.let { onTap(question, QuestionnaireValue.Number(it)) } },
+            unansweredLabel = likertTexts.unanswered,
+            onToggle = { value -> value.toDoubleOrNull()?.let(onSelect) },
         )
         // Sem rótulo por ponto, as âncoras dizem o que as pontas significam.
         if (labels.none { it.isNotBlank() } && (!scale.startAnchor.isNullOrBlank() || !scale.endAnchor.isNullOrBlank())) {
@@ -644,48 +695,67 @@ private fun ScaleAnswer(
     }
 }
 
+/**
+ * Os ids de automação de um grupo de opções: o do grupo (prefixo da régua), o do erro e o de cada
+ * opção. O questionário usa `questionario-*`; o `FormRunner`, `formulario-*`.
+ */
 @Immutable
-private data class OptionRow(val value: String, val leading: String?, val label: String?, val description: String?)
+internal data class OptionTags(val group: String, val error: String, val option: (String) -> String)
+
+/** Os ids do questionário para a pergunta. */
+internal fun questionnaireOptionTags(questionId: String): OptionTags = OptionTags(
+    group = QuestionnaireTestTags.answer(questionId),
+    error = QuestionnaireTestTags.error(questionId),
+    option = { QuestionnaireTestTags.option(questionId, it) },
+)
+
+@Immutable
+internal data class OptionRow(val value: String, val leading: String?, val label: String?, val description: String?)
 
 /**
  * Lista de alternativas — radiogroup (`selectableGroup` + `Role.RadioButton`) ou caixas
  * (`Role.Checkbox`), uma por linha de no mínimo 48 dp, com o estado dito por cor E por borda dupla E
- * por peso do texto (a mesma redundância do `LikertScaleField`).
+ * por peso do texto (a mesma redundância do `LikertScaleField`). Com [flow], as opções curtas ficam
+ * lado a lado e QUEBRAM linha (o `ChoiceGroup` em linha da weblib), sem esticar cada uma.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OptionList(
-    questionId: String,
+internal fun OptionList(
+    tags: OptionTags,
     rows: List<OptionRow>,
     multi: Boolean,
     selected: Set<String>,
     enabled: Boolean,
     errorText: String?,
-    texts: QuestionnaireTexts,
+    unansweredLabel: String,
     onToggle: (String) -> Unit,
+    flow: Boolean = false,
 ) {
     val unanswered = selected.isEmpty()
+    val groupModifier = Modifier
+        .fillMaxWidth()
+        .then(if (multi) Modifier else Modifier.selectableGroup())
+        .semantics {
+            if (unanswered) stateDescription = unansweredLabel
+            if (errorText != null) error(errorText)
+        }
+        .testTag(tags.group)
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (multi) Modifier else Modifier.selectableGroup())
-                .semantics {
-                    if (unanswered) stateDescription = texts.likert.unanswered
-                    if (errorText != null) error(errorText)
+        if (flow) {
+            FlowRow(
+                modifier = groupModifier,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rows.forEach { row ->
+                    OptionRowItem(tags, row, multi, row.value in selected, enabled, errorText != null, onToggle, fill = false)
                 }
-                .testTag(QuestionnaireTestTags.answer(questionId)),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            rows.forEach { row ->
-                OptionRowItem(
-                    questionId = questionId,
-                    row = row,
-                    multi = multi,
-                    isSelected = row.value in selected,
-                    enabled = enabled,
-                    isError = errorText != null,
-                    onToggle = onToggle,
-                )
+            }
+        } else {
+            Column(modifier = groupModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                rows.forEach { row ->
+                    OptionRowItem(tags, row, multi, row.value in selected, enabled, errorText != null, onToggle, fill = true)
+                }
             }
         }
         if (errorText != null) {
@@ -693,7 +763,7 @@ private fun OptionList(
                 text = errorText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.testTag(QuestionnaireTestTags.error(questionId)),
+                modifier = Modifier.testTag(tags.error),
             )
         }
     }
@@ -701,13 +771,14 @@ private fun OptionList(
 
 @Composable
 private fun OptionRowItem(
-    questionId: String,
+    tags: OptionTags,
     row: OptionRow,
     multi: Boolean,
     isSelected: Boolean,
     enabled: Boolean,
     isError: Boolean,
     onToggle: (String) -> Unit,
+    fill: Boolean,
 ) {
     val visual = likertOptionState(selected = isSelected, enabled = enabled, isError = isError)
     val scheme = MaterialTheme.colorScheme
@@ -734,7 +805,7 @@ private fun OptionRowItem(
     }
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .heightIn(min = LikertScaleDefaults.MinTouchTarget)
             .clip(shape)
             .background(container)
@@ -742,7 +813,7 @@ private fun OptionRowItem(
             .then(interaction)
             .then(if (row.description != null) Modifier.semantics { contentDescription = row.description } else Modifier)
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag(QuestionnaireTestTags.option(questionId, row.value)),
+            .testTag(tags.option(row.value)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -767,7 +838,7 @@ private fun OptionRowItem(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 color = textColor,
-                modifier = Modifier.weight(1f),
+                modifier = if (fill) Modifier.weight(1f) else Modifier,
             )
         }
     }
@@ -834,7 +905,7 @@ private fun UnavailableNotice(text: String) {
  * "Pendente — perguntar na consulta" cortado no meio não diz nada.
  */
 @Composable
-private fun QuestionnaireMark(
+internal fun QuestionnaireMark(
     text: String,
     tone: StatusTone,
     icon: ImageVector?,
@@ -954,6 +1025,7 @@ private fun Actions(
 }
 
 /** O tom de uma faixa no vocabulário do tema. */
+@Deprecated(DEPRECATED_SCORE)
 fun QuestionnaireTone.toStatusTone(): StatusTone = when (this) {
     QuestionnaireTone.NEUTRAL -> StatusTone.NEUTRAL
     QuestionnaireTone.SUCCESS -> StatusTone.SUCCESS

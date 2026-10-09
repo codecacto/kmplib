@@ -7,18 +7,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import br.com.codecacto.kmplib.core.locale.RegionalFormat
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
+import br.com.codecacto.kmplib.generated.resources.kmplib_date_clear
 import br.com.codecacto.kmplib.generated.resources.kmplib_ok
 import br.com.codecacto.kmplib.ui.locale.rememberDatePlaceholder
 import kotlinx.datetime.Instant
@@ -80,6 +87,12 @@ import org.jetbrains.compose.resources.stringResource
  * `09/27/2026` nos EUA — `RegionalFormat.formatDate`), o placeholder mostra esse mesmo formato com a
  * letra de "ano" do idioma (`dd/mm/aaaa`, `mm/dd/yyyy`) e os botões vêm no idioma do aparelho. Num
  * aparelho brasileiro nada muda. Quem precisa do `dd/MM/yyyy` fixo passa `formatDate = ::formatDateBr`.
+ *
+ * ### Limites e "limpar" (2.268.0)
+ * [minDate]/[maxDate] (inclusivos) desligam no calendário os dias fora da faixa — o `SelectableDates`
+ * oficial do Material, em vez de deixar escolher e acusar depois ("data da última menstruação" não
+ * pode ser amanhã). Com [onClear], aparece o "x" de limpar enquanto há data escolhida (campo
+ * OPCIONAL: sem ele, uma data escolhida por engano não tinha como sair).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,8 +107,13 @@ fun AppDatePicker(
     confirmText: String = stringResource(Res.string.kmplib_ok),
     dismissText: String = stringResource(Res.string.kmplib_cancel),
     errorMessage: String? = null,
+    minDate: LocalDate? = null,
+    maxDate: LocalDate? = null,
+    onClear: (() -> Unit)? = null,
+    clearText: String = stringResource(Res.string.kmplib_date_clear),
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    val clearable = onClear != null && selectedDate != null
 
     // Interceptar o toque pelo interactionSource é o caminho oficial para um campo "readOnly que
     // abre um seletor": o OutlinedTextField consome o gesto, então um clickable por fora nunca dispara.
@@ -130,16 +148,29 @@ fun AppDatePicker(
             supportingText = errorMessage?.let { { Text(it) } },
             interactionSource = interactionSource,
             trailingIcon = {
-                IconButton(onClick = { showDialog = true }, enabled = isEnabled) {
-                    Icon(imageVector = Icons.Default.DateRange, contentDescription = label)
+                Row {
+                    if (clearable) {
+                        IconButton(
+                            onClick = { onClear() },
+                            enabled = isEnabled,
+                            modifier = Modifier.testTag(DatePickerTestTags.CLEAR),
+                        ) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = clearText)
+                        }
+                    }
+                    IconButton(onClick = { showDialog = true }, enabled = isEnabled) {
+                        Icon(imageVector = Icons.Default.DateRange, contentDescription = label)
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        // Overlay de toque para iOS — mesmo padrão do AppDropdownField.
+        // Overlay de toque para iOS — mesmo padrão do AppDropdownField. Não cobre os ícones do fim:
+        // o "x" de limpar precisa do próprio toque (o do calendário abre o seletor de qualquer jeito).
         Box(
             modifier = Modifier
                 .matchParentSize()
+                .padding(end = if (clearable) 96.dp else 48.dp)
                 .clickable(enabled = isEnabled) { showDialog = true },
         )
     }
@@ -151,8 +182,31 @@ fun AppDatePicker(
             onDismiss = { showDialog = false },
             confirmText = confirmText,
             dismissText = dismissText,
+            minDate = minDate,
+            maxDate = maxDate,
         )
     }
+}
+
+/** Ids do [AppDatePicker] para o Maestro. */
+object DatePickerTestTags {
+    /** O "x" que limpa a data (com `onClear`). */
+    const val CLEAR: String = "data-btn-limpar"
+}
+
+/**
+ * Os dias escolhíveis entre [minDate] e [maxDate] (inclusivos; qualquer um pode faltar) — o
+ * `SelectableDates` do Material, na mesma conversão UTC do resto do seletor.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+internal class DateRangeSelectableDates(private val minDate: LocalDate?, private val maxDate: LocalDate?) : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+        val date = millisDoCalendarioParaData(utcTimeMillis)
+        return (minDate == null || date >= minDate) && (maxDate == null || date <= maxDate)
+    }
+
+    override fun isSelectableYear(year: Int): Boolean =
+        (minDate == null || year >= minDate.year) && (maxDate == null || year <= maxDate.year)
 }
 
 /**
@@ -171,6 +225,7 @@ fun AppDatePicker(
  * @param selectedDate a data que o calendário abre marcada, ou `null` para nenhuma.
  * @param onDateSelected a data escolhida, ao confirmar. Cancelar não dispara.
  * @param onDismiss fechar sem escolher — e também o que roda depois de confirmar.
+ * @param minDate/[maxDate] dias fora da faixa (inclusiva) ficam desligados no calendário (2.268.0).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,9 +235,14 @@ fun AppDatePickerDialog(
     onDismiss: () -> Unit,
     confirmText: String = stringResource(Res.string.kmplib_ok),
     dismissText: String = stringResource(Res.string.kmplib_cancel),
+    minDate: LocalDate? = null,
+    maxDate: LocalDate? = null,
 ) {
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDate?.let(::dataParaMillisDoCalendario),
+        selectableDates = remember(minDate, maxDate) {
+            if (minDate == null && maxDate == null) DatePickerDefaults.AllDates else DateRangeSelectableDates(minDate, maxDate)
+        },
     )
 
     DatePickerDialog(

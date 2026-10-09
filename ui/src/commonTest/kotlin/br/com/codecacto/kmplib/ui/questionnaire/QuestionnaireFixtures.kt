@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.ui.questionnaire
 
 /** Construtores curtos para os testes do questionário. */

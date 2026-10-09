@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.ui.questionnaire
 
 import androidx.compose.runtime.Immutable
@@ -202,6 +204,7 @@ sealed interface QuestionnaireRunnerAction {
     data class Answer(val questionId: String, val value: QuestionnaireValue?) : QuestionnaireRunnerAction
 
     /** Texto digitado num campo `number` (vírgula decimal, como o `NumberField`). */
+    @Deprecated(DEPRECATED_QUESTION_TYPE)
     data class EditNumber(val questionId: String, val text: String) : QuestionnaireRunnerAction
 
     /** "Continuar"/"Concluir". [oneByOne] é o ritmo em que a tela está (ver [QuestionnairePace]). */

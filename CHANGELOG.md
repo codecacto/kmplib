@@ -5,6 +5,80 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.268.0 — `ui/form`: o `FormRunner` sobre o **FormSchema v1** (LM-K05b) + depreciação da extensão do `Questionnaire` (D11)
+
+**Por quê.** D11 do Vitalis: o FormSchema v1 (`contratos-api.md` §7.1) é o formato canônico de formulário nas três libs
+— o motor de servidor é o `backlib-forms` (0.156.0), o runner web é o `FormRunner` da weblib (0.238.0), e faltava o do
+app, pré-requisito do M1.3b (triagem AM-13, público RECEPTION) e do M1.4 (pré-consulta pelo médico, AM-11). D14: o
+motor de verdade mora na backlib — o runner do app desenha, valida no campo e enfileira; **visibilidade por público e
+pontuação são do servidor** (o cliente nunca soma escore).
+
+**O que entrou** (pacote `br.com.codecacto.kmplib.ui.form`, artefato `kmplib-ui` — o umbrella traz):
+
+- **Contrato puro** (o `/forms` da weblib): `FormSchemaV1`/`FormSection`/`FormQuestion` e as configurações por tipo
+  (`FormNumberConfig`, `FormDateConfig`, `FormListConfig`, `FormFileConfig`, `FormConsentConfig`, `FormLikertScale`,
+  `FormScoring`, `FormInstrument`), `FormScoreResult` (o `ScoreResultDto`, só exibido), `FormJson` (leitura TOLERANTE:
+  campo desconhecido ignorado, tipo desconhecido → `FormQuestionType.UNSUPPORTED`, `display` desconhecido → padrão,
+  anexo de tipo desconhecido descartado). **`FormDecimal`** = decimal EXATO do literal do JSON (o `BigDecimal` do
+  servidor; casas, passo e pontos da régua sem `Double`). **`FormAnswerValue`** guarda o JSON da resposta e lê pelo tipo
+  (`toString()` redigido — dado de saúde); `FormAnswerEntry`, `FormFileRef`, `FormListItem`, `FormContext`, `FormRole`,
+  `FormAnswerValuesSerializer` (mapa do fio, `null` descartado), `FormAnswerPatchSerializer` (apagada = `null` EXPLÍCITO).
+  `FormCondition` + `evaluate` (total: malformada = `Invalid`, sempre falsa, JSON preservado; teto de aninhamento 32),
+  `evaluateVisibility`/`pruneAnswers` (cascata, ordem do documento), `validateValues` (salvamento) e
+  `validateSubmission` (envio: `onlyQuestionIds`, `requireConsent`) com `FormIssueCode`/`FormAnswerIssue`/`FormIssueParams`.
+- **Regras de interface** (o `formRunner.logic`): `formRunnerSteps`, `resolveFormStepIndex`, `formRunnerProgress`,
+  `firstIncompleteFormStep`, `clearFormIssuesOnEdit`, `pendingReservedIds`, `toggleFormMultiChoice`,
+  `sanitizeFormNumberDraft`/`parseFormNumberDraft`/`formatFormNumberDraft`, `formFileMatchesAccept`/`formFileExceedsSize`,
+  `safeFormLinkHref`/`resolveFormLink` (`javascript:` vira texto), `isCompactFormQuestion`.
+- **MVI**: `FormRunnerState` (`start(…, resume)`, `reduce`) → `FormRunnerUpdate(state, events)`; ações
+  `FormRunnerAction` (resposta, blur, continuar, enviar, voltar, ir à etapa, seção de escala, anexos, foco, erros do
+  servidor); eventos `FormRunnerEvent` (`Answered` → fila, `UploadRequested`/`UploadCancelled` → upload, `Submit` com as
+  respostas JÁ descartadas, `StepChanged`, `Exited`).
+- **Tela**: `FormRunner(state, onAction, …)` — uma seção por passo no compacto (`LocalIsCompact`); agrupado no expandido
+  (índice de etapas com ✓/!/reservadas pendentes + perguntas curtas em duas colunas); os 11 tipos; lista repetível;
+  anexo por callback (foto pelo seletor de imagem, PDF pelo seletor de arquivo, tipo/tamanho/teto recusados aqui,
+  progresso real, X cancela, "Tentar de novo"); consentimento (barra o envio, não o "Continuar"); reservada com selo e
+  "pendente" só com `markReserved` (nunca cinza — o servidor já tirou o que o público não vê); travada
+  (`lockedQuestions`); erro no campo depois do envio, foco no primeiro, erro do servidor no campo até a pessoa mexer;
+  seção `likert` **delegada ao `QuestionnaireRunner`** (mesma régua e ritmo). `FormRunnerTexts`/`rememberFormRunnerTexts`
+  e `FormIssueMessages`/`rememberFormIssueMessages` nos 4 idiomas; ids `FormRunnerTestTags` (`formulario-*`).
+- **Fila e anexo**: `FormAnswerQueue` (o `useFormAnswerQueue`: `AnswerPatch`, quietude de 600 ms, uma requisição por
+  vez, retentativa 0,5 s → 8 s sem sobrescrever o mais novo, `flush()`, `sendNow()` que sobrevive ao fim do
+  `viewModelScope`) e `FormFileUploader` (o `onUploadFile`: o app passa a rota; progresso e desfecho voltam como ação;
+  `FormUploadException` leva a frase do servidor à tela, mensagem técnica nunca).
+
+**Contrato provado com as MESMAS fixtures** do `backlib-forms`/weblib (`form-schema-v1.fixtures.json`,
+`fixturesVersion` 1, cópia byte a byte em `ui/src/commonTest/fixtures/`): `conditions` 51/51, `visibility` 10/10,
+`prune` 3/3, `validation` 66/66 (130/130) e os 19 schemas nomeados lidos e reescritos sem perda. A tarefa
+`generateFormSchemaFixtures` transforma o JSON em fonte do `commonTest` — o contrato roda no Android e compila no iOS.
+
+**Aditivos fora do pacote** (nenhuma assinatura existente muda):
+- `QuestionnaireRunner(…, progress, headerExtra, questionExtra)` — a tríade que a weblib ganhou na 0.238.0 para o
+  `FormRunner` delegar a seção de escala.
+- `AppDatePicker(…, minDate, maxDate, onClear, clearText)` e `AppDatePickerDialog(…, minDate, maxDate)`: dias fora da
+  faixa desligados no calendário (`SelectableDates` oficial do Material) e "x" de limpar data opcional
+  (`DatePickerTestTags.CLEAR` = `data-btn-limpar`; string `kmplib_date_clear` nos 4 idiomas).
+- `AppTextArea(…, keepTextLocally)` — o mesmo do `AppTextField`: o texto mora no campo (iOS não perde letra).
+- `QuestionnaireAnswerQueue` passa a usar o núcleo da `FormAnswerQueue` (mesmo comportamento: os 7 testes dela
+  seguem verdes sem mudança).
+
+**Depreciado (D11), sem quebrar ninguém** — `@Deprecated` com mensagem apontando o `FormRunner`; quem usa continua
+compilando e funcionando: no `Questionnaire`, `QuestionnaireQuestion.type` (+ `QuestionnaireQuestionType`) e a
+configuração por tipo (`options`/`QuestionnaireOption` com `score`, `min`, `max`, `decimals`, `unit`, `multiline`,
+`maxLength`), `visibleIf` (bloco e pergunta, `QuestionnaireCondition`), `reserved` (bloco e pergunta),
+`Questionnaire.scores` (`QuestionnaireScore`, `…Product`, `…Band`, `QuestionnaireTone`, `toStatusTone()`) e a parte de
+escore/condição/reserva da avaliação (`QuestionnaireEvaluation.scores`/`score()`/`scoresOwnedBy()`/`holds()`/
+`isReserved()`/`reservedPending`, `QuestionnaireScoreResult`, `QuestionnaireProgress.reservedPending`) e
+`QuestionnaireRunnerAction.EditNumber`. O parâmetro `showScores` do `QuestionnaireRunner` fica (parâmetro não aceita
+`@Deprecated` sem sobrecarga ambígua) e está marcado no KDoc. **O `QuestionnaireRunner` Likert puro continua.**
+
+**Limites conhecidos** (registrados no catálogo): a foto do anexo passa pelo seletor de imagem da lib (JPEG de até
+1024 px, sem EXIF — documento fotografado pode ficar pequeno para leitura); uma foto por toque (sem seleção múltipla);
+faixa que admite negativo cai no teclado de texto (o Compose não expõe teclado numérico com sinal); a seção `likert`,
+desenhada pelo `QuestionnaireRunner`, usa os ids `questionario-*`.
+
+**Sem piso** (aditivo + depreciação; nada que já está validado é afetado) e **sem aviso**.
+
 ## 2.267.0 — `sync` não depende mais do `kmplib-monetization` (app sem loja pode ter outbox)
 
 **Por quê.** O `kmplib-sync` declarava `api(project(":kmplib-monetization"))` ("o banner de sincronização

@@ -1,0 +1,1133 @@
+{
+  "fixturesVersion": 1,
+  "schemaVersion": 1,
+  "about": "Contrato de teste do FormSchema v1 (Vitalis contratos-api §7.1). Fonte: backlib-forms (br.com.codecacto:backlib-forms). A weblib (FormRunner, LW-F1) e a kmplib (LM-K05) COPIAM este arquivo sem editar e rodam os grupos marcados para elas em `consumers`. Mudou expectativa: sobe fixturesVersion e as três libs trocam a cópia na mesma rodada.",
+  "consumers": {
+    "conditions": ["backlib", "weblib", "kmplib"],
+    "visibility": ["backlib", "weblib", "kmplib"],
+    "prune": ["backlib", "weblib", "kmplib"],
+    "validation": ["backlib", "weblib", "kmplib"],
+    "lint": ["backlib"],
+    "reservation": ["backlib"],
+    "audience": ["backlib"],
+    "scoring": ["backlib"]
+  },
+  "conventions": {
+    "answered": "Respondida = texto que não fica vazio depois do trim (a régua do String.prototype.trim do JS), número (inclusive 0), booleano (inclusive false) ou lista não vazia. Ausente, null, texto em branco e [] = não respondida. Vale para answered/notAnswered, required e pendências.",
+    "comparisonWithoutAnswer": "Sem resposta, eq/neq/in/notIn/gt/gte/lt/lte/includes são FALSAS (inclusive neq e notIn). not() inverte: {not:{eq}} é verdadeira sem resposta.",
+    "typeStrict": "Sem conversão de tipo: o texto \"7\" não é igual ao número 7 (eq falsa, neq verdadeira). Números comparam por valor: 7 = 7.0. Texto compara exato (maiúscula conta).",
+    "operandShape": "eq/neq/gt/gte/lt/lte/includes levam UM escalar; in/notIn levam uma lista; answered/notAnswered não levam valor. Forma errada = falsa.",
+    "orderingAndIncludes": "gt/gte/lt/lte só comparam número com número. includes só vale para resposta lista de textos (multiChoice). eq/neq/in/notIn sobre resposta lista = falsa.",
+    "constants": "{\"all\": []} é verdadeira e {\"any\": []} é falsa — é a forma em que o servidor entrega a condição que ele mesmo resolveu.",
+    "cascade": "Visibilidade numa passada, na ordem do documento: a condição de uma seção/pergunta enxerga só as respostas das perguntas VISÍVEIS antes dela. Resposta gravada de pergunta escondida não conta.",
+    "context": "Contexto ausente (null) = sem resposta: toda comparação falsa, notAnswered verdadeira. audience = PATIENT | RECEPTION | DOCTOR.",
+    "required": "required ausente = true; info nunca é obrigatória. required só barra pergunta VISÍVEL, e só no envio (submission). Consentimento obrigatório precisa ser true no envio; false é salvamento válido.",
+    "numberDefaultDecimals": 0,
+    "numberStepBase": "O passo conta a partir de number.min (ou de 0 sem min), como o step do <input type=number>.",
+    "numberMaxAbs": 1000000000000000,
+    "textDefaultMaxLength": 1000,
+    "longTextDefaultMaxLength": 10000,
+    "textLengthUnit": "unidades UTF-16 (o .length do JS e do Kotlin)",
+    "textInvalidCharacters": "controle C0 (U+0000..U+001F) menos TAB, LF e CR; surrogate sem par",
+    "listDefaultMaxItems": 50,
+    "likertMaxPoints": 101,
+    "dateFormat": "AAAA-MM-DD de uma data que existe; limite \"today\" = o campo `today` do caso",
+    "fileRef": "exatamente {\"fileId\": \"<uuid canônico minúsculo>\"}",
+    "oneIssuePerValue": "No máximo um problema por valor; em lista, um por item/campo; em anexo, um por elemento. Ordem: WRONG_TYPE; texto: TEXT_INVALID_CHARACTER, TEXT_TOO_LONG; número: NUMBER_OUT_OF_RANGE, NUMBER_TOO_MANY_DECIMALS, NUMBER_OFF_STEP; data: DATE_INVALID, DATE_OUT_OF_RANGE; multiChoice: OPTION_INVALID, OPTION_DUPLICATE, OPTION_EXCLUSIVE; lista: LIST_TOO_LONG e então os itens; anexos: FILES_TOO_MANY e então os elementos.",
+    "issuesCompare": "issues compara como CONJUNTO de {questionId, code, path} (path ausente = sem path).",
+    "validationModes": "mode=values é o salvamento (AnswerPatch: null apaga e é válido; não olha visibilidade nem obrigatoriedade). mode=submission é o envio (visibilidade + obrigatórias + formato do que está visível; o invisível não é validado).",
+    "audienceJson": "jsonMustNotContain vale para o JSON de {schema, answers, answeredByPatient, reservedHiddenCount, pendingReservedQuestionIds} da visão.",
+    "scoreCompare": "score compara numericamente; computedAt fica fora. Incompleto = band \"\" e severity 0."
+  },
+  "schemas": {
+    "preconsulta": {
+      "schemaVersion": 1,
+      "id": "preconsulta.fixture",
+      "title": "Pré-consulta (fixture)",
+      "estimatedMinutes": 8,
+      "sections": [
+        {
+          "id": "inicio",
+          "title": "Antes de começar",
+          "kind": "fields",
+          "questions": [
+            {"id": "boas-vindas-paciente", "type": "info", "text": "Responda com calma: dá para parar e continuar depois.", "visibleIf": {"context": "audience", "op": "eq", "value": "PATIENT"}},
+            {"id": "boas-vindas-equipe", "type": "info", "text": "Registre o que o paciente informar.", "visibleIf": {"context": "audience", "op": "in", "value": ["RECEPTION", "DOCTOR"]}},
+            {"id": "queixa", "type": "longText", "text": "O que traz você à consulta?", "maxLength": 500, "bind": "encounter.chiefComplaint"},
+            {"id": "peso", "type": "number", "text": "Peso", "required": false, "number": {"min": 20, "max": 300, "decimals": 1, "unit": "kg"}, "bind": "anthropometry.weightKg"}
+          ]
+        },
+        {
+          "id": "mulher",
+          "title": "Saúde da mulher",
+          "kind": "fields",
+          "visibleIf": {"all": [
+            {"context": "sexAtBirth", "op": "eq", "value": "F"},
+            {"context": "ageYears", "op": "gte", "value": 10},
+            {"context": "ageYears", "op": "lte", "value": 60}
+          ]},
+          "questions": [
+            {"id": "dum", "type": "date", "text": "Data da última menstruação", "placeholder": "DD/MM/AAAA", "required": false, "date": {"max": "today"}},
+            {"id": "gestante", "type": "singleChoice", "text": "Está grávida?", "display": "buttons", "options": [{"value": "sim", "label": "Sim"}, {"value": "nao", "label": "Não"}, {"value": "nao-sei", "label": "Não sei"}]},
+            {"id": "semanas", "type": "number", "text": "De quantas semanas?", "number": {"min": 1, "max": 42}, "visibleIf": {"question": "gestante", "op": "eq", "value": "sim"}}
+          ]
+        },
+        {
+          "id": "habitos",
+          "title": "Hábitos",
+          "kind": "fields",
+          "questions": [
+            {"id": "fuma", "type": "singleChoice", "text": "Você fuma?", "display": "buttons", "options": [{"value": "sim", "label": "Sim"}, {"value": "nao", "label": "Não"}, {"value": "ex", "label": "Já fumei"}]},
+            {"id": "cigarros-dia", "type": "number", "text": "Quantos cigarros por dia?", "number": {"min": 1, "max": 100}, "visibleIf": {"question": "fuma", "op": "eq", "value": "sim"}},
+            {"id": "sintomas", "type": "multiChoice", "text": "Sintomas nas últimas semanas", "display": "chips", "options": [{"value": "febre", "label": "Febre"}, {"value": "tosse", "label": "Tosse"}, {"value": "dor", "label": "Dor"}, {"value": "nenhum", "label": "Nenhum"}], "exclusiveValues": ["nenhum"]},
+            {"id": "tosse-dias", "type": "number", "text": "Há quantos dias está com tosse?", "number": {"min": 1, "max": 365}, "visibleIf": {"question": "sintomas", "op": "includes", "value": "tosse"}},
+            {"id": "substancias", "type": "singleChoice", "text": "Usa outras substâncias?", "reserved": true, "options": [{"value": "sim", "label": "Sim"}, {"value": "nao", "label": "Não"}]},
+            {"id": "substancias-quais", "type": "text", "text": "Quais?", "maxLength": 200, "visibleIf": {"question": "substancias", "op": "eq", "value": "sim"}},
+            {"id": "medicamentos", "type": "list", "text": "Medicamentos em uso", "required": false, "bind": "patient.medications", "list": {"itemLabel": "Medicamento", "maxItems": 5, "fields": [
+              {"id": "nome", "type": "text", "text": "Nome", "maxLength": 80},
+              {"id": "dose", "type": "text", "text": "Dose", "required": false, "maxLength": 40}
+            ]}},
+            {"id": "exames", "type": "file", "text": "Exames recentes", "required": false, "file": {"accept": ["image", "pdf"], "maxFiles": 3, "maxSizeMb": 10, "purpose": "LAB_REPORT"}}
+          ]
+        },
+        {
+          "id": "intimo",
+          "title": "Vida íntima",
+          "kind": "fields",
+          "reserved": true,
+          "questions": [
+            {"id": "vida-ativa", "type": "singleChoice", "text": "Tem vida sexual ativa?", "options": [{"value": "sim", "label": "Sim"}, {"value": "nao", "label": "Não"}]},
+            {"id": "parcerias", "type": "number", "text": "Quantas parcerias nos últimos 12 meses?", "required": false, "number": {"min": 0, "max": 100}, "visibleIf": {"question": "vida-ativa", "op": "eq", "value": "sim"}}
+          ]
+        },
+        {
+          "id": "humor",
+          "title": "Humor",
+          "context": "Nas últimas 2 semanas, com que frequência você foi incomodado por:",
+          "kind": "likert",
+          "scale": {"min": 0, "max": 3, "optionLabels": ["Nenhuma vez", "Vários dias", "Mais da metade dos dias", "Quase todos os dias"]},
+          "instrument": {"code": "PHQ-2", "name": "PHQ-2", "licenseNote": "Uso livre (Pfizer): reproduzir, traduzir, exibir e distribuir sem permissão.", "citation": "Kroenke K, Spitzer RL, Williams JBW. Med Care. 2003;41(11):1284-1292."},
+          "scoring": {"method": "rule", "rule": "PHQ2", "bands": [{"min": 0, "max": 2, "label": "Rastreio negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Rastreio positivo", "severity": 2}]},
+          "questions": [
+            {"id": "phq2-1", "type": "likert", "text": "Item 1"},
+            {"id": "phq2-2", "type": "likert", "text": "Item 2"}
+          ]
+        },
+        {
+          "id": "termo",
+          "title": "Para terminar",
+          "kind": "fields",
+          "questions": [
+            {"id": "termo-aviso", "type": "info", "text": "Suas respostas ficam com a clínica e com o médico."},
+            {"id": "aceite", "type": "consent", "text": "Li e aceito o termo de uso dos meus dados", "consent": {"documentVersion": "2026-10", "links": [{"label": "Termo de uso de dados", "href": "https://vitalis.codecacto.com.br/termos"}]}}
+          ]
+        }
+      ]
+    },
+    "tipos": {
+      "schemaVersion": 1,
+      "id": "tipos",
+      "title": "Tipos (fixture)",
+      "sections": [
+        {
+          "id": "campos",
+          "title": "Campos",
+          "kind": "fields",
+          "questions": [
+            {"id": "nome", "type": "text", "text": "Nome", "maxLength": 5},
+            {"id": "relato", "type": "longText", "text": "Relato", "required": false},
+            {"id": "peso", "type": "number", "text": "Peso", "number": {"min": 20, "max": 300, "decimals": 1, "unit": "kg"}},
+            {"id": "dias", "type": "number", "text": "Dias na semana", "number": {"min": 0, "max": 7}},
+            {"id": "dose", "type": "number", "text": "Dose", "required": false, "number": {"min": 0, "max": 10, "step": 2.5, "decimals": 1}},
+            {"id": "nascimento", "type": "date", "text": "Nascimento", "date": {"min": "1900-01-01", "max": "today"}},
+            {"id": "retorno", "type": "date", "text": "Retorno", "required": false, "date": {"min": "today"}},
+            {"id": "cor", "type": "singleChoice", "text": "Cor", "options": [{"value": "a", "label": "A"}, {"value": "b", "label": "B"}]},
+            {"id": "sintomas", "type": "multiChoice", "text": "Sintomas", "options": [{"value": "febre", "label": "Febre"}, {"value": "tosse", "label": "Tosse"}, {"value": "nenhum", "label": "Nenhum"}], "exclusiveValues": ["nenhum"]},
+            {"id": "dor", "type": "likert", "text": "Dor", "scale": {"min": 0, "max": 10, "step": 2}},
+            {"id": "remedios", "type": "list", "text": "Remédios", "list": {"itemLabel": "Remédio", "minItems": 2, "maxItems": 3, "fields": [
+              {"id": "nome", "type": "text", "text": "Nome", "maxLength": 10},
+              {"id": "mg", "type": "number", "text": "Miligramas", "required": false, "number": {"min": 0, "max": 1000}},
+              {"id": "desde", "type": "date", "text": "Desde", "required": false},
+              {"id": "uso", "type": "singleChoice", "text": "Uso", "required": false, "options": [{"value": "diario", "label": "Diário"}, {"value": "eventual", "label": "Eventual"}]}
+            ]}},
+            {"id": "exames", "type": "file", "text": "Exames", "required": false, "file": {"accept": ["pdf"], "maxFiles": 2, "maxSizeMb": 10, "purpose": "LAB_REPORT"}},
+            {"id": "aviso", "type": "info", "text": "Aviso"},
+            {"id": "aceite", "type": "consent", "text": "Aceito o termo", "consent": {"documentVersion": "v1", "links": [{"label": "Termo", "href": "/termos"}]}}
+          ]
+        }
+      ]
+    },
+    "cascata": {
+      "schemaVersion": 1,
+      "id": "cascata",
+      "title": "Cascata (fixture)",
+      "sections": [
+        {
+          "id": "a",
+          "title": "A",
+          "kind": "fields",
+          "questions": [
+            {"id": "q1", "type": "singleChoice", "text": "Q1", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}]},
+            {"id": "q2", "type": "text", "text": "Q2", "visibleIf": {"question": "q1", "op": "eq", "value": "x"}},
+            {"id": "q3", "type": "text", "text": "Q3", "visibleIf": {"question": "q2", "op": "answered"}},
+            {"id": "q4", "type": "text", "text": "Q4", "visibleIf": {"question": "q1", "op": "neq", "value": "x"}},
+            {"id": "q5", "type": "text", "text": "Q5", "visibleIf": {"not": {"question": "q1", "op": "eq", "value": "x"}}}
+          ]
+        },
+        {
+          "id": "b",
+          "title": "B",
+          "kind": "fields",
+          "visibleIf": {"question": "q3", "op": "answered"},
+          "questions": [
+            {"id": "q6", "type": "number", "text": "Q6", "required": false}
+          ]
+        }
+      ]
+    },
+    "phq2": {
+      "schemaVersion": 1, "id": "escala.phq2", "title": "PHQ-2",
+      "sections": [{
+        "id": "phq2", "title": "PHQ-2", "kind": "likert",
+        "scale": {"min": 0, "max": 3, "optionLabels": ["Nenhuma vez", "Vários dias", "Mais da metade dos dias", "Quase todos os dias"]},
+        "instrument": {"code": "PHQ-2", "name": "PHQ-2", "licenseNote": "Uso livre (Pfizer).", "citation": "Kroenke K et al. Med Care. 2003;41(11):1284-1292."},
+        "scoring": {"method": "rule", "rule": "PHQ2", "bands": [{"min": 0, "max": 2, "label": "Rastreio negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Rastreio positivo", "severity": 2}]},
+        "questions": [{"id": "phq2-1", "type": "likert", "text": "Item 1"}, {"id": "phq2-2", "type": "likert", "text": "Item 2"}]
+      }]
+    },
+    "gad2": {
+      "schemaVersion": 1, "id": "escala.gad2", "title": "GAD-2",
+      "sections": [{
+        "id": "gad2", "title": "GAD-2", "kind": "likert",
+        "scale": {"min": 0, "max": 3},
+        "instrument": {"code": "GAD-2", "name": "GAD-2", "licenseNote": "Uso livre (Pfizer).", "citation": "Kroenke K et al. Ann Intern Med. 2007;146(5):317-325."},
+        "scoring": {"method": "rule", "rule": "GAD2", "bands": [{"min": 0, "max": 2, "label": "Rastreio negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Rastreio positivo", "severity": 2}]},
+        "questions": [{"id": "gad2-1", "type": "likert", "text": "Item 1"}, {"id": "gad2-2", "type": "likert", "text": "Item 2"}]
+      }]
+    },
+    "audit-c": {
+      "schemaVersion": 1, "id": "escala.audit-c", "title": "AUDIT-C",
+      "sections": [{
+        "id": "auditc", "title": "Álcool", "kind": "fields",
+        "instrument": {"code": "AUDIT-C", "name": "AUDIT-C", "licenseNote": "Domínio público (OMS).", "citation": "Bush K et al. Arch Intern Med. 1998;158(16):1789-1795."},
+        "scoring": {"method": "rule", "rule": "AUDIT_C", "items": ["ac-1", "ac-2", "ac-3"], "bands": [{"min": 0, "max": 0, "label": "Negativo", "severity": 0}, {"min": 1, "max": 1, "label": "Positivo", "severity": 2}]},
+        "questions": [
+          {"id": "ac-1", "type": "singleChoice", "text": "Item 1", "options": [{"value": "0", "label": "Opção 0", "score": 0}, {"value": "1", "label": "Opção 1", "score": 1}, {"value": "2", "label": "Opção 2", "score": 2}, {"value": "3", "label": "Opção 3", "score": 3}, {"value": "4", "label": "Opção 4", "score": 4}]},
+          {"id": "ac-2", "type": "singleChoice", "text": "Item 2", "options": [{"value": "0", "label": "Opção 0", "score": 0}, {"value": "1", "label": "Opção 1", "score": 1}, {"value": "2", "label": "Opção 2", "score": 2}, {"value": "3", "label": "Opção 3", "score": 3}, {"value": "4", "label": "Opção 4", "score": 4}]},
+          {"id": "ac-3", "type": "singleChoice", "text": "Item 3", "options": [{"value": "0", "label": "Opção 0", "score": 0}, {"value": "1", "label": "Opção 1", "score": 1}, {"value": "2", "label": "Opção 2", "score": 2}, {"value": "3", "label": "Opção 3", "score": 3}, {"value": "4", "label": "Opção 4", "score": 4}]}
+        ]
+      }]
+    },
+    "epworth": {
+      "schemaVersion": 1, "id": "escala.epworth", "title": "Epworth",
+      "sections": [{
+        "id": "ess", "title": "Sonolência", "kind": "likert",
+        "scale": {"min": 0, "max": 3},
+        "instrument": {"code": "ESS", "name": "Escala de Sonolência de Epworth", "licenseNote": "Licença comercial do detentor (Mapi Research Trust).", "citation": "Johns MW. Sleep. 1991;14(6):540-545."},
+        "scoring": {"method": "rule", "rule": "EPWORTH", "bands": [
+          {"min": 0, "max": 5, "label": "Normal (baixa)", "severity": 0},
+          {"min": 6, "max": 10, "label": "Normal (alta)", "severity": 0},
+          {"min": 11, "max": 12, "label": "Excessiva leve", "severity": 1},
+          {"min": 13, "max": 15, "label": "Excessiva moderada", "severity": 2},
+          {"min": 16, "max": 24, "label": "Excessiva grave", "severity": 3}
+        ]},
+        "questions": [
+          {"id": "ess-1", "type": "likert", "text": "Item 1"}, {"id": "ess-2", "type": "likert", "text": "Item 2"},
+          {"id": "ess-3", "type": "likert", "text": "Item 3"}, {"id": "ess-4", "type": "likert", "text": "Item 4"},
+          {"id": "ess-5", "type": "likert", "text": "Item 5"}, {"id": "ess-6", "type": "likert", "text": "Item 6"},
+          {"id": "ess-7", "type": "likert", "text": "Item 7"}, {"id": "ess-8", "type": "likert", "text": "Item 8"}
+        ]
+      }]
+    },
+    "epworth-agrupado": {
+      "schemaVersion": 1, "id": "escala.epworth-agrupado", "title": "Epworth (2 faixas)",
+      "sections": [{
+        "id": "ess", "title": "Sonolência", "kind": "likert",
+        "scale": {"min": 0, "max": 3},
+        "instrument": {"code": "ESS", "name": "Escala de Sonolência de Epworth", "licenseNote": "Licença comercial do detentor.", "citation": "Johns MW. Sleep. 1991;14(6):540-545."},
+        "scoring": {"method": "rule", "rule": "EPWORTH", "bands": [{"min": 0, "max": 10, "label": "Normal", "severity": 0}, {"min": 11, "max": 24, "label": "Sonolência excessiva", "severity": 2}]},
+        "questions": [
+          {"id": "ess-1", "type": "likert", "text": "Item 1"}, {"id": "ess-2", "type": "likert", "text": "Item 2"},
+          {"id": "ess-3", "type": "likert", "text": "Item 3"}, {"id": "ess-4", "type": "likert", "text": "Item 4"},
+          {"id": "ess-5", "type": "likert", "text": "Item 5"}, {"id": "ess-6", "type": "likert", "text": "Item 6"},
+          {"id": "ess-7", "type": "likert", "text": "Item 7"}, {"id": "ess-8", "type": "likert", "text": "Item 8"}
+        ]
+      }]
+    },
+    "stop-bang": {
+      "schemaVersion": 1, "id": "escala.stop-bang", "title": "STOP-Bang",
+      "sections": [{
+        "id": "stopbang", "title": "Apneia do sono", "kind": "likert",
+        "scale": {"min": 0, "max": 1, "optionLabels": ["Não", "Sim"]},
+        "instrument": {"code": "STOP-Bang", "name": "STOP-Bang", "licenseNote": "Uso livre para fins clínicos (University Health Network).", "citation": "Chung F et al. Chest. 2016;149(3):631-638."},
+        "scoring": {"method": "rule", "rule": "STOP_BANG", "bands": [{"min": 0, "max": 0, "label": "Baixo risco", "severity": 0}, {"min": 1, "max": 1, "label": "Risco intermediário", "severity": 1}, {"min": 2, "max": 2, "label": "Alto risco", "severity": 3}]},
+        "questions": [
+          {"id": "sb-s", "type": "likert", "text": "Ronco"}, {"id": "sb-t", "type": "likert", "text": "Cansaço"},
+          {"id": "sb-o", "type": "likert", "text": "Apneia observada"}, {"id": "sb-p", "type": "likert", "text": "Pressão alta"},
+          {"id": "sb-b", "type": "likert", "text": "IMC acima de 35"}, {"id": "sb-a", "type": "likert", "text": "Idade acima de 50"},
+          {"id": "sb-n", "type": "likert", "text": "Pescoço grande"}, {"id": "sb-g", "type": "likert", "text": "Sexo masculino"}
+        ]
+      }]
+    },
+    "ipaq": {
+      "schemaVersion": 1, "id": "escala.ipaq", "title": "IPAQ curto",
+      "sections": [{
+        "id": "ipaq", "title": "Atividade física", "kind": "fields",
+        "instrument": {"code": "IPAQ-SF", "name": "IPAQ versão curta", "licenseNote": "Domínio público (IPAQ Research Committee).", "citation": "Craig CL et al. Med Sci Sports Exerc. 2003;35(8):1381-1395; IPAQ Guidelines for Data Processing, 2005."},
+        "scoring": {"method": "rule", "rule": "IPAQ_SHORT", "items": ["vig-dias", "vig-min", "mod-dias", "mod-min", "cam-dias", "cam-min"], "bands": [{"min": 1, "max": 1, "label": "Baixo", "severity": 2}, {"min": 2, "max": 2, "label": "Moderado", "severity": 1}, {"min": 3, "max": 3, "label": "Alto", "severity": 0}]},
+        "questions": [
+          {"id": "vig-dias", "type": "number", "text": "Dias de atividade vigorosa", "number": {"min": 0, "max": 7}},
+          {"id": "vig-min", "type": "number", "text": "Minutos por dia", "number": {"min": 0, "max": 960, "unit": "min"}, "visibleIf": {"question": "vig-dias", "op": "gt", "value": 0}},
+          {"id": "mod-dias", "type": "number", "text": "Dias de atividade moderada", "number": {"min": 0, "max": 7}},
+          {"id": "mod-min", "type": "number", "text": "Minutos por dia", "number": {"min": 0, "max": 960, "unit": "min"}, "visibleIf": {"question": "mod-dias", "op": "gt", "value": 0}},
+          {"id": "cam-dias", "type": "number", "text": "Dias de caminhada", "number": {"min": 0, "max": 7}},
+          {"id": "cam-min", "type": "number", "text": "Minutos por dia", "number": {"min": 0, "max": 960, "unit": "min"}, "visibleIf": {"question": "cam-dias", "op": "gt", "value": 0}}
+        ]
+      }]
+    },
+    "adam": {
+      "schemaVersion": 1, "id": "escala.adam", "title": "ADAM",
+      "sections": [{
+        "id": "adam", "title": "ADAM", "kind": "likert",
+        "scale": {"min": 0, "max": 1, "optionLabels": ["Não", "Sim"]},
+        "instrument": {"code": "ADAM", "name": "ADAM", "licenseNote": "Saint Louis University — conferir licença.", "citation": "Morley JE et al. Metabolism. 2000;49(9):1239-1242."},
+        "scoring": {"method": "rule", "rule": "ADAM", "bands": [{"min": 0, "max": 0, "label": "Negativo", "severity": 0}, {"min": 1, "max": 1, "label": "Positivo", "severity": 2}]},
+        "questions": [
+          {"id": "adam-1", "type": "likert", "text": "Item 1"}, {"id": "adam-2", "type": "likert", "text": "Item 2"},
+          {"id": "adam-3", "type": "likert", "text": "Item 3"}, {"id": "adam-4", "type": "likert", "text": "Item 4"},
+          {"id": "adam-5", "type": "likert", "text": "Item 5"}, {"id": "adam-6", "type": "likert", "text": "Item 6"},
+          {"id": "adam-7", "type": "likert", "text": "Item 7"}, {"id": "adam-8", "type": "likert", "text": "Item 8"},
+          {"id": "adam-9", "type": "likert", "text": "Item 9"}, {"id": "adam-10", "type": "likert", "text": "Item 10"}
+        ]
+      }]
+    },
+    "ams": {
+      "schemaVersion": 1, "id": "escala.ams", "title": "AMS",
+      "sections": [{
+        "id": "ams", "title": "Sintomas do envelhecimento masculino", "kind": "likert",
+        "scale": {"min": 1, "max": 5, "optionLabels": ["Nenhum", "Leve", "Moderado", "Grave", "Extremamente grave"]},
+        "instrument": {"code": "AMS", "name": "Aging Males' Symptoms", "licenseNote": "Licença do detentor (ZEG Berlin).", "citation": "Heinemann LAJ et al. Health Qual Life Outcomes. 2003;1:15."},
+        "scoring": {"method": "rule", "rule": "AMS", "bands": [{"min": 17, "max": 26, "label": "Nenhum ou pouco", "severity": 0}, {"min": 27, "max": 36, "label": "Leve", "severity": 1}, {"min": 37, "max": 49, "label": "Moderado", "severity": 2}, {"min": 50, "max": 85, "label": "Grave", "severity": 3}]},
+        "questions": [
+          {"id": "ams-01", "type": "likert", "text": "Item 1"}, {"id": "ams-02", "type": "likert", "text": "Item 2"},
+          {"id": "ams-03", "type": "likert", "text": "Item 3"}, {"id": "ams-04", "type": "likert", "text": "Item 4"},
+          {"id": "ams-05", "type": "likert", "text": "Item 5"}, {"id": "ams-06", "type": "likert", "text": "Item 6"},
+          {"id": "ams-07", "type": "likert", "text": "Item 7"}, {"id": "ams-08", "type": "likert", "text": "Item 8"},
+          {"id": "ams-09", "type": "likert", "text": "Item 9"}, {"id": "ams-10", "type": "likert", "text": "Item 10"},
+          {"id": "ams-11", "type": "likert", "text": "Item 11"}, {"id": "ams-12", "type": "likert", "text": "Item 12"},
+          {"id": "ams-13", "type": "likert", "text": "Item 13"}, {"id": "ams-14", "type": "likert", "text": "Item 14"},
+          {"id": "ams-15", "type": "likert", "text": "Item 15"}, {"id": "ams-16", "type": "likert", "text": "Item 16"},
+          {"id": "ams-17", "type": "likert", "text": "Item 17"}
+        ]
+      }]
+    },
+    "iief5": {
+      "schemaVersion": 1, "id": "escala.iief5", "title": "IIEF-5",
+      "sections": [{
+        "id": "iief5", "title": "Função erétil", "kind": "fields",
+        "instrument": {"code": "IIEF-5", "name": "IIEF-5 (SHIM)", "licenseNote": "Licença comercial do detentor (Pfizer).", "citation": "Rosen RC et al. Int J Impot Res. 1999;11(6):319-326."},
+        "scoring": {"method": "rule", "rule": "IIEF5", "bands": [{"min": 1, "max": 7, "label": "Disfunção grave", "severity": 3}, {"min": 8, "max": 11, "label": "Disfunção moderada", "severity": 2}, {"min": 12, "max": 16, "label": "Disfunção leve a moderada", "severity": 2}, {"min": 17, "max": 21, "label": "Disfunção leve", "severity": 1}, {"min": 22, "max": 25, "label": "Sem disfunção", "severity": 0}]},
+        "questions": [
+          {"id": "iief-1", "type": "likert", "text": "Item 1", "scale": {"min": 1, "max": 5}},
+          {"id": "iief-2", "type": "likert", "text": "Item 2", "scale": {"min": 0, "max": 5}},
+          {"id": "iief-3", "type": "likert", "text": "Item 3", "scale": {"min": 0, "max": 5}},
+          {"id": "iief-4", "type": "likert", "text": "Item 4", "scale": {"min": 0, "max": 5}},
+          {"id": "iief-5", "type": "likert", "text": "Item 5", "scale": {"min": 0, "max": 5}}
+        ]
+      }]
+    },
+    "ipss": {
+      "schemaVersion": 1, "id": "escala.ipss", "title": "IPSS",
+      "sections": [{
+        "id": "ipss", "title": "Sintomas urinários", "kind": "fields",
+        "instrument": {"code": "IPSS", "name": "IPSS", "licenseNote": "Conferir licença do detentor.", "citation": "Barry MJ et al. J Urol. 1992;148(5):1549-1557."},
+        "scoring": {"method": "rule", "rule": "IPSS", "items": ["ipss-1", "ipss-2", "ipss-3", "ipss-4", "ipss-5", "ipss-6", "ipss-7"], "bands": [{"min": 0, "max": 7, "label": "Leve", "severity": 1}, {"min": 8, "max": 19, "label": "Moderado", "severity": 2}, {"min": 20, "max": 35, "label": "Grave", "severity": 3}]},
+        "questions": [
+          {"id": "ipss-1", "type": "likert", "text": "Item 1", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-2", "type": "likert", "text": "Item 2", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-3", "type": "likert", "text": "Item 3", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-4", "type": "likert", "text": "Item 4", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-5", "type": "likert", "text": "Item 5", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-6", "type": "likert", "text": "Item 6", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-7", "type": "likert", "text": "Item 7", "scale": {"min": 0, "max": 5}},
+          {"id": "ipss-qv", "type": "likert", "text": "Qualidade de vida", "required": false, "scale": {"min": 0, "max": 6}}
+        ]
+      }]
+    },
+    "mrs": {
+      "schemaVersion": 1, "id": "escala.mrs", "title": "MRS",
+      "sections": [{
+        "id": "mrs", "title": "Menopausa", "kind": "likert",
+        "visibleIf": {"context": "sexAtBirth", "op": "eq", "value": "F"},
+        "scale": {"min": 0, "max": 4},
+        "instrument": {"code": "MRS", "name": "Menopause Rating Scale", "licenseNote": "Uso livre com citação (ZEG Berlin).", "citation": "Heinemann K et al. Health Qual Life Outcomes. 2004;2:45."},
+        "scoring": {"method": "rule", "rule": "MRS", "bands": [{"min": 0, "max": 4, "label": "Nenhum ou pouco", "severity": 0}, {"min": 5, "max": 8, "label": "Leve", "severity": 1}, {"min": 9, "max": 15, "label": "Moderado", "severity": 2}, {"min": 16, "max": 44, "label": "Grave", "severity": 3}]},
+        "questions": [
+          {"id": "mrs-01", "type": "likert", "text": "Item 1"}, {"id": "mrs-02", "type": "likert", "text": "Item 2"},
+          {"id": "mrs-03", "type": "likert", "text": "Item 3"}, {"id": "mrs-04", "type": "likert", "text": "Item 4"},
+          {"id": "mrs-05", "type": "likert", "text": "Item 5"}, {"id": "mrs-06", "type": "likert", "text": "Item 6"},
+          {"id": "mrs-07", "type": "likert", "text": "Item 7"}, {"id": "mrs-08", "type": "likert", "text": "Item 8"},
+          {"id": "mrs-09", "type": "likert", "text": "Item 9"}, {"id": "mrs-10", "type": "likert", "text": "Item 10"},
+          {"id": "mrs-11", "type": "likert", "text": "Item 11"}
+        ]
+      }]
+    },
+    "bristol": {
+      "schemaVersion": 1, "id": "escala.bristol", "title": "Bristol",
+      "sections": [{
+        "id": "bristol", "title": "Fezes", "kind": "fields",
+        "instrument": {"code": "BSFS", "name": "Escala de Bristol", "licenseNote": "Uso livre com citação.", "citation": "Lewis SJ, Heaton KW. Scand J Gastroenterol. 1997;32(9):920-924."},
+        "scoring": {"method": "rule", "rule": "BRISTOL", "items": ["tipo"], "bands": [{"min": 1, "max": 2, "label": "Endurecidas", "severity": 1}, {"min": 3, "max": 5, "label": "Normais", "severity": 0}, {"min": 6, "max": 7, "label": "Amolecidas ou líquidas", "severity": 1}]},
+        "questions": [
+          {"id": "tipo", "type": "singleChoice", "text": "Qual se parece mais?", "display": "images", "options": [
+            {"value": "tipo-1", "label": "Tipo 1", "imageKey": "bristol-1", "score": 1},
+            {"value": "tipo-2", "label": "Tipo 2", "imageKey": "bristol-2", "score": 2},
+            {"value": "tipo-3", "label": "Tipo 3", "imageKey": "bristol-3", "score": 3},
+            {"value": "tipo-4", "label": "Tipo 4", "imageKey": "bristol-4", "score": 4},
+            {"value": "tipo-5", "label": "Tipo 5", "imageKey": "bristol-5", "score": 5},
+            {"value": "tipo-6", "label": "Tipo 6", "imageKey": "bristol-6", "score": 6},
+            {"value": "tipo-7", "label": "Tipo 7", "imageKey": "bristol-7", "score": 7}
+          ]}
+        ]
+      }]
+    },
+    "soma": {
+      "schemaVersion": 1, "id": "generico.soma", "title": "Soma",
+      "sections": [{
+        "id": "soma", "title": "Soma genérica", "kind": "fields",
+        "scoring": {"method": "sum", "reverse": ["s2"], "bands": [{"min": 0, "max": 4, "label": "Baixo", "severity": 0}, {"min": 5, "max": 8, "label": "Médio", "severity": 1}, {"min": 9, "max": 12, "label": "Alto", "severity": 2}]},
+        "questions": [
+          {"id": "s1", "type": "likert", "text": "S1", "scale": {"min": 0, "max": 4}},
+          {"id": "s2", "type": "likert", "text": "S2", "scale": {"min": 0, "max": 4}},
+          {"id": "s3", "type": "likert", "text": "S3", "scale": {"min": 0, "max": 4}, "visibleIf": {"question": "s1", "op": "gte", "value": 2}},
+          {"id": "obs", "type": "text", "text": "Observação", "required": false}
+        ]
+      }]
+    },
+    "media": {
+      "schemaVersion": 1, "id": "generico.media", "title": "Média",
+      "sections": [{
+        "id": "media", "title": "Média genérica", "kind": "likert",
+        "scale": {"min": 1, "max": 5},
+        "scoring": {"method": "mean", "reverse": ["m3"], "bands": [{"min": 1, "max": 2.49, "label": "Baixo", "severity": 0}, {"min": 2.5, "max": 3.49, "label": "Médio", "severity": 1}, {"min": 3.5, "max": 5, "label": "Alto", "severity": 2}]},
+        "questions": [{"id": "m1", "type": "likert", "text": "M1"}, {"id": "m2", "type": "likert", "text": "M2"}, {"id": "m3", "type": "likert", "text": "M3"}]
+      }]
+    },
+    "media8": {
+      "schemaVersion": 1, "id": "generico.media8", "title": "Média de 8",
+      "sections": [{
+        "id": "media8", "title": "Média de 8", "kind": "likert",
+        "scale": {"min": 0, "max": 3},
+        "scoring": {"method": "mean", "bands": [{"min": 0, "max": 1.49, "label": "Baixo", "severity": 0}, {"min": 1.5, "max": 3, "label": "Alto", "severity": 1}]},
+        "questions": [
+          {"id": "h1", "type": "likert", "text": "H1"}, {"id": "h2", "type": "likert", "text": "H2"},
+          {"id": "h3", "type": "likert", "text": "H3"}, {"id": "h4", "type": "likert", "text": "H4"},
+          {"id": "h5", "type": "likert", "text": "H5"}, {"id": "h6", "type": "likert", "text": "H6"},
+          {"id": "h7", "type": "likert", "text": "H7"}, {"id": "h8", "type": "likert", "text": "H8"}
+        ]
+      }]
+    }
+  },
+  "conditions": [
+    {"name": "eq texto igual", "condition": {"question": "t", "op": "eq", "value": "sim"}, "answers": {"t": "sim"}, "context": {}, "expected": true},
+    {"name": "eq texto diferente", "condition": {"question": "t", "op": "eq", "value": "sim"}, "answers": {"t": "não"}, "context": {}, "expected": false},
+    {"name": "eq diferencia maiúscula", "condition": {"question": "t", "op": "eq", "value": "sim"}, "answers": {"t": "Sim"}, "context": {}, "expected": false},
+    {"name": "eq sem resposta é falsa", "condition": {"question": "t", "op": "eq", "value": "sim"}, "answers": {}, "context": {}, "expected": false},
+    {"name": "neq sem resposta é falsa", "condition": {"question": "t", "op": "neq", "value": "sim"}, "answers": {}, "context": {}, "expected": false},
+    {"name": "neq com resposta diferente", "condition": {"question": "t", "op": "neq", "value": "sim"}, "answers": {"t": "não"}, "context": {}, "expected": true},
+    {"name": "not(eq) sem resposta é verdadeira", "condition": {"not": {"question": "t", "op": "eq", "value": "sim"}}, "answers": {}, "context": {}, "expected": true},
+    {"name": "in", "condition": {"question": "t", "op": "in", "value": ["a", "sim"]}, "answers": {"t": "sim"}, "context": {}, "expected": true},
+    {"name": "in sem resposta", "condition": {"question": "t", "op": "in", "value": ["a", "sim"]}, "answers": {}, "context": {}, "expected": false},
+    {"name": "notIn sem resposta é falsa", "condition": {"question": "t", "op": "notIn", "value": ["a", "sim"]}, "answers": {}, "context": {}, "expected": false},
+    {"name": "notIn fora da lista", "condition": {"question": "t", "op": "notIn", "value": ["a", "sim"]}, "answers": {"t": "talvez"}, "context": {}, "expected": true},
+    {"name": "número por valor (7 = 7.0)", "condition": {"question": "n", "op": "eq", "value": 7}, "answers": {"n": 7.0}, "context": {}, "expected": true},
+    {"name": "texto \"7\" não é o número 7", "condition": {"question": "t", "op": "eq", "value": 7}, "answers": {"t": "7"}, "context": {}, "expected": false},
+    {"name": "neq entre tipos diferentes é verdadeira", "condition": {"question": "t", "op": "neq", "value": 7}, "answers": {"t": "7"}, "context": {}, "expected": true},
+    {"name": "gt no limite", "condition": {"question": "n", "op": "gt", "value": 5}, "answers": {"n": 5}, "context": {}, "expected": false},
+    {"name": "gte no limite", "condition": {"question": "n", "op": "gte", "value": 5}, "answers": {"n": 5}, "context": {}, "expected": true},
+    {"name": "lt com decimal", "condition": {"question": "n", "op": "lt", "value": 5}, "answers": {"n": 4.9}, "context": {}, "expected": true},
+    {"name": "lte com 5.0", "condition": {"question": "n", "op": "lte", "value": 5}, "answers": {"n": 5.0}, "context": {}, "expected": true},
+    {"name": "lt com negativo", "condition": {"question": "n", "op": "lt", "value": -0.5}, "answers": {"n": -1}, "context": {}, "expected": true},
+    {"name": "gt sobre texto é falsa", "condition": {"question": "t", "op": "gt", "value": 1}, "answers": {"t": "9"}, "context": {}, "expected": false},
+    {"name": "gt com valor texto é falsa", "condition": {"question": "n", "op": "gt", "value": "1"}, "answers": {"n": 5}, "context": {}, "expected": false},
+    {"name": "includes", "condition": {"question": "c", "op": "includes", "value": "tosse"}, "answers": {"c": ["febre", "tosse"]}, "context": {}, "expected": true},
+    {"name": "includes em lista vazia", "condition": {"question": "c", "op": "includes", "value": "tosse"}, "answers": {"c": []}, "context": {}, "expected": false},
+    {"name": "includes sobre texto é falsa", "condition": {"question": "t", "op": "includes", "value": "tosse"}, "answers": {"t": "tosse"}, "context": {}, "expected": false},
+    {"name": "eq sobre lista é falsa", "condition": {"question": "c", "op": "eq", "value": "tosse"}, "answers": {"c": ["tosse"]}, "context": {}, "expected": false},
+    {"name": "answered: texto em branco não", "condition": {"question": "t", "op": "answered"}, "answers": {"t": "   "}, "context": {}, "expected": false},
+    {"name": "answered: vazio não", "condition": {"question": "t", "op": "answered"}, "answers": {"t": ""}, "context": {}, "expected": false},
+    {"name": "answered: zero sim", "condition": {"question": "n", "op": "answered"}, "answers": {"n": 0}, "context": {}, "expected": true},
+    {"name": "answered: false sim", "condition": {"question": "b", "op": "answered"}, "answers": {"b": false}, "context": {}, "expected": true},
+    {"name": "answered: lista vazia não", "condition": {"question": "c", "op": "answered"}, "answers": {"c": []}, "context": {}, "expected": false},
+    {"name": "answered: itens de lista sim", "condition": {"question": "l", "op": "answered"}, "answers": {"l": [{"nome": "AAS"}]}, "context": {}, "expected": true},
+    {"name": "notAnswered ausente", "condition": {"question": "t", "op": "notAnswered"}, "answers": {}, "context": {}, "expected": true},
+    {"name": "notAnswered respondida", "condition": {"question": "t", "op": "notAnswered"}, "answers": {"t": "x"}, "context": {}, "expected": false},
+    {"name": "all vazio é verdadeira", "condition": {"all": []}, "answers": {}, "context": {}, "expected": true},
+    {"name": "any vazio é falsa", "condition": {"any": []}, "answers": {}, "context": {}, "expected": false},
+    {"name": "not de all vazio", "condition": {"not": {"all": []}}, "answers": {}, "context": {}, "expected": false},
+    {"name": "aninhada falsa", "condition": {"all": [{"question": "t", "op": "eq", "value": "sim"}, {"any": [{"question": "n", "op": "gte", "value": 18}, {"not": {"question": "c", "op": "includes", "value": "febre"}}]}]}, "answers": {"t": "sim", "n": 10, "c": ["febre"]}, "context": {}, "expected": false},
+    {"name": "aninhada verdadeira", "condition": {"all": [{"question": "t", "op": "eq", "value": "sim"}, {"any": [{"question": "n", "op": "gte", "value": 18}, {"not": {"question": "c", "op": "includes", "value": "febre"}}]}]}, "answers": {"t": "sim", "n": 20, "c": ["febre"]}, "context": {}, "expected": true},
+    {"name": "eq booleano", "condition": {"question": "b", "op": "eq", "value": true}, "answers": {"b": true}, "context": {}, "expected": true},
+    {"name": "booleano não é o texto \"true\"", "condition": {"question": "b", "op": "eq", "value": true}, "answers": {"b": "true"}, "context": {}, "expected": false},
+    {"name": "eq com lista de valores é falsa", "condition": {"question": "t", "op": "eq", "value": ["sim"]}, "answers": {"t": "sim"}, "context": {}, "expected": false},
+    {"name": "contexto: sexo", "condition": {"context": "sexAtBirth", "op": "eq", "value": "F"}, "answers": {}, "context": {"sexAtBirth": "F"}, "expected": true},
+    {"name": "contexto: sexo ausente", "condition": {"context": "sexAtBirth", "op": "eq", "value": "F"}, "answers": {}, "context": {}, "expected": false},
+    {"name": "contexto: idade no limite", "condition": {"context": "ageYears", "op": "gte", "value": 60}, "answers": {}, "context": {"ageYears": 60}, "expected": true},
+    {"name": "contexto: idade abaixo", "condition": {"context": "ageYears", "op": "gte", "value": 60}, "answers": {}, "context": {"ageYears": 59}, "expected": false},
+    {"name": "contexto: idade ausente com lt", "condition": {"context": "ageYears", "op": "lt", "value": 18}, "answers": {}, "context": {}, "expected": false},
+    {"name": "contexto: gestação desconhecida", "condition": {"context": "pregnancy", "op": "notAnswered"}, "answers": {}, "context": {}, "expected": true},
+    {"name": "contexto: gestação in", "condition": {"context": "pregnancy", "op": "in", "value": ["YES", "MAYBE"]}, "answers": {}, "context": {"pregnancy": "MAYBE"}, "expected": true},
+    {"name": "contexto: público", "condition": {"context": "audience", "op": "eq", "value": "PATIENT"}, "answers": {}, "context": {"audience": "PATIENT"}, "expected": true},
+    {"name": "contexto: outro público", "condition": {"context": "audience", "op": "eq", "value": "PATIENT"}, "answers": {}, "context": {"audience": "DOCTOR"}, "expected": false},
+    {"name": "contexto: especialidade", "condition": {"context": "specialty", "op": "eq", "value": "nutrologia"}, "answers": {}, "context": {"specialty": "nutrologia"}, "expected": true}
+  ],
+  "visibility": [
+    {"name": "paciente, mulher de 34, sem respostas", "schema": "preconsulta", "context": {"sexAtBirth": "F", "ageYears": 34, "audience": "PATIENT"}, "answers": {},
+      "visibleSections": ["inicio", "mulher", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["boas-vindas-paciente", "queixa", "peso", "dum", "gestante", "fuma", "sintomas", "substancias", "medicamentos", "exames", "vida-ativa", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "recepção, homem de 40, fuma e tosse; gestação gravada não reabre nada", "schema": "preconsulta", "context": {"sexAtBirth": "M", "ageYears": 40, "audience": "RECEPTION"}, "answers": {"fuma": "sim", "sintomas": ["tosse", "febre"], "gestante": "sim"},
+      "visibleSections": ["inicio", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["boas-vindas-equipe", "queixa", "peso", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "substancias", "medicamentos", "exames", "vida-ativa", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "médico, mulher acima de 60", "schema": "preconsulta", "context": {"sexAtBirth": "F", "ageYears": 65, "audience": "DOCTOR"}, "answers": {},
+      "visibleSections": ["inicio", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["boas-vindas-equipe", "queixa", "peso", "fuma", "sintomas", "substancias", "medicamentos", "exames", "vida-ativa", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "idade e público desconhecidos", "schema": "preconsulta", "context": {"sexAtBirth": "F"}, "answers": {},
+      "visibleSections": ["inicio", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["queixa", "peso", "fuma", "sintomas", "substancias", "medicamentos", "exames", "vida-ativa", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "grávida, usa substâncias, vida ativa", "schema": "preconsulta", "context": {"sexAtBirth": "F", "ageYears": 34}, "answers": {"gestante": "sim", "substancias": "sim", "vida-ativa": "sim"},
+      "visibleSections": ["inicio", "mulher", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["queixa", "peso", "dum", "gestante", "semanas", "fuma", "sintomas", "substancias", "substancias-quais", "medicamentos", "exames", "vida-ativa", "parcerias", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "sexo I não abre seção de F", "schema": "preconsulta", "context": {"sexAtBirth": "I", "ageYears": 34}, "answers": {},
+      "visibleSections": ["inicio", "habitos", "intimo", "humor", "termo"],
+      "visibleQuestions": ["queixa", "peso", "fuma", "sintomas", "substancias", "medicamentos", "exames", "vida-ativa", "phq2-1", "phq2-2", "termo-aviso", "aceite"]},
+    {"name": "cascata sem respostas", "schema": "cascata", "context": {}, "answers": {},
+      "visibleSections": ["a"], "visibleQuestions": ["q1", "q5"]},
+    {"name": "cascata aberta", "schema": "cascata", "context": {}, "answers": {"q1": "x", "q2": "oi", "q3": "ok"},
+      "visibleSections": ["a", "b"], "visibleQuestions": ["q1", "q2", "q3", "q6"]},
+    {"name": "cascata: resposta gravada de pergunta escondida não conta", "schema": "cascata", "context": {}, "answers": {"q1": "y", "q2": "oi", "q3": "ok"},
+      "visibleSections": ["a"], "visibleQuestions": ["q1", "q4", "q5"]},
+    {"name": "cascata: texto em branco não abre a seguinte", "schema": "cascata", "context": {}, "answers": {"q1": "x", "q2": "   "},
+      "visibleSections": ["a"], "visibleQuestions": ["q1", "q2"]}
+  ],
+  "prune": [
+    {"name": "homem: some o que não se aplica, o info e o id desconhecido", "schema": "preconsulta", "context": {"sexAtBirth": "M", "ageYears": 40},
+      "answers": {"queixa": "x", "gestante": "sim", "semanas": 20, "fuma": "nao", "cigarros-dia": 10, "termo-aviso": "lido", "fantasma": 1, "sintomas": ["tosse"], "tosse-dias": 3},
+      "kept": ["queixa", "fuma", "sintomas", "tosse-dias"]},
+    {"name": "mulher grávida: fica tudo", "schema": "preconsulta", "context": {"sexAtBirth": "F", "ageYears": 30},
+      "answers": {"gestante": "sim", "semanas": 20},
+      "kept": ["gestante", "semanas"]},
+    {"name": "cascata: q3 cai junto com q2", "schema": "cascata", "context": {},
+      "answers": {"q1": "y", "q2": "oi", "q3": "ok", "q6": 1},
+      "kept": ["q1"]}
+  ],
+  "validation": [
+    {"name": "tudo válido no salvamento", "schema": "tipos", "mode": "values", "today": "2026-10-12",
+      "answers": {"nome": "Ana", "relato": "", "peso": 72.5, "dias": 7.0, "dose": 7.5, "nascimento": "1990-05-20", "retorno": "2026-10-12", "cor": "a", "sintomas": ["febre", "tosse"], "dor": 4, "remedios": [{"nome": "Losartana", "mg": 50, "desde": "2024-01-01", "uso": "diario"}, {"nome": "AAS", "mg": null}], "exames": [{"fileId": "3f1c2a4e-0b7d-4c1a-9e2f-1a2b3c4d5e6f"}], "aceite": false},
+      "issues": []},
+    {"name": "texto acima do teto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nome": "Joaquim"}, "issues": [{"questionId": "nome", "code": "TEXT_TOO_LONG"}]},
+    {"name": "texto com número", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nome": 123}, "issues": [{"questionId": "nome", "code": "WRONG_TYPE"}]},
+    {"name": "texto com caractere de controle", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nome": "A\u0000B"}, "issues": [{"questionId": "nome", "code": "TEXT_INVALID_CHARACTER"}]},
+    {"name": "texto com surrogate sem par", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nome": "A\ud800"}, "issues": [{"questionId": "nome", "code": "TEXT_INVALID_CHARACTER"}]},
+    {"name": "número com casa demais", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": 72.55}, "issues": [{"questionId": "peso", "code": "NUMBER_TOO_MANY_DECIMALS"}]},
+    {"name": "número abaixo do mínimo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": 19.9}, "issues": [{"questionId": "peso", "code": "NUMBER_OUT_OF_RANGE"}]},
+    {"name": "faixa vem antes das casas", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": 300.55}, "issues": [{"questionId": "peso", "code": "NUMBER_OUT_OF_RANGE"}]},
+    {"name": "número em texto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": "72"}, "issues": [{"questionId": "peso", "code": "WRONG_TYPE"}]},
+    {"name": "número no limite", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": 300}, "issues": []},
+    {"name": "zero à direita não é casa decimal", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"peso": 72.50}, "issues": []},
+    {"name": "sem decimals é inteiro", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dias": 2.5}, "issues": [{"questionId": "dias", "code": "NUMBER_TOO_MANY_DECIMALS"}]},
+    {"name": "acima do máximo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dias": 8}, "issues": [{"questionId": "dias", "code": "NUMBER_OUT_OF_RANGE"}]},
+    {"name": "fora do passo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dose": 6}, "issues": [{"questionId": "dose", "code": "NUMBER_OFF_STEP"}]},
+    {"name": "no passo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dose": 5}, "issues": []},
+    {"name": "data impossível", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nascimento": "1990-02-30"}, "issues": [{"questionId": "nascimento", "code": "DATE_INVALID"}]},
+    {"name": "data em outro formato", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nascimento": "20/05/1990"}, "issues": [{"questionId": "nascimento", "code": "DATE_INVALID"}]},
+    {"name": "data depois de hoje", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nascimento": "2026-10-13"}, "issues": [{"questionId": "nascimento", "code": "DATE_OUT_OF_RANGE"}]},
+    {"name": "data antes do mínimo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nascimento": "1899-12-31"}, "issues": [{"questionId": "nascimento", "code": "DATE_OUT_OF_RANGE"}]},
+    {"name": "hoje é o limite", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nascimento": "2026-10-12"}, "issues": []},
+    {"name": "retorno antes de hoje", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"retorno": "2026-10-11"}, "issues": [{"questionId": "retorno", "code": "DATE_OUT_OF_RANGE"}]},
+    {"name": "opção inexistente", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"cor": "c"}, "issues": [{"questionId": "cor", "code": "OPTION_INVALID"}]},
+    {"name": "escolha vazia não é opção", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"cor": ""}, "issues": [{"questionId": "cor", "code": "OPTION_INVALID"}]},
+    {"name": "escolha única em lista", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"cor": ["a"]}, "issues": [{"questionId": "cor", "code": "WRONG_TYPE"}]},
+    {"name": "multi com opção repetida", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": ["febre", "febre"]}, "issues": [{"questionId": "sintomas", "code": "OPTION_DUPLICATE"}]},
+    {"name": "exclusiva com outras", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": ["nenhum", "febre"]}, "issues": [{"questionId": "sintomas", "code": "OPTION_EXCLUSIVE"}]},
+    {"name": "exclusiva sozinha", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": ["nenhum"]}, "issues": []},
+    {"name": "multi vazia vale no salvamento", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": []}, "issues": []},
+    {"name": "multi em texto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": "febre"}, "issues": [{"questionId": "sintomas", "code": "WRONG_TYPE"}]},
+    {"name": "multi com opção inexistente", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"sintomas": ["gripe"]}, "issues": [{"questionId": "sintomas", "code": "OPTION_INVALID"}]},
+    {"name": "likert fora do passo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dor": 3}, "issues": [{"questionId": "dor", "code": "LIKERT_OFF_SCALE"}]},
+    {"name": "likert acima da régua", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dor": 12}, "issues": [{"questionId": "dor", "code": "LIKERT_OFF_SCALE"}]},
+    {"name": "likert 4.0", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"dor": 4.0}, "issues": []},
+    {"name": "lista acima do teto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "A"}, {"nome": "B"}, {"nome": "C"}, {"nome": "D"}]}, "issues": [{"questionId": "remedios", "code": "LIST_TOO_LONG"}]},
+    {"name": "item que não é objeto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": ["Losartana"]}, "issues": [{"questionId": "remedios", "code": "WRONG_TYPE", "path": "[0]"}]},
+    {"name": "campo desconhecido no item", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "Losartana", "cor": "azul"}]}, "issues": [{"questionId": "remedios", "code": "LIST_ITEM_UNKNOWN_FIELD", "path": "[0].cor"}]},
+    {"name": "campo do item acima do teto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "AAS"}, {"nome": "Losartana potássica"}]}, "issues": [{"questionId": "remedios", "code": "TEXT_TOO_LONG", "path": "[1].nome"}]},
+    {"name": "número do item em texto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "AAS", "mg": "100"}]}, "issues": [{"questionId": "remedios", "code": "WRONG_TYPE", "path": "[0].mg"}]},
+    {"name": "data do item impossível", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "AAS", "desde": "2024-13-01"}]}, "issues": [{"questionId": "remedios", "code": "DATE_INVALID", "path": "[0].desde"}]},
+    {"name": "opção do item inexistente", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": "AAS", "uso": "sempre"}]}, "issues": [{"questionId": "remedios", "code": "OPTION_INVALID", "path": "[0].uso"}]},
+    {"name": "booleano em campo de item", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": true}]}, "issues": [{"questionId": "remedios", "code": "WRONG_TYPE", "path": "[0].nome"}]},
+    {"name": "campo de item nulo vale no salvamento", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": [{"nome": null}]}, "issues": []},
+    {"name": "lista que é objeto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"remedios": {"nome": "AAS"}}, "issues": [{"questionId": "remedios", "code": "WRONG_TYPE"}]},
+    {"name": "anexos demais", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"exames": [{"fileId": "3f1c2a4e-0b7d-4c1a-9e2f-1a2b3c4d5e6f"}, {"fileId": "4a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"}, {"fileId": "5b3c4d5e-6f7a-4b2c-9d3e-4f5a6b7c8d9e"}]}, "issues": [{"questionId": "exames", "code": "FILES_TOO_MANY"}]},
+    {"name": "fileId que não é UUID", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"exames": [{"fileId": "abc"}]}, "issues": [{"questionId": "exames", "code": "FILE_REF_INVALID", "path": "[0]"}]},
+    {"name": "fileId maiúsculo", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"exames": [{"fileId": "3F1C2A4E-0B7D-4C1A-9E2F-1A2B3C4D5E6F"}]}, "issues": [{"questionId": "exames", "code": "FILE_REF_INVALID", "path": "[0]"}]},
+    {"name": "anexo com campo extra", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"exames": [{"fileId": "3f1c2a4e-0b7d-4c1a-9e2f-1a2b3c4d5e6f", "nome": "exame.pdf"}]}, "issues": [{"questionId": "exames", "code": "FILE_REF_INVALID", "path": "[0]"}]},
+    {"name": "anexo repetido", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"exames": [{"fileId": "3f1c2a4e-0b7d-4c1a-9e2f-1a2b3c4d5e6f"}, {"fileId": "3f1c2a4e-0b7d-4c1a-9e2f-1a2b3c4d5e6f"}]}, "issues": [{"questionId": "exames", "code": "FILE_DUPLICATE", "path": "[1]"}]},
+    {"name": "info não recebe resposta", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"aviso": "lido"}, "issues": [{"questionId": "aviso", "code": "NOT_ANSWERABLE"}]},
+    {"name": "pergunta inexistente", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"fantasma": "x"}, "issues": [{"questionId": "fantasma", "code": "UNKNOWN_QUESTION"}]},
+    {"name": "consentimento em texto", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"aceite": "sim"}, "issues": [{"questionId": "aceite", "code": "WRONG_TYPE"}]},
+    {"name": "null apaga e é válido (inclusive em info)", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"nome": null, "aceite": null, "aviso": null}, "issues": []},
+    {"name": "null em pergunta inexistente ainda acusa", "schema": "tipos", "mode": "values", "today": "2026-10-12", "answers": {"fantasma": null}, "issues": [{"questionId": "fantasma", "code": "UNKNOWN_QUESTION"}]},
+    {"name": "envio completo", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "Ana", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": ["nenhum"], "dor": 0, "remedios": [{"nome": "Losartana"}, {"nome": "AAS", "mg": 100}], "aceite": true},
+      "issues": []},
+    {"name": "envio vazio", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {}, "answers": {},
+      "issues": [{"questionId": "nome", "code": "REQUIRED"}, {"questionId": "peso", "code": "REQUIRED"}, {"questionId": "dias", "code": "REQUIRED"}, {"questionId": "nascimento", "code": "REQUIRED"}, {"questionId": "cor", "code": "REQUIRED"}, {"questionId": "sintomas", "code": "REQUIRED"}, {"questionId": "dor", "code": "REQUIRED"}, {"questionId": "remedios", "code": "REQUIRED"}, {"questionId": "aceite", "code": "CONSENT_REQUIRED"}]},
+    {"name": "envio vazio sem exigir consentimento (triagem)", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {}, "answers": {}, "options": {"requireConsent": false},
+      "issues": [{"questionId": "nome", "code": "REQUIRED"}, {"questionId": "peso", "code": "REQUIRED"}, {"questionId": "dias", "code": "REQUIRED"}, {"questionId": "nascimento", "code": "REQUIRED"}, {"questionId": "cor", "code": "REQUIRED"}, {"questionId": "sintomas", "code": "REQUIRED"}, {"questionId": "dor", "code": "REQUIRED"}, {"questionId": "remedios", "code": "REQUIRED"}]},
+    {"name": "em branco e lista vazia não respondem", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "   ", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": [], "dor": 0, "remedios": [{"nome": "Losartana"}, {"nome": "AAS"}], "aceite": true},
+      "issues": [{"questionId": "nome", "code": "REQUIRED"}, {"questionId": "sintomas", "code": "REQUIRED"}]},
+    {"name": "consentimento recusado barra o envio", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "Ana", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": ["nenhum"], "dor": 0, "remedios": [{"nome": "Losartana"}, {"nome": "AAS"}], "aceite": false},
+      "issues": [{"questionId": "aceite", "code": "CONSENT_REQUIRED"}]},
+    {"name": "lista abaixo do mínimo", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "Ana", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": ["nenhum"], "dor": 0, "remedios": [{"nome": "Losartana"}], "aceite": true},
+      "issues": [{"questionId": "remedios", "code": "LIST_TOO_SHORT"}]},
+    {"name": "item incompleto e item vazio", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "Ana", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": ["nenhum"], "dor": 0, "remedios": [{"nome": "Losartana"}, {"mg": 50}, {}], "aceite": true},
+      "issues": [{"questionId": "remedios", "code": "LIST_ITEM_INCOMPLETE", "path": "[1].nome"}, {"questionId": "remedios", "code": "LIST_ITEM_EMPTY", "path": "[2]"}]},
+    {"name": "formato vale no envio (e não vira REQUIRED)", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {},
+      "answers": {"nome": "Joaquim", "peso": 72.5, "dias": 3, "nascimento": "1990-05-20", "cor": "a", "sintomas": ["nenhum"], "dor": 0, "remedios": [{"nome": "Losartana"}, {"nome": "AAS"}], "aceite": true},
+      "issues": [{"questionId": "nome", "code": "TEXT_TOO_LONG"}]},
+    {"name": "só as perguntas do escopo", "schema": "tipos", "mode": "submission", "today": "2026-10-12", "context": {}, "answers": {}, "options": {"onlyQuestionIds": ["nome", "aceite"]},
+      "issues": [{"questionId": "nome", "code": "REQUIRED"}, {"questionId": "aceite", "code": "CONSENT_REQUIRED"}]},
+    {"name": "obrigatória que a condição abriu", "schema": "preconsulta", "mode": "submission", "today": "2026-10-12", "context": {"sexAtBirth": "M", "ageYears": 40},
+      "answers": {"queixa": "Enxaqueca", "fuma": "sim", "sintomas": ["febre"], "substancias": "nao", "vida-ativa": "nao", "phq2-1": 0, "phq2-2": 1, "aceite": true},
+      "issues": [{"questionId": "cigarros-dia", "code": "REQUIRED"}]},
+    {"name": "escondida não barra nem é validada", "schema": "preconsulta", "mode": "submission", "today": "2026-10-12", "context": {"sexAtBirth": "M", "ageYears": 40},
+      "answers": {"queixa": "Enxaqueca", "fuma": "sim", "cigarros-dia": 10, "sintomas": ["febre"], "substancias": "nao", "vida-ativa": "nao", "phq2-1": 0, "phq2-2": 1, "aceite": true, "gestante": "sim", "tosse-dias": 9999},
+      "issues": []},
+    {"name": "grávida precisa dizer as semanas", "schema": "preconsulta", "mode": "submission", "today": "2026-10-12", "context": {"sexAtBirth": "F", "ageYears": 30},
+      "answers": {"queixa": "Enxaqueca", "fuma": "sim", "cigarros-dia": 10, "sintomas": ["febre"], "substancias": "nao", "vida-ativa": "nao", "phq2-1": 0, "phq2-2": 1, "aceite": true, "gestante": "sim"},
+      "issues": [{"questionId": "semanas", "code": "REQUIRED"}]},
+    {"name": "triagem da recepção: só a visão dela, sem consentimento", "schema": "preconsulta", "mode": "submission", "today": "2026-10-12", "context": {"sexAtBirth": "F", "ageYears": 30},
+      "answers": {"queixa": "Enxaqueca", "fuma": "nao", "sintomas": ["nenhum"], "gestante": "nao"},
+      "options": {"requireConsent": false, "onlyQuestionIds": ["queixa", "peso", "dum", "gestante", "semanas", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "medicamentos", "exames", "phq2-1", "phq2-2", "aceite"]},
+      "issues": [{"questionId": "phq2-1", "code": "REQUIRED"}, {"questionId": "phq2-2", "code": "REQUIRED"}]}
+  ],
+  "lint": [
+    {"name": "preconsulta é válida", "schema": "preconsulta", "codes": []},
+    {"name": "tipos é válida", "schema": "tipos", "codes": []},
+    {"name": "cascata é válida", "schema": "cascata", "codes": []},
+    {"name": "phq2 é válida", "schema": "phq2", "codes": []},
+    {"name": "gad2 é válida", "schema": "gad2", "codes": []},
+    {"name": "audit-c é válida", "schema": "audit-c", "codes": []},
+    {"name": "epworth é válida", "schema": "epworth", "codes": []},
+    {"name": "epworth com faixas vizinhas juntas é válida", "schema": "epworth-agrupado", "codes": []},
+    {"name": "stop-bang é válida", "schema": "stop-bang", "codes": []},
+    {"name": "ipaq é válida", "schema": "ipaq", "codes": []},
+    {"name": "adam é válida", "schema": "adam", "codes": []},
+    {"name": "ams é válida", "schema": "ams", "codes": []},
+    {"name": "iief5 é válida", "schema": "iief5", "codes": []},
+    {"name": "ipss é válida", "schema": "ipss", "codes": []},
+    {"name": "mrs é válida", "schema": "mrs", "codes": []},
+    {"name": "bristol é válida", "schema": "bristol", "codes": []},
+    {"name": "soma é válida", "schema": "soma", "codes": []},
+    {"name": "media é válida", "schema": "media", "codes": []},
+    {"name": "media8 é válida", "schema": "media8", "codes": []},
+    {"name": "condição aponta para pergunta posterior", "codes": ["CONDITION_NOT_PREVIOUS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"question": "b", "op": "answered"}}, {"id": "b", "type": "text", "text": "B"}]}]}},
+    {"name": "condição aponta para si mesma", "codes": ["CONDITION_NOT_PREVIOUS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"question": "a", "op": "answered"}}]}]}},
+    {"name": "ciclo", "codes": ["CONDITION_NOT_PREVIOUS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"question": "b", "op": "answered"}}, {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "answered"}}]}]}},
+    {"name": "seção lendo a própria pergunta", "codes": ["CONDITION_NOT_PREVIOUS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "visibleIf": {"question": "a", "op": "answered"}, "questions": [
+      {"id": "a", "type": "text", "text": "A"}]}]}},
+    {"name": "pergunta inexistente na condição", "codes": ["CONDITION_UNKNOWN_QUESTION"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}, {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "z", "op": "answered"}}]}]}},
+    {"name": "pergunta repetida", "codes": ["ID_DUPLICATE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}, {"id": "a", "type": "text", "text": "A de novo"}]}]}},
+    {"name": "seção repetida", "codes": ["ID_DUPLICATE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [
+      {"id": "s", "title": "S", "kind": "fields", "questions": [{"id": "a", "type": "text", "text": "A"}]},
+      {"id": "s", "title": "S2", "kind": "fields", "questions": [{"id": "b", "type": "text", "text": "B"}]}]}},
+    {"name": "id com espaço", "codes": ["ID_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "habitos fumo", "type": "text", "text": "A"}]}]}},
+    {"name": "seção likert sem régua", "codes": ["LIKERT_SCALE_MISSING"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "questions": [
+      {"id": "a", "type": "likert", "text": "A"}]}]}},
+    {"name": "likert em seção fields sem régua", "codes": ["LIKERT_SCALE_MISSING"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "likert", "text": "A"}]}]}},
+    {"name": "seção likert com pergunta de texto", "codes": ["LIKERT_SECTION_QUESTION_TYPE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 1, "max": 5}, "questions": [
+      {"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "text", "text": "B"}]}]}},
+    {"name": "régua que não fecha no máximo", "codes": ["LIKERT_SCALE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3, "step": 2}, "questions": [
+      {"id": "a", "type": "likert", "text": "A"}]}]}},
+    {"name": "rótulos a menos que pontos", "codes": ["LIKERT_SCALE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3, "optionLabels": ["a", "b", "c"]}, "questions": [
+      {"id": "a", "type": "likert", "text": "A"}]}]}},
+    {"name": "configuração de outro tipo", "codes": ["CONFIG_NOT_FOR_TYPE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "number", "text": "A", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}]}]}]}},
+    {"name": "régua própria em seção likert", "codes": ["CONFIG_NOT_FOR_TYPE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 1, "max": 5}, "questions": [
+      {"id": "a", "type": "likert", "text": "A", "scale": {"min": 0, "max": 3}}]}]}},
+    {"name": "régua em seção fields", "codes": ["CONFIG_NOT_FOR_TYPE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "scale": {"min": 1, "max": 5}, "questions": [
+      {"id": "a", "type": "text", "text": "A"}]}]}},
+    {"name": "placeholder em multiChoice", "codes": ["CONFIG_NOT_FOR_TYPE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "multiChoice", "text": "A", "placeholder": "Marque as que valem", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}]}]}]}},
+    {"name": "escolha sem opções", "codes": ["CONFIG_MISSING"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A"}]}]}},
+    {"name": "opção repetida", "codes": ["OPTIONS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A", "options": [{"value": "x", "label": "X"}, {"value": "x", "label": "X2"}]}]}]}},
+    {"name": "uma opção só", "codes": ["OPTIONS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A", "options": [{"value": "x", "label": "X"}]}]}]}},
+    {"name": "imagens sem imageKey", "codes": ["OPTIONS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A", "display": "images", "options": [{"value": "x", "label": "X", "imageKey": "x"}, {"value": "y", "label": "Y"}]}]}]}},
+    {"name": "exclusiva que não é opção", "codes": ["EXCLUSIVE_VALUES_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "multiChoice", "text": "A", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}], "exclusiveValues": ["nenhuma"]}]}]}},
+    {"name": "min maior que max", "codes": ["NUMBER_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "number", "text": "A", "number": {"min": 10, "max": 1}}]}]}},
+    {"name": "passo com casas sem decimals", "codes": ["NUMBER_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "number", "text": "A", "number": {"step": 0.5}}]}]}},
+    {"name": "maxLength zero", "codes": ["MAX_LENGTH_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "maxLength": 0}]}]}},
+    {"name": "limite de data inválido", "codes": ["DATE_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "date", "text": "A", "date": {"min": "ontem"}}]}]}},
+    {"name": "campo de lista do tipo arquivo", "codes": ["LIST_FIELD_TYPE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "list", "text": "A", "list": {"itemLabel": "Item", "fields": [{"id": "x", "type": "file", "text": "X", "file": {"accept": ["pdf"], "maxFiles": 1, "maxSizeMb": 10, "purpose": "LAB_REPORT"}}]}}]}]}},
+    {"name": "campo de lista com condição", "codes": ["LIST_FIELD_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "z", "type": "text", "text": "Z"},
+      {"id": "a", "type": "list", "text": "A", "list": {"itemLabel": "Item", "fields": [{"id": "x", "type": "text", "text": "X", "visibleIf": {"question": "z", "op": "answered"}}]}}]}]}},
+    {"name": "lista sem campos", "codes": ["LIST_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "list", "text": "A", "list": {"itemLabel": "Item", "fields": []}}]}]}},
+    {"name": "arquivo com maxFiles zero", "codes": ["FILE_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "file", "text": "A", "file": {"accept": ["pdf"], "maxFiles": 0, "maxSizeMb": 10, "purpose": "LAB_REPORT"}}]}]}},
+    {"name": "consentimento sem link", "codes": ["CONSENT_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "consent", "text": "A", "consent": {"documentVersion": "v1", "links": []}}]}]}},
+    {"name": "consentimento com link http", "codes": ["CONSENT_CONFIG_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "consent", "text": "A", "consent": {"documentVersion": "v1", "links": [{"label": "Termo", "href": "http://x.com/termo"}]}}]}]}},
+    {"name": "placeholder com exemplo de dado", "codes": ["PLACEHOLDER_EXAMPLE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "Nome", "placeholder": "Ex.: Maria"}]}]}},
+    {"name": "versão 2", "codes": ["SCHEMA_VERSION_UNSUPPORTED"], "schema": {"schemaVersion": 2, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}]}]}},
+    {"name": "destino repetido", "codes": ["BIND_DUPLICATE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "number", "text": "A", "bind": "anthropometry.weightKg"}, {"id": "b", "type": "number", "text": "B", "bind": "anthropometry.weightKg"}]}]}},
+    {"name": "destino fora do conjunto do projeto", "codes": ["BIND_INVALID"], "options": {"allowedBindings": ["patient.allergies"]}, "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "bind": "patient.medications"}]}]}},
+    {"name": "destino em info", "codes": ["BIND_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "info", "text": "A", "bind": "patient.goals"}]}]}},
+    {"name": "includes em escolha única", "codes": ["CONDITION_OP_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}]},
+      {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "includes", "value": "x"}}]}]}},
+    {"name": "valor que não é opção", "codes": ["CONDITION_VALUE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "singleChoice", "text": "A", "options": [{"value": "x", "label": "X"}, {"value": "y", "label": "Y"}]},
+      {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "eq", "value": "z"}}]}]}},
+    {"name": "answered com valor", "codes": ["CONDITION_VALUE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}, {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "answered", "value": true}}]}]}},
+    {"name": "condição sobre info", "codes": ["CONDITION_REFERENCES_INFO"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "info", "text": "A"}, {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "answered"}}]}]}},
+    {"name": "audience em pergunta que se responde", "codes": ["CONDITION_AUDIENCE_ON_ANSWERABLE"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"context": "audience", "op": "eq", "value": "PATIENT"}}]}]}},
+    {"name": "sexo fora do conjunto", "codes": ["CONDITION_VALUE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"context": "sexAtBirth", "op": "eq", "value": "Feminino"}}]}]}},
+    {"name": "ordem sobre data", "codes": ["CONDITION_OP_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "date", "text": "A"}, {"id": "b", "type": "text", "text": "B", "visibleIf": {"question": "a", "op": "gt", "value": "2026-01-01"}}]}]}},
+    {"name": "idade fracionada", "codes": ["CONDITION_VALUE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"context": "ageYears", "op": "gte", "value": 17.5}}]}]}},
+    {"name": "condição funda demais", "codes": ["CONDITION_TOO_DEEP"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A", "visibleIf": {"not": {"not": {"not": {"not": {"not": {"not": {"not": {"not": {"context": "ageYears", "op": "gte", "value": 18}}}}}}}}}}]}]}},
+    {"name": "seção sem perguntas", "codes": ["SECTION_EMPTY"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [
+      {"id": "s", "title": "S", "kind": "fields", "questions": [{"id": "a", "type": "text", "text": "A"}]},
+      {"id": "t", "title": "T", "kind": "fields", "questions": []}]}},
+    {"name": "formulário sem seção", "codes": ["SECTIONS_EMPTY"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": []}},
+    {"name": "título vazio", "codes": ["TEXT_REQUIRED"], "schema": {"schemaVersion": 1, "id": "l", "title": "  ", "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}]}]}},
+    {"name": "estimatedMinutes zero", "codes": ["ESTIMATED_MINUTES_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "estimatedMinutes": 0, "sections": [{"id": "s", "title": "S", "kind": "fields", "questions": [
+      {"id": "a", "type": "text", "text": "A"}]}]}},
+    {"name": "PHQ2 com 3 itens", "codes": ["SCORING_RULE_ITEMS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3},
+      "instrument": {"code": "PHQ-2", "name": "PHQ-2", "licenseNote": "x", "citation": "x"},
+      "scoring": {"method": "rule", "rule": "PHQ2", "bands": [{"min": 0, "max": 2, "label": "Negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Positivo", "severity": 2}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}, {"id": "c", "type": "likert", "text": "C"}]}]}},
+    {"name": "PHQ2 com régua 0..4", "codes": ["SCORING_RULE_ITEMS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "instrument": {"code": "PHQ-2", "name": "PHQ-2", "licenseNote": "x", "citation": "x"},
+      "scoring": {"method": "rule", "rule": "PHQ2", "bands": [{"min": 0, "max": 2, "label": "Negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Positivo", "severity": 2}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "PHQ2 com corte errado", "codes": ["SCORING_RULE_BANDS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3},
+      "instrument": {"code": "PHQ-2", "name": "PHQ-2", "licenseNote": "x", "citation": "x"},
+      "scoring": {"method": "rule", "rule": "PHQ2", "bands": [{"min": 0, "max": 3, "label": "Negativo", "severity": 0}, {"min": 4, "max": 6, "label": "Positivo", "severity": 2}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "STOP-Bang com faixa por escore (é por nível)", "codes": ["SCORING_RULE_BANDS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 1},
+      "instrument": {"code": "STOP-Bang", "name": "STOP-Bang", "licenseNote": "x", "citation": "x"},
+      "scoring": {"method": "rule", "rule": "STOP_BANG", "bands": [{"min": 0, "max": 2, "label": "Baixo", "severity": 0}, {"min": 3, "max": 4, "label": "Intermediário", "severity": 1}, {"min": 5, "max": 8, "label": "Alto", "severity": 3}]},
+      "questions": [{"id": "s1", "type": "likert", "text": "1"}, {"id": "s2", "type": "likert", "text": "2"}, {"id": "s3", "type": "likert", "text": "3"}, {"id": "s4", "type": "likert", "text": "4"},
+        {"id": "s5", "type": "likert", "text": "5"}, {"id": "s6", "type": "likert", "text": "6"}, {"id": "s7", "type": "likert", "text": "7"}, {"id": "s8", "type": "likert", "text": "8"}]}]}},
+    {"name": "IPAQ com minutos decimais", "codes": ["SCORING_RULE_ITEMS"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields",
+      "instrument": {"code": "IPAQ", "name": "IPAQ", "licenseNote": "x", "citation": "x"},
+      "scoring": {"method": "rule", "rule": "IPAQ_SHORT", "items": ["vd", "vm", "md", "mm", "cd", "cm"], "bands": [{"min": 1, "max": 1, "label": "Baixo", "severity": 2}, {"min": 2, "max": 3, "label": "Ativo", "severity": 0}]},
+      "questions": [
+        {"id": "vd", "type": "number", "text": "VD", "number": {"min": 0, "max": 7}}, {"id": "vm", "type": "number", "text": "VM", "number": {"min": 0, "max": 960, "decimals": 1}},
+        {"id": "md", "type": "number", "text": "MD", "number": {"min": 0, "max": 7}}, {"id": "mm", "type": "number", "text": "MM", "number": {"min": 0, "max": 960}},
+        {"id": "cd", "type": "number", "text": "CD", "number": {"min": 0, "max": 7}}, {"id": "cm", "type": "number", "text": "CM", "number": {"min": 0, "max": 960}}]}]}},
+    {"name": "regra sem instrumento", "codes": ["INSTRUMENT_REQUIRED"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3},
+      "scoring": {"method": "rule", "rule": "GAD2", "bands": [{"min": 0, "max": 2, "label": "Negativo", "severity": 0}, {"min": 3, "max": 6, "label": "Positivo", "severity": 2}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "soma com buraco entre faixas", "codes": ["SCORING_BANDS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "scoring": {"method": "sum", "bands": [{"min": 0, "max": 4, "label": "Baixo", "severity": 0}, {"min": 6, "max": 8, "label": "Alto", "severity": 1}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "soma sem cobrir o máximo", "codes": ["SCORING_BANDS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "scoring": {"method": "sum", "bands": [{"min": 0, "max": 4, "label": "Baixo", "severity": 0}, {"min": 5, "max": 7, "label": "Alto", "severity": 1}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "faixas sobrepostas", "codes": ["SCORING_BANDS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "scoring": {"method": "sum", "bands": [{"min": 0, "max": 5, "label": "Baixo", "severity": 0}, {"min": 5, "max": 8, "label": "Alto", "severity": 1}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "severidade 4", "codes": ["SCORING_BANDS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "scoring": {"method": "sum", "bands": [{"min": 0, "max": 4, "label": "Baixo", "severity": 0}, {"min": 5, "max": 8, "label": "Alto", "severity": 4}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "média com faixa de 3 casas", "codes": ["SCORING_BANDS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 1, "max": 5},
+      "scoring": {"method": "mean", "bands": [{"min": 1, "max": 2.499, "label": "Baixo", "severity": 0}, {"min": 2.5, "max": 5, "label": "Alto", "severity": 1}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "item de escolha sem score", "codes": ["SCORING_ITEMS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "fields",
+      "scoring": {"method": "sum", "items": ["a"], "bands": [{"min": 0, "max": 1, "label": "Tudo", "severity": 0}]},
+      "questions": [{"id": "a", "type": "singleChoice", "text": "A", "options": [{"value": "x", "label": "X", "score": 0}, {"value": "y", "label": "Y"}]}]}]}},
+    {"name": "item de outra seção", "codes": ["SCORING_ITEMS_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [
+      {"id": "s", "title": "S", "kind": "fields", "questions": [{"id": "a", "type": "likert", "text": "A", "scale": {"min": 0, "max": 4}}]},
+      {"id": "t", "title": "T", "kind": "fields", "scoring": {"method": "sum", "items": ["a"], "bands": [{"min": 0, "max": 4, "label": "Tudo", "severity": 0}]},
+        "questions": [{"id": "b", "type": "text", "text": "B"}]}]}},
+    {"name": "sum com regra", "codes": ["SCORING_METHOD_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 3},
+      "scoring": {"method": "sum", "rule": "PHQ2", "bands": [{"min": 0, "max": 6, "label": "Tudo", "severity": 0}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}},
+    {"name": "reverse fora dos itens", "codes": ["SCORING_REVERSE_INVALID"], "schema": {"schemaVersion": 1, "id": "l", "title": "L", "sections": [{"id": "s", "title": "S", "kind": "likert", "scale": {"min": 0, "max": 4},
+      "scoring": {"method": "sum", "reverse": ["z"], "bands": [{"min": 0, "max": 8, "label": "Tudo", "severity": 0}]},
+      "questions": [{"id": "a", "type": "likert", "text": "A"}, {"id": "b", "type": "likert", "text": "B"}]}]}}
+  ],
+  "reservation": [
+    {"name": "só o padrão do template", "schema": "preconsulta", "clinic": [], "doctor": [],
+      "expected": {"reservedSectionIds": ["intimo"], "reservedQuestionIds": ["substancias"], "effectiveQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"], "decidedBy": {}}},
+    {"name": "médico › clínica › template", "schema": "preconsulta",
+      "clinic": [{"target": "SECTION", "id": "humor", "reserved": true}, {"target": "QUESTION", "id": "substancias", "reserved": false}],
+      "doctor": [{"target": "QUESTION", "id": "fuma", "reserved": true}, {"target": "QUESTION", "id": "substancias", "reserved": true}, {"target": "SECTION", "id": "humor", "reserved": false}],
+      "expected": {"reservedSectionIds": ["intimo"], "reservedQuestionIds": ["fuma", "substancias"], "effectiveQuestionIds": ["fuma", "cigarros-dia", "substancias", "substancias-quais", "vida-ativa", "parcerias"],
+        "decidedBy": {"section:humor": "DOCTOR", "question:fuma": "DOCTOR", "question:substancias": "DOCTOR"}}},
+    {"name": "clínica tira a reserva do bloco", "schema": "preconsulta", "clinic": [{"target": "SECTION", "id": "intimo", "reserved": false}], "doctor": [],
+      "expected": {"reservedSectionIds": [], "reservedQuestionIds": ["substancias"], "effectiveQuestionIds": ["substancias", "substancias-quais"], "decidedBy": {"section:intimo": "CLINIC"}}},
+    {"name": "decisão para id que não existe é ignorada", "schema": "preconsulta", "clinic": [], "doctor": [{"target": "QUESTION", "id": "fantasma", "reserved": true}],
+      "expected": {"reservedSectionIds": ["intimo"], "reservedQuestionIds": ["substancias"], "effectiveQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"], "decidedBy": {}}}
+  ],
+  "audience": [
+    {"name": "recepção: sem reservada, sem pontuação, sem resposta do paciente", "schema": "preconsulta", "audience": "RECEPTION",
+      "reservation": {"sections": ["intimo"], "questions": ["substancias"]}, "context": {"sexAtBirth": "F", "ageYears": 34}, "answersRef": "preconsulta-respostas",
+      "expected": {
+        "sectionIds": ["inicio", "mulher", "habitos", "humor", "termo"],
+        "questionIds": ["boas-vindas-equipe", "queixa", "peso", "dum", "gestante", "semanas", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "medicamentos", "exames", "phq2-1", "phq2-2", "termo-aviso", "aceite"],
+        "visibleIf": {"boas-vindas-equipe": null, "cigarros-dia": null, "semanas": {"question": "gestante", "op": "eq", "value": "sim"}, "tosse-dias": {"question": "sintomas", "op": "includes", "value": "tosse"}},
+        "sectionVisibleIf": {"mulher": null},
+        "answerIds": ["cigarros-dia", "sintomas"],
+        "answeredByPatient": ["queixa", "fuma", "phq2-1", "aceite"],
+        "reservedHiddenCount": 4,
+        "pendingReservedQuestionIds": [],
+        "reservedSectionIds": [],
+        "reservedQuestionIds": [],
+        "scoringSectionIds": [],
+        "jsonMustNotContain": ["substancias", "vida-ativa", "parcerias", "intimo", "Vida íntima", "Enxaqueca", "canabidiol", "\"scoring\"", "\"reserved\"", "\"score\""]
+      }},
+    {"name": "médico: tudo, reservadas marcadas, pendente o que falta", "schema": "preconsulta", "audience": "DOCTOR",
+      "reservation": {"sections": ["intimo"], "questions": ["substancias"]}, "context": {"sexAtBirth": "F", "ageYears": 34}, "answersRef": "preconsulta-respostas",
+      "expected": {
+        "sectionIds": ["inicio", "mulher", "habitos", "intimo", "humor", "termo"],
+        "questionIds": ["boas-vindas-equipe", "queixa", "peso", "dum", "gestante", "semanas", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "substancias", "substancias-quais", "medicamentos", "exames", "vida-ativa", "parcerias", "phq2-1", "phq2-2", "termo-aviso", "aceite"],
+        "visibleIf": {"boas-vindas-equipe": null, "cigarros-dia": {"question": "fuma", "op": "eq", "value": "sim"}, "tosse-dias": {"question": "sintomas", "op": "includes", "value": "tosse"}, "substancias-quais": {"question": "substancias", "op": "eq", "value": "sim"}, "parcerias": {"question": "vida-ativa", "op": "eq", "value": "sim"}},
+        "sectionVisibleIf": {"mulher": null},
+        "answerIds": ["queixa", "fuma", "cigarros-dia", "sintomas", "substancias", "substancias-quais", "vida-ativa", "phq2-1", "aceite"],
+        "answeredByPatient": [],
+        "reservedHiddenCount": 0,
+        "pendingReservedQuestionIds": ["parcerias"],
+        "reservedSectionIds": ["intimo"],
+        "reservedQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"],
+        "scoringSectionIds": ["humor"],
+        "jsonMustNotContain": []
+      }},
+    {"name": "paciente FULL: tudo, sem pontuação, só as próprias respostas", "schema": "preconsulta", "audience": "PATIENT_FULL",
+      "reservation": {"sections": ["intimo"], "questions": ["substancias"]}, "context": {"sexAtBirth": "F", "ageYears": 34}, "answersRef": "preconsulta-respostas",
+      "expected": {
+        "sectionIds": ["inicio", "mulher", "habitos", "intimo", "humor", "termo"],
+        "questionIds": ["boas-vindas-paciente", "queixa", "peso", "dum", "gestante", "semanas", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "substancias", "substancias-quais", "medicamentos", "exames", "vida-ativa", "parcerias", "phq2-1", "phq2-2", "termo-aviso", "aceite"],
+        "visibleIf": {"boas-vindas-paciente": null, "cigarros-dia": {"question": "fuma", "op": "eq", "value": "sim"}, "tosse-dias": null, "substancias-quais": {"question": "substancias", "op": "eq", "value": "sim"}},
+        "sectionVisibleIf": {"mulher": null},
+        "answerIds": ["queixa", "fuma", "substancias", "substancias-quais", "vida-ativa", "phq2-1", "aceite"],
+        "answeredByPatient": [],
+        "reservedHiddenCount": 0,
+        "pendingReservedQuestionIds": [],
+        "reservedSectionIds": ["intimo"],
+        "reservedQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"],
+        "scoringSectionIds": [],
+        "jsonMustNotContain": ["\"scoring\"", "\"score\"", "6f0e2c1a-1b2c-4d3e-8f9a-0b1c2d3e4f5a"]
+      }},
+    {"name": "paciente RESERVED_ONLY: só reservadas e consentimento", "schema": "preconsulta", "audience": "PATIENT_RESERVED_ONLY",
+      "reservation": {"sections": ["intimo"], "questions": ["substancias"]}, "context": {"sexAtBirth": "F", "ageYears": 34}, "answersRef": "preconsulta-respostas",
+      "expected": {
+        "sectionIds": ["habitos", "intimo", "termo"],
+        "questionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias", "aceite"],
+        "visibleIf": {"substancias-quais": {"question": "substancias", "op": "eq", "value": "sim"}, "parcerias": {"question": "vida-ativa", "op": "eq", "value": "sim"}},
+        "sectionVisibleIf": {},
+        "answerIds": ["substancias", "substancias-quais", "vida-ativa", "aceite"],
+        "answeredByPatient": [],
+        "reservedHiddenCount": 0,
+        "pendingReservedQuestionIds": [],
+        "reservedSectionIds": ["intimo"],
+        "reservedQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"],
+        "scoringSectionIds": [],
+        "jsonMustNotContain": ["queixa", "Enxaqueca", "fuma", "humor", "\"scoring\""]
+      }},
+    {"name": "recepção com reserva do médico e da clínica (a dependente vai junto)", "schema": "preconsulta", "audience": "RECEPTION",
+      "reservation": {"sections": ["intimo", "humor"], "questions": ["fuma"]}, "context": {"sexAtBirth": "F", "ageYears": 34}, "answersRef": "preconsulta-respostas",
+      "expected": {
+        "sectionIds": ["inicio", "mulher", "habitos", "termo"],
+        "questionIds": ["boas-vindas-equipe", "queixa", "peso", "dum", "gestante", "semanas", "sintomas", "tosse-dias", "substancias", "substancias-quais", "medicamentos", "exames", "termo-aviso", "aceite"],
+        "visibleIf": {"substancias-quais": null, "tosse-dias": {"question": "sintomas", "op": "includes", "value": "tosse"}},
+        "sectionVisibleIf": {"mulher": null},
+        "answerIds": ["sintomas"],
+        "answeredByPatient": ["queixa", "substancias", "substancias-quais", "aceite"],
+        "reservedHiddenCount": 6,
+        "pendingReservedQuestionIds": [],
+        "reservedSectionIds": [],
+        "reservedQuestionIds": [],
+        "scoringSectionIds": [],
+        "jsonMustNotContain": ["fuma", "cigarros", "humor", "phq2", "intimo", "Enxaqueca", "canabidiol"]
+      }},
+    {"name": "médico sem paciente (prévia do template): contexto fica no schema", "schema": "preconsulta", "audience": "DOCTOR",
+      "reservation": {"sections": ["intimo"], "questions": ["substancias"]}, "context": null, "answersRef": null,
+      "expected": {
+        "sectionIds": ["inicio", "mulher", "habitos", "intimo", "humor", "termo"],
+        "questionIds": ["boas-vindas-paciente", "boas-vindas-equipe", "queixa", "peso", "dum", "gestante", "semanas", "fuma", "cigarros-dia", "sintomas", "tosse-dias", "substancias", "substancias-quais", "medicamentos", "exames", "vida-ativa", "parcerias", "phq2-1", "phq2-2", "termo-aviso", "aceite"],
+        "visibleIf": {"boas-vindas-paciente": {"context": "audience", "op": "eq", "value": "PATIENT"}},
+        "sectionVisibleIf": {"mulher": {"all": [{"context": "sexAtBirth", "op": "eq", "value": "F"}, {"context": "ageYears", "op": "gte", "value": 10}, {"context": "ageYears", "op": "lte", "value": 60}]}},
+        "answerIds": [],
+        "answeredByPatient": [],
+        "reservedHiddenCount": 0,
+        "pendingReservedQuestionIds": ["substancias", "vida-ativa"],
+        "reservedSectionIds": ["intimo"],
+        "reservedQuestionIds": ["substancias", "substancias-quais", "vida-ativa", "parcerias"],
+        "scoringSectionIds": ["humor"],
+        "jsonMustNotContain": []
+      }}
+  ],
+  "answerSets": {
+    "preconsulta-respostas": {
+      "queixa": {"value": "Enxaqueca há 3 dias", "by": "PATIENT", "at": "2026-10-10T12:00:00Z", "memberId": null},
+      "fuma": {"value": "sim", "by": "PATIENT", "at": "2026-10-10T12:01:00Z", "memberId": null},
+      "cigarros-dia": {"value": 10, "by": "RECEPTION", "at": "2026-10-11T09:00:00Z", "memberId": "6f0e2c1a-1b2c-4d3e-8f9a-0b1c2d3e4f5a"},
+      "sintomas": {"value": ["tosse"], "by": "RECEPTION", "at": "2026-10-11T09:01:00Z", "memberId": "6f0e2c1a-1b2c-4d3e-8f9a-0b1c2d3e4f5a"},
+      "substancias": {"value": "sim", "by": "PATIENT", "at": "2026-10-10T12:02:00Z", "memberId": null},
+      "substancias-quais": {"value": "canabidiol", "by": "PATIENT", "at": "2026-10-10T12:03:00Z", "memberId": null},
+      "vida-ativa": {"value": "sim", "by": "PATIENT", "at": "2026-10-10T12:04:00Z", "memberId": null},
+      "phq2-1": {"value": 2, "by": "PATIENT", "at": "2026-10-10T12:05:00Z", "memberId": null},
+      "aceite": {"value": true, "by": "PATIENT", "at": "2026-10-10T12:06:00Z", "memberId": null}
+    }
+  },
+  "scoring": [
+    {"name": "pré-consulta: PHQ-2 positivo", "schema": "preconsulta", "context": {"sexAtBirth": "F", "ageYears": 34}, "answers": {"phq2-1": 2, "phq2-2": 1},
+      "expected": [{"sectionId": "humor", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 3, "band": "Rastreio positivo", "severity": 2, "complete": true}]},
+    {"name": "PHQ-2 negativo (2)", "schema": "phq2", "context": {}, "answers": {"phq2-1": 1, "phq2-2": 1},
+      "expected": [{"sectionId": "phq2", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 2, "band": "Rastreio negativo", "severity": 0, "complete": true}]},
+    {"name": "PHQ-2 no corte (3)", "schema": "phq2", "context": {}, "answers": {"phq2-1": 2, "phq2-2": 1},
+      "expected": [{"sectionId": "phq2", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 3, "band": "Rastreio positivo", "severity": 2, "complete": true}]},
+    {"name": "PHQ-2 máximo (6)", "schema": "phq2", "context": {}, "answers": {"phq2-1": 3, "phq2-2": 3},
+      "expected": [{"sectionId": "phq2", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 6, "band": "Rastreio positivo", "severity": 2, "complete": true}]},
+    {"name": "PHQ-2 com item faltando: parcial e sem faixa", "schema": "phq2", "context": {}, "answers": {"phq2-1": 2},
+      "expected": [{"sectionId": "phq2", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 2, "band": "", "severity": 0, "complete": false}]},
+    {"name": "PHQ-2 com valor fora da régua conta como faltando", "schema": "phq2", "context": {}, "answers": {"phq2-1": 4, "phq2-2": 1},
+      "expected": [{"sectionId": "phq2", "instrumentCode": "PHQ-2", "label": "PHQ-2", "score": 1, "band": "", "severity": 0, "complete": false}]},
+    {"name": "GAD-2 negativo (2)", "schema": "gad2", "context": {}, "answers": {"gad2-1": 0, "gad2-2": 2},
+      "expected": [{"sectionId": "gad2", "instrumentCode": "GAD-2", "label": "GAD-2", "score": 2, "band": "Rastreio negativo", "severity": 0, "complete": true}]},
+    {"name": "GAD-2 positivo (3)", "schema": "gad2", "context": {}, "answers": {"gad2-1": 2, "gad2-2": 1},
+      "expected": [{"sectionId": "gad2", "instrumentCode": "GAD-2", "label": "GAD-2", "score": 3, "band": "Rastreio positivo", "severity": 2, "complete": true}]},
+    {"name": "AUDIT-C homem 3: negativo (corte 4)", "schema": "audit-c", "context": {"sexAtBirth": "M"}, "answers": {"ac-1": "1", "ac-2": "1", "ac-3": "1"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 3, "band": "Negativo", "severity": 0, "complete": true}]},
+    {"name": "AUDIT-C homem 4: positivo", "schema": "audit-c", "context": {"sexAtBirth": "M"}, "answers": {"ac-1": "2", "ac-2": "1", "ac-3": "1"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 4, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "AUDIT-C mulher 3: positivo (corte 3)", "schema": "audit-c", "context": {"sexAtBirth": "F"}, "answers": {"ac-1": "1", "ac-2": "1", "ac-3": "1"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 3, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "AUDIT-C mulher 2: negativo", "schema": "audit-c", "context": {"sexAtBirth": "F"}, "answers": {"ac-1": "1", "ac-2": "1", "ac-3": "0"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 2, "band": "Negativo", "severity": 0, "complete": true}]},
+    {"name": "AUDIT-C sexo I usa o corte mais sensível", "schema": "audit-c", "context": {"sexAtBirth": "I"}, "answers": {"ac-1": "1", "ac-2": "1", "ac-3": "1"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 3, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "AUDIT-C sexo desconhecido usa o corte mais sensível", "schema": "audit-c", "context": {}, "answers": {"ac-1": "1", "ac-2": "1", "ac-3": "1"},
+      "expected": [{"sectionId": "auditc", "instrumentCode": "AUDIT-C", "label": "AUDIT-C", "score": 3, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "Epworth 5", "schema": "epworth", "context": {}, "answers": {"ess-1": 1, "ess-2": 1, "ess-3": 1, "ess-4": 1, "ess-5": 1, "ess-6": 0, "ess-7": 0, "ess-8": 0},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 5, "band": "Normal (baixa)", "severity": 0, "complete": true}]},
+    {"name": "Epworth 6", "schema": "epworth", "context": {}, "answers": {"ess-1": 1, "ess-2": 1, "ess-3": 1, "ess-4": 1, "ess-5": 1, "ess-6": 1, "ess-7": 0, "ess-8": 0},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 6, "band": "Normal (alta)", "severity": 0, "complete": true}]},
+    {"name": "Epworth 10", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 1, "ess-5": 1, "ess-6": 1, "ess-7": 1, "ess-8": 0},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 10, "band": "Normal (alta)", "severity": 0, "complete": true}]},
+    {"name": "Epworth 11", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 1, "ess-6": 1, "ess-7": 1, "ess-8": 0},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 11, "band": "Excessiva leve", "severity": 1, "complete": true}]},
+    {"name": "Epworth 12", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 1, "ess-6": 1, "ess-7": 1, "ess-8": 1},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 12, "band": "Excessiva leve", "severity": 1, "complete": true}]},
+    {"name": "Epworth 13", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 2, "ess-6": 1, "ess-7": 1, "ess-8": 1},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 13, "band": "Excessiva moderada", "severity": 2, "complete": true}]},
+    {"name": "Epworth 15", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 2, "ess-6": 2, "ess-7": 2, "ess-8": 1},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 15, "band": "Excessiva moderada", "severity": 2, "complete": true}]},
+    {"name": "Epworth 16", "schema": "epworth", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 2, "ess-6": 2, "ess-7": 2, "ess-8": 2},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 16, "band": "Excessiva grave", "severity": 3, "complete": true}]},
+    {"name": "Epworth 24", "schema": "epworth", "context": {}, "answers": {"ess-1": 3, "ess-2": 3, "ess-3": 3, "ess-4": 3, "ess-5": 3, "ess-6": 3, "ess-7": 3, "ess-8": 3},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 24, "band": "Excessiva grave", "severity": 3, "complete": true}]},
+    {"name": "Epworth agrupado 11", "schema": "epworth-agrupado", "context": {}, "answers": {"ess-1": 2, "ess-2": 2, "ess-3": 2, "ess-4": 2, "ess-5": 1, "ess-6": 1, "ess-7": 1, "ess-8": 0},
+      "expected": [{"sectionId": "ess", "instrumentCode": "ESS", "label": "Escala de Sonolência de Epworth", "score": 11, "band": "Sonolência excessiva", "severity": 2, "complete": true}]},
+    {"name": "STOP-Bang 0", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 0, "sb-t": 0, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 0, "band": "Baixo risco", "severity": 0, "complete": true}]},
+    {"name": "STOP-Bang 2 (S, T)", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 2, "band": "Baixo risco", "severity": 0, "complete": true}]},
+    {"name": "STOP-Bang 3 só STOP: intermediário", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 1, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "Risco intermediário", "severity": 1, "complete": true}]},
+    {"name": "STOP-Bang 3 = STOP 2 + masculino: alto", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 0, "sb-g": 1},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "Alto risco", "severity": 3, "complete": true}]},
+    {"name": "STOP-Bang 3 = STOP 1 + idade + masculino: intermediário", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 0, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 1, "sb-n": 0, "sb-g": 1},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "Risco intermediário", "severity": 1, "complete": true}]},
+    {"name": "STOP-Bang 4 só STOP: intermediário", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 1, "sb-p": 1, "sb-b": 0, "sb-a": 0, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 4, "band": "Risco intermediário", "severity": 1, "complete": true}]},
+    {"name": "STOP-Bang 3 = STOP 2 + pescoço: alto", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 1, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "Alto risco", "severity": 3, "complete": true}]},
+    {"name": "STOP-Bang 3 = STOP 2 + IMC: alto", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 0, "sb-p": 0, "sb-b": 1, "sb-a": 0, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "Alto risco", "severity": 3, "complete": true}]},
+    {"name": "STOP-Bang 4 = STOP 1 + idade + pescoço + masculino: intermediário", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 0, "sb-o": 0, "sb-p": 0, "sb-b": 0, "sb-a": 1, "sb-n": 1, "sb-g": 1},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 4, "band": "Risco intermediário", "severity": 1, "complete": true}]},
+    {"name": "STOP-Bang 5: alto", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 1, "sb-p": 1, "sb-b": 0, "sb-a": 1, "sb-n": 0, "sb-g": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 5, "band": "Alto risco", "severity": 3, "complete": true}]},
+    {"name": "STOP-Bang incompleto", "schema": "stop-bang", "context": {}, "answers": {"sb-s": 1, "sb-t": 1, "sb-o": 1, "sb-p": 0, "sb-b": 0, "sb-a": 0, "sb-n": 0},
+      "expected": [{"sectionId": "stopbang", "instrumentCode": "STOP-Bang", "label": "STOP-Bang", "score": 3, "band": "", "severity": 0, "complete": false}]},
+    {"name": "IPAQ sem atividade", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 0, "cam-dias": 0},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 0, "band": "Baixo", "severity": 2, "complete": true}]},
+    {"name": "IPAQ caminhada 5×30: moderado (≥ 5 dias de ≥ 30 min)", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 0, "cam-dias": 5, "cam-min": 30},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 495, "band": "Moderado", "severity": 1, "complete": true}]},
+    {"name": "IPAQ caminhada 5×20: baixo", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 0, "cam-dias": 5, "cam-min": 20},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 330, "band": "Baixo", "severity": 2, "complete": true}]},
+    {"name": "IPAQ vigorosa 3×20: moderado", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 3, "vig-min": 20, "mod-dias": 0, "cam-dias": 0},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 480, "band": "Moderado", "severity": 1, "complete": true}]},
+    {"name": "IPAQ vigorosa 3×60 + caminhada 2×30: alto (≥ 1500)", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 3, "vig-min": 60, "mod-dias": 0, "cam-dias": 2, "cam-min": 30},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 1638, "band": "Alto", "severity": 0, "complete": true}]},
+    {"name": "IPAQ 14 dias somados e ≥ 3000: alto", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 7, "mod-min": 60, "cam-dias": 7, "cam-min": 60},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 3066, "band": "Alto", "severity": 0, "complete": true}]},
+    {"name": "IPAQ menos de 10 min zera minutos e dias", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 2, "vig-min": 9, "mod-dias": 0, "cam-dias": 3, "cam-min": 30},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 297, "band": "Baixo", "severity": 2, "complete": true}]},
+    {"name": "IPAQ trunca em 180 min/dia", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 0, "cam-dias": 7, "cam-min": 240},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 4158, "band": "Alto", "severity": 0, "complete": true}]},
+    {"name": "IPAQ acima de 960 min/dia somados: excluído", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 1, "vig-min": 400, "mod-dias": 1, "mod-min": 400, "cam-dias": 1, "cam-min": 200},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 0, "band": "", "severity": 0, "complete": false}]},
+    {"name": "IPAQ sem os minutos de um domínio com dias", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 2, "mod-dias": 0, "cam-dias": 3, "cam-min": 30},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 297, "band": "", "severity": 0, "complete": false}]},
+    {"name": "IPAQ 5 dias somados e ≥ 600: moderado", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 3, "mod-min": 25, "cam-dias": 2, "cam-min": 50},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 630, "band": "Moderado", "severity": 1, "complete": true}]},
+    {"name": "IPAQ caminhada de 5 min todo dia não conta", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "mod-dias": 0, "cam-dias": 7, "cam-min": 5},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 0, "band": "Baixo", "severity": 2, "complete": true}]},
+    {"name": "IPAQ minutos gravados com 0 dias são ignorados", "schema": "ipaq", "context": {}, "answers": {"vig-dias": 0, "vig-min": 60, "mod-dias": 0, "cam-dias": 0},
+      "expected": [{"sectionId": "ipaq", "instrumentCode": "IPAQ-SF", "label": "IPAQ versão curta", "score": 0, "band": "Baixo", "severity": 2, "complete": true}]},
+    {"name": "ADAM sem nenhum sim", "schema": "adam", "context": {}, "answers": {"adam-1": 0, "adam-2": 0, "adam-3": 0, "adam-4": 0, "adam-5": 0, "adam-6": 0, "adam-7": 0, "adam-8": 0, "adam-9": 0, "adam-10": 0},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 0, "band": "Negativo", "severity": 0, "complete": true}]},
+    {"name": "ADAM sim só na 1 (libido): positivo", "schema": "adam", "context": {}, "answers": {"adam-1": 1, "adam-2": 0, "adam-3": 0, "adam-4": 0, "adam-5": 0, "adam-6": 0, "adam-7": 0, "adam-8": 0, "adam-9": 0, "adam-10": 0},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 1, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "ADAM sim só na 7 (ereção): positivo", "schema": "adam", "context": {}, "answers": {"adam-1": 0, "adam-2": 0, "adam-3": 0, "adam-4": 0, "adam-5": 0, "adam-6": 0, "adam-7": 1, "adam-8": 0, "adam-9": 0, "adam-10": 0},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 1, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "ADAM dois sim em outras: negativo", "schema": "adam", "context": {}, "answers": {"adam-1": 0, "adam-2": 1, "adam-3": 1, "adam-4": 0, "adam-5": 0, "adam-6": 0, "adam-7": 0, "adam-8": 0, "adam-9": 0, "adam-10": 0},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 2, "band": "Negativo", "severity": 0, "complete": true}]},
+    {"name": "ADAM três sim em outras: positivo", "schema": "adam", "context": {}, "answers": {"adam-1": 0, "adam-2": 1, "adam-3": 1, "adam-4": 1, "adam-5": 0, "adam-6": 0, "adam-7": 0, "adam-8": 0, "adam-9": 0, "adam-10": 0},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 3, "band": "Positivo", "severity": 2, "complete": true}]},
+    {"name": "ADAM sim só na 10: negativo", "schema": "adam", "context": {}, "answers": {"adam-1": 0, "adam-2": 0, "adam-3": 0, "adam-4": 0, "adam-5": 0, "adam-6": 0, "adam-7": 0, "adam-8": 0, "adam-9": 0, "adam-10": 1},
+      "expected": [{"sectionId": "adam", "instrumentCode": "ADAM", "label": "ADAM", "score": 1, "band": "Negativo", "severity": 0, "complete": true}]},
+    {"name": "AMS 17", "schema": "ams", "context": {}, "answers": {"ams-01": 1, "ams-02": 1, "ams-03": 1, "ams-04": 1, "ams-05": 1, "ams-06": 1, "ams-07": 1, "ams-08": 1, "ams-09": 1, "ams-10": 1, "ams-11": 1, "ams-12": 1, "ams-13": 1, "ams-14": 1, "ams-15": 1, "ams-16": 1, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 17, "band": "Nenhum ou pouco", "severity": 0, "complete": true}]},
+    {"name": "AMS 26", "schema": "ams", "context": {}, "answers": {"ams-01": 2, "ams-02": 2, "ams-03": 2, "ams-04": 2, "ams-05": 2, "ams-06": 2, "ams-07": 2, "ams-08": 2, "ams-09": 2, "ams-10": 1, "ams-11": 1, "ams-12": 1, "ams-13": 1, "ams-14": 1, "ams-15": 1, "ams-16": 1, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 26, "band": "Nenhum ou pouco", "severity": 0, "complete": true}]},
+    {"name": "AMS 27", "schema": "ams", "context": {}, "answers": {"ams-01": 2, "ams-02": 2, "ams-03": 2, "ams-04": 2, "ams-05": 2, "ams-06": 2, "ams-07": 2, "ams-08": 2, "ams-09": 2, "ams-10": 2, "ams-11": 1, "ams-12": 1, "ams-13": 1, "ams-14": 1, "ams-15": 1, "ams-16": 1, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 27, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "AMS 36", "schema": "ams", "context": {}, "answers": {"ams-01": 3, "ams-02": 3, "ams-03": 3, "ams-04": 3, "ams-05": 3, "ams-06": 3, "ams-07": 3, "ams-08": 3, "ams-09": 3, "ams-10": 2, "ams-11": 1, "ams-12": 1, "ams-13": 1, "ams-14": 1, "ams-15": 1, "ams-16": 1, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 36, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "AMS 37", "schema": "ams", "context": {}, "answers": {"ams-01": 3, "ams-02": 3, "ams-03": 3, "ams-04": 3, "ams-05": 3, "ams-06": 3, "ams-07": 3, "ams-08": 3, "ams-09": 3, "ams-10": 3, "ams-11": 1, "ams-12": 1, "ams-13": 1, "ams-14": 1, "ams-15": 1, "ams-16": 1, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 37, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "AMS 49", "schema": "ams", "context": {}, "answers": {"ams-01": 3, "ams-02": 3, "ams-03": 3, "ams-04": 3, "ams-05": 3, "ams-06": 3, "ams-07": 3, "ams-08": 3, "ams-09": 3, "ams-10": 3, "ams-11": 3, "ams-12": 3, "ams-13": 3, "ams-14": 3, "ams-15": 3, "ams-16": 3, "ams-17": 1},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 49, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "AMS 50", "schema": "ams", "context": {}, "answers": {"ams-01": 3, "ams-02": 3, "ams-03": 3, "ams-04": 3, "ams-05": 3, "ams-06": 3, "ams-07": 3, "ams-08": 3, "ams-09": 3, "ams-10": 3, "ams-11": 3, "ams-12": 3, "ams-13": 3, "ams-14": 3, "ams-15": 3, "ams-16": 3, "ams-17": 2},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 50, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "AMS 85", "schema": "ams", "context": {}, "answers": {"ams-01": 5, "ams-02": 5, "ams-03": 5, "ams-04": 5, "ams-05": 5, "ams-06": 5, "ams-07": 5, "ams-08": 5, "ams-09": 5, "ams-10": 5, "ams-11": 5, "ams-12": 5, "ams-13": 5, "ams-14": 5, "ams-15": 5, "ams-16": 5, "ams-17": 5},
+      "expected": [{"sectionId": "ams", "instrumentCode": "AMS", "label": "Aging Males' Symptoms", "score": 85, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "IIEF-5 1", "schema": "iief5", "context": {}, "answers": {"iief-1": 1, "iief-2": 0, "iief-3": 0, "iief-4": 0, "iief-5": 0},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 1, "band": "Disfunção grave", "severity": 3, "complete": true}]},
+    {"name": "IIEF-5 7", "schema": "iief5", "context": {}, "answers": {"iief-1": 2, "iief-2": 2, "iief-3": 1, "iief-4": 1, "iief-5": 1},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 7, "band": "Disfunção grave", "severity": 3, "complete": true}]},
+    {"name": "IIEF-5 8", "schema": "iief5", "context": {}, "answers": {"iief-1": 2, "iief-2": 2, "iief-3": 2, "iief-4": 1, "iief-5": 1},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 8, "band": "Disfunção moderada", "severity": 2, "complete": true}]},
+    {"name": "IIEF-5 11", "schema": "iief5", "context": {}, "answers": {"iief-1": 3, "iief-2": 2, "iief-3": 2, "iief-4": 2, "iief-5": 2},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 11, "band": "Disfunção moderada", "severity": 2, "complete": true}]},
+    {"name": "IIEF-5 12", "schema": "iief5", "context": {}, "answers": {"iief-1": 3, "iief-2": 3, "iief-3": 2, "iief-4": 2, "iief-5": 2},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 12, "band": "Disfunção leve a moderada", "severity": 2, "complete": true}]},
+    {"name": "IIEF-5 16", "schema": "iief5", "context": {}, "answers": {"iief-1": 4, "iief-2": 3, "iief-3": 3, "iief-4": 3, "iief-5": 3},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 16, "band": "Disfunção leve a moderada", "severity": 2, "complete": true}]},
+    {"name": "IIEF-5 17", "schema": "iief5", "context": {}, "answers": {"iief-1": 4, "iief-2": 4, "iief-3": 3, "iief-4": 3, "iief-5": 3},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 17, "band": "Disfunção leve", "severity": 1, "complete": true}]},
+    {"name": "IIEF-5 21", "schema": "iief5", "context": {}, "answers": {"iief-1": 5, "iief-2": 4, "iief-3": 4, "iief-4": 4, "iief-5": 4},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 21, "band": "Disfunção leve", "severity": 1, "complete": true}]},
+    {"name": "IIEF-5 22", "schema": "iief5", "context": {}, "answers": {"iief-1": 5, "iief-2": 5, "iief-3": 4, "iief-4": 4, "iief-5": 4},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 22, "band": "Sem disfunção", "severity": 0, "complete": true}]},
+    {"name": "IIEF-5 25", "schema": "iief5", "context": {}, "answers": {"iief-1": 5, "iief-2": 5, "iief-3": 5, "iief-4": 5, "iief-5": 5},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 25, "band": "Sem disfunção", "severity": 0, "complete": true}]},
+    {"name": "IIEF-5 item 1 com 0 (fora da régua dele) conta como faltando", "schema": "iief5", "context": {}, "answers": {"iief-1": 0, "iief-2": 5, "iief-3": 5, "iief-4": 5, "iief-5": 5},
+      "expected": [{"sectionId": "iief5", "instrumentCode": "IIEF-5", "label": "IIEF-5 (SHIM)", "score": 20, "band": "", "severity": 0, "complete": false}]},
+    {"name": "IPSS 0 (qualidade de vida fora da soma)", "schema": "ipss", "context": {}, "answers": {"ipss-1": 0, "ipss-2": 0, "ipss-3": 0, "ipss-4": 0, "ipss-5": 0, "ipss-6": 0, "ipss-7": 0, "ipss-qv": 6},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 0, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "IPSS 7", "schema": "ipss", "context": {}, "answers": {"ipss-1": 1, "ipss-2": 1, "ipss-3": 1, "ipss-4": 1, "ipss-5": 1, "ipss-6": 1, "ipss-7": 1},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 7, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "IPSS 8 sem a qualidade de vida continua completo", "schema": "ipss", "context": {}, "answers": {"ipss-1": 2, "ipss-2": 1, "ipss-3": 1, "ipss-4": 1, "ipss-5": 1, "ipss-6": 1, "ipss-7": 1},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 8, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "IPSS 19", "schema": "ipss", "context": {}, "answers": {"ipss-1": 3, "ipss-2": 3, "ipss-3": 3, "ipss-4": 3, "ipss-5": 3, "ipss-6": 2, "ipss-7": 2},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 19, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "IPSS 20", "schema": "ipss", "context": {}, "answers": {"ipss-1": 3, "ipss-2": 3, "ipss-3": 3, "ipss-4": 3, "ipss-5": 3, "ipss-6": 3, "ipss-7": 2},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 20, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "IPSS 35", "schema": "ipss", "context": {}, "answers": {"ipss-1": 5, "ipss-2": 5, "ipss-3": 5, "ipss-4": 5, "ipss-5": 5, "ipss-6": 5, "ipss-7": 5},
+      "expected": [{"sectionId": "ipss", "instrumentCode": "IPSS", "label": "IPSS", "score": 35, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "MRS 0", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 0, "mrs-02": 0, "mrs-03": 0, "mrs-04": 0, "mrs-05": 0, "mrs-06": 0, "mrs-07": 0, "mrs-08": 0, "mrs-09": 0, "mrs-10": 0, "mrs-11": 0},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 0, "band": "Nenhum ou pouco", "severity": 0, "complete": true}]},
+    {"name": "MRS 4", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 1, "mrs-02": 1, "mrs-03": 1, "mrs-04": 1, "mrs-05": 0, "mrs-06": 0, "mrs-07": 0, "mrs-08": 0, "mrs-09": 0, "mrs-10": 0, "mrs-11": 0},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 4, "band": "Nenhum ou pouco", "severity": 0, "complete": true}]},
+    {"name": "MRS 5", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 1, "mrs-02": 1, "mrs-03": 1, "mrs-04": 1, "mrs-05": 1, "mrs-06": 0, "mrs-07": 0, "mrs-08": 0, "mrs-09": 0, "mrs-10": 0, "mrs-11": 0},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 5, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "MRS 8", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 1, "mrs-02": 1, "mrs-03": 1, "mrs-04": 1, "mrs-05": 1, "mrs-06": 1, "mrs-07": 1, "mrs-08": 1, "mrs-09": 0, "mrs-10": 0, "mrs-11": 0},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 8, "band": "Leve", "severity": 1, "complete": true}]},
+    {"name": "MRS 9", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 1, "mrs-02": 1, "mrs-03": 1, "mrs-04": 1, "mrs-05": 1, "mrs-06": 1, "mrs-07": 1, "mrs-08": 1, "mrs-09": 1, "mrs-10": 0, "mrs-11": 0},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 9, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "MRS 15", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 2, "mrs-02": 2, "mrs-03": 2, "mrs-04": 2, "mrs-05": 1, "mrs-06": 1, "mrs-07": 1, "mrs-08": 1, "mrs-09": 1, "mrs-10": 1, "mrs-11": 1},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 15, "band": "Moderado", "severity": 2, "complete": true}]},
+    {"name": "MRS 16", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 2, "mrs-02": 2, "mrs-03": 2, "mrs-04": 2, "mrs-05": 2, "mrs-06": 1, "mrs-07": 1, "mrs-08": 1, "mrs-09": 1, "mrs-10": 1, "mrs-11": 1},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 16, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "MRS 44", "schema": "mrs", "context": {"sexAtBirth": "F"}, "answers": {"mrs-01": 4, "mrs-02": 4, "mrs-03": 4, "mrs-04": 4, "mrs-05": 4, "mrs-06": 4, "mrs-07": 4, "mrs-08": 4, "mrs-09": 4, "mrs-10": 4, "mrs-11": 4},
+      "expected": [{"sectionId": "mrs", "instrumentCode": "MRS", "label": "Menopause Rating Scale", "score": 44, "band": "Grave", "severity": 3, "complete": true}]},
+    {"name": "MRS: seção escondida (sexo M) não pontua", "schema": "mrs", "context": {"sexAtBirth": "M"}, "answers": {"mrs-01": 4, "mrs-02": 4, "mrs-03": 4, "mrs-04": 4, "mrs-05": 4, "mrs-06": 4, "mrs-07": 4, "mrs-08": 4, "mrs-09": 4, "mrs-10": 4, "mrs-11": 4},
+      "expected": []},
+    {"name": "Bristol tipo 2", "schema": "bristol", "context": {}, "answers": {"tipo": "tipo-2"},
+      "expected": [{"sectionId": "bristol", "instrumentCode": "BSFS", "label": "Escala de Bristol", "score": 2, "band": "Endurecidas", "severity": 1, "complete": true}]},
+    {"name": "Bristol tipo 3", "schema": "bristol", "context": {}, "answers": {"tipo": "tipo-3"},
+      "expected": [{"sectionId": "bristol", "instrumentCode": "BSFS", "label": "Escala de Bristol", "score": 3, "band": "Normais", "severity": 0, "complete": true}]},
+    {"name": "Bristol tipo 5", "schema": "bristol", "context": {}, "answers": {"tipo": "tipo-5"},
+      "expected": [{"sectionId": "bristol", "instrumentCode": "BSFS", "label": "Escala de Bristol", "score": 5, "band": "Normais", "severity": 0, "complete": true}]},
+    {"name": "Bristol tipo 6", "schema": "bristol", "context": {}, "answers": {"tipo": "tipo-6"},
+      "expected": [{"sectionId": "bristol", "instrumentCode": "BSFS", "label": "Escala de Bristol", "score": 6, "band": "Amolecidas ou líquidas", "severity": 1, "complete": true}]},
+    {"name": "Bristol sem resposta", "schema": "bristol", "context": {}, "answers": {},
+      "expected": [{"sectionId": "bristol", "instrumentCode": "BSFS", "label": "Escala de Bristol", "score": 0, "band": "", "severity": 0, "complete": false}]},
+    {"name": "soma: item escondido fica fora (e não é falta)", "schema": "soma", "context": {}, "answers": {"s1": 1, "s2": 4},
+      "expected": [{"sectionId": "soma", "instrumentCode": null, "label": "Soma genérica", "score": 1, "band": "Baixo", "severity": 0, "complete": true}]},
+    {"name": "soma com invertido", "schema": "soma", "context": {}, "answers": {"s1": 4, "s2": 0, "s3": 2},
+      "expected": [{"sectionId": "soma", "instrumentCode": null, "label": "Soma genérica", "score": 10, "band": "Alto", "severity": 2, "complete": true}]},
+    {"name": "soma com item visível faltando", "schema": "soma", "context": {}, "answers": {"s1": 4, "s2": 1},
+      "expected": [{"sectionId": "soma", "instrumentCode": null, "label": "Soma genérica", "score": 7, "band": "", "severity": 0, "complete": false}]},
+    {"name": "soma no limite de cima da faixa baixa (4)", "schema": "soma", "context": {}, "answers": {"s1": 3, "s2": 4, "s3": 1},
+      "expected": [{"sectionId": "soma", "instrumentCode": null, "label": "Soma genérica", "score": 4, "band": "Baixo", "severity": 0, "complete": true}]},
+    {"name": "soma no limite de baixo da faixa média (5)", "schema": "soma", "context": {}, "answers": {"s1": 3, "s2": 3, "s3": 1},
+      "expected": [{"sectionId": "soma", "instrumentCode": null, "label": "Soma genérica", "score": 5, "band": "Médio", "severity": 1, "complete": true}]},
+    {"name": "média 4,67", "schema": "media", "context": {}, "answers": {"m1": 5, "m2": 5, "m3": 2},
+      "expected": [{"sectionId": "media", "instrumentCode": null, "label": "Média genérica", "score": 4.67, "band": "Alto", "severity": 2, "complete": true}]},
+    {"name": "média 1,67", "schema": "media", "context": {}, "answers": {"m1": 1, "m2": 2, "m3": 4},
+      "expected": [{"sectionId": "media", "instrumentCode": null, "label": "Média genérica", "score": 1.67, "band": "Baixo", "severity": 0, "complete": true}]},
+    {"name": "média 2,67", "schema": "media", "context": {}, "answers": {"m1": 3, "m2": 2, "m3": 3},
+      "expected": [{"sectionId": "media", "instrumentCode": null, "label": "Média genérica", "score": 2.67, "band": "Médio", "severity": 1, "complete": true}]},
+    {"name": "média 2,33", "schema": "media", "context": {}, "answers": {"m1": 3, "m2": 3, "m3": 5},
+      "expected": [{"sectionId": "media", "instrumentCode": null, "label": "Média genérica", "score": 2.33, "band": "Baixo", "severity": 0, "complete": true}]},
+    {"name": "média com item faltando: parcial", "schema": "media", "context": {}, "answers": {"m1": 4, "m2": 3},
+      "expected": [{"sectionId": "media", "instrumentCode": null, "label": "Média genérica", "score": 3.5, "band": "", "severity": 0, "complete": false}]},
+    {"name": "média arredonda metade para cima (17/8 = 2,125 → 2,13)", "schema": "media8", "context": {}, "answers": {"h1": 3, "h2": 3, "h3": 3, "h4": 2, "h5": 2, "h6": 2, "h7": 1, "h8": 1},
+      "expected": [{"sectionId": "media8", "instrumentCode": null, "label": "Média de 8", "score": 2.13, "band": "Alto", "severity": 1, "complete": true}]},
+    {"name": "média arredonda metade para cima (1/8 = 0,125 → 0,13)", "schema": "media8", "context": {}, "answers": {"h1": 1, "h2": 0, "h3": 0, "h4": 0, "h5": 0, "h6": 0, "h7": 0, "h8": 0},
+      "expected": [{"sectionId": "media8", "instrumentCode": null, "label": "Média de 8", "score": 0.13, "band": "Baixo", "severity": 0, "complete": true}]}
+  ]
+}

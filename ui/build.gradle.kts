@@ -15,8 +15,73 @@ compose.resources {
     generateResClass = always
 }
 
+/**
+ * As fixtures compartilhadas do FormSchema v1 (`src/commonTest/fixtures/form-schema-v1.fixtures.json`,
+ * cópia SEM edição do recurso do `backlib-forms` — a mesma que a weblib copia) viram fonte Kotlin do
+ * `commonTest`: o contrato roda no Android (JVM) E no iOS (Native), sem API de arquivo comum. A cópia
+ * versionada é o JSON; o `.kt` gerado nunca é editado nem versionado. Mudou expectativa no servidor:
+ * troca-se a cópia (e sobe o `fixturesVersion` do teste) — nunca se "conserta" a cópia de um lado só.
+ */
+abstract class GenerateFormSchemaFixtures : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val fixtures: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val json = fixtures.get().asFile.readText(Charsets.UTF_8)
+        // Pedaços pequenos: a constante de string da JVM tem teto de 64 KB, e o arquivo passa disso.
+        val chunks = ArrayList<String>()
+        var start = 0
+        while (start < json.length) {
+            var end = minOf(start + 4_000, json.length)
+            if (end < json.length && json[end].isLowSurrogate()) end--
+            chunks += json.substring(start, end)
+            start = end
+        }
+        val body = chunks.joinToString("\n") { chunk ->
+            val escaped = buildString {
+                chunk.forEach { c ->
+                    when {
+                        c == '\\' -> append("\\\\")
+                        c == '"' -> append("\\\"")
+                        c == '$' -> append("\\$")
+                        c == '\n' -> append("\\n")
+                        c == '\r' -> append("\\r")
+                        c == '\t' -> append("\\t")
+                        c < ' ' -> append("\\u" + c.code.toString(16).padStart(4, '0'))
+                        else -> append(c)
+                    }
+                }
+            }
+            "    append(\"$escaped\")"
+        }
+        val file = outputDir.get().file("br/com/codecacto/kmplib/ui/form/FormSchemaFixturesJson.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            "// GERADO por :kmplib-ui:generateFormSchemaFixtures a partir de\n" +
+                "// src/commonTest/fixtures/form-schema-v1.fixtures.json — não editar.\n" +
+                "package br.com.codecacto.kmplib.ui.form\n\n" +
+                "internal val FORM_SCHEMA_FIXTURES_JSON: String = buildString {\n$body\n}\n",
+            Charsets.UTF_8,
+        )
+    }
+}
+
+val generateFormSchemaFixtures = tasks.register<GenerateFormSchemaFixtures>("generateFormSchemaFixtures") {
+    fixtures.set(layout.projectDirectory.file("src/commonTest/fixtures/form-schema-v1.fixtures.json"))
+    outputDir.set(layout.buildDirectory.dir("generated/formSchemaFixtures/commonTest/kotlin"))
+}
+
 kotlin {
     sourceSets {
+        commonTest {
+            kotlin.srcDir(generateFormSchemaFixtures.flatMap { it.outputDir })
+        }
+
         commonMain.dependencies {
             api(project(":kmplib-core"))
             api(project(":kmplib-mask"))

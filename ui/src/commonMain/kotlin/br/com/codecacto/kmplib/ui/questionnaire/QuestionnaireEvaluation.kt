@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.ui.questionnaire
 
 import androidx.compose.runtime.Immutable
@@ -25,6 +27,7 @@ sealed class QuestionnaireFieldError {
  *   documento conta, e falta).
  * @property band a faixa — só quando [isComplete].
  */
+@Deprecated(DEPRECATED_SCORE)
 @Immutable
 data class QuestionnaireScoreResult(
     val score: QuestionnaireScore,
@@ -50,6 +53,7 @@ data class QuestionnaireProgress(
     val answered: Int,
     val total: Int,
     val pending: Int,
+    @Deprecated(DEPRECATED_RESERVED)
     val reservedPending: Int,
 ) {
     /** Nada impede concluir. */
@@ -123,6 +127,7 @@ class QuestionnaireEvaluation internal constructor(
     private val errors = HashMap<String, QuestionnaireFieldError>()
 
     /** Todos os escores do questionário, na ordem declarada. */
+    @Deprecated(DEPRECATED_SCORE)
     val scores: List<QuestionnaireScoreResult>
 
     /** O progresso do questionário inteiro. */
@@ -220,18 +225,22 @@ class QuestionnaireEvaluation internal constructor(
         navigableQuestions(block).filter { errors.containsKey(it.id) }
 
     /** A pergunta é reservada — por ela mesma ou pelo bloco. */
+    @Deprecated(DEPRECATED_RESERVED)
     fun isReserved(questionId: String): Boolean = index[questionId]?.let { it.question.reserved || it.block.reserved } == true
 
     /** Reservadas visíveis ainda sem resposta, na ordem. */
+    @Deprecated(DEPRECATED_RESERVED)
     val reservedPending: List<QuestionnaireQuestion>
         get() = visibleBlocks.flatMap { navigableQuestions(it) }.filter { isReserved(it.id) && !usable.containsKey(it.id) }
 
+    @Deprecated(DEPRECATED_SCORE)
     fun score(scoreId: String): QuestionnaireScoreResult? = scores.firstOrNull { it.score.id == scoreId }
 
     /**
      * Os escores exibidos ao fim deste bloco: os que têm a ÚLTIMA pergunta (na ordem do documento)
      * dentro dele. É onde o escore fica completo para quem responde na ordem.
      */
+    @Deprecated(DEPRECATED_SCORE)
     fun scoresOwnedBy(block: QuestionnaireBlock): List<QuestionnaireScoreResult> =
         scores.filter { ownerBlockId(it.score) == block.id }
 
@@ -264,6 +273,7 @@ class QuestionnaireEvaluation internal constructor(
     }
 
     /** Avalia uma condição contra este estado — a mesma regra do `visibleIf` e do `when` das faixas. */
+    @Deprecated(DEPRECATED_CONDITION)
     fun holds(condition: QuestionnaireCondition): Boolean = conditionHolds(condition)
 
     // -----------------------------------------------------------------------------------------
