@@ -1,5 +1,8 @@
 plugins {
     id("kmplib.module.compose")
+    // O questionário (`ui.questionnaire`, 2.265.0) é JSON vindo do servidor — o MESMO contrato do
+    // `QuestionnaireRunner` da weblib. O runtime (`kotlinx-serialization-json`) já chega por `core`.
+    alias(libs.plugins.kotlinSerialization)
 }
 
 // Os recursos compartilhados da lib (as 4 traduções, o logo CodeCacto, os ícones de Google e

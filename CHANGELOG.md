@@ -5,6 +5,67 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.265.0 — `ui`: `QuestionnaireRunner` — o runner de questionário da weblib, no app, sobre o MESMO JSON (GAP-VIT-K05)
+
+**Por quê.** O Vitalis (app do médico/secretária, Onda 1) roda a triagem da secretária (AM-13) e a
+pré-consulta preenchida dentro da consulta (AM-10/11) no app, e o servidor manda o formulário
+(modelo → bloco → pergunta) no MESMO JSON que o `QuestionnaireRunner` da weblib consome — um contrato
+para web e app. Sem o par na kmplib, cada app reescreveria bloco → pergunta → condicional → escore na
+tela, e as duas pontas dariam escores diferentes para a mesma resposta.
+
+**Pacote novo `br.com.codecacto.kmplib.ui.questionnaire` (artefato `kmplib-ui`; o umbrella traz):**
+
+- **Contrato** `Questionnaire`/`QuestionnaireBlock`/`QuestionnaireQuestion`/`QuestionnaireScale` — campo a
+  campo os da weblib: um documento da weblib de hoje roda sem mudança. **Extensões, todas opcionais e com
+  default = comportamento da weblib:** `type` (`scale` default, `choice`, `multi-choice`, `number`, `text`,
+  `date`; tipo desconhecido vira `UNSUPPORTED` — aviso na tela, nunca obrigatório), `options` com `score`,
+  `scale` por pergunta, `min`/`max`/`decimals`/`unit`, `multiline`/`maxLength`, `visibleIf` em bloco e
+  pergunta (`question`/`context`/`score` + `equals`/`notEquals`/`in`/`gt`/`gte`/`lt`/`lte`/`contains`/
+  `answered` + `all`/`any`/`not`; sem resposta toda comparação é falsa), `reserved` em bloco e pergunta (o
+  SERVIDOR filtra; o runner só marca "pendente") e `scores[]` (soma + `products` peso × resposta × resposta
+  + `bands` com `min`/`max`/`tone`/`when`; incompleto não tem faixa). `QuestionnaireJson` (leitura tolerante:
+  campo, tipo e tom desconhecidos não derrubam), `QuestionnaireValue` (resposta crua no fio — régua =
+  número, inteiro sem `.0`, como o JS), `QuestionnaireAnswerItem` (`{questionId, value}` = `AnswerBatchItem`;
+  `value` nulo = resposta apagada), `QuestionnaireAnswersSerializer` (mapa tolerante para DTO do app).
+- **Motor puro** `questionnaire.evaluate(answers, context)` → `QuestionnaireEvaluation`: visibilidade com
+  cascata (resposta de pergunta oculta não existe) e guarda de ciclo, `progress`, `errorOf`, `pendingIn`,
+  `scores`, `reservedPending`, `firstUnansweredStep` (retomada), `effectiveAnswers`, `hiddenAnsweredIds`,
+  `holds`. `questionnaire.validate()` → `QuestionnaireIssue` (o runner registra no log).
+- **MVI** `QuestionnaireRunnerState` (imutável, mora no ViewModel; `start(…, resume)`, `reduce(action)` →
+  `QuestionnaireRunnerUpdate(state, event)`), ações `Answer`/`EditNumber`/`Next`/`Back`/`AutoAdvance`/
+  `GoTo`/`FocusHandled`, eventos `Answered` (→ fila) / `Finished(answers, cleared)` / `Exited`,
+  `QuestionnaireFocusRequest` (pedido de foco como estado, a recomendação oficial do Android),
+  `QuestionnairePosition`, `QuestionnairePace` (`Auto`/`Grouped`/`OneByOne`).
+- **Tela** `QuestionnaireRunner(state, onAction, …, pace, autoAdvance, notice, showScores, respondentName,
+  contentPadding, texts)` — stateless; agrupado em `LocalIsCompact`, uma por vez fora dele (avanço
+  automático 260 ms, nunca na última do bloco); régua em linha (`LikertScaleField`) ou empilhada com o
+  rótulo de cada ponto no celular; erro NO campo só depois do envio, limpo ao editar (só aquela pergunta),
+  rolagem + foco na primeira pendente, "Faltam N" em região viva; marca da reservada e "Respondida por…";
+  escore com o tom do tema (sem `Color(0x…)`); `QuestionnaireTestTags` (`questionario-*`, por pergunta);
+  `rememberQuestionnaireTexts()` em pt-BR/en/es/pt-PT; `LocalReduceMotion` desliga a transição.
+- **Fila** `QuestionnaireAnswerQueue(scope, save)` — o `useAnswerQueue` da weblib: uma requisição por vez,
+  o que chega no meio se junta (mais novo vence), o que falhou volta sem sobrescrever o novo, retentativa
+  sozinha 0,5 → 8 s, `flush()` antes de concluir.
+
+**Onde diverge da weblib, de propósito (registrado para o `lib-web` alinhar):** "Voltar" entre blocos no
+ritmo uma-por-vez cai na ÚLTIMA pergunta do bloco anterior (lá, na primeira); responder limpa o erro só
+daquela pergunta (lá, todos); "Concluir" confere o questionário inteiro e descarta resposta de pergunta
+oculta.
+
+**Limites conhecidos:** `number` sem sinal (o `NumberField` não aceita "-"); data escolhida não se apaga;
+anexo/foto, tabela e lista repetível ficam fora do runner (a tela do app desenha).
+
+**Aditivo — nenhuma API existente muda; sem piso.** O módulo `ui` passa a aplicar o plugin
+`kotlinx.serialization` (o runtime já vinha por `core`). **De passagem:** dois nomes de teste com vírgula
+no `OnBrandContainerColorTest` (2.262.3) quebravam o `compileTestKotlinIosArm64` do `ui` (o Kotlin/Native
+não aceita vírgula em nome de função) — renomeados.
+
+Testes: 102 novos em 9 classes — contrato do fio, condições, avaliação, **as 12 escalas do Vitalis como
+vetor de conformidade** (PHQ-2, GAD-2, Epworth, STOP-Bang, IPAQ curto, AUDIT-C, Bristol, ADAM, AMS, IIEF-5,
+IPSS, MRS — o mesmo documento tem de dar o mesmo escore na web e no servidor), reducer, fila, validação,
+textos e paridade pt-BR. `ui`: 844 testes, 0 falha. Compilados: Android, `compileKotlinIosArm64` e
+`compileTestKotlinIosArm64` (sem `SKIPPED`). Catálogo: `kmplib-catalog` → `references/ui-questionnaire.md`.
+
 ## 2.264.0 — `health` (NOVO): Health Connect (Android) + HealthKit (iOS), leitura/escrita pós-treino
 
 **Por quê.** Par do `kmplib-workout` (2.263.0): o treino guiado precisa ler FC e calorias do

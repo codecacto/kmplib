@@ -298,4 +298,34 @@
     <string name="kmplib_reauth_account_mismatch">This is not the signed-in account. Confirm with the account of this session.</string>
     <string name="kmplib_reauth_required">Confirm your identity to continue.</string>
     <string name="kmplib_reauth_failed">Could not confirm. Try again.</string>
+
+    <!-- Questionário (ui.questionnaire, GAP-VIT-K05) -->
+    <string name="kmplib_questionnaire_block_progress">Section %1$d of %2$d</string>
+    <string name="kmplib_questionnaire_question_progress">Question %1$d of %2$d</string>
+    <string name="kmplib_questionnaire_answered">%1$d of %2$d answered</string>
+    <string name="kmplib_questionnaire_missing_one">1 question left in this section.</string>
+    <string name="kmplib_questionnaire_missing_other">%1$d questions left in this section.</string>
+    <string name="kmplib_questionnaire_back">Back</string>
+    <string name="kmplib_questionnaire_next">Continue</string>
+    <string name="kmplib_questionnaire_finish">Finish</string>
+    <string name="kmplib_questionnaire_finishing">Finishing…</string>
+    <string name="kmplib_questionnaire_required_scale">Choose a point on the scale.</string>
+    <string name="kmplib_questionnaire_required_choice">Choose an option.</string>
+    <string name="kmplib_questionnaire_required_multi_choice">Select at least one option.</string>
+    <string name="kmplib_questionnaire_required_field">Fill in this field.</string>
+    <string name="kmplib_questionnaire_required_date">Choose a date.</string>
+    <string name="kmplib_questionnaire_out_of_range">Enter a value between %1$s and %2$s.</string>
+    <string name="kmplib_questionnaire_at_least">Enter a value of %1$s or more.</string>
+    <string name="kmplib_questionnaire_at_most">Enter a value of %1$s or less.</string>
+    <string name="kmplib_questionnaire_optional">Optional</string>
+    <string name="kmplib_questionnaire_reserved_pending">Pending — ask in person</string>
+    <string name="kmplib_questionnaire_filled_by">Answered by %1$s</string>
+    <string name="kmplib_questionnaire_score_incomplete">Incomplete: %1$d of %2$d answered</string>
+    <string name="kmplib_questionnaire_date_label">Date</string>
+    <string name="kmplib_questionnaire_unavailable">This question isn't available in this version of the app.</string>
+    <string name="kmplib_questionnaire_unsaved">Your answers are on this screen but haven't been saved yet.</string>
+    <string name="kmplib_questionnaire_option">option</string>
+    <string name="kmplib_questionnaire_of">of</string>
+    <string name="kmplib_questionnaire_unanswered">Not answered</string>
+    <string name="kmplib_questionnaire_invalid_scale">Invalid scale</string>
 </resources>

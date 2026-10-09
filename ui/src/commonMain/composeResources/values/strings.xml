@@ -308,4 +308,34 @@
     <string name="kmplib_reauth_account_mismatch">Esta não é a conta conectada. Confirme com a conta desta sessão.</string>
     <string name="kmplib_reauth_required">Confirme sua identidade para continuar.</string>
     <string name="kmplib_reauth_failed">Não foi possível confirmar. Tente novamente.</string>
+
+    <!-- Questionário (ui.questionnaire, GAP-VIT-K05) -->
+    <string name="kmplib_questionnaire_block_progress">Bloco %1$d de %2$d</string>
+    <string name="kmplib_questionnaire_question_progress">Pergunta %1$d de %2$d</string>
+    <string name="kmplib_questionnaire_answered">%1$d de %2$d respondidas</string>
+    <string name="kmplib_questionnaire_missing_one">Falta 1 pergunta neste bloco.</string>
+    <string name="kmplib_questionnaire_missing_other">Faltam %1$d perguntas neste bloco.</string>
+    <string name="kmplib_questionnaire_back">Voltar</string>
+    <string name="kmplib_questionnaire_next">Continuar</string>
+    <string name="kmplib_questionnaire_finish">Concluir</string>
+    <string name="kmplib_questionnaire_finishing">Concluindo…</string>
+    <string name="kmplib_questionnaire_required_scale">Escolha um ponto da escala.</string>
+    <string name="kmplib_questionnaire_required_choice">Escolha uma opção.</string>
+    <string name="kmplib_questionnaire_required_multi_choice">Marque pelo menos uma opção.</string>
+    <string name="kmplib_questionnaire_required_field">Preencha este campo.</string>
+    <string name="kmplib_questionnaire_required_date">Escolha uma data.</string>
+    <string name="kmplib_questionnaire_out_of_range">Informe um valor entre %1$s e %2$s.</string>
+    <string name="kmplib_questionnaire_at_least">Informe um valor a partir de %1$s.</string>
+    <string name="kmplib_questionnaire_at_most">Informe um valor até %1$s.</string>
+    <string name="kmplib_questionnaire_optional">Opcional</string>
+    <string name="kmplib_questionnaire_reserved_pending">Pendente — perguntar pessoalmente</string>
+    <string name="kmplib_questionnaire_filled_by">Respondida por %1$s</string>
+    <string name="kmplib_questionnaire_score_incomplete">Incompleto: %1$d de %2$d respondidas</string>
+    <string name="kmplib_questionnaire_date_label">Data</string>
+    <string name="kmplib_questionnaire_unavailable">Pergunta indisponível nesta versão do app.</string>
+    <string name="kmplib_questionnaire_unsaved">Suas respostas estão nesta tela, mas ainda não foram salvas.</string>
+    <string name="kmplib_questionnaire_option">opção</string>
+    <string name="kmplib_questionnaire_of">de</string>
+    <string name="kmplib_questionnaire_unanswered">Não respondida</string>
+    <string name="kmplib_questionnaire_invalid_scale">Escala inválida</string>
 </resources>

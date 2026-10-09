@@ -3,6 +3,22 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 09/out/2026 — GAP-VIT-K05 entregue + defeito do `NumberField` achado de passagem (lib-mobile)
+- [x] **GAP-VIT-K05 — runner de questionário/formulário configurável: ENTREGUE na 2.265.0** (`ui/questionnaire`,
+      catálogo `references/ui-questionnaire.md`). O `QuestionnaireRunner` da weblib no app, sobre o MESMO JSON (documento
+      da weblib roda sem mudança) + extensões opcionais: tipos (`choice`/`multi-choice`/`number`/`text`/`date`),
+      `visibleIf` (resposta, contexto, escore), `scores[]` com faixas, `reserved`, "quem respondeu" (`filledBy`/
+      `respondent`) e a fila `QuestionnaireAnswerQueue` (o `useAnswerQueue`). As 12 escalas do Vitalis viraram vetor de
+      conformidade em `QuestionnaireScoringTest`. **Fora da kmplib:** as extensões na weblib (lacuna reportada ao
+      `lib-web` pelo CTO) e a MESMA avaliação de condição/escore no servidor do Vitalis.
+- [ ] **GAP-NUMBERFIELD-MIN-01 (Médio) — `NumberField(minValue = x)` recusa o PRIMEIRO dígito de número que começa abaixo
+      de x.** O filtro (`filterNumberFieldInput`) confere a faixa a cada tecla: com `minValue = 5`, o "1" de "15" é
+      recusado e 10–49 ficam impossíveis de digitar (o `NumberFieldInputTest` trava esse comportamento). O teto pode ser
+      conferido na tecla (o número só cresce); o piso não — tem de ir para a validação no envio, com erro no campo (o
+      padrão da fábrica). Achado ao portar o questionário, que por isso NÃO passa `minValue` ao campo. Correção: conferir
+      só o máximo na tecla e deixar o mínimo para o `errorMessage` de quem chama; entra com piso (`simbolos: [NumberField]`
+      restrito a quem passa `minValue`).
+
 ### Registrado em 08/out/2026 — manifesto do app herda superfície que ele não usa (security-review do Escuta)
 - [ ] **GAP-MANIFESTO-TRANSITIVO-01 (Baixo) — `kmplib-firebase` e `kmplib-monetization` mesclam no manifesto de todo app
       o que só serve a quem usa Firebase Auth / venda na loja.** `kmplib-firebase` traz `firebase-auth` (GitLive + `firebase-auth-ktx`)

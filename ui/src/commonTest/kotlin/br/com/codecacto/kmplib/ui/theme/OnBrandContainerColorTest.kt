@@ -57,7 +57,7 @@ class OnBrandContainerColorTest {
     )
 
     @Test
-    fun `caso Sinaleiro — amarelo no container a 10 por cento passa de 1,7 para 4,5`() {
+    fun `caso Sinaleiro — amarelo no container a 10 por cento passa de 1 virgula 7 para 4 virgula 5`() {
         val yellow = Color(0xFFEAB308)
         val s = createLightColorScheme(AppColorPalette(primary = Color(0xFF1D4ED8), secondary = yellow))
         val shown = ColorContrast.compositeOver(s.secondaryContainer, 1f, Color.White)
@@ -101,7 +101,7 @@ class OnBrandContainerColorTest {
     }
 
     @Test
-    fun `claro escurece e escuro clareia, preservando o matiz`() {
+    fun `claro escurece e escuro clareia preservando o matiz`() {
         val yellow = Color(0xFFEAB308)
         val light = createLightColorScheme(AppColorPalette(primary = yellow)).onPrimaryContainer
         val dark = createDarkColorScheme(AppColorPalette(primary = Color(0xFF7C2D12))).onPrimaryContainer
