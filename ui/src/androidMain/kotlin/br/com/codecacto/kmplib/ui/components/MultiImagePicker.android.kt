@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -107,7 +108,7 @@ private fun decodeImageUri(context: Context, uri: Uri): PickedImage? = try {
         PickedImage(bytes = bytes, widthPx = largura, heightPx = altura)
     }
 } catch (e: Exception) {
-    AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser lida: ${e.message}")
+    AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser lida: ${redactMediaUrlsIn(e.message)}")
     null
 }
 

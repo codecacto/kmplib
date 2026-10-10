@@ -78,6 +78,8 @@ val generateFormSchemaFixtures = tasks.register<GenerateFormSchemaFixtures>("gen
 
 kotlin {
     sourceSets {
+        // `redactMediaUrl`/`redactMediaUrlsIn` (kmplib-core): URL de mídia sem assinatura no log.
+        all { languageSettings.optIn("br.com.codecacto.kmplib.core.util.KmpLibCoreInternalApi") }
         commonTest {
             kotlin.srcDir(generateFormSchemaFixtures.flatMap { it.outputDir })
         }

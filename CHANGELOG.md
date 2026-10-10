@@ -5,6 +5,36 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.277.1 — URL de mídia sem assinatura no log, no `toString` e na mensagem de erro (`kmplib-video`, `kmplib-video-download`, `kmplib-ui`)
+
+**Por quê.** `VideoPlayerState.ios.kt` registrava `"URL de vídeo inválida: ${media.url}"` — a URL
+inteira, com a assinatura da URL pré-assinada (S3/CloudFront), quando o `NSURL` não a interpretava. A
+varredura achou o mesmo padrão em outros pontos: o log da legenda externa (a mensagem do Ktor traz a
+URL inteira), o feed do iOS, as mensagens de exceção do download, e o `toString` gerado dos `data
+class` que levam URL (`VideoMedia`, `MediaDownloadRequest`…) e cabeçalho (`PhotoSource.Url` imprimia o
+`Authorization`). Higiene (régua de 28/set/2026): só CHANGELOG — sem aviso, sem piso; entra no
+próximo bump de quem usa.
+
+**Regra única — `redactMediaUrl(url)` / `redactMediaUrlsIn(texto)` (`kmplib-core`, `core.util`).**
+Fica **esquema · host (com porta) · caminho**; saem query, fragmento e `usuário:senha@` da
+autoridade. Texto sem esquema não vai para o log: vira `[url omitida]`. Marcados com
+`@KmpLibCoreInternalApi` (`RequiresOptIn` de nível ERROR) — ponte entre módulos da lib, não contrato
+para app.
+
+**Onde mudou**
+- `kmplib-video`: URL inválida no player e no feed (iOS) só com a forma reduzida; legenda externa que
+  falha loga a URL reduzida + o tipo da exceção; as mensagens de erro de reprodução (Media3 /
+  AVFoundation) passam pela redação no log **e** no `VideoStatus.Error.cause`; `toString` de
+  `VideoMedia` e `VideoSubtitleTrack` (este também sem o conteúdo da legenda — só o tamanho).
+- `kmplib-video-download`: mensagens de falha de preparo, de download, de `onRenewUrl` e do serviço
+  sem URL; `toString` de `MediaDownloadRequest`, `MediaDownloadRecord` (também sem `localPath`) e
+  `MediaDownload`.
+- `kmplib-ui`: logs dos seletores de foto/vídeo (Android/iOS) passam pela redação; `toString` de
+  `PhotoSource.Url` (só os NOMES dos cabeçalhos), `PhotoStripItem` e `PickedVideo` (sem a referência
+  local e sem o nome do arquivo).
+
+Igualdade, `hashCode`, `copy` e serialização dos `data class` não mudaram — só o `toString`.
+
 ## 2.277.0 — `PickedVideo.readRange(offset, length)` e `readChunks(fromByte = …)`: ler o vídeo a partir de um deslocamento
 
 **Por quê.** App do Personal (MP6, upload multipart de vídeo retomável): o `readChunks` só lia desde o

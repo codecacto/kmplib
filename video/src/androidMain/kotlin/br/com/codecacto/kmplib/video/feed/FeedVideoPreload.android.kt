@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.feed
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import android.content.Context
 import android.net.ConnectivityManager
 import androidx.annotation.OptIn
@@ -136,7 +137,7 @@ internal class Media3FeedPreloader(
         builderRef = builder
         builder.build()
     }.onFailure {
-        AppLogger.w(FEED_TAG, "Pré-carregamento de feed indisponível: ${it.message}")
+        AppLogger.w(FEED_TAG, "Pré-carregamento de feed indisponível: ${redactMediaUrlsIn(it.message)}")
     }.getOrNull()
 
     private fun mediaItemDe(item: FeedPreloadItem): MediaItem {

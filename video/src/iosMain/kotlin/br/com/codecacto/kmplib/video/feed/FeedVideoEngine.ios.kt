@@ -3,6 +3,8 @@
 
 package br.com.codecacto.kmplib.video.feed
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.video.VideoErrorKind
 import br.com.codecacto.kmplib.video.VideoStatus
@@ -93,7 +95,7 @@ internal class AvFeedVideoEngine(private val config: FeedVideoConfig) : FeedVide
 
         val endereco = NSURL.URLWithString(url)
         if (endereco == null) {
-            AppLogger.w(FEED_TAG, "URL de vídeo de feed inválida: $url")
+            AppLogger.w(FEED_TAG, "URL de vídeo de feed inválida: ${redactMediaUrl(url)}")
             status = VideoStatus.Error(VideoErrorKind.Unknown, FeedVideoTexts().playbackError, "URL inválida")
             return
         }
@@ -245,8 +247,8 @@ internal class AvFeedVideoEngine(private val config: FeedVideoConfig) : FeedVide
             ?.toInt() ?: 0
         val kind = if (http > 0) videoErrorKindForHttpStatus(http) else VideoErrorKind.Network
         val detalhe = item?.error?.localizedDescription ?: "falha"
-        AppLogger.w(FEED_TAG, "Vídeo de feed falhou (HTTP $http): $detalhe")
-        status = VideoStatus.Error(kind, FeedVideoTexts().playbackError, detalhe)
+        AppLogger.w(FEED_TAG, "Vídeo de feed falhou (HTTP $http): ${redactMediaUrlsIn(detalhe)}")
+        status = VideoStatus.Error(kind, FeedVideoTexts().playbackError, redactMediaUrlsIn(detalhe))
     }
 
     private companion object {
@@ -328,7 +330,7 @@ private object FeedAudioSession {
                 sessao.setCategory(AVAudioSessionCategoryAmbient, error = null)
             }
         } catch (e: Exception) {
-            AppLogger.w(FEED_TAG, "AVAudioSession não configurada para o feed: ${e.message}")
+            AppLogger.w(FEED_TAG, "AVAudioSession não configurada para o feed: ${redactMediaUrlsIn(e.message)}")
         }
     }
 

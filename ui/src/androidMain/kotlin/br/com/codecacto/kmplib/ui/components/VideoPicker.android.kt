@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import androidx.compose.ui.platform.testTag
@@ -109,7 +110,7 @@ actual fun rememberVideoPickerLauncher(
             uriDaCaptura = uri
             camera.launch(uri)
         } catch (e: Exception) {
-            AppLogger.w(TAG, "Câmera de vídeo indisponível: ${e.message}")
+            AppLogger.w(TAG, "Câmera de vídeo indisponível: ${redactMediaUrlsIn(e.message)}")
             onError(VideoPickerError.CAMERA_UNAVAILABLE)
         }
     }
@@ -226,7 +227,7 @@ private fun entregar(
             ),
         )
     } catch (e: Exception) {
-        AppLogger.w(TAG, "Vídeo escolhido não pôde ser lido: ${e.message}")
+        AppLogger.w(TAG, "Vídeo escolhido não pôde ser lido: ${redactMediaUrlsIn(e.message)}")
         onError(VideoPickerError.UNREADABLE)
     }
 }
@@ -257,7 +258,7 @@ private fun lerMetadados(context: Context, uri: Uri): MetadadosDeVideo {
             altura = if (deitadoNoArquivo) largura else altura,
         )
     } catch (e: Exception) {
-        AppLogger.w(TAG, "Metadados do vídeo não lidos: ${e.message}")
+        AppLogger.w(TAG, "Metadados do vídeo não lidos: ${redactMediaUrlsIn(e.message)}")
         MetadadosDeVideo(null, null, null)
     } finally {
         runCatching { leitor.release() }
@@ -414,7 +415,7 @@ actual suspend fun PickedVideo.captureFrame(atMillis: Long): ByteArray? {
             saida.toByteArray()
         } catch (e: Exception) {
             // Capa é acessório: falhar aqui não pode derrubar a publicação do vídeo.
-            AppLogger.w(TAG, "Capa não extraída do vídeo: ${e.message}")
+            AppLogger.w(TAG, "Capa não extraída do vídeo: ${redactMediaUrlsIn(e.message)}")
             null
         } finally {
             runCatching { leitor.release() }

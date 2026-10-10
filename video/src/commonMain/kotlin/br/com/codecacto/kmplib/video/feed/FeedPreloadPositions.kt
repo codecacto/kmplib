@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.video.feed
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
+
 /**
  * A **posição estável** de cada vídeo no espaço de coordenadas do pré-carregador.
  *
@@ -40,7 +42,10 @@ package br.com.codecacto.kmplib.video.feed
  * — que é o que a escada de [feedPreloadTargetFor] espera. Item que sai da janela é **podado**
  * (o mapa não cresce com a rolagem), e ao voltar recebe posição nova.
  */
-internal data class FeedPreloadSlot(val url: String, val position: Int)
+internal data class FeedPreloadSlot(val url: String, val position: Int) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String = "FeedPreloadSlot(url=${redactMediaUrl(url)}, position=$position)"
+}
 
 /**
  * Onde começa o espaço de posições: **no meio do `Int`**, não no zero (2.203.0).

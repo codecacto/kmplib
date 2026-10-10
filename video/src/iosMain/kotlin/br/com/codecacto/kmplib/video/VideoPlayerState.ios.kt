@@ -3,6 +3,8 @@
 
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.cinterop.CValue
 // Interop ObjC: os membros de uma @interface viram MEMBROS e os de uma categoria viram EXTENSÕES
@@ -60,7 +62,7 @@ private class AvPlayerVideoPlayerState(
 
         val url = NSURL.URLWithString(media.url)
         if (url == null) {
-            AppLogger.e(VIDEO_TAG, "URL de vídeo inválida: ${media.url}")
+            AppLogger.e(VIDEO_TAG, "URL de vídeo inválida: ${redactMediaUrl(media.url)}")
             status = VideoStatus.Error(
                 kind = VideoErrorKind.Unknown,
                 message = texts.messageFor(VideoErrorKind.Unknown),
@@ -233,8 +235,8 @@ private class AvPlayerVideoPlayerState(
         }.getOrNull() ?: 0
         val kind = if (http > 0) videoErrorKindForHttpStatus(http) else VideoErrorKind.Network
         val detalhe = item.error?.localizedDescription ?: "AVPlayerItemStatusFailed"
-        AppLogger.e(VIDEO_TAG, "Falha na reprodução (HTTP $http): $detalhe")
-        status = VideoStatus.Error(kind = kind, message = texts.messageFor(kind), cause = detalhe)
+        AppLogger.e(VIDEO_TAG, "Falha na reprodução (HTTP $http): ${redactMediaUrlsIn(detalhe)}")
+        status = VideoStatus.Error(kind = kind, message = texts.messageFor(kind), cause = redactMediaUrlsIn(detalhe))
     }
 
     // -------------------------------------------------------------------------- sessão de mídia
@@ -250,7 +252,7 @@ private class AvPlayerVideoPlayerState(
             sessao.setCategory(AVAudioSessionCategoryPlayback, error = null)
             sessao.setActive(true, error = null)
         } catch (e: Exception) {
-            AppLogger.w(VIDEO_TAG, "AVAudioSession não configurada: ${e.message}")
+            AppLogger.w(VIDEO_TAG, "AVAudioSession não configurada: ${redactMediaUrlsIn(e.message)}")
         }
     }
 

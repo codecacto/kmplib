@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -145,7 +146,7 @@ private fun abrirGaleriaDeFotos(
 
             provedor.loadDataRepresentationForTypeIdentifier("public.image") { data, error ->
                 if (error != null || data == null) {
-                    AppLogger.w(TAG, "Foto da galeria não pôde ser lida: ${error?.localizedDescription}")
+                    AppLogger.w(TAG, "Foto da galeria não pôde ser lida: ${redactMediaUrlsIn(error?.localizedDescription)}")
                     onError(ImagePickerError.IMAGE_UNREADABLE)
                     return@loadDataRepresentationForTypeIdentifier
                 }

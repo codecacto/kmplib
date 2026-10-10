@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.download
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.video.VideoErrorKind
 import br.com.codecacto.kmplib.video.videoErrorKindForHttpStatus
 
@@ -117,6 +118,12 @@ data class MediaDownload(
     val waitingForNetwork: Boolean = false,
     val expiresAtMillis: Long? = null,
 ) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "MediaDownload(id=$id, url=${redactMediaUrl(url)}, title=$title, groupId=$groupId, status=$status, " +
+            "downloadedBytes=$downloadedBytes, totalBytes=$totalBytes, percent=$percent, " +
+            "waitingForNetwork=$waitingForNetwork, expiresAtMillis=$expiresAtMillis)"
+
     /** `true` quando a mídia já toca sem rede. */
     val isPlayableOffline: Boolean get() = status == MediaDownloadStatus.Completed
 

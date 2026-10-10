@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.download
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.core.prefs.AppPreferences
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.video.VideoStreamKind
@@ -38,6 +39,11 @@ data class MediaDownloadRecord(
     val localPath: String? = null,
     val createdAtMillis: Long = 0L,
 ) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "MediaDownloadRecord(id=$id, url=${redactMediaUrl(url)}, kind=$kind, groupId=$groupId, quality=$quality, " +
+            "completed=$completed, pausedByUser=$pausedByUser, hasLocalPath=${localPath != null})"
+
     /** O pedido de origem, para reenfileirar depois de uma renovação de URL ou de um reinício. */
     fun toRequest(): MediaDownloadRequest = MediaDownloadRequest(
         id = id,

@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
@@ -75,6 +76,10 @@ sealed interface PhotoSource {
         val headers: Map<String, String> = emptyMap(),
     ) : PhotoSource {
         override val key: String get() = url
+
+        /** Sem query da URL e sem VALOR de cabeçalho (`Authorization`) — ver `redactMediaUrl`. */
+        override fun toString(): String =
+            "PhotoSource.Url(url=${redactMediaUrl(url)}, headers=${headers.keys})"
     }
 
     /**

@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
+
 /**
  * Uma faixa de legenda em **arquivo externo** (`.vtt` ou `.srt`), fora do manifesto.
  *
@@ -15,7 +17,12 @@ data class VideoSubtitleTrack(
     val language: String,
     val url: String? = null,
     val content: String? = null,
-)
+) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "VideoSubtitleTrack(label=$label, language=$language, url=${url?.let(::redactMediaUrl)}, " +
+            "content=${content?.let { "${it.length} chars" }})"
+}
 
 /**
  * Uma faixa **disponível para escolher** no menu de legendas do player, já misturando as duas

@@ -109,4 +109,21 @@ class PhotoSourceTest {
             assertTrue(isPrivatePhotoMemoryKey(photoMemoryCacheKey(fonte)), "$fonte")
         }
     }
+
+    @Test
+    fun urlToStringSemAssinaturaNemValorDeCabecalho() {
+        val fonte = PhotoSource.Url("https://cdn.x.com/f.jpg?sig=segredo", mapOf("Authorization" to "Bearer tok"))
+        val texto = fonte.toString()
+        assertFalse("segredo" in texto)
+        assertFalse("Bearer" in texto)
+        assertTrue("https://cdn.x.com/f.jpg" in texto)
+        assertTrue("Authorization" in texto)
+        assertFalse("segredo" in PhotoStripItem("1", url = "https://cdn.x.com/f.jpg?sig=segredo").toString())
+    }
+
+    @Test
+    fun pickedVideoToStringSemCaminhoNemNome() {
+        val v = PickedVideo("file:///var/mobile/Maria.mp4", "Maria.mp4", "video/mp4", 10L)
+        assertFalse("Maria" in v.toString())
+    }
 }

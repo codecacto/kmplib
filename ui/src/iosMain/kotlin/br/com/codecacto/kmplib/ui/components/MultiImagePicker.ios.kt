@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -129,7 +130,7 @@ private fun abrirGaleriaMultipla(
 @OptIn(ExperimentalForeignApi::class)
 private fun converter(data: NSData?, erro: String?): PickedImage? {
     if (data == null) {
-        AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser lida: $erro")
+        AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser lida: ${redactMediaUrlsIn(erro)}")
         return null
     }
     val imagem = UIImage(data = data)

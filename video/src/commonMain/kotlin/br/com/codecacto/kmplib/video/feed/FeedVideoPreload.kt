@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.feed
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.video.VideoStreamKind
 
 /**
@@ -124,7 +125,10 @@ internal data class FeedPreloadItem(
     val url: String,
     val kind: VideoStreamKind,
     val cacheKey: String = feedVideoCacheKey(url),
-)
+) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String = "FeedPreloadItem(url=${redactMediaUrl(url)}, kind=$kind)"
+}
 
 /**
  * Quem adianta os vizinhos do vídeo da vez. Um por feed; criado pelo

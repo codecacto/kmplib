@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.feed
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -87,11 +88,11 @@ internal class ExoFeedVideoEngine(
 
         override fun onPlayerError(error: PlaybackException) {
             val kind = error.paraVideoErrorKind()
-            AppLogger.w(FEED_TAG, "Vídeo de feed falhou (${error.errorCodeName}): ${error.message}")
+            AppLogger.w(FEED_TAG, "Vídeo de feed falhou (${error.errorCodeName}): ${redactMediaUrlsIn(error.message)}")
             status = VideoStatus.Error(
                 kind = kind,
                 message = FeedVideoTexts().playbackError,
-                cause = "${error.errorCodeName}: ${error.message}",
+                cause = "${error.errorCodeName}: ${redactMediaUrlsIn(error.message)}",
             )
         }
     }

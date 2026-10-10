@@ -3,6 +3,7 @@
 
 package br.com.codecacto.kmplib.video.download
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import br.com.codecacto.kmplib.core.prefs.appPreferences
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.video.VideoMedia
@@ -398,7 +399,7 @@ private class IosMediaDownloadManager(
         if (!shouldRenewDownloadUrl(kind, gastas)) return
         renovacoes[registro.id] = gastas + 1
         val nova = runCatching { renovar(registro.toRequest()) }
-            .onFailure { AppLogger.w(DOWNLOAD_TAG, "onRenewUrl falhou para ${registro.id}: ${it.message}") }
+            .onFailure { AppLogger.w(DOWNLOAD_TAG, "onRenewUrl falhou para ${registro.id}: ${it::class.simpleName}: ${redactMediaUrlsIn(it.message)}") }
             .getOrNull()
         if (nova.isNullOrBlank()) return
         val atualizado = registro.copy(url = nova)

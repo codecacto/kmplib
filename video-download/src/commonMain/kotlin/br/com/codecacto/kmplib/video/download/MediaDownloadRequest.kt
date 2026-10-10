@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.download
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.core.storage.isValidBlobId
 import br.com.codecacto.kmplib.video.VideoStreamKind
 
@@ -45,7 +46,12 @@ data class MediaDownloadRequest(
     val quality: MediaDownloadQuality = MediaDownloadQuality.Standard,
     val estimatedBytes: Long = 0L,
     val expiresAtMillis: Long? = null,
-)
+) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "MediaDownloadRequest(id=$id, url=${redactMediaUrl(url)}, kind=$kind, title=$title, groupId=$groupId, " +
+            "quality=$quality, estimatedBytes=$estimatedBytes, expiresAtMillis=$expiresAtMillis)"
+}
 
 /**
  * Qual faixa baixar quando o manifesto HLS oferece várias resoluções.

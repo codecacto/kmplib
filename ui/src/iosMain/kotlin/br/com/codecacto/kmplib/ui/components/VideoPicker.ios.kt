@@ -3,6 +3,7 @@
 
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -140,7 +141,7 @@ private fun abrirGaleria(
             }
             provedor.loadFileRepresentationForTypeIdentifier(tipo) { url, erro ->
                 if (erro != null || url == null) {
-                    AppLogger.w(TAG, "Vídeo da galeria não pôde ser lido: ${erro?.localizedDescription}")
+                    AppLogger.w(TAG, "Vídeo da galeria não pôde ser lido: ${redactMediaUrlsIn(erro?.localizedDescription)}")
                     onError(VideoPickerError.UNREADABLE)
                     return@loadFileRepresentationForTypeIdentifier
                 }
@@ -269,7 +270,7 @@ private fun lerMetadados(caminho: String): MetadadosDeVideo = try {
         )
     }
 } catch (e: Exception) {
-    AppLogger.w(TAG, "Metadados do vídeo não lidos: ${e.message}")
+    AppLogger.w(TAG, "Metadados do vídeo não lidos: ${redactMediaUrlsIn(e.message)}")
     MetadadosDeVideo(null, null, null)
 }
 
@@ -378,7 +379,7 @@ actual suspend fun PickedVideo.captureFrame(atMillis: Long): ByteArray? {
         UIImageJPEGRepresentation(UIImage.imageWithCGImage(quadro), 0.85)?.paraByteArray()
     } catch (e: Exception) {
         // Capa é acessório: falhar aqui não pode derrubar a publicação do vídeo.
-        AppLogger.w(TAG, "Capa não extraída do vídeo: ${e.message}")
+        AppLogger.w(TAG, "Capa não extraída do vídeo: ${redactMediaUrlsIn(e.message)}")
         null
     }
 }

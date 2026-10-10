@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.video
 
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -41,5 +43,16 @@ class VideoMediaTest {
     fun `auto resolve pela URL`() {
         assertEquals(VideoStreamKind.Hls, VideoMedia(url = "https://cdn/a.m3u8").resolvedKind())
         assertEquals(VideoStreamKind.Progressive, VideoMedia(url = "https://cdn/a.mp4").resolvedKind())
+    }
+
+    @Test
+    fun `toString nao leva a assinatura da URL`() {
+        val media = VideoMedia(
+            url = "https://cdn.x.com/a/master.m3u8?X-Amz-Signature=segredo",
+            subtitles = listOf(VideoSubtitleTrack("Português", "pt-BR", url = "https://cdn.x.com/l.vtt?token=segredo2")),
+        )
+        assertFalse("segredo" in media.toString())
+        assertTrue("https://cdn.x.com/a/master.m3u8" in media.toString())
+        assertFalse("segredo2" in media.subtitles.single().toString())
     }
 }

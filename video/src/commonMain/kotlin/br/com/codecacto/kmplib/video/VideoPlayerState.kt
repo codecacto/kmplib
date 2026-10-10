@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -228,7 +230,7 @@ abstract class VideoPlayerState internal constructor(
 
         val conteudo = faixa.content ?: faixa.url?.let { url ->
             runCatching { client.get(url).bodyAsText() }
-                .onFailure { AppLogger.e(VIDEO_TAG, "Falha ao baixar a legenda $url: ${it.message}") }
+                .onFailure { AppLogger.e(VIDEO_TAG, "Falha ao baixar a legenda ${redactMediaUrl(url)}: ${it::class.simpleName}: ${redactMediaUrlsIn(it.message)}") }
                 .getOrNull()
         }
         if (conteudo == null) {

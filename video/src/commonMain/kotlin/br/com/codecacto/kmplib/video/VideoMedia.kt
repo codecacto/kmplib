@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
+
 /**
  * O vídeo a tocar — **o quê**, não **como**.
  *
@@ -40,7 +42,12 @@ data class VideoMedia(
     val subtitles: List<VideoSubtitleTrack> = emptyList(),
     val startPositionMillis: Long = 0L,
     val offlineId: String? = null,
-)
+) {
+    /** Sem query nem fragmento da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "VideoMedia(url=${redactMediaUrl(url)}, kind=$kind, title=$title, subtitles=${subtitles.size}, " +
+            "startPositionMillis=$startPositionMillis, offlineId=$offlineId)"
+}
 
 /** Como a mídia é entregue. [Auto] deixa [videoStreamKindOf] decidir pela URL. */
 enum class VideoStreamKind { Auto, Hls, Progressive }

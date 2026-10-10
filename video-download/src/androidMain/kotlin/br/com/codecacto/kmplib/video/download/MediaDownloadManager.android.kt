@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video.download
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import android.content.Context
 import androidx.annotation.OptIn
 import android.net.Uri
@@ -247,7 +248,7 @@ internal class Media3MediaDownloadManager(
         } catch (e: IOException) {
             // Manifesto que não abre (rede fora, token já vencido) — a falha é do PREPARO, e por
             // isso não passa pelo listener: ela precisa voltar para quem tocou no botão.
-            AppLogger.e(DOWNLOAD_TAG, "Falha ao preparar o download de ${request.id}: ${e.message}")
+            AppLogger.e(DOWNLOAD_TAG, "Falha ao preparar o download de ${request.id}: ${e::class.simpleName}: ${redactMediaUrlsIn(e.message)}")
             val kind = paraMediaDownloadErrorKind(e)
             MediaDownloadOutcome.Rejected(kind, config.texts.messageFor(kind))
         }
@@ -335,7 +336,7 @@ internal class Media3MediaDownloadManager(
         }
         lista.toList()
     }.getOrElse {
-        AppLogger.w(DOWNLOAD_TAG, "Não foi possível ler o índice de downloads: ${it.message}")
+        AppLogger.w(DOWNLOAD_TAG, "Não foi possível ler o índice de downloads: ${redactMediaUrlsIn(it.message)}")
         emptyList()
     }
 
@@ -363,7 +364,7 @@ internal class Media3MediaDownloadManager(
                 // Android 12+ recusa iniciar serviço em primeiro plano com o app em segundo plano.
                 // Não é erro do produto: a fila continua no `DownloadManager` enquanto o processo
                 // vive, e o agendador a religa quando o app voltar.
-                AppLogger.w(DOWNLOAD_TAG, "Serviço de download não pôde subir agora: ${it.message}")
+                AppLogger.w(DOWNLOAD_TAG, "Serviço de download não pôde subir agora: ${redactMediaUrlsIn(it.message)}")
             }
     }
 
@@ -464,13 +465,13 @@ internal class Media3MediaDownloadManager(
         val gastas = renovacoes[id] ?: 0
         val renovar = onRenewUrl
         if (renovar == null || !shouldRenewDownloadUrl(kind, gastas)) {
-            AppLogger.e(DOWNLOAD_TAG, "Download $id falhou ($kind): ${exception?.message}")
+            AppLogger.e(DOWNLOAD_TAG, "Download $id falhou ($kind): ${redactMediaUrlsIn(exception?.message)}")
             return
         }
         val registro = store.get(id) ?: return
         renovacoes[id] = gastas + 1
         val nova = runCatching { renovar(registro.toRequest()) }
-            .onFailure { AppLogger.w(DOWNLOAD_TAG, "onRenewUrl falhou para $id: ${it.message}") }
+            .onFailure { AppLogger.w(DOWNLOAD_TAG, "onRenewUrl falhou para $id: ${it::class.simpleName}: ${redactMediaUrlsIn(it.message)}") }
             .getOrNull()
         if (nova.isNullOrBlank()) return
 

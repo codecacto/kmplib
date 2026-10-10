@@ -10,6 +10,8 @@ plugins {
 
 kotlin {
     sourceSets {
+        // `redactMediaUrl`/`redactMediaUrlsIn` (kmplib-core): URL de mídia sem assinatura no log.
+        all { languageSettings.optIn("br.com.codecacto.kmplib.core.util.KmpLibCoreInternalApi") }
         // `Media3Cache` e `VideoPlayerHolder.getContext()` são públicos só para o módulo de
         // download (ver `KmpLibVideoInternalApi`); aqui dentro o opt-in é do módulo inteiro.
         all { languageSettings.optIn("br.com.codecacto.kmplib.video.KmpLibVideoInternalApi") }

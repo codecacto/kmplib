@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.video.VideoStreamKind
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -73,5 +74,18 @@ class MediaDownloadStoreTest {
             expiresAtMillis = 123L,
         )
         assertEquals(pedido, pedido.toRecord(nowMillis = 1L).toRequest())
+    }
+
+    @Test
+    fun toStringDoPedidoDoRegistroEDoItemSemAssinatura() {
+        val url = "https://cdn.x.com/a.m3u8?X-Amz-Signature=segredo"
+        val pedido = MediaDownloadRequest(id = "aula-1", url = url)
+        val registro = MediaDownloadRecord(id = "aula-1", url = url, localPath = "/var/x/Maria.movpkg")
+        val item = MediaDownload(id = "aula-1", url = url)
+        for (texto in listOf(pedido.toString(), registro.toString(), item.toString())) {
+            assertFalse("segredo" in texto, texto)
+            assertTrue("https://cdn.x.com/a.m3u8" in texto, texto)
+        }
+        assertFalse("Maria" in registro.toString())
     }
 }

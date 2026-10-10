@@ -53,7 +53,12 @@ data class PickedVideo(
     val durationMillis: Long? = null,
     val widthPx: Int? = null,
     val heightPx: Int? = null,
-)
+) {
+    /** Sem a referência (caminho/URI local) nem o nome do arquivo — dado da pessoa, não do app. */
+    override fun toString(): String =
+        "PickedVideo(mimeType=$mimeType, sizeBytes=$sizeBytes, durationMillis=$durationMillis, " +
+            "widthPx=$widthPx, heightPx=$heightPx)"
+}
 
 /**
  * Por que o vídeo NÃO veio — o que o app precisa dizer na tela.

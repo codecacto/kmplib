@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.video
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -95,11 +96,11 @@ private class ExoPlayerVideoPlayerState(
 
         override fun onPlayerError(error: PlaybackException) {
             val kind = error.paraVideoErrorKind()
-            AppLogger.e(VIDEO_TAG, "Falha na reprodução (${error.errorCodeName}): ${error.message}")
+            AppLogger.e(VIDEO_TAG, "Falha na reprodução (${error.errorCodeName}): ${redactMediaUrlsIn(error.message)}")
             status = VideoStatus.Error(
                 kind = kind,
                 message = texts.messageFor(kind),
-                cause = "${error.errorCodeName}: ${error.message}",
+                cause = "${error.errorCodeName}: ${redactMediaUrlsIn(error.message)}",
             )
         }
     }
@@ -112,7 +113,7 @@ private class ExoPlayerVideoPlayerState(
         player.setPlaybackSpeed(config.initialSpeed)
         if (config.mediaSession) {
             session = runCatching { MediaSession.Builder(context, player).build() }
-                .onFailure { AppLogger.w(VIDEO_TAG, "MediaSession indisponível: ${it.message}") }
+                .onFailure { AppLogger.w(VIDEO_TAG, "MediaSession indisponível: ${redactMediaUrlsIn(it.message)}") }
                 .getOrNull()
         }
     }

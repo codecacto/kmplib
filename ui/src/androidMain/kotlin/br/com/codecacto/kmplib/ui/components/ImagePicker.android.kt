@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import androidx.compose.ui.platform.testTag
@@ -124,7 +125,7 @@ actual fun rememberImagePickerLauncher(
         } catch (e: Exception) {
             // Ate 2.131.0 isto era so `printStackTrace()`: a camera nao abria e a tela nao dizia
             // nada. Falha de camera vira AVISO no app, sempre.
-            AppLogger.w(TAG, "Câmera de foto indisponível: ${e.message}")
+            AppLogger.w(TAG, "Câmera de foto indisponível: ${redactMediaUrlsIn(e.message)}")
             onError(ImagePickerError.CAMERA_UNAVAILABLE)
         }
     }
@@ -267,7 +268,7 @@ private fun processImageUri(
             onImagePicked(PickedImage(bytes = bytes, widthPx = largura, heightPx = altura))
         }
     } catch (e: Exception) {
-        AppLogger.w(TAG, "Foto escolhida não pôde ser lida: ${e.message}")
+        AppLogger.w(TAG, "Foto escolhida não pôde ser lida: ${redactMediaUrlsIn(e.message)}")
         onError(ImagePickerError.IMAGE_UNREADABLE)
     }
 }

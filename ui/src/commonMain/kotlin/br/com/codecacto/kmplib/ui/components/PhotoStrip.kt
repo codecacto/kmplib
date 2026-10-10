@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.core.util.redactMediaUrl
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_photo_add
 import br.com.codecacto.kmplib.generated.resources.kmplib_photo_cover
@@ -82,6 +83,11 @@ data class PhotoStripItem(
 
     /** Pronta: tem imagem, não falhou e não está subindo — a única que pode virar capa. */
     val ready: Boolean get() = !failed && !uploading && imageSource != null
+
+    /** Sem query da URL (assinatura de URL pré-assinada) — ver `redactMediaUrl`. */
+    override fun toString(): String =
+        "PhotoStripItem(id=$id, url=${url?.let(::redactMediaUrl)}, failed=$failed, source=$source, " +
+            "uploadingOverride=$uploadingOverride)"
 }
 
 /**
