@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.codecacto.kmplib.ui.theme.AppColors
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,45 @@ data class LineSeries(
     val points: List<LineChartPoint>,
     val color: Color? = null,
 )
+
+/**
+ * **Faixa de referência** desenhada ATRÁS das linhas (2.285.0): a banda entre [min] e [max] — ex.: a
+ * faixa normal de um analito de exame ("70 a 99 mg/dL"). Um dos lados pode faltar (faixa aberta:
+ * "até 200" = só [max]; "a partir de 40" = só [min]); aí a banda vai até a borda do gráfico.
+ *
+ * A escala Y passa a incluir os limites da banda: um valor sempre dentro da faixa não "some" com a
+ * banda fora da tela, e o leitor vê de imediato a distância até o limite.
+ *
+ * @param min limite inferior (inclusivo), ou `null` (aberta embaixo).
+ * @param max limite superior (inclusivo), ou `null` (aberta em cima).
+ * @param color cor da banda. `null` = o "sucesso" do tema (`AppColors.success`), a 14% de opacidade.
+ */
+data class ReferenceBand(
+    val min: Double? = null,
+    val max: Double? = null,
+    val color: Color? = null,
+) {
+    init {
+        require(min != null || max != null) { "ReferenceBand precisa de min, de max ou dos dois" }
+        require(min == null || max == null || min <= max) { "ReferenceBand: min ($min) maior que max ($max)" }
+    }
+}
+
+/**
+ * Limites (min, max) da escala Y incluindo os limites da [band] (quando há). Pura, testável.
+ */
+internal fun lineChartValueBounds(values: List<Double>, band: ReferenceBand?): Pair<Double, Double> =
+    lineChartValueBounds(values + listOfNotNull(band?.min, band?.max))
+
+/**
+ * Faixa vertical (topo, base) da [band] em frações de 0..1 onde **0 = topo** do gráfico — o que o
+ * `Canvas` desenha. Lado aberto vai até a borda. Pura, testável.
+ */
+internal fun referenceBandFractions(band: ReferenceBand, min: Double, max: Double): Pair<Float, Float> {
+    val top = band.max?.let { 1f - normalizeToFraction(it, min, max) } ?: 0f
+    val bottom = band.min?.let { 1f - normalizeToFraction(it, min, max) } ?: 1f
+    return top to bottom
+}
 
 /**
  * Limites (min, max) para escalar o eixo Y de um conjunto de valores. Se todos forem iguais
@@ -123,6 +163,8 @@ internal fun xAxisLabelIndices(count: Int, maxLabels: Int): List<Int> {
  * @param valueFormatter formata os rótulos do eixo Y (min/max). A lib não conhece a unidade.
  * @param showDots desenha um ponto em cada vértice.
  * @param emptyMessage texto quando não há dados (0 ou 1 ponto — linha precisa de ≥2).
+ * @param referenceBand faixa de referência atrás da linha (2.285.0). Para ponto colorido por status
+ *   com legenda em texto (exame), use o [ReferenceBandChart].
  */
 @Composable
 fun LineChart(
@@ -134,6 +176,7 @@ fun LineChart(
     valueFormatter: ((Double) -> String)? = null,
     showDots: Boolean = true,
     emptyMessage: String = "Sem dados para exibir.",
+    referenceBand: ReferenceBand? = null,
 ) {
     LineChart(
         series = listOf(LineSeries(name = "", points = points, color = lineColor)),
@@ -143,6 +186,7 @@ fun LineChart(
         valueFormatter = valueFormatter,
         showDots = showDots,
         emptyMessage = emptyMessage,
+        referenceBand = referenceBand,
     )
 }
 
@@ -162,6 +206,7 @@ fun LineChart(
  * @param showDots desenha um ponto em cada vértice.
  * @param maxXLabels máximo de rótulos de data no eixo X (default 4; evita poluir).
  * @param emptyMessage texto quando não há dados suficientes.
+ * @param referenceBand faixa de referência atrás das linhas (2.285.0) — a escala Y passa a incluí-la.
  */
 @Composable
 fun LineChart(
@@ -179,6 +224,7 @@ fun LineChart(
     showDots: Boolean = true,
     maxXLabels: Int = 4,
     emptyMessage: String = "Sem dados para exibir.",
+    referenceBand: ReferenceBand? = null,
 ) {
     val allValues = series.flatMap { s -> s.points.map { it.value } }
     val maxPoints = series.maxOfOrNull { it.points.size } ?: 0
@@ -190,7 +236,8 @@ fun LineChart(
 
     val compact = LocalIsCompact.current
     val areaHeight = if (compact) chartHeight * 0.8f else chartHeight
-    val (minValue, maxValue) = lineChartValueBounds(allValues)
+    val (minValue, maxValue) = lineChartValueBounds(allValues, referenceBand)
+    val bandColor = referenceBand?.let { it.color ?: AppColors.current.success }
 
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -231,6 +278,30 @@ fun LineChart(
                             strokeWidth = 1f,
                             pathEffect = dash,
                         )
+                    }
+
+                    // Faixa de referência ATRÁS das linhas: banda translúcida + bordas tracejadas.
+                    if (referenceBand != null && bandColor != null) {
+                        val (topF, bottomF) = referenceBandFractions(referenceBand, minValue, maxValue)
+                        val top = h * topF
+                        val bottom = h * bottomF
+                        drawRect(
+                            color = bandColor.copy(alpha = 0.14f),
+                            topLeft = Offset(0f, top),
+                            size = androidx.compose.ui.geometry.Size(w, (bottom - top).coerceAtLeast(1f)),
+                        )
+                        listOfNotNull(
+                            referenceBand.max?.let { top },
+                            referenceBand.min?.let { bottom },
+                        ).forEach { y ->
+                            drawLine(
+                                color = bandColor.copy(alpha = 0.7f),
+                                start = Offset(0f, y),
+                                end = Offset(w, y),
+                                strokeWidth = 1.5f,
+                                pathEffect = dash,
+                            )
+                        }
                     }
 
                     series.forEachIndexed { index, s ->

@@ -5,6 +5,53 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.285.0 — Comparador de fotos (`PhotoCompare`) e gráfico com faixa de referência (`kmplib-ui`)
+
+**Por quê.** Vitalis, Onda 2 (pacote LM-K02, `GAP-VIT-K02`): o app do médico precisa comparar fotos de
+evolução do paciente (antes/depois, linha do tempo de sessões, "mostrar ao paciente" em tela cheia) e
+mostrar a evolução de um analito de exame contra a faixa de referência. A weblib já tinha o
+`PhotoCompare` (0.237.0); a kmplib não tinha nenhum dos dois, e o `LineChart` não desenhava banda.
+
+**O que entrou (aditivo — nada muda para quem não usa).**
+- **`ui.compare` (pacote novo):** `PhotoCompare(sessions, state, modes, showTimeline, aspectRatio,
+  maxFrameHeight, fit, showTitle, title, loading, emptyContent, photoSource, timeZone, formatDate,
+  onFullScreen, texts)`, `PhotoCompareDialog` (tela cheia, mesmo estado), `CompareTimeline`,
+  `PhotoCompareState`/`rememberPhotoCompareState` (modo, par, posição, vista e zoom; salvo na rotação
+  sem foto nem URL). Contrato `CompareSession`/`ComparePhoto`/`ComparePair` **`@Serializable` e com os
+  nomes da weblib** — o mesmo JSON serve às duas pontas. `CompareMode` `SLIDER`/`SIDE_BY_SIDE` (a
+  linha do tempo é o seletor do par, nos dois modos, como na weblib), `CompareFit`.
+  - Regras puras espelho de `compare.logic.ts`: `parseCompareDate` (data civil = meia-noite UTC; ISO
+    com Z/offset/sem offset no fuso pedido; formato livre recusado), `formatCompareDate` (região do
+    aparelho), `comparableSessions`, `defaultComparePair`, `normalizeComparePair`, `nextComparePair`,
+    `photoViewKey`/`compareViews`/`photoForView`/`resolveCompareView`, `clampComparePosition`,
+    `comparePositionFromPointer`, `compareVisibleShares`, `compareDragIntent`, `compareFrameSize`.
+  - **Divisória acessível**: arrasto horizontal em qualquer ponto (rolagem vertical passa adiante),
+    `setProgress` + `progressBarRangeInfo` + estado "40% antes, 60% depois" para TalkBack/VoiceOver.
+  - **Zoom e pan SINCRONIZADOS** (além da weblib): pinça e duplo toque ampliam as duas fotos juntas
+    (`CompareTransform`, `applyCompareTransform`, `toggleCompareZoom`); ampliado, um dedo move a
+    imagem e a alça continua arrastável; ação de acessibilidade "Voltar ao tamanho original".
+  - Foto privada por `photoSource = { PhotoSource.authenticated(api, it.src, accountId) }` (sem cache de
+    disco). `toString` de `ComparePhoto`/`CompareSession` sem `src` nem `description`.
+  - Ids Maestro (`PhotoCompareTestTags`): `comparar`, `comparar-modo-deslizar`/`-lado-a-lado`,
+    `comparar-divisoria`, `comparar-lado-a-lado`, `comparar-btn-tela-cheia`, `comparar-linha-do-tempo`,
+    `comparar-sessao-<id>`, `comparar-vista-<chave>`; tela cheia com `dialogo` e `dialogo-btn-fechar`.
+- **`LineChart(…, referenceBand = ReferenceBand(min, max, color))`** nos dois overloads: banda
+  translúcida atrás das linhas com bordas tracejadas; lado aberto vai até a borda; a escala Y passa a
+  incluir os limites da banda. Default `null` = o desenho de antes.
+- **`ReferenceBandChart(points, band, valueFormatter, lineColor, chartHeight, maxXLabels, showLegend,
+  texts)`** — par do `ReferenceBandChart` da weblib: `ReferencePoint(label, value, date, status)`
+  (eixo X proporcional ao tempo quando todo ponto tem data), `ReferenceStatus(label, tone)` do servidor
+  ou derivado da faixa (`classifyAgainstBand` → `BandPosition`), ponto pintado pelo status **com
+  leitura e legenda em texto** (a cor nunca sozinha), toque escolhe o ponto (começa no último), leitor
+  de tela com resumo + "Próxima medição"/"Medição anterior". `referenceChartXFractions`,
+  `nearestReferencePoint`, `ReferenceBandChartTestTags`.
+- 4 idiomas (`kmplib_compare_*`, `kmplib_chart_*`).
+
+**Testes.** 42 novos (`CompareLogicTest` 35 — os casos de `compare.logic.test.ts` —, `ReferenceBandChartTest`
+7); `LineChartTest` segue verde. `compileKotlinIosArm64` verde (28 tarefas, nenhuma SKIPPED).
+
+**Ação nos apps:** nenhuma. Aditivo: sem aviso, sem piso.
+
 ## 2.284.1 — Fastfile iOS: o ARCHIVE também leva `-allowProvisioningUpdates` quando o app assina pelo `match`
 
 Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). A lane `release` só passava
