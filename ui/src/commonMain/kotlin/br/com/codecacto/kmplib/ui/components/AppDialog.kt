@@ -201,6 +201,12 @@ fun AppAlertDialog(
  * @param dismissText Texto do botão de cancelar
  * @param onConfirm Callback ao confirmar
  * @param isLoading Se está em estado de loading
+ * @param confirmEnabled Se o botão de confirmar aceita toque (2.281.0). Default `true` = o
+ *   comportamento de sempre. Com `false` o botão fica no estado desabilitado do tema e é anunciado
+ *   como desabilitado pelo TalkBack/VoiceOver (semântica `disabled` do `Button` do Material3), e
+ *   [onConfirm] não é chamado. É o "digite EXCLUIR" da exclusão de conta: passe
+ *   `confirmEnabled = typedConfirmationMatches(digitado, "EXCLUIR")` — o confirmar só acende quando
+ *   a palavra confere. O cancelar não é afetado.
  */
 @Composable
 fun AppInputDialog(
@@ -217,7 +223,8 @@ fun AppInputDialog(
     confirmText: String = stringResource(Res.string.kmplib_confirm),
     dismissText: String = stringResource(Res.string.kmplib_cancel),
     onConfirm: () -> Unit,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    confirmEnabled: Boolean = true,
 ) {
     AppDialog(
         show = show,
@@ -268,8 +275,30 @@ fun AppInputDialog(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CONFIRMAR),
                 isLoading = isLoading,
+                // `enabled = false` no `Button` do Material3 = estado visual desabilitado do tema +
+                // `SemanticsProperties.Disabled` (o leitor de tela anuncia "desativado") + clique
+                // ignorado. O `isLoading` continua desligando o botão por conta própria.
+                enabled = confirmEnabled,
                 height = 48.dp
             )
         }
     }
+}
+
+/**
+ * `true` se [typed] é a palavra de confirmação [expected], **sem diferenciar caixa e ignorando
+ * todo espaço** (2.281.0) — "excluir", " EXCLUIR " e "EX CLUIR" conferem. É a mesma régua do
+ * `AccountDeletionConfirmation.matches` da backlib (o servidor que confere o `{"confirmacao": …}`):
+ * a intenção é provar atenção, não testar digitação. [expected] em branco nunca confere.
+ *
+ * Uso típico, com o [AppInputDialog]:
+ * ```kotlin
+ * val confere = typedConfirmationMatches(digitado, "EXCLUIR")
+ * AppInputDialog(…, textFieldValue = digitado, confirmEnabled = confere, onConfirm = { if (confere) excluir() })
+ * ```
+ */
+fun typedConfirmationMatches(typed: String, expected: String): Boolean {
+    val alvo = expected.filterNot(Char::isWhitespace)
+    if (alvo.isEmpty()) return false
+    return typed.filterNot(Char::isWhitespace).equals(alvo, ignoreCase = true)
 }

@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.281.0 — `AppInputDialog(confirmEnabled)` + `typedConfirmationMatches` (`kmplib-ui`)
+
+**Por quê.** App do Personal (exclusão de conta, LN22): a regra da casa manda DIGITAR "EXCLUIR" para
+excluir a conta, e o wireframe pede o confirmar **desligado até a palavra conferir**. O
+`AppInputDialog` não tinha como desligar o botão — a tela só ignorava o toque no `onConfirm`, com o
+botão aceso convidando a um toque que não fazia nada.
+
+**O que entrou (aditivo).**
+- `AppInputDialog(…, confirmEnabled: Boolean = true)` — `false` liga o `enabled = false` do `Button`
+  do Material3 por baixo do `AppButton`: estado visual desabilitado do tema, semântica `Disabled`
+  (TalkBack/VoiceOver anunciam "desativado") e `onConfirm` não é chamado. `isLoading` continua
+  desligando sozinho; o cancelar não muda. Default = o comportamento de sempre.
+- `typedConfirmationMatches(typed, expected): Boolean` (`br.com.codecacto.kmplib.ui.components`,
+  puro) — ignora caixa e **todo** espaço; `expected` em branco nunca confere. Mesma régua do
+  `AccountDeletionConfirmation.matches` da backlib, que confere o `{"confirmacao": …}` no servidor.
+- Testes: `TypedConfirmationMatchesTest` (7 casos).
+- `casca-mobile`: o diálogo de exclusão passa `confirmEnabled` e usa o helper (antes `trim()` +
+  `equals(ignoreCase)`, que recusava "EX CLUIR" que o servidor aceita).
+
+Aditivo: sem aviso, sem piso. A lib não tem diálogo próprio de exclusão (`AccountDeletionService` é
+só o serviço), então não há outro ponto a ajustar.
+
 ## 2.280.0 — Temporários de PDF e impressão não sobram no disco; `clearKmpLibTemporaryFiles` (`kmplib-platform`, `kmplib-pdf`, `kmplib-auth`, `kmplib-sync`)
 
 **Por quê.** Security-review do Vitalis: dado clínico sobrava no `cacheDir` do Android.
