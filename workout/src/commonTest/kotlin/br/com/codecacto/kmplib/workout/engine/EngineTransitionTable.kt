@@ -19,7 +19,10 @@ import kotlin.time.Duration.Companion.seconds
  * Formato (versão [TRANSITION_TABLE_VERSION]):
  * - `cursor` = `[bloco, exercício, série, estágio]` (em bi-set/circuito a série É a volta);
  * - tempos em segundos desde [TransitionTable.epochBaseSeconds];
- * - campo que não se aplica à fase vem `null` (ex.: `restEndsAtSeconds` fora de `RESTING`).
+ * - campo que não se aplica à fase vem `null` (ex.: `restEndsAtSeconds` fora de `RESTING`);
+ * - `completeSet.durationSeconds` (2.275.0, opcional) = o cronômetro da série por tempo;
+ * - `swapExercise` (2.275.0) = troca o exercício do item `stepId` por `toExerciseId`; `swaps` no estado
+ *   esperado = as trocas ativas, `"<stepId>-><toExerciseId>"`, na ordem.
  */
 const val TRANSITION_TABLE_VERSION: Int = 1
 
@@ -52,7 +55,7 @@ sealed interface TableEvent {
     data object Start : TableEvent
 
     @Serializable @SerialName("completeSet")
-    data class CompleteSet(val reps: Int?, val load: Double?) : TableEvent
+    data class CompleteSet(val reps: Int?, val load: Double?, val durationSeconds: Int? = null) : TableEvent
 
     @Serializable @SerialName("skipRest")
     data object SkipRest : TableEvent
@@ -62,6 +65,9 @@ sealed interface TableEvent {
 
     @Serializable @SerialName("skipExercise")
     data class SkipExercise(val reason: String? = null) : TableEvent
+
+    @Serializable @SerialName("swapExercise")
+    data class SwapExercise(val stepId: String, val toExerciseId: String, val reason: String? = null) : TableEvent
 
     @Serializable @SerialName("undo")
     data object Undo : TableEvent
@@ -88,6 +94,7 @@ data class ExpectedState(
     val finishedAtSeconds: Long? = null,
     val recordedSteps: Int? = null,
     val skippedExercises: List<String> = emptyList(),
+    val swaps: List<String> = emptyList(),
 )
 
 val TABLE_T0: Instant = T0
@@ -95,7 +102,8 @@ val TABLE_T0: Instant = T0
 fun TableEvent.toWorkoutEvent(case: TransitionCase): WorkoutEvent = when (this) {
     TableEvent.Load -> WorkoutEvent.Load(case.plan, case.localRunId)
     TableEvent.Start -> WorkoutEvent.Start
-    is TableEvent.CompleteSet -> WorkoutEvent.CompleteSet(reps, load)
+    is TableEvent.CompleteSet -> WorkoutEvent.CompleteSet(reps, load, durationSeconds = durationSeconds)
+    is TableEvent.SwapExercise -> WorkoutEvent.SwapExercise(stepId, toExerciseId, reason)
     TableEvent.SkipRest -> WorkoutEvent.SkipRest
     is TableEvent.AddRestTime -> WorkoutEvent.AddRestTime(seconds)
     is TableEvent.SkipExercise -> WorkoutEvent.SkipExercise(reason)
@@ -109,6 +117,9 @@ private fun Instant.sinceT0(): Long = (this - TABLE_T0).inWholeSeconds
 
 private fun Cursor.asList(): List<Int> = listOf(blockIndex, exerciseIndex, setIndex, stageIndex)
 
+private fun br.com.codecacto.kmplib.workout.model.WorkoutRun.swapList(): List<String> =
+    swaps.map { "${it.exerciseStepId}->${it.toExerciseId}" }
+
 /** Projeção do estado real no formato da tabela — o que o caso confere. */
 fun WorkoutState.project(): ExpectedState = when (this) {
     WorkoutState.Idle -> ExpectedState(TablePhase.IDLE)
@@ -119,6 +130,7 @@ fun WorkoutState.project(): ExpectedState = when (this) {
         setStartedAtSeconds = setStartedAt.sinceT0(),
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
+        swaps = run.swapList(),
     )
     is WorkoutState.Resting -> ExpectedState(
         phase = TablePhase.RESTING,
@@ -126,32 +138,35 @@ fun WorkoutState.project(): ExpectedState = when (this) {
         restEndsAtSeconds = restEndsAt.sinceT0(),
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
+        swaps = run.swapList(),
     )
     is WorkoutState.Paused -> ExpectedState(
         phase = TablePhase.PAUSED,
         cursor = cursor.asList(),
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
+        swaps = run.swapList(),
     )
     is WorkoutState.Finished -> ExpectedState(
         phase = TablePhase.FINISHED,
         finishedAtSeconds = run.finishedAt?.sinceT0(),
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
+        swaps = run.swapList(),
     )
 }
 
-private fun inSet(cursor: List<Int>, startedAt: Long, recorded: Int, skipped: List<String> = emptyList()) =
-    ExpectedState(TablePhase.IN_SET, cursor, setStartedAtSeconds = startedAt, recordedSteps = recorded, skippedExercises = skipped)
+private fun inSet(cursor: List<Int>, startedAt: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
+    ExpectedState(TablePhase.IN_SET, cursor, setStartedAtSeconds = startedAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
 
-private fun resting(cursor: List<Int>, endsAt: Long, recorded: Int, skipped: List<String> = emptyList()) =
-    ExpectedState(TablePhase.RESTING, cursor, restEndsAtSeconds = endsAt, recordedSteps = recorded, skippedExercises = skipped)
+private fun resting(cursor: List<Int>, endsAt: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
+    ExpectedState(TablePhase.RESTING, cursor, restEndsAtSeconds = endsAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
 
 private fun paused(cursor: List<Int>, recorded: Int) =
     ExpectedState(TablePhase.PAUSED, cursor, recordedSteps = recorded)
 
-private fun finished(at: Long, recorded: Int, skipped: List<String> = emptyList()) =
-    ExpectedState(TablePhase.FINISHED, finishedAtSeconds = at, recordedSteps = recorded, skippedExercises = skipped)
+private fun finished(at: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
+    ExpectedState(TablePhase.FINISHED, finishedAtSeconds = at, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
 
 private val IDLE = ExpectedState(TablePhase.IDLE)
 private val READY = ExpectedState(TablePhase.READY)
@@ -304,6 +319,50 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(0, TableEvent.Finish, READY),
             step(1, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 1, 0)),
             step(2, TableEvent.Load, inSet(listOf(0, 0, 0, 0), 1, 0)),
+        ),
+    ),
+    TransitionCase(
+        name = "série por tempo: a duração informada vai para a série; fora de 1..3600 ou em série de repetições é ignorada",
+        plan = timedPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(70, TableEvent.CompleteSet(null, null, durationSeconds = 40), resting(listOf(0, 0, 1, 0), 100, 1)),
+            step(80, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 80, 1)),
+            step(130, TableEvent.CompleteSet(null, null, durationSeconds = 5000), resting(listOf(0, 1, 0, 0), 160, 2)),
+            step(140, TableEvent.SkipRest, inSet(listOf(0, 1, 0, 0), 140, 2)),
+            step(170, TableEvent.CompleteSet(10, 20.0, durationSeconds = 30), finished(170, 3)),
+        ),
+    ),
+    TransitionCase(
+        name = "troca: o item passa ao substituto a partir do cursor; trocar para o mesmo não faz nada; undo desfaz a troca",
+        plan = simplePlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(5, TableEvent.SwapExercise("ex-1", "leg-press", "aparelho ocupado"), inSet(listOf(0, 0, 0, 0), 5, 0, swaps = listOf("ex-1->leg-press"))),
+            step(6, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 6, 0)),
+            step(7, TableEvent.SwapExercise("ex-1", "leg-press"), inSet(listOf(0, 0, 0, 0), 7, 0, swaps = listOf("ex-1->leg-press"))),
+            step(8, TableEvent.SwapExercise("ex-1", "leg-press"), inSet(listOf(0, 0, 0, 0), 7, 0, swaps = listOf("ex-1->leg-press"))),
+            step(8, TableEvent.SwapExercise("ex-9", "hack"), inSet(listOf(0, 0, 0, 0), 7, 0, swaps = listOf("ex-1->leg-press"))),
+            step(37, DONE, resting(listOf(0, 0, 1, 0), 67, 1, swaps = listOf("ex-1->leg-press"))),
+            step(40, TableEvent.SwapExercise("ex-1", "hack"), resting(listOf(0, 0, 1, 0), 67, 1, swaps = listOf("ex-1->leg-press", "ex-1->hack"))),
+            step(50, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 50, 1, swaps = listOf("ex-1->leg-press", "ex-1->hack"))),
+            step(80, DONE, finished(80, 2, swaps = listOf("ex-1->leg-press", "ex-1->hack"))),
+        ),
+    ),
+    TransitionCase(
+        name = "troca no bi-set: o outro exercício da volta troca sem recomeçar a série corrente; undo em ordem inversa",
+        plan = biSetPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(5, TableEvent.SwapExercise("ex-2", "pushdown"), inSet(listOf(0, 0, 0, 0), 0, 0, swaps = listOf("ex-2->pushdown"))),
+            step(30, DONE, inSet(listOf(0, 1, 0, 0), 30, 1, swaps = listOf("ex-2->pushdown"))),
+            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 2, swaps = listOf("ex-2->pushdown"))),
+            step(70, TableEvent.Undo, inSet(listOf(0, 1, 0, 0), 70, 1, swaps = listOf("ex-2->pushdown"))),
+            step(71, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 71, 0, swaps = listOf("ex-2->pushdown"))),
+            step(72, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 72, 0)),
         ),
     ),
 )

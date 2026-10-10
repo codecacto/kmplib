@@ -26,7 +26,7 @@ class ProtocolTest {
         val state = StateSnapshot(seq = 2, blockIndex = 0, exerciseIndex = 0, setIndex = 1, phase = StateSnapshot.Phase.IN_SET, stageIndex = 2)
         val decoded = Json.decodeFromString<StateSnapshot>(Json.encodeToString(state))
         assertEquals(Cursor(0, 0, 1, 2), decoded.cursor)
-        assertEquals(2, WORKOUT_PROTOCOL_VERSION)
+        assertEquals(3, WORKOUT_PROTOCOL_VERSION)
     }
 
     @Test

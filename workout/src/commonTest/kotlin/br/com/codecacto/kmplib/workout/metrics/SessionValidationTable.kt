@@ -12,8 +12,10 @@ import br.com.codecacto.kmplib.workout.engine.dropSetPlan
 import br.com.codecacto.kmplib.workout.engine.dropSetWithoutStagesPlan
 import br.com.codecacto.kmplib.workout.engine.instant
 import br.com.codecacto.kmplib.workout.engine.simplePlan
+import br.com.codecacto.kmplib.workout.engine.timedPlan
 import br.com.codecacto.kmplib.workout.engine.toWorkoutEvent
 import br.com.codecacto.kmplib.workout.engine.twoExercisePlan
+import br.com.codecacto.kmplib.workout.model.ExerciseSwap
 import br.com.codecacto.kmplib.workout.model.SetResult
 import br.com.codecacto.kmplib.workout.model.SkippedExercise
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
@@ -85,7 +87,7 @@ private fun engineCases(): List<SessionValidationCase> {
     }
     val complete = listOf(
         simplePlan(), twoExercisePlan(), biSetPlan(), circuitPlan(), circuitShortLastPlan(), dropSetPlan(),
-        dropSetWithoutStagesPlan(),
+        dropSetWithoutStagesPlan(), timedPlan(),
     ).map { plan -> SessionValidationCase("motor (completo): ${plan.id}", plan, runToEnd(plan), emptyList()) }
     return fromTable + complete
 }
@@ -99,6 +101,9 @@ private fun result(
     roundIndex: Int? = null,
     startS: Long = 0,
     endS: Long = 30,
+    durationSeconds: Int? = null,
+    exerciseRefId: String? = null,
+    swappedFrom: String? = null,
 ): SetResult {
     val target = plan.blocks.flatMap { it.exercises }.firstOrNull { it.id == exerciseId }
         ?.sets?.getOrNull(setIndex) ?: simplePlan().blocks[0].exercises[0].sets[0]
@@ -113,10 +118,19 @@ private fun result(
         completedAt = T0 + endS.seconds,
         stageIndex = stageIndex,
         roundIndex = roundIndex,
+        durationSeconds = durationSeconds,
+        exerciseRefId = exerciseRefId,
+        swappedFromExerciseId = swappedFrom,
     )
 }
 
-private fun session(plan: WorkoutPlan, vararg sets: SetResult, planId: String = plan.id, skipped: List<String> = emptyList()) =
+private fun session(
+    plan: WorkoutPlan,
+    vararg sets: SetResult,
+    planId: String = plan.id,
+    skipped: List<String> = emptyList(),
+    swaps: List<ExerciseSwap> = emptyList(),
+) =
     WorkoutRun(
         localId = "run-hand",
         planId = planId,
@@ -124,12 +138,14 @@ private fun session(plan: WorkoutPlan, vararg sets: SetResult, planId: String = 
         finishedAt = T0 + 600.seconds,
         sets = sets.toList(),
         skippedExercises = skipped.map { SkippedExercise(it, null, T0) },
+        swaps = swaps,
     )
 
 private fun handCases(): List<SessionValidationCase> {
     val simple = simplePlan()
     val biSet = biSetPlan()
     val drop = dropSetPlan()
+    val timed = timedPlan()
     fun case(name: String, plan: WorkoutPlan, run: WorkoutRun, vararg issues: RunIssue) =
         SessionValidationCase("à mão: $name", plan, run, issues.toList())
 
@@ -235,6 +251,77 @@ private fun handCases(): List<SessionValidationCase> {
             RunIssue.UnknownStep(0),
             RunIssue.NegativeDuration(1),
             RunIssue.UnknownSkippedExercise("y"),
+        ),
+        // ── 2.275.0: duração informada (série por tempo) ──
+        case(
+            "série por tempo com a duração informada (1 s e 3600 s, os limites)",
+            timed,
+            session(
+                timed,
+                result(timed, "block-1", "ex-t", 0, endS = 70, durationSeconds = 1),
+                result(timed, "block-1", "ex-t", 1, startS = 80, endS = 130, durationSeconds = 3600),
+            ),
+        ),
+        case(
+            "duração informada em série por repetições",
+            timed,
+            session(timed, result(timed, "block-1", "ex-r", 0, durationSeconds = 30)),
+            RunIssue.InvalidDuration(0),
+        ),
+        case("duração informada zero", timed, session(timed, result(timed, "block-1", "ex-t", 0, durationSeconds = 0)), RunIssue.InvalidDuration(0)),
+        case(
+            "duração informada acima de 1 hora",
+            timed,
+            session(timed, result(timed, "block-1", "ex-t", 0, durationSeconds = 3601)),
+            RunIssue.InvalidDuration(0),
+        ),
+        // ── 2.275.0: troca de exercício ──
+        case(
+            "troca declarada: o item feito com outro exercício, a partir da 2ª série",
+            simple,
+            session(
+                simple,
+                result(simple, "block-1", "ex-1", 0),
+                result(simple, "block-1", "ex-1", 1, exerciseRefId = "leg-press", swappedFrom = "squat"),
+                swaps = listOf(ExerciseSwap("ex-1", "squat", "leg-press", null, T0, 1)),
+            ),
+        ),
+        case(
+            "troca para o mesmo exercício",
+            simple,
+            session(simple, result(simple, "block-1", "ex-1", 0, exerciseRefId = "squat", swappedFrom = "squat")),
+            RunIssue.InvalidSwap(0),
+        ),
+        case(
+            "troca cujo original não é o exercício do item",
+            simple,
+            session(simple, result(simple, "block-1", "ex-1", 0, exerciseRefId = "leg-press", swappedFrom = "hack")),
+            RunIssue.InvalidSwap(0),
+        ),
+        case(
+            "troca sem dizer qual exercício foi feito",
+            simple,
+            session(simple, result(simple, "block-1", "ex-1", 0, swappedFrom = "squat")),
+            RunIssue.InvalidSwap(0),
+        ),
+        case(
+            "exercício diferente do plano sem declarar a troca",
+            simple,
+            session(simple, result(simple, "block-1", "ex-1", 0, exerciseRefId = "leg-press")),
+            RunIssue.InvalidSwap(0),
+        ),
+        case(
+            "registro de troca de item fora do plano e de troca para o mesmo",
+            simple,
+            session(
+                simple,
+                swaps = listOf(
+                    ExerciseSwap("ex-9", "x", "y", null, T0, 0),
+                    ExerciseSwap("ex-1", "squat", "squat", null, T0, 0),
+                ),
+            ),
+            RunIssue.InvalidSwapRecord(0),
+            RunIssue.InvalidSwapRecord(1),
         ),
     )
 }

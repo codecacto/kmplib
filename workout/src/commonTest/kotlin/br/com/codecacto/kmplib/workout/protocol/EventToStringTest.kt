@@ -23,9 +23,9 @@ class EventToStringTest {
         val evento = WorkoutEvent.CompleteSet(reps = 11, load = 92.5, heartRateAvg = 143, heartRateMax = 171)
         val texto = evento.toString()
         assertSemDado(texto, "11", "92.5", "143", "171")
-        assertEquals("CompleteSet(hasReps=true, hasLoad=true, hasHeartRate=true)", texto)
+        assertEquals("CompleteSet(hasReps=true, hasLoad=true, hasHeartRate=true, hasDuration=false)", texto)
         assertEquals(
-            "CompleteSet(hasReps=false, hasLoad=false, hasHeartRate=false)",
+            "CompleteSet(hasReps=false, hasLoad=false, hasHeartRate=false, hasDuration=false)",
             WorkoutEvent.CompleteSet(reps = null, load = null).toString(),
         )
         assertEquals(evento, evento.copy())
@@ -44,7 +44,7 @@ class EventToStringTest {
     fun completeSetDoProtocoloNaoImprimeCargaNemReps() {
         val texto = CommandEvent.CompleteSet(reps = 8, load = 60.0).toString()
         assertSemDado(texto, "8,", "60.0")
-        assertEquals("CompleteSet(hasReps=true, hasLoad=true)", texto)
+        assertEquals("CompleteSet(hasReps=true, hasLoad=true, hasDuration=false)", texto)
     }
 
     @Test

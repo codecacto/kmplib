@@ -1,12 +1,15 @@
 package br.com.codecacto.kmplib.workout.engine
 
 import br.com.codecacto.kmplib.workout.model.Block
+import br.com.codecacto.kmplib.workout.model.ExerciseSwap
 import br.com.codecacto.kmplib.workout.model.ExerciseStep
 import br.com.codecacto.kmplib.workout.model.SetResult
 import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.SkippedExercise
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
+import br.com.codecacto.kmplib.workout.model.SET_DURATION_RANGE
+import br.com.codecacto.kmplib.workout.model.currentExerciseId
 import kotlinx.datetime.Instant
 import kotlin.time.Duration.Companion.seconds
 
@@ -85,21 +88,31 @@ sealed interface WorkoutEvent {
     /** `Ready` -> primeiro passo do plano (`InSet`), ou `Finished` se o plano não tem série. */
     data object Start : WorkoutEvent
 
-    /** Conclui o passo corrente: a série — ou, no drop-set, o ESTÁGIO corrente dela. */
+    /**
+     * Conclui o passo corrente: a série — ou, no drop-set, o ESTÁGIO corrente dela.
+     *
+     * [durationSeconds] (2.275.0) = a duração que o cronômetro da série POR TEMPO marcou; vai para
+     * `SetResult.durationSeconds` e vale mais que a diferença de instantes. Só é gravada quando o passo
+     * é `SetTarget.Timed` e o valor está em `SET_DURATION_RANGE` (1..3600) — fora disso a série é
+     * registrada SEM ela (cai na diferença de instantes), para o motor nunca produzir sessão que o
+     * `validateRun` recuse.
+     */
     data class CompleteSet(
         val reps: Int?,
         val load: Double?,
         val heartRateAvg: Int? = null,
         val heartRateMax: Int? = null,
+        val durationSeconds: Int? = null,
     ) : WorkoutEvent {
         /**
-         * Só QUAIS campos vieram, nunca o valor: carga, repetições e FC são dado de saúde do aluno,
-         * e o `toString` gerado ia parar em log/GlitchTip quando alguém logava o evento (2.273.0).
-         * `equals`/`hashCode` não mudam.
+         * Só QUAIS campos vieram, nunca o valor: carga, repetições, duração e FC são dado de saúde do
+         * aluno, e o `toString` gerado ia parar em log/GlitchTip quando alguém logava o evento
+         * (2.273.0). `equals`/`hashCode` não mudam.
          */
         override fun toString(): String =
             "CompleteSet(hasReps=${reps != null}, hasLoad=${load != null}, " +
-                "hasHeartRate=${heartRateAvg != null || heartRateMax != null})"
+                "hasHeartRate=${heartRateAvg != null || heartRateMax != null}, " +
+                "hasDuration=${durationSeconds != null})"
     }
 
     data object SkipRest : WorkoutEvent
@@ -109,6 +122,28 @@ sealed interface WorkoutEvent {
     data class SkipExercise(val reason: String? = null) : WorkoutEvent {
         /** Sem o [reason] (texto livre do aluno — "dor no joelho" é dado de saúde), 2.273.0. */
         override fun toString(): String = "SkipExercise(hasReason=${reason != null})"
+    }
+
+    /**
+     * TROCA o exercício do item [stepId] (o `ExerciseStep.id`) por [toExerciseId] (o `exerciseRefId` do
+     * substituto, do catálogo do app) a partir do cursor atual (2.275.0): as séries que FALTAM daquele
+     * item passam a ser registradas com `SetResult.exerciseRefId = toExerciseId` e
+     * `swappedFromExerciseId` = o exercício original do plano. Prescrição (séries, metas, estágios) e
+     * descanso continuam os do item; o que já foi feito não muda.
+     *
+     * Vale em `InSet` e `Resting`. Sem efeito quando: o item não existe, já não tem passo pela frente
+     * (concluído ou pulado), [toExerciseId] está em branco, ou é o exercício que o item JÁ usa (trocar
+     * para o mesmo não é troca). Em `InSet` do próprio item, o relógio da série recomeça (é outro
+     * exercício que começa agora). `Undo` logo depois desfaz a troca.
+     */
+    data class SwapExercise(
+        val stepId: String,
+        val toExerciseId: String,
+        val reason: String? = null,
+    ) : WorkoutEvent {
+        /** Sem o [reason] (texto livre do aluno — dado de saúde); os ids são do plano/catálogo. */
+        override fun toString(): String =
+            "SwapExercise(stepId=$stepId, toExerciseId=$toExerciseId, hasReason=${reason != null})"
     }
 
     data object Undo : WorkoutEvent
@@ -215,6 +250,7 @@ class GuidedWorkoutEngine {
         is WorkoutState.InSet -> when (event) {
             is WorkoutEvent.CompleteSet -> completeStep(state, event, now)
             is WorkoutEvent.SkipExercise -> skipExercise(state.plan, state.cursor, state.run, event, now)
+            is WorkoutEvent.SwapExercise -> swapExercise(state, state.plan, state.cursor, state.run, event, now)
             WorkoutEvent.Undo -> undo(state, state.plan, state.run, now)
             else -> state
         }
@@ -223,6 +259,7 @@ class GuidedWorkoutEngine {
             WorkoutEvent.SkipRest -> enterSet(state.plan, state.cursor, state.run, now)
             is WorkoutEvent.AddRestTime -> state.copy(restEndsAt = state.restEndsAt + event.seconds.seconds)
             is WorkoutEvent.SkipExercise -> skipExercise(state.plan, state.cursor, state.run, event, now)
+            is WorkoutEvent.SwapExercise -> swapExercise(state, state.plan, state.cursor, state.run, event, now)
             WorkoutEvent.Undo -> undo(state, state.plan, state.run, now)
             else -> state
         }
@@ -234,6 +271,9 @@ class GuidedWorkoutEngine {
         val plan = state.plan
         val order = plan.executionOrder()
         val current = order.firstOrNull { it.cursor == state.cursor } ?: return state
+        val performed = state.run.currentExerciseId(current.exercise)
+        val swapped = performed != current.exercise.exerciseRefId
+        val duration = event.durationSeconds?.takeIf { current.target is SetTarget.Timed && it in SET_DURATION_RANGE }
         val result = SetResult(
             blockId = current.blockId,
             exerciseStepId = current.exercise.id,
@@ -247,6 +287,9 @@ class GuidedWorkoutEngine {
             heartRateMax = event.heartRateMax,
             stageIndex = current.stageIndex,
             roundIndex = current.roundIndex,
+            durationSeconds = duration,
+            exerciseRefId = if (swapped) performed else null,
+            swappedFromExerciseId = if (swapped) current.exercise.exerciseRefId else null,
         )
         val nextRun = state.run.copy(sets = state.run.sets + result)
         val next = nextStep(order, current.cursor, skippedIds(nextRun))
@@ -281,12 +324,60 @@ class GuidedWorkoutEngine {
     }
 
     /**
-     * Desfaz o último passo concluído (série ou estágio) e volta o cursor para ele, sem perder o que já
-     * foi registrado antes — a sessão nunca duplica nem perde séries por causa de um "voltar". Voltar a um
-     * exercício pulado o devolve ao treino (o pulo dele sai do registro). Sem passo registrado ainda,
-     * `Undo` não tem efeito.
+     * Troca o exercício de um item a partir do cursor (regra no KDoc de [WorkoutEvent.SwapExercise]).
+     * O cursor não anda: em `InSet` o relógio da série recomeça em [now]; em `Resting` o descanso segue.
+     */
+    private fun swapExercise(
+        state: WorkoutState,
+        plan: WorkoutPlan,
+        cursor: Cursor,
+        run: WorkoutRun,
+        event: WorkoutEvent.SwapExercise,
+        now: Instant,
+    ): WorkoutState {
+        if (event.toExerciseId.isBlank()) return state
+        val order = plan.executionOrder()
+        val from = order.indexOfFirst { it.cursor == cursor }
+        if (from < 0) return state
+        val skipped = skippedIds(run)
+        val ahead = order.subList(from, order.size)
+            .firstOrNull { it.exercise.id == event.stepId && it.exercise.id !in skipped } ?: return state
+        val current = run.currentExerciseId(ahead.exercise)
+        if (current == event.toExerciseId) return state
+        val swap = ExerciseSwap(
+            exerciseStepId = event.stepId,
+            fromExerciseId = current,
+            toExerciseId = event.toExerciseId,
+            reason = event.reason,
+            at = now,
+            setsRecordedBefore = run.sets.size,
+        )
+        val nextRun = run.copy(swaps = run.swaps + swap)
+        return when (state) {
+            is WorkoutState.InSet ->
+                if (order[from].exercise.id == event.stepId) enterSet(plan, cursor, nextRun, now) else state.copy(run = nextRun)
+            is WorkoutState.Resting -> state.copy(run = nextRun)
+            else -> state
+        }
+    }
+
+    /**
+     * Desfaz a última AÇÃO registrada, em ordem inversa: uma troca de exercício feita depois do último
+     * passo concluído sai primeiro (o cursor fica onde está); senão, desfaz o último passo concluído
+     * (série ou estágio) e volta o cursor para ele, sem perder o que já foi registrado antes — a sessão
+     * nunca duplica nem perde séries por causa de um "voltar". Voltar a um exercício pulado o devolve ao
+     * treino (o pulo dele sai do registro). Sem nada registrado ainda, `Undo` não tem efeito.
      */
     private fun undo(state: WorkoutState, plan: WorkoutPlan, run: WorkoutRun, now: Instant): WorkoutState {
+        val lastSwap = run.swaps.lastOrNull()
+        if (lastSwap != null && lastSwap.setsRecordedBefore >= run.sets.size) {
+            val nextRun = run.copy(swaps = run.swaps.dropLast(1))
+            return when (state) {
+                is WorkoutState.InSet -> enterSet(plan, state.cursor, nextRun, now)
+                is WorkoutState.Resting -> state.copy(run = nextRun)
+                else -> state
+            }
+        }
         val lastSet = run.sets.lastOrNull() ?: return state
         val blockIndex = plan.blocks.indexOfFirst { it.id == lastSet.blockId }
         val exerciseIndex = plan.blocks.getOrNull(blockIndex)?.exercises

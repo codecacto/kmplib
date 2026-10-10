@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.275.0 — workout: duração informada da série por tempo (`CompleteSet(durationSeconds)`) e troca de exercício no cursor (`SwapExercise`)
+
+**Por quê.** App do Personal, lote MA4a (treino guiado, review de 10/out): (1) a série por tempo só tinha a
+diferença `completedAt − startedAt`, que inclui a preparação antes de disparar o cronômetro — o tempo que o
+aluno de fato segurou a prancha se perdia; (2) a troca de exercício virava `SkipExercise(swappedTo)` e as
+séries feitas com o substituto nunca eram registradas.
+
+**`kmplib-workout` — aditivo (sem piso, sem aviso)**
+- `WorkoutEvent.CompleteSet(…, durationSeconds: Int? = null)` e `CommandEvent.CompleteSet(…, durationSeconds: Int? = null)`
+  → `SetResult.durationSeconds: Int? = null`. Gravada só em passo `SetTarget.Timed` com valor em
+  `SET_DURATION_RANGE` (1..3600, o `DURATION_MAX` do backend); fora disso a série sai sem ela (o motor nunca produz
+  sessão inválida). `SetResult.effectiveDurationSeconds` (informada > diferença de instantes, nunca negativa) é o
+  que `timeUnderTensionSeconds()` soma agora.
+- `WorkoutEvent.SwapExercise(stepId, toExerciseId, reason = null)` / `CommandEvent.SwapExercise` — troca o exercício
+  do item a partir do cursor: as séries que faltam saem com `SetResult.exerciseRefId` (o feito) e
+  `swappedFromExerciseId` (o ORIGINAL do plano, mesmo em troca encadeada); prescrição e descanso continuam os do
+  item; em `InSet` do próprio item o relógio da série recomeça. Sem efeito para o mesmo exercício, item
+  inexistente, concluído ou pulado, ou id em branco. `WorkoutRun.swaps: List<ExerciseSwap>` (default vazio) guarda
+  as trocas; `Undo` desfaz em ordem inversa (troca depois do último passo sai primeiro). `WorkoutRun.currentExerciseId(step)`.
+- `validateRun`: `RunIssue.InvalidDuration(i)` (`INVALID_DURATION`), `RunIssue.InvalidSwap(i)` (`INVALID_SWAP`),
+  `RunIssue.InvalidSwapRecord(swapIndex)` (`INVALID_SWAP_RECORD`). `exerciseRefId` igual ao do plano sem troca é válido.
+- `WORKOUT_PROTOCOL_VERSION` 2 → **3** (campo e comando novos na ponte); mensagem v2 continua sendo lida.
+- `toString` sem dado de saúde: `hasDuration` nos dois `CompleteSet` e no `SetResult`; `SwapExercise`/`ExerciseSwap`
+  com ids + `hasReason`; `WorkoutRun` com `swaps=<n>`.
+- **Fixtures** (`kmplib-workout-fixtures`): `session-validation.json` 37 → 51 casos e `engine-transitions.json` 12 → 15;
+  os antigos ficam (com os campos novos em `null`). Formato estendido: `completeSet.durationSeconds` opcional, evento
+  `swapExercise {stepId, toExerciseId, reason}` e `expect.swaps`. **Leitor que falha em evento desconhecido precisa
+  mapear `swapExercise`; teste que conta casos precisa da contagem nova.**
+
 ## 2.273.0 — `Haptics.vibrate(pattern)`; `Keep` que guarda rascunho local; `toString` do motor do workout sem dado de saúde
 
 **Por quê.** App do Personal: (1) o fim do descanso precisa avisar mesmo com o aparelho no Silencioso — o

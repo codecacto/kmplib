@@ -125,15 +125,71 @@ data class SetResult(
     val heartRateMax: Int? = null,
     val stageIndex: Int? = null,
     val roundIndex: Int? = null,
+    /**
+     * Duração INFORMADA da série por tempo, em segundos (2.275.0) — o cronômetro que o aluno de fato
+     * correu. Quando presente, vale mais que `completedAt - startedAt` (que inclui a preparação antes
+     * de disparar o cronômetro) em [effectiveDurationSeconds]. Só existe em série `SetTarget.Timed`, na
+     * faixa [SET_DURATION_RANGE]; fora disso o `validateRun` aponta `INVALID_DURATION`.
+     */
+    val durationSeconds: Int? = null,
+    /**
+     * O exercício de fato FEITO, quando o item foi TROCADO (`WorkoutEvent.SwapExercise`, 2.275.0) — o
+     * `exerciseRefId` do substituto. `null` = o exercício do plano. O motor preenche os dois campos
+     * juntos: [exerciseRefId] e [swappedFromExerciseId] são ambos nulos ou ambos preenchidos.
+     */
+    val exerciseRefId: String? = null,
+    /**
+     * O exercício ORIGINAL do item (o `ExerciseStep.exerciseRefId` do plano) quando a série foi feita
+     * com outro exercício — mesmo depois de trocas encadeadas (A→B→C registra C trocado de A).
+     */
+    val swappedFromExerciseId: String? = null,
 ) {
     /**
-     * Só ids, índices e se foi pulada (2.272.0). Carga, repetições, meta e frequência cardíaca são
-     * dado de SAÚDE e não podem sair num `AppLogger`/GlitchTip por um `"$resultado"` distraído —
-     * o `toString` gerado do `data class` imprimia tudo. `equals`/`hashCode`/serialização não mudam.
+     * Só ids, índices e flags (2.272.0; 2.275.0 + troca/duração). Carga, repetições, meta, duração e
+     * frequência cardíaca são dado de SAÚDE e não podem sair num `AppLogger`/GlitchTip por um
+     * `"$resultado"` distraído — o `toString` gerado do `data class` imprimia tudo. Os ids de exercício
+     * da troca são do catálogo (não do aluno) e entram. `equals`/`hashCode`/serialização não mudam.
      */
     override fun toString(): String =
         "SetResult(blockId=$blockId, exerciseStepId=$exerciseStepId, setIndex=$setIndex, " +
-            "stageIndex=$stageIndex, roundIndex=$roundIndex, skipped=$skipped)"
+            "stageIndex=$stageIndex, roundIndex=$roundIndex, skipped=$skipped, " +
+            "hasDuration=${durationSeconds != null}, exerciseRefId=$exerciseRefId, " +
+            "swappedFromExerciseId=$swappedFromExerciseId)"
+}
+
+/**
+ * Faixa aceita para `SetResult.durationSeconds` / `CompleteSet.durationSeconds`: 1 s a 1 h — a mesma
+ * da série por tempo prescrita no backend do App do Personal (`ProgramFields.DURATION_MAX`).
+ */
+val SET_DURATION_RANGE: IntRange = 1..3600
+
+/**
+ * Duração da série, em segundos: a INFORMADA ([SetResult.durationSeconds]) quando houver, senão a
+ * diferença `completedAt - startedAt` (nunca negativa). É o que o `timeUnderTensionSeconds` soma.
+ */
+val SetResult.effectiveDurationSeconds: Long
+    get() = durationSeconds?.toLong() ?: (completedAt - startedAt).inWholeSeconds.coerceAtLeast(0)
+
+/**
+ * Uma TROCA de exercício num item do plano (`WorkoutEvent.SwapExercise`, 2.275.0): a partir dela, as
+ * séries do item [exerciseStepId] passam a ser do [toExerciseId], com a mesma prescrição e o mesmo
+ * descanso do item. [fromExerciseId] é o exercício que o item tinha ANTES desta troca (o do plano, ou
+ * o de uma troca anterior). [setsRecordedBefore] = `WorkoutRun.sets.size` no instante da troca — é o que
+ * ordena trocas e séries para o `Undo` desfazer na ordem certa.
+ */
+@Serializable
+data class ExerciseSwap(
+    val exerciseStepId: String,
+    val fromExerciseId: String,
+    val toExerciseId: String,
+    val reason: String?,
+    val at: Instant,
+    val setsRecordedBefore: Int,
+) {
+    /** Sem o [reason] (texto livre do aluno — "dor no ombro" é dado de saúde). */
+    override fun toString(): String =
+        "ExerciseSwap(exerciseStepId=$exerciseStepId, fromExerciseId=$fromExerciseId, " +
+            "toExerciseId=$toExerciseId, hasReason=${reason != null})"
 }
 
 /** Ocorrência de "pular exercício", com o motivo informado pelo aluno (visto pelo personal). */
@@ -159,6 +215,8 @@ data class WorkoutRun(
     val skippedExercises: List<SkippedExercise> = emptyList(),
     val effort: Int? = null,
     val comment: String? = null,
+    /** Trocas de exercício, na ordem em que aconteceram (2.275.0). */
+    val swaps: List<ExerciseSwap> = emptyList(),
 ) {
     /**
      * Só ids e contagens (2.272.0): nenhuma série, carga, FC, esforço ou comentário — dado de SAÚDE
@@ -169,5 +227,12 @@ data class WorkoutRun(
     override fun toString(): String =
         "WorkoutRun(localId=$localId, planId=$planId, finished=${finishedAt != null}, " +
             "sets=${sets.size}, skippedExercises=${skippedExercises.size}, " +
-            "hasEffort=${effort != null}, hasComment=${comment != null})"
+            "swaps=${swaps.size}, hasEffort=${effort != null}, hasComment=${comment != null})"
 }
+
+/**
+ * O exercício que o item [step] está usando AGORA na sessão: o da última troca dele, ou o do plano.
+ * É o que a tela mostra ("Leg press (trocado de Agachamento)") — o nome vem do catálogo do app.
+ */
+fun WorkoutRun.currentExerciseId(step: ExerciseStep): String =
+    swaps.lastOrNull { it.exerciseStepId == step.id }?.toExerciseId ?: step.exerciseRefId

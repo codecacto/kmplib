@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.workout.model.SetResult
 import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
+import br.com.codecacto.kmplib.workout.model.effectiveDurationSeconds
 
 /** Volume total da sessão: Σ (reps x carga) de toda série concluída com carga conhecida — no drop-set,
  * cada estágio entra com a carga dele. Série de tempo (isometria) e série sem carga não entram na soma,
@@ -22,10 +23,11 @@ fun WorkoutRun.heartRateAvgOverall(): Int? {
 
 fun WorkoutRun.heartRateMaxOverall(): Int? = sets.mapNotNull { it.heartRateMax }.maxOrNull()
 
-/** Tempo sob tensão: soma da duração de cada série concluída (fim - início), em segundos. Série
- * pulada não entra. */
+/** Tempo sob tensão: soma da duração de cada série concluída, em segundos — a INFORMADA
+ * (`SetResult.durationSeconds`, série por tempo) quando houver, senão fim - início
+ * (`effectiveDurationSeconds`). Série pulada não entra. */
 fun WorkoutRun.timeUnderTensionSeconds(): Long =
-    sets.filterNot { it.skipped }.sumOf { (it.completedAt - it.startedAt).inWholeSeconds }
+    sets.filterNot { it.skipped }.sumOf { it.effectiveDurationSeconds }
 
 /**
  * Séries concluídas na sessão (sem as puladas). Uma série de drop-set conta UMA vez, por mais estágios

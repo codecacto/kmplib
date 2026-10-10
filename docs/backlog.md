@@ -97,7 +97,7 @@
 - [ ] **GAP-PT-M05 (P0) — `kmplib-sync`: upload retomável direto ao storage** (`DirectUploadOutbox`: URL pré-assinada, PUT/multipart, só Wi-Fi, estado por item). Exige `S3StorageProvider` na backlib-storage.
 - [x] **GAP-PT-M11 (P0) — `kmplib-workout` e `kmplib-health`: ENTREGUES** (08/out; motor por volta/estágio na 2.266.0; FC por
       BLE `HeartRateMonitor` + dublê `SimulatedHeartRateSensor`, regra do repositório em commonMain e as tabelas de casos
-      `kmplib-workout-fixtures` na 2.269.0). **Pendente de APARELHO (spike 0.7, fundador):** FC por BLE com cinta/relógio
+      `kmplib-workout-fixtures` na 2.269.0; duração informada `CompleteSet(durationSeconds)` e troca `SwapExercise` na 2.275.0, lote MA4a). **Pendente de APARELHO (spike 0.7, fundador):** FC por BLE com cinta/relógio
       reais, reconexão física, `bluetooth-central` em 2º plano, leitura/escrita real de HealthKit e Health Connect.
 - [ ] **GAP-PT-M02 (P1) — `LoopVideo`**: vídeo isolado em laço, mudo, fonte local, toque pausa (hoje `FeedVideo` exige `FeedVideoHost`).
 - [ ] **GAP-PT-M06 + M12 (P1) — `AudioRecorder` (arquivo, segurar/tocar, onda) + kit de chat** (junta com `GAP-ME-02`, 2º consumidor).

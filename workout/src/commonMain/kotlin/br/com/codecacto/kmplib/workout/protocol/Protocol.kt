@@ -7,10 +7,11 @@ import kotlinx.serialization.Serializable
 
 /**
  * Versão do conteúdo das mensagens. **2** (kmplib 2.266.0): `StateSnapshot.stageIndex` (drop-set) e
- * `SetTarget.Reps.stages` dentro do `PlanSnapshot`. Quem recebe `v` maior do que conhece deve pedir um
+ * `SetTarget.Reps.stages` dentro do `PlanSnapshot`. **3** (kmplib 2.275.0): `CommandEvent.CompleteSet.
+ * durationSeconds` e `CommandEvent.SwapExercise`. Quem recebe `v` maior do que conhece deve pedir um
  * `PlanSnapshot` novo em vez de adivinhar o formato.
  */
-const val WORKOUT_PROTOCOL_VERSION: Int = 2
+const val WORKOUT_PROTOCOL_VERSION: Int = 3
 
 /**
  * Mensagens celular<->relógio, versionadas (`v`) e idempotentes por `seq` crescente (resistem a
@@ -63,10 +64,20 @@ data class Command(
  * (nem todo `WorkoutEvent` cruza a ponte: `Start` é sempre local a quem tem o plano). */
 @Serializable
 sealed interface CommandEvent {
+    /** [durationSeconds] (2.275.0, opcional) = o cronômetro da série por tempo — regra em `WorkoutEvent.CompleteSet`. */
     @Serializable
-    data class CompleteSet(val reps: Int?, val load: Double?) : CommandEvent {
-        /** Sem carga nem repetições (dado de saúde), 2.273.0. Serialização não muda. */
-        override fun toString(): String = "CompleteSet(hasReps=${reps != null}, hasLoad=${load != null})"
+    data class CompleteSet(val reps: Int?, val load: Double?, val durationSeconds: Int? = null) : CommandEvent {
+        /** Sem carga, repetições nem duração (dado de saúde), 2.273.0. Serialização não muda. */
+        override fun toString(): String =
+            "CompleteSet(hasReps=${reps != null}, hasLoad=${load != null}, hasDuration=${durationSeconds != null})"
+    }
+
+    /** Troca de exercício pedida do outro lado (2.275.0) — regra em `WorkoutEvent.SwapExercise`. */
+    @Serializable
+    data class SwapExercise(val stepId: String, val toExerciseId: String, val reason: String? = null) : CommandEvent {
+        /** Sem o [reason] (texto livre do aluno). */
+        override fun toString(): String =
+            "SwapExercise(stepId=$stepId, toExerciseId=$toExerciseId, hasReason=${reason != null})"
     }
 
     @Serializable
@@ -95,7 +106,8 @@ sealed interface CommandEvent {
 }
 
 fun CommandEvent.toWorkoutEvent(): WorkoutEvent = when (this) {
-    is CommandEvent.CompleteSet -> WorkoutEvent.CompleteSet(reps, load)
+    is CommandEvent.CompleteSet -> WorkoutEvent.CompleteSet(reps, load, durationSeconds = durationSeconds)
+    is CommandEvent.SwapExercise -> WorkoutEvent.SwapExercise(stepId, toExerciseId, reason)
     CommandEvent.SkipRest -> WorkoutEvent.SkipRest
     is CommandEvent.AddRestTime -> WorkoutEvent.AddRestTime(seconds)
     is CommandEvent.SkipExercise -> WorkoutEvent.SkipExercise(reason)

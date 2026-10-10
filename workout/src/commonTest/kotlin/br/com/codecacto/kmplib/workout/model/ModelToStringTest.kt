@@ -47,7 +47,8 @@ class ModelToStringTest {
     fun `SetResult imprime so ids e indices`() {
         val texto = result().toString()
         assertEquals(
-            "SetResult(blockId=block-1, exerciseStepId=ex-1, setIndex=1, stageIndex=2, roundIndex=null, skipped=false)",
+            "SetResult(blockId=block-1, exerciseStepId=ex-1, setIndex=1, stageIndex=2, roundIndex=null, skipped=false, " +
+                "hasDuration=false, exerciseRefId=null, swappedFromExerciseId=null)",
             texto,
         )
         sensiveis.forEach { assertFalse(texto.contains(it), "vazou '$it' em $texto") }
@@ -58,7 +59,7 @@ class ModelToStringTest {
         val texto = run().toString()
         assertEquals(
             "WorkoutRun(localId=run-1, planId=plan-1, finished=true, sets=2, skippedExercises=1, " +
-                "hasEffort=true, hasComment=true)",
+                "swaps=0, hasEffort=true, hasComment=true)",
             texto,
         )
         sensiveis.forEach { assertFalse(texto.contains(it), "vazou '$it' em $texto") }

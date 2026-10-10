@@ -149,3 +149,22 @@ fun dropSetWithoutStagesPlan(): WorkoutPlan = WorkoutPlan(
         ),
     ),
 )
+
+/**
+ * Série por tempo (2.275.0): prancha 2 x 45 s (rest 30) e depois agachamento 1 x reps (rest 30) — para
+ * a duração informada (`CompleteSet.durationSeconds`) valer só onde a série é `Timed`.
+ */
+fun timedPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-timed",
+    name = "Treino por tempo",
+    blocks = listOf(
+        Block(
+            id = "block-1",
+            method = WorkoutMethod.NORMAL,
+            exercises = listOf(
+                ExerciseStep("ex-t", "plank", "Prancha", List(2) { SetTarget.Timed(45) }, restSeconds = 30),
+                ExerciseStep("ex-r", "squat", "Agachamento", listOf(repsSet()), restSeconds = 30),
+            ),
+        ),
+    ),
+)
