@@ -53,6 +53,19 @@ internal class HealthConnectGateway(private val context: Context) : HealthStoreG
         if (wanted.isEmpty()) return true
         if (granted().containsAll(wanted)) return true
 
+        // Desde a 2.282.0 a lib NÃO declara READ/WRITE_EXERCISE (só o app que grava treino precisa).
+        // Tipo pedido sem a declaração o Health Connect nega sem diálogo: avisa no logcat (só o nome
+        // da permissão), pede o resto e responde `false` — "todos concedidos" não é verdade.
+        val undeclared = wanted.filterNot { declaredInManifest(context, it) }.toSet()
+        if (undeclared.isNotEmpty()) {
+            android.util.Log.w(
+                "kmplib-health",
+                "Permissão do Health Connect não declarada no AndroidManifest do app: ${undeclared.joinToString()}",
+            )
+        }
+        val requestable = wanted - undeclared
+        if (requestable.isEmpty()) return false
+
         val activity = HealthActivityHolder.getActivity() ?: return false
         val contract: ActivityResultContract<Set<String>, Set<String>> =
             PermissionController.createRequestPermissionResultContract()
@@ -65,9 +78,9 @@ internal class HealthConnectGateway(private val context: Context) : HealthStoreG
                 if (continuation.isActive) continuation.resume(grantedNow)
             }
             continuation.invokeOnCancellation { launcher.unregister() }
-            launcher.launch(wanted)
+            launcher.launch(requestable)
         }
-        return result.containsAll(wanted)
+        return undeclared.isEmpty() && result.containsAll(wanted)
     }
 
     override suspend fun isReadGranted(type: HealthDataType): Boolean =

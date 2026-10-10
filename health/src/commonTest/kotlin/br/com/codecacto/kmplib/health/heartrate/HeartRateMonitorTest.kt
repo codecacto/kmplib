@@ -30,6 +30,18 @@ private class FakeTransport : BleHeartRateTransport {
     override suspend fun unavailableReason(): HeartRateUnavailableReason? =
         reasonsSequence?.removeFirstOrNull() ?: reason
 
+    var permission = BluetoothPermissionStatus.GRANTED
+    var permissionAfterRequest = BluetoothPermissionStatus.GRANTED
+    var permissionRequests = 0
+
+    override suspend fun permissionStatus(): BluetoothPermissionStatus = permission
+
+    override suspend fun requestPermission(): BluetoothPermissionStatus {
+        permissionRequests++
+        permission = permissionAfterRequest
+        return permission
+    }
+
     override fun scan(): Flow<HeartRateDevice> = scanFlow
 
     override fun connect(device: HeartRateDevice): Flow<BleLinkEvent> = flow {
@@ -126,7 +138,7 @@ class HeartRateMonitorTest {
     }
 
     @Test
-    fun `conectado sem leitura e sem dado, nunca zero, e a FC atualiza o estado`() = runTest {
+    fun `conectado sem leitura e sem dado - nunca zero - e a FC atualiza o estado`() = runTest {
         val transport = FakeTransport()
         transport.links += flow {
             emit(BleLinkEvent.Subscribed)
@@ -230,6 +242,20 @@ class HeartRateMonitorTest {
         val monitor = DefaultHeartRateMonitor(transport)
         assertFailsWith<IllegalStateException> { monitor.measurements(STRAP).collect { error("tela quebrou") } }
         assertEquals(1, transport.connects)
+        assertEquals(HeartRateMonitorState.Idle, monitor.state.value)
+    }
+
+    @Test
+    fun `permissao vai ao transporte - um pedido por chamada`() = runTest {
+        val transport = FakeTransport().apply {
+            permission = BluetoothPermissionStatus.NOT_REQUESTED
+            permissionAfterRequest = BluetoothPermissionStatus.PERMANENTLY_DENIED
+        }
+        val monitor = DefaultHeartRateMonitor(transport)
+        assertEquals(BluetoothPermissionStatus.NOT_REQUESTED, monitor.permissionStatus())
+        assertEquals(0, transport.permissionRequests)
+        assertEquals(BluetoothPermissionStatus.PERMANENTLY_DENIED, monitor.requestPermission())
+        assertEquals(1, transport.permissionRequests)
         assertEquals(HeartRateMonitorState.Idle, monitor.state.value)
     }
 

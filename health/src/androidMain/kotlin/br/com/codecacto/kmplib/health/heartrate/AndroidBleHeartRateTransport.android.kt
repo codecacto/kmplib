@@ -1,6 +1,5 @@
 package br.com.codecacto.kmplib.health.heartrate
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -43,12 +42,18 @@ private class BleLinkLostException(status: Int) : Exception("ble link lost ($sta
  * - cancelar a coleta faz `disconnect()` + `close()` — sem `close()` o Android segura o cliente GATT
  *   e, depois de ~7, recusa conexões novas até reiniciar o Bluetooth.
  *
- * Permissão é do app: Android 12+ `BLUETOOTH_SCAN` (com `neverForLocation`, já no manifesto da lib) e
- * `BLUETOOTH_CONNECT`; até o 11, `ACCESS_FINE_LOCATION` para o scan.
+ * Permissão: Android 12+ `BLUETOOTH_SCAN` (com `neverForLocation`, já no manifesto da lib) e
+ * `BLUETOOTH_CONNECT`; até o 11, `ACCESS_FINE_LOCATION` para o scan (o app declara). O pedido é
+ * [AndroidBluetoothPermission] — `HeartRateMonitor.requestPermission()`.
  */
 internal class AndroidBleHeartRateTransport(private val context: Context) : BleHeartRateTransport {
 
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
+    private val permission = AndroidBluetoothPermission(context)
+
+    override suspend fun permissionStatus(): BluetoothPermissionStatus = permission.status()
+
+    override suspend fun requestPermission(): BluetoothPermissionStatus = permission.request()
 
     override suspend fun unavailableReason(): HeartRateUnavailableReason? {
         if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -60,14 +65,8 @@ internal class AndroidBleHeartRateTransport(private val context: Context) : BleH
         return null
     }
 
-    private fun hasPermissions(): Boolean {
-        val needed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            listOf(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-        return needed.all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-    }
+    private fun hasPermissions(): Boolean =
+        bluetoothRuntimePermissions().all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
     @SuppressLint("MissingPermission") // conferida em unavailableReason(); SecurityException tratada
     override fun scan(): Flow<HeartRateDevice> = callbackFlow {

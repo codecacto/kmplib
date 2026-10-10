@@ -34,7 +34,7 @@ class HeartRateMeasurementParserTest {
     }
 
     @Test
-    fun `contato suportado e detectado, suportado e nao detectado`() {
+    fun `contato suportado e detectado - suportado e nao detectado`() {
         assertEquals(SensorContact.DETECTED, HeartRateMeasurementParser.parse(bytes(0x06, 80))!!.sensorContact)
         val loose = HeartRateMeasurementParser.parse(bytes(0x04, 80))!!
         assertEquals(SensorContact.NOT_DETECTED, loose.sensorContact)
@@ -71,7 +71,7 @@ class HeartRateMeasurementParserTest {
     }
 
     @Test
-    fun `pacote truncado devolve null, nunca numero inventado`() {
+    fun `pacote truncado devolve null - nunca numero inventado`() {
         assertNull(HeartRateMeasurementParser.parse(ByteArray(0)))
         assertNull(HeartRateMeasurementParser.parse(bytes(0x00)))
         assertNull(HeartRateMeasurementParser.parse(bytes(0x01, 0x50)))

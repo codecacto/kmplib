@@ -32,6 +32,11 @@ data class HeartRateMeasurement(
     /** Leitura que pode ir para a tela: bpm > 0 e o sensor não diz que está sem contato (a cinta
      * frouxa manda 0 ou um valor sem sentido com o bit de contato zerado). */
     val isUsable: Boolean get() = bpm > 0 && sensorContact != SensorContact.NOT_DETECTED
+
+    /** Sem bpm, energia nem RR (dado de saúde); só o que não mede ninguém: contato e contagens. */
+    override fun toString(): String =
+        "HeartRateMeasurement(sensorContact=$sensorContact, hasEnergy=${energyExpendedKj != null}, " +
+            "rrIntervals=${rrIntervalsMillis.size})"
 }
 
 /**

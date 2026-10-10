@@ -6,6 +6,7 @@ import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,10 @@ import platform.CoreBluetooth.CBCentralManager
 import platform.CoreBluetooth.CBCentralManagerDelegateProtocol
 import platform.CoreBluetooth.CBCharacteristic
 import platform.CoreBluetooth.CBManager
+import platform.CoreBluetooth.CBManagerAuthorization
+import platform.CoreBluetooth.CBManagerAuthorizationAllowedAlways
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
+import platform.CoreBluetooth.CBManagerAuthorizationNotDetermined
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 import platform.CoreBluetooth.CBManagerStatePoweredOff
 import platform.CoreBluetooth.CBManagerStatePoweredOn
@@ -61,6 +65,19 @@ private fun unavailableReasonFor(state: Long): HeartRateUnavailableReason? = whe
     CBManagerStateUnsupported -> HeartRateUnavailableReason.NOT_SUPPORTED
     else -> HeartRateUnavailableReason.BLUETOOTH_OFF
 }
+
+/** `CBManager.authorization` (iOS 13.1+) → o vocabulário da lib. No iOS negar é definitivo: o caminho de
+ * volta são os Ajustes. `restricted` (controle parental/MDM) também — a pessoa não tem como permitir. */
+private fun bluetoothPermissionStatusFor(authorization: CBManagerAuthorization): BluetoothPermissionStatus =
+    when (authorization) {
+        CBManagerAuthorizationAllowedAlways -> BluetoothPermissionStatus.GRANTED
+        CBManagerAuthorizationDenied, CBManagerAuthorizationRestricted -> BluetoothPermissionStatus.PERMANENTLY_DENIED
+        CBManagerAuthorizationNotDetermined -> BluetoothPermissionStatus.NOT_REQUESTED
+        else -> BluetoothPermissionStatus.NOT_REQUESTED
+    }
+
+/** Intervalo da reconferência de `CBManager.authorization` enquanto o diálogo do sistema está aberto. */
+private const val AUTHORIZATION_POLL_MS = 250L
 
 /** Ganchos de uma conexão em andamento, por `identifier` do periférico. */
 private class LinkHandlers(val onConnected: () -> Unit, val onLost: () -> Unit)
@@ -159,7 +176,8 @@ private class PeripheralDelegate(
  * O app precisa no `Info.plist`: `NSBluetoothAlwaysUsageDescription` (sem ela o app é ENCERRADO ao
  * tocar no CoreBluetooth) e, para seguir recebendo FC com a tela bloqueada durante o treino,
  * `UIBackgroundModes` = `bluetooth-central`. O diálogo de permissão aparece na 1ª vez que o monitor é
- * usado (é a criação do `CBCentralManager` que o dispara).
+ * usado (é a criação do `CBCentralManager` que o dispara) — ou, no momento que a tela escolher, em
+ * `HeartRateMonitor.requestPermission()`.
  */
 internal class IosBleHeartRateTransport : BleHeartRateTransport {
 
@@ -179,6 +197,26 @@ internal class IosBleHeartRateTransport : BleHeartRateTransport {
             delegate.managerState.first { it != CBManagerStateUnknown && it != CBManagerStateResetting }
         } ?: delegate.managerState.value
         unavailableReasonFor(state)
+    }
+
+    override suspend fun permissionStatus(): BluetoothPermissionStatus = withContext(Dispatchers.Main) {
+        bluetoothPermissionStatusFor(CBManager.authorization)
+    }
+
+    /**
+     * A via oficial da Apple: não há chamada "pedir permissão" no CoreBluetooth — o diálogo nasce quando
+     * o app cria o 1º `CBCentralManager`. A lib cria o gerenciador do monitor (o mesmo que o scan usa) e
+     * espera a resposta: o `centralManagerDidUpdateState` chega quando a pessoa responde; se o estado se
+     * resolver antes da autorização, reconfere a cada 250 ms até ela sair de `notDetermined`. Sem teto —
+     * a pessoa pode demorar no diálogo —, e cancelável pelo escopo de quem chamou.
+     */
+    override suspend fun requestPermission(): BluetoothPermissionStatus = withContext(Dispatchers.Main) {
+        val current = bluetoothPermissionStatusFor(CBManager.authorization)
+        if (current != BluetoothPermissionStatus.NOT_REQUESTED) return@withContext current
+        central // cria o gerenciador: é ISTO que abre o diálogo do sistema
+        delegate.managerState.first { it != CBManagerStateUnknown && it != CBManagerStateResetting }
+        while (CBManager.authorization == CBManagerAuthorizationNotDetermined) delay(AUTHORIZATION_POLL_MS)
+        bluetoothPermissionStatusFor(CBManager.authorization)
     }
 
     override fun scan(): Flow<HeartRateDevice> = callbackFlow {

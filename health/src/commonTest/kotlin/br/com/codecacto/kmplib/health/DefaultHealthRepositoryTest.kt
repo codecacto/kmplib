@@ -111,14 +111,14 @@ class DefaultHealthRepositoryTest {
     }
 
     @Test
-    fun `sem amostra e NoData, nunca zero`() = runTest {
+    fun `sem amostra e NoData - nunca zero`() = runTest {
         val metrics = repository.readSessionMetrics(START, END)
         assertEquals(HealthMetric.NoData, metrics.heartRate)
         assertEquals(HealthMetric.NoData, metrics.energy)
     }
 
     @Test
-    fun `leitura negada e Unavailable sem consultar, e leitura que o iOS nao informa e consultada`() = runTest {
+    fun `leitura negada e Unavailable sem consultar - e leitura que o iOS nao informa e consultada`() = runTest {
         gateway.readGranted = mapOf(HealthDataType.HEART_RATE to false, HealthDataType.ACTIVE_ENERGY to null)
         gateway.energy = 10.0
         val metrics = repository.readSessionMetrics(START, END)
@@ -152,7 +152,7 @@ class DefaultHealthRepositoryTest {
     }
 
     @Test
-    fun `treino do relogio no intervalo conta, o deste app nao`() = runTest {
+    fun `treino do relogio no intervalo conta - o deste app nao`() = runTest {
         gateway.workouts = listOf(StoredWorkout(fromThisApp = true, externalId = "run-0"))
         assertFalse(repository.hasDeviceWorkoutOverlapping(START, END))
         gateway.workouts += StoredWorkout(fromThisApp = false, externalId = null)

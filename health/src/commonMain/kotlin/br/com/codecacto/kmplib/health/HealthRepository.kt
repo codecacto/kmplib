@@ -31,16 +31,25 @@ sealed interface HealthMetric<out T> {
 
     data object NoData : HealthMetric<Nothing>
 
-    data class Value<T>(val value: T) : HealthMetric<T>
+    /** `toString` sem o valor (dado de saúde não vai para log/GlitchTip por acidente). */
+    data class Value<T>(val value: T) : HealthMetric<T> {
+        override fun toString(): String = "Value(<redigido>)"
+    }
 }
 
-/** FC média e máxima do intervalo, em bpm, arredondadas ao inteiro mais próximo. */
-data class HeartRateSummary(val avg: Int, val max: Int)
+/** FC média e máxima do intervalo, em bpm, arredondadas ao inteiro mais próximo. `toString` sem os
+ * valores — dado de saúde (LGPD art. 11) não vai para log nem para o GlitchTip por acidente. */
+data class HeartRateSummary(val avg: Int, val max: Int) {
+    override fun toString(): String = "HeartRateSummary(<redigido>)"
+}
 
 /** `source` é sempre [EnergySource.DEVICE] aqui — é o valor que JÁ está gravado no repositório de
  * saúde, nunca a nossa estimativa (que mora em `kmplib-workout.energy.CalorieEstimator` e NUNCA é
  * gravada de volta como medição, Apple 5.1.3(ii)). */
-data class EnergyReading(val kcal: Double, val source: EnergySource = EnergySource.DEVICE)
+data class EnergyReading(val kcal: Double, val source: EnergySource = EnergySource.DEVICE) {
+    /** Sem o kcal (dado de saúde); a fonte não identifica nada e fica. */
+    override fun toString(): String = "EnergyReading(source=$source)"
+}
 
 data class SessionMetrics(
     val heartRate: HealthMetric<HeartRateSummary>,

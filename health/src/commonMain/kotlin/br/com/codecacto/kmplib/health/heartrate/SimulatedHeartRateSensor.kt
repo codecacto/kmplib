@@ -64,6 +64,27 @@ class SimulatedHeartRateSensor(
         if (reason != null) dropLink()
     }
 
+    private var permission = BluetoothPermissionStatus.GRANTED
+    private var permissionAfterRequest = BluetoothPermissionStatus.GRANTED
+
+    /**
+     * Permissão de Bluetooth simulada (default: concedida, como antes). [current] é o que
+     * `permissionStatus()` responde; [afterRequest] é a "resposta da pessoa" ao `requestPermission()`
+     * — que passa a ser o status atual. Sem `GRANTED`, o monitor vê o rádio como
+     * [HeartRateUnavailableReason.PERMISSION_DENIED] (a menos que [setUnavailable] diga outro motivo).
+     *
+     * ```kotlin
+     * sensor.setPermission(BluetoothPermissionStatus.NOT_REQUESTED, afterRequest = BluetoothPermissionStatus.DENIED)
+     * ```
+     */
+    fun setPermission(
+        current: BluetoothPermissionStatus,
+        afterRequest: BluetoothPermissionStatus = current,
+    ) {
+        permission = current
+        permissionAfterRequest = afterRequest
+    }
+
     /** Derruba o link aberto (cinta fora de alcance). O monitor reconecta pela política dele. */
     fun dropLink() {
         linkGeneration.value += 1
@@ -71,6 +92,18 @@ class SimulatedHeartRateSensor(
 
     internal val transport: BleHeartRateTransport = object : BleHeartRateTransport {
         override suspend fun unavailableReason(): HeartRateUnavailableReason? = unavailable.value
+            ?: HeartRateUnavailableReason.PERMISSION_DENIED.takeIf { permission != BluetoothPermissionStatus.GRANTED }
+
+        override suspend fun permissionStatus(): BluetoothPermissionStatus = permission
+
+        override suspend fun requestPermission(): BluetoothPermissionStatus {
+            // Concedida e negada de vez não abrem diálogo — igual às plataformas.
+            if (permission == BluetoothPermissionStatus.GRANTED || permission == BluetoothPermissionStatus.PERMANENTLY_DENIED) {
+                return permission
+            }
+            permission = permissionAfterRequest
+            return permission
+        }
 
         override fun scan(): Flow<HeartRateDevice> = flow {
             emit(device)

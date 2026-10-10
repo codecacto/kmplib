@@ -5,6 +5,48 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.282.0 — Permissão de Bluetooth no monitor de FC, `toString` sem dado de saúde, treino fora do manifesto (`kmplib-health`)
+
+**Por quê.** App do Personal (MA6, relógio/cinta): a lib mandava o app pedir `BLUETOOTH_SCAN`/
+`BLUETOOTH_CONNECT`, mas não oferecia como — o `PermissionManager` do `kmplib-platform` não tem esse
+tipo, e cada app teria de escrever o pedido (com o "já pedida?" que o Android não expõe) à mão. E o
+manifesto da lib declarava `READ/WRITE_EXERCISE` para todo consumidor, inclusive quem só lê FC — o app
+do aluno já tirava as duas com `tools:node="remove"`.
+
+**O que entrou.**
+- **Permissão de Bluetooth (aditivo):** `HeartRateMonitor.permissionStatus()` e `requestPermission()`,
+  ambos `suspend`, → `BluetoothPermissionStatus` (`GRANTED`/`DENIED`/`PERMANENTLY_DENIED`/
+  `NOT_REQUESTED`, o mesmo vocabulário do `PermissionStatus` do platform).
+  - Android: `ActivityResultRegistry` + `RequestMultiplePermissions` na Activity de
+    `HealthActivityHolder` — `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` (12+) ou `ACCESS_FINE_LOCATION`
+    (11-, declarada pelo app); "já pedida" num `SharedPreferences` próprio (o `shouldShowRequestPermissionRationale`
+    é `false` antes do 1º pedido e depois da negação definitiva). Permissão não declarada no manifesto
+    final = aviso no logcat e status sem diálogo (não vira "negada de vez" falsa).
+  - iOS: `permissionStatus()` lê `CBManager.authorization` (sem diálogo); `requestPermission()` cria o
+    `CBCentralManager` do monitor — é isso que abre o diálogo — e espera a resposta. Negada/restrita =
+    `PERMANENTLY_DENIED`.
+  - Concedida depois de um `scan()` que deixou `Unavailable(PERMISSION_DENIED)`: o `state` volta a `Idle`.
+  - Os dois métodos têm default na interface (`GRANTED`) — dublê de `HeartRateMonitor` mantido por app
+    continua compilando. `SimulatedHeartRateSensor.setPermission(current, afterRequest)` (default
+    concedida, como antes).
+  - **Não é `AppPermission.BLUETOOTH` no `kmplib-platform`, de propósito:** a App Store recusa (ITMS-90683)
+    app cujo binário referencie o CoreBluetooth sem `NSBluetoothAlwaysUsageDescription`, e quase todo app
+    leva o platform. KDoc do `AppPermission` aponta para cá.
+- **`toString` redigido (higiene):** `HeartRateSummary`, `EnergyReading` (só `source`), `HealthMetric.Value`,
+  `HeartRateMeasurement` (contato + contagens), `HeartRateMonitorState.Connected` (`hasBpm`)/`Connecting`
+  (`attempt`)/`Lost`, `HeartRateDevice` (sem id/nome) e os internos `HeartRateStats`/`StoredWorkout` — mesmo
+  critério do `kmplib-workout` 2.272/2.273. Igualdade continua por valor.
+- **Manifesto:** `android.permission.health.READ_EXERCISE` e `WRITE_EXERCISE` SAÍRAM do manifesto da lib.
+  Quem grava treino (`HealthDataType.EXERCISE_SESSION`, `writeWorkout`, `hasDeviceWorkoutOverlapping`)
+  declara as duas no próprio manifesto. Pedido sem declaração: `requestPermissions` avisa no logcat, pede o
+  resto e devolve `false`; `writeWorkout` devolve `PERMISSION_DENIED`. Quem usava `tools:node="remove"` nas
+  duas pode apagar a linha (vira no-op). Consumidor único hoje (App do Personal) não grava treino: nada deixa
+  de funcionar.
+- Testes: `BluetoothPermissionTest` (9), `HealthToStringRedactionTest` (4), `HeartRateMonitorTest` +1; nomes
+  de teste sem vírgula (o `commonTest` do iOS não compilava — Kotlin/Native recusa `,` em nome de função).
+
+Aditivo + higiene: sem aviso, sem piso.
+
 ## 2.281.0 — `AppInputDialog(confirmEnabled)` + `typedConfirmationMatches` (`kmplib-ui`)
 
 **Por quê.** App do Personal (exclusão de conta, LN22): a regra da casa manda DIGITAR "EXCLUIR" para

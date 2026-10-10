@@ -34,10 +34,14 @@ internal interface HealthStoreGateway {
     suspend fun insertWorkout(run: WorkoutRun, end: Instant, category: ExerciseCategory): WorkoutWriteResult
 }
 
-internal data class HeartRateStats(val avg: Double, val max: Double)
+internal data class HeartRateStats(val avg: Double, val max: Double) {
+    override fun toString(): String = "HeartRateStats(<redigido>)"
+}
 
 /** Uma sessão já gravada: se veio DESTE app e, se sim, com qual id externo (`WorkoutRun.localId`). */
-internal data class StoredWorkout(val fromThisApp: Boolean, val externalId: String?)
+internal data class StoredWorkout(val fromThisApp: Boolean, val externalId: String?) {
+    override fun toString(): String = "StoredWorkout(fromThisApp=$fromThisApp, hasExternalId=${externalId != null})"
+}
 
 /** Recusa por permissão vinda da plataforma (Android: `SecurityException`). Mensagem sem dado. */
 internal class HealthPermissionException : Exception("health permission denied")

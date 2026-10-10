@@ -52,6 +52,9 @@ kover {
                     "br.com.codecacto.kmplib.health.heartrate.AndroidBleHeartRateTransport*",
                     "br.com.codecacto.kmplib.health.heartrate.AndroidBleHeartRateTransport_androidKt*",
                     "br.com.codecacto.kmplib.health.heartrate.BleLinkLostException",
+                    "br.com.codecacto.kmplib.health.heartrate.AndroidBluetoothPermission*",
+                    "br.com.codecacto.kmplib.health.heartrate.BluetoothPermissionMemory*",
+                    "br.com.codecacto.kmplib.health.ManifestPermissions_androidKt*",
                 )
             }
         }

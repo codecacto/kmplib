@@ -31,6 +31,11 @@ enum class PermissionStatus {
  * - [CAMERA]: Android `CAMERA`; iOS `AVCaptureDevice` (Info.plist `NSCameraUsageDescription`).
  * - [LOCATION]: Android `ACCESS_COARSE_LOCATION`; iOS `CLLocationManager` "when in use"
  *   (Info.plist `NSLocationWhenInUseUsageDescription`).
+ *
+ * **Bluetooth NÃO entra aqui, de propósito:** no iOS pedir a permissão é criar um `CBCentralManager`, e
+ * a App Store recusa (ITMS-90683) todo app cujo binário referencie o CoreBluetooth sem
+ * `NSBluetoothAlwaysUsageDescription` — seriam todos os apps com `kmplib-platform`. O pedido mora em
+ * `kmplib-health`: `HeartRateMonitor.permissionStatus()`/`requestPermission()` (2.282.0).
  */
 enum class AppPermission {
     MICROPHONE,

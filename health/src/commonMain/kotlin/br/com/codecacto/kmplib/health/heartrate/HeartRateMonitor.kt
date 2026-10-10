@@ -17,7 +17,10 @@ import kotlinx.coroutines.flow.onCompletion
  * `CBPeripheral` no iOS (estável por aparelho, não é o MAC). [name] é o nome anunciado, quando há.
  * Identifica o aparelho da pessoa: não vai para log nem para o servidor.
  */
-data class HeartRateDevice(val id: String, val name: String?)
+data class HeartRateDevice(val id: String, val name: String?) {
+    /** Sem o id e o nome (identificam o aparelho da pessoa — o nome anunciado costuma trazer o dela). */
+    override fun toString(): String = "HeartRateDevice(<redigido>)"
+}
 
 enum class HeartRateUnavailableReason {
     /** O aparelho não tem Bluetooth LE. */
@@ -43,14 +46,21 @@ sealed interface HeartRateMonitorState {
     data object Scanning : HeartRateMonitorState
 
     /** Conectando; [attempt] > 0 = reconectando depois de o link cair. */
-    data class Connecting(val device: HeartRateDevice, val attempt: Int) : HeartRateMonitorState
+    data class Connecting(val device: HeartRateDevice, val attempt: Int) : HeartRateMonitorState {
+        override fun toString(): String = "Connecting(attempt=$attempt)"
+    }
 
     /** Conectado e assinando. [lastBpm] `null` = **sem dado ainda** (a cinta leva alguns segundos para
      * mandar a primeira leitura válida) — a tela mostra "aguardando", nunca "0 bpm". */
-    data class Connected(val device: HeartRateDevice, val lastBpm: Int?) : HeartRateMonitorState
+    data class Connected(val device: HeartRateDevice, val lastBpm: Int?) : HeartRateMonitorState {
+        /** Sem o bpm (dado de saúde): só se já há leitura. */
+        override fun toString(): String = "Connected(hasBpm=${lastBpm != null})"
+    }
 
     /** Desistiu de reconectar depois de [HeartRateReconnectPolicy.maxConsecutiveFailures] falhas. */
-    data class Lost(val device: HeartRateDevice) : HeartRateMonitorState
+    data class Lost(val device: HeartRateDevice) : HeartRateMonitorState {
+        override fun toString(): String = "Lost"
+    }
 }
 
 /**
@@ -95,6 +105,34 @@ interface HeartRateMonitor {
     /** Só os bpm utilizáveis ([HeartRateMeasurement.isUsable]). */
     fun heartRate(device: HeartRateDevice): Flow<Int> =
         measurements(device).filter { it.isUsable }.map { it.bpm }
+
+    /**
+     * Status da permissão de Bluetooth, SEM pedir nada — para a tela decidir entre a explicação
+     * ([BluetoothPermissionStatus.NOT_REQUESTED]), o "Permitir" ([BluetoothPermissionStatus.DENIED]) e o
+     * "Abrir Ajustes" ([BluetoothPermissionStatus.PERMANENTLY_DENIED]).
+     *
+     * - Android 12+: `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` (as duas já no manifesto da lib); Android 11 e
+     *   anteriores: `ACCESS_FINE_LOCATION` (o scan BLE exige; o APP declara — ver o manifesto da lib).
+     * - iOS: `CBManager.authorization` (não cria o `CBCentralManager`, então não abre diálogo).
+     *
+     * O default (`GRANTED`) existe só para não quebrar dublês mantidos por apps; as implementações da lib
+     * sobrescrevem.
+     */
+    suspend fun permissionStatus(): BluetoothPermissionStatus = BluetoothPermissionStatus.GRANTED
+
+    /**
+     * Pede a permissão de Bluetooth pela via oficial de cada plataforma e devolve o status final. Já
+     * concedida ou negada de vez: devolve na hora, sem diálogo (negada de vez = levar aos Ajustes).
+     *
+     * - Android: `ActivityResultRegistry` + `RequestMultiplePermissions` na Activity registrada em
+     *   `HealthActivityHolder.setActivity` (sem Activity, devolve o status atual sem abrir nada).
+     * - iOS: o diálogo nasce ao criar o `CBCentralManager` — é isso que a lib faz, e espera a resposta.
+     *   Exige `NSBluetoothAlwaysUsageDescription` no `Info.plist` (sem ela o iOS ENCERRA o app).
+     *
+     * Chamar antes de [scan] é o caminho recomendado: o [scan] sem permissão termina vazio com
+     * [HeartRateUnavailableReason.PERMISSION_DENIED] (e, no iOS, dispara o diálogo por conta própria).
+     */
+    suspend fun requestPermission(): BluetoothPermissionStatus = permissionStatus()
 }
 
 expect fun createHeartRateMonitor(): HeartRateMonitor
@@ -118,6 +156,12 @@ internal interface BleHeartRateTransport {
     /** `null` = pronto para operar. */
     suspend fun unavailableReason(): HeartRateUnavailableReason?
 
+    /** Ver [HeartRateMonitor.permissionStatus]. */
+    suspend fun permissionStatus(): BluetoothPermissionStatus
+
+    /** Ver [HeartRateMonitor.requestPermission]. */
+    suspend fun requestPermission(): BluetoothPermissionStatus
+
     fun scan(): Flow<HeartRateDevice>
 
     /** Conecta, assina a `0x2A37` e emite [BleLinkEvent]. Termina (normalmente ou com exceção) quando o
@@ -132,6 +176,20 @@ internal class DefaultHeartRateMonitor(
 
     private val _state = MutableStateFlow<HeartRateMonitorState>(HeartRateMonitorState.Idle)
     override val state: StateFlow<HeartRateMonitorState> = _state.asStateFlow()
+
+    override suspend fun permissionStatus(): BluetoothPermissionStatus = transport.permissionStatus()
+
+    /** Concedida agora: um `Unavailable(PERMISSION_DENIED)` deixado por um scan anterior volta a `Idle`
+     * — a tela não fica presa no aviso de permissão depois de a pessoa permitir. */
+    override suspend fun requestPermission(): BluetoothPermissionStatus {
+        val status = transport.requestPermission()
+        if (status == BluetoothPermissionStatus.GRANTED &&
+            _state.value == HeartRateMonitorState.Unavailable(HeartRateUnavailableReason.PERMISSION_DENIED)
+        ) {
+            _state.value = HeartRateMonitorState.Idle
+        }
+        return status
+    }
 
     override fun scan(): Flow<HeartRateDevice> = flow {
         val reason = transport.unavailableReason()

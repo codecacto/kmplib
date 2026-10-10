@@ -4,15 +4,20 @@
   recebe isto; os demais apps não). O app ainda precisa (ver kmplib-catalog/references/health.md):
   - a Activity de justificativa do Health Connect (ACTION_SHOW_PERMISSIONS_RATIONALE + activity-alias
     VIEW_PERMISSION_USAGE no Android 14+), com a Política de Privacidade — o Play reprova sem ela;
-  - pedir BLUETOOTH_SCAN/BLUETOOTH_CONNECT (12+) ou ACCESS_FINE_LOCATION (11-) em tempo de execução.
+  - pedir BLUETOOTH_SCAN/BLUETOOTH_CONNECT (12+) ou ACCESS_FINE_LOCATION (11-) em tempo de execução
+    — HeartRateMonitor.requestPermission() (2.282.0); ACCESS_FINE_LOCATION o app declara (ver abaixo);
+  - SE GRAVA TREINO (HealthRepository.writeWorkout / HealthDataType.EXERCISE_SESSION): declarar
+    android.permission.health.READ_EXERCISE e WRITE_EXERCISE no PRÓPRIO manifesto (ver abaixo).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Health Connect: SÓ os tipos que a lib lê/escreve (pedir tipo sem uso reprova na revisão). -->
+    <!-- Health Connect: só a LEITURA posterior de FC e energia ativa, que é o uso de todo consumidor.
+         READ_EXERCISE/WRITE_EXERCISE (gravar o treino, EXERCISE_SESSION) saíram na 2.282.0: permissão
+         declarada e não usada reprova na revisão de saúde do Play, e o app que grava treino as declara
+         no próprio manifesto. Pedido sem a declaração: o Health Connect nega sem diálogo e a lib avisa
+         no logcat (requestPermissions devolve false; writeWorkout, PERMISSION_DENIED). -->
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
-    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
 
     <!-- FC por BLE (HeartRateMonitor). Android 12+: SCAN sem uso de localização. -->
     <uses-permission
