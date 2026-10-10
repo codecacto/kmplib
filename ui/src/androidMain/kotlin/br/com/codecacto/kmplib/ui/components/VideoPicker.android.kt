@@ -4,12 +4,14 @@ import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import androidx.compose.ui.platform.testTag
 import android.Manifest
+import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -52,6 +54,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.InputStream
 
 actual class VideoPickerLauncher(
     private val onLaunch: () -> Unit,
@@ -262,20 +268,97 @@ actual suspend fun PickedVideo.readChunks(
     chunkSize: Int,
     onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
 ) {
+    readRange(offset = 0L, length = null, chunkSize = chunkSize.coerceAtLeast(1), onChunk = onChunk)
+}
+
+actual suspend fun PickedVideo.readRange(
+    offset: Long,
+    length: Long?,
+    chunkSize: Int,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+): Long {
+    requireValidVideoRange(offset, length, chunkSize)
+    if (length == 0L) return 0L
     val context = AndroidAppContext.get()
         ?: error("kmplib-ui: chame KmpLib.init(context) (ou initKmpLibCore) antes de ler o vídeo.")
+    val resolver = context.contentResolver
     val uri = Uri.parse(reference)
-    withContext(Dispatchers.IO) {
-        val entrada = context.contentResolver.openInputStream(uri)
-            ?: error("Vídeo indisponível: $reference")
-        entrada.use { fluxo ->
-            val buffer = ByteArray(chunkSize.coerceAtLeast(1))
-            while (true) {
-                val lidos = fluxo.read(buffer)
-                if (lidos <= 0) break
-                onChunk(buffer, lidos)
+    return withContext(Dispatchers.IO) {
+        readVideoRangeFrom(
+            offset = offset,
+            length = length,
+            chunkSize = chunkSize,
+            openSeekable = { abrirPosicionavel(resolver, uri) },
+            openStream = { resolver.openInputStream(uri) ?: error("Vídeo indisponível: $reference") },
+            onChunk = onChunk,
+        )
+    }
+}
+
+/**
+ * O descritor do arquivo, quando o provedor entrega um **posicionável** — `null` quando não
+ * (pipe, provedor só de fluxo, tamanho desconhecido). Fechar o fluxo devolvido fecha o descritor.
+ */
+private fun abrirPosicionavel(resolver: ContentResolver, uri: Uri): FileInputStream? {
+    val descritor = try {
+        resolver.openFileDescriptor(uri, "r")
+    } catch (e: FileNotFoundException) {
+        // Provedor que só serve fluxo (openTypedAssetFile por pipe) — o caminho do skip resolve.
+        null
+    } catch (e: UnsupportedOperationException) {
+        null
+    } ?: return null
+    // statSize < 0 = não é arquivo comum (pipe/socket): lseek falharia com ESPIPE.
+    if (descritor.statSize < 0) {
+        runCatching { descritor.close() }
+        return null
+    }
+    return ParcelFileDescriptor.AutoCloseInputStream(descritor)
+}
+
+/**
+ * O caminho da leitura por faixa, sem `Context` — separado para ser testado com arquivo e fluxo
+ * reais em `androidUnitTest`.
+ *
+ * 1. `offset == 0`: o fluxo comum, sem descritor (o comportamento histórico do [readChunks]).
+ * 2. Senão, tenta [openSeekable] e salta com `FileChannel.position` — o canal e o fluxo dividem a
+ *    posição do mesmo descritor, então a leitura começa no byte pedido sem ler nada antes.
+ * 3. Sem descritor posicionável (ou `position` recusado), [openStream] + skip **verificado**.
+ */
+internal suspend fun readVideoRangeFrom(
+    offset: Long,
+    length: Long?,
+    chunkSize: Int,
+    openSeekable: () -> FileInputStream?,
+    openStream: () -> InputStream,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+): Long {
+    requireValidVideoRange(offset, length, chunkSize)
+    if (length == 0L) return 0L
+    if (offset > 0L) {
+        val posicionavel = openSeekable()
+        if (posicionavel != null) {
+            val saltou = try {
+                posicionavel.channel.position(offset)
+                true
+            } catch (e: IOException) {
+                AppLogger.w(TAG, "Descritor do vídeo não posicionável (${e::class.simpleName}); lendo por skip.")
+                runCatching { posicionavel.close() }
+                false
+            }
+            if (saltou) {
+                return posicionavel.use { fluxo ->
+                    streamVideoRange({ buffer, max -> fluxo.read(buffer, 0, max) }, length, chunkSize, onChunk)
+                }
             }
         }
+    }
+    return openStream().use { fluxo ->
+        if (offset > 0L) {
+            val pulados = skipVideoBytesExactly(offset, { n -> fluxo.skip(n) }, { fluxo.read() })
+            if (pulados < offset) return@use 0L // o arquivo acaba antes do deslocamento
+        }
+        streamVideoRange({ buffer, max -> fluxo.read(buffer, 0, max) }, length, chunkSize, onChunk)
     }
 }
 

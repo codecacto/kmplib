@@ -1,4 +1,4 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 @file:Suppress("ktlint:standard:no-wildcard-imports")
 
 package br.com.codecacto.kmplib.ui.components
@@ -6,7 +6,12 @@ package br.com.codecacto.kmplib.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.value
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import platform.AVFoundation.*
@@ -289,18 +294,56 @@ actual suspend fun PickedVideo.readChunks(
     chunkSize: Int,
     onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
 ) {
-    val arquivo = NSFileHandle.fileHandleForReadingAtPath(reference)
-        ?: error("Vídeo indisponível: $reference")
+    readRange(offset = 0L, length = null, chunkSize = chunkSize.coerceAtLeast(1), onChunk = onChunk)
+}
+
+/**
+ * A faixa via `NSFileHandle` com as APIs que devolvem `NSError` (iOS 13+):
+ * `fileHandleForReadingFromURL:error:`, `seekToOffset:error:`, `readDataUpToLength:error:` e
+ * `closeAndReturnError:`. As antigas (`readDataOfLength`, `seekToFileOffset`) sinalizam falha de E/S
+ * com `NSException` — que o Kotlin/Native **não** captura: derrubaria o app no meio do upload.
+ */
+actual suspend fun PickedVideo.readRange(
+    offset: Long,
+    length: Long?,
+    chunkSize: Int,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+): Long {
+    requireValidVideoRange(offset, length, chunkSize)
+    if (length == 0L) return 0L
+    val arquivo = memScoped {
+        val erro = alloc<ObjCObjectVar<NSError?>>()
+        NSFileHandle.fileHandleForReadingFromURL(NSURL.fileURLWithPath(reference), error = erro.ptr)
+    } ?: error("Vídeo indisponível: $reference")
     try {
-        val pedaco = chunkSize.coerceAtLeast(1).toULong()
-        while (true) {
-            val dados = arquivo.readDataOfLength(pedaco)
-            val lidos = dados.length.toInt()
-            if (lidos <= 0) break
-            onChunk(dados.paraByteArray(), lidos)
+        if (offset > 0L) {
+            val posicionou = memScoped {
+                val erro = alloc<ObjCObjectVar<NSError?>>()
+                arquivo.seekToOffset(offset.toULong(), error = erro.ptr)
+            }
+            check(posicionou) { "Vídeo não posicionável no byte $offset" }
         }
+        val fonte = RangeSource { destino, maximo ->
+            val dados = memScoped {
+                val erro = alloc<ObjCObjectVar<NSError?>>()
+                val lido = arquivo.readDataUpToLength(maximo.toULong(), error = erro.ptr)
+                if (lido == null && erro.value != null) {
+                    error("Falha ao ler o vídeo: ${erro.value?.localizedDescription}")
+                }
+                lido
+            }
+            val lidos = dados?.length?.toInt() ?: 0
+            if (lidos > 0) {
+                destino.usePinned { fixado -> memcpy(fixado.addressOf(0), dados!!.bytes, dados.length) }
+            }
+            lidos
+        }
+        return streamVideoRange(fonte, length, chunkSize, onChunk)
     } finally {
-        arquivo.closeFile()
+        memScoped {
+            val erro = alloc<ObjCObjectVar<NSError?>>()
+            arquivo.closeAndReturnError(erro.ptr)
+        }
     }
 }
 

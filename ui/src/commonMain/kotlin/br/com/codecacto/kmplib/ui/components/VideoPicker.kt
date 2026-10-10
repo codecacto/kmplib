@@ -113,6 +113,9 @@ expect fun rememberVideoPickerLauncher(
 /**
  * Lê o vídeo **em pedaços**, do disco, sem nunca ter o arquivo inteiro na memória.
  *
+ * Para começar de um deslocamento (retomar um envio, subir uma parte de multipart), use a
+ * sobrecarga `readChunks(fromByte = …)` ou [readRange] — não releia o arquivo pulando pedaços.
+ *
  * É a metade que faz a referência valer: com ela, subir 100 MB custa [chunkSize] de memória, não
  * 100 MB. Para um `PUT` direto no provedor de vídeo, é isto que alimenta o corpo da requisição.
  *
@@ -139,6 +142,75 @@ expect suspend fun PickedVideo.readChunks(
     chunkSize: Int = DEFAULT_VIDEO_CHUNK_BYTES,
     onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
 )
+
+/**
+ * Lê **uma faixa** do vídeo — a partir de [offset], até [length] bytes — em pedaços, sem nunca ter
+ * o arquivo inteiro na memória e **sem ler o que vem antes do deslocamento**.
+ *
+ * É o que faz o upload em partes ser **retomável** de verdade: ao voltar depois de uma queda, o app
+ * pede ao servidor quais partes já chegaram e lê só a que falta. Com [readChunks] sozinho, retomar
+ * era reler o vídeo inteiro desde o byte 0 pulando o que já tinha subido — 100 MB de disco (e de
+ * bateria) para mandar os últimos 5.
+ *
+ * ```kotlin
+ * // Parte N de um multipart de 8 MB, direto para a URL assinada daquela parte:
+ * val inicio = n * PARTE
+ * val tamanho = minOf(PARTE.toLong(), video.sizeBytes - inicio)
+ * client.put(urlDaParte) {
+ *     setBody(object : OutgoingContent.WriteChannelContent() {
+ *         override val contentLength = tamanho
+ *         override suspend fun writeTo(channel: ByteWriteChannel) {
+ *             val lidos = video.readRange(offset = inicio, length = tamanho) { bytes, count ->
+ *                 channel.writeFully(bytes, 0, count)
+ *             }
+ *             check(lidos == tamanho) { "O vídeo encolheu: $lidos de $tamanho bytes" }
+ *         }
+ *     })
+ * }
+ * ```
+ *
+ * ### Como posiciona
+ * - **Android:** `ContentResolver.openFileDescriptor` + `FileChannel.position` — salto direto, sem
+ *   ler nada. Provedor que não entrega descritor posicionável (pipe, `statSize` desconhecido) cai em
+ *   `openInputStream` + `skip` **verificado** (`skip` pode devolver 0 sem estar no fim; a lib
+ *   distingue lendo um byte, e nunca entrega bytes do lugar errado).
+ * - **iOS:** `NSFileHandle` com `seekToOffset:error:` e `readDataUpToLength:error:` (as formas que
+ *   devolvem `NSError` — as antigas lançam `NSException`, que o Kotlin/Native não captura).
+ *
+ * @param offset o primeiro byte, contado do início do arquivo. `0` = desde o começo.
+ * @param length quantos bytes, no máximo. `null` = até o fim. `0` = nada (sem abrir o arquivo).
+ * @param chunkSize o tamanho máximo de cada pedaço entregue a [onChunk].
+ * @param onChunk como em [readChunks]: vale `count`, não `bytes.size`, e o buffer é reaproveitado.
+ * @return quantos bytes foram entregues. **Menos que [length]** só quando o arquivo acabou antes
+ *   (deslocamento além do fim devolve `0`) — confira contra o tamanho que você anunciou no
+ *   `Content-Length`, porque o arquivo pode ter mudado entre a escolha e o envio.
+ * @throws IllegalArgumentException com [offset] ou [length] negativos, ou [chunkSize] `<= 0`.
+ * @throws IllegalStateException se o arquivo não puder ser aberto (como em [readChunks]).
+ */
+expect suspend fun PickedVideo.readRange(
+    offset: Long,
+    length: Long? = null,
+    chunkSize: Int = DEFAULT_VIDEO_CHUNK_BYTES,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+): Long
+
+/**
+ * [readChunks] a partir de um deslocamento: lê de [fromByte] até o fim do arquivo, sem passar pelos
+ * bytes anteriores. Atalho de [readRange] com `length = null` — para retomar um envio em fluxo único
+ * do ponto em que parou.
+ *
+ * ```kotlin
+ * val jaEnviado = servidor.bytesRecebidos(uploadId)
+ * video.readChunks(fromByte = jaEnviado) { bytes, count -> channel.writeFully(bytes, 0, count) }
+ * ```
+ *
+ * @return quantos bytes foram entregues (`0` se [fromByte] passou do fim).
+ */
+suspend fun PickedVideo.readChunks(
+    chunkSize: Int = DEFAULT_VIDEO_CHUNK_BYTES,
+    fromByte: Long,
+    onChunk: suspend (bytes: ByteArray, count: Int) -> Unit,
+): Long = readRange(offset = fromByte, length = null, chunkSize = chunkSize, onChunk = onChunk)
 
 /** 256 KB — pedaço grande o bastante para não picotar a rede e pequeno para caber em qualquer aparelho. */
 const val DEFAULT_VIDEO_CHUNK_BYTES: Int = 256 * 1024

@@ -5,6 +5,32 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.277.0 — `PickedVideo.readRange(offset, length)` e `readChunks(fromByte = …)`: ler o vídeo a partir de um deslocamento
+
+**Por quê.** App do Personal (MP6, upload multipart de vídeo retomável): o `readChunks` só lia desde o
+byte 0. Retomar um envio, ou subir a parte N de um multipart, obrigava a reler o arquivo inteiro
+pulando o que já tinha subido — até 100 MB de disco e bateria para mandar os últimos 5.
+
+**`kmplib-ui` — aditivo (sem piso, sem aviso)**
+- `expect suspend fun PickedVideo.readRange(offset: Long, length: Long? = null, chunkSize: Int =
+  DEFAULT_VIDEO_CHUNK_BYTES, onChunk): Long` — lê só a faixa pedida, em pedaços, buffer reaproveitado;
+  devolve quantos bytes entregou (menos que `length` só se o arquivo acabou antes; `offset` além do fim = 0).
+  `offset`/`length` negativos ou `chunkSize <= 0` → `IllegalArgumentException`; `length = 0` não abre o arquivo.
+- `suspend fun PickedVideo.readChunks(chunkSize = DEFAULT_VIDEO_CHUNK_BYTES, fromByte: Long, onChunk): Long`
+  — sobrecarga (o `fromByte` é obrigatório, então `readChunks { }` e `readChunks(n) { }` continuam
+  resolvendo para a original, sem ambiguidade). Atalho de `readRange(fromByte, null)`.
+- **Android:** `ContentResolver.openFileDescriptor(uri, "r")` + `FileChannel.position(offset)` (salto
+  direto). Provedor sem descritor posicionável (`FileNotFoundException`/`statSize < 0`/`position` com
+  `IOException`) cai em `openInputStream` + `skip` **verificado** (`skip` que devolve 0 é confirmado
+  lendo um byte — nunca entrega bytes do lugar errado). `offset = 0` segue o fluxo comum de antes.
+- **iOS:** `fileHandleForReadingFromURL:error:` + `seekToOffset:error:` + `readDataUpToLength:error:` +
+  `closeAndReturnError:`. O `readChunks` original passou a usar o mesmo caminho: o
+  `readDataOfLength` antigo sinalizava falha de E/S com `NSException`, que o Kotlin/Native não
+  captura (o app caía no meio do upload); agora vira `IllegalStateException`. Buffer reaproveitado
+  em vez de um `ByteArray` novo por pedaço.
+- Núcleo comum puro (`streamVideoRange`, `skipVideoBytesExactly`, `requireValidVideoRange`) com testes em
+  `commonTest` (11) e o caminho Android com arquivo/fluxo reais em `androidUnitTest` (7).
+
 ## 2.276.0 — dado sensível fora do estado salvo e do log: `AppSearchField(saveable)`, `FormRunner` não salvável, `ShareHandler` sem nome de arquivo no log
 
 *(Não existe 2.274.0: o número foi reservado nesta rodada e saltado quando a 2.275.0 saiu antes.)*
