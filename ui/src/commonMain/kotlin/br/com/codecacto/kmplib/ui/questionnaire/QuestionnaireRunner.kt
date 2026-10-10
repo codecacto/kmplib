@@ -559,6 +559,8 @@ private fun QuestionItem(
                     modifier = Modifier.fillMaxWidth().testTag(QuestionnaireTestTags.answer(question.id)),
                     isEnabled = enabled,
                     errorMessage = errorText,
+                    // Resposta de saúde: o calendário aberto não vai ao estado salvo (2.276.0).
+                    ephemeral = true,
                 )
             }
             QuestionnaireQuestionType.UNSUPPORTED -> UnavailableNotice(texts.unavailable)

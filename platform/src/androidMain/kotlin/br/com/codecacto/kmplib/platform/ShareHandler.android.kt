@@ -121,7 +121,10 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
             // FileProvider.getUriForFile (provider não declarado) e o chamador recebia
             // "sucesso" sem nada compartilhado — quebrava todo compartilhamento de
             // arquivo no Android. Agora a falha propaga para o caller refletir erro.
-            AppLogger.e(TAG, "Erro ao compartilhar arquivo: $fileName", e)
+            // Só o TIPO do erro (2.276.0): o nome do arquivo — e a mensagem da exceção, que traz o
+            // caminho (FileProvider: "Failed to find configured root that contains …/<nome>") —
+            // pode conter dado de saúde ou pessoal ("laudo-joao-silva.pdf") e ia para log/GlitchTip.
+            AppLogger.e(TAG, "Erro ao compartilhar arquivo: ${e::class.simpleName}")
             throw e
         }
     }
@@ -144,7 +147,7 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
             if (file.delete()) {
                 apagados++
             } else {
-                AppLogger.w(TAG, "não foi possível apagar o arquivo compartilhado ${file.name}")
+                AppLogger.w(TAG, "não foi possível apagar um arquivo compartilhado")
             }
         }
         return apagados

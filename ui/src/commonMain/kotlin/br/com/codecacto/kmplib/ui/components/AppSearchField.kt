@@ -125,6 +125,11 @@ fun rememberSyncedTextFieldState(
  * @param query valor de busca do ViewModel. Mudança vinda de fora (limpar, restaurar) é aplicada.
  * @param onQueryChange cada mudança do texto; debounce é do ViewModel.
  * @param onSearch ação "Buscar" do teclado (o filtro já roda a cada tecla; útil para busca remota).
+ * @param saveable `false` = o termo digitado NÃO vai ao estado salvo do sistema (`Bundle` no Android,
+ *   restauração de cena no iOS) — só memória (2.276.0). **Busca por nome, CPF ou telefone de pessoa
+ *   (paciente, cliente, aluno) usa `saveable = false`**: o termo é dado pessoal e ficaria num lugar que
+ *   o app não controla nem apaga. Contrapartida: se o sistema matar o processo, o termo não volta
+ *   sozinho. Ver [rememberSyncedTextFieldState].
  */
 @Composable
 fun AppSearchField(
@@ -140,8 +145,9 @@ fun AppSearchField(
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    saveable: Boolean = true,
 ) {
-    val state = rememberSyncedTextFieldState(query, onQueryChange)
+    val state = rememberSyncedTextFieldState(query, onQueryChange, saveable = saveable)
 
     OutlinedTextField(
         state = state,

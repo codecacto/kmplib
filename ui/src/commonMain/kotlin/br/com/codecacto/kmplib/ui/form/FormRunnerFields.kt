@@ -25,7 +25,7 @@ import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.placeCursorAtEnd
-import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -395,6 +395,11 @@ private fun NumberQuestionField(env: FormFieldEnv, question: FormQuestion) {
  * de `decimals` não entram; sem `decimals`, inteiro. O texto mora no campo (`TextFieldState`) e o
  * valor de fora só o reescreve quando muda por outro motivo que não a digitação (recarga) — o eco
  * atrasado do ViewModel não come dígito no iOS.
+ *
+ * **Não salvável (2.276.0):** resposta de formulário de saúde (peso, pressão, escala) não vai ao
+ * estado salvo do sistema (`Bundle` no Android, restauração de cena no iOS) — o rascunho é
+ * `remember { TextFieldState(…) }`, só memória. A resposta em si mora no ViewModel / fila de envio;
+ * numa morte de processo o rascunho não digitado até o fim se perde.
  */
 @Composable
 internal fun FormNumberInput(
@@ -411,7 +416,7 @@ internal fun FormNumberInput(
     onBlur: () -> Unit,
 ) {
     val key = value?.toPlainString().orEmpty()
-    val fieldState = rememberTextFieldState(formatFormNumberDraft(value, separator))
+    val fieldState = remember { TextFieldState(formatFormNumberDraft(value, separator)) }
     val reconciler = remember { TextInputReconciler(key) }
     val latestOnValue by rememberUpdatedState(onValue)
     SideEffect {
@@ -494,6 +499,8 @@ private fun DateField(env: FormFieldEnv, question: FormQuestion) {
         errorMessage = env.questionMessage(question.id),
         minDate = resolveFormDateBound(question.date?.min, env.state.today),
         maxDate = resolveFormDateBound(question.date?.max, env.state.today),
+        // Resposta de saúde: o calendário aberto não vai ao estado salvo (2.276.0).
+        ephemeral = true,
         onClear = if (raw != null) {
             { env.dispatch(FormRunnerAction.Answer(question.id, null)) }
         } else {
@@ -836,6 +843,7 @@ private fun ListItemField(
             errorMessage = error,
             minDate = resolveFormDateBound(field.date?.min, env.state.today),
             maxDate = resolveFormDateBound(field.date?.max, env.state.today),
+            ephemeral = true,
             onClear = if (text != null) {
                 { onChange(null) }
             } else {

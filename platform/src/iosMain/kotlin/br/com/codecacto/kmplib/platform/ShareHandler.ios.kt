@@ -101,7 +101,10 @@ class IosShareHandler : ShareHandler {
             presentActivityController(activityController)
         } catch (e: Exception) {
             // Loga E RELANÇA (paridade com Android).
-            AppLogger.e(TAG, "Erro ao compartilhar arquivo: $fileName", e)
+            // Só o TIPO do erro (2.276.0): o nome do arquivo — e a mensagem da exceção, que traz o
+            // caminho (FileProvider: "Failed to find configured root that contains …/<nome>") —
+            // pode conter dado de saúde ou pessoal ("laudo-joao-silva.pdf") e ia para log/GlitchTip.
+            AppLogger.e(TAG, "Erro ao compartilhar arquivo: ${e::class.simpleName}")
             throw e
         }
     }
@@ -119,7 +122,7 @@ class IosShareHandler : ShareHandler {
             if (fileManager.removeItemAtPath(path, null)) {
                 apagados++
             } else {
-                AppLogger.w(TAG, "não foi possível apagar o arquivo compartilhado $nome")
+                AppLogger.w(TAG, "não foi possível apagar um arquivo compartilhado")
             }
         }
         return apagados

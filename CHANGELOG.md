@@ -5,6 +5,30 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.276.0 — dado sensível fora do estado salvo e do log: `AppSearchField(saveable)`, `FormRunner` não salvável, `ShareHandler` sem nome de arquivo no log
+
+*(Não existe 2.274.0: o número foi reservado nesta rodada e saltado quando a 2.275.0 saiu antes.)*
+
+**Por quê.** Security-review do Vitalis (saúde): (1) o `AppSearchField` sempre gravava o termo no estado salvo
+do sistema — busca por nome/CPF/telefone de paciente ia parar no `Bundle`; (2) o campo de número do
+`FormRunner` usava `rememberTextFieldState` (salvável) e as datas usavam o calendário salvável — resposta de
+formulário de saúde (peso, pressão, escala, data) ia para o estado salvo; (3) a falha de `shareFile` logava o
+nome do arquivo (e a exceção, cuja mensagem traz o caminho) — nome como "laudo-joao-silva.pdf" é dado de saúde.
+
+**`kmplib-ui` — aditivo + higiene (sem piso, sem aviso)**
+- `AppSearchField(…, saveable: Boolean = true)` — último parâmetro, repassado ao `rememberSyncedTextFieldState`
+  (2.271.0). **Busca por nome, CPF ou telefone de pessoa usa `saveable = false`.** Default = comportamento de antes.
+- `FormRunner` (`ui/form`): o rascunho do campo de número passa a `remember { TextFieldState(…) }` (só memória),
+  com o mesmo `TextInputReconciler`; os campos de data (pergunta e item de lista) passam `ephemeral = true` ao
+  `AppDatePicker`. Texto curto/longo já eram não salváveis (`keepTextLocally` = `remember`). O mesmo
+  `ephemeral = true` na data do `QuestionnaireRunner`. Contrapartida: morte de processo perde o rascunho em
+  andamento (a resposta enviada mora no ViewModel/fila).
+
+**`kmplib-platform` — higiene (sem piso, sem aviso)**
+- `ShareHandler.shareFile` (Android e iOS): a falha loga só o tipo do erro (`Erro ao compartilhar arquivo:
+  IllegalArgumentException`), sem o nome do arquivo nem a exceção; a limpeza de `shared_files` também deixou de
+  logar o nome. A exceção continua sendo relançada ao chamador.
+
 ## 2.275.0 — workout: duração informada da série por tempo (`CompleteSet(durationSeconds)`) e troca de exercício no cursor (`SwapExercise`)
 
 **Por quê.** App do Personal, lote MA4a (treino guiado, review de 10/out): (1) a série por tempo só tinha a
