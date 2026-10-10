@@ -24,7 +24,9 @@
 # cru, senão todo app que usa o componente corretamente é empurrado para um bump que nada muda.
 # O `motivo` diz o que migrar.
 #
-# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.276.0 (`AppSearchField(saveable)`
+# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.280.0 (temporário de PDF
+# aberto/impressão apagado do disco + `clearKmpLibTemporaryFiles` — higiene de dado sensível, nada
+# deixa de funcionar), 2.279.0 (`detailsJson`/`detailList` é API nova), 2.276.0 (`AppSearchField(saveable)`
 # é API nova; `FormRunner` não salvável e `ShareHandler` sem nome no log são higiene de dado sensível), 2.273.0 (`Haptics` e
 # `keepLocalEntities`/`keepLocalRow` são API nova com default igual ao de antes; `toString` dos eventos
 # do workout é higiene de log), 2.272.0 (`toString` de

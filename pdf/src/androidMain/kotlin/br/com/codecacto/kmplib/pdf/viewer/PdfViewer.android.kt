@@ -47,6 +47,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.platform.PDF_VIEWER_TEMP_DIRECTORY
+import kotlinx.coroutines.isActive
 
 /**
  * Impl Android: `PdfRenderer` da plataforma + `LazyColumn`.
@@ -75,6 +77,11 @@ actual fun PdfViewer(
         if (bytes == null) return@LaunchedEffect
         try {
             val aberto = AndroidPdfDocument.open(bytes, context.pdfTempDir())
+            // Cancelado entre a abertura e a atribuição: ninguém mais vai fechar este documento.
+            if (!isActive) {
+                aberto.close()
+                return@LaunchedEffect
+            }
             documento = aberto
             state.pageCount = aberto.pageCount
             state.currentPage = if (aberto.pageCount > 0) 1 else 0
@@ -255,14 +262,15 @@ private fun PdfErrorPanel(
 }
 
 /**
- * O temporário do `PdfRenderer` vai para uma subpasta própria do `cacheDir`.
+ * O temporário do `PdfRenderer` vai para uma subpasta própria do `cacheDir`
+ * ([PDF_VIEWER_TEMP_DIRECTORY], limpa também por `clearKmpLibTemporaryFiles`).
  *
  * ⚠️ Pasta nova em `cacheDir` **não** entra sozinha no `FileProvider` da lib (`kmplib_file_paths`
  * cobre `cache/photos`, `cache/videos` e `cache/shared_files`) — e não precisa: este arquivo nunca
- * é compartilhado, é insumo do renderizador e morre no `close()`.
+ * é compartilhado, é insumo do renderizador e sai do disco assim que o descritor abre.
  */
 private fun Context.pdfTempDir(): java.io.File =
-    java.io.File(cacheDir, "kmplib_pdfviewer").apply { mkdirs() }
+    java.io.File(cacheDir, PDF_VIEWER_TEMP_DIRECTORY).apply { mkdirs() }
 
 /** Proporção de A4 (297 ÷ 210), usada só quando a página não informa a dela. */
 private const val A4_RATIO = 1.414f

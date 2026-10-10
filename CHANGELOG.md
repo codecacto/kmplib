@@ -5,6 +5,47 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.280.0 — Temporários de PDF e impressão não sobram no disco; `clearKmpLibTemporaryFiles` (`kmplib-platform`, `kmplib-pdf`, `kmplib-auth`, `kmplib-sync`)
+
+**Por quê.** Security-review do Vitalis: dado clínico sobrava no `cacheDir` do Android.
+- `PdfViewer`: o temporário em `cacheDir/kmplib_pdfviewer` (o `PdfRenderer` exige arquivo) só saía no
+  `close()`. Sobrava com o **processo morto** com o PDF aberto e quando o `LaunchedEffect` era
+  **cancelado** entre `AndroidPdfDocument.open` e a atribuição (rotação, voltar durante a carga): o
+  `withContext` lança na volta e o documento aberto fica sem dono (arquivo, descritor e renderer).
+- `PrintHandler`: `cacheDir/kmplib_print` só era limpo depois de **24 h**, e só na impressão seguinte.
+
+**Correção.**
+1. **PDF aberto não fica no disco** — o temporário é apagado **assim que o descritor abre**: o
+   `PdfRenderer` lê pelo descritor, que segue válido depois do `unlink` (POSIX). A janela em que o
+   arquivo existe passa a ser só gravar → abrir. Ao abrir um PDF, as sobras da pasta que não
+   pertencem a uma abertura em curso são apagadas.
+2. **Abertura cancelada fecha o que abriu** — `openOwned` (interno, `kmplib-pdf`) guarda o recurso
+   antes da volta do `withContext` e o fecha no `CancellationException`; o `PdfViewer` também fecha
+   se a corrotina já não está ativa na atribuição.
+3. **Impressão** — antes de gravar, apaga tudo da pasta que não é impressão em curso (era: > 24 h).
+   O arquivo vive até o `onFinish` do spooler, que pode chamar `onWrite` mais de uma vez.
+4. **`clearKmpLibTemporaryFiles(olderThanMillis = DEFAULT_SHARED_FILE_TTL_MILLIS): Int`** (público,
+   `br.com.codecacto.kmplib.platform`) — apaga compartilhamento (`shared_files`), PDF
+   (`PDF_VIEWER_TEMP_DIRECTORY`) e impressão (`PRINT_TEMP_DIRECTORY`); `0` apaga tudo. O que está em
+   uso **neste processo** (diálogo de impressão aberto, PDF sendo aberto) nunca sai — registro em
+   memória (`KmpLibTempFiles`, `@KmpLibPlatformInternalApi`). Nunca lança; sem `initKmpLibPlatform`
+   devolve 0 com aviso. Android tem ainda `clearKmpLibTemporaryFiles(context, olderThanMillis)`.
+   **No bootstrap: `clearKmpLibTemporaryFiles()`; no logout/exclusão: `clearKmpLibTemporaryFiles(0L)`**
+   — substitui o `getShareHandler().clearSharedFiles()` (que continua valendo, só para compartilhamento).
+5. `SyncAccountDataPurger` e `AccountDeletionService` (passo "arquivos compartilhados", flag
+   `clearSharedFiles`) passam a chamar `clearKmpLibTemporaryFiles(0L)`: logout/exclusão com o purger
+   levam também PDF e impressão.
+
+**iOS conferido:** o `PdfViewer` lê com `PDFDocument(data:)` e a impressão entrega o `NSData` em
+`printingItem` — nenhum grava arquivo. No iOS a função limpa só o compartilhamento.
+
+**Não coberto (de propósito):** `createPdfCache()` é cache **persistente** escolhido pelo app (sai pelo
+`BlobStore`, não é temporário). App com PDF sensível não deve passá-lo, ou deve limpá-lo no logout.
+
+Testes: `platform/androidUnitTest/KmpLibTempFilesTest` (7: em uso preservado, idade, pastas alheias
+intocadas, as três pastas), `pdf/androidUnitTest/OwnedOpenTest` (3: cancelamento fecha). Higiene de
+dado sensível: sem aviso, sem piso (nada deixa de funcionar).
+
 ## 2.279.0 — `details` do envelope de erro com lista e objeto (`kmplib-core`)
 
 **Por quê.** Origem: Vitalis. O envelope de erro traz `details` com **lista** em casos reais —

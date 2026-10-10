@@ -6,7 +6,7 @@ import br.com.codecacto.kmplib.core.storage.LocalPurgeReport
 import br.com.codecacto.kmplib.core.storage.SignOutPendingPolicy
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
-import br.com.codecacto.kmplib.platform.getShareHandler
+import br.com.codecacto.kmplib.platform.clearKmpLibTemporaryFiles
 import br.com.codecacto.kmplib.ui.components.clearPrivatePhotoMemoryCache
 import br.com.codecacto.kmplib.sync.rest.RestCrudSyncEngine
 import br.com.codecacto.kmplib.sync.rest.RestUploadOutbox
@@ -67,7 +67,8 @@ enum class LocalPurgeScope {
  *   linhas deixaria as fotos no disco (a varredura de órfãos recolheria depois, mas "depois" não é
  *   exclusão). As linhas carregam o `payload_json` com os `formFields` do multipart — saem junto.
  * @param clearSharedFiles apaga as cópias que o `ShareHandler` materializou para compartilhar
- *   (PDF/imagem exportados), em qualquer idade. Vale nos dois modos: não são pendência de ninguém.
+ *   (PDF/imagem exportados) e, desde a 2.280.0, os temporários de PDF e impressão
+ *   (`clearKmpLibTemporaryFiles`), em qualquer idade. Vale nos dois modos: não são pendência de ninguém.
  *   Os originais de câmera e o cache de memória das fotos privadas saem **sempre**, com ou sem a
  *   flag (2.218.1): são imagem crua da conta, não cópia exportada.
  * @param engine o motor REST do app, se houver: a limpeza roda dentro de
@@ -229,7 +230,8 @@ class SyncAccountDataPurger(
     private suspend fun arquivosLocais(): Int? {
         val etapas = purgeLocalFileSteps(clearSharedFiles)
         val compartilhados = if (PurgeLocalFileStep.SHARED_FILES in etapas) {
-            etapa("arquivos compartilhados") { getShareHandler().clearSharedFiles(0L) }
+            // 2.280.0: todos os temporários da lib (compartilhamento + PDF aberto + impressão).
+            etapa("arquivos temporários") { clearKmpLibTemporaryFiles(0L) }
         } else {
             0
         }

@@ -5,7 +5,7 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
-import br.com.codecacto.kmplib.platform.getShareHandler
+import br.com.codecacto.kmplib.platform.clearKmpLibTemporaryFiles
 import br.com.codecacto.kmplib.sync.rest.DomainApiClient
 import br.com.codecacto.kmplib.sync.rest.DomainResult
 import br.com.codecacto.kmplib.ui.components.clearPrivatePhotoMemoryCache
@@ -38,7 +38,8 @@ import kotlinx.serialization.json.JsonPrimitive
  * @param texts mensagens amigáveis (i18n; defaults pt-BR).
  * @param credencialSaiNoWipe **`true` em projeto own-auth** — ver o KDoc do parâmetro.
  * @param localData limpeza do que a conta deixou **no aparelho** — ver o KDoc do parâmetro.
- * @param clearSharedFiles apaga as cópias de compartilhamento — ver o KDoc do parâmetro.
+ * @param clearSharedFiles apaga as cópias de compartilhamento e os temporários de PDF e impressão
+ *   (`clearKmpLibTemporaryFiles`, 2.280.0) — ver o KDoc do parâmetro.
  *
  * ### 3. O aparelho (2.217.0)
  * Dado o wipe no servidor, a conta ainda existia **no aparelho**: espelho do sync, outbox, fotos da
@@ -199,8 +200,9 @@ class AccountDeletionService(
             purgerRuns = localData != null && conta != null,
         )
         if (DeletionLocalFileStep.SHARED_FILES in etapas) {
-            runCatching { getShareHandler().clearSharedFiles(0L) }
-                .onFailure { AppLogger.w(TAG, "Exclusão de conta: cópias de compartilhamento não apagadas", it) }
+            // 2.280.0: todos os temporários da lib (compartilhamento + PDF aberto + impressão).
+            runCatching { clearKmpLibTemporaryFiles(0L) }
+                .onFailure { AppLogger.w(TAG, "Exclusão de conta: temporários não apagados", it) }
         }
         if (DeletionLocalFileStep.CAMERA_ORIGINALS in etapas) {
             runCatching { clearCameraCaptureFiles(0L) }

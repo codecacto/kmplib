@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.KmpLibPlatformInternalApi
+import br.com.codecacto.kmplib.platform.KmpLibTempFiles
+import br.com.codecacto.kmplib.platform.PRINT_TEMP_DIRECTORY
 import br.com.codecacto.kmplib.platform.ShareHandlerHolder
 import java.io.File
 import java.io.FileInputStream
@@ -29,11 +32,6 @@ import kotlin.concurrent.thread
 
 private const val TAG = "PrintHandler"
 
-/** Pasta do PDF em impressão, dentro do `cacheDir`. Apagado ao fim do diálogo. */
-private const val PRINT_DIRECTORY = "kmplib_print"
-
-/** Resíduo de impressão mais velho que isto é apagado (processo morto no meio do diálogo). */
-private const val STALE_PRINT_FILE_MILLIS = 24L * 60L * 60L * 1000L
 
 @Composable
 actual fun rememberPrintHandler(): PrintHandler {
@@ -50,6 +48,7 @@ actual fun getPrintHandler(): PrintHandler = AndroidPrintHandler { ShareHandlerH
  * O `PrintManager` **precisa** vir de uma `Activity` (o do `applicationContext` lança "Can print only
  * from an activity") — por isso o [rememberPrintHandler] pega o contexto da composição.
  */
+@OptIn(KmpLibPlatformInternalApi::class)
 internal class AndroidPrintHandler(private val contextProvider: () -> Context?) : PrintHandler {
 
     override val isPrintingAvailable: Boolean
@@ -88,7 +87,7 @@ internal class AndroidPrintHandler(private val contextProvider: () -> Context?) 
         val info = try {
             readPdfInfo(file)
         } catch (e: Exception) {
-            file.delete()
+            KmpLibTempFiles.release(file)
             AppLogger.e(TAG, "PDF ilegível para impressão", e)
             once(PrintResult.Failed("o PDF não pôde ser lido", e))
             return
@@ -109,24 +108,34 @@ internal class AndroidPrintHandler(private val contextProvider: () -> Context?) 
             .build()
 
         val adapter = PdfFilePrintAdapter(file, name, info.pageCount) { job ->
-            file.delete()
+            KmpLibTempFiles.release(file)
             once(printResultFor(job?.phase()))
         }
         try {
             adapter.job = printManager.print(name, adapter, attributes)
         } catch (e: Exception) {
-            file.delete()
+            KmpLibTempFiles.release(file)
             AppLogger.e(TAG, "o sistema recusou a impressão", e)
             once(PrintResult.Failed("o sistema recusou a impressão", e))
         }
     }
 
+    /**
+     * Grava o PDF para o spooler. Antes, apaga o que sobrou de impressões anteriores (2.280.0 — era só
+     * o que passava de 24 h): o que está na pasta e não pertence a uma impressão EM CURSO neste
+     * processo é resíduo de processo morto com o diálogo aberto. O arquivo vive até o `onFinish` do
+     * spooler (ele pode chamar `onWrite` mais de uma vez) e então é apagado.
+     */
     private fun writePrintFile(context: Context, pdf: ByteArray): File {
-        val dir = File(context.cacheDir, PRINT_DIRECTORY).apply { mkdirs() }
-        val now = System.currentTimeMillis()
-        dir.listFiles()?.forEach { if (now - it.lastModified() > STALE_PRINT_FILE_MILLIS) it.delete() }
-        val file = File(dir, "print-$now-${System.nanoTime()}.pdf")
-        file.writeBytes(pdf)
+        val dir = KmpLibTempFiles.directory(context, PRINT_TEMP_DIRECTORY)
+        KmpLibTempFiles.purge(dir, olderThanMillis = 0L)
+        val file = KmpLibTempFiles.create(dir, "print-", ".pdf")
+        try {
+            file.writeBytes(pdf)
+        } catch (e: Exception) {
+            KmpLibTempFiles.release(file)
+            throw e
+        }
         return file
     }
 }
