@@ -5,6 +5,44 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.272.0 — `DomainApiClient.getJsonWithEtag` (GET condicional, 304); `toString` sem dado de saúde no `kmplib-workout`; `foldForSearch` público no core
+
+**Por quê.** App do Personal (MA3, motor offline do aluno): o programa publicado vem com ETag opaco, mas o
+`getJson` só devolvia o corpo — o `ETag` se perdia e o 304 caía em "Erro do servidor (304)". E duas higienes
+apontadas no review: o `toString` gerado de `SetResult`/`WorkoutRun` imprimia carga, reps, FC, esforço e
+comentário; e o app teve de depender do `kmplib-brdata` só para dobrar acento numa busca.
+
+**`kmplib-core` — aditivo (sem piso, sem aviso)**
+- `DomainApiClient.getJsonWithEtag(path, etag: String?, headers = emptyMap()): DomainResult<EtagResult<String>>` —
+  envia `If-None-Match` verbatim (ETag é opaco; RFC 9110 §13.1.2). **304 → `EtagResult.NotModified(etag)`**;
+  2xx → `EtagResult.Modified(body, etag)` com o `ETag` da resposta (`null` se não veio); 2xx cujo `ETag` casa
+  com o enviado (comparação FRACA, §8.8.3.2 — intermediário que revalidou) também vira `NotModified`. Sem
+  `etag`, é a primeira carga (e um 304 sem condição é erro). 401 → refresh + 1 retry com o MESMO
+  `If-None-Match`; 402/429/5xx/transporte como no `getJson`. `If-None-Match` passado em `headers` é ignorado.
+  `getJson` continua tratando 304 como erro (não mudou).
+- `EtagResult<out T>` (`Modified<T>(body, etag: String?)` · `NotModified(etag: String)`, `etag` abstrato) — o
+  `toString` do `Modified` não imprime o corpo.
+- `br.com.codecacto.kmplib.core.text`: **`foldForSearch(text)`** (minúsculas + sem acento por **NFD do sistema**
+  — `java.text.Normalizer` / `decomposedStringWithCanonicalMapping` — removendo `NON_SPACING_MARK`; ß/æ/œ/ø/ł/
+  đ/ð/þ/ı como o `unaccent` do Postgres; espaços colapsados), **`searchTerms(query)`** e
+  **`matchesSearch(query, vararg fields)`** (todos os termos como pedaço; branco casa tudo). O `foldForSearch`
+  `internal` de `core/locale/Countries.kt` saiu (o `Countries.search` usa o público; resultado igual).
+  Quem usava `removeAccents()` do `kmplib-brdata` só para busca pode trocar e tirar a dependência.
+
+**`kmplib-workout` — higiene (sem piso, sem aviso: dado em log não para nada para o usuário)**
+- `SetResult.toString()` = ids, índices (`setIndex`/`stageIndex`/`roundIndex`) e `skipped` — sem meta, carga,
+  reps nem FC. `WorkoutRun.toString()` = ids + contagens (`sets`, `skippedExercises`) + `finished`/`hasEffort`/
+  `hasComment` — sem instantes, esforço, comentário nem as séries. `SkippedExercise.toString()` sem o `reason`
+  (texto livre do aluno). `equals`/`hashCode`/serialização não mudam. Ainda com `toString` gerado (dado de
+  treino em evento/protocolo): `WorkoutEvent`/`CommandEvent.CompleteSet` (reps/carga) e `Metrics` (FC/kcal) — não
+  logue esses objetos.
+
+**Correção de documentação.** Na 2.269.0, `engine-transitions.json` tem **12** casos (estava "13").
+
+**Testes.** `DomainApiClientEtagTest` (13), `SearchTextTest` (7), `ModelToStringTest` (5); suíte do core (457) e do
+workout (jvm + android) verdes; `compileKotlinIosArm64` (core, workout) e `compileKotlinWatchosArm64` (workout)
+compilados no servidor, nenhum SKIPPED.
+
 ## 2.271.0 — estado NÃO salvável para dado sensível: `rememberSyncedTextFieldState(saveable = false)` e `AppDatePicker`/`AppDatePickerDialog(ephemeral = true)`
 
 **Por quê.** App do Personal, lote MA2 (anamnese = dado de saúde; review de 09/out): o texto e a data de um formulário
@@ -110,7 +148,7 @@ servidor recusar a sessão boa que o celular produz). Retoma o trabalho que fico
   `UNKNOWN_SKIPPED_EXERCISE`) — `details` do `INVALID_SESSION`.
 - `HealthPlatformMapping.healthConnectExerciseTypeName(category)` (tipo da SESSÃO); `healthKitActivityTypeName(CARDIO)`
   = `mixedCardio` (era `cardioDance`, aula de dança).
-- **Tabelas de casos** em dados, rodando em todo alvo: `engine-transitions.json` (evento → estado, 13 casos — para
+- **Tabelas de casos** em dados, rodando em todo alvo: `engine-transitions.json` (evento → estado, 12 casos — para
   outra implementação da máquina, Connect IQ) e `session-validation.json` (sessão → veredito do `validateRun`: toda
   sessão produzida pelo motor + casos à mão). Novo artefato **`br.com.codecacto:kmplib-workout-fixtures`** (JAR só de
   teste, `kmplib/workout/fixtures/*.json`): o backend roda o `session-validation.json` com o `kmplib-workout-jvm`.

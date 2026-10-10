@@ -24,7 +24,8 @@
 # cru, senão todo app que usa o componente corretamente é empurrado para um bump que nada muda.
 # O `motivo` diz o que migrar.
 #
-# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.262.0 e 2.238.0
+# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.272.0 (`toString` de
+# `SetResult`/`WorkoutRun` sem dado de saúde — higiene de log; ETag e `foldForSearch` são API nova), 2.262.0 e 2.238.0
 # (modo automação — só a suíte do QA), 2.261.0 (step-up: o app só precisa quando usa
 # `withRecentAuth`, que nem compila antes), 2.260.0 (sync sem firebase-analytics: só app que
 # declara a kmplib por módulo; o AD_ID tem checagem própria no auditor), 2.258.0/2.257.0/2.256.0

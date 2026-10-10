@@ -133,6 +133,58 @@ class DomainApiClient(
             }
         }.texto()
 
+    /**
+     * `GET` **condicional** por ETag (2.272.0) — RFC 9110 §8.8.3 / §13.1.2 / §15.4.5.
+     *
+     * Com [etag] não nulo, envia `If-None-Match: <etag>` (o valor **exatamente** como o servidor o
+     * mandou: aspas e `W/` incluídos — ETag é opaco, não se monta nem se interpreta). A resposta vira:
+     * - **304** → [EtagResult.NotModified] — o que o aparelho guardou continua valendo; o `etag` é o
+     *   da resposta (o servidor deve repeti-lo) ou, se não veio, o que foi enviado;
+     * - **2xx** → [EtagResult.Modified] com o corpo e o `ETag` da resposta (`null` se o servidor não
+     *   mandou — aí não há o que guardar, e a próxima chamada vai sem condição). Se o `ETag` do 2xx
+     *   **casa** com o enviado (comparação fraca, §8.8.3.2 — o caso de um intermediário que
+     *   revalidou e devolveu 200 do próprio cache), vira [EtagResult.NotModified] também: é a mesma
+     *   representação, e a tela não deve reprocessar nada;
+     * - o resto → [DomainResult.Error]/[DomainResult.Quota], com o mesmo tratamento do [getJson]
+     *   (401 → refresh + 1 retry levando o MESMO `If-None-Match`, 402 → cota, transporte nunca lança).
+     *
+     * Sem [etag] (primeira carga), é um `GET` comum que devolve o `ETag` para guardar; um 304 sem
+     * condição enviada não tem significado e vira erro.
+     *
+     * ### Por que existe
+     * O [getJson] devolve só o corpo: o `ETag` (cabeçalho) se perdia, então o app não tinha o valor
+     * opaco para reenviar — e o 304 caía no ramo de erro ("Erro do servidor (304)"). Esta variante é
+     * a forma oficial de economizar a carga de um snapshot grande (o programa de treino do aluno)
+     * sem cache HTTP escondido no cliente.
+     *
+     * @param headers cabeçalhos extras, como no [getJson]. Um `If-None-Match` passado aqui é ignorado
+     *   — quem decide a condição é [etag].
+     */
+    suspend fun getJsonWithEtag(
+        path: String,
+        etag: String?,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<EtagResult<String>> {
+        val condicao = etag?.trim()?.takeIf { it.isNotEmpty() }
+        return execute(path, notModifiedIsSuccess = condicao != null) { token ->
+            httpClient.get(url(path)) {
+                bearer(token)
+                headers.forEach { (nome, valor) ->
+                    if (!nome.equals(HttpHeaders.IfNoneMatch, ignoreCase = true)) header(nome, valor)
+                }
+                condicao?.let { header(HttpHeaders.IfNoneMatch, it) }
+            }
+        }.corpo { response ->
+            val recebido = response.headers[HttpHeaders.ETag]?.trim()?.takeIf { it.isNotEmpty() }
+            when {
+                response.status.value == 304 -> EtagResult.NotModified(recebido ?: condicao!!)
+                condicao != null && recebido != null && etagWeakMatch(condicao, recebido) ->
+                    EtagResult.NotModified(recebido)
+                else -> EtagResult.Modified(response.bodyAsText(), recebido)
+            }
+        }
+    }
+
     suspend fun postJson(path: String, body: String): DomainResult<String> =
         execute(path) { token ->
             httpClient.post(url(path)) {
@@ -393,6 +445,7 @@ class DomainApiClient(
      */
     private suspend fun execute(
         path: String,
+        notModifiedIsSuccess: Boolean = false,
         block: suspend (token: String?) -> HttpResponse,
     ): DomainResult<HttpResponse> {
         if (!sameHost(path)) {
@@ -403,14 +456,14 @@ class DomainApiClient(
             val token = tokenProvider.token(forceRefresh = false)
             val response = block(token)
             when {
-                response.status.value != 401 -> classify(response)
+                response.status.value != 401 -> classify(response, notModifiedIsSuccess)
                 // 2.261.0: o 401 de REAUTENTICAÇÃO não renova nem repete. O refresh preserva o
                 // `auth_time`, então a repetição voltaria o mesmo 401 (gastando uma rotação de
                 // refresh) — e quem resolve é a pessoa provar a credencial (`withRecentAuth`).
-                isReauthChallenge(response) -> classify(response)
+                isReauthChallenge(response) -> classify(response, notModifiedIsSuccess)
                 else -> {
                     val fresh = tokenProvider.token(forceRefresh = true)
-                    classify(block(fresh))
+                    classify(block(fresh), notModifiedIsSuccess)
                 }
             }
         } catch (e: CancellationException) {
@@ -424,10 +477,15 @@ class DomainApiClient(
         }
     }
 
-    private suspend fun classify(response: HttpResponse): DomainResult<HttpResponse> {
+    private suspend fun classify(
+        response: HttpResponse,
+        notModifiedIsSuccess: Boolean = false,
+    ): DomainResult<HttpResponse> {
         val status = response.status.value
         return when {
             status in 200..299 -> DomainResult.Success(response)
+            // 304 só é resposta válida a um GET condicional ([getJsonWithEtag]); fora dele é erro.
+            status == 304 && notModifiedIsSuccess -> DomainResult.Success(response)
             status == 402 -> {
                 val quota = parseQuotaExceeded(runCatching { response.bodyAsText() }.getOrNull())
                 if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, currentTexts().quotaReached)
@@ -475,6 +533,35 @@ class DomainApiClient(
     companion object {
         private const val TAG = "DomainApi"
     }
+}
+
+/**
+ * Resultado de um `GET` condicional por ETag ([DomainApiClient.getJsonWithEtag]).
+ *
+ * O `toString` não imprime o corpo (pode ser dado de saúde, de cadastro…): só se mudou e o ETag, que
+ * é um identificador opaco de versão.
+ */
+sealed class EtagResult<out T> {
+    /** O ETag que o aparelho deve guardar e mandar no próximo `If-None-Match` (`null` = não veio). */
+    abstract val etag: String?
+
+    /** A representação mudou (ou é a primeira carga): [body] novo e o [etag] dele. */
+    data class Modified<T>(val body: T, override val etag: String?) : EtagResult<T>() {
+        override fun toString(): String = "EtagResult.Modified(etag=$etag)"
+    }
+
+    /** 304 — o que o aparelho já tem continua valendo. */
+    data class NotModified(override val etag: String) : EtagResult<Nothing>()
+}
+
+/**
+ * Comparação **fraca** de entity-tags (RFC 9110 §8.8.3.2), a que vale para `If-None-Match`: iguais
+ * depois de tirar o prefixo `W/` dos dois lados. `"abc"` casa com `W/"abc"`; `"abc"` não casa com
+ * `"ABC"`.
+ */
+internal fun etagWeakMatch(a: String, b: String): Boolean {
+    fun opaca(tag: String): String = tag.trim().let { if (it.startsWith("W/")) it.substring(2) else it }
+    return opaca(a) == opaca(b)
 }
 
 /**

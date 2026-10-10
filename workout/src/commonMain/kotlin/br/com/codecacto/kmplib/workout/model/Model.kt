@@ -125,7 +125,16 @@ data class SetResult(
     val heartRateMax: Int? = null,
     val stageIndex: Int? = null,
     val roundIndex: Int? = null,
-)
+) {
+    /**
+     * Só ids, índices e se foi pulada (2.272.0). Carga, repetições, meta e frequência cardíaca são
+     * dado de SAÚDE e não podem sair num `AppLogger`/GlitchTip por um `"$resultado"` distraído —
+     * o `toString` gerado do `data class` imprimia tudo. `equals`/`hashCode`/serialização não mudam.
+     */
+    override fun toString(): String =
+        "SetResult(blockId=$blockId, exerciseStepId=$exerciseStepId, setIndex=$setIndex, " +
+            "stageIndex=$stageIndex, roundIndex=$roundIndex, skipped=$skipped)"
+}
 
 /** Ocorrência de "pular exercício", com o motivo informado pelo aluno (visto pelo personal). */
 @Serializable
@@ -133,7 +142,11 @@ data class SkippedExercise(
     val exerciseStepId: String,
     val reason: String?,
     val at: Instant,
-)
+) {
+    /** Sem o [reason] (texto livre do aluno — "dor no joelho" é dado de saúde), 2.272.0. */
+    override fun toString(): String =
+        "SkippedExercise(exerciseStepId=$exerciseStepId, hasReason=${reason != null})"
+}
 
 /** O que de fato aconteceu na sessão — a gravação completa, para sincronizar com o backend. */
 @Serializable
@@ -146,4 +159,15 @@ data class WorkoutRun(
     val skippedExercises: List<SkippedExercise> = emptyList(),
     val effort: Int? = null,
     val comment: String? = null,
-)
+) {
+    /**
+     * Só ids e contagens (2.272.0): nenhuma série, carga, FC, esforço ou comentário — dado de SAÚDE
+     * que o `toString` gerado imprimia inteiro (e, junto, o de cada [SetResult]). Diz apenas SE há
+     * esforço/comentário, o que basta para depurar sem expor o conteúdo. Instantes não entram: o
+     * horário do treino não ajuda a depurar e é rastro da rotina da pessoa.
+     */
+    override fun toString(): String =
+        "WorkoutRun(localId=$localId, planId=$planId, finished=${finishedAt != null}, " +
+            "sets=${sets.size}, skippedExercises=${skippedExercises.size}, " +
+            "hasEffort=${effort != null}, hasComment=${comment != null})"
+}

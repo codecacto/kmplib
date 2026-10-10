@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.core.locale
 
+import br.com.codecacto.kmplib.core.text.foldForSearch
+
 /**
  * Um país: código **ISO 3166-1 alfa-2** (`BR`, `PT`, `US`) + o nome no idioma pedido.
  *
@@ -80,22 +82,6 @@ fun countryFlagEmoji(code: String): String {
 }
 
 private const val REGIONAL_INDICATOR_A: Int = 0x1F1E6
-
-/** Minúsculas e sem acento — para a busca por pedaço. */
-internal fun foldForSearch(text: String): String {
-    val sb = StringBuilder(text.length)
-    text.lowercase().forEach { c -> sb.append(ACENTOS[c] ?: c) }
-    return sb.toString().trim()
-}
-
-private val ACENTOS: Map<Char, Char> = buildMap {
-    "áàâãäå".forEach { put(it, 'a') }
-    "éèêë".forEach { put(it, 'e') }
-    "íìîï".forEach { put(it, 'i') }
-    "óòôõö".forEach { put(it, 'o') }
-    "úùûü".forEach { put(it, 'u') }
-    put('ç', 'c'); put('ñ', 'n'); put('ý', 'y'); put('ÿ', 'y')
-}
 
 internal expect fun platformCountries(languageTag: String): List<Country>
 
