@@ -37,6 +37,12 @@
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!--
+      VIBRATE (2.273.0) — `Haptics.vibrate(pattern)`. Permissão "normal": sem prompt, sem declaração
+      de política na Play. Declarada aqui, no módulo da classe que vibra, para o app não precisar.
+    -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application>
 
         <!--

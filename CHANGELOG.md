@@ -5,6 +5,47 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.273.0 — `Haptics.vibrate(pattern)`; `Keep` que guarda rascunho local; `toString` do motor do workout sem dado de saúde
+
+**Por quê.** App do Personal: (1) o fim do descanso precisa avisar mesmo com o aparelho no Silencioso — o
+`SoundEffectPlayer` não toca ali e o `LocalHapticFeedback` do Compose é só um toque curto (GAP-PT-M08);
+(2) sessão perdida sem ação do aluno (refresh vencido) chamava `purgeOnSignOut(conta, Keep)`, e o `Keep`
+apagava o treino em andamento — linha LIMPA de `LocalRepository`, que não é pendência da fila;
+(3) o review da 2.272.0 deixou `WorkoutEvent`/`CommandEvent.CompleteSet`, `SkipExercise` e `Metrics`
+imprimindo carga, repetições, FC, kcal e o motivo do "pular".
+
+**`kmplib-platform` — aditivo (sem piso, sem aviso)** — pacote `br.com.codecacto.kmplib.platform.haptics`
+- `object Haptics : HapticPlayer` (`isSupported`, `vibrate(pattern, usage = HapticUsage.NOTIFICATION): HapticOutcome`,
+  `cancel()`), `interface HapticPlayer` (para dublê no teste), `@Composable rememberHaptics(): HapticPlayer`.
+- `VibrationPattern(segments: List<HapticSegment>)` (`HapticSegment.Vibrate(durationMillis, intensity = 1f)` /
+  `Pause(durationMillis)`; `of(...)`, `waveform(vararg timingsMillis, intensity)` no formato do Android,
+  `pulses(count, onMillis, gapMillis, intensity)`, presets `Tick`/`Confirm`/`Alert`; teto `MAX_TOTAL_MILLIS` = 30 s).
+- `HapticUsage` `TOUCH`/`NOTIFICATION`/`ALARM` (o que o sistema usa para aplicar a configuração da pessoa) e
+  `HapticOutcome` `PLAYED`/`UNSUPPORTED`/`SUPPRESSED_BY_SYSTEM`/`FAILED`.
+- **Android:** `VibratorManager.defaultVibrator` (31+)/`Vibrator`; `VibrationEffect.createWaveform` com amplitudes
+  quando há controle de amplitude, liga/desliga quando não há, `vibrate(long[], -1)` abaixo da 26; atributos de uso
+  (`VibrationAttributes` 33+, `AudioAttributes` antes). `NOTIFICATION` não vibra no Silencioso, `TOUCH` respeita
+  "vibração ao tocar" (< 33; na 33+ o sistema aplica). **Permissão `VIBRATE` no manifesto do `kmplib-platform`**
+  (normal, sem prompt) — o app não declara nada; exige `initKmpLibPlatform(context)` (o umbrella já chama).
+- **iOS:** Core Haptics (`CHHapticEngine`, um evento contínuo por trecho, `playsHapticsOnly`, auto-shutdown);
+  sem Core Haptics, `UIImpactFeedbackGenerator` aproximando o padrão (impacto a cada 100 ms dentro do trecho).
+  "Tátil do Sistema" desligado silencia — o iOS não informa (retorno `PLAYED`).
+- **Segundo plano NÃO é coberto:** o iOS suspende a engine do app e o Android ignora vibração de app em segundo
+  plano fora de alarme/chamada. Aviso com o app fechado vai pela notificação (que vibra pelo canal).
+
+**`kmplib-sync` — aditivo (sem piso, sem aviso)**
+- `SyncAccountDataPurger(…, keepLocalEntities: Set<String> = emptySet(), keepLocalRow: (Synced_entity) -> Boolean = { false }, extraCleanup)`
+  — no `purgeOnSignOut(conta, SignOutPendingPolicy.Keep)`, as linhas dessas entidades (ou que o predicado aceita)
+  ficam no bucket da conta mesmo limpas, e voltam quando a MESMA conta entra. `Discard` e `purgeAccount` continuam
+  apagando tudo. Predicado que lança = falha no relatório e **nada apagado do espelho** naquela limpeza. Os dois
+  parâmetros entram ANTES de `extraCleanup` (lambda final continua valendo; todos os consumidores conhecidos usam
+  argumentos nomeados). Default = comportamento de antes.
+
+**`kmplib-workout` — higiene (sem piso, sem aviso)**
+- `toString()` de `WorkoutEvent.CompleteSet` (`hasReps`/`hasLoad`/`hasHeartRate`), `WorkoutEvent.SkipExercise` e
+  `CommandEvent.SkipExercise` (`hasReason`), `CommandEvent.CompleteSet` (`hasReps`/`hasLoad`) e `protocol.Metrics`
+  (`seq`, `v`, `hasHeartRate`, `hasKcal` — sem o instante). `equals`/`hashCode`/serialização não mudam.
+
 ## 2.272.0 — `DomainApiClient.getJsonWithEtag` (GET condicional, 304); `toString` sem dado de saúde no `kmplib-workout`; `foldForSearch` público no core
 
 **Por quê.** App do Personal (MA3, motor offline do aluno): o programa publicado vem com ETag opaco, mas o

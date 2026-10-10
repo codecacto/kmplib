@@ -24,7 +24,9 @@
 # cru, senão todo app que usa o componente corretamente é empurrado para um bump que nada muda.
 # O `motivo` diz o que migrar.
 #
-# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.272.0 (`toString` de
+# Ficaram FORA de propósito (aditivos ou sem efeito para o usuário/loja): 2.273.0 (`Haptics` e
+# `keepLocalEntities`/`keepLocalRow` são API nova com default igual ao de antes; `toString` dos eventos
+# do workout é higiene de log), 2.272.0 (`toString` de
 # `SetResult`/`WorkoutRun` sem dado de saúde — higiene de log; ETag e `foldForSearch` são API nova), 2.262.0 e 2.238.0
 # (modo automação — só a suíte do QA), 2.261.0 (step-up: o app só precisa quando usa
 # `withRecentAuth`, que nem compila antes), 2.260.0 (sync sem firebase-analytics: só app que

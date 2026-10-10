@@ -10,6 +10,7 @@ import br.com.codecacto.kmplib.platform.getShareHandler
 import br.com.codecacto.kmplib.ui.components.clearPrivatePhotoMemoryCache
 import br.com.codecacto.kmplib.sync.rest.RestCrudSyncEngine
 import br.com.codecacto.kmplib.sync.rest.RestUploadOutbox
+import br.com.codecacto.kmplib.sync.db.Synced_entity
 import kotlin.coroutines.cancellation.CancellationException
 
 /** O que uma limpeza local cobre — informado ao [SyncAccountDataPurger.extraCleanup]. */
@@ -71,14 +72,43 @@ enum class LocalPurgeScope {
  *   flag (2.218.1): são imagem crua da conta, não cópia exportada.
  * @param engine o motor REST do app, se houver: a limpeza roda dentro de
  *   [RestCrudSyncEngine.runExclusive], e [withSyncPaused] o segura.
+ * ### Rascunho local que o `Keep` também guarda (2.273.0)
+ *
+ * O `Keep` preserva o que é **pendência da fila** (linha suja). Uma linha **limpa** gravada por
+ * `LocalRepository` — o treino em andamento, um rascunho de formulário — não é pendência para o
+ * espelho, e por isso saía junto com o que já está no servidor. Quando a sessão cai sem ação da
+ * pessoa (refresh vencido, senha trocada noutro aparelho), isso apagava o trabalho em curso dela.
+ * Declare o que é rascunho local da conta:
+ *
+ * ```kotlin
+ * SyncAccountDataPurger(
+ *     store = get(),
+ *     engine = get(),
+ *     keepLocalEntities = setOf("active_run"),          // a entidade inteira
+ *     // ou, fino: keepLocalRow = { it.entity == "draft" && it.server_id == null },
+ * )
+ * ```
+ *
+ * Vale **só** para `purgeOnSignOut(conta, Keep)`. `Discard` e [purgeAccount] (exclusão de conta)
+ * continuam apagando tudo, rascunho incluído. As linhas mantidas ficam no bucket da conta (isoladas
+ * pelo escopo) e reaparecem quando a MESMA conta entrar de novo; o [LocalPurgeReport.removedSyncedRows]
+ * não as conta.
+ *
  * @param extraCleanup o que o app guarda FORA do espelho (DataStore da conta, outro `BlobStore`,
  *   arquivo próprio). Roda por último. Exceção aqui conta como falha, sem abortar o resto.
+ * @param keepLocalEntities nomes de entidade ([SyncableEntity.name]) cujas linhas ficam no aparelho
+ *   no logout com [SignOutPendingPolicy.Keep], mesmo limpas. Default vazio = comportamento de antes.
+ * @param keepLocalRow predicado para manter linhas avulsas no mesmo caso (ex.: só o rascunho sem id
+ *   de servidor). Soma-se a [keepLocalEntities]. Exceção aqui conta como falha e **não apaga nada**
+ *   do espelho naquela limpeza (na dúvida, o rascunho fica).
  */
 class SyncAccountDataPurger(
     private val store: SyncStore,
     private val uploadOutboxes: List<RestUploadOutbox> = emptyList(),
     private val clearSharedFiles: Boolean = true,
     private val engine: RestCrudSyncEngine? = null,
+    private val keepLocalEntities: Set<String> = emptySet(),
+    private val keepLocalRow: (Synced_entity) -> Boolean = { false },
     private val extraCleanup: suspend (LocalPurgeScope) -> Unit = {},
 ) : AccountLocalDataPurger {
 
@@ -173,10 +203,11 @@ class SyncAccountDataPurger(
         val donos = uploadOutboxes.flatMap { it.pendingOwnerHandles() }.toSet()
         val removidas = etapa("espelho sincronizado") {
             store.deleteSyncedRows { linha ->
-                donos.any { (entidade, handle) ->
-                    linha.entity == entidade &&
-                        (handle == linha.local_id || handle == linha.server_id || handle == linha.client_id)
-                }
+                keepsLocalDraft(linha, keepLocalEntities, keepLocalRow) ||
+                    donos.any { (entidade, handle) ->
+                        linha.entity == entidade &&
+                            (handle == linha.local_id || handle == linha.server_id || handle == linha.client_id)
+                    }
             }
         } ?: run { falhas++; 0 }
 
@@ -237,3 +268,15 @@ internal fun purgeLocalFileSteps(clearSharedFiles: Boolean): Set<PurgeLocalFileS
         add(PurgeLocalFileStep.CAMERA_ORIGINALS)
         add(PurgeLocalFileStep.PRIVATE_PHOTO_CACHE)
     }
+
+/**
+ * A linha é rascunho local que o `Keep` guarda? Entidade declarada inteira, ou o predicado do app.
+ * Exceção do predicado PROPAGA de propósito: a etapa do espelho a trata como falha e, como o
+ * `deleteSyncedRows` roda numa transação, nada é apagado — perder o rascunho por um predicado com
+ * defeito seria o pior desfecho.
+ */
+internal fun keepsLocalDraft(
+    row: Synced_entity,
+    keepLocalEntities: Set<String>,
+    keepLocalRow: (Synced_entity) -> Boolean,
+): Boolean = row.entity in keepLocalEntities || keepLocalRow(row)

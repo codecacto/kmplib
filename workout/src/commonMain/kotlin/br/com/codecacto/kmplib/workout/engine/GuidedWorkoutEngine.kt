@@ -91,13 +91,25 @@ sealed interface WorkoutEvent {
         val load: Double?,
         val heartRateAvg: Int? = null,
         val heartRateMax: Int? = null,
-    ) : WorkoutEvent
+    ) : WorkoutEvent {
+        /**
+         * Só QUAIS campos vieram, nunca o valor: carga, repetições e FC são dado de saúde do aluno,
+         * e o `toString` gerado ia parar em log/GlitchTip quando alguém logava o evento (2.273.0).
+         * `equals`/`hashCode` não mudam.
+         */
+        override fun toString(): String =
+            "CompleteSet(hasReps=${reps != null}, hasLoad=${load != null}, " +
+                "hasHeartRate=${heartRateAvg != null || heartRateMax != null})"
+    }
 
     data object SkipRest : WorkoutEvent
 
     data class AddRestTime(val seconds: Int) : WorkoutEvent
 
-    data class SkipExercise(val reason: String? = null) : WorkoutEvent
+    data class SkipExercise(val reason: String? = null) : WorkoutEvent {
+        /** Sem o [reason] (texto livre do aluno — "dor no joelho" é dado de saúde), 2.273.0. */
+        override fun toString(): String = "SkipExercise(hasReason=${reason != null})"
+    }
 
     data object Undo : WorkoutEvent
 

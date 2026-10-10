@@ -64,7 +64,10 @@ data class Command(
 @Serializable
 sealed interface CommandEvent {
     @Serializable
-    data class CompleteSet(val reps: Int?, val load: Double?) : CommandEvent
+    data class CompleteSet(val reps: Int?, val load: Double?) : CommandEvent {
+        /** Sem carga nem repetições (dado de saúde), 2.273.0. Serialização não muda. */
+        override fun toString(): String = "CompleteSet(hasReps=${reps != null}, hasLoad=${load != null})"
+    }
 
     @Serializable
     data object SkipRest : CommandEvent
@@ -73,7 +76,10 @@ sealed interface CommandEvent {
     data class AddRestTime(val seconds: Int) : CommandEvent
 
     @Serializable
-    data class SkipExercise(val reason: String? = null) : CommandEvent
+    data class SkipExercise(val reason: String? = null) : CommandEvent {
+        /** Sem o [reason] (texto livre do aluno), 2.273.0. */
+        override fun toString(): String = "SkipExercise(hasReason=${reason != null})"
+    }
 
     @Serializable
     data object Undo : CommandEvent
@@ -109,7 +115,14 @@ data class Metrics(
     val kcal: Double? = null,
     val epochMillis: Long,
     override val v: Int = WORKOUT_PROTOCOL_VERSION,
-) : WorkoutMessage
+) : WorkoutMessage {
+    /**
+     * Sem FC, kcal nem o instante (dado de saúde + rastro da rotina), 2.273.0 — só `seq`, versão e
+     * QUAIS leituras vieram. Serialização, `equals` e `hashCode` não mudam.
+     */
+    override fun toString(): String =
+        "Metrics(seq=$seq, v=$v, hasHeartRate=${heartRate != null}, hasKcal=${kcal != null})"
+}
 
 /** Deduplica e ordena mensagens pelo `seq`, descartando duplicata e mensagem já vista fora de
  * ordem — o canal nativo (WatchConnectivity/Data Layer) não garante nem uma coisa nem outra. */

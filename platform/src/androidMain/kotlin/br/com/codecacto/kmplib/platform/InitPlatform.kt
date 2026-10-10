@@ -11,7 +11,7 @@ import kotlin.concurrent.thread
 
 /**
  * Registra o `Context` nos serviços de sistema do `kmplib-platform`: compartilhamento,
- * notificação agendada, TTS, lanterna, bateria, sacudida, captura de áudio e idioma do aparelho.
+ * notificação agendada, TTS, lanterna, bateria, vibração, sacudida, captura de áudio e idioma do aparelho.
  * Varre também, em segundo plano, originais de câmera esquecidos ([clearCameraCaptureFiles]).
  *
  * Chame no `Application.onCreate()`. Ver [br.com.codecacto.kmplib.core.initKmpLibCore] para o
@@ -23,6 +23,8 @@ fun initKmpLibPlatform(context: Context) {
     TtsControllerHolder.init(context)
     TorchControllerHolder.init(context)
     BatteryMonitorHolder.init(context)
+    // Vibração com padrão (Haptics.vibrate) — 2.273.0.
+    br.com.codecacto.kmplib.platform.haptics.HapticsHolder.init(context)
     ShakeDetectorHolder.init(context)
     AudioCaptureHolder.init(context)
     DeviceLocaleHolder.init(context)
