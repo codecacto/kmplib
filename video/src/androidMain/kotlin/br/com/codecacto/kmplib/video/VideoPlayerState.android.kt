@@ -14,6 +14,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import br.com.codecacto.kmplib.core.util.AppLogger
@@ -90,6 +91,7 @@ private class ExoPlayerVideoPlayerState(
         override fun onIsPlayingChanged(isPlaying: Boolean) = sincronizar()
 
         override fun onTracksChanged(tracks: Tracks) {
+            atualizarTaxaDeQuadros()
             updateEmbeddedSubtitles(tracks.legendasEmbutidas())
             aplicarPreferenciaInicialDeLegenda()
         }
@@ -111,6 +113,10 @@ private class ExoPlayerVideoPlayerState(
     init {
         player.addListener(listener)
         player.setPlaybackSpeed(config.initialSpeed)
+        // Busca EXATA, declarada (já é o default do ExoPlayer, e é o que o quadro a quadro e o
+        // toque na marca de um comentário exigem): `CLOSEST_SYNC` pararia no quadro-chave, que
+        // num vídeo comprimido pode estar a um segundo do ponto pedido.
+        player.setSeekParameters(SeekParameters.EXACT)
         // Laço sem emenda: o ExoPlayer reabre o mesmo item já pré-carregado, e nunca chega a
         // `STATE_ENDED` — o status não passa por "terminou" entre as voltas.
         player.repeatMode = if (config.loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
@@ -125,6 +131,7 @@ private class ExoPlayerVideoPlayerState(
     override fun load(media: VideoMedia) {
         this.media = media
         preferenciaAplicada = false
+        frameRate = null
         externalCues = emptyList()
         applySelectedSubtitle(null)
         status = VideoStatus.Loading
@@ -181,6 +188,26 @@ private class ExoPlayerVideoPlayerState(
     override fun seekTo(millis: Long) {
         player.seekTo(seekTargetOf(0L, millis, durationMillis))
         refreshProgress()
+    }
+
+    override fun stepFrame(frames: Int) {
+        if (frames == 0) return
+        player.pause()
+        atualizarTaxaDeQuadros()
+        val alvo = frameStepTargetOf(
+            positionMillis = player.currentPosition.coerceAtLeast(0L),
+            frames = frames,
+            frameRate = frameRate,
+            durationMillis = durationMillis,
+        )
+        player.seekTo(alvo)
+        refreshProgress()
+    }
+
+    /** A taxa do formato de vídeo em reprodução (`Format.NO_VALUE` = -1 vira `null`). */
+    private fun atualizarTaxaDeQuadros() {
+        val fps = player.videoFormat?.frameRate
+        frameRate = if (fps == null || fps <= 0f) null else fps
     }
 
     override fun setSpeed(speed: Float) {
@@ -241,6 +268,8 @@ private class ExoPlayerVideoPlayerState(
         val duracao = player.duration
         // `C.TIME_UNSET` é Long.MIN_VALUE: publicado cru, a barra recebe uma fração absurda e some.
         durationMillis = if (duracao == C.TIME_UNSET || duracao < 0) 0L else duracao
+        // O formato só chega ao renderer depois das faixas: a taxa é relida até aparecer.
+        if (frameRate == null) atualizarTaxaDeQuadros()
     }
 
     private fun sincronizar() {

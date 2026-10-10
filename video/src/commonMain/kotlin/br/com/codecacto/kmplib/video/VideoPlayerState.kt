@@ -54,6 +54,14 @@ abstract class VideoPlayerState internal constructor(
     var durationMillis: Long by mutableStateOf(0L)
         protected set
 
+    /**
+     * A taxa de quadros do vídeo em vigor (quadros por segundo), ou `null` enquanto a plataforma
+     * não a informou. É o que dá a medida de um passo do [stepFrame]; sem ela, o passo usa
+     * [DEFAULT_VIDEO_FRAME_RATE]. Desde 2.286.0.
+     */
+    var frameRate: Float? by mutableStateOf(null)
+        protected set
+
     /** Até onde o buffer já baixou — a barra clara atrás do progresso. */
     var bufferedMillis: Long by mutableStateOf(0L)
         protected set
@@ -146,7 +154,13 @@ abstract class VideoPlayerState internal constructor(
         if (isPlaying) pause() else play()
     }
 
-    /** Vai para [millis], grampeado entre `0` e a duração. */
+    /**
+     * Vai para [millis], grampeado entre `0` e a duração.
+     *
+     * A busca é **exata** nas duas plataformas (desde 2.286.0 também no iOS, com tolerância zero):
+     * tocar na marca de um comentário em 0:12,4 tem de mostrar o quadro de 0:12,4, não o quadro-chave
+     * mais próximo — que num vídeo comprimido pode estar a um segundo de distância.
+     */
     abstract fun seekTo(millis: Long)
 
     /**
@@ -158,6 +172,24 @@ abstract class VideoPlayerState internal constructor(
     fun seekBy(deltaMillis: Long) {
         seekTo(seekTargetOf(positionMillis, deltaMillis, durationMillis))
     }
+
+    /**
+     * **Quadro a quadro** (2.286.0): pausa e anda [frames] quadros — positivo avança, negativo
+     * volta. É o que a revisão de execução precisa ("o joelho entrou aqui?"): parar no quadro exato,
+     * não na vizinhança de um segundo.
+     *
+     * - **iOS:** busca com tolerância zero (`seekToTime:toleranceBefore:toleranceAfter:` com
+     *   `kCMTimeZero`) para o quadro calculado por [frameStepTargetOf] sobre a taxa da faixa
+     *   (`currentVideoFrameRate`). O `AVPlayerItem.stepByCount(_:)` não foi usado: não avisa quando
+     *   terminou (a posição ficaria velha na tela pausada) e não é oferecido em boa parte dos HLS.
+     * - **Android:** a Media3 não tem "passo"; a forma oficial é a **busca exata** (o
+     *   `SeekParameters` default do ExoPlayer é `EXACT`) para o início do quadro vizinho, calculado
+     *   por [frameStepTargetOf] sobre a [frameRate] do formato em reprodução.
+     *
+     * Sempre deixa o vídeo **pausado** — andar um quadro com o vídeo correndo não teria efeito
+     * visível. Grampeado em `0` e na duração.
+     */
+    abstract fun stepFrame(frames: Int = 1)
 
     /** Muda a velocidade. Valor fora de [VIDEO_SPEEDS] é aceito, mas o menu só oferece os seis. */
     abstract fun setSpeed(speed: Float)

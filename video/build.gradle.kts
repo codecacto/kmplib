@@ -67,6 +67,17 @@ kotlin {
             // `StandaloneDatabaseProvider`): depender de transitividade para um tipo que se escreve
             // é o que quebra no dia em que a Media3 reorganizar os artefatos. `api` porque
             // `Media3Cache` (público sob opt-in) devolve esses tipos ao `kmplib-video-download`.
+            // ------------------------------------------------------------------------------
+            // Compressão no aparelho (2.286.0, `video.transcode.VideoTranscoder`)
+            // ------------------------------------------------------------------------------
+            //
+            // `Transformer` é a API oficial da Media3 para transcodificar (H.264 por hardware via
+            // MediaCodec), cortar (`ClippingConfiguration`) e tirar o áudio (`setRemoveAudio`).
+            // `media3-effect`: `Presentation` (lado menor 720) e `FrameDropEffect` (30 fps). Sem
+            // permissão nem componente no manifesto — não repete o problema do download (2.212.0).
+            implementation(libs.androidx.media3.transformer)
+            implementation(libs.androidx.media3.effect)
+
             api(libs.androidx.media3.datasource)
             api(libs.androidx.media3.database)
         }

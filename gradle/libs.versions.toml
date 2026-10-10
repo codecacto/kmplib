@@ -199,6 +199,9 @@ play-services-location = { module = "com.google.android.gms:play-services-locati
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraX" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraX" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraX" }
+# Gravação de vídeo (`camera.video.VideoRecorderCamera`, L-K1): `VideoCapture<Recorder>` — o caso de
+# uso oficial de vídeo do CameraX (`FileOutputOptions.setDurationLimitMillis` = teto que para sozinho).
+androidx-camera-video = { module = "androidx.camera:camera-video", version.ref = "cameraX" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 mlkit-barcode-scanning = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcodeScanning" }
 
@@ -219,6 +222,11 @@ androidx-media3-database = { module = "androidx.media3:media3-database", version
 # oficial da Media3 (2.196.0, vídeo de feed). O `PlayerView` é view Android: não aceita
 # `TextureView` por código (só por XML) e não sabe cortar (Crop) sob o clip do Compose.
 androidx-media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
+# Compressão no aparelho (`video.transcode.VideoTranscoder`, L-K1): o `Transformer` é a API oficial da
+# Media3 para transcodificar/cortar/tirar o áudio; `media3-effect` traz `Presentation` (redimensionar)
+# e `FrameDropEffect` (30 fps).
+androidx-media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3" }
+androidx-media3-effect = { module = "androidx.media3:media3-effect", version.ref = "media3" }
 sqldelight-dialect-sqlite = { module = "app.cash.sqldelight:sqlite-3-38-dialect", version.ref = "sqldelight" }
 
 # --- Artefatos dos plugins, para os convention plugins de build-logic/ -----------------------

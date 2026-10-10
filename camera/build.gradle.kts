@@ -23,6 +23,9 @@ kotlin {
             implementation(libs.androidx.camera.camera2)
             implementation(libs.androidx.camera.lifecycle)
             implementation(libs.androidx.camera.view)
+            // Gravação de vídeo (2.286.0, `camera.video`): `VideoCapture<Recorder>`. Já chegava por
+            // transitividade do `camera-view`; declarado porque o código NOMEIA os tipos dele.
+            implementation(libs.androidx.camera.video)
             // OCR de placa e leitura de código de barras — modelo embarcado, funciona offline.
             implementation(libs.mlkit.text.recognition)
             implementation(libs.mlkit.barcode.scanning)

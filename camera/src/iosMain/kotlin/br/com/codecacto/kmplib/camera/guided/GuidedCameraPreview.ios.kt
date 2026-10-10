@@ -110,7 +110,7 @@ internal actual fun GuidedCameraPreview(
 }
 
 /** `UIView` que hospeda o preview layer e o mantém do tamanho e na orientação da tela. */
-private class GuidedPreviewUIView(session: AVCaptureSession) :
+internal class GuidedPreviewUIView(session: AVCaptureSession) :
     UIView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0)) {
 
     val previewLayer: AVCaptureVideoPreviewLayer =

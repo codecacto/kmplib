@@ -435,6 +435,23 @@
     <string name="kmplib_guided_camera_retry">Intentar de nuevo</string>
     <string name="kmplib_guided_camera_capture_failed">La foto no salió. Inténtalo de nuevo.</string>
     <string name="kmplib_guided_camera_capturing">Tomando la foto…</string>
+    <!-- Gravador de vídeo (kmplib-camera, camera.video — 2.286.0) -->
+    <string name="kmplib_video_recorder_record">Grabar video</string>
+    <string name="kmplib_video_recorder_stop">Detener grabación</string>
+    <string name="kmplib_video_recorder_stop_disabled">Grabando: espera para poder detener</string>
+    <string name="kmplib_video_recorder_recording_time">%1$s de %2$s</string>
+    <string name="kmplib_video_recorder_countdown">La grabación empieza en %1$s</string>
+    <string name="kmplib_video_recorder_cancel_countdown">Cancelar cuenta regresiva</string>
+    <string name="kmplib_video_recorder_finishing">Guardando el video…</string>
+    <string name="kmplib_video_recorder_permission_message">La cámara se usa para grabar el video.</string>
+    <string name="kmplib_video_recorder_permission_denied_message">El acceso a la cámara está bloqueado. Habilítalo en la Configuración del dispositivo para grabar el video.</string>
+    <string name="kmplib_video_recorder_microphone_title">Necesitamos el micrófono</string>
+    <string name="kmplib_video_recorder_microphone_message">El micrófono graba el sonido del video.</string>
+    <string name="kmplib_video_recorder_microphone_allow">Permitir micrófono</string>
+    <string name="kmplib_video_recorder_microphone_denied_message">El acceso al micrófono está bloqueado. Habilítalo en la Configuración del dispositivo para grabar con sonido.</string>
+    <string name="kmplib_video_recorder_recording_failed">El video no se grabó. Inténtalo de nuevo.</string>
+    <string name="kmplib_video_recorder_no_space">No hay espacio en el dispositivo para grabar el video.</string>
+    <string name="kmplib_video_recorder_limit_reached">Tiempo máximo alcanzado</string>
     <string name="kmplib_compare_title">Comparando %1$s con %2$s</string>
     <string name="kmplib_compare_single_title">Sesión del %1$s</string>
     <string name="kmplib_compare_single_hint">La comparación aparece a partir de la segunda sesión.</string>

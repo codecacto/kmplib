@@ -5,6 +5,81 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.286.0 — Gravar, comprimir e revisar vídeo: `VideoRecorderCamera`, `VideoTranscoder`, quadro a quadro e `VideoTimeline` com marcas
+
+**Por quê.** App do Personal, Onda 2, item 2.1 (lacuna **L-K1** = `GAP-PT-M03` + `M04` + `M07`): o aluno
+grava a série no app (60 s que param sozinhos, guia de enquadramento, frontal/traseira), o vídeo é
+comprimido no aparelho (H.264 720p ~2 Mbps 30 fps ≈ 15 MB/min, sem áudio) e o personal revisa com
+0,5×, quadro a quadro e marcas no tempo — que o aluno toca para pular ao ponto. A lib tinha só foto
+(`GuidedCamera`) e um player sem passo de quadro nem marcas. Tudo no SDK oficial: CameraX/Media3 no
+Android, AVFoundation no iOS.
+
+**O que entrou (aditivo — nada muda para quem não usa).**
+- **`kmplib-camera` — `camera.video` (pacote novo):** `VideoRecorderCamera(onRecorded, modifier,
+  maxDurationMillis = 60_000, minDurationMillis = 1_000, recordAudio = false, quality = HD_720P,
+  startDelaySeconds = 0, guide, hint, initialLens, allowLensSwitch, texts, onError, onClose,
+  onRecordingChange, overlayContent: BoxScope.(RecordingClock?) -> Unit)`.
+  - **Teto que para sozinho pela PLATAFORMA**: CameraX `VideoCapture<Recorder>` com
+    `FileOutputOptions.setDurationLimitMillis` (finaliza com `ERROR_DURATION_LIMIT_REACHED` = sucesso);
+    iOS `AVCaptureMovieFileOutput.maxRecordedDuration` (`AVErrorRecordingSuccessfullyFinishedKey`).
+  - Preview 9:16/16:9 desenhado **inteiro** (o guia na tela = o enquadramento do vídeo), `CameraGuide`
+    da câmera guiada reaproveitado; um botão só (gravar/parar) com anel de progresso; parar só depois
+    do mínimo; contador "0:12 / 1:00" (vermelho nos últimos 10 s); contagem regressiva opcional
+    (tocar de novo cancela); troca de câmera escondida durante a gravação; tela acesa gravando.
+  - `recordAudio`: pede o microfone **depois** da câmera (nunca dois diálogos juntos); estados próprios
+    de microfone negado/bloqueado. Sem câmera, permissão negada, sessão que não sobe: mensagem + saída.
+  - `RecordedVideo(path, uri, durationMillis, sizeBytes, widthPx, heightPx, mimeType, lens, hasAudio,
+    reachedMaxDuration)` + `durationSeconds` + `deleteFile()`; `toString` sem caminho. Android MP4,
+    iOS QuickTime. Frontal sem espelho (como a `GuidedCamera`). **Sair da tela gravando para e apaga o
+    arquivo.** `VideoRecorderError`, `VideoRecorderState`, `VideoRecordingQuality`, `RecordingClock`,
+    `recordingClockOf`, `formatRecordingTime`, `VideoRecorderTexts`/`rememberVideoRecorderTexts()`
+    (4 idiomas, `kmplib_video_recorder_*`), `VideoRecorderTestTags` (`camera-video-*`).
+- **`kmplib-video` — `video.transcode` (pacote novo):** `createVideoTranscoder().prepare(source, trim,
+  mute, profile, onProgress): VideoTranscodeResult`.
+  - Android: Media3 **`Transformer`** (H.264 por hardware, `Presentation.createForShortSide` só para
+    REDUZIR, `FrameDropEffect` 30 fps, `ClippingConfiguration`, `setRemoveAudio`, HDR→SDR por OpenGL,
+    `DefaultEncoderFactory` com taxa e quadro-chave pedidos + fallback). iOS: **`AVAssetReader` +
+    `AVAssetWriter`** (o `AVAssetExportSession` não aceita taxa de bits; o preset 720p sai a 5–8 Mbps),
+    H.264 High com `AVVideoAverageBitRateKey`, `preferredTransform` preservada, descarte de quadro para
+    30 fps, corte por `timeRange`.
+  - `VideoTranscodeProfile.H264_720P` (720 no lado menor, 2 Mbps, 30 fps, quadro-chave 1 s, AAC 96 kbps,
+    miniatura 480 px); `PreparedVideo` (MP4, medida na orientação de exibição, `thumbnailJpeg`,
+    `durationSeconds`, `deleteFile()`); `VideoTranscodeSource.fromPath/fromUri/of` (aceita o
+    `PickedVideo.reference`); `VideoTrim`; `VideoTranscodeError` (`SOURCE_UNREADABLE`,
+    `UNSUPPORTED_FORMAT`, `INVALID_TRIM`, `ENCODER_FAILED`, `NO_SPACE`, `UNKNOWN`). Cancelar a corrotina
+    cancela a codificação e apaga o parcial. Regras puras: `resolveVideoTrim`, `targetVideoDimensions`
+    (pares, nunca amplia), `estimatedTranscodeBytes` (15,3 MB/60 s), `shouldKeepVideoFrame`.
+- **`kmplib-video` — revisão:** `VideoPlayerState.stepFrame(frames)` (pausa e anda N quadros por
+  índice de quadro — `frameStepTargetOf`, sem acumular erro) + `frameRate`; **busca exata nas duas
+  plataformas** (`SeekParameters.EXACT` declarado no Android; iOS passou a `seekToTime` com tolerância
+  zero — antes parava no quadro-chave). `VideoTimeline(positionMillis, durationMillis, markers, onSeek,
+  …, onMarkerClick, onAddAt, selectedMarkerId)` + sobrecarga `VideoTimeline(state, markers, …)`:
+  progresso, buffer e um ponto por `VideoMarker(id, atMillis, label, color)`, toque/arrasto busca,
+  toque longo cria marca (com `onAddAt`), pontos próximos agrupados com contagem; acessível
+  (`setProgress`, ações "Próxima marca"/"Marca anterior"/"Adicionar marca em 0:12", cada ponto um botão
+  de 48 dp). `VideoFrameStepControls(state)`. Regras puras: `normalizeVideoMarkers`,
+  `clusterVideoMarkers`, `videoMarkerAt` (o cartão do comentário da vez), `nextVideoMarker`,
+  `previousVideoMarker`, `timelineMillisAt`. Ids `video-linha-do-tempo*`, `video-marca-<id>`,
+  `video-btn-quadro-*`.
+- **`kmplib-platform`:** `VIDEO_CAPTURE_TEMP_DIRECTORY`/`VIDEO_PREPARED_TEMP_DIRECTORY` — o vídeo
+  gravado e o comprimido entram na varredura do `clearKmpLibTemporaryFiles` (Android `cacheDir`, iOS
+  `NSTemporaryDirectory()`): 1 h no bootstrap, tudo no logout. Fila de envio que precise do arquivo
+  além disso o MOVE para a sua área.
+- Dependências Android novas: `androidx.camera:camera-video` (já vinha por transitividade),
+  `androidx.media3:media3-transformer` e `media3-effect` (sem permissão nem componente no manifesto).
+
+**Testes.** 50 novos (`VideoFrameStepTest` 11, `VideoMarkersTest` 11, `VideoTranscodeModelsTest` 14,
+`VideoRecorderModelsTest` 14). Suítes JVM de `kmplib-video` (198), `kmplib-camera` (80) e
+`kmplib-platform` (460) verdes; `compileKotlinIosArm64` e `compileTestKotlinIosArm64` dos três módulos
+verdes, nenhuma tarefa SKIPPED.
+
+**Falta provar em aparelho (Mac/emulador):** gravação real com teto e troca de câmera; compressão de
+um vídeo 1080p/4K de 60 s caindo em ~15 MB nas duas plataformas (e fonte HDR do iPhone/Pixel);
+áudio de fonte mono no iOS (`mute = false`); quadro a quadro e toque na marca parando no quadro exato.
+
+**Ação nos apps:** nenhuma. Aditivo: sem aviso, sem piso. App que for gravar declara `CAMERA` (+
+`RECORD_AUDIO`) e `NSCameraUsageDescription` (+ `NSMicrophoneUsageDescription`).
+
 ## 2.285.0 — Comparador de fotos (`PhotoCompare`) e gráfico com faixa de referência (`kmplib-ui`)
 
 **Por quê.** Vitalis, Onda 2 (pacote LM-K02, `GAP-VIT-K02`): o app do médico precisa comparar fotos de

@@ -17,6 +17,8 @@ import platform.CoreMedia.*
 import platform.Foundation.*
 import platform.MediaPlayer.*
 import platform.darwin.NSObjectProtocol
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 /**
  * **AVPlayer (AVFoundation)** — o player da Apple, e o único caminho oficial para HLS no iOS.
@@ -71,6 +73,7 @@ private class AvPlayerVideoPlayerState(
     override fun load(media: VideoMedia) {
         this.media = media
         preferenciaAplicada = false
+        frameRate = null
         grupoDeLegendas = null
         externalCues = emptyList()
         applySelectedSubtitle(null)
@@ -135,10 +138,53 @@ private class AvPlayerVideoPlayerState(
     }
 
     override fun seekTo(millis: Long) {
-        val alvo = seekTargetOf(0L, millis, durationMillis)
-        player.seekToTime(cmTime(alvo))
-        positionMillis = alvo
+        buscarExato(seekTargetOf(0L, millis, durationMillis))
+    }
+
+    override fun stepFrame(frames: Int) {
+        if (frames == 0) return
+        querTocar = false
+        player.pause()
+        atualizarTaxaDeQuadros()
+        val alvo = frameStepTargetOf(
+            positionMillis = player.currentTime().paraMillis(),
+            frames = frames,
+            frameRate = frameRate,
+            durationMillis = durationMillis,
+        )
+        buscarExato(alvo)
+        refreshProgress()
+    }
+
+    /**
+     * Busca com **tolerância zero** — a forma que a Apple indica quando o quadro importa
+     * (`seekToTime:toleranceBefore:toleranceAfter:` com `kCMTimeZero`). Sem ela o AVPlayer para no
+     * quadro-chave mais próximo, e a marca de um comentário em 0:12,4 mostraria 0:12 ou 0:13.
+     *
+     * É também o passo do quadro a quadro: o `AVPlayerItem.stepByCount(_:)` não avisa quando
+     * terminou (a posição ficaria velha na tela, com o relógio de progresso parado na pausa) e não
+     * é oferecido em boa parte dos HLS. A busca exata tem conclusão, e é nela que a posição é relida.
+     */
+    private fun buscarExato(alvoMillis: Long) {
+        val zero = kCMTimeZero.readValue()
+        player.seekToTime(cmTime(alvoMillis), toleranceBefore = zero, toleranceAfter = zero) { _ ->
+            dispatch_async(dispatch_get_main_queue()) {
+                refreshProgress()
+                publicarNaCentralDeMidia()
+            }
+        }
+        positionMillis = alvoMillis
         publicarNaCentralDeMidia()
+    }
+
+    /** A taxa de quadros da faixa de vídeo em reprodução (as de áudio informam 0). */
+    private fun atualizarTaxaDeQuadros() {
+        val item = player.currentItem ?: return
+        val fps = item.tracks.mapNotNull { (it as? AVPlayerItemTrack)?.currentVideoFrameRate }
+            .firstOrNull { it > 0f }
+            ?: item.tracks.mapNotNull { (it as? AVPlayerItemTrack)?.assetTrack?.nominalFrameRate() }
+                .firstOrNull { it > 0f }
+        if (fps != null) frameRate = fps
     }
 
     override fun setSpeed(speed: Float) {
@@ -225,6 +271,7 @@ private class AvPlayerVideoPlayerState(
 
         val preparado = item.status == AVPlayerItemStatusReadyToPlay
         if (preparado) descobrirLegendasEmbutidas(item)
+        if (preparado && frameRate == null) atualizarTaxaDeQuadros()
         // Cada volta do laço é uma réplica nova: a legenda escolhida é reaplicada nela.
         if (preparado && looper != null && preferenciaAplicada && itemDaLegenda !== item) {
             selectSubtitle(selectedSubtitle)

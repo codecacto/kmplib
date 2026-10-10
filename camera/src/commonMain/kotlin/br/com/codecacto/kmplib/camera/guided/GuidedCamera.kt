@@ -351,7 +351,7 @@ fun GuidedCamera(
 
 /** O guia, na moldura pedida, sem receber toque nem ser lido pelo leitor de tela (é decoração). */
 @Composable
-private fun BoxScope.GuideOverlay(guide: CameraGuide) {
+internal fun BoxScope.GuideOverlay(guide: CameraGuide, testTag: String = GuidedCameraTestTags.GUIDE) {
     Box(
         modifier = Modifier
             .align(guide.alignment)
@@ -359,7 +359,7 @@ private fun BoxScope.GuideOverlay(guide: CameraGuide) {
             .fillMaxHeight(guide.heightFraction)
             .alpha(guide.alpha)
             .clearAndSetSemantics { }
-            .testTag(GuidedCameraTestTags.GUIDE),
+            .testTag(testTag),
     ) {
         val painter = guide.painter
         val onDraw = guide.onDraw
@@ -410,7 +410,7 @@ private fun ShutterButton(
 }
 
 @Composable
-private fun ChromeIconButton(
+internal fun ChromeIconButton(
     icon: ImageVector,
     description: String,
     testTag: String,
@@ -432,14 +432,16 @@ private fun ChromeIconButton(
     }
 }
 
-/** Os estados que não são câmera ao vivo: ícone + texto + (talvez) a ação. */
+/** Os estados que não são câmera ao vivo: ícone + texto + (talvez) a ação. Também do gravador de vídeo. */
 @Composable
-private fun BoxScope.CameraMessage(
+internal fun BoxScope.CameraMessage(
     icon: ImageVector,
     title: String?,
     message: String,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    messageTestTag: String = GuidedCameraTestTags.MESSAGE,
+    actionTestTag: String = GuidedCameraTestTags.PRIMARY_ACTION,
 ) {
     Column(
         modifier = Modifier
@@ -463,13 +465,13 @@ private fun BoxScope.CameraMessage(
             style = MaterialTheme.typography.bodyMedium,
             color = CameraChrome.content,
             textAlign = TextAlign.Center,
-            modifier = Modifier.testTag(GuidedCameraTestTags.MESSAGE),
+            modifier = Modifier.testTag(messageTestTag),
         )
         if (actionLabel != null && onAction != null) {
             AppButton(
                 text = actionLabel,
                 onClick = onAction,
-                modifier = Modifier.testTag(GuidedCameraTestTags.PRIMARY_ACTION),
+                modifier = Modifier.testTag(actionTestTag),
             )
         }
     }
@@ -481,12 +483,12 @@ private fun BoxScope.CameraMessage(
  * branco sobre véu escuro é legível sobre qualquer cena. Botão de ação dos estados de erro usa o
  * `AppButton` (cor da marca).
  */
-private object CameraChrome {
+internal object CameraChrome {
     val background: Color = Color.Black
     val content: Color = Color.White
     val scrim: Color = Color.Black.copy(alpha = 0.45f)
 }
 
-private val SHUTTER_SIZE = 76.dp
-private val CHROME_BUTTON_SIZE = 48.dp
+internal val SHUTTER_SIZE = 76.dp
+internal val CHROME_BUTTON_SIZE = 48.dp
 private const val CAPTURE_FAILED_MESSAGE_MILLIS = 3_000L

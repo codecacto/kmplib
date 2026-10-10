@@ -14,12 +14,30 @@ const val PDF_VIEWER_TEMP_DIRECTORY: String = "kmplib_pdfviewer"
 const val PRINT_TEMP_DIRECTORY: String = "kmplib_print"
 
 /**
+ * Pasta do vídeo **gravado** pela câmera da lib (`VideoRecorderCamera`, `kmplib-camera`, 2.286.0):
+ * dentro do `cacheDir` no Android e do `NSTemporaryDirectory()` no iOS.
+ *
+ * É vídeo da pessoa (no App do Personal, o corpo dela): **temporário por contrato** — o app apaga
+ * depois de preparar/enviar (`RecordedVideo.deleteFile()`), e esta varredura apaga o que sobrou de
+ * processo morto. Fila de envio durável que precise do arquivo além disso **move-o para a área
+ * dela** antes; daqui ele sai.
+ */
+const val VIDEO_CAPTURE_TEMP_DIRECTORY: String = "kmplib_video_capture"
+
+/**
+ * Pasta do vídeo **comprimido** pelo `VideoTranscoder` (`kmplib-video`, 2.286.0), no mesmo lugar e
+ * com o mesmo contrato de [VIDEO_CAPTURE_TEMP_DIRECTORY].
+ */
+const val VIDEO_PREPARED_TEMP_DIRECTORY: String = "kmplib_video_prepared"
+
+/**
  * Apaga **todos os temporários que a kmplib grava em disco** (2.280.0): as cópias de
  * compartilhamento ([ShareHandler.clearSharedFiles]), o temporário do visualizador de PDF
- * ([PDF_VIEWER_TEMP_DIRECTORY]) e o PDF de impressão ([PRINT_TEMP_DIRECTORY]).
+ * ([PDF_VIEWER_TEMP_DIRECTORY]), o PDF de impressão ([PRINT_TEMP_DIRECTORY]) e, desde a 2.286.0, o
+ * vídeo gravado ([VIDEO_CAPTURE_TEMP_DIRECTORY]) e o comprimido ([VIDEO_PREPARED_TEMP_DIRECTORY]).
  *
  * ### Por que existe
- * Esses arquivos podem ser dado sensível — receita, laudo, relatório. A lib apaga cada um ao fim do
+ * Esses arquivos podem ser dado sensível — receita, laudo, relatório, o vídeo do corpo do aluno. A lib apaga cada um ao fim do
  * uso, mas **processo morto não roda `close()`**: o sistema mata o app com o PDF aberto ou com o
  * diálogo de impressão na tela, e o arquivo fica no `cacheDir`, numa pasta que nenhuma tela mostra.
  * Esta função é a varredura que fecha esse buraco.

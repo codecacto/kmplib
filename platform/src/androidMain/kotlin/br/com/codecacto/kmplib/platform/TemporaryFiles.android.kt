@@ -25,7 +25,9 @@ fun clearKmpLibTemporaryFiles(context: Context, olderThanMillis: Long = DEFAULT_
         .getOrDefault(0)
     val pdf = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, PDF_VIEWER_TEMP_DIRECTORY), olderThanMillis)
     val impressao = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, PRINT_TEMP_DIRECTORY), olderThanMillis)
-    return compartilhados + pdf + impressao
+    val gravados = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, VIDEO_CAPTURE_TEMP_DIRECTORY), olderThanMillis)
+    val preparados = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, VIDEO_PREPARED_TEMP_DIRECTORY), olderThanMillis)
+    return compartilhados + pdf + impressao + gravados + preparados
 }
 
 /**

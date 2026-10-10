@@ -91,9 +91,12 @@
 ### Registrado em 06/out/2026 — origem: design do **App do Personal** (`Estudo-App-Personal/docs/design/gaps-de-lib.md`)
 > Plataforma de personal trainer (2 apps + portal + relógio), arquétipo D+B, protótipo aprovado (protótipo vence a lib: o desenho vira primitivo do
 > projeto; aqui só **capacidade ausente** e o que ≥ 2 apps vão repetir). Par web em `Lib/weblib/docs/backlog.md` (GAP-PT-W*). Detalhe de cada item no arquivo de origem.
-- [ ] **GAP-PT-M03 (P0) — `kmplib-camera`: gravar vídeo com tela própria** (`CameraVideoRecorder`: CameraX `VideoCapture` + `AVCaptureMovieFileOutput`, limite com
-      parada automática, frontal/traseira, slot de guia, erro tipado). Hoje só foto/código de barras; o picker abre a câmera do sistema.
-- [ ] **GAP-PT-M04 (P0) — `kmplib-video`: preparar vídeo no aparelho** (`VideoTranscoder`: H.264 720p ~2 Mbps, cortar início/fim, tirar áudio, miniatura; Media3 Transformer / `AVAssetExportSession`).
+- [x] **GAP-PT-M03 (P0) — `kmplib-camera`: gravar vídeo com tela própria — ENTREGUE na 2.286.0** como `VideoRecorderCamera`
+      (`camera.video`): CameraX `VideoCapture<Recorder>` + `AVCaptureMovieFileOutput`, teto que para sozinho pela plataforma, contagem
+      regressiva, frontal/traseira, `CameraGuide`, `VideoRecorderError`. Fica: lanterna, pausar/retomar, zoom; prova em aparelho.
+- [x] **GAP-PT-M04 (P0) — `kmplib-video`: preparar vídeo no aparelho — ENTREGUE na 2.286.0** (`video.transcode.VideoTranscoder`: H.264
+      720p ~2 Mbps 30 fps, corte, sem áudio, miniatura). iOS em `AVAssetReader`+`AVAssetWriter`, NÃO `AVAssetExportSession` (só aceita
+      preset; o 720p sai a 5–8 Mbps). Fica: prova de tamanho real em aparelho (1080p/4K, HDR).
 - [ ] **GAP-PT-M05 (P0) — `kmplib-sync`: upload retomável direto ao storage** (`DirectUploadOutbox`: URL pré-assinada, PUT/multipart, só Wi-Fi, estado por item). Exige `S3StorageProvider` na backlib-storage.
 - [x] **GAP-PT-M11 (P0) — `kmplib-workout` e `kmplib-health`: ENTREGUES** (08/out; motor por volta/estágio na 2.266.0; FC por
       BLE `HeartRateMonitor` + dublê `SimulatedHeartRateSensor`, regra do repositório em commonMain e as tabelas de casos
@@ -101,7 +104,8 @@
       reais, reconexão física, `bluetooth-central` em 2º plano, leitura/escrita real de HealthKit e Health Connect.
 - [ ] **GAP-PT-M02 (P1) — `LoopVideo`**: vídeo isolado em laço, mudo, fonte local, toque pausa (hoje `FeedVideo` exige `FeedVideoHost`).
 - [ ] **GAP-PT-M06 + M12 (P1) — `AudioRecorder` (arquivo, segurar/tocar, onda) + kit de chat** (junta com `GAP-ME-02`, 2º consumidor).
-- [ ] **GAP-PT-M07 (P1) — player de revisão**: `stepFrame(±1)` e `VideoTimeline(markers)` no `VideoPlayer`.
+- [x] **GAP-PT-M07 (P1) — player de revisão — ENTREGUE na 2.286.0**: `VideoPlayerState.stepFrame(±1)` + busca exata no iOS,
+      `VideoTimeline(markers, onSeek, onAddAt)` e `VideoFrameStepControls`. Fica: textos do `kmplib-video` nos 4 idiomas (hoje pt-BR literal).
 - [ ] **GAP-PT-M08 (P1) — `platform`: `Haptics.vibrate(pattern)` + `NotificationScheduler.scheduleOnce/cancel`** (fim do descanso com o app em 2º plano; `SoundEffectPlayer` não toca no Silencioso).
 - [ ] **GAP-PT-M09 (P1) — `monetization`: degrau × ciclo no paywall** (`PaywallTier`; 4 degraus × 3 ciclos = 9 produtos por loja; selo "Melhor valor" derivado).
 - [ ] **GAP-PT-M17 (P1, verificação) — `AppTheme` com `colorScheme`/`displayFontFamily` trocados em runtime** (marca do personal depois do login).
