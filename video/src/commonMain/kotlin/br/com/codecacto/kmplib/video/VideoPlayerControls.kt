@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -63,6 +66,7 @@ internal fun VideoPlayerControls(
     isFullscreen: Boolean,
     onFullscreenChange: ((Boolean) -> Unit)?,
     onInteraction: () -> Unit,
+    showSoundButton: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Enquanto o dedo arrasta, a barra obedece ao DEDO e não ao player: sem isto o relógio de
@@ -186,6 +190,16 @@ internal fun VideoPlayerControls(
 
                 Box(Modifier.weight(1f))
 
+                if (showSoundButton) {
+                    VideoSoundButton(
+                        state = state,
+                        texts = texts,
+                        colors = colors,
+                        withBackground = false,
+                        onInteraction = onInteraction,
+                    )
+                }
+
                 if (onFullscreenChange != null) {
                     ControlIcon(
                         icon = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
@@ -198,6 +212,39 @@ internal fun VideoPlayerControls(
                 }
             }
         }
+    }
+}
+
+/**
+ * O botão de som: alto-falante cortado quando mudo (o toque LIGA), alto-falante quando com som.
+ * O `IconButton` garante os 48dp de alvo; [withBackground] põe o círculo escuro de quando o botão
+ * fica sozinho sobre o vídeo (sem a faixa escura dos controles atrás, ele sumiria num quadro claro).
+ */
+@Composable
+internal fun VideoSoundButton(
+    state: VideoPlayerState,
+    texts: VideoPlayerTexts,
+    colors: VideoPlayerColors,
+    withBackground: Boolean,
+    modifier: Modifier = Modifier,
+    onInteraction: () -> Unit = {},
+) {
+    val mudo = state.isMuted
+    IconButton(
+        onClick = {
+            onInteraction()
+            state.toggleMuted()
+        },
+        modifier = modifier
+            .testTag(VideoPlayerTestTags.SOUND)
+            .then(if (withBackground) Modifier.background(colors.scrim, CircleShape) else Modifier),
+    ) {
+        Icon(
+            imageVector = if (mudo) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+            contentDescription = if (mudo) texts.turnSoundOn else texts.turnSoundOff,
+            tint = colors.chrome,
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 

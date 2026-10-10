@@ -56,17 +56,17 @@ private class ExoPlayerVideoPlayerState(
 ) : VideoPlayerState(config, texts) {
 
     /** Exposto ao [VideoSurface] — é o `PlayerView` que precisa dele. */
+    /** `C.USAGE_MEDIA` é o que classifica a reprodução como mídia (volume de mídia, não de toque). */
+    private val atributosDeAudio = androidx.media3.common.AudioAttributes.Builder()
+        .setUsage(C.USAGE_MEDIA)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+        .build()
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         // Foco de áudio pelo próprio player: sem isto, uma ligação ou outro app tocando música
-        // ficam por cima da aula, e a aula não pausa. `C.USAGE_MEDIA` é o que classifica a
-        // reprodução como mídia (volume de mídia, não de toque).
-        .setAudioAttributes(
-            androidx.media3.common.AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build(),
-            /* handleAudioFocus = */ true,
-        )
+        // ficam por cima da aula, e a aula não pausa. MUDO não pede foco (ver `aplicarMudo`): a
+        // música de outro app continua enquanto a demonstração passa calada.
+        .setAudioAttributes(atributosDeAudio, /* handleAudioFocus = */ !config.startMuted)
         // Fone desconectado = pausa. É o comportamento que o usuário espera e que o Android pede
         // (senão a aula sai no alto-falante no meio do ônibus).
         .setHandleAudioBecomingNoisy(true)
@@ -111,6 +111,10 @@ private class ExoPlayerVideoPlayerState(
     init {
         player.addListener(listener)
         player.setPlaybackSpeed(config.initialSpeed)
+        // Laço sem emenda: o ExoPlayer reabre o mesmo item já pré-carregado, e nunca chega a
+        // `STATE_ENDED` — o status não passa por "terminou" entre as voltas.
+        player.repeatMode = if (config.loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        aplicarMudo(config.startMuted)
         if (config.mediaSession) {
             session = runCatching { MediaSession.Builder(context, player).build() }
                 .onFailure { AppLogger.w(VIDEO_TAG, "MediaSession indisponível: ${redactMediaUrlsIn(it.message)}") }
@@ -182,6 +186,23 @@ private class ExoPlayerVideoPlayerState(
     override fun setSpeed(speed: Float) {
         player.playbackParameters = PlaybackParameters(speed)
         updateSpeed(speed)
+    }
+
+    override fun setMuted(muted: Boolean) {
+        if (muted == isMuted) return
+        aplicarMudo(muted)
+    }
+
+    /**
+     * Mudo = volume `0` **e sem foco de áudio** (`handleAudioFocus = false`), o mesmo do vídeo de
+     * feed: só zerar o volume ainda tomaria o foco e pausaria a música de outro app por um vídeo
+     * que ninguém ouve. Com som, o foco volta — a música pausa, notificação abaixa o volume
+     * (*ducking*, feito pela Media3).
+     */
+    private fun aplicarMudo(muted: Boolean) {
+        player.volume = if (muted) 0f else 1f
+        player.setAudioAttributes(atributosDeAudio, /* handleAudioFocus = */ !muted)
+        updateMuted(muted)
     }
 
     override fun selectSubtitle(option: VideoSubtitleOption?) {

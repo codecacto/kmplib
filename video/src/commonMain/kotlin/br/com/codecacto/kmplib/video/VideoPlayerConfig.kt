@@ -21,6 +21,40 @@ package br.com.codecacto.kmplib.video
  *   seria um `PATCH` por quadro.
  * @param preferredSubtitleLanguage a legenda que já vem ligada, quando existir faixa nessa língua
  *   (`"pt-BR"`, `"pt"`, `"en"`). `null` = começar sem legenda.
+ * @param loop recomeçar sozinho ao chegar ao fim, sem emenda visível — o vídeo curto de
+ *   demonstração (um exercício, um gesto). Nunca chega a [VideoStatus.Ended]. Android:
+ *   `Player.REPEAT_MODE_ONE`; iOS: `AVPlayerLooper` sobre `AVQueuePlayer`, que é a forma que a
+ *   Apple indica para laço sem corte (o "voltar ao zero" no fim deixa um quadro preto entre as
+ *   voltas). Desde 2.284.0.
+ * @param startMuted nascer **sem som**. A pessoa pode ligar o som depois — pelo botão de som
+ *   ([soundControl]) ou pelo app, com [VideoPlayerState.setMuted]. Enquanto mudo, o player
+ *   **não interrompe a música** que a pessoa ouve em outro app: no Android não pede foco de áudio
+ *   (volume `0`, `handleAudioFocus = false`); no iOS a sessão de áudio fica em `.ambient`, que mistura
+ *   com os outros apps. Ao ligar o som, volta ao comportamento de mídia (foco no Android,
+ *   `.playback` no iOS). Desde 2.284.0.
+ * @param soundControl mostrar o botão de ligar/desligar o som. Default: ligado quando o vídeo nasce
+ *   mudo — quem nasce mudo precisa de uma saída para ouvir; quem nasce com som usa o volume do
+ *   aparelho, como sempre. Com `controls = false` no [VideoPlayer], o botão fica sozinho no canto
+ *   inferior direito (é o único controle à mostra). Desde 2.284.0.
+ * @param tapToTogglePlayback tocar no vídeo **pausa/retoma** em vez de mostrar/esconder os
+ *   controles. É o gesto do vídeo de demonstração, que costuma vir com `controls = false`. Com
+ *   controles ligados, o toque pausa e traz os controles (pausado, eles ficam). O leitor de tela
+ *   ganha a mesma ação no quadro ("Pausar"/"Reproduzir"). Desde 2.284.0.
+ *
+ * ### O vídeo de demonstração em laço (mudo, toque para pausar)
+ * ```kotlin
+ * val demo = rememberVideoPlayerState(
+ *     media = VideoMedia(url = exercicio.videoUrl),
+ *     config = VideoPlayerConfig(
+ *         loop = true,
+ *         startMuted = true,
+ *         tapToTogglePlayback = true,
+ *         mediaSession = false,              // demonstração não vai para a central de mídia
+ *         positionReportIntervalMillis = 0L, // nada a "retomar"
+ *     ),
+ * )
+ * VideoPlayer(demo, Modifier.fillMaxWidth().aspectRatio(16f / 9f), controls = false)
+ * ```
  */
 data class VideoPlayerConfig(
     val autoPlay: Boolean = true,
@@ -31,6 +65,10 @@ data class VideoPlayerConfig(
     val mediaSession: Boolean = true,
     val positionReportIntervalMillis: Long = 10_000L,
     val preferredSubtitleLanguage: String? = null,
+    val loop: Boolean = false,
+    val startMuted: Boolean = false,
+    val soundControl: Boolean = startMuted,
+    val tapToTogglePlayback: Boolean = false,
 )
 
 /**

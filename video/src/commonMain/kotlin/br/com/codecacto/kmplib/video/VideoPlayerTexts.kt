@@ -27,6 +27,10 @@ data class VideoPlayerTexts(
     val errorNotFound: String = "Este vídeo não está disponível.",
     val errorUnsupported: String = "Este aparelho não consegue reproduzir este vídeo.",
     val errorUnknown: String = "Não foi possível reproduzir o vídeo.",
+    /** Descrição do botão de som quando o vídeo está mudo (o toque LIGA o som). Desde 2.284.0. */
+    val turnSoundOn: String = "Ativar som",
+    /** Descrição do botão de som quando o vídeo tem som (o toque DESLIGA). Desde 2.284.0. */
+    val turnSoundOff: String = "Desativar som",
 ) {
     /** A frase de [kind] — usada pelos `actual` para preencher [VideoStatus.Error.message]. */
     fun messageFor(kind: VideoErrorKind): String = when (kind) {

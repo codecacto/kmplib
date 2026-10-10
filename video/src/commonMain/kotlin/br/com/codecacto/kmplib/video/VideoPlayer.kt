@@ -23,6 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,7 +71,8 @@ import kotlinx.coroutines.delay
  * quem o embutiu. Passando `null`, o botão de tela cheia some.
  *
  * @param controls `false` desenha só o quadro (e a sua sobreposição), sem nenhum controle — para
- *   uma vitrine em autoplay, por exemplo.
+ *   uma vitrine em autoplay, por exemplo. Com [VideoPlayerConfig.soundControl], o botão de som
+ *   continua no canto; com [VideoPlayerConfig.tapToTogglePlayback], o toque no quadro pausa/retoma.
  */
 @Composable
 fun VideoPlayer(
@@ -97,12 +101,41 @@ fun VideoPlayer(
         }
     }
 
+    val acaoDoToque = videoTapActionOf(controls, state.config.tapToTogglePlayback)
+    val rotuloDoToque = if (state.isPlaying) texts.pause else texts.play
+
     Box(
         modifier = modifier
             .background(colors.background)
-            .pointerInput(controls) {
-                if (!controls) return@pointerInput
-                detectTapGestures(onTap = { controlesVisiveis = !controlesVisiveis })
+            .testTag(VideoPlayerTestTags.FRAME)
+            .then(
+                // O leitor de tela não faz "toque no quadro": a mesma ação vira um clique semântico
+                // com o rótulo do que vai acontecer.
+                if (acaoDoToque == VideoTapAction.TogglePlayback) {
+                    Modifier.semantics {
+                        onClick(label = rotuloDoToque) {
+                            state.playPause()
+                            true
+                        }
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .pointerInput(acaoDoToque) {
+                when (acaoDoToque) {
+                    VideoTapAction.None -> return@pointerInput
+                    VideoTapAction.ToggleControls ->
+                        detectTapGestures(onTap = { controlesVisiveis = !controlesVisiveis })
+                    VideoTapAction.TogglePlayback -> detectTapGestures(
+                        onTap = {
+                            state.playPause()
+                            // Pausado, os controles ficam (quem pausou quer vê-los); tocando, o
+                            // `LaunchedEffect` acima os esconde de novo.
+                            controlesVisiveis = true
+                        },
+                    )
+                }
             },
     ) {
         VideoSurface(state, Modifier.fillMaxSize())
@@ -149,6 +182,22 @@ fun VideoPlayer(
             else -> Unit
         }
 
+        val lugarDoSom = videoSoundButtonPlacementOf(
+            soundControl = state.config.soundControl,
+            controls = controls,
+            controlsVisible = controlesVisiveis,
+            isError = state.status is VideoStatus.Error,
+        )
+        if (lugarDoSom == VideoSoundButtonPlacement.Corner) {
+            VideoSoundButton(
+                state = state,
+                texts = texts,
+                colors = colors,
+                withBackground = true,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+            )
+        }
+
         if (controls && controlesVisiveis && state.status !is VideoStatus.Error) {
             VideoPlayerControls(
                 state = state,
@@ -157,6 +206,7 @@ fun VideoPlayer(
                 isFullscreen = isFullscreen,
                 onFullscreenChange = onFullscreenChange,
                 onInteraction = { controlesVisiveis = true },
+                showSoundButton = lugarDoSom == VideoSoundButtonPlacement.ControlBar,
                 modifier = Modifier.fillMaxSize(),
             )
         }

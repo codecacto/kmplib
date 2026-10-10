@@ -76,6 +76,22 @@ abstract class VideoPlayerState internal constructor(
     }
 
     /**
+     * Se o vídeo está **sem som** agora. Nasce de [VideoPlayerConfig.startMuted]; muda por
+     * [setMuted]/[toggleMuted] (o botão de som do [VideoPlayer] chama este).
+     *
+     * `val` com apoio privado pelo mesmo motivo de [speed]: o setter de `isMuted` compila como
+     * `setMuted(Z)V` e colidiria com a ação [setMuted] na JVM. Desde 2.284.0.
+     */
+    val isMuted: Boolean get() = mutedInterno
+
+    private var mutedInterno: Boolean by mutableStateOf(config.startMuted)
+
+    /** Registra o mudo que o player nativo aplicou. */
+    protected fun updateMuted(muted: Boolean) {
+        mutedInterno = muted
+    }
+
+    /**
      * As legendas que dá para escolher: as **embutidas** que a plataforma achou no manifesto, mais
      * as **externas** que o app declarou em [VideoMedia.subtitles]. Ver [mergeSubtitleOptions].
      */
@@ -145,6 +161,18 @@ abstract class VideoPlayerState internal constructor(
 
     /** Muda a velocidade. Valor fora de [VIDEO_SPEEDS] é aceito, mas o menu só oferece os seis. */
     abstract fun setSpeed(speed: Float)
+
+    /**
+     * Liga (`false`) ou desliga (`true`) o som. Desligado, o player para de disputar o áudio do
+     * aparelho — a música de outro app volta a tocar por cima; ligado, volta a ser mídia (pede foco
+     * no Android, `.playback` no iOS). Ver [VideoPlayerConfig.startMuted]. Desde 2.284.0.
+     */
+    abstract fun setMuted(muted: Boolean)
+
+    /** Inverte o som. É o que o botão de som faz. Desde 2.284.0. */
+    fun toggleMuted() {
+        setMuted(!isMuted)
+    }
 
     /** Liga a legenda [option], ou desliga com `null`. */
     abstract fun selectSubtitle(option: VideoSubtitleOption?)

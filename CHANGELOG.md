@@ -5,6 +5,36 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.284.0 — Vídeo em laço, mudo e toque para pausar (`kmplib-video`)
+
+**Por quê.** App do Personal (L2): o vídeo de demonstração do exercício toca em laço, sem som, e o
+aluno toca para pausar. O `VideoPlayerConfig` não tinha laço nem mudo — e mudo "de mentira" (só volume
+zero) ainda pausaria a música que a pessoa ouve no treino.
+
+**O que entrou (aditivo, defaults = comportamento anterior).**
+- `VideoPlayerConfig.loop` — laço sem emenda. Android `Player.REPEAT_MODE_ONE`; iOS `AVPlayerLooper`
+  sobre `AVQueuePlayer` (recomendação da Apple; o item vira modelo, a legenda embutida é reaplicada
+  em cada réplica, falha do looper vira `VideoStatus.Error`). Nunca chega a `Ended`.
+- `VideoPlayerConfig.startMuted` + `VideoPlayerState.isMuted`/`setMuted(muted)`/`toggleMuted()`.
+  Mudo não disputa o áudio: Android volume `0` + `handleAudioFocus = false` (como o feed), com som
+  volta o foco; iOS sessão `.ambient` enquanto todos os players de aula estão mudos, `.playback` +
+  ativa quando algum tem som.
+- `VideoPlayerConfig.soundControl` (default = `startMuted`) — botão de som (`VolumeOff`/`VolumeUp`,
+  `VideoPlayerTexts.turnSoundOn`/`turnSoundOff`): na barra dos controles, ou sozinho no canto quando
+  `controls = false`. Some em erro.
+- `VideoPlayerConfig.tapToTogglePlayback` — toque no quadro pausa/retoma (com controles, pausar os
+  traz); clique semântico equivalente para leitor de tela.
+- `VideoPlayerTestTags.FRAME` (`video-quadro`) e `.SOUND` (`video-btn-som`).
+
+**Mudança de comportamento no iOS (sem efeito visível):** a sessão de áudio dos players de aula agora
+é coordenada por processo e **restaura a categoria anterior** quando o último player é solto (antes
+ficava `.playback` para sempre).
+
+**Testes.** `VideoLoopAndSoundTest` (13: defaults, derivação do `soundControl`, decisão do toque e do
+lugar do botão, textos, ids). Android `testDebugUnitTest` verde; `compileKotlinIosArm64` +
+`compileTestKotlinIosArm64` verdes no servidor (não SKIPPED). Pendente de aparelho: laço sem emenda
+e mistura com a música. Sem aviso, sem piso (aditivo).
+
 ## 2.283.0 — Estado da permissão de saúde sem abrir diálogo (`kmplib-health`)
 
 **Por quê.** App do Personal (LN18): a tela de integração com Saúde/Health Connect não tinha como
