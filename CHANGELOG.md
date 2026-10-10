@@ -5,6 +5,34 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.283.0 — Estado da permissão de saúde sem abrir diálogo (`kmplib-health`)
+
+**Por quê.** App do Personal (LN18): a tela de integração com Saúde/Health Connect não tinha como
+saber se o acesso já tinha sido dado sem chamar `requestPermissions` — que abre o diálogo. E no iOS
+um `Boolean` seria mentira: o HealthKit não revela a resposta de LEITURA.
+
+**O que entrou (aditivo).**
+- `HealthRepository.permissionStatus(types): HealthPermissionStatus` — `suspend`, **nunca abre
+  diálogo**. `HealthPermissionStatus(availability, byType)` com `overall` (pior parte:
+  `UNAVAILABLE` > `NOT_GRANTED` > `NOT_REQUESTED` > `NOT_REVEALED` > `GRANTED`), `allGranted`,
+  `hasNotRequested`, `get(type)`. Conjunto vazio = `GRANTED`.
+- `HealthPermissionState` = `GRANTED` · `NOT_REQUESTED` · **`NOT_REVEALED`** · `NOT_GRANTED` ·
+  `UNAVAILABLE`.
+  - Android: `PermissionController.getGrantedPermissions()` contra as permissões do tipo
+    (`EXERCISE_SESSION` = ler E gravar treino) → `GRANTED`/`NOT_GRANTED` (o Health Connect não
+    distingue "nunca pedido" de "negado"); SDK fora → `UNAVAILABLE` + `availability`.
+  - iOS: leitura via `getRequestStatusForAuthorization(toShare:read:)` — `.shouldRequest` →
+    `NOT_REQUESTED`; respondido/desconhecido → `NOT_REVEALED`. Escrita de treino via
+    `authorizationStatus(for: workoutType)` → `GRANTED`/`NOT_GRANTED`/`NOT_REQUESTED`.
+    `EXERCISE_SESSION` no iOS chega no máximo a `NOT_REVEALED`.
+  - **UI com `NOT_REVEALED`: tratar como "pode ter acesso"** — ler normalmente, "sem dado" com a
+    saída para o app Saúde; pedir de novo é inofensivo (a folha não reabre para tipo já respondido).
+- Implementação padrão na interface (dublê de app continua compilando): `UNAVAILABLE`/`NOT_REVEALED`,
+  nunca um `GRANTED` inventado.
+
+**Testes.** 13 novos em `DefaultHealthRepositoryTest` (Android unit + `compileTestKotlinIosArm64`).
+Sem aviso, sem piso (aditivo).
+
 ## 2.282.0 — Permissão de Bluetooth no monitor de FC, `toString` sem dado de saúde, treino fora do manifesto (`kmplib-health`)
 
 **Por quê.** App do Personal (MA6, relógio/cinta): a lib mandava o app pedir `BLUETOOTH_SCAN`/

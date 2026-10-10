@@ -21,6 +21,64 @@ enum class HealthDataType { HEART_RATE, ACTIVE_ENERGY, EXERCISE_SESSION }
 enum class HealthAvailability { AVAILABLE, NEEDS_PROVIDER_UPDATE, NOT_SUPPORTED }
 
 /**
+ * Estado de UM tipo de dado de saúde, lido SEM abrir diálogo ([HealthRepository.permissionStatus]).
+ * É enum, e não `Boolean`, porque no iOS a resposta honesta para leitura é "não revelado" — um
+ * `false` ali seria mentira (pode haver acesso) e um `true` também.
+ *
+ * Como a tela trata cada um:
+ * - [GRANTED]: seguir. Só aparece quando a plataforma CONFIRMA (Android sempre; iOS nunca para
+ *   leitura).
+ * - [NOT_REQUESTED]: nunca foi perguntado — mostrar a explicação e o botão que chama
+ *   [HealthRepository.requestPermissions] (o sistema VAI mostrar o diálogo/folha).
+ * - [NOT_REVEALED]: iOS, leitura já perguntada — a Apple não diz a resposta (privacidade). Tratar como
+ *   **"pode ter acesso"**: ler normalmente e, se vier vazio, mostrar o estado "sem dado" com a saída
+ *   para o app Saúde (Ajustes > Saúde > Acesso a Dados). Chamar `requestPermissions` de novo é
+ *   inofensivo: a folha do HealthKit não reabre para tipo já respondido — ela simplesmente termina.
+ *   Não mostrar "acesso negado" nem trancar a funcionalidade por causa dele.
+ * - [NOT_GRANTED]: não concedido, confirmado. Android: o Health Connect não distingue "nunca pedido"
+ *   de "negado" (nem informa a trava de 2 recusas) — pedir de novo pode abrir o diálogo ou voltar na
+ *   hora; ofereça também o caminho das configurações do Health Connect. iOS: só para ESCRITA de
+ *   treino negada (`sharingDenied`) — a folha não reabre; o caminho é o app Saúde.
+ * - [UNAVAILABLE]: o repositório de saúde não está pronto no aparelho — ver
+ *   [HealthPermissionStatus.availability] (no Android, `NEEDS_PROVIDER_UPDATE` leva à Play Store).
+ */
+enum class HealthPermissionState { GRANTED, NOT_REQUESTED, NOT_REVEALED, NOT_GRANTED, UNAVAILABLE }
+
+/**
+ * Resposta de [HealthRepository.permissionStatus]: o estado de cada tipo pedido ([byType]) e o
+ * resumo ([overall]) pela pior parte — [HealthPermissionState.UNAVAILABLE] > `NOT_GRANTED` >
+ * `NOT_REQUESTED` > `NOT_REVEALED` > `GRANTED`. Conjunto vazio = `GRANTED` (nada a pedir), igual ao
+ * `requestPermissions(emptySet())`.
+ */
+data class HealthPermissionStatus(
+    val availability: HealthAvailability,
+    val byType: Map<HealthDataType, HealthPermissionState>,
+) {
+    val overall: HealthPermissionState get() = combineHealthPermissionStates(byType.values)
+
+    /** TODOS confirmados pela plataforma. No iOS fica `false` sempre que houver leitura no pedido —
+     * isso NÃO quer dizer negado: decida por [overall]/[byType], não por este atalho. */
+    val allGranted: Boolean get() = overall == HealthPermissionState.GRANTED
+
+    /** Algum tipo nunca foi perguntado: pedir agora mostra o diálogo/folha do sistema. */
+    val hasNotRequested: Boolean get() = byType.values.any { it == HealthPermissionState.NOT_REQUESTED }
+
+    operator fun get(type: HealthDataType): HealthPermissionState? = byType[type]
+}
+
+private val PERMISSION_STATE_SEVERITY = listOf(
+    HealthPermissionState.UNAVAILABLE,
+    HealthPermissionState.NOT_GRANTED,
+    HealthPermissionState.NOT_REQUESTED,
+    HealthPermissionState.NOT_REVEALED,
+    HealthPermissionState.GRANTED,
+)
+
+/** A pior parte vence (ordem do KDoc de [HealthPermissionStatus]); vazio = `GRANTED`. */
+internal fun combineHealthPermissionStates(states: Collection<HealthPermissionState>): HealthPermissionState =
+    PERMISSION_STATE_SEVERITY.firstOrNull { it in states } ?: HealthPermissionState.GRANTED
+
+/**
  * "Sem dado ainda" é um ESTADO, nunca zero — a tela mostra "aguardando dados do seu relógio",
  * não "0 kcal". `Unavailable` é a plataforma sem suporte ou sem permissão; `NoData` é suportado e
  * permitido (ou, no iOS, impossível de distinguir de "sem permissão" — ver [HealthRepository]), mas
@@ -113,6 +171,33 @@ interface HealthRepository {
      * concedida — a leitura o iOS não informa (ver o KDoc da interface).
      */
     suspend fun requestPermissions(types: Set<HealthDataType>): Boolean
+
+    /**
+     * O estado de acesso de cada tipo, **sem abrir diálogo nenhum** — para a tela decidir entre "ler
+     * já", "explicar e pedir" e "levar às configurações" antes de qualquer toque.
+     *
+     * - Android (Health Connect): `PermissionController.getGrantedPermissions()` comparado às
+     *   permissões do tipo (`EXERCISE_SESSION` = ler E gravar treino); concedido ou
+     *   [HealthPermissionState.NOT_GRANTED].
+     * - iOS (HealthKit): a LEITURA nunca é revelada pela Apple — `authorizationStatus(for:)` só vale
+     *   para escrita. Tipo de leitura já perguntado vem [HealthPermissionState.NOT_REVEALED]; nunca
+     *   perguntado vem [HealthPermissionState.NOT_REQUESTED] (`getRequestStatusForAuthorization`,
+     *   `.shouldRequest`). `EXERCISE_SESSION` combina a escrita (essa o iOS informa) com a leitura,
+     *   e por isso no iOS no máximo chega a `NOT_REVEALED`, nunca a `GRANTED`.
+     *
+     * Plataforma indisponível = todos [HealthPermissionState.UNAVAILABLE], sem consultar nada. Nunca
+     * lança por falta de permissão. A implementação padrão (para dublês fora da lib) responde
+     * `UNAVAILABLE`/`NOT_REVEALED` — "não sei" honesto, nunca um `GRANTED` inventado.
+     */
+    suspend fun permissionStatus(types: Set<HealthDataType>): HealthPermissionStatus {
+        val availability = availability()
+        val state = if (availability == HealthAvailability.AVAILABLE) {
+            HealthPermissionState.NOT_REVEALED
+        } else {
+            HealthPermissionState.UNAVAILABLE
+        }
+        return HealthPermissionStatus(availability, types.associateWith { state })
+    }
 
     /** FC média/máxima e energia ativa no intervalo exato do treino. **Nunca soma** o treino do
      * relógio com o nosso: lê as amostras daquele intervalo, já deduplicadas pela plataforma por

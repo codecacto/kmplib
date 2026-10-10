@@ -8,7 +8,10 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSError
 import platform.Foundation.NSPredicate
 import platform.Foundation.NSTimeIntervalSince1970
+import platform.HealthKit.HKAuthorizationRequestStatusShouldRequest
+import platform.HealthKit.HKAuthorizationStatusNotDetermined
 import platform.HealthKit.HKAuthorizationStatusSharingAuthorized
+import platform.HealthKit.HKAuthorizationStatusSharingDenied
 import platform.HealthKit.HKDevice
 import platform.HealthKit.HKErrorAuthorizationDenied
 import platform.HealthKit.HKErrorAuthorizationNotDetermined
@@ -89,6 +92,35 @@ internal class HealthKitGateway : HealthStoreGateway {
 
     override suspend fun isWorkoutWriteGranted(): Boolean =
         store.authorizationStatusForType(HKObjectType.workoutType()) == HKAuthorizationStatusSharingAuthorized
+
+    /**
+     * A Apple não revela a resposta de LEITURA. O que dá para saber, pela API oficial, é se a folha
+     * AINDA seria mostrada: `getRequestStatusForAuthorization(toShare: [], read: [tipo])` →
+     * `.shouldRequest` = nunca perguntado; `.unnecessary` = já respondido (sim ou não, oculto).
+     * `.unknown`/erro também viram `NOT_REVEALED` — "não sei", nunca negado inventado.
+     */
+    override suspend fun readPermissionState(type: HealthDataType): HealthPermissionState {
+        val sampleType = sampleTypeFor(type) ?: return HealthPermissionState.NOT_REVEALED
+        val status = suspendCancellableCoroutine { continuation ->
+            store.getRequestStatusForAuthorizationToShareTypes(emptySet<HKSampleType>(), setOf(sampleType)) { status, _ ->
+                if (continuation.isActive) continuation.resume(status)
+            }
+        }
+        return if (status == HKAuthorizationRequestStatusShouldRequest) {
+            HealthPermissionState.NOT_REQUESTED
+        } else {
+            HealthPermissionState.NOT_REVEALED
+        }
+    }
+
+    /** Escrita o HealthKit informa (`authorizationStatus(for:)`). */
+    override suspend fun workoutWritePermissionState(): HealthPermissionState =
+        when (store.authorizationStatusForType(HKObjectType.workoutType())) {
+            HKAuthorizationStatusSharingAuthorized -> HealthPermissionState.GRANTED
+            HKAuthorizationStatusSharingDenied -> HealthPermissionState.NOT_GRANTED
+            HKAuthorizationStatusNotDetermined -> HealthPermissionState.NOT_REQUESTED
+            else -> HealthPermissionState.NOT_REVEALED
+        }
 
     override suspend fun heartRateStats(start: Instant, end: Instant): HeartRateStats? {
         val stats = queryStatistics(

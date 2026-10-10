@@ -89,6 +89,13 @@ internal class HealthConnectGateway(private val context: Context) : HealthStoreG
     override suspend fun isWorkoutWriteGranted(): Boolean =
         granted().contains(HealthPermission.getWritePermission(ExerciseSessionRecord::class))
 
+    // Health Connect só responde concedido/não concedido: não distingue "nunca pedido" de "negado".
+    override suspend fun readPermissionState(type: HealthDataType): HealthPermissionState =
+        if (isReadGranted(type)) HealthPermissionState.GRANTED else HealthPermissionState.NOT_GRANTED
+
+    override suspend fun workoutWritePermissionState(): HealthPermissionState =
+        if (isWorkoutWriteGranted()) HealthPermissionState.GRANTED else HealthPermissionState.NOT_GRANTED
+
     override suspend fun heartRateStats(start: Instant, end: Instant): HeartRateStats? = guarded {
         val result = client().aggregate(
             AggregateRequest(setOf(HeartRateRecord.BPM_AVG, HeartRateRecord.BPM_MAX), range(start, end)),

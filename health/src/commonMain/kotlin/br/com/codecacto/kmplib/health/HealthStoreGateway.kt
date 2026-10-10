@@ -21,6 +21,13 @@ internal interface HealthStoreGateway {
 
     suspend fun isWorkoutWriteGranted(): Boolean
 
+    /** Estado da LEITURA do tipo, sem diálogo. Só `GRANTED`/`NOT_GRANTED` (Android) ou
+     * `NOT_REQUESTED`/`NOT_REVEALED` (iOS). */
+    suspend fun readPermissionState(type: HealthDataType): HealthPermissionState
+
+    /** Estado da ESCRITA de treino, sem diálogo. `GRANTED`/`NOT_GRANTED`/`NOT_REQUESTED`. */
+    suspend fun workoutWritePermissionState(): HealthPermissionState
+
     /** `null` = nenhuma amostra no intervalo. */
     suspend fun heartRateStats(start: Instant, end: Instant): HeartRateStats?
 
@@ -54,6 +61,24 @@ internal class DefaultHealthRepository(private val gateway: HealthStoreGateway) 
         if (types.isEmpty()) return true
         if (gateway.availability() != HealthAvailability.AVAILABLE) return false
         return permissionSafe(false) { gateway.requestPermissions(types) }
+    }
+
+    override suspend fun permissionStatus(types: Set<HealthDataType>): HealthPermissionStatus {
+        val availability = gateway.availability()
+        if (availability != HealthAvailability.AVAILABLE) {
+            return HealthPermissionStatus(availability, types.associateWith { HealthPermissionState.UNAVAILABLE })
+        }
+        val byType = types.associateWith { type ->
+            permissionSafe(HealthPermissionState.NOT_GRANTED) {
+                val read = gateway.readPermissionState(type)
+                if (type == HealthDataType.EXERCISE_SESSION) {
+                    combineHealthPermissionStates(listOf(read, gateway.workoutWritePermissionState()))
+                } else {
+                    read
+                }
+            }
+        }
+        return HealthPermissionStatus(availability, byType)
     }
 
     override suspend fun readSessionMetrics(start: Instant, end: Instant): SessionMetrics {

@@ -44,6 +44,20 @@ private class FakeGateway : HealthStoreGateway {
 
     override suspend fun isWorkoutWriteGranted(): Boolean = writeGranted
 
+    var readState: Map<HealthDataType, HealthPermissionState> =
+        HealthDataType.entries.associateWith { HealthPermissionState.GRANTED }
+    var writeState = HealthPermissionState.GRANTED
+
+    override suspend fun readPermissionState(type: HealthDataType): HealthPermissionState {
+        call("readState")
+        return readState.getValue(type)
+    }
+
+    override suspend fun workoutWritePermissionState(): HealthPermissionState {
+        call("writeState")
+        return writeState
+    }
+
     override suspend fun heartRateStats(start: Instant, end: Instant): HeartRateStats? {
         call("heartRate")
         return heartRate
@@ -226,5 +240,150 @@ class DefaultHealthRepositoryTest {
     fun `falha da plataforma na gravacao chega como esta`() = runTest {
         gateway.insertResult = WorkoutWriteResult.FAILED
         assertEquals(WorkoutWriteResult.FAILED, repository.writeWorkout(run, ExerciseCategory.CIRCUIT))
+    }
+
+    // --- permissionStatus (2.283.0) ---
+
+    private val all = HealthDataType.entries.toSet()
+
+    @Test
+    fun `status sem tipos e GRANTED sem consultar a plataforma`() = runTest {
+        val status = repository.permissionStatus(emptySet())
+        assertEquals(HealthPermissionState.GRANTED, status.overall)
+        assertTrue(status.allGranted)
+        assertTrue(status.byType.isEmpty())
+        assertTrue(gateway.calls.isEmpty())
+    }
+
+    @Test
+    fun `status com tudo concedido no Android`() = runTest {
+        val status = repository.permissionStatus(all)
+        assertEquals(HealthAvailability.AVAILABLE, status.availability)
+        assertEquals(all.associateWith { HealthPermissionState.GRANTED }, status.byType)
+        assertTrue(status.allGranted)
+        assertFalse(status.hasNotRequested)
+    }
+
+    @Test
+    fun `status nao abre dialogo`() = runTest {
+        repository.permissionStatus(all)
+        assertFalse("request" in gateway.calls)
+    }
+
+    @Test
+    fun `plataforma indisponivel vira UNAVAILABLE sem consultar permissao`() = runTest {
+        gateway.availability = HealthAvailability.NEEDS_PROVIDER_UPDATE
+        val status = repository.permissionStatus(setOf(HealthDataType.HEART_RATE))
+        assertEquals(HealthAvailability.NEEDS_PROVIDER_UPDATE, status.availability)
+        assertEquals(HealthPermissionState.UNAVAILABLE, status[HealthDataType.HEART_RATE])
+        assertEquals(HealthPermissionState.UNAVAILABLE, status.overall)
+        assertTrue(gateway.calls.isEmpty())
+    }
+
+    @Test
+    fun `um tipo nao concedido derruba o resumo`() = runTest {
+        gateway.readState = gateway.readState + (HealthDataType.ACTIVE_ENERGY to HealthPermissionState.NOT_GRANTED)
+        val status = repository.permissionStatus(all)
+        assertEquals(HealthPermissionState.GRANTED, status[HealthDataType.HEART_RATE])
+        assertEquals(HealthPermissionState.NOT_GRANTED, status[HealthDataType.ACTIVE_ENERGY])
+        assertEquals(HealthPermissionState.NOT_GRANTED, status.overall)
+        assertFalse(status.allGranted)
+    }
+
+    @Test
+    fun `sessao de exercicio exige leitura e escrita`() = runTest {
+        gateway.writeState = HealthPermissionState.NOT_GRANTED
+        assertEquals(
+            HealthPermissionState.NOT_GRANTED,
+            repository.permissionStatus(setOf(HealthDataType.EXERCISE_SESSION)).overall,
+        )
+        gateway.writeState = HealthPermissionState.GRANTED
+        gateway.readState = gateway.readState + (HealthDataType.EXERCISE_SESSION to HealthPermissionState.NOT_GRANTED)
+        assertEquals(
+            HealthPermissionState.NOT_GRANTED,
+            repository.permissionStatus(setOf(HealthDataType.EXERCISE_SESSION)).overall,
+        )
+    }
+
+    @Test
+    fun `escrita de treino so e consultada para sessao de exercicio`() = runTest {
+        repository.permissionStatus(setOf(HealthDataType.HEART_RATE, HealthDataType.ACTIVE_ENERGY))
+        assertFalse("writeState" in gateway.calls)
+    }
+
+    @Test
+    fun `iOS com leitura ja perguntada fica NOT_REVEALED e nunca GRANTED`() = runTest {
+        gateway.readState = HealthDataType.entries.associateWith { HealthPermissionState.NOT_REVEALED }
+        gateway.writeState = HealthPermissionState.GRANTED
+        val status = repository.permissionStatus(all)
+        assertEquals(all.associateWith { HealthPermissionState.NOT_REVEALED }, status.byType)
+        assertEquals(HealthPermissionState.NOT_REVEALED, status.overall)
+        assertFalse(status.allGranted)
+        assertFalse(status.hasNotRequested)
+    }
+
+    @Test
+    fun `iOS nunca perguntado fica NOT_REQUESTED`() = runTest {
+        gateway.readState = HealthDataType.entries.associateWith { HealthPermissionState.NOT_REQUESTED }
+        gateway.writeState = HealthPermissionState.NOT_REQUESTED
+        val status = repository.permissionStatus(all)
+        assertEquals(HealthPermissionState.NOT_REQUESTED, status.overall)
+        assertTrue(status.hasNotRequested)
+    }
+
+    @Test
+    fun `iOS escrita negada com leitura oculta e NOT_GRANTED`() = runTest {
+        gateway.readState = HealthDataType.entries.associateWith { HealthPermissionState.NOT_REVEALED }
+        gateway.writeState = HealthPermissionState.NOT_GRANTED
+        assertEquals(
+            HealthPermissionState.NOT_GRANTED,
+            repository.permissionStatus(setOf(HealthDataType.EXERCISE_SESSION)).overall,
+        )
+    }
+
+    @Test
+    fun `recusa da plataforma no meio vira NOT_GRANTED e nao lanca`() = runTest {
+        gateway.denyOn = "readState"
+        assertEquals(
+            HealthPermissionState.NOT_GRANTED,
+            repository.permissionStatus(setOf(HealthDataType.HEART_RATE)).overall,
+        )
+    }
+
+    @Test
+    fun `resumo segue a ordem de gravidade`() {
+        assertEquals(HealthPermissionState.GRANTED, combineHealthPermissionStates(emptyList()))
+        assertEquals(
+            HealthPermissionState.NOT_REVEALED,
+            combineHealthPermissionStates(listOf(HealthPermissionState.GRANTED, HealthPermissionState.NOT_REVEALED)),
+        )
+        assertEquals(
+            HealthPermissionState.NOT_REQUESTED,
+            combineHealthPermissionStates(listOf(HealthPermissionState.NOT_REVEALED, HealthPermissionState.NOT_REQUESTED)),
+        )
+        assertEquals(
+            HealthPermissionState.NOT_GRANTED,
+            combineHealthPermissionStates(listOf(HealthPermissionState.NOT_REQUESTED, HealthPermissionState.NOT_GRANTED)),
+        )
+        assertEquals(
+            HealthPermissionState.UNAVAILABLE,
+            combineHealthPermissionStates(HealthPermissionState.entries),
+        )
+    }
+
+    @Test
+    fun `implementacao padrao da interface nao inventa GRANTED`() = runTest {
+        val external = object : HealthRepository {
+            var avail = HealthAvailability.AVAILABLE
+            override suspend fun availability() = avail
+            override suspend fun requestPermissions(types: Set<HealthDataType>) = true
+            override suspend fun readSessionMetrics(start: Instant, end: Instant) =
+                SessionMetrics(HealthMetric.NoData, HealthMetric.NoData)
+            override suspend fun hasDeviceWorkoutOverlapping(start: Instant, end: Instant) = false
+            override suspend fun writeWorkout(run: WorkoutRun, category: ExerciseCategory) = WorkoutWriteResult.WRITTEN
+        }
+        assertEquals(HealthPermissionState.NOT_REVEALED, external.permissionStatus(all).overall)
+        external.avail = HealthAvailability.NOT_SUPPORTED
+        assertEquals(HealthPermissionState.UNAVAILABLE, external.permissionStatus(all).overall)
     }
 }
