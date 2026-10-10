@@ -31,10 +31,25 @@ const val VIDEO_CAPTURE_TEMP_DIRECTORY: String = "kmplib_video_capture"
 const val VIDEO_PREPARED_TEMP_DIRECTORY: String = "kmplib_video_prepared"
 
 /**
+ * Pasta da **nota de voz gravada** pelo `AudioRecorder` (`kmplib-media`, 2.287.0), no mesmo lugar e
+ * com o mesmo contrato de [VIDEO_CAPTURE_TEMP_DIRECTORY]: é a voz da pessoa, temporária — o app a
+ * envia e apaga (`RecordedAudio.deleteFile()`); fila durável que precise dela além disso a move antes.
+ */
+const val AUDIO_CAPTURE_TEMP_DIRECTORY: String = "kmplib_audio_capture"
+
+/**
+ * Pasta do áudio **baixado para tocar** pelo `VoiceNotePlayer` (`kmplib-media`, 2.287.0) — a nota de
+ * voz recebida numa conversa. Cópia de leitura; sai pela mesma varredura.
+ */
+const val AUDIO_PLAYBACK_TEMP_DIRECTORY: String = "kmplib_audio_playback"
+
+/**
  * Apaga **todos os temporários que a kmplib grava em disco** (2.280.0): as cópias de
  * compartilhamento ([ShareHandler.clearSharedFiles]), o temporário do visualizador de PDF
  * ([PDF_VIEWER_TEMP_DIRECTORY]), o PDF de impressão ([PRINT_TEMP_DIRECTORY]) e, desde a 2.286.0, o
- * vídeo gravado ([VIDEO_CAPTURE_TEMP_DIRECTORY]) e o comprimido ([VIDEO_PREPARED_TEMP_DIRECTORY]).
+ * vídeo gravado ([VIDEO_CAPTURE_TEMP_DIRECTORY]) e o comprimido ([VIDEO_PREPARED_TEMP_DIRECTORY]) e,
+ * desde a 2.287.0, a nota de voz gravada ([AUDIO_CAPTURE_TEMP_DIRECTORY]) e a baixada para tocar
+ * ([AUDIO_PLAYBACK_TEMP_DIRECTORY]).
  *
  * ### Por que existe
  * Esses arquivos podem ser dado sensível — receita, laudo, relatório, o vídeo do corpo do aluno. A lib apaga cada um ao fim do

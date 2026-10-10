@@ -106,4 +106,13 @@ class KmpLibTempFilesTest {
         assertTrue(novo.exists())
         assertFalse(velho.exists())
     }
+
+    @Test
+    fun `clearKmpLibTemporaryFiles limpa a nota de voz gravada e a baixada`() {
+        val gravada = arquivo(AUDIO_CAPTURE_TEMP_DIRECTORY, "nota-1.m4a")
+        val baixada = arquivo(AUDIO_PLAYBACK_TEMP_DIRECTORY, "abc.m4a")
+        assertEquals(2, clearKmpLibTemporaryFiles(FakeContext(), olderThanMillis = 0L))
+        assertFalse(gravada.exists())
+        assertFalse(baixada.exists())
+    }
 }

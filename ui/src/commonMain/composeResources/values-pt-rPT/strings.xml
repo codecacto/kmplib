@@ -486,4 +486,41 @@
     <string name="kmplib_chart_empty">Sem dados para mostrar.</string>
     <string name="kmplib_chart_next">Medição seguinte</string>
     <string name="kmplib_chart_previous">Medição anterior</string>
+
+    <!-- 2.287.0: nota de voz (kmplib-media) e conversa (kmplib-chat) -->
+    <string name="kmplib_voice_note_record">Gravar áudio</string>
+    <string name="kmplib_voice_note_slide_to_cancel">Deslize para cancelar</string>
+    <string name="kmplib_voice_note_recording">A gravar áudio, %1$s</string>
+    <string name="kmplib_voice_note_locked">Gravação bloqueada</string>
+    <string name="kmplib_voice_note_send">Enviar áudio</string>
+    <string name="kmplib_voice_note_cancel">Cancelar gravação</string>
+    <string name="kmplib_voice_note_too_short">Áudio demasiado curto</string>
+    <string name="kmplib_voice_note_permission">Permita o microfone para gravar áudio</string>
+    <string name="kmplib_voice_note_open_settings">Abrir definições</string>
+    <string name="kmplib_voice_note_busy">O microfone está a ser usado por outra app</string>
+    <string name="kmplib_voice_note_failed">Não foi possível gravar o áudio</string>
+    <string name="kmplib_voice_note_play">Reproduzir áudio</string>
+    <string name="kmplib_voice_note_pause">Pausar áudio</string>
+    <string name="kmplib_voice_note_description">Áudio de %1$s</string>
+    <string name="kmplib_voice_note_loading">A carregar áudio</string>
+    <string name="kmplib_voice_note_play_error">Não foi possível reproduzir o áudio</string>
+    <string name="kmplib_voice_note_retry">Tentar de novo</string>
+    <string name="kmplib_chat_input_placeholder">Mensagem</string>
+    <string name="kmplib_chat_send">Enviar mensagem</string>
+    <string name="kmplib_chat_sending">A enviar</string>
+    <string name="kmplib_chat_sent">Enviada</string>
+    <string name="kmplib_chat_read">Lida</string>
+    <string name="kmplib_chat_failed">Não enviada</string>
+    <string name="kmplib_chat_retry">Tentar de novo</string>
+    <string name="kmplib_chat_discard">Descartar</string>
+    <string name="kmplib_chat_unread">Não lidas</string>
+    <string name="kmplib_chat_today">Hoje</string>
+    <string name="kmplib_chat_yesterday">Ontem</string>
+    <string name="kmplib_chat_loading_older">A carregar mensagens anteriores</string>
+    <string name="kmplib_chat_empty">Ainda não há mensagens</string>
+    <string name="kmplib_chat_jump_to_latest">Ir para a mais recente</string>
+    <string name="kmplib_chat_new_messages">Novas mensagens</string>
+    <string name="kmplib_chat_voice_message">Mensagem de voz, %1$s</string>
+    <string name="kmplib_chat_you">Você</string>
+    <string name="kmplib_chat_load_error">Não foi possível carregar a conversa.</string>
 </resources>

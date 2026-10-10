@@ -486,4 +486,41 @@
     <string name="kmplib_chart_empty">No data to show.</string>
     <string name="kmplib_chart_next">Next measurement</string>
     <string name="kmplib_chart_previous">Previous measurement</string>
+
+    <!-- 2.287.0: nota de voz (kmplib-media) e conversa (kmplib-chat) -->
+    <string name="kmplib_voice_note_record">Record audio</string>
+    <string name="kmplib_voice_note_slide_to_cancel">Slide to cancel</string>
+    <string name="kmplib_voice_note_recording">Recording audio, %1$s</string>
+    <string name="kmplib_voice_note_locked">Recording locked</string>
+    <string name="kmplib_voice_note_send">Send audio</string>
+    <string name="kmplib_voice_note_cancel">Cancel recording</string>
+    <string name="kmplib_voice_note_too_short">Audio too short</string>
+    <string name="kmplib_voice_note_permission">Allow the microphone to record audio</string>
+    <string name="kmplib_voice_note_open_settings">Open settings</string>
+    <string name="kmplib_voice_note_busy">The microphone is in use by another app</string>
+    <string name="kmplib_voice_note_failed">Couldn't record the audio</string>
+    <string name="kmplib_voice_note_play">Play audio</string>
+    <string name="kmplib_voice_note_pause">Pause audio</string>
+    <string name="kmplib_voice_note_description">Audio, %1$s</string>
+    <string name="kmplib_voice_note_loading">Loading audio</string>
+    <string name="kmplib_voice_note_play_error">Couldn't play the audio</string>
+    <string name="kmplib_voice_note_retry">Try again</string>
+    <string name="kmplib_chat_input_placeholder">Message</string>
+    <string name="kmplib_chat_send">Send message</string>
+    <string name="kmplib_chat_sending">Sending</string>
+    <string name="kmplib_chat_sent">Sent</string>
+    <string name="kmplib_chat_read">Read</string>
+    <string name="kmplib_chat_failed">Not sent</string>
+    <string name="kmplib_chat_retry">Try again</string>
+    <string name="kmplib_chat_discard">Discard</string>
+    <string name="kmplib_chat_unread">Unread</string>
+    <string name="kmplib_chat_today">Today</string>
+    <string name="kmplib_chat_yesterday">Yesterday</string>
+    <string name="kmplib_chat_loading_older">Loading earlier messages</string>
+    <string name="kmplib_chat_empty">No messages yet</string>
+    <string name="kmplib_chat_jump_to_latest">Jump to latest</string>
+    <string name="kmplib_chat_new_messages">New messages</string>
+    <string name="kmplib_chat_voice_message">Voice message, %1$s</string>
+    <string name="kmplib_chat_you">You</string>
+    <string name="kmplib_chat_load_error">Couldn't load the conversation.</string>
 </resources>

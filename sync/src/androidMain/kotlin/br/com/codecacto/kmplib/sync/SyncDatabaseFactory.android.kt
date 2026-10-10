@@ -18,6 +18,9 @@ object SyncDatabaseHolder {
         contextRef = WeakReference(context.applicationContext)
     }
 
+    /** O contexto da aplicação, ou `null` antes do `initKmpLibSync`. */
+    internal fun contextOrNull(): Context? = contextRef?.get()
+
     internal fun requireContext(): Context = contextRef?.get()
         ?: error(
             "SyncDatabase: Context não inicializado. Chame KmpLib.init(context) " +

@@ -48,6 +48,9 @@ kotlin {
 
         androidMain.dependencies {
             implementation(libs.sqldelight.driver.android)
+            // DirectUploadOutbox (2.287.0): o Worker que drena a fila com o app fechado. `implementation`:
+            // nenhum tipo do WorkManager aparece na API pública.
+            implementation(libs.androidx.work.runtime)
         }
 
         iosMain.dependencies {

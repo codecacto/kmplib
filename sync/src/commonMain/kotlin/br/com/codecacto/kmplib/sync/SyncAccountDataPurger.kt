@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.sync
 
+import br.com.codecacto.kmplib.sync.direct.DirectUploadOutbox
 import br.com.codecacto.kmplib.core.storage.AccountLocalDataPurger
 import br.com.codecacto.kmplib.core.storage.LocalPendingChanges
 import br.com.codecacto.kmplib.core.storage.LocalPurgeReport
@@ -95,6 +96,10 @@ enum class LocalPurgeScope {
  * pelo escopo) e reaparecem quando a MESMA conta entrar de novo; o [LocalPurgeReport.removedSyncedRows]
  * não as conta.
  *
+ * @param directUploadOutboxes as filas de envio direto ([DirectUploadOutbox], 2.287.0 — o vídeo que
+ *   sobe direto ao storage). Contam como pendência em [pendingChanges]; saem com a conta em
+ *   [purgeAccount] e no `Discard`; no `Keep` ficam (isoladas pela conta) e sobem quando ela voltar.
+ *   [withSyncPaused] as segura também.
  * @param extraCleanup o que o app guarda FORA do espelho (DataStore da conta, outro `BlobStore`,
  *   arquivo próprio). Roda por último. Exceção aqui conta como falha, sem abortar o resto.
  * @param keepLocalEntities nomes de entidade ([SyncableEntity.name]) cujas linhas ficam no aparelho
@@ -110,6 +115,8 @@ class SyncAccountDataPurger(
     private val engine: RestCrudSyncEngine? = null,
     private val keepLocalEntities: Set<String> = emptySet(),
     private val keepLocalRow: (Synced_entity) -> Boolean = { false },
+    // Antes do extraCleanup de propósito: quem passa a limpeza do app como lambda final continua compilando.
+    private val directUploadOutboxes: List<DirectUploadOutbox> = emptyList(),
     private val extraCleanup: suspend (LocalPurgeScope) -> Unit = {},
 ) : AccountLocalDataPurger {
 
@@ -119,7 +126,8 @@ class SyncAccountDataPurger(
     override suspend fun pendingChanges(): LocalPendingChanges {
         val uploads = uploadOutboxes.sumOf { store.getDirty(it.entity).size }
         val registros = (store.countDirty().toInt() - uploads).coerceAtLeast(0)
-        return LocalPendingChanges(records = registros, uploads = uploads)
+        val diretos = activeAccountId()?.let { conta -> directUploadOutboxes.sumOf { it.pendingCount(conta) } } ?: 0
+        return LocalPendingChanges(records = registros, uploads = uploads + diretos)
     }
 
     override suspend fun purgeAccount(accountId: String): LocalPurgeReport {
@@ -151,7 +159,10 @@ class SyncAccountDataPurger(
      * as limpezas chamadas por dentro não esperam a si mesmas.
      */
     override suspend fun <T> withSyncPaused(block: suspend () -> T): T {
-        val segurarFilas: suspend () -> T = uploadOutboxes.foldRight(block) { fila, interno ->
+        val segurarDiretas: suspend () -> T = directUploadOutboxes.foldRight(block) { fila, interno ->
+            { fila.withDrainPaused(interno) }
+        }
+        val segurarFilas: suspend () -> T = uploadOutboxes.foldRight(segurarDiretas) { fila, interno ->
             { fila.withDrainPaused(interno) }
         }
         return engine?.runExclusive(segurarFilas) ?: segurarFilas()
@@ -176,6 +187,9 @@ class SyncAccountDataPurger(
 
         uploadOutboxes.forEach { outbox ->
             if (etapa("fila de upload") { outbox.purgeAccount(accountId) } == null) falhas++
+        }
+        directUploadOutboxes.forEach { fila ->
+            if (etapa("fila de envio direto") { fila.purgeAccount(accountId) } == null) falhas++
         }
         if (etapa("espelho da conta") { store.deleteAccountData(accountId) } == null) falhas++
         // Binário que ficou sem linha (payload antigo, processo morto no meio): a varredura considera

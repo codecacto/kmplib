@@ -14,7 +14,8 @@ private const val TAG = "KmpLibTempFiles"
 /**
  * No iOS gravam arquivo: o compartilhamento e, desde a 2.286.0, o vídeo gravado
  * ([VIDEO_CAPTURE_TEMP_DIRECTORY]) e o comprimido ([VIDEO_PREPARED_TEMP_DIRECTORY]), as duas pastas
- * dentro do `NSTemporaryDirectory()`. O `PdfViewer` lê com `PDFDocument(data:)` e a impressão
+ * dentro do `NSTemporaryDirectory()` — e, desde a 2.287.0, a nota de voz gravada
+ * ([AUDIO_CAPTURE_TEMP_DIRECTORY]) e a baixada para tocar ([AUDIO_PLAYBACK_TEMP_DIRECTORY]). O `PdfViewer` lê com `PDFDocument(data:)` e a impressão
  * entrega o `NSData` em `printingItem` — nenhum dos dois toca o disco.
  */
 internal actual fun clearPlatformTemporaryFiles(olderThanMillis: Long): Int {
@@ -23,7 +24,9 @@ internal actual fun clearPlatformTemporaryFiles(olderThanMillis: Long): Int {
         .getOrDefault(0)
     val gravados = purgeTemporaryDirectory(VIDEO_CAPTURE_TEMP_DIRECTORY, olderThanMillis)
     val preparados = purgeTemporaryDirectory(VIDEO_PREPARED_TEMP_DIRECTORY, olderThanMillis)
-    return compartilhados + gravados + preparados
+    val voz = purgeTemporaryDirectory(AUDIO_CAPTURE_TEMP_DIRECTORY, olderThanMillis)
+    val vozBaixada = purgeTemporaryDirectory(AUDIO_PLAYBACK_TEMP_DIRECTORY, olderThanMillis)
+    return compartilhados + gravados + preparados + voz + vozBaixada
 }
 
 /** Apaga de `NSTemporaryDirectory()/[name]` o que tem idade ≥ [olderThanMillis]. Nunca lança. */

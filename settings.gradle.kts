@@ -115,6 +115,11 @@ project(":kmplib-media").projectDir = file("media")
 include(":kmplib-video")
 project(":kmplib-video").projectDir = file("video")
 
+// `kmplib-chat` (2.287.0) — conversa 1:1 sem WebSocket (envio otimista com id do cliente, fila
+// durável, não lidas, consulta periódica `after=`). Fora do umbrella: só app com conversa declara.
+include(":kmplib-chat")
+project(":kmplib-chat").projectDir = file("chat")
+
 // `kmplib-video-download` (2.212.0) — o DOWNLOAD saiu do player porque traz um foreground service
 // `dataSync` no manifesto, e a Play barra o bundle de quem herda o serviço sem usá-lo. Opt-in: só
 // o app que baixa declara; o umbrella `:kmplib` NÃO o inclui.

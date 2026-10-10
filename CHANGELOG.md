@@ -5,6 +5,75 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.287.0 — Fila de envio direto durável (`DirectUploadOutbox`), gravador de nota de voz (`AudioRecorder` + `VoiceNoteRecorder`/`VoiceNotePlayer` com onda) e kit de conversa (`kmplib-chat`)
+
+**Por quê.** App do Personal, Onda 2, itens 2.1/2.2 (lacuna **L-K2** = `GAP-PT-M05` + `M06` + `M12`; 2º
+consumidor da conversa: Minha Estadia `GAP-ME-02`). O vídeo do aluno (15–100 MB, saído do
+`VideoTranscoder` da 2.286.0) precisa subir **direto ao R2/S3** por multipart pré-assinado, sobreviver ao
+app fechado e retomar parte a parte; o personal comenta em **áudio**; aluno e personal conversam em texto e
+áudio sem WebSocket. A lib tinha a `RestUploadOutbox` (multipart para o NOSSO servidor, um request só),
+captura de nível sem gravação em arquivo, `AudioPlayer` sem onda e nada de conversa.
+
+**O que entrou (aditivo — nada muda para quem não usa).**
+- **`kmplib-sync` — `sync.direct` (pacote novo): `DirectUploadOutbox`.** `enqueue(DirectUploadRequest)`
+  **move** o arquivo pronto (ex.: `PreparedVideo.path`, que mora na pasta temporária varrida de 1 h) para
+  a área da fila (`noBackupFilesDir` / `Application Support` com `NSURLIsExcludedFromBackupKey`), uma
+  pasta por envio com o estado em JSON gravado de forma atômica. Drenagem: `start` → `PUT` de cada parte
+  direto ao storage (sem Bearer) → ETag gravada **a cada parte** (retomada sobe só o que falta) → URLs
+  vencidas reassinadas (`presignParts`, margem de 2 min; 403/400 do storage reassina uma vez) → `complete`
+  → pasta apagada + `events`/`onCompleted` com o corpo. 404 do storage (envio esquecido) recomeça com
+  recuo; sem rede pausa sem gastar tentativa; 4xx/402 param (`FAILED`, `retry`/`discard`); 5xx/429
+  recuam (`UploadRetryPolicy`). Conta gravada no envio — **só sobe com a mesma conta logada**;
+  `purgeAccount(id)`, `pendingCount(id)`, `withDrainPaused {}`; `setWifiOnly(id, …)`; `sweepOrphans()`.
+  - **Agendador oficial por plataforma:** Android **WorkManager** (`DirectUploadWorker`, trabalho único
+    por fila e rede `CONNECTED`/`UNMETERED`, recuo exponencial; sem serviço em primeiro plano — o
+    progresso é por parte, então o corte de 10 min perde no máximo a parte em voo); iOS **sessão de
+    segundo plano do `URLSession`** (`BackgroundSessionDirectUploadTransport`: parte como arquivo
+    `part-N`, `taskDescription` = chave da parte, tarefa reencontrada após o processo morrer, resultado
+    tardio guardado e a fila acordada; "só Wi-Fi" = `allowsCellularAccess`/`allowsExpensiveNetworkAccess`
+    = false) + `InProcessDirectUploadScheduler` dentro de `beginBackgroundTask`.
+    `DirectUploadBackgroundEvents.handle(identifier, completionHandler)` para o `AppDelegate`.
+  - `RestDirectUploadBackend` = o contrato `VideoUploadDto` da fábrica (`{uploadId, videoId, partSizeBytes,
+    partCount, parts, expiresAt}`, `/parts`, `/complete`, `/abort`); `DirectUploadBackend` para outro
+    contrato. `SyncAccountDataPurger(…, directUploadOutboxes = listOf(fila))` conta e limpa a fila.
+  - Regras puras testadas: `directUploadPartRange`, `directUploadSessionProblem` (sessão tem de cobrir o
+    arquivo exatamente), `directUploadMissingParts`, `directUploadUsableUrl`, `classifyDirectUploadPartResponse`.
+    `toString` de sessão/envio/pedido sem URL assinada, caminho nem metadado.
+- **`kmplib-media` — `AudioRecorder` (nota de voz para arquivo):** AAC-LC/m4a 64 kbps mono 44,1 kHz;
+  Android `MediaRecorder` (`setMaxDuration` = teto pela plataforma), iOS `AVAudioRecorder`
+  (`recordForDuration`, sessão `playAndRecord`, interrupção descarta). `AudioRecorderState`
+  (`Recording(levels)`, `LimitReached`, `Failed`), `RecordedAudio(path, durationMillis, sizeBytes, levels,
+  reachedLimit)` temporário em `kmplib_audio_capture`, `stop()` → `Recorded`/`TooShort`, `cancel()` apaga.
+  **O app declara `RECORD_AUDIO` e `NSMicrophoneUsageDescription`.**
+- **`kmplib-media` — `media.voicenote`:** `rememberVoiceNoteRecorderState` + `VoiceNoteMicButton`
+  (**segurar** grava/soltar envia, arrastar ao lado cancela, para cima trava; **tocar-tocar** — que é o
+  toque duplo do leitor de tela) + `VoiceNoteRecordingBar` (tempo, onda ao vivo, cancelar); máquina pura
+  `reduceVoiceNoteGesture`. `AudioWaveform(levels, progress, mode)`. `VoiceNotePlayer` +
+  `rememberVoiceNotePlayerState(VoiceNoteSource.File|Url|Remote(cacheKey, resolveUrl))`: baixa a URL
+  assinada para `kmplib_audio_playback` (renova em 401/403/410), onda extraída do arquivo
+  (`extractAudioWaveform` — `MediaExtractor`+`MediaCodec` / `AVAssetReader`), um áudio por vez, pausa no
+  `ON_STOP`, toque na onda pula, `setProgress` acessível. 4 idiomas (`kmplib_voice_note_*`).
+- **`kmplib-chat` (artefato NOVO, fora do umbrella):** `ChatController` (envio otimista com id do cliente
+  UUID v7, reenvio do MESMO id = sem duplicar, fila de pendências durável por conta/conversa em
+  `ChatPendingStore` sobre o `BlobStore`, áudio subido uma vez e asset gravado antes da mensagem,
+  sem rede = "enviando" sem gastar tentativa, não lidas + divisor fixo da sessão, `markLatestAsRead`,
+  polling `after=` com recuo + releitura periódica dos recibos, `loadOlder`, `refresh`);
+  `RestChatTransport` (contrato `MessageDto` da fábrica); `ChatThread`/`ChatThreadContent` (lista
+  invertida com rolagem ao fim, divisores de dia e "Não lidas", estados enviando/não enviada/enviada/lida,
+  tentar de novo/descartar também como ações de acessibilidade, nota de voz com onda, puxar para
+  atualizar, polling ligado no `ON_RESUME`); `ChatComposer` (texto no `TextFieldState`, microfone que vira
+  enviar). 4 idiomas (`kmplib_chat_*`), ids `conversa-*`.
+- **`kmplib-core`:** `newUuidV7()`, `isCanonicalUuid`, `uuidV7TimestampMillis`.
+- **`kmplib-platform`:** `AUDIO_CAPTURE_TEMP_DIRECTORY`/`AUDIO_PLAYBACK_TEMP_DIRECTORY` na varredura do
+  `clearKmpLibTemporaryFiles`.
+
+**Provas.** JVM: sync.direct 47 testes (fila 26, regras/contrato 15, `java.io` real 6) + purger; media 10;
+chat 19; core 5; platform 8. `compileKotlinIosArm64` e `compileTestKotlinIosArm64` de core/platform/ui/
+sync/media/chat verdes, 0 SKIPPED. **Pendente de Mac/aparelho:** link do framework, sessão de fundo real
+(app suspenso e reaberto pelo sistema), WorkManager com app fechado, gravação/reprodução e onda reais.
+
+Aditivo: sem aviso, sem piso.
+
 ## 2.286.0 — Gravar, comprimir e revisar vídeo: `VideoRecorderCamera`, `VideoTranscoder`, quadro a quadro e `VideoTimeline` com marcas
 
 **Por quê.** App do Personal, Onda 2, item 2.1 (lacuna **L-K1** = `GAP-PT-M03` + `M04` + `M07`): o aluno

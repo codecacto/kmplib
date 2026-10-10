@@ -100,6 +100,9 @@ sqldelight = "2.0.2"
 # só para a memória — exige 1.9.0+) e `ExoPlayer.setPriority`, que é o que decide quem perde o
 # decodificador de vídeo em aparelho apertado. Ver `feed/FeedVideoPreload.android.kt`.
 media3 = "1.11.1"
+# WorkManager (2.287.0): a fila de envio direto (`DirectUploadOutbox`, kmplib-sync) — o agendador oficial
+# de trabalho garantido do Android (sobrevive ao app fechado e ao reboot, respeita Doze/economia).
+workManager = "2.10.1"
 
 [libraries]
 navigation-common = { module = "org.jetbrains.androidx.navigation:navigation-common", version.ref = "navigation" }
@@ -241,6 +244,8 @@ plugin-android-gradle-api = { module = "com.android.tools.build:gradle-api", ver
 plugin-compose-multiplatform = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }
 plugin-compose-compiler = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
 plugin-maven-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "vanniktechMavenPublish" }
+
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "workManager" }
 
 [plugins]
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
