@@ -40,6 +40,7 @@ suspend inline fun <T> handleApiCall(
             else RecentAuthChallenge.maxAgeSeconds(d, wwwAuthenticate)
                 ?.let { d + (RecentAuthChallenge.DETAIL_MAX_AGE to it.toString()) } ?: d
         },
+        detailsJson = envelope?.detailsJson ?: br.com.codecacto.kmplib.sync.rest.ServerErrorDetails.EMPTY,
     )
 } catch (e: SerializationException) {
     logApiCallFailure(e)

@@ -27,6 +27,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -514,6 +515,7 @@ class DomainApiClient(
                     } else {
                         detalhes
                     },
+                    detailsJson = envelope?.detailsJson ?: ServerErrorDetails.EMPTY,
                 )
             }
         }
@@ -643,7 +645,11 @@ sealed class DomainResult<out T> {
      *   prefira [userMessage], que escolhe entre as duas.
      * @param details os **erros por campo** do envelope da backlib (2.216.0) — `{nome do campo no
      *   DTO: frase}`, o que `ValidationException.forField`/`FieldErrors` do servidor produzem. Vazio
-     *   quando o erro não é de campo. Ver [fieldError] e [fieldErrors].
+     *   quando o erro não é de campo. Ver [fieldError] e [fieldErrors]. Só valores **primitivos**.
+     * @param detailsJson o objeto `details` **inteiro**, como o servidor mandou (2.279.0) — com as
+     *   listas e os objetos que [details] descarta (`{"documentIds": ["…", "…"]}`). Vazio quando não
+     *   veio. Leia com [detailList], [detailObject], [decodeDetail] ou [detail]. Ao contrário de
+     *   [details], não recebe a janela do desafio de reautenticação vinda do `WWW-Authenticate`.
      *
      * ### Por que `details` chegou aqui
      * A constituição manda o erro de campo ficar **no campo** (borda vermelha + frase embaixo) e só o
@@ -657,10 +663,30 @@ sealed class DomainResult<out T> {
         val serverCode: String? = null,
         val serverMessage: String? = null,
         val details: Map<String, String> = emptyMap(),
+        val detailsJson: JsonObject = ServerErrorDetails.EMPTY,
     ) : DomainResult<Nothing>() {
 
         /** A frase do servidor para [field], ou `null` se aquele campo não foi recusado. */
         fun fieldError(field: String): String? = details[field]
+
+        /**
+         * O valor CRU de `details[key]` (2.279.0) — lista e objeto inclusive, que [details] descarta.
+         * `null` se ausente. Ver [detailList] e [decodeDetail] para a leitura tipada.
+         */
+        fun detail(key: String): JsonElement? = ServerErrorDetails.element(detailsJson, key)
+
+        /**
+         * `details[key]` como lista de textos (2.279.0) — `503 PDF_RENDER_UNAVAILABLE` →
+         * `detailList("documentIds")`. Lista de primitivos → os valores; um primitivo sozinho →
+         * lista de um; objeto, lista de objetos, ausente → `null`. Texto com vírgula não é dividido.
+         */
+        fun detailList(key: String): List<String>? = ServerErrorDetails.list(detailsJson, key)
+
+        /** `details[key]` como objeto JSON (2.279.0); `null` se não for objeto. */
+        fun detailObject(key: String): JsonObject? = ServerErrorDetails.obj(detailsJson, key)
+
+        /** `details[key]` decodificado como [T] (2.279.0, campos a mais ignorados); `null` se não casar. */
+        inline fun <reified T> decodeDetail(key: String): T? = ServerErrorDetails.decode<T>(detailsJson, key)
 
         /**
          * Os erros de campo — o mesmo [details], com nome que diz o que é. Mapa na ordem em que o
@@ -725,15 +751,27 @@ data class ServerErrorEnvelope(
     val code: String? = null,
     val message: String? = null,
     val details: Map<String, String> = emptyMap(),
-)
+    /**
+     * O objeto `details` inteiro (2.279.0), com listas e objetos aninhados — o que [details] descarta.
+     * Vazio quando não veio ou não era objeto.
+     */
+    val detailsJson: JsonObject = ServerErrorDetails.EMPTY,
+) {
+    /** `details[key]` cru (2.279.0). */
+    fun detail(key: String): JsonElement? = ServerErrorDetails.element(detailsJson, key)
+
+    /** `details[key]` como lista de textos (2.279.0) — ver [DomainResult.Error.detailList]. */
+    fun detailList(key: String): List<String>? = ServerErrorDetails.list(detailsJson, key)
+}
 
 /**
  * Lê o [ServerErrorEnvelope] de um corpo de erro. **Nunca lança**: corpo vazio, HTML de um proxy,
  * JSON sem os campos — tudo devolve `null` (ou um envelope com os campos nulos). Um erro de
  * transporte não pode virar um segundo erro dentro do tratamento do primeiro.
  *
- * Em `details`, só entram valores **primitivos** (a frase do campo); objeto ou lista aninhados são
- * ignorados em vez de virarem `toString()` de JSON numa legenda de formulário.
+ * Em `details`, só entram valores **primitivos** (a frase do campo); objeto ou lista aninhados ficam
+ * fora dele em vez de virarem `toString()` de JSON numa legenda de formulário. Desde a 2.279.0 eles
+ * não se perdem mais: o objeto inteiro vai em [ServerErrorEnvelope.detailsJson].
  */
 fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching {
     val texto = body?.trim().orEmpty()
@@ -742,14 +780,20 @@ fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching 
     val alvo = (raiz["error"] as? JsonObject) ?: raiz
     fun primitivo(nome: String): String? =
         (alvo[nome] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-    val detalhes = (alvo["details"] as? JsonObject)
+    val detalhesCrus = alvo["details"] as? JsonObject
+    val detalhes = detalhesCrus
         ?.mapNotNull { (campo, valor) ->
             val frase = (valor as? JsonPrimitive)?.contentOrNull?.trim()
             if (campo.isBlank() || frase.isNullOrEmpty()) null else campo to frase
         }
         ?.toMap()
         .orEmpty()
-    ServerErrorEnvelope(code = primitivo("code"), message = primitivo("message"), details = detalhes)
+    ServerErrorEnvelope(
+        code = primitivo("code"),
+        message = primitivo("message"),
+        details = detalhes,
+        detailsJson = detalhesCrus ?: ServerErrorDetails.EMPTY,
+    )
 }.getOrNull()
 
 private val errorEnvelopeJson = Json { ignoreUnknownKeys = true; isLenient = true }

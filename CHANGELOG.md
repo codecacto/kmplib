@@ -5,6 +5,47 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.279.0 — `details` do envelope de erro com lista e objeto (`kmplib-core`)
+
+**Por quê.** Origem: Vitalis. O envelope de erro traz `details` com **lista** em casos reais —
+`503 PDF_RENDER_UNAVAILABLE` com `details.documentIds: ["…","…"]` (a receita foi emitida, o PDF sai
+depois) e `422 ALERTS_NOT_ACKNOWLEDGED` com `details.alertIds`. O `parseServerErrorEnvelope` só
+guardava valores primitivos e **descartava** a lista, então o app não sabia quais documentos/alertas.
+A correção é na fundação: o backend não passa a mandar "string com vírgula".
+
+**API (aditiva, nada muda para quem já lê `details`).**
+- `ServerErrorEnvelope`, `DomainResult.Error` e `ApiResult.Error` ganham, no FIM do construtor,
+  **`detailsJson: JsonObject`** (default vazio) = o objeto `details` inteiro, como o servidor mandou.
+  O `DomainApiClient` e o `handleApiCall` o preenchem.
+- Leitura nos três: **`detailList(key): List<String>?`** e **`detail(key): JsonElement?`**; em
+  `DomainResult.Error`/`ApiResult.Error` também **`detailObject(key): JsonObject?`** e
+  **`decodeDetail<T>(key): T?`** (kotlinx, campo a mais ignorado). Nenhuma lança.
+- Regra do `detailList`: lista de primitivos → os valores como texto, na ordem (`null` e branco
+  saem); um primitivo sozinho → lista de um; lista com objeto dentro, objeto, ausente → `null`.
+  **Vírgula não divide**: `"a,b"` volta `["a,b"]`.
+
+**Decisão — por que `detailsJson` ao lado, e não trocar o tipo de `details`.** `details:
+Map<String, String>` é a **legenda de campo** (`fieldError`, `hasFieldErrors`, `RecentAuthChallenge`):
+virar `Map<String, JsonElement>` quebraria toda tela que lê `details[campo]` e faria lista aparecer
+como `toString()` de JSON numa legenda. Mantido o mapa primitivo, o JSON cru vai num campo próprio, e a
+leitura tipada (`detailList`/`decodeDetail`) fica num lugar só (`ServerErrorDetails`, interno) para
+os três tipos. Consequência: `hasFieldErrors` continua `false` num erro que só traz listas. O
+`detailsJson` é o do servidor, verbatim — a janela de reautenticação tirada do `WWW-Authenticate`
+continua só em `details`.
+
+**Compatibilidade.** Fonte: chamadas existentes inalteradas (parâmetro novo com default, no fim).
+Binário: o construtor e o `copy` das três `data class` ganham um parâmetro — app compila a kmplib pela
+fonte (`includeBuild`) ou contra o artefato novo, sem efeito. Desestruturação posicional ganha um
+`component` a mais, no fim.
+
+**Contrato do servidor.** O `ErrorResponse.details` da backlib ainda é `Map<String, String>`: um
+backend que queira lista no `details` precisa serializá-lo como objeto JSON (lacuna registrada para a
+backlib). Sem isso, a lista não chega — e não há o que o cliente fazer.
+
+Testes: `core/commonTest/.../sync/rest/ServerErrorDetailsTest` (9 casos: parser, regras do
+`detailList`, `decodeDetail`, `DomainApiClient` 503/422/502 e `handleApiCall`). Aditivo: sem aviso,
+sem piso.
+
 ## 2.278.0 — Seletor de foto com tamanho e qualidade configuráveis; câmera com guia sobreposto (`kmplib-ui`, `kmplib-camera`)
 
 **Por quê.** Origem: App do Personal (MP3, fotos de avaliação física — corpo de frente, costas e
