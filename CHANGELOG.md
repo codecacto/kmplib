@@ -5,6 +5,19 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.284.1 — Fastfile iOS: o ARCHIVE também leva `-allowProvisioningUpdates` quando o app assina pelo `match`
+
+Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). A lane `release` só passava
+`-allowProvisioningUpdates` + a chave da API da App Store Connect quando o app **não** tinha perfil no
+`match`. Com perfil, o `match` assina só o export; o archive seguia na assinatura automática sem
+autorização, e o Xcode caía no perfil curinga `iOS Team Provisioning Profile: *`, que não aceita
+capability nenhuma além do básico. Caso: LocAki 1.2.0, 10/out/2026, depois de ligar o Push no App ID —
+`Provisioning profile "iOS Team Provisioning Profile: *" doesn't include the aps-environment entitlement`.
+Agora a autorização vai sempre no `xcargs`; o `signingStyle: automatic` do export continua só para
+quem não tem `match`.
+
+**Ação nos apps:** nenhuma — o Fastfile é importado da `main`.
+
 ## 2.284.0 — Vídeo em laço, mudo e toque para pausar (`kmplib-video`)
 
 **Por quê.** App do Personal (L2): o vídeo de demonstração do exercício toca em laço, sem som, e o

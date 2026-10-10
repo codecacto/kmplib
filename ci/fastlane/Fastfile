@@ -392,20 +392,24 @@ platform :ios do
     # é `-allowProvisioningUpdates` + a chave da API da App Store Connect (a mesma `.p8` do upload),
     # no archive E no export: sem isso o export morria em "requires a provisioning profile" (Super 8,
     # 28/set/2026 — 1º release iOS pelo runner).
-    if perfis.empty?
-      # O `xcodebuild` exige caminho ABSOLUTO de arquivo existente.
-      chave = caminho_da_chave_asc(asc_key_id)
-      autorizacao = [
-        "-allowProvisioningUpdates",
-        "-authenticationKeyPath", chave.shellescape,
-        "-authenticationKeyID", asc_key_id.to_s.shellescape,
-        "-authenticationKeyIssuerID", asc_issuer_id.to_s.shellescape
-      ].join(" ")
-      # Só `xcargs`: o gym já o repassa ao `-exportArchive`, e mandar também em `export_xcargs`
-      # duplica a flag ("-authenticationKeyPath may only be provided once").
-      build_params[:xcargs] = [build_params[:xcargs], autorizacao].join(" ")
-      build_params[:export_options] = { signingStyle: "automatic" }
-    end
+    #
+    # E COM perfil do `match` também: o `match` assina só o EXPORT (perfil App Store); o ARCHIVE
+    # continua na assinatura automática do alvo, com perfil de DESENVOLVIMENTO. Sem a autorização, o
+    # Xcode não cria o perfil explícito do app e cai no curinga "iOS Team Provisioning Profile: *",
+    # que não aceita Push/Sign in with Apple/etc. — "doesn't include the aps-environment entitlement"
+    # (LocAki 1.2.0, 10/out/2026, logo depois de ligar o Push no App ID).
+    # O `xcodebuild` exige caminho ABSOLUTO de arquivo existente.
+    chave = caminho_da_chave_asc(asc_key_id)
+    autorizacao = [
+      "-allowProvisioningUpdates",
+      "-authenticationKeyPath", chave.shellescape,
+      "-authenticationKeyID", asc_key_id.to_s.shellescape,
+      "-authenticationKeyIssuerID", asc_issuer_id.to_s.shellescape
+    ].join(" ")
+    # Só `xcargs`: o gym já o repassa ao `-exportArchive`, e mandar também em `export_xcargs`
+    # duplica a flag ("-authenticationKeyPath may only be provided once").
+    build_params[:xcargs] = [build_params[:xcargs], autorizacao].join(" ")
+    build_params[:export_options] = { signingStyle: "automatic" } if perfis.empty?
 
     build_app(**build_params)
 
