@@ -96,3 +96,87 @@ class PickedImageTest {
         assertEquals("image/jpeg", PickedImage(byteArrayOf(), 10, 10).mimeType)
     }
 }
+
+/**
+ * `maxDimension`/`jpegQuality` configuráveis (2.278.0): o valor costuma vir de configuração, e um
+ * número fora da faixa precisa virar um valor válido — não um seletor que fecha o app.
+ */
+class PickedImageEncodingRangeTest {
+
+    @Test
+    fun `teto dentro da faixa passa intacto`() {
+        assertEquals(2048, coercePickedImageMaxDimension(2048))
+        assertEquals(PICKED_IMAGE_MAX_DIMENSION, coercePickedImageMaxDimension(PICKED_IMAGE_MAX_DIMENSION))
+    }
+
+    @Test
+    fun `teto acima de 4096 e preso no limite`() {
+        assertEquals(PICKED_IMAGE_MAX_DIMENSION_LIMIT, coercePickedImageMaxDimension(10_000))
+        assertEquals(4096, PICKED_IMAGE_MAX_DIMENSION_LIMIT)
+    }
+
+    @Test
+    fun `teto zero ou negativo vira o minimo e nao quebra o encoder`() {
+        assertEquals(PICKED_IMAGE_MIN_DIMENSION, coercePickedImageMaxDimension(0))
+        assertEquals(PICKED_IMAGE_MIN_DIMENSION, coercePickedImageMaxDimension(-5))
+    }
+
+    @Test
+    fun `qualidade e presa entre 1 e 100`() {
+        assertEquals(1, coercePickedImageJpegQuality(0))
+        assertEquals(100, coercePickedImageJpegQuality(150))
+        assertEquals(PICKED_IMAGE_JPEG_QUALITY, coercePickedImageJpegQuality(PICKED_IMAGE_JPEG_QUALITY))
+        assertEquals(85, PICKED_IMAGE_JPEG_QUALITY)
+    }
+
+    @Test
+    fun `teto maior que o padrao reduz pelo teto pedido`() {
+        assertEquals(2048 to 1536, scaledImageSize(4032, 3024, 2048))
+        assertEquals(3024 to 4032, scaledImageSize(3024, 4032, 4096))
+    }
+}
+
+/**
+ * A amostragem da decodificação (2.278.0): decodificar perto do teto, nunca a foto inteira sem
+ * necessidade, e nunca acima do orçamento de memória.
+ */
+class DecodeSampleSizeTest {
+
+    @Test
+    fun `imagem menor que o teto nao e amostrada`() {
+        assertEquals(1, decodeSampleSize(800, 600, 1024))
+    }
+
+    @Test
+    fun `amostra deixa o maior lado ainda maior ou igual ao teto`() {
+        // 4032/2 = 2016 >= 1024 ; 4032/4 = 1008 < 1024 -> 2
+        assertEquals(2, decodeSampleSize(4032, 3024, 1024))
+        // 4000/2 = 2000 < 2048 -> 1
+        assertEquals(1, decodeSampleSize(4000, 3000, 2048))
+    }
+
+    @Test
+    fun `retrato e paisagem dao a mesma amostra`() {
+        assertEquals(decodeSampleSize(4032, 3024, 1024), decodeSampleSize(3024, 4032, 1024))
+    }
+
+    @Test
+    fun `foto de 48 MP com teto maximo cabe no orcamento de memoria`() {
+        // 8000x6000 = 48 MP > orçamento (4096²): dobra para 4000x3000 = 12 MP.
+        val amostra = decodeSampleSize(8000, 6000, 4096)
+        assertEquals(2, amostra)
+        val pixels = (8000L / amostra) * (6000L / amostra)
+        assertTrue(pixels <= PICKED_IMAGE_DECODE_PIXEL_BUDGET, "amostrada com $pixels pixels")
+    }
+
+    @Test
+    fun `foto de 12 MP com teto maximo e decodificada inteira`() {
+        assertEquals(1, decodeSampleSize(4032, 3024, 4096))
+    }
+
+    @Test
+    fun `medida invalida nao amostra`() {
+        assertEquals(1, decodeSampleSize(0, 100, 1024))
+        assertEquals(1, decodeSampleSize(100, 100, 0))
+    }
+}

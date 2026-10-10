@@ -4,7 +4,6 @@ import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSData
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
@@ -12,7 +11,6 @@ import platform.PhotosUI.PHPickerResult
 import platform.PhotosUI.PHPickerViewController
 import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
 import platform.UIKit.UIApplication
-import platform.UIKit.UIImage
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -41,7 +39,9 @@ actual fun rememberMultiImagePickerLauncher(
     selectionLimit: Int,
     onImagesPicked: (List<PickedImage>) -> Unit,
     onError: (ImagePickerError) -> Unit,
-): MultiImagePickerLauncher = remember(selectionLimit, onImagesPicked, onError) {
+    maxDimension: Int,
+    jpegQuality: Int,
+): MultiImagePickerLauncher = remember(selectionLimit, onImagesPicked, onError, maxDimension, jpegQuality) {
     MultiImagePickerLauncher {
         val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController
         if (raiz == null) {
@@ -49,7 +49,7 @@ actual fun rememberMultiImagePickerLauncher(
             onError(ImagePickerError.IMAGE_UNREADABLE)
             return@MultiImagePickerLauncher
         }
-        abrirGaleriaMultipla(raiz, selectionLimit.coerceAtLeast(2), onImagesPicked, onError)
+        abrirGaleriaMultipla(raiz, selectionLimit.coerceAtLeast(2), maxDimension, jpegQuality, onImagesPicked, onError)
     }
 }
 
@@ -67,6 +67,8 @@ actual fun rememberMultiImagePickerLauncher(
 private fun abrirGaleriaMultipla(
     raiz: platform.UIKit.UIViewController,
     teto: Int,
+    maxDimension: Int,
+    jpegQuality: Int,
     onImagesPicked: (List<PickedImage>) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
@@ -113,7 +115,7 @@ private fun abrirGaleriaMultipla(
                 provedor.loadDataRepresentationForTypeIdentifier(TIPO_IMAGEM) { data, erro ->
                     // Uma imagem ilegível no meio da seleção não pode custar as outras: ela vira
                     // `null` na posição dela e o conjunto segue.
-                    val foto = converter(data, erro?.localizedDescription)
+                    val foto = converter(data, erro?.localizedDescription, maxDimension, jpegQuality)
                     registrar(indice, foto)
                 }
             }
@@ -126,19 +128,14 @@ private fun abrirGaleriaMultipla(
     raiz.presentViewController(seletor, animated = true, completion = null)
 }
 
-/** Bytes crus → [PickedImage], reusando a normalização de orientação de `ImagePicker.ios.kt`. */
-@OptIn(ExperimentalForeignApi::class)
-private fun converter(data: NSData?, erro: String?): PickedImage? {
+/** Bytes crus → [PickedImage], pela mesma redução do seletor de uma foto (ImageIO, 2.278.0). */
+@OptIn(br.com.codecacto.kmplib.ui.KmpLibUiInternalApi::class)
+private fun converter(data: NSData?, erro: String?, maxDimension: Int, jpegQuality: Int): PickedImage? {
     if (data == null) {
         AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser lida: ${redactMediaUrlsIn(erro)}")
         return null
     }
-    val imagem = UIImage(data = data)
-    if (imagem == null) {
-        AppLogger.w(TAG, "Foto da seleção múltipla não pôde ser decodificada.")
-        return null
-    }
-    return imagem.paraPickedImage()
+    return data.toPickedImage(maxDimension, jpegQuality)
 }
 
 private const val TIPO_IMAGEM = "public.image"

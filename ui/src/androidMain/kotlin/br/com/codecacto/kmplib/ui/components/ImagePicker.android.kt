@@ -7,11 +7,7 @@ import androidx.compose.ui.platform.testTag
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.net.Uri
-import androidx.exifinterface.media.ExifInterface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +34,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,8 +51,10 @@ import br.com.codecacto.kmplib.platform.CAMERA_CAPTURE_FILE_PREFIX
 import br.com.codecacto.kmplib.platform.DEFAULT_CAMERA_CAPTURE_TTL_MILLIS
 import br.com.codecacto.kmplib.platform.cameraCaptureDirectory
 import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
-import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 actual class ImagePickerLauncher(
     private val launcher: () -> Unit
@@ -70,8 +70,12 @@ actual fun rememberImagePickerLauncher(
     source: ImagePickerSource,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
+    maxDimension: Int,
+    jpegQuality: Int,
 ): ImagePickerLauncher {
     val context = LocalContext.current
+    val currentMaxDimension by rememberUpdatedState(maxDimension)
+    val currentJpegQuality by rememberUpdatedState(jpegQuality)
     var showChooser by remember { mutableStateOf(false) }
 
     // Caminho do arquivo temporário da câmera. `rememberSaveable` porque o app de câmera costuma
@@ -79,11 +83,33 @@ actual fun rememberImagePickerLauncher(
     // arquivo ler — a foto se perdia e o arquivo cru ficava no disco.
     var cameraFilePath by rememberSaveable { mutableStateOf<String?>(null) }
 
+    val escopo = rememberCoroutineScope()
+    val currentOnImagePicked by rememberUpdatedState(onImagePicked)
+    val currentOnError by rememberUpdatedState(onError)
+
+    // Decodificar/girar/recomprimir fora da main thread (2.278.0): com `maxDimension` até 4096 px,
+    // o trabalho que passava despercebido em 1024 congelaria a tela. O retorno volta na main.
+    fun processar(uri: Uri, depois: () -> Unit = {}) {
+        val teto = currentMaxDimension
+        val qualidade = currentJpegQuality
+        escopo.launch {
+            val resultado = try {
+                withContext(Dispatchers.Default) { processImageUri(context, uri, teto, qualidade) }
+            } finally {
+                depois()
+            }
+            resultado.fold(
+                onSuccess = { currentOnImagePicked(it) },
+                onFailure = { currentOnError(ImagePickerError.IMAGE_UNREADABLE) },
+            )
+        }
+    }
+
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         // `null` = a pessoa fechou a galeria sem escolher. Desistir NAO e erro.
-        uri?.let { processImageUri(context, it, onImagePicked, onError) }
+        uri?.let { processar(it) }
     }
 
     val takePicture = rememberLauncherForActivityResult(
@@ -92,13 +118,13 @@ actual fun rememberImagePickerLauncher(
         val arquivo = cameraFilePath?.let(::File)
         cameraFilePath = null
         if (arquivo == null) return@rememberLauncherForActivityResult
-        try {
-            if (success) processImageUri(context, Uri.fromFile(arquivo), onImagePicked, onError)
-        } finally {
-            // O original da câmera tem EXIF completo (GPS, modelo, horário) e resolução cheia. O que
-            // o app recebe são os bytes RECODIFICADOS acima; o original não serve a mais ninguém e,
-            // até a 2.216.0, ficava para sempre em cache/photos. Cancelado também sai (arquivo vazio
-            // ou parcial).
+        // O original da câmera tem EXIF completo (GPS, modelo, horário) e resolução cheia. O que o
+        // app recebe são os bytes RECODIFICADOS; o original não serve a mais ninguém e, até a
+        // 2.216.0, ficava para sempre em cache/photos. Cancelado também sai (arquivo vazio ou
+        // parcial) — e o apagar só acontece DEPOIS de a decodificação terminar.
+        if (success) {
+            processar(Uri.fromFile(arquivo)) { deleteCameraTempFile(arquivo) }
+        } else {
             deleteCameraTempFile(arquivo)
         }
     }
@@ -231,74 +257,25 @@ actual fun rememberImagePickerLauncher(
 }
 
 /**
- * Decodifica, **gira pelo EXIF**, reduz e recodifica em JPEG — e mede o resultado.
- *
- * A medida sai do bitmap FINAL, depois da rotação e da redução, porque é ele que vira os bytes. E o
- * `Bitmap.compress` não escreve tag de orientação: os bytes que saem daqui já estão em pé, sem
- * depender de o leitor do outro lado interpretar EXIF.
+ * Decodifica, **gira pelo EXIF**, reduz e recodifica em JPEG — e mede o resultado. O trabalho mora
+ * em [encodePickedImage] (2.278.0), o mesmo do seletor múltiplo e da câmera guiada.
  */
 private fun processImageUri(
     context: Context,
     uri: Uri,
-    onImagePicked: (PickedImage) -> Unit,
-    onError: (ImagePickerError) -> Unit,
-) {
-    try {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
-        val bitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream.close()
-
-        if (bitmap == null) {
-            onError(ImagePickerError.IMAGE_UNREADABLE)
-        } else {
-            val corrected = correctOrientation(context, uri, bitmap)
-            val scaled = scaleBitmap(corrected, PICKED_IMAGE_MAX_DIMENSION)
-            val outputStream = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-            // Lido ANTES do recycle: depois dele, `width`/`height` de um bitmap reciclado não valem.
-            val largura = scaled.width
-            val altura = scaled.height
-            val bytes = outputStream.toByteArray()
-
-            if (scaled != corrected) scaled.recycle()
-            if (corrected != bitmap) corrected.recycle()
-            bitmap.recycle()
-
-            onImagePicked(PickedImage(bytes = bytes, widthPx = largura, heightPx = altura))
-        }
-    } catch (e: Exception) {
-        AppLogger.w(TAG, "Foto escolhida não pôde ser lida: ${redactMediaUrlsIn(e.message)}")
-        onError(ImagePickerError.IMAGE_UNREADABLE)
-    }
-}
-
-private fun correctOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
-    val rotation = try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return bitmap
-        val exif = ExifInterface(inputStream)
-        inputStream.close()
-        when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> 0f
-        }
-    } catch (_: Exception) {
-        0f
-    }
-
-    if (rotation == 0f) return bitmap
-
-    val matrix = Matrix().apply { postRotate(rotation) }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-}
-
-private fun scaleBitmap(bitmap: Bitmap, maxSize: Int): Bitmap {
-    val (newWidth, newHeight) = scaledImageSize(bitmap.width, bitmap.height, maxSize)
-    if (newWidth == bitmap.width && newHeight == bitmap.height) return bitmap
-
-    return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    maxDimension: Int,
+    jpegQuality: Int,
+): Result<PickedImage> = try {
+    encodePickedImage(context, uri, maxDimension, jpegQuality)
+        ?.let { Result.success(it) }
+        ?: Result.failure(IllegalStateException("imagem ilegível"))
+} catch (e: Exception) {
+    AppLogger.w(TAG, "Foto escolhida não pôde ser lida: ${redactMediaUrlsIn(e.message)}")
+    Result.failure(e)
+} catch (e: OutOfMemoryError) {
+    // `OutOfMemoryError` não é `Exception`: sem este ramo, uma foto enorme derrubava o app.
+    AppLogger.w(TAG, "Foto grande demais para a memória disponível.")
+    Result.failure(e)
 }
 
 private const val TAG = "KmpLibImagePicker"

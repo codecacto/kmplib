@@ -416,4 +416,23 @@
     <string name="kmplib_form_issue_list_item_incomplete">Preencha este campo.</string>
     <string name="kmplib_form_issue_list_item_empty">Este item está vazio. Preencha-o ou remova-o.</string>
     <string name="kmplib_date_clear">Limpar data</string>
+    <!-- Câmera guiada (kmplib-camera, 2.278.0) -->
+    <string name="kmplib_guided_camera_capture">Tirar fotografia</string>
+    <string name="kmplib_guided_camera_use_front">Usar câmara frontal</string>
+    <string name="kmplib_guided_camera_use_back">Usar câmara traseira</string>
+    <string name="kmplib_guided_camera_flash_off">Flash desligado</string>
+    <string name="kmplib_guided_camera_flash_auto">Flash automático</string>
+    <string name="kmplib_guided_camera_flash_on">Flash ligado</string>
+    <string name="kmplib_guided_camera_close">Fechar câmara</string>
+    <string name="kmplib_guided_camera_starting">A preparar a câmara…</string>
+    <string name="kmplib_guided_camera_permission_title">Precisamos da câmara</string>
+    <string name="kmplib_guided_camera_permission_message">A câmara é usada para tirar a fotografia.</string>
+    <string name="kmplib_guided_camera_permission_allow">Permitir câmara</string>
+    <string name="kmplib_guided_camera_permission_denied_message">O acesso à câmara está bloqueado. Ative-o nas Definições do dispositivo para tirar a fotografia.</string>
+    <string name="kmplib_guided_camera_open_settings">Abrir Definições</string>
+    <string name="kmplib_guided_camera_unavailable">Câmara indisponível neste dispositivo.</string>
+    <string name="kmplib_guided_camera_init_failed">Não foi possível iniciar a câmara.</string>
+    <string name="kmplib_guided_camera_retry">Tentar novamente</string>
+    <string name="kmplib_guided_camera_capture_failed">A fotografia não saiu. Tente novamente.</string>
+    <string name="kmplib_guided_camera_capturing">A tirar a fotografia…</string>
 </resources>

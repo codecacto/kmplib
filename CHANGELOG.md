@@ -5,6 +5,67 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.278.0 — Seletor de foto com tamanho e qualidade configuráveis; câmera com guia sobreposto (`kmplib-ui`, `kmplib-camera`)
+
+**Por quê.** Origem: App do Personal (MP3, fotos de avaliação física — corpo de frente, costas e
+lado, comparadas mês a mês). O seletor reduzia sempre para 1024 px, pouco para uma foto que alguém vai
+examinar; e não havia câmera com silhueta para a pessoa se alinhar sempre no mesmo enquadramento.
+Aditivo: sem aviso, sem piso.
+
+**1. `rememberImagePickerLauncher` / `rememberMultiImagePickerLauncher` — `maxDimension` e `jpegQuality`.**
+- Parâmetros novos, no FIM da assinatura (chamadas existentes não mudam): `maxDimension: Int =
+  PICKED_IMAGE_MAX_DIMENSION` (1024) e `jpegQuality: Int = PICKED_IMAGE_JPEG_QUALITY` (85). O teto é
+  preso em `PICKED_IMAGE_MIN_DIMENSION` (64) .. `PICKED_IMAGE_MAX_DIMENSION_LIMIT` (4096) e a
+  qualidade em 1..100 — com aviso no log, nunca exceção.
+- Continua o contrato inteiro do `PickedImage`: JPEG, em pé, sem EXIF/GPS, HEIC→JPEG, medida do que saiu.
+- **Codificação única por plataforma** (antes eram duas cópias, uma por seletor):
+  - Android — `encodePickedImage` (`PickedImageEncoder.android.kt`): decodificação em duas
+    passadas com `inSampleSize` (`decodeSampleSize`, pura e testada) e orçamento de 4096² pixels —
+    uma foto de 48 MP não é mais decodificada inteira. **`maxDimension` é teto, não alvo**: 48 MP com
+    teto 4096 sai com 4000 px. As OITO orientações EXIF agora são aplicadas (antes só as três
+    rotações; foto espelhada chegava espelhada). O seletor de uma foto passou a decodificar **fora da
+    main thread** (o múltiplo já fazia), e `OutOfMemoryError` virou `IMAGE_UNREADABLE` em vez de
+    derrubar o app.
+  - iOS — `NSData.toPickedImage` via **ImageIO** (`CGImageSourceCreateThumbnailAtIndex` +
+    `kCGImageSourceThumbnailMaxPixelSize` + `…WithTransform`, a redução recomendada pela Apple):
+    decodifica já na medida pedida, aplica a orientação aos pixels e não carrega metadado. A câmera
+    do `UIImagePickerController` (que entrega `UIImage`) usa `UIImage.toPickedImage` com
+    `UIGraphicsImageRenderer` (escala 1, faixa padrão) no lugar do
+    `UIGraphicsBeginImageContextWithOptions` depreciado no iOS 17. O retorno passou a chegar **na
+    fila principal** (a galeria entregava da fila do `NSItemProvider`).
+- `@KmpLibUiInternalApi` (novo, `RequiresOptIn` ERROR): marca o encoder como ponte entre módulos da
+  lib — não é contrato para app.
+
+**2. `GuidedCamera` (novo, `kmplib-camera`, pacote `camera.guided`).** Tela de foto da lib com guia
+sobreposto:
+- `GuidedCamera(onCaptured, modifier, guide, hint, initialLens, allowLensSwitch, allowFlash,
+  maxDimension, jpegQuality, texts, onError, onClose, overlayContent)` → devolve o MESMO
+  `PickedImage` do seletor (mesmo encoder).
+- `CameraGuide.painter(painter, alignment, widthFraction, heightFraction, alpha, tint, contentScale)`
+  e `CameraGuide.drawing(…) { DrawScope }` — silhueta por `Painter`/`ImageVector` ou desenho livre;
+  moldura em fração do preview, opacidade e tinta configuráveis; o guia não é gravado na foto.
+- **O preview mostra exatamente a foto:** captura 4:3 e preview inteiro (sem corte) numa caixa 3:4 —
+  Android `ImageCapture`/`Preview` com `AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY` e
+  `PreviewView` em `FIT_CENTER`; iOS preset `Photo` e `AVLayerVideoGravityResizeAspect`.
+- Disparo (76 dp, descrição e anúncio de "tirando a foto"), troca frontal/traseira (só com as duas;
+  lente ausente cai na outra), flash OFF→AUTO→ON (só se a câmera em uso tiver; iOS confere
+  `supportedFlashModes` — modo não suportado lançaria), frontal **sem espelhar** na foto.
+- Estados com saída (`GuidedCameraState`): permissão pedida na abertura e reconsultada ao voltar das
+  Configurações, negada / negada em definitivo, sem câmera (emulador/simulador), falha da sessão
+  (Tentar novamente; iOS observa `AVCaptureSessionRuntimeErrorNotification`). Cada um em `onError`
+  (`GuidedCameraError`), mais `CAPTURE_FAILED` no disparo.
+- Sem vazar sessão: Android `unbind` no `onDispose` + executor encerrado; iOS `stopRunning` e
+  entradas/saídas removidas, observador retirado, delegate do disparo com referência forte até o fim.
+- Textos `GuidedCameraTexts`/`rememberGuidedCameraTexts()` em pt-BR/pt-PT/en/es
+  (`kmplib_guided_camera_*` no `kmplib-ui`); ids `GuidedCameraTestTags` (`camera-guiada-*`).
+- Requisitos do app: `android.permission.CAMERA` no manifesto; `NSCameraUsageDescription` no Info.plist.
+
+**Testes.** `DecodeSampleSizeTest`, `PickedImageEncodingRangeTest` (ui); `GuidedCameraStateTest`,
+`GuidedCameraLensAndFlashTest`, `GuidedCameraLayoutTest`, `GuidedCaptureHandleTest`,
+`GuidedCameraTextsTest` (camera). `compileKotlinIosArm64` e `compileTestKotlinIosArm64` de `ui` e
+`camera` no servidor. **Pendente de aparelho/Mac:** preview e disparo reais (CameraX e AVFoundation),
+alinhamento silhueta×foto, flash, troca de lente, e a redução ImageIO/UIGraphicsImageRenderer no iOS.
+
 ## 2.277.1 — URL de mídia sem assinatura no log, no `toString` e na mensagem de erro (`kmplib-video`, `kmplib-video-download`, `kmplib-ui`)
 
 **Por quê.** `VideoPlayerState.ios.kt` registrava `"URL de vídeo inválida: ${media.url}"` — a URL

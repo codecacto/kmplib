@@ -1,16 +1,11 @@
+@file:OptIn(br.com.codecacto.kmplib.ui.KmpLibUiInternalApi::class)
+
 package br.com.codecacto.kmplib.ui.components
 
 import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.useContents
-import kotlinx.cinterop.usePinned
-import platform.CoreGraphics.CGRectMake
-import platform.CoreGraphics.CGSizeMake
-import platform.Foundation.NSData
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
@@ -22,11 +17,7 @@ import platform.UIKit.UIAlertActionStyleDefault
 import platform.UIKit.UIAlertController
 import platform.UIKit.UIAlertControllerStyleActionSheet
 import platform.UIKit.UIApplication
-import platform.UIKit.UIGraphicsBeginImageContextWithOptions
-import platform.UIKit.UIGraphicsEndImageContext
-import platform.UIKit.UIGraphicsGetImageFromCurrentImageContext
 import platform.UIKit.UIImage
-import platform.UIKit.UIImageJPEGRepresentation
 import platform.UIKit.UIImagePickerController
 import platform.UIKit.UIImagePickerControllerDelegateProtocol
 import platform.UIKit.UIImagePickerControllerEditedImage
@@ -34,9 +25,11 @@ import platform.UIKit.UIImagePickerControllerOriginalImage
 import platform.UIKit.UIImagePickerControllerSourceType
 import platform.UIKit.UINavigationControllerDelegateProtocol
 import platform.UIKit.UIViewController
-import platform.UIKit.drawInRect
+import platform.darwin.DISPATCH_QUEUE_PRIORITY_HIGH
 import platform.darwin.NSObject
-import platform.posix.memcpy
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_global_queue
+import platform.darwin.dispatch_get_main_queue
 
 actual class ImagePickerLauncher(
     private val onLaunch: () -> Unit
@@ -67,7 +60,10 @@ actual fun rememberImagePickerLauncher(
     source: ImagePickerSource,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
-): ImagePickerLauncher = remember(source, onImagePicked, onError) {
+    maxDimension: Int,
+    jpegQuality: Int,
+): ImagePickerLauncher = remember(source, onImagePicked, onError, maxDimension, jpegQuality) {
+    val codificacao = Codificacao(maxDimension, jpegQuality)
     ImagePickerLauncher {
         val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController
         if (raiz == null) {
@@ -82,15 +78,19 @@ actual fun rememberImagePickerLauncher(
         )
         when {
             source == ImagePickerSource.GALLERY_ONLY || !temCamera ->
-                abrirGaleriaDeFotos(raiz, onImagePicked, onError)
+                abrirGaleriaDeFotos(raiz, codificacao, onImagePicked, onError)
 
-            else -> escolherOrigemDaFoto(raiz, onImagePicked, onError)
+            else -> escolherOrigemDaFoto(raiz, codificacao, onImagePicked, onError)
         }
     }
 }
 
+/** Teto e qualidade pedidos pelo app (2.278.0), levados até a codificação. */
+private class Codificacao(val maxDimension: Int, val jpegQuality: Int)
+
 private fun escolherOrigemDaFoto(
     raiz: UIViewController,
+    codificacao: Codificacao,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
@@ -101,12 +101,12 @@ private fun escolherOrigemDaFoto(
     )
     folha.addAction(
         UIAlertAction.actionWithTitle(title = "Tirar foto", style = UIAlertActionStyleDefault) {
-            abrirCameraDeFoto(raiz, onImagePicked, onError)
+            abrirCameraDeFoto(raiz, codificacao, onImagePicked, onError)
         },
     )
     folha.addAction(
         UIAlertAction.actionWithTitle(title = "Escolher da galeria", style = UIAlertActionStyleDefault) {
-            abrirGaleriaDeFotos(raiz, onImagePicked, onError)
+            abrirGaleriaDeFotos(raiz, codificacao, onImagePicked, onError)
         },
     )
     folha.addAction(
@@ -121,6 +121,7 @@ private fun escolherOrigemDaFoto(
  */
 private fun abrirGaleriaDeFotos(
     raiz: UIViewController,
+    codificacao: Codificacao,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
@@ -147,14 +148,15 @@ private fun abrirGaleriaDeFotos(
             provedor.loadDataRepresentationForTypeIdentifier("public.image") { data, error ->
                 if (error != null || data == null) {
                     AppLogger.w(TAG, "Foto da galeria não pôde ser lida: ${redactMediaUrlsIn(error?.localizedDescription)}")
-                    onError(ImagePickerError.IMAGE_UNREADABLE)
+                    naFilaPrincipal { onError(ImagePickerError.IMAGE_UNREADABLE) }
                     return@loadDataRepresentationForTypeIdentifier
                 }
-                val imagem = UIImage(data = data)
-                    ?: return@loadDataRepresentationForTypeIdentifier onError(
-                        ImagePickerError.IMAGE_UNREADABLE,
-                    )
-                entregarFoto(imagem, onImagePicked, onError)
+                // Já numa fila de fundo (a do `NSItemProvider`): a redução pelo ImageIO roda aqui,
+                // e só o retorno vai para a fila principal, onde a tela vive.
+                val foto = data.toPickedImage(codificacao.maxDimension, codificacao.jpegQuality)
+                naFilaPrincipal {
+                    if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
+                }
             }
         }
     }
@@ -166,6 +168,7 @@ private fun abrirGaleriaDeFotos(
 
 private fun abrirCameraDeFoto(
     raiz: UIViewController,
+    codificacao: Codificacao,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
@@ -183,7 +186,14 @@ private fun abrirCameraDeFoto(
                     ?: didFinishPickingMediaWithInfo[UIImagePickerControllerOriginalImage]
                 ) as? UIImage
                 ?: return onError(ImagePickerError.IMAGE_UNREADABLE)
-            entregarFoto(imagem, onImagePicked, onError)
+            // Redesenhar até 4096 px na fila principal congelaria a tela: fila de fundo, e o
+            // retorno de volta à principal.
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH.toLong(), 0u)) {
+                val foto = imagem.toPickedImage(codificacao.maxDimension, codificacao.jpegQuality)
+                naFilaPrincipal {
+                    if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
+                }
+            }
         }
 
         override fun imagePickerControllerDidCancel(picker: UIImagePickerController) {
@@ -198,78 +208,8 @@ private fun abrirCameraDeFoto(
     raiz.presentViewController(camera, animated = true, completion = null)
 }
 
-/** Entrega a foto normalizada, ou avisa o motivo. A normalização mora em [paraPickedImage]. */
-private fun entregarFoto(
-    imagem: UIImage,
-    onImagePicked: (PickedImage) -> Unit,
-    onError: (ImagePickerError) -> Unit,
-) {
-    val foto = imagem.paraPickedImage()
-    if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
-}
-
-/**
- * `UIImage` → [PickedImage]: normaliza, reduz, codifica em JPEG e **mede o que saiu**. `null` = não
- * deu para ler, e o log já nomeou o motivo.
- *
- * ⚠️ A `UIImage` de uma foto de iPhone quase nunca está em pé no arquivo: os pixels vêm deitados e a
- * orientação vem à parte, em `imageOrientation` (o EXIF). Duas consequências que esta função existe
- * para fechar:
- *
- * 1. `image.size` já é a medida **exibida** (o UIKit aplica a orientação), mas
- *    `UIImageJPEGRepresentation` grava os **pixels crus mais a tag** — então a medida devolvida
- *    poderia não bater com a que o backend lê dos bytes.
- * 2. Por isso a imagem é **sempre redesenhada** antes de codificar: `drawInRect` aplica a
- *    orientação, e o que sai não tem mais tag de rotação. Depois disso, medida devolvida e medida
- *    contida nos bytes são a mesma coisa — para nós, para o backend e para o navegador.
- *
- * `internal` porque o seletor MÚLTIPLO (`MultiImagePicker.ios.kt`) faz exatamente o mesmo trabalho,
- * num laço: duplicar esta normalização seria duplicar a regra de orientação, que é o lugar em que
- * este arquivo mais custou a acertar.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun UIImage.paraPickedImage(): PickedImage? {
-    // `size` está em PONTOS; `scale` os converte em pixels. Numa foto vinda de arquivo a escala é
-    // 1.0, mas a de câmera nem sempre — e a medida que o app publica é em pixels.
-    val (larguraPt, alturaPt) = size.useContents { width to height }
-    val larguraPx = (larguraPt * scale).toInt()
-    val alturaPx = (alturaPt * scale).toInt()
-    if (larguraPx <= 0 || alturaPx <= 0) {
-        AppLogger.w(TAG, "Foto sem medida utilizável.")
-        return null
-    }
-
-    val (largura, altura) = scaledImageSize(larguraPx, alturaPx, PICKED_IMAGE_MAX_DIMENSION)
-
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(largura.toDouble(), altura.toDouble()), false, 1.0)
-    drawInRect(CGRectMake(0.0, 0.0, largura.toDouble(), altura.toDouble()))
-    val normalizada = UIGraphicsGetImageFromCurrentImageContext()
-    UIGraphicsEndImageContext()
-
-    if (normalizada == null) {
-        AppLogger.w(TAG, "Não foi possível redesenhar a foto para normalizar a orientação.")
-        return null
-    }
-
-    val jpeg = UIImageJPEGRepresentation(normalizada, 0.85)
-    if (jpeg == null) {
-        AppLogger.w(TAG, "Não foi possível codificar a foto em JPEG.")
-        return null
-    }
-
-    return PickedImage(bytes = jpeg.toByteArray(), widthPx = largura, heightPx = altura)
-}
-
-@OptIn(ExperimentalForeignApi::class)
-internal fun NSData.toByteArray(): ByteArray {
-    val size = length.toInt()
-    val bytes = ByteArray(size)
-    if (size > 0) {
-        bytes.usePinned { pinned ->
-            memcpy(pinned.addressOf(0), this.bytes, this.length)
-        }
-    }
-    return bytes
+private fun naFilaPrincipal(bloco: () -> Unit) {
+    dispatch_async(dispatch_get_main_queue()) { bloco() }
 }
 
 private const val TAG = "KmpLibImagePicker"

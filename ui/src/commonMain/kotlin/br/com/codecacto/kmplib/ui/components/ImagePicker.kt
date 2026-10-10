@@ -34,8 +34,9 @@ expect class ImagePickerLauncher {
  * Conectada (11/set/2026).
  *
  * ### A medida é a da imagem que SAI, não a do original
- * O seletor reduz a foto (JPEG, no máximo [PICKED_IMAGE_MAX_DIMENSION] px no maior lado, qualidade
- * 85) — então devolver a medida do arquivo original erraria a proporção de outro jeito. [widthPx] e
+ * O seletor reduz a foto (JPEG, no máximo `maxDimension` px no maior lado — default
+ * [PICKED_IMAGE_MAX_DIMENSION] — com qualidade `jpegQuality`, default [PICKED_IMAGE_JPEG_QUALITY])
+ * — então devolver a medida do arquivo original erraria a proporção de outro jeito. [widthPx] e
  * [heightPx] descrevem exatamente os [bytes] que vêm nesta mesma instância.
  *
  * ### Orientação já aplicada
@@ -89,10 +90,78 @@ data class PickedImage(
 }
 
 /**
- * O maior lado que a foto pode ter depois de reduzida. Mora aqui, e não em cada plataforma, porque
- * é ele que amarra a promessa do [PickedImage]: a medida devolvida é a da imagem reduzida.
+ * O maior lado que a foto pode ter depois de reduzida **quando o app não diz outro número**
+ * (parâmetro `maxDimension` do seletor, 2.278.0). Mora aqui, e não em cada plataforma, porque é ele
+ * que amarra a promessa do [PickedImage]: a medida devolvida é a da imagem reduzida.
+ *
+ * 1024 px serve avatar, capa e foto de feed. Foto que vai ser **examinada** depois (avaliação
+ * física, laudo, vistoria) pede mais — passe `maxDimension` até [PICKED_IMAGE_MAX_DIMENSION_LIMIT].
  */
 const val PICKED_IMAGE_MAX_DIMENSION: Int = 1024
+
+/**
+ * O teto do teto (2.278.0): `maxDimension` acima disto é preso aqui. 4096 px no maior lado já é
+ * uma foto de 12 MP inteira; passar disso só aumenta upload e memória sem ninguém enxergar a
+ * diferença numa tela de celular — e uma foto de 48 MP decodificada inteira são ~190 MB de RAM.
+ */
+const val PICKED_IMAGE_MAX_DIMENSION_LIMIT: Int = 4096
+
+/**
+ * O menor `maxDimension` aceito (2.278.0). Abaixo disso a foto deixa de ser foto (vira ícone), e
+ * um zero ou negativo vindo de configuração quebraria o encoder — então é preso aqui, com aviso no
+ * log, em vez de derrubar o app.
+ */
+const val PICKED_IMAGE_MIN_DIMENSION: Int = 64
+
+/**
+ * A qualidade JPEG (1..100) quando o app não diz outra (parâmetro `jpegQuality`, 2.278.0). 85 é o
+ * ponto em que o artefato de compressão some a olho nu e o arquivo ainda fica pequeno.
+ */
+const val PICKED_IMAGE_JPEG_QUALITY: Int = 85
+
+/**
+ * Prende `maxDimension` em [PICKED_IMAGE_MIN_DIMENSION]..[PICKED_IMAGE_MAX_DIMENSION_LIMIT].
+ *
+ * Prender (e não lançar) é de propósito: o valor costuma vir de configuração, e um número fora da
+ * faixa não pode virar um seletor que fecha o app no toque. O log da plataforma nomeia o ajuste.
+ */
+internal fun coercePickedImageMaxDimension(maxDimension: Int): Int =
+    maxDimension.coerceIn(PICKED_IMAGE_MIN_DIMENSION, PICKED_IMAGE_MAX_DIMENSION_LIMIT)
+
+/** Prende `jpegQuality` em 1..100, pelo mesmo motivo de [coercePickedImageMaxDimension]. */
+internal fun coercePickedImageJpegQuality(jpegQuality: Int): Int = jpegQuality.coerceIn(1, 100)
+
+/**
+ * Quantos pixels a decodificação aceita alocar de uma vez (≈ 64 MB em ARGB_8888) — o orçamento que
+ * impede uma foto de 48 MP de ser decodificada inteira só para virar 4096 px depois.
+ */
+internal const val PICKED_IMAGE_DECODE_PIXEL_BUDGET: Long = 4096L * 4096L
+
+/**
+ * O `inSampleSize` (potência de 2) para decodificar uma imagem de [widthPx]×[heightPx] já perto de
+ * [maxDimension] — a técnica oficial do Android ("Loading large bitmaps efficiently"), escrita aqui
+ * em código comum para ser testada.
+ *
+ * Duas regras, nesta ordem:
+ * 1. a maior potência de 2 que ainda deixa o maior lado **≥ [maxDimension]** — a redução exata
+ *    para o teto vem depois, sem perder nitidez;
+ * 2. se mesmo assim a imagem amostrada passar de [pixelBudget] pixels, dobra até caber. É por isso
+ *    que uma foto de 48 MP (8000×6000) com teto 4096 sai com 4000 px: **`maxDimension` é teto, não
+ *    alvo**, e decodificá-la inteira custaria ~190 MB de memória.
+ */
+internal fun decodeSampleSize(
+    widthPx: Int,
+    heightPx: Int,
+    maxDimension: Int,
+    pixelBudget: Long = PICKED_IMAGE_DECODE_PIXEL_BUDGET,
+): Int {
+    if (widthPx <= 0 || heightPx <= 0 || maxDimension <= 0) return 1
+    val maior = maxOf(widthPx, heightPx)
+    var amostra = 1
+    while (maior / (amostra * 2) >= maxDimension) amostra *= 2
+    while ((widthPx / amostra).toLong() * (heightPx / amostra).toLong() > pixelBudget) amostra *= 2
+    return amostra
+}
 
 /**
  * A medida que a foto **vai ter** depois da redução — a conta que Android e iOS fazem, escrita uma
@@ -159,6 +228,19 @@ enum class ImagePickerError {
  * AppButton("Adicionar foto") { seletor.launch() }
  * ```
  *
+ * ## Tamanho e qualidade (2.278.0)
+ *
+ * [maxDimension] é o **teto** do maior lado, em pixels (default [PICKED_IMAGE_MAX_DIMENSION] =
+ * 1024; preso em [PICKED_IMAGE_MIN_DIMENSION]..[PICKED_IMAGE_MAX_DIMENSION_LIMIT]); a foto nunca é
+ * ampliada. [jpegQuality] é a qualidade do JPEG (1..100, default [PICKED_IMAGE_JPEG_QUALITY]).
+ * Foto que alguém vai examinar depois (avaliação física, vistoria) pede algo como
+ * `maxDimension = 2048, jpegQuality = 90`. Nada muda no resto do contrato: continua JPEG, em pé,
+ * sem EXIF/GPS, e HEIC continua virando JPEG.
+ *
+ * ⚠️ Em foto muito grande o resultado pode sair **abaixo** do teto: a decodificação reduz em
+ * potência de 2 para caber em memória (uma de 48 MP com teto 4096 sai com 4000 px). Use sempre
+ * [PickedImage.widthPx]/[PickedImage.heightPx], nunca o valor que pediu.
+ *
  * ## Requisito de manifest (Android)
  *
  * [ImagePickerSource.GALLERY_AND_CAMERA] exige
@@ -172,6 +254,8 @@ expect fun rememberImagePickerLauncher(
     source: ImagePickerSource = ImagePickerSource.GALLERY_AND_CAMERA,
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit = {},
+    maxDimension: Int = PICKED_IMAGE_MAX_DIMENSION,
+    jpegQuality: Int = PICKED_IMAGE_JPEG_QUALITY,
 ): ImagePickerLauncher
 
 // =================================================================================================
@@ -275,10 +359,14 @@ expect class MultiImagePickerLauncher {
  * @param selectionLimit teto de itens por abertura; é preso à faixa aceita pelo sistema.
  * @param onImagesPicked as fotos já reduzidas, giradas e medidas (ver [PickedImage]). Nunca vazia.
  * @param onError por que ao menos uma foto não veio — NUNCA silêncio na tela.
+ * @param maxDimension teto do maior lado (2.278.0) — mesmas regras do [rememberImagePickerLauncher].
+ * @param jpegQuality qualidade do JPEG, 1..100 (2.278.0).
  */
 @Composable
 expect fun rememberMultiImagePickerLauncher(
     selectionLimit: Int = MULTI_IMAGE_PICKER_DEFAULT_LIMIT,
     onImagesPicked: (List<PickedImage>) -> Unit,
     onError: (ImagePickerError) -> Unit = {},
+    maxDimension: Int = PICKED_IMAGE_MAX_DIMENSION,
+    jpegQuality: Int = PICKED_IMAGE_JPEG_QUALITY,
 ): MultiImagePickerLauncher
