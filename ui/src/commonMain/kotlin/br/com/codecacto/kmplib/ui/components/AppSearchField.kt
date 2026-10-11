@@ -5,7 +5,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -52,12 +51,14 @@ object SearchFieldTestTags {
  *   limpou a busca, restaurou um filtro, preencheu com o item escolhido — o campo assume o valor
  *   novo. O eco atrasado do que a pessoa acabou de digitar é reconhecido e ignorado
  *   ([TextInputReconciler]).
- * - Por padrão ([saveable] = `true`) sobrevive a rotação e morte de processo
- *   (`rememberTextFieldState` é *saveable*); se o ViewModel voltar vazio, o texto restaurado é
- *   reenviado a ele.
+ * - Por padrão ([saveable] = `true`) sobrevive a rotação e morte de processo; se o ViewModel voltar
+ *   vazio, o texto restaurado é reenviado a ele. O estado salvo é **só texto + seleção**
+ *   ([rememberTextOnlyTextFieldState], 2.290.0) — o `rememberTextFieldState` do Compose gravava também
+ *   o histórico de desfazer, e no iOS (CMP 1.10.x) restaurá-lo depois de digitar e apagar derrubava o
+ *   app ao voltar à tela (GAP-TEXTSTATE-SAVER-01; CMP-9960).
  *
  * ## Dado sensível: `saveable = false` (2.271.0)
- * O `rememberTextFieldState` grava o texto no estado salvo — o `Bundle` da Activity no Android, o
+ * O caminho salvável grava o texto no estado salvo — o `Bundle` da Activity no Android, o
  * estado restaurado da cena no iOS. Para campo com **dado de saúde** ou outro dado pessoal sensível
  * (anamnese: medicação, lesão, diagnóstico; observação clínica), isso põe o texto num lugar que o app
  * não controla nem apaga. Com `saveable = false` o estado é `remember { TextFieldState(text) }`: só
@@ -84,7 +85,9 @@ fun rememberSyncedTextFieldState(
     onTextChange: (String) -> Unit,
     saveable: Boolean = true,
 ): TextFieldState {
-    val state = if (saveable) rememberTextFieldState(text) else remember { TextFieldState(text) }
+    // Salvável = texto + seleção, SEM o desfazer (2.290.0): o `rememberTextFieldState` do Compose grava o histórico
+    // de desfazer, e restaurá-lo derruba o app no iOS (CMP-9960) — ver [TextOnlyTextFieldStateSaver].
+    val state = if (saveable) rememberTextOnlyTextFieldState(text) else remember { TextFieldState(text) }
     val reconciler = remember { TextInputReconciler(text) }
     val emit by rememberUpdatedState(onTextChange)
 

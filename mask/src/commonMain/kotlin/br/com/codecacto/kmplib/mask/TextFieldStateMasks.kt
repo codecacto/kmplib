@@ -19,7 +19,7 @@ import androidx.compose.foundation.text.input.placeCursorAtEnd
  * o campo de `value`/`onValueChange`; as duas famílias não se misturam no mesmo campo.
  *
  * ```kotlin
- * val telefone = rememberTextFieldState()
+ * val telefone = rememberTextOnlyTextFieldState()   // kmplib-ui: sem o desfazer no estado salvo (CMP-9960, iOS)
  * OutlinedTextField(
  *     state = telefone,
  *     inputTransformation = PhoneInputTransformation,

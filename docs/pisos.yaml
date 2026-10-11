@@ -45,6 +45,19 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.290.0
+    motivo: "iOS: digitar e apagar num campo, sair da tela e voltar FECHA o app (TextUndoManager.Saver, CMP-9960) — campos da lib"
+    simbolos: [AppSearchField, NumberField, AddressFields, rememberSyncedTextFieldState, ChatComposer]
+
+  - versao: 2.290.0
+    motivo: "iOS: rememberTextFieldState do app fecha o app ao voltar à tela — subir E trocar por rememberTextOnlyTextFieldState"
+    padrao: '\brememberTextFieldState\('
+    rotulo: "campo com rememberTextFieldState (trocar por rememberTextOnlyTextFieldState)"
+
+  - versao: 2.290.0
+    motivo: "NavHost recomposto com typeMap de enum esvaziava a pilha até o startDestination (NavType sem equals)"
+    simbolos: [enumTypeMap, enumNullableTypeMap, enumNavType, enumNullableNavType]
+
   - versao: 2.288.0
     motivo: "chave PLACEHOLDER_* configurava o SDK da RevenueCat com chave de mentira; build de QA com o dublê abria o paywall vazio"
     simbolos: [createEntitlementProvider]

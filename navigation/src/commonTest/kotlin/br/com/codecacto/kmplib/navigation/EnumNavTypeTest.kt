@@ -1,10 +1,12 @@
 package br.com.codecacto.kmplib.navigation
 
+import androidx.navigation.NavArgument
 import kotlin.reflect.typeOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -74,5 +76,50 @@ class EnumNavTypeTest {
         assertEquals(2, mapa.size)
         assertSame(false, mapa.getValue(typeOf<Aba>()).isNullableAllowed)
         assertSame(true, mapa.getValue(typeOf<Aba?>()).isNullableAllowed)
+    }
+
+    enum class Outro { RESUMO }
+
+    // --- GAP-NAVTYPE-EQUALS-01 (2.290.0): igualdade estável, senão o setGraph esvazia a pilha ---
+
+    @Test
+    fun `dois NavType do mesmo enum sao iguais e tem o mesmo hash`() {
+        assertEquals(enumNavType<Aba>(), enumNavType<Aba>())
+        assertEquals(enumNavType<Aba>().hashCode(), enumNavType<Aba>().hashCode())
+        assertEquals(enumNullableNavType<Aba>(), enumNullableNavType<Aba>())
+        assertEquals(enumNullableNavType<Aba>().hashCode(), enumNullableNavType<Aba>().hashCode())
+    }
+
+    @Test
+    fun `typeMap refeito a cada recomposicao e igual ao anterior`() {
+        // É o que o NavHost faz quando o construtor do grafo muda de identidade.
+        assertEquals(enumTypeMap<Aba>(), enumTypeMap<Aba>())
+        assertEquals(enumNullableTypeMap<Aba>(), enumNullableTypeMap<Aba>())
+        assertEquals(enumTypeMap<Aba>() + enumTypeMap<Outro>(), enumTypeMap<Aba>() + enumTypeMap<Outro>())
+    }
+
+    @Test
+    fun `argumento do grafo refeito e igual - o setGraph compara por aqui`() {
+        fun argumento() = NavArgument.Builder().setType(enumNavType<Aba>()).build()
+        assertEquals(argumento(), argumento())
+    }
+
+    @Test
+    fun `enums diferentes e nulabilidade diferente nao sao iguais`() {
+        assertNotEquals<Any>(enumNavType<Aba>(), enumNavType<Outro>())
+        assertNotEquals<Any>(enumNullableNavType<Aba>(), enumNullableNavType<Outro>())
+        assertNotEquals<Any>(enumNavType<Aba>(), enumNullableNavType<Aba>())
+        assertNotEquals<Any>(enumNullableNavType<Aba>(), enumNavType<Aba>())
+    }
+
+    @Test
+    fun `nome do tipo e o nome do enum`() {
+        assertEquals("Aba", enumNavType<Aba>().name)
+        assertEquals("Aba?", enumNullableNavType<Aba>().name)
+    }
+
+    @Test
+    fun `anulavel com valor que nao e constante falha alto`() {
+        assertFailsWith<IllegalArgumentException> { enumNullableNavType<Aba>().parseValue("INEXISTENTE") }
     }
 }

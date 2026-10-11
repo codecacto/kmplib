@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
@@ -25,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import br.com.codecacto.kmplib.ui.components.rememberTextOnlyTextFieldState
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -61,7 +61,9 @@ fun ChatComposer(
     recorderConfig: AudioRecorderConfig = AudioRecorderConfig(),
     onVoiceError: (VoiceNoteError) -> Unit = {},
 ) {
-    val campo = rememberTextFieldState()
+    // Texto + seleção no estado salvo, sem o desfazer: o `rememberTextFieldState` do Compose derruba o app no iOS ao
+    // restaurar o desfazer não vazio (CMP-9960, GAP-TEXTSTATE-SAVER-01, 2.290.0).
+    val campo = rememberTextOnlyTextFieldState()
     val gravador = rememberVoiceNoteRecorderState(onRecorded = onSendAudio, onError = onVoiceError, config = recorderConfig)
     val temTexto = campo.text.isNotBlank()
 

@@ -48,7 +48,7 @@ class EstadoNaoSalvavelTest {
     fun `campo sincronizado nao salvavel usa remember e o MESMO reconciler`() {
         val c = corpo(fonte("AppSearchField.kt"), "rememberSyncedTextFieldState")
         assertTrue(
-            c.contains("if (saveable) rememberTextFieldState(text) else remember { TextFieldState(text) }"),
+            c.contains("if (saveable) rememberTextOnlyTextFieldState(text) else remember { TextFieldState(text) }"),
             "o caminho não salvável tem de ser remember { TextFieldState(text) }",
         )
         // Um reconciler só, para os dois caminhos — é a fila de pendentes que segura o eco atrasado.

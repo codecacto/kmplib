@@ -25,6 +25,10 @@ internal class SentryCrashReporter : CrashReporter {
     override val isActive: Boolean get() = active
 
     override fun init(config: CrashReporterConfig) {
+        // Antes de tudo, e mesmo sem DSN: a exceção não tratada vai ao log do aparelho no iOS (2.290.0,
+        // GAP-IOS-UNCAUGHT-LOG-01). Instalado ANTES do `Sentry.init`, que encadeia o gancho dele por cima.
+        ensureUncaughtExceptionLoggerInstalled()
+
         // enabled=false OU DSN em branco => no-op (debug local sem DSN configurado).
         if (!config.enabled || config.dsn.isBlank()) {
             active = false

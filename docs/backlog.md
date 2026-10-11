@@ -22,21 +22,26 @@
       ordem regional; testes por esqueleto. Numéricos (`SHORT`, `TIME`) não mudam.
 
 ### Registrado em 10/out/2026 — dev-mobile (Vitalis)
-- [ ] **GAP-TEXTSTATE-SAVER-01 (Alto, iOS) — `rememberSyncedTextFieldState(saveable = true)` derruba o app ao voltar à
-      tela.** O `rememberTextFieldState` salva o `TextFieldState` COM o histórico de desfazer; no iOS (CMP 1.10.3), depois
+- [x] **GAP-TEXTSTATE-SAVER-01 (Alto, iOS) — `rememberSyncedTextFieldState(saveable = true)` derruba o app ao voltar à
+      tela.** **ENTREGUE na 2.290.0:** `TextOnlyTextFieldStateSaver` + `rememberTextOnlyTextFieldState` (texto + seleção,
+      sem o desfazer), usados por `rememberSyncedTextFieldState` e `ChatComposer`; defeito do Compose = CMP-9960 (corrigido
+      na linha 1.11, CMP-10373 duplicado) — reportado lá, não precisa novo issue. Aviso publicado; piso 2.290.0. O `rememberTextFieldState` salva o `TextFieldState` COM o histórico de desfazer; no iOS (CMP 1.10.3), depois
       de digitar e APAGAR no campo, sair da tela e voltar, a restauração lança `ClassCastException: asList$1 cannot be cast
       to Int` em `TextUndoManager.Companion.Saver` (dentro do `MetalRedrawer.draw`) e o app cai — Android passa. Prova:
       suíte `funcionalidades` do Vitalis, passo `estoque`, rodada `ebf1f7f2` (ios-app.log). Pedido: o saveable da lib usa
       um `Saver` próprio que guarda só texto + seleção (sem o desfazer), em `rememberSyncedTextFieldState`,
       `AppSearchField`, `AppTextField(keepTextLocally)` e afins; e reportar ao JetBrains. Interino no Vitalis: `saveable =
       false` em todo campo (`CampoVitalis`, `cc2c3b9`).
-- [ ] **GAP-IOS-UNCAUGHT-LOG-01 (Médio) — exceção de Kotlin não tratada não deixa a mensagem em lugar nenhum no iOS.** O
+- [x] **GAP-IOS-UNCAUGHT-LOG-01 (Médio) — exceção de Kotlin não tratada não deixa a mensagem em lugar nenhum no iOS.**
+      **ENTREGUE na 2.290.0:** `installUncaughtExceptionLogger(includeStackTrace)` (observability; o `CrashReporter.init`
+      instala sozinho); a casca liga `libbacktrace` no framework DEBUG e a pilha no debug. O
       `.ips` traz só a pilha do C++ (`terminateWithUnhandledException`); `stackTraceToString()` pelo CoreSymbolication
       padrão prende o app por minutos; `NSLog("%@", stringKotlin)` derruba com EXC_BAD_ACCESS. Pedido: o `CrashReporter`
       (observability) registrar tipo + mensagem + pilha no `NSLog` antes de encadear o Sentry, e a casca ligar
       `binaryOption("sourceInfoType", "libbacktrace")` no framework de DEBUG. Interino no Vitalis: `MainViewController`
       (`e9163bb`) e `build.gradle.kts`.
-- [ ] **GAP-NAVTYPE-EQUALS-01 (Alto) — `enumNavType`/`enumNullableNavType` sem `equals`/`hashCode`.** Os dois devolvem
+- [x] **GAP-NAVTYPE-EQUALS-01 (Alto) — `enumNavType`/`enumNullableNavType` sem `equals`/`hashCode`.** **ENTREGUE na
+      2.290.0:** `EnumNavType`/`NullableEnumNavType` com igualdade pela classe do enum; piso 2.290.0. Os dois devolvem
       `object : NavType<T>`, igual só a si mesmo. O `NavHost(startDestination) { … }` refaz o grafo quando o lambda
       construtor muda de identidade, e o `NavController.setGraph` compara o novo com o anterior (destino → argumento →
       `NavType`): com `typeMap = enumTypeMap<T>()` escrito no construtor (a forma que o KDoc ensina), todo grafo refeito

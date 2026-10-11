@@ -5,6 +5,86 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.290.0 — Campo de texto não derruba mais o app no iOS ao voltar à tela; `NavType` de enum com igualdade; exceção não tratada no log do aparelho (Vitalis)
+
+Três achados da suíte de funcionalidades do Vitalis (backlog, 10/out/2026).
+
+### 1. GAP-TEXTSTATE-SAVER-01 — campo de texto salvável derrubava o app no iOS (CRÍTICO)
+
+**Defeito.** O `rememberTextFieldState` do Compose salva o `TextFieldState` **com o histórico de desfazer**. No
+Kotlin/Native (Compose Multiplatform 1.10.x), restaurar esse estado com o desfazer não vazio lança
+`ClassCastException: kotlin.collections.asList$1 cannot be cast to kotlin.Int` em
+`TextUndoManager.Companion.Saver.restore`: **digitar e apagar no campo, sair da tela e voltar fecha o app**. Android
+passa. É defeito do Compose — **CMP-9960** (corrigido na linha 1.11; CMP-10373 é o duplicado com reprodutor em
+1.10.3; AOSP CL 4000634). Atingia, na lib, o `rememberSyncedTextFieldState(saveable = true)` (default) e tudo que o
+usa — **`AppSearchField`, `NumberField`, o CEP do `AddressFields`** — e o **`ChatComposer`**.
+
+**Correção (`kmplib-ui`).** O estado salvo passa a ser **só texto + seleção**, com um `Saver` próprio passado ao
+`rememberSaveable` (o caminho oficial para formato salvo próprio):
+- **`TextOnlyTextFieldStateSaver`** — salva `listOf(texto, inícioDaSeleção, fimDaSeleção)`; restauração defensiva
+  (formato inesperado — inclusive o do `TextFieldState.Saver` gravado antes do bump — devolve `null` e o
+  `rememberSaveable` cai no valor inicial; seleção fora do texto é recortada).
+- **`rememberTextOnlyTextFieldState(initialText, initialSelection)`** — o `rememberTextFieldState` sem o desfazer
+  no estado salvo. **Use no lugar dele em todo campo do app.**
+- `rememberSyncedTextFieldState` e `ChatComposer` usam o novo; `saveable = false` continua decidindo SE salva — o
+  que mudou é O QUE salva. O "desfazer" do que foi digitado antes de sair da tela não volta (nenhum campo da lib
+  oferece desfazer).
+
+**Provas.** `TextOnlyTextFieldStateSaverTest` (7: digitar e apagar → salva 3 valores salváveis; ida e volta;
+restaurado editável; seleção recortada; formato inválido = nulo; formato antigo do Compose lido sem lançar);
+`EstadoNaoSalvavelTest` atualizado. Validação visual do caminho no simulador é do Mac (suíte do Vitalis, passo
+`estoque`).
+
+**Ação do app.** Subir. Quem chama **`rememberTextFieldState(` no próprio código** precisa trocar por
+`rememberTextOnlyTextFieldState(` (o bump sozinho não alcança o código do app). Quem usou `saveable = false` como
+contorno pode voltar ao default.
+
+### 2. GAP-NAVTYPE-EQUALS-01 — grafo refeito esvaziava a pilha (`kmplib-navigation`)
+
+**Defeito.** `enumNavType`/`enumNullableNavType` devolviam `object : NavType<T>` anônimo, igual só a si mesmo. O
+`NavHost(startDestination) { … }` refaz o grafo quando o lambda construtor muda de identidade, e o
+`NavController.setGraph` compara destino → argumento → `NavType`: com `typeMap = enumTypeMap<T>()` escrito no
+construtor (a forma que o KDoc ensinava), todo grafo refeito saía diferente e a pilha voltava ao
+`startDestination` (Vitalis: laço Entrada → Login → Entrada, login impossível nas duas plataformas).
+
+**Correção.** Classes nomeadas **`EnumNavType<T>(enumClass, entries)`** e **`NullableEnumNavType<T>(…)`** com
+`equals`/`hashCode` pela classe do enum (e pela nulabilidade — anulável nunca é igual ao não anulável), como o
+`NavType.EnumType` do androidx; `name` = nome do enum. `enumNavType<T>()`/`enumTypeMap<T>()` (mesma assinatura)
+passam a criá-las. KDoc: o `typeMap` refeito é igual, e a recomendação de criar o mapa uma vez (`private val`)
+continua. **Provas:** `EnumNavTypeTest` 13 (novos: igualdade e hash, `typeMap` refeito igual, `NavArgument` do grafo
+refeito igual, enums/nulabilidade diferentes não iguais, `name`).
+
+**Ação do app.** Subir; nenhuma mudança de código. O `private val` interino pode ficar.
+
+### 3. GAP-IOS-UNCAUGHT-LOG-01 — exceção não tratada no log do aparelho (`kmplib-observability`)
+
+**Defeito.** No iOS, exceção de Kotlin não tratada não deixava o tipo nem a mensagem em lugar nenhum: o `.ips` só
+traz a pilha do C++ (`terminateWithUnhandledException`), o `stderr` do K/N não chega ao log unificado e, sem DSN, o
+GlitchTip também não recebe nada.
+
+**Correção.** **`installUncaughtExceptionLogger(includeStackTrace = false): Boolean`** — o gancho oficial
+`kotlin.native.setUnhandledExceptionHook`, encadeando o anterior: escreve no `NSLog` `Uncaught Kotlin exception:` +
+o **tipo** de cada causa; em **binário de depuração** também a **mensagem**; com `includeStackTrace = true` (só em
+depuração) a **pilha**, linha a linha (teto de 80 linhas × 900 caracteres). O `sentry-kotlin-multiplatform`
+encadeia o dele por cima: a exceção vai ao log **e** ao `CrashReporter`. **`CrashReporter.init` instala sozinho**,
+mesmo com DSN em branco (sem pilha). ⚠️ Pilha exige `binaryOption("sourceInfoType", "libbacktrace")` no framework de
+DEBUG (a casca traz) — sem ele o CoreSymbolication prende o app por minutos. Android: no-op (`false`) — o logcat
+já tem `FATAL EXCEPTION` completo. Texto vai como formato do `NSLog` com `%` escapado (`%@` com `String` do Kotlin
+derruba o app). **Provas:** `UncaughtExceptionLoggerTest` 7 (cadeia, release sem mensagem, teto, pilha, `%`).
+
+**De passagem (`kmplib-core`, iOS).** `AppLogger` passava a mensagem como formato do `NSLog` sem escapar `%` — uma
+URL com `%20` ou um percentual fazia o `NSLog` ler argumento inexistente. Agora escapa.
+
+**Ação do app.** Nada (vem com o `CrashReporter.init`). Para a pilha no debug: `libbacktrace` no framework DEBUG +
+`installUncaughtExceptionLogger(includeStackTrace = Platform.isDebugBinary)` antes do `init` (molde na casca).
+
+**Provas gerais.** `testDebugUnitTest` verde em core 490, ui 1018, navigation 13, observability 26, chat 19, mask 86,
+brdata 195 (0 falha); `compileKotlinIosArm64` de core/ui/navigation/observability/chat/mask/platform/media e
+`compileTestKotlinIosArm64` de ui/navigation/observability verdes, **0 tarefa de compilação SKIPPED**.
+
+**Criticidade.** Item 1 = crash no iOS → **aviso** publicado e **piso** (`simbolos` + `padrao` para quem chama
+`rememberTextFieldState(` direto). Item 2 = fluxo quebrado → **piso** (`simbolos`). Item 3 = diagnóstico, aditivo.
+
 ## 2.289.0 — Pergunta sim/não no `FormRunner` (`FormQuestionType.YES_NO`, L-B08 lado cliente)
 
 **Por quê.** O `backlib-forms` 0.176.0 ganhou `QuestionType.YES_NO` (`"yesNo"`) e as fixtures compartilhadas
