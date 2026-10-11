@@ -21,6 +21,31 @@
       de `appLanguageTag()` e a REGIÃO do aparelho (Android `Locale.Builder`, iOS `NSLocale(localeIdentifier:)`), mantendo a
       ordem regional; testes por esqueleto. Numéricos (`SHORT`, `TIME`) não mudam.
 
+### Registrado em 10/out/2026 — dev-mobile (Vitalis)
+- [ ] **GAP-TEXTSTATE-SAVER-01 (Alto, iOS) — `rememberSyncedTextFieldState(saveable = true)` derruba o app ao voltar à
+      tela.** O `rememberTextFieldState` salva o `TextFieldState` COM o histórico de desfazer; no iOS (CMP 1.10.3), depois
+      de digitar e APAGAR no campo, sair da tela e voltar, a restauração lança `ClassCastException: asList$1 cannot be cast
+      to Int` em `TextUndoManager.Companion.Saver` (dentro do `MetalRedrawer.draw`) e o app cai — Android passa. Prova:
+      suíte `funcionalidades` do Vitalis, passo `estoque`, rodada `ebf1f7f2` (ios-app.log). Pedido: o saveable da lib usa
+      um `Saver` próprio que guarda só texto + seleção (sem o desfazer), em `rememberSyncedTextFieldState`,
+      `AppSearchField`, `AppTextField(keepTextLocally)` e afins; e reportar ao JetBrains. Interino no Vitalis: `saveable =
+      false` em todo campo (`CampoVitalis`, `cc2c3b9`).
+- [ ] **GAP-IOS-UNCAUGHT-LOG-01 (Médio) — exceção de Kotlin não tratada não deixa a mensagem em lugar nenhum no iOS.** O
+      `.ips` traz só a pilha do C++ (`terminateWithUnhandledException`); `stackTraceToString()` pelo CoreSymbolication
+      padrão prende o app por minutos; `NSLog("%@", stringKotlin)` derruba com EXC_BAD_ACCESS. Pedido: o `CrashReporter`
+      (observability) registrar tipo + mensagem + pilha no `NSLog` antes de encadear o Sentry, e a casca ligar
+      `binaryOption("sourceInfoType", "libbacktrace")` no framework de DEBUG. Interino no Vitalis: `MainViewController`
+      (`e9163bb`) e `build.gradle.kts`.
+- [ ] **GAP-NAVTYPE-EQUALS-01 (Alto) — `enumNavType`/`enumNullableNavType` sem `equals`/`hashCode`.** Os dois devolvem
+      `object : NavType<T>`, igual só a si mesmo. O `NavHost(startDestination) { … }` refaz o grafo quando o lambda
+      construtor muda de identidade, e o `NavController.setGraph` compara o novo com o anterior (destino → argumento →
+      `NavType`): com `typeMap = enumTypeMap<T>()` escrito no construtor (a forma que o KDoc ensina), todo grafo refeito
+      sai DIFERENTE e a pilha é esvaziada até o `startDestination`. No Vitalis virou um laço Entrada → Login → Entrada,
+      com o login impossível nas duas plataformas (docs/42, 10/out). Pedido: classe nomeada por enum
+      (`EnumNavType<T>(enumClass, nullable)`) com `equals`/`hashCode` pela classe do enum e pela nulabilidade — como o
+      `NavType.EnumType` do androidx — e o KDoc dizendo para criar o `typeMap` uma vez. Interino no app: `private val`
+      de nível de arquivo com o `enumTypeMap<T>()`.
+
 ### Registrado em 09/out/2026 — LM-K05b entregue + lacunas do bootstrap do Vitalis (lib-mobile)
 - [x] **LM-K05b — `FormRunner` sobre o FormSchema v1: ENTREGUE na 2.268.0** (`ui/form`, catálogo
       `references/ui-form.md`). O par, no app, do `backlib-forms` 0.156.0 e do `FormRunner` da weblib 0.238.0, provado
