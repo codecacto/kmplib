@@ -23,11 +23,20 @@ class AuthSessionStore(
     suspend fun save(session: OwnAuthSession) {
         val raw = json.encodeToString(OwnAuthSession.serializer(), session)
         runCatching { storage.putString(key, raw) }
-            .onFailure { AppLogger.w(TAG, "Falha ao gravar sessão no cofre: ${it.message}") }
+            .onFailure { AppLogger.w(TAG, "Falha ao gravar sessão no cofre: ${it::class.simpleName}") }
     }
 
+    /**
+     * Encerra a sessão no cofre — **fail-closed** (2.292.0): se apagar a chave falhar, apaga o cofre
+     * inteiro (o Android descarta o arquivo cifrado se nem isso gravar). Um logout que não chegou ao
+     * disco ressuscitaria a sessão na próxima abertura.
+     */
     suspend fun clear() {
-        runCatching { storage.remove(key) }
+        runCatching { storage.remove(key) }.onFailure { first ->
+            AppLogger.w(TAG, "Falha ao apagar sessão do cofre (${first::class.simpleName}); limpando o cofre inteiro.")
+            runCatching { storage.clear() }
+                .onFailure { AppLogger.e(TAG, "Cofre não pôde ser limpo: ${it::class.simpleName}") }
+        }
     }
 
     companion object {

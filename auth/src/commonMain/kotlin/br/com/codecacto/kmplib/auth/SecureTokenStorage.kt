@@ -14,17 +14,22 @@ package br.com.codecacto.kmplib.auth
  *   de uma instalação anterior (marca no `UserDefaults`, 2.205.0).
  *
  * Só guarda **String**; o [AuthSessionStore] serializa a sessão inteira (tokens + identidade) num
- * único valor JSON sob uma chave. Toda operação é `suspend` (I/O de disco/keystore) e **best-effort**:
- * uma falha de leitura devolve `null` (usuário tratado como deslogado), nunca lança para a UI.
+ * único valor JSON sob uma chave. Toda operação é `suspend` (I/O de disco/keystore). Leitura é
+ * **best-effort** (falha devolve `null`); escrita é **durável ou lança** (ver [putString]).
  */
 interface SecureTokenStorage {
     /** Lê o valor da [key], ou `null` se ausente/ilegível. */
     suspend fun getString(key: String): String?
 
-    /** Grava (ou substitui) o valor da [key] no cofre. */
+    /**
+     * Grava (ou substitui) o valor da [key] no cofre — e **só retorna com ele DURÁVEL** (2.292.0): o
+     * refresh token é rotativo, e um par que ficou só na memória quando o processo morreu faz a
+     * próxima abertura reapresentar o anterior (reuso → família revogada → logout). Falha de gravação
+     * **lança**; quem chama ([AuthSessionStore]) registra e não propaga à UI.
+     */
     suspend fun putString(key: String, value: String)
 
-    /** Remove a [key] do cofre. Idempotente. */
+    /** Remove a [key] do cofre, de forma durável (um logout que não chegou ao disco ressuscita). Idempotente. */
     suspend fun remove(key: String)
 
     /** Apaga tudo o que este cofre (identificado por `serviceName`) guarda. */

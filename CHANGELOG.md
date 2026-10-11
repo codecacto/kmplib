@@ -5,6 +5,55 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.292.0 — Own-auth: a sessão sobrevive a fechar o app (cofre Android durável e sem apagar por falha passageira; Keychain troca no lugar)
+
+Achado no Meu Advogado (voo-atrasado, emulador Android, 11/out/2026): logado, fechar e reabrir o app —
+a 1ª reabertura mantinha a sessão, a seguinte caía no LOGIN. O cofre da own-auth tinha três defeitos
+que levam a esse desfecho; o `OwnAuthTokenManager` (single-flight, rede ≠ logout, gravar antes de
+publicar) já estava certo e ganhou testes de "reabertura" para continuar assim.
+
+### O que mudou
+
+- **Android — gravação DURÁVEL (`commit()`, não `apply()`).** `putString`/`remove`/`clear` usavam
+  `apply()`: o valor ia para a memória e o disco ficava numa fila que morre com o processo. Com refresh
+  ROTATIVO, um `force-stop` (ou o sistema matando o app) logo depois de uma renovação deixava no disco o
+  par que o servidor já tinha trocado; passados os 30 s de tolerância da backlib, a reabertura
+  apresentava um refresh já usado = **reuso**, a família era revogada e a pessoa caía no login. Agora a
+  escrita é `commit()` em `Dispatchers.IO`, só retorna com o arquivo no disco, é repetida uma vez se o
+  `commit()` devolver `false` e, persistindo, **lança** (o `AuthSessionStore` registra no log). O logout
+  também ficou durável — antes podia "ressuscitar" na abertura seguinte.
+- **Android — o cofre é aberto UMA vez por processo e uma falha passageira não o apaga.** Cada operação
+  refazia `MasterKey` + `EncryptedSharedPreferences.create` e, a QUALQUER exceção, apagava o arquivo
+  cifrado e recriava vazio: um soluço do Keystore (comum logo depois de `force-stop`/boot) virava perda
+  definitiva da sessão, sem nenhuma requisição ao servidor. Agora a instância é guardada, a abertura é
+  tentada 3 vezes com espera crescente (150 ms, 300 ms) e só então o cofre é dado como irrecuperável.
+- **iOS — `putString` troca o item NO LUGAR.** Era "apaga e adiciona", com o status do `SecItemAdd`
+  ignorado: processo morto entre as duas chamadas = sem sessão, e um `SecItemAdd` recusado (ex.:
+  `errSecInteractionNotAllowed`) apagava o par velho sem gravar o novo. Agora `SecItemUpdate` e, só se o
+  item não existe, `SecItemAdd`; status diferente de sucesso lança.
+- **Logout fail-closed.** `AuthSessionStore.clear()`: se apagar a chave falhar, limpa o cofre inteiro;
+  no Android, um `clear()` que não grava DESCARTA o arquivo cifrado; no iOS, o `clear()` confere o
+  status do `SecItemDelete`. Um logout que não chegou ao disco ressuscitaria a sessão.
+- **Log sem texto de terceiro:** falhas do cofre registram só o tipo da exceção (a mensagem vem do
+  Tink/Keychain). No iOS, a cópia retida do valor gravado (a sessão serializada) passou a ser solta.
+- **Contrato do `SecureTokenStorage` documentado:** escrita é durável ou lança; leitura é best-effort;
+  um processo só.
+
+### Para o app
+
+Nada a mudar — basta subir. Piso em `docs/pisos.yaml` (símbolos do own-auth). Sem aviso: ninguém fica
+bloqueado (a pessoa entra de novo), e não há perda de dado; é um logout indevido.
+
+### Provas
+
+`AndroidSecureTokenStorageTest` (8: o `SharedPreferences` falso separa memória de disco — só o que foi
+`commit()` sobrevive a "matar o processo"; voltar ao `apply()` reprova 4 deles) e
+`OwnAuthSessionDurabilityTest` (6: reabrir depois de um refresh apresenta o par NOVO; o token renovado só
+sai depois de gravado; três pedidos concorrentes no boot = um refresh; sem rede no boot não desloga nem
+apaga o cofre; gravação que falha não derruba a sessão em memória; logout com remoção recusada limpa o cofre). Revisão de
+segurança (security-reviewer): aprovado com ressalvas, as quatro aplicadas nesta versão. `:kmplib-auth:testDebugUnitTest`
+verde; `:kmplib-auth:compileKotlinIosArm64` compilado (não SKIPPED).
+
 ## 2.291.0 — Sem Google Analytics, Crashlytics nem AD_ID: `kmplib-auth` não depende mais do `kmplib-firebase`; trava de grafo na lib
 
 Regra do fundador (11/out/2026): **Crashlytics, Google Analytics for Firebase e a permissão `AD_ID` nunca existem em

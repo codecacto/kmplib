@@ -153,19 +153,45 @@ internal class IosSecureTokenStorage(
         NSString.create(data, NSUTF8StringEncoding) as String?
     }
 
+    /**
+     * Grava trocando o valor **no lugar** (2.292.0): `SecItemUpdate` no item existente e
+     * `SecItemAdd` só quando ele não existe. Até a 2.291.0 era "apaga e adiciona", com o status do
+     * `SecItemAdd` ignorado: entre as duas chamadas não havia sessão nenhuma no cofre (processo
+     * morto ali = deslogado), e um `SecItemAdd` recusado (ex.: `errSecInteractionNotAllowed`, o app
+     * acordado antes do primeiro desbloqueio) apagava o par antigo sem gravar o novo, em silêncio.
+     * Agora o par antigo só sai quando o novo entrou, e status diferente de sucesso **lança** — o
+     * [AuthSessionStore] registra a falha.
+     */
     override suspend fun putString(key: String, value: String) {
         prepararCofre()
-        remove(key)
-        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
-        memScoped {
+        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding)
+            ?: throw IllegalStateException("Keychain: valor não codificável em UTF-8.")
+        // A cópia retida do segredo é solta no fim (o dicionário faz o próprio retain).
+        val dataRef = CFBridgingRetain(data)
+        try { memScoped {
+            val query = cfDictionaryOf(
+                kSecClass to kSecClassGenericPassword,
+                kSecAttrService to serviceName.toCFString(),
+                kSecAttrAccount to key.toCFString(),
+            )
+            val changes = cfDictionaryOf(
+                kSecValueData to dataRef,
+                kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            )
+            val updated = SecItemUpdate(query, changes)
+            if (updated == errSecSuccess) return@memScoped
+            check(updated == errSecItemNotFound) { "Keychain: SecItemUpdate falhou (status $updated)." }
             val attributes = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,
                 kSecAttrService to serviceName.toCFString(),
                 kSecAttrAccount to key.toCFString(),
-                kSecValueData to CFBridgingRetain(data),
+                kSecValueData to dataRef,
                 kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             )
-            SecItemAdd(attributes, null)
+            val added = SecItemAdd(attributes, null)
+            check(added == errSecSuccess) { "Keychain: SecItemAdd falhou (status $added)." }
+        } } finally {
+            CFBridgingRelease(dataRef)
         }
     }
 
@@ -184,17 +210,17 @@ internal class IosSecureTokenStorage(
 
     override suspend fun clear() {
         prepararCofre()
-        apagarItensDoServico()
+        val status = apagarItensDoServico()
+        // Fail-closed (2.292.0): um logout que o Keychain recusou não pode passar por concluído.
+        check(status == errSecSuccess || status == errSecItemNotFound) { "Keychain: limpeza falhou (status $status)." }
     }
 
-    private fun apagarItensDoServico() {
-        memScoped {
-            val query = cfDictionaryOf(
-                kSecClass to kSecClassGenericPassword,
-                kSecAttrService to serviceName.toCFString(),
-            )
-            SecItemDelete(query)
-        }
+    private fun apagarItensDoServico(): Int = memScoped {
+        val query = cfDictionaryOf(
+            kSecClass to kSecClassGenericPassword,
+            kSecAttrService to serviceName.toCFString(),
+        )
+        SecItemDelete(query)
     }
 
     private fun String.toCFString(): CFTypeRef? = CFBridgingRetain(this as NSString)
