@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_stepper_decrease
 import br.com.codecacto.kmplib.generated.resources.kmplib_stepper_increase
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Próximo valor do stepper: [value] + [delta], preso em [[min], [max]] e sem estourar `Int`.
@@ -76,7 +76,7 @@ fun AppStepper(
                 onClick = { onValueChange(stepperNextValue(current, -step, min, max)) },
                 enabled = enabled && current > min,
             ) {
-                Icon(Icons.Filled.Remove, contentDescription = stringResource(Res.string.kmplib_stepper_decrease))
+                Icon(Icons.Filled.Remove, contentDescription = kmpStringResource(Res.string.kmplib_stepper_decrease))
             }
             Text(
                 text = valueText(current),
@@ -91,7 +91,7 @@ fun AppStepper(
                 onClick = { onValueChange(stepperNextValue(current, step, min, max)) },
                 enabled = enabled && current < max,
             ) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(Res.string.kmplib_stepper_increase))
+                Icon(Icons.Filled.Add, contentDescription = kmpStringResource(Res.string.kmplib_stepper_increase))
             }
         }
     }

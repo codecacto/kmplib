@@ -29,7 +29,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_video_recorder_recordi
 import br.com.codecacto.kmplib.generated.resources.kmplib_video_recorder_recording_time
 import br.com.codecacto.kmplib.generated.resources.kmplib_video_recorder_stop
 import br.com.codecacto.kmplib.generated.resources.kmplib_video_recorder_stop_disabled
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos visíveis (e lidos pelo leitor de tela) do [VideoRecorderCamera]. O default
@@ -76,34 +76,34 @@ data class VideoRecorderTexts(
 /** [VideoRecorderTexts] no idioma do aparelho (pt-BR / pt-PT / en / es). */
 @Composable
 fun rememberVideoRecorderTexts(): VideoRecorderTexts {
-    val tempo = stringResource(Res.string.kmplib_video_recorder_recording_time, "\u0001", "\u0002")
-    val contagem = stringResource(Res.string.kmplib_video_recorder_countdown, "\u0001")
+    val tempo = kmpStringResource(Res.string.kmplib_video_recorder_recording_time, "\u0001", "\u0002")
+    val contagem = kmpStringResource(Res.string.kmplib_video_recorder_countdown, "\u0001")
     return VideoRecorderTexts(
-        record = stringResource(Res.string.kmplib_video_recorder_record),
-        stop = stringResource(Res.string.kmplib_video_recorder_stop),
-        stopDisabled = stringResource(Res.string.kmplib_video_recorder_stop_disabled),
+        record = kmpStringResource(Res.string.kmplib_video_recorder_record),
+        stop = kmpStringResource(Res.string.kmplib_video_recorder_stop),
+        stopDisabled = kmpStringResource(Res.string.kmplib_video_recorder_stop_disabled),
         recordingTime = { a, b -> tempo.replace("\u0001", a).replace("\u0002", b) },
         countdown = { s -> contagem.replace("\u0001", s.toString()) },
-        cancelCountdown = stringResource(Res.string.kmplib_video_recorder_cancel_countdown),
-        finishing = stringResource(Res.string.kmplib_video_recorder_finishing),
-        useFrontLens = stringResource(Res.string.kmplib_guided_camera_use_front),
-        useBackLens = stringResource(Res.string.kmplib_guided_camera_use_back),
-        close = stringResource(Res.string.kmplib_guided_camera_close),
-        starting = stringResource(Res.string.kmplib_guided_camera_starting),
-        permissionTitle = stringResource(Res.string.kmplib_guided_camera_permission_title),
-        permissionMessage = stringResource(Res.string.kmplib_video_recorder_permission_message),
-        permissionAllow = stringResource(Res.string.kmplib_guided_camera_permission_allow),
-        permissionDeniedMessage = stringResource(Res.string.kmplib_video_recorder_permission_denied_message),
-        microphoneTitle = stringResource(Res.string.kmplib_video_recorder_microphone_title),
-        microphoneMessage = stringResource(Res.string.kmplib_video_recorder_microphone_message),
-        microphoneAllow = stringResource(Res.string.kmplib_video_recorder_microphone_allow),
-        microphoneDeniedMessage = stringResource(Res.string.kmplib_video_recorder_microphone_denied_message),
-        openSettings = stringResource(Res.string.kmplib_guided_camera_open_settings),
-        cameraUnavailable = stringResource(Res.string.kmplib_guided_camera_unavailable),
-        initializationFailed = stringResource(Res.string.kmplib_guided_camera_init_failed),
-        retry = stringResource(Res.string.kmplib_guided_camera_retry),
-        recordingFailed = stringResource(Res.string.kmplib_video_recorder_recording_failed),
-        noSpace = stringResource(Res.string.kmplib_video_recorder_no_space),
-        limitReached = stringResource(Res.string.kmplib_video_recorder_limit_reached),
+        cancelCountdown = kmpStringResource(Res.string.kmplib_video_recorder_cancel_countdown),
+        finishing = kmpStringResource(Res.string.kmplib_video_recorder_finishing),
+        useFrontLens = kmpStringResource(Res.string.kmplib_guided_camera_use_front),
+        useBackLens = kmpStringResource(Res.string.kmplib_guided_camera_use_back),
+        close = kmpStringResource(Res.string.kmplib_guided_camera_close),
+        starting = kmpStringResource(Res.string.kmplib_guided_camera_starting),
+        permissionTitle = kmpStringResource(Res.string.kmplib_guided_camera_permission_title),
+        permissionMessage = kmpStringResource(Res.string.kmplib_video_recorder_permission_message),
+        permissionAllow = kmpStringResource(Res.string.kmplib_guided_camera_permission_allow),
+        permissionDeniedMessage = kmpStringResource(Res.string.kmplib_video_recorder_permission_denied_message),
+        microphoneTitle = kmpStringResource(Res.string.kmplib_video_recorder_microphone_title),
+        microphoneMessage = kmpStringResource(Res.string.kmplib_video_recorder_microphone_message),
+        microphoneAllow = kmpStringResource(Res.string.kmplib_video_recorder_microphone_allow),
+        microphoneDeniedMessage = kmpStringResource(Res.string.kmplib_video_recorder_microphone_denied_message),
+        openSettings = kmpStringResource(Res.string.kmplib_guided_camera_open_settings),
+        cameraUnavailable = kmpStringResource(Res.string.kmplib_guided_camera_unavailable),
+        initializationFailed = kmpStringResource(Res.string.kmplib_guided_camera_init_failed),
+        retry = kmpStringResource(Res.string.kmplib_guided_camera_retry),
+        recordingFailed = kmpStringResource(Res.string.kmplib_video_recorder_recording_failed),
+        noSpace = kmpStringResource(Res.string.kmplib_video_recorder_no_space),
+        limitReached = kmpStringResource(Res.string.kmplib_video_recorder_limit_reached),
     )
 }

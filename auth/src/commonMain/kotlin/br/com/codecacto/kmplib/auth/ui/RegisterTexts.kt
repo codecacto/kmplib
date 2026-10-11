@@ -23,7 +23,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_register_terms_prefix
 import br.com.codecacto.kmplib.generated.resources.kmplib_terms_of_use
 import br.com.codecacto.kmplib.generated.resources.kmplib_and
 import br.com.codecacto.kmplib.generated.resources.kmplib_privacy_policy
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos da `RegisterScreen` — lambdas `@Composable`, e cada default é um `stringResource` da lib
@@ -36,27 +36,27 @@ import org.jetbrains.compose.resources.stringResource
  * instrução "Digite seu telefone", no idioma do aparelho.
  */
 data class RegisterTexts(
-    val title: @Composable (() -> String)? = { stringResource(Res.string.kmplib_register_title) },
-    val nameLabel: @Composable () -> String = { stringResource(Res.string.kmplib_name_label) },
-    val namePlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_name_placeholder) },
-    val emailLabel: @Composable () -> String = { stringResource(Res.string.kmplib_email_label) },
-    val emailPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_email_placeholder) },
-    val phoneLabel: @Composable () -> String = { stringResource(Res.string.kmplib_phone_label) },
+    val title: @Composable (() -> String)? = { kmpStringResource(Res.string.kmplib_register_title) },
+    val nameLabel: @Composable () -> String = { kmpStringResource(Res.string.kmplib_name_label) },
+    val namePlaceholder: @Composable () -> String = { kmpStringResource(Res.string.kmplib_name_placeholder) },
+    val emailLabel: @Composable () -> String = { kmpStringResource(Res.string.kmplib_email_label) },
+    val emailPlaceholder: @Composable () -> String = { kmpStringResource(Res.string.kmplib_email_placeholder) },
+    val phoneLabel: @Composable () -> String = { kmpStringResource(Res.string.kmplib_phone_label) },
     val phonePlaceholder: @Composable () -> String = { FormPlaceholders.PHONE },
-    val passwordLabel: @Composable () -> String = { stringResource(Res.string.kmplib_password_label) },
-    val passwordPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_password_placeholder) },
-    val confirmPasswordLabel: @Composable () -> String = { stringResource(Res.string.kmplib_confirm_password_label) },
-    val confirmPasswordPlaceholder: @Composable () -> String = { stringResource(Res.string.kmplib_confirm_password_placeholder) },
-    val registerButton: @Composable () -> String = { stringResource(Res.string.kmplib_register_button) },
-    val loginPrompt: @Composable () -> String = { stringResource(Res.string.kmplib_login_prompt) },
-    val loginLink: @Composable () -> String = { stringResource(Res.string.kmplib_login_link) },
-    val orContinueWith: @Composable () -> String = { stringResource(Res.string.kmplib_or_continue_with) },
-    val googleRegister: @Composable () -> String = { stringResource(Res.string.kmplib_google_register) },
-    val appleRegister: @Composable () -> String = { stringResource(Res.string.kmplib_apple_register) },
+    val passwordLabel: @Composable () -> String = { kmpStringResource(Res.string.kmplib_password_label) },
+    val passwordPlaceholder: @Composable () -> String = { kmpStringResource(Res.string.kmplib_password_placeholder) },
+    val confirmPasswordLabel: @Composable () -> String = { kmpStringResource(Res.string.kmplib_confirm_password_label) },
+    val confirmPasswordPlaceholder: @Composable () -> String = { kmpStringResource(Res.string.kmplib_confirm_password_placeholder) },
+    val registerButton: @Composable () -> String = { kmpStringResource(Res.string.kmplib_register_button) },
+    val loginPrompt: @Composable () -> String = { kmpStringResource(Res.string.kmplib_login_prompt) },
+    val loginLink: @Composable () -> String = { kmpStringResource(Res.string.kmplib_login_link) },
+    val orContinueWith: @Composable () -> String = { kmpStringResource(Res.string.kmplib_or_continue_with) },
+    val googleRegister: @Composable () -> String = { kmpStringResource(Res.string.kmplib_google_register) },
+    val appleRegister: @Composable () -> String = { kmpStringResource(Res.string.kmplib_apple_register) },
     // O espaço do fim fica no código: espaço na ponta de um recurso XML é frágil.
-    val termsPrefix: @Composable () -> String = { stringResource(Res.string.kmplib_register_terms_prefix) + " " },
-    val termsText: @Composable () -> String = { stringResource(Res.string.kmplib_terms_of_use) },
+    val termsPrefix: @Composable () -> String = { kmpStringResource(Res.string.kmplib_register_terms_prefix) + " " },
+    val termsText: @Composable () -> String = { kmpStringResource(Res.string.kmplib_terms_of_use) },
     /** A tela já põe um espaço de cada lado. */
-    val andText: @Composable () -> String = { stringResource(Res.string.kmplib_and) },
-    val privacyText: @Composable () -> String = { stringResource(Res.string.kmplib_privacy_policy) },
+    val andText: @Composable () -> String = { kmpStringResource(Res.string.kmplib_and) },
+    val privacyText: @Composable () -> String = { kmpStringResource(Res.string.kmplib_privacy_policy) },
 )

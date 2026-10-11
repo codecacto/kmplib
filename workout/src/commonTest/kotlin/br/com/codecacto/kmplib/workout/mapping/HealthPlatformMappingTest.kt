@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class HealthPlatformMappingTest {
 
     @Test
-    fun `toda categoria tem tipo de sessao, segmento e atividade do HealthKit`() {
+    fun `toda categoria tem tipo de sessao - segmento e atividade do HealthKit`() {
         for (category in ExerciseCategory.entries) {
             assertTrue(HealthPlatformMapping.healthConnectExerciseTypeName(category).startsWith("EXERCISE_TYPE_"))
             assertTrue(HealthPlatformMapping.healthConnectSegmentTypeName(category).startsWith("EXERCISE_SEGMENT_TYPE_"))
@@ -25,14 +25,14 @@ class HealthPlatformMappingTest {
     }
 
     @Test
-    fun `cardio no HealthKit e mixedCardio, nunca danca`() {
+    fun `cardio no HealthKit e mixedCardio - nunca danca`() {
         assertEquals("mixedCardio", HealthPlatformMapping.healthKitActivityTypeName(ExerciseCategory.CARDIO))
         assertEquals("EXERCISE_TYPE_OTHER_WORKOUT", HealthPlatformMapping.healthConnectExerciseTypeName(ExerciseCategory.CARDIO))
         assertEquals("EXERCISE_SEGMENT_TYPE_AEROBIC", HealthPlatformMapping.healthConnectSegmentTypeName(ExerciseCategory.CARDIO))
     }
 
     @Test
-    fun `mobilidade, circuito e HIIT`() {
+    fun `mobilidade - circuito e HIIT`() {
         assertEquals("flexibility", HealthPlatformMapping.healthKitActivityTypeName(ExerciseCategory.MOBILITY))
         assertEquals("EXERCISE_TYPE_STRETCHING", HealthPlatformMapping.healthConnectExerciseTypeName(ExerciseCategory.MOBILITY))
         assertEquals("EXERCISE_SEGMENT_TYPE_STRETCHING", HealthPlatformMapping.healthConnectSegmentTypeName(ExerciseCategory.MOBILITY))
@@ -44,7 +44,7 @@ class HealthPlatformMappingTest {
     }
 
     @Test
-    fun `exercicio fora do catalogo Garmin fica sinalizado com null, nunca com chave inventada`() {
+    fun `exercicio fora do catalogo Garmin fica sinalizado com null - nunca com chave inventada`() {
         val catalog = mapOf("squat" to "SQUAT_BARBELL_BACK_SQUAT")
         assertEquals("SQUAT_BARBELL_BACK_SQUAT", HealthPlatformMapping.garminCatalogKey("squat", catalog))
         assertNull(HealthPlatformMapping.garminCatalogKey("prancha-lateral", catalog))

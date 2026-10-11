@@ -14,7 +14,7 @@ class MetTableTest {
     }
 
     @Test
-    fun `circuito de 5 a 7,5`() {
+    fun `circuito de 5 a 7 e meio`() {
         assertEquals(5.0, MetTable.metFor(WorkoutType.CIRCUIT, WorkoutIntensity.LIGHT))
         assertEquals(6.25, MetTable.metFor(WorkoutType.CIRCUIT, WorkoutIntensity.MODERATE))
         assertEquals(7.5, MetTable.metFor(WorkoutType.CIRCUIT, WorkoutIntensity.VIGOROUS))
@@ -28,7 +28,7 @@ class MetTableTest {
     }
 
     @Test
-    fun `esforco ate 4 leve, 5 a 7 moderado, 8 ou mais vigoroso`() {
+    fun `esforco ate 4 leve - 5 a 7 moderado - 8 ou mais vigoroso`() {
         assertEquals(WorkoutIntensity.LIGHT, MetTable.intensityFromEffort(1))
         assertEquals(WorkoutIntensity.LIGHT, MetTable.intensityFromEffort(4))
         assertEquals(WorkoutIntensity.MODERATE, MetTable.intensityFromEffort(5))

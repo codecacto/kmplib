@@ -105,7 +105,10 @@ fun deviceLanguage(): String = splitLanguageTag(deviceLanguageTag())?.first ?: "
  * É o valor a mandar ao servidor (`Accept-Language`, `locale` do cadastro) para que o que ele gera —
  * e-mail, PDF, push, mensagem de erro — saia no idioma que a pessoa está lendo no app.
  *
- * @param supported os idiomas que o app traduz; o default são os 4 da fábrica.
+ * @param supported os idiomas que o app traduz; o default são os declarados em
+ *   [KmpLibLocales.configure] (2.288.0) — os 4 da fábrica enquanto o app não declarar. Até a
+ *   2.287.0 o default eram sempre os 4, e um app só pt-BR num aparelho em inglês mandava `en` ao
+ *   servidor com a tela em português.
  */
-fun appLanguageTag(supported: List<String> = FactoryLocales.ALL): String =
+fun appLanguageTag(supported: List<String> = KmpLibLocales.supported): String =
     FactoryLocales.match(deviceLanguageTag(), supported)

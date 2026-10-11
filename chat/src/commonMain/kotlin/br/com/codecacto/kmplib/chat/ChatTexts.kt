@@ -22,7 +22,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_chat_yesterday
 import br.com.codecacto.kmplib.generated.resources.kmplib_chat_you
 import br.com.codecacto.kmplib.media.voicenote.VoiceNoteTexts
 import br.com.codecacto.kmplib.media.voicenote.rememberVoiceNoteTexts
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /** Textos da conversa. Defaults pt-BR; [rememberChatTexts] traz os 4 idiomas no idioma da tela. */
 data class ChatTexts(
@@ -50,26 +50,26 @@ data class ChatTexts(
 /** Os textos da conversa no idioma da tela (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberChatTexts(): ChatTexts {
-    val voz = stringResource(Res.string.kmplib_chat_voice_message, "\u0001")
+    val voz = kmpStringResource(Res.string.kmplib_chat_voice_message, "\u0001")
     return ChatTexts(
-        inputPlaceholder = stringResource(Res.string.kmplib_chat_input_placeholder),
-        send = stringResource(Res.string.kmplib_chat_send),
-        sending = stringResource(Res.string.kmplib_chat_sending),
-        sent = stringResource(Res.string.kmplib_chat_sent),
-        read = stringResource(Res.string.kmplib_chat_read),
-        failed = stringResource(Res.string.kmplib_chat_failed),
-        retry = stringResource(Res.string.kmplib_chat_retry),
-        discard = stringResource(Res.string.kmplib_chat_discard),
-        unread = stringResource(Res.string.kmplib_chat_unread),
-        today = stringResource(Res.string.kmplib_chat_today),
-        yesterday = stringResource(Res.string.kmplib_chat_yesterday),
-        loadingOlder = stringResource(Res.string.kmplib_chat_loading_older),
-        empty = stringResource(Res.string.kmplib_chat_empty),
-        jumpToLatest = stringResource(Res.string.kmplib_chat_jump_to_latest),
-        newMessages = stringResource(Res.string.kmplib_chat_new_messages),
+        inputPlaceholder = kmpStringResource(Res.string.kmplib_chat_input_placeholder),
+        send = kmpStringResource(Res.string.kmplib_chat_send),
+        sending = kmpStringResource(Res.string.kmplib_chat_sending),
+        sent = kmpStringResource(Res.string.kmplib_chat_sent),
+        read = kmpStringResource(Res.string.kmplib_chat_read),
+        failed = kmpStringResource(Res.string.kmplib_chat_failed),
+        retry = kmpStringResource(Res.string.kmplib_chat_retry),
+        discard = kmpStringResource(Res.string.kmplib_chat_discard),
+        unread = kmpStringResource(Res.string.kmplib_chat_unread),
+        today = kmpStringResource(Res.string.kmplib_chat_today),
+        yesterday = kmpStringResource(Res.string.kmplib_chat_yesterday),
+        loadingOlder = kmpStringResource(Res.string.kmplib_chat_loading_older),
+        empty = kmpStringResource(Res.string.kmplib_chat_empty),
+        jumpToLatest = kmpStringResource(Res.string.kmplib_chat_jump_to_latest),
+        newMessages = kmpStringResource(Res.string.kmplib_chat_new_messages),
         voiceMessage = { voz.replace("\u0001", it) },
-        you = stringResource(Res.string.kmplib_chat_you),
-        loadError = stringResource(Res.string.kmplib_chat_load_error),
+        you = kmpStringResource(Res.string.kmplib_chat_you),
+        loadError = kmpStringResource(Res.string.kmplib_chat_load_error),
         voiceNote = rememberVoiceNoteTexts(),
     )
 }

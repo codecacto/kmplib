@@ -14,7 +14,7 @@ import br.com.codecacto.kmplib.ui.mvi.UiAction
 import br.com.codecacto.kmplib.ui.mvi.UiEffect
 import br.com.codecacto.kmplib.ui.mvi.UiState
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.compose.resources.getString
+import br.com.codecacto.kmplib.ui.locale.kmpGetString
 
 /**
  * Estado do [PaywallViewModel] (2.224.0). Embute o [PaywallState] que a [PaywallScreen] desenha e
@@ -213,10 +213,10 @@ data class PaywallMessages(
 suspend fun loadPaywallMessages(): PaywallMessages {
     val own = try {
         PaywallMessages(
-            nothingToRestore = getString(Res.string.kmplib_paywall_nothing_to_restore),
-            unavailable = getString(Res.string.kmplib_paywall_unavailable),
-            savingsTemplate = getString(Res.string.kmplib_paywall_savings),
-            identityUnconfirmed = getString(Res.string.kmplib_paywall_identity_unconfirmed),
+            nothingToRestore = kmpGetString(Res.string.kmplib_paywall_nothing_to_restore),
+            unavailable = kmpGetString(Res.string.kmplib_paywall_unavailable),
+            savingsTemplate = kmpGetString(Res.string.kmplib_paywall_savings),
+            identityUnconfirmed = kmpGetString(Res.string.kmplib_paywall_identity_unconfirmed),
         )
     } catch (e: CancellationException) {
         throw e

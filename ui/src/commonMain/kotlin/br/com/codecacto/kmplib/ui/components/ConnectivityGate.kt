@@ -9,7 +9,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_modal_mes
 import br.com.codecacto.kmplib.generated.resources.kmplib_retry
 import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_screen_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_connectivity_checking
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -354,14 +354,14 @@ fun ConnectivityGate(
 /** [ConnectivityTexts] no idioma do aparelho (2.219.0). */
 @Composable
 fun rememberConnectivityTexts(): ConnectivityTexts {
-    val titulo = stringResource(Res.string.kmplib_connectivity_title)
+    val titulo = kmpStringResource(Res.string.kmplib_connectivity_title)
     return ConnectivityTexts(
         modalTitle = titulo,
-        modalMessage = stringResource(Res.string.kmplib_connectivity_modal_message),
-        retryButton = stringResource(Res.string.kmplib_retry),
+        modalMessage = kmpStringResource(Res.string.kmplib_connectivity_modal_message),
+        retryButton = kmpStringResource(Res.string.kmplib_retry),
         bannerText = titulo,
         screenTitle = titulo,
-        screenMessage = stringResource(Res.string.kmplib_connectivity_screen_message),
-        checkingButton = stringResource(Res.string.kmplib_connectivity_checking),
+        screenMessage = kmpStringResource(Res.string.kmplib_connectivity_screen_message),
+        checkingButton = kmpStringResource(Res.string.kmplib_connectivity_checking),
     )
 }

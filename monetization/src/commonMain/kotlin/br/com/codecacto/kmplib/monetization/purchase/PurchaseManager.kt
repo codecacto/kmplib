@@ -31,6 +31,17 @@ object PurchaseManager {
     val repository: PurchaseRepository?
         get() = _repository
 
+    /**
+     * Já há uma loja instalada neste processo? (2.288.0) — `true` depois do `initialize` com chave
+     * **ou** quando um repositório foi instalado sem SDK: o dublê da `kmplib-testing`
+     * (`PurchaseTestHooks.instalar`), que o build de QA (`-Pqa.paywallDemo=true`) instala no boot,
+     * ANTES do Koin. É o que o [br.com.codecacto.kmplib.monetization.entitlement.createEntitlementProvider]
+     * e o [br.com.codecacto.kmplib.monetization.MonetizationManager.initializeWhenStoreAvailable]
+     * consultam para não mandar o paywall de QA para o stub vazio.
+     */
+    val hasInstalledStore: Boolean
+        get() = _repository != null
+
     /** Flow do estado da assinatura. */
     val subscriptionState: Flow<SubscriptionInfo>
         get() = _repository?.subscriptionState

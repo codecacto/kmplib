@@ -3,6 +3,18 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 10/out/2026 — GAP-PT-M31 entregue na 2.288.0 (lib-mobile)
+- [x] **GAP-PT-M31 — idiomas declarados pelo app: ENTREGUE na 2.288.0.** `KmpLibLocales.configure(supported)` +
+      resolvedor central `kmpStringResource`/`kmpGetString` (base pt-BR gerada do `values/strings.xml`); todo texto da
+      lib — inclusive `load…Texts()` dos ViewModels, nomes de plano e o sufixo "/ano" do preço — segue o idioma que o
+      APP mostra. Trava da chave da loja na fundação: `MonetizationManager.initializeWhenStoreAvailable` e
+      `createEntitlementProvider` falando com o dublê de QA instalado.
+- [ ] **GAP-REGIONALFORMAT-MONTH-01 (Baixo) — nome de MÊS do `RegionalFormat` segue a língua do aparelho.**
+      `DateSkeletons.MEDIUM`/`LONG` (`dMMMy`/`dMMMMy`) formatam com `Locale.getDefault()`/`NSLocale.currentLocale`: app só
+      pt-BR em aparelho em inglês mostra "Oct 10, 2026". Pedido: para esqueletos com texto, montar o locale com a LÍNGUA
+      de `appLanguageTag()` e a REGIÃO do aparelho (Android `Locale.Builder`, iOS `NSLocale(localeIdentifier:)`), mantendo a
+      ordem regional; testes por esqueleto. Numéricos (`SHORT`, `TIME`) não mudam.
+
 ### Registrado em 09/out/2026 — LM-K05b entregue + lacunas do bootstrap do Vitalis (lib-mobile)
 - [x] **LM-K05b — `FormRunner` sobre o FormSchema v1: ENTREGUE na 2.268.0** (`ui/form`, catálogo
       `references/ui-form.md`). O par, no app, do `backlib-forms` 0.156.0 e do `FormRunner` da weblib 0.238.0, provado

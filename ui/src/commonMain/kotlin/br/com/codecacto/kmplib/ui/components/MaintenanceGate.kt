@@ -5,7 +5,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_maintenance_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_maintenance_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_retry
 import br.com.codecacto.kmplib.generated.resources.kmplib_checking
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.runtime.Composable
@@ -109,8 +109,8 @@ fun MaintenanceGate(
 /** [MaintenanceTexts] no idioma do aparelho (2.219.0). A mensagem do servidor, quando vem, continua vencendo. */
 @Composable
 fun rememberMaintenanceTexts(): MaintenanceTexts = MaintenanceTexts(
-    title = stringResource(Res.string.kmplib_maintenance_title),
-    message = stringResource(Res.string.kmplib_maintenance_message),
-    retryButton = stringResource(Res.string.kmplib_retry),
-    checkingButton = stringResource(Res.string.kmplib_checking),
+    title = kmpStringResource(Res.string.kmplib_maintenance_title),
+    message = kmpStringResource(Res.string.kmplib_maintenance_message),
+    retryButton = kmpStringResource(Res.string.kmplib_retry),
+    checkingButton = kmpStringResource(Res.string.kmplib_checking),
 )

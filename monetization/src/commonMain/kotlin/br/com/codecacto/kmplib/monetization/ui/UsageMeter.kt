@@ -1,6 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_usage_unlimited
 import br.com.codecacto.kmplib.generated.resources.kmplib_usage_count
@@ -123,7 +123,7 @@ fun UsageBadge(
 @Composable
 private fun usageText(usage: UsageSnapshot): String =
     if (usage.isUnlimited) {
-        stringResource(Res.string.kmplib_usage_unlimited)
+        kmpStringResource(Res.string.kmplib_usage_unlimited)
     } else {
-        stringResource(Res.string.kmplib_usage_count, usage.contagem, usage.limite)
+        kmpStringResource(Res.string.kmplib_usage_count, usage.contagem, usage.limite)
     }

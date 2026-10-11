@@ -55,7 +55,7 @@ class ModelToStringTest {
     }
 
     @Test
-    fun `WorkoutRun imprime so ids e contagens, nem as series dentro`() {
+    fun `WorkoutRun imprime so ids e contagens - nem as series dentro`() {
         val texto = run().toString()
         assertEquals(
             "WorkoutRun(localId=run-1, planId=plan-1, finished=true, sets=2, skippedExercises=1, " +

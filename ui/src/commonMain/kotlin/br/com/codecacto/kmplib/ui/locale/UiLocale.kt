@@ -18,8 +18,6 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_required
 import br.com.codecacto.kmplib.generated.resources.kmplib_locale_tag
 import br.com.codecacto.kmplib.sync.rest.DomainApiTexts
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.stringResource
 
 /*
  * # Os textos da lib no idioma da tela, também FORA da composição
@@ -43,7 +41,7 @@ import org.jetbrains.compose.resources.stringResource
  */
 suspend fun uiLanguageTag(): String =
     try {
-        getString(Res.string.kmplib_locale_tag)
+        kmpGetString(Res.string.kmplib_locale_tag)
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
@@ -58,13 +56,13 @@ suspend fun uiLanguageTag(): String =
  */
 suspend fun loadDomainApiTexts(): DomainApiTexts =
     try {
-        val servidor = getString(Res.string.kmplib_error_server)
+        val servidor = kmpGetString(Res.string.kmplib_error_server)
         DomainApiTexts(
-            offline = getString(Res.string.kmplib_error_network),
-            rateLimited = getString(Res.string.kmplib_error_rate_limited),
-            sessionExpired = getString(Res.string.kmplib_error_session_expired),
-            reauthRequired = getString(Res.string.kmplib_reauth_required),
-            quotaReached = getString(Res.string.kmplib_error_quota_reached),
+            offline = kmpGetString(Res.string.kmplib_error_network),
+            rateLimited = kmpGetString(Res.string.kmplib_error_rate_limited),
+            sessionExpired = kmpGetString(Res.string.kmplib_error_session_expired),
+            reauthRequired = kmpGetString(Res.string.kmplib_reauth_required),
+            quotaReached = kmpGetString(Res.string.kmplib_error_quota_reached),
             serverError = { codigo -> formatStatusTemplate(servidor, codigo) },
         )
     } catch (e: CancellationException) {
@@ -79,7 +77,7 @@ suspend fun loadDomainApiTexts(): DomainApiTexts =
  */
 @Composable
 fun rememberDatePlaceholder(): String =
-    RegionalFormat.datePlaceholder(stringResource(Res.string.kmplib_date_year_letter).firstOrNull() ?: 'y')
+    RegionalFormat.datePlaceholder(kmpStringResource(Res.string.kmplib_date_year_letter).firstOrNull() ?: 'y')
 
 /**
  * O [PhoneInputFormat] da **região do aparelho** — o brasileiro de sempre no Brasil (e quando a
@@ -96,7 +94,7 @@ fun rememberDevicePhoneInputFormat(): PhoneInputFormat = remember { PhoneInputFo
  */
 @Composable
 fun rememberPhonePlaceholder(format: PhoneInputFormat): String =
-    if (format.isBrazilian) FormPlaceholders.PHONE else stringResource(Res.string.kmplib_phone_placeholder)
+    if (format.isBrazilian) FormPlaceholders.PHONE else kmpStringResource(Res.string.kmplib_phone_placeholder)
 
 /**
  * Substitui o `%1$d` de um modelo lido **sem** argumento (o `getString`/`stringResource` sem args

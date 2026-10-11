@@ -57,7 +57,7 @@ class ProtocolTest {
     }
 
     @Test
-    fun `Command, Ack e Metrics atravessam a ponte e levam a versao`() {
+    fun `Command - Ack e Metrics atravessam a ponte e levam a versao`() {
         val command = Command(seq = 4, id = "cmd-1", event = CommandEvent.CompleteSet(8, 57.5))
         assertEquals(command, Json.decodeFromString<Command>(Json.encodeToString(command)))
         assertEquals(WORKOUT_PROTOCOL_VERSION, command.v)

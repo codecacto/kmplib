@@ -2,7 +2,7 @@ package br.com.codecacto.kmplib.ui.security
 
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_unlock
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -252,6 +252,6 @@ private fun DefaultLockMark() {
 /** [AppLockTexts] no idioma do aparelho (2.219.0). */
 @Composable
 fun rememberAppLockTexts(): AppLockTexts {
-    val desbloquear = stringResource(Res.string.kmplib_unlock)
+    val desbloquear = kmpStringResource(Res.string.kmplib_unlock)
     return AppLockTexts(unlockButton = desbloquear, promptTitle = desbloquear)
 }

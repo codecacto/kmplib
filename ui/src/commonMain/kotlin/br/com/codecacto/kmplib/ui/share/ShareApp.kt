@@ -19,7 +19,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_share_app_message
 import br.com.codecacto.kmplib.platform.AppShareLink
 import br.com.codecacto.kmplib.platform.ShareHandler
 import br.com.codecacto.kmplib.platform.getShareHandler
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * `utm_content` default da entrada "Compartilhar app" do menu. Outras telas passam o próprio
@@ -48,8 +48,8 @@ data class ShareAppTexts(
 /** [ShareAppTexts] no idioma do aparelho, com [appName] na mensagem e no título. */
 @Composable
 fun rememberShareAppTexts(appName: String): ShareAppTexts = ShareAppTexts(
-    label = stringResource(Res.string.kmplib_share_app_label),
-    message = stringResource(Res.string.kmplib_share_app_message, appName),
+    label = kmpStringResource(Res.string.kmplib_share_app_label),
+    message = kmpStringResource(Res.string.kmplib_share_app_message, appName),
     title = appName,
 )
 

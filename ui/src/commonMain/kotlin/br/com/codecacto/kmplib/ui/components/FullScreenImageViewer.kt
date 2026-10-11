@@ -6,7 +6,7 @@ import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_close
 import br.com.codecacto.kmplib.generated.resources.kmplib_download_image
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -239,7 +239,7 @@ fun FullScreenImageViewer(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Download,
-                                contentDescription = stringResource(Res.string.kmplib_download_image)
+                                contentDescription = kmpStringResource(Res.string.kmplib_download_image)
                             )
                         }
                     }
@@ -255,7 +255,7 @@ fun FullScreenImageViewer(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(Res.string.kmplib_close)
+                        contentDescription = kmpStringResource(Res.string.kmplib_close)
                     )
                 }
             }
@@ -384,7 +384,7 @@ fun FullScreenGallery(
                     contentColor = Color.White,
                 ),
             ) {
-                Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(Res.string.kmplib_close))
+                Icon(imageVector = Icons.Default.Close, contentDescription = kmpStringResource(Res.string.kmplib_close))
             }
         }
     }

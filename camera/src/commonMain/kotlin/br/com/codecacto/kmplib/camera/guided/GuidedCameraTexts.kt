@@ -20,7 +20,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_starting
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_unavailable
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_use_back
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_use_front
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos visíveis (e lidos pelo leitor de tela) da [GuidedCamera].
@@ -65,22 +65,22 @@ data class GuidedCameraTexts(
 /** [GuidedCameraTexts] no idioma do aparelho (pt-BR / pt-PT / en / es). */
 @Composable
 fun rememberGuidedCameraTexts(): GuidedCameraTexts = GuidedCameraTexts(
-    capture = stringResource(Res.string.kmplib_guided_camera_capture),
-    useFrontLens = stringResource(Res.string.kmplib_guided_camera_use_front),
-    useBackLens = stringResource(Res.string.kmplib_guided_camera_use_back),
-    flashOff = stringResource(Res.string.kmplib_guided_camera_flash_off),
-    flashAuto = stringResource(Res.string.kmplib_guided_camera_flash_auto),
-    flashOn = stringResource(Res.string.kmplib_guided_camera_flash_on),
-    close = stringResource(Res.string.kmplib_guided_camera_close),
-    starting = stringResource(Res.string.kmplib_guided_camera_starting),
-    permissionTitle = stringResource(Res.string.kmplib_guided_camera_permission_title),
-    permissionMessage = stringResource(Res.string.kmplib_guided_camera_permission_message),
-    permissionAllow = stringResource(Res.string.kmplib_guided_camera_permission_allow),
-    permissionDeniedMessage = stringResource(Res.string.kmplib_guided_camera_permission_denied_message),
-    openSettings = stringResource(Res.string.kmplib_guided_camera_open_settings),
-    cameraUnavailable = stringResource(Res.string.kmplib_guided_camera_unavailable),
-    initializationFailed = stringResource(Res.string.kmplib_guided_camera_init_failed),
-    retry = stringResource(Res.string.kmplib_guided_camera_retry),
-    captureFailed = stringResource(Res.string.kmplib_guided_camera_capture_failed),
-    capturing = stringResource(Res.string.kmplib_guided_camera_capturing),
+    capture = kmpStringResource(Res.string.kmplib_guided_camera_capture),
+    useFrontLens = kmpStringResource(Res.string.kmplib_guided_camera_use_front),
+    useBackLens = kmpStringResource(Res.string.kmplib_guided_camera_use_back),
+    flashOff = kmpStringResource(Res.string.kmplib_guided_camera_flash_off),
+    flashAuto = kmpStringResource(Res.string.kmplib_guided_camera_flash_auto),
+    flashOn = kmpStringResource(Res.string.kmplib_guided_camera_flash_on),
+    close = kmpStringResource(Res.string.kmplib_guided_camera_close),
+    starting = kmpStringResource(Res.string.kmplib_guided_camera_starting),
+    permissionTitle = kmpStringResource(Res.string.kmplib_guided_camera_permission_title),
+    permissionMessage = kmpStringResource(Res.string.kmplib_guided_camera_permission_message),
+    permissionAllow = kmpStringResource(Res.string.kmplib_guided_camera_permission_allow),
+    permissionDeniedMessage = kmpStringResource(Res.string.kmplib_guided_camera_permission_denied_message),
+    openSettings = kmpStringResource(Res.string.kmplib_guided_camera_open_settings),
+    cameraUnavailable = kmpStringResource(Res.string.kmplib_guided_camera_unavailable),
+    initializationFailed = kmpStringResource(Res.string.kmplib_guided_camera_init_failed),
+    retry = kmpStringResource(Res.string.kmplib_guided_camera_retry),
+    captureFailed = kmpStringResource(Res.string.kmplib_guided_camera_capture_failed),
+    capturing = kmpStringResource(Res.string.kmplib_guided_camera_capturing),
 )

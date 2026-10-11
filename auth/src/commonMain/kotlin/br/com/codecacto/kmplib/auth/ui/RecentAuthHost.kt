@@ -45,7 +45,7 @@ import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Estado da **reautenticação na tela** (2.261.0) — é o [ReauthPrompt] que o [RecentAuthHost] desenha.
@@ -291,20 +291,20 @@ data class RecentAuthTexts(
 /** [RecentAuthTexts] no idioma do aparelho (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberRecentAuthTexts(): RecentAuthTexts {
-    val conta = stringResource(Res.string.kmplib_reauth_account)
+    val conta = kmpStringResource(Res.string.kmplib_reauth_account)
     return RecentAuthTexts(
-        title = stringResource(Res.string.kmplib_reauth_title),
-        message = stringResource(Res.string.kmplib_reauth_message),
-        messageSocial = stringResource(Res.string.kmplib_reauth_message_social),
-        passwordLabel = stringResource(Res.string.kmplib_reauth_password),
-        wrongPassword = stringResource(Res.string.kmplib_reauth_wrong_password),
-        confirm = stringResource(Res.string.kmplib_reauth_confirm),
-        cancel = stringResource(Res.string.kmplib_cancel),
-        continueWithGoogle = stringResource(Res.string.kmplib_reauth_continue_google),
-        continueWithApple = stringResource(Res.string.kmplib_reauth_continue_apple),
+        title = kmpStringResource(Res.string.kmplib_reauth_title),
+        message = kmpStringResource(Res.string.kmplib_reauth_message),
+        messageSocial = kmpStringResource(Res.string.kmplib_reauth_message_social),
+        passwordLabel = kmpStringResource(Res.string.kmplib_reauth_password),
+        wrongPassword = kmpStringResource(Res.string.kmplib_reauth_wrong_password),
+        confirm = kmpStringResource(Res.string.kmplib_reauth_confirm),
+        cancel = kmpStringResource(Res.string.kmplib_cancel),
+        continueWithGoogle = kmpStringResource(Res.string.kmplib_reauth_continue_google),
+        continueWithApple = kmpStringResource(Res.string.kmplib_reauth_continue_apple),
         account = { conta.replace("%1\$s", it) },
-        accountMismatch = stringResource(Res.string.kmplib_reauth_account_mismatch),
-        reauthRequired = stringResource(Res.string.kmplib_reauth_required),
-        failed = stringResource(Res.string.kmplib_reauth_failed),
+        accountMismatch = kmpStringResource(Res.string.kmplib_reauth_account_mismatch),
+        reauthRequired = kmpStringResource(Res.string.kmplib_reauth_required),
+        failed = kmpStringResource(Res.string.kmplib_reauth_failed),
     )
 }

@@ -20,7 +20,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_voice_note_send
 import br.com.codecacto.kmplib.generated.resources.kmplib_voice_note_slide_to_cancel
 import br.com.codecacto.kmplib.generated.resources.kmplib_voice_note_too_short
 import br.com.codecacto.kmplib.media.AudioRecorderError
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos da nota de voz (gravador e player). Defaults em pt-BR; [rememberVoiceNoteTexts] traz os 4
@@ -57,26 +57,26 @@ data class VoiceNoteTexts(
 /** Os textos da nota de voz no idioma da tela (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberVoiceNoteTexts(): VoiceNoteTexts {
-    val gravando = stringResource(Res.string.kmplib_voice_note_recording, "\u0001")
-    val descricao = stringResource(Res.string.kmplib_voice_note_description, "\u0001")
+    val gravando = kmpStringResource(Res.string.kmplib_voice_note_recording, "\u0001")
+    val descricao = kmpStringResource(Res.string.kmplib_voice_note_description, "\u0001")
     return VoiceNoteTexts(
-        record = stringResource(Res.string.kmplib_voice_note_record),
-        slideToCancel = stringResource(Res.string.kmplib_voice_note_slide_to_cancel),
+        record = kmpStringResource(Res.string.kmplib_voice_note_record),
+        slideToCancel = kmpStringResource(Res.string.kmplib_voice_note_slide_to_cancel),
         recording = { gravando.replace("\u0001", it) },
-        locked = stringResource(Res.string.kmplib_voice_note_locked),
-        send = stringResource(Res.string.kmplib_voice_note_send),
-        cancel = stringResource(Res.string.kmplib_voice_note_cancel),
-        tooShort = stringResource(Res.string.kmplib_voice_note_too_short),
-        permission = stringResource(Res.string.kmplib_voice_note_permission),
-        openSettings = stringResource(Res.string.kmplib_voice_note_open_settings),
-        busy = stringResource(Res.string.kmplib_voice_note_busy),
-        failed = stringResource(Res.string.kmplib_voice_note_failed),
-        play = stringResource(Res.string.kmplib_voice_note_play),
-        pause = stringResource(Res.string.kmplib_voice_note_pause),
+        locked = kmpStringResource(Res.string.kmplib_voice_note_locked),
+        send = kmpStringResource(Res.string.kmplib_voice_note_send),
+        cancel = kmpStringResource(Res.string.kmplib_voice_note_cancel),
+        tooShort = kmpStringResource(Res.string.kmplib_voice_note_too_short),
+        permission = kmpStringResource(Res.string.kmplib_voice_note_permission),
+        openSettings = kmpStringResource(Res.string.kmplib_voice_note_open_settings),
+        busy = kmpStringResource(Res.string.kmplib_voice_note_busy),
+        failed = kmpStringResource(Res.string.kmplib_voice_note_failed),
+        play = kmpStringResource(Res.string.kmplib_voice_note_play),
+        pause = kmpStringResource(Res.string.kmplib_voice_note_pause),
         description = { descricao.replace("\u0001", it) },
-        loading = stringResource(Res.string.kmplib_voice_note_loading),
-        playError = stringResource(Res.string.kmplib_voice_note_play_error),
-        retry = stringResource(Res.string.kmplib_voice_note_retry),
+        loading = kmpStringResource(Res.string.kmplib_voice_note_loading),
+        playError = kmpStringResource(Res.string.kmplib_voice_note_play_error),
+        retry = kmpStringResource(Res.string.kmplib_voice_note_retry),
     )
 }
 

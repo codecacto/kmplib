@@ -2,7 +2,7 @@ package br.com.codecacto.kmplib.ui.components
 
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_notifications
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -46,7 +46,7 @@ fun NotificationBadge(
         IconButton(onClick = onClick) {
             Icon(
                 imageVector = Icons.Default.Notifications,
-                contentDescription = stringResource(Res.string.kmplib_notifications),
+                contentDescription = kmpStringResource(Res.string.kmplib_notifications),
                 tint = iconTint
             )
         }

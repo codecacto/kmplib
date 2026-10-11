@@ -2,8 +2,8 @@ package br.com.codecacto.kmplib.monetization.purchase
 
 import androidx.compose.runtime.Composable
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpGetString
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_purchase_network
 import br.com.codecacto.kmplib.generated.resources.kmplib_purchase_store
@@ -143,19 +143,19 @@ fun PurchaseErrorCode.userMessage(texts: PurchaseErrorTexts = PurchaseErrorTexts
 suspend fun loadPurchaseErrorTexts(): PurchaseErrorTexts =
     try {
         PurchaseErrorTexts(
-            networkError = getString(Res.string.kmplib_purchase_network),
-            storeError = getString(Res.string.kmplib_purchase_store),
-            productNotFound = getString(Res.string.kmplib_purchase_product_not_found),
-            paymentPending = getString(Res.string.kmplib_purchase_pending),
-            paymentDeclined = getString(Res.string.kmplib_purchase_declined),
-            alreadyOwned = getString(Res.string.kmplib_purchase_already_owned),
-            configurationError = getString(Res.string.kmplib_purchase_configuration),
-            purchaseNotAllowed = getString(Res.string.kmplib_purchase_not_allowed),
-            alreadyOwnedByOtherUser = getString(Res.string.kmplib_purchase_other_user),
-            purchaseInProgress = getString(Res.string.kmplib_purchase_in_progress),
-            ineligible = getString(Res.string.kmplib_purchase_ineligible),
-            userCancelled = getString(Res.string.kmplib_purchase_cancelled),
-            unknown = getString(Res.string.kmplib_purchase_unknown),
+            networkError = kmpGetString(Res.string.kmplib_purchase_network),
+            storeError = kmpGetString(Res.string.kmplib_purchase_store),
+            productNotFound = kmpGetString(Res.string.kmplib_purchase_product_not_found),
+            paymentPending = kmpGetString(Res.string.kmplib_purchase_pending),
+            paymentDeclined = kmpGetString(Res.string.kmplib_purchase_declined),
+            alreadyOwned = kmpGetString(Res.string.kmplib_purchase_already_owned),
+            configurationError = kmpGetString(Res.string.kmplib_purchase_configuration),
+            purchaseNotAllowed = kmpGetString(Res.string.kmplib_purchase_not_allowed),
+            alreadyOwnedByOtherUser = kmpGetString(Res.string.kmplib_purchase_other_user),
+            purchaseInProgress = kmpGetString(Res.string.kmplib_purchase_in_progress),
+            ineligible = kmpGetString(Res.string.kmplib_purchase_ineligible),
+            userCancelled = kmpGetString(Res.string.kmplib_purchase_cancelled),
+            unknown = kmpGetString(Res.string.kmplib_purchase_unknown),
         )
     } catch (e: CancellationException) {
         throw e
@@ -166,17 +166,17 @@ suspend fun loadPurchaseErrorTexts(): PurchaseErrorTexts =
 /** [PurchaseErrorTexts] no idioma do aparelho, para quem monta a mensagem na composição. */
 @Composable
 fun rememberPurchaseErrorTexts(): PurchaseErrorTexts = PurchaseErrorTexts(
-    networkError = stringResource(Res.string.kmplib_purchase_network),
-    storeError = stringResource(Res.string.kmplib_purchase_store),
-    productNotFound = stringResource(Res.string.kmplib_purchase_product_not_found),
-    paymentPending = stringResource(Res.string.kmplib_purchase_pending),
-    paymentDeclined = stringResource(Res.string.kmplib_purchase_declined),
-    alreadyOwned = stringResource(Res.string.kmplib_purchase_already_owned),
-    configurationError = stringResource(Res.string.kmplib_purchase_configuration),
-    purchaseNotAllowed = stringResource(Res.string.kmplib_purchase_not_allowed),
-    alreadyOwnedByOtherUser = stringResource(Res.string.kmplib_purchase_other_user),
-    purchaseInProgress = stringResource(Res.string.kmplib_purchase_in_progress),
-    ineligible = stringResource(Res.string.kmplib_purchase_ineligible),
-    userCancelled = stringResource(Res.string.kmplib_purchase_cancelled),
-    unknown = stringResource(Res.string.kmplib_purchase_unknown),
+    networkError = kmpStringResource(Res.string.kmplib_purchase_network),
+    storeError = kmpStringResource(Res.string.kmplib_purchase_store),
+    productNotFound = kmpStringResource(Res.string.kmplib_purchase_product_not_found),
+    paymentPending = kmpStringResource(Res.string.kmplib_purchase_pending),
+    paymentDeclined = kmpStringResource(Res.string.kmplib_purchase_declined),
+    alreadyOwned = kmpStringResource(Res.string.kmplib_purchase_already_owned),
+    configurationError = kmpStringResource(Res.string.kmplib_purchase_configuration),
+    purchaseNotAllowed = kmpStringResource(Res.string.kmplib_purchase_not_allowed),
+    alreadyOwnedByOtherUser = kmpStringResource(Res.string.kmplib_purchase_other_user),
+    purchaseInProgress = kmpStringResource(Res.string.kmplib_purchase_in_progress),
+    ineligible = kmpStringResource(Res.string.kmplib_purchase_ineligible),
+    userCancelled = kmpStringResource(Res.string.kmplib_purchase_cancelled),
+    unknown = kmpStringResource(Res.string.kmplib_purchase_unknown),
 )

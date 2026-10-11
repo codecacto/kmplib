@@ -47,7 +47,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Campo de data com seletor em modal ([DatePickerDialog] do Material3).
@@ -110,13 +110,13 @@ fun AppDatePicker(
     isEnabled: Boolean = true,
     placeholder: String = rememberDatePlaceholder(),
     formatDate: (LocalDate) -> String = { RegionalFormat.formatDate(it) },
-    confirmText: String = stringResource(Res.string.kmplib_ok),
-    dismissText: String = stringResource(Res.string.kmplib_cancel),
+    confirmText: String = kmpStringResource(Res.string.kmplib_ok),
+    dismissText: String = kmpStringResource(Res.string.kmplib_cancel),
     errorMessage: String? = null,
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
     onClear: (() -> Unit)? = null,
-    clearText: String = stringResource(Res.string.kmplib_date_clear),
+    clearText: String = kmpStringResource(Res.string.kmplib_date_clear),
     ephemeral: Boolean = false,
 ) {
     var showDialog by remember { mutableStateOf(false) }
@@ -257,8 +257,8 @@ fun AppDatePickerDialog(
     selectedDate: LocalDate?,
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = stringResource(Res.string.kmplib_ok),
-    dismissText: String = stringResource(Res.string.kmplib_cancel),
+    confirmText: String = kmpStringResource(Res.string.kmplib_ok),
+    dismissText: String = kmpStringResource(Res.string.kmplib_cancel),
     minDate: LocalDate? = null,
     maxDate: LocalDate? = null,
     ephemeral: Boolean = false,

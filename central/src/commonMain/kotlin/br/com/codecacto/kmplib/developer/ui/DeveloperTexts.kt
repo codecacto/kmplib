@@ -21,7 +21,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email_subject_from
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_section
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_empty
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos customizáveis para a [DeveloperScreen].
@@ -62,26 +62,26 @@ fun rememberDeveloperTexts(
     appName: String? = remember { BuildInfo.appName },
 ): DeveloperTexts =
     DeveloperTexts(
-        title = stringResource(Res.string.kmplib_dev_title),
-        subtitle = stringResource(Res.string.kmplib_dev_subtitle),
-        brandSlogan = stringResource(Res.string.kmplib_dev_slogan),
-        contactSectionTitle = stringResource(Res.string.kmplib_dev_contact_section),
-        contactButton = stringResource(Res.string.kmplib_contact_title),
-        whatsappButton = stringResource(Res.string.kmplib_dev_whatsapp),
-        emailButton = stringResource(Res.string.kmplib_dev_email),
-        siteButton = stringResource(Res.string.kmplib_dev_site),
+        title = kmpStringResource(Res.string.kmplib_dev_title),
+        subtitle = kmpStringResource(Res.string.kmplib_dev_subtitle),
+        brandSlogan = kmpStringResource(Res.string.kmplib_dev_slogan),
+        contactSectionTitle = kmpStringResource(Res.string.kmplib_dev_contact_section),
+        contactButton = kmpStringResource(Res.string.kmplib_contact_title),
+        whatsappButton = kmpStringResource(Res.string.kmplib_dev_whatsapp),
+        emailButton = kmpStringResource(Res.string.kmplib_dev_email),
+        siteButton = kmpStringResource(Res.string.kmplib_dev_site),
         whatsappMessage = if (appName.isNullOrBlank()) {
-            stringResource(Res.string.kmplib_dev_whatsapp_message)
+            kmpStringResource(Res.string.kmplib_dev_whatsapp_message)
         } else {
-            stringResource(Res.string.kmplib_dev_whatsapp_message_from_app, appName)
+            kmpStringResource(Res.string.kmplib_dev_whatsapp_message_from_app, appName)
         },
         emailSubject = if (appName.isNullOrBlank()) {
-            stringResource(Res.string.kmplib_dev_email_subject)
+            kmpStringResource(Res.string.kmplib_dev_email_subject)
         } else {
-            stringResource(Res.string.kmplib_dev_email_subject_from_app, appName)
+            kmpStringResource(Res.string.kmplib_dev_email_subject_from_app, appName)
         },
-        appsSectionTitle = stringResource(Res.string.kmplib_dev_apps_section),
-        appsEmpty = stringResource(Res.string.kmplib_dev_apps_empty),
-        backContentDescription = stringResource(Res.string.kmplib_back),
+        appsSectionTitle = kmpStringResource(Res.string.kmplib_dev_apps_section),
+        appsEmpty = kmpStringResource(Res.string.kmplib_dev_apps_empty),
+        backContentDescription = kmpStringResource(Res.string.kmplib_back),
         contact = rememberContactTexts(phoneFormat),
     )

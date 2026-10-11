@@ -15,7 +15,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_error_session_expired
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_too_many_attempts
 import br.com.codecacto.kmplib.ui.locale.formatStatusTemplate
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.compose.resources.getString
+import br.com.codecacto.kmplib.ui.locale.kmpGetString
 
 /**
  * [OwnAuthTexts] no **idioma da tela** (pt-BR, en, es, pt-PT), lido dos recursos da lib (2.219.0).
@@ -31,20 +31,20 @@ import org.jetbrains.compose.resources.getString
  */
 suspend fun loadOwnAuthTexts(): OwnAuthTexts =
     try {
-        val servidor = getString(Res.string.kmplib_error_server)
+        val servidor = kmpGetString(Res.string.kmplib_error_server)
         OwnAuthTexts(
-            invalidCredentials = getString(Res.string.kmplib_auth_invalid_credentials),
-            emailAlreadyInUse = getString(Res.string.kmplib_auth_email_in_use),
-            weakPassword = getString(Res.string.kmplib_auth_weak_password),
-            invalidResetToken = getString(Res.string.kmplib_auth_invalid_reset),
-            tooManyRequests = getString(Res.string.kmplib_error_too_many_attempts),
-            network = getString(Res.string.kmplib_error_network),
-            sessionExpired = getString(Res.string.kmplib_error_session_expired),
-            socialRejected = getString(Res.string.kmplib_auth_social_rejected),
+            invalidCredentials = kmpGetString(Res.string.kmplib_auth_invalid_credentials),
+            emailAlreadyInUse = kmpGetString(Res.string.kmplib_auth_email_in_use),
+            weakPassword = kmpGetString(Res.string.kmplib_auth_weak_password),
+            invalidResetToken = kmpGetString(Res.string.kmplib_auth_invalid_reset),
+            tooManyRequests = kmpGetString(Res.string.kmplib_error_too_many_attempts),
+            network = kmpGetString(Res.string.kmplib_error_network),
+            sessionExpired = kmpGetString(Res.string.kmplib_error_session_expired),
+            socialRejected = kmpGetString(Res.string.kmplib_auth_social_rejected),
             server = { codigo -> formatStatusTemplate(servidor, codigo) },
-            unsupported = getString(Res.string.kmplib_auth_unsupported),
-            currentPasswordIncorrect = getString(Res.string.kmplib_auth_current_password_incorrect),
-            profileRejected = getString(Res.string.kmplib_auth_profile_rejected),
+            unsupported = kmpGetString(Res.string.kmplib_auth_unsupported),
+            currentPasswordIncorrect = kmpGetString(Res.string.kmplib_auth_current_password_incorrect),
+            profileRejected = kmpGetString(Res.string.kmplib_auth_profile_rejected),
         )
     } catch (e: CancellationException) {
         throw e

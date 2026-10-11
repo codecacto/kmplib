@@ -20,7 +20,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_corrupted
 import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_error_io
 import br.com.codecacto.kmplib.generated.resources.kmplib_pdf_page_indicator
 import br.com.codecacto.kmplib.ui.locale.formatTwoNumberTemplate
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsBytes
@@ -83,13 +83,13 @@ data class PdfViewerTexts(
  */
 @Composable
 fun rememberPdfViewerTexts(): PdfViewerTexts {
-    val carregando = stringResource(Res.string.kmplib_pdf_loading)
-    val tentar = stringResource(Res.string.kmplib_pdf_retry)
-    val rede = stringResource(Res.string.kmplib_pdf_error_network)
-    val naoEncontrado = stringResource(Res.string.kmplib_pdf_error_not_found)
-    val corrompido = stringResource(Res.string.kmplib_pdf_error_corrupted)
-    val io = stringResource(Res.string.kmplib_pdf_error_io)
-    val pagina = stringResource(Res.string.kmplib_pdf_page_indicator)
+    val carregando = kmpStringResource(Res.string.kmplib_pdf_loading)
+    val tentar = kmpStringResource(Res.string.kmplib_pdf_retry)
+    val rede = kmpStringResource(Res.string.kmplib_pdf_error_network)
+    val naoEncontrado = kmpStringResource(Res.string.kmplib_pdf_error_not_found)
+    val corrompido = kmpStringResource(Res.string.kmplib_pdf_error_corrupted)
+    val io = kmpStringResource(Res.string.kmplib_pdf_error_io)
+    val pagina = kmpStringResource(Res.string.kmplib_pdf_page_indicator)
     return remember(carregando, tentar, rede, naoEncontrado, corrompido, io, pagina) {
         PdfViewerTexts(
             loading = carregando,

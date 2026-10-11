@@ -117,7 +117,7 @@ class SwapAndDurationTest {
     // ── troca ──
 
     @Test
-    fun `troca no InSet do item mantem o cursor, recomeca a serie e registra o substituto`() {
+    fun `troca no InSet do item mantem o cursor - recomeca a serie e registra o substituto`() {
         val s0 = started(simplePlan())
         val s1 = engine.reduce(s0, WorkoutEvent.SwapExercise("ex-1", "leg-press", "aparelho ocupado"), T0 + 5.seconds)
         val inSet = assertIs<WorkoutState.InSet>(s1)
@@ -156,7 +156,7 @@ class SwapAndDurationTest {
     }
 
     @Test
-    fun `troca sem efeito - mesmo exercicio, item inexistente, id em branco, item concluido ou pulado`() {
+    fun `troca sem efeito - mesmo exercicio - item inexistente - id em branco - item concluido ou pulado`() {
         val s0 = started(simplePlan())
         assertSame(s0, engine.reduce(s0, WorkoutEvent.SwapExercise("ex-1", "squat"), T0))
         assertSame(s0, engine.reduce(s0, WorkoutEvent.SwapExercise("ex-9", "leg-press"), T0))
@@ -198,7 +198,7 @@ class SwapAndDurationTest {
     }
 
     @Test
-    fun `undo desfaz a troca primeiro e depois a serie, em ordem inversa`() {
+    fun `undo desfaz a troca primeiro e depois a serie - em ordem inversa`() {
         val s0 = started(simplePlan())
         val swapped = engine.reduce(s0, WorkoutEvent.SwapExercise("ex-1", "leg-press"), T0 + 5.seconds)
         val undone = engine.reduce(swapped, WorkoutEvent.Undo, T0 + 6.seconds) as WorkoutState.InSet

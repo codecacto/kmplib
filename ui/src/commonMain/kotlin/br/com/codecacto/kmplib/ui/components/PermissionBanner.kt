@@ -14,7 +14,7 @@ import br.com.codecacto.kmplib.platform.permission.AppPermission
 import br.com.codecacto.kmplib.platform.permission.PermissionState
 import br.com.codecacto.kmplib.platform.permission.PermissionStatus
 import br.com.codecacto.kmplib.platform.permission.rememberPermissionState
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /** O que o [PermissionBanner] oferece para um status. */
 enum class PermissionBannerAction {
@@ -54,8 +54,8 @@ data class PermissionBannerTexts(
 /** Rótulos padrão do [PermissionBanner], no idioma da tela. */
 @Composable
 fun rememberPermissionBannerTexts(): PermissionBannerTexts {
-    val allow = stringResource(Res.string.kmplib_permission_banner_allow)
-    val open = stringResource(Res.string.kmplib_permission_banner_open_settings)
+    val allow = kmpStringResource(Res.string.kmplib_permission_banner_allow)
+    val open = kmpStringResource(Res.string.kmplib_permission_banner_open_settings)
     return remember(allow, open) { PermissionBannerTexts(allow = allow, openSettings = open) }
 }
 

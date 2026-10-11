@@ -27,7 +27,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_contact_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_contact_success_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_contact_success_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos customizáveis para a [ContactScreen] (formulário "Entrar em contato").
@@ -66,27 +66,27 @@ data class ContactTexts(
 @Composable
 fun rememberContactTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat()): ContactTexts =
     ContactTexts(
-        title = stringResource(Res.string.kmplib_contact_title),
-        subtitle = stringResource(Res.string.kmplib_contact_subtitle),
-        nameLabel = stringResource(Res.string.kmplib_contact_name_label),
-        namePlaceholder = stringResource(Res.string.kmplib_contact_name_placeholder),
-        emailLabel = stringResource(Res.string.kmplib_email_label),
-        emailPlaceholder = stringResource(Res.string.kmplib_email_placeholder),
-        whatsappLabel = stringResource(Res.string.kmplib_contact_whatsapp_label),
+        title = kmpStringResource(Res.string.kmplib_contact_title),
+        subtitle = kmpStringResource(Res.string.kmplib_contact_subtitle),
+        nameLabel = kmpStringResource(Res.string.kmplib_contact_name_label),
+        namePlaceholder = kmpStringResource(Res.string.kmplib_contact_name_placeholder),
+        emailLabel = kmpStringResource(Res.string.kmplib_email_label),
+        emailPlaceholder = kmpStringResource(Res.string.kmplib_email_placeholder),
+        whatsappLabel = kmpStringResource(Res.string.kmplib_contact_whatsapp_label),
         whatsappPlaceholder = rememberPhonePlaceholder(phoneFormat),
-        subjectLabel = stringResource(Res.string.kmplib_contact_subject_label),
-        subjectPlaceholder = stringResource(Res.string.kmplib_contact_subject_placeholder),
-        messageLabel = stringResource(Res.string.kmplib_contact_message_label),
-        messagePlaceholder = stringResource(Res.string.kmplib_contact_message_placeholder),
-        sendButton = stringResource(Res.string.kmplib_contact_send),
-        cancelButton = stringResource(Res.string.kmplib_cancel),
-        nameError = stringResource(Res.string.kmplib_contact_name_error),
-        emailError = stringResource(Res.string.kmplib_email_error),
-        messageError = stringResource(Res.string.kmplib_contact_message_error),
-        whatsappError = stringResource(Res.string.kmplib_contact_phone_error),
-        errorMessage = stringResource(Res.string.kmplib_contact_error),
-        successTitle = stringResource(Res.string.kmplib_contact_success_title),
-        successMessage = stringResource(Res.string.kmplib_contact_success_message),
-        continueButton = stringResource(Res.string.kmplib_back),
-        backContentDescription = stringResource(Res.string.kmplib_back),
+        subjectLabel = kmpStringResource(Res.string.kmplib_contact_subject_label),
+        subjectPlaceholder = kmpStringResource(Res.string.kmplib_contact_subject_placeholder),
+        messageLabel = kmpStringResource(Res.string.kmplib_contact_message_label),
+        messagePlaceholder = kmpStringResource(Res.string.kmplib_contact_message_placeholder),
+        sendButton = kmpStringResource(Res.string.kmplib_contact_send),
+        cancelButton = kmpStringResource(Res.string.kmplib_cancel),
+        nameError = kmpStringResource(Res.string.kmplib_contact_name_error),
+        emailError = kmpStringResource(Res.string.kmplib_email_error),
+        messageError = kmpStringResource(Res.string.kmplib_contact_message_error),
+        whatsappError = kmpStringResource(Res.string.kmplib_contact_phone_error),
+        errorMessage = kmpStringResource(Res.string.kmplib_contact_error),
+        successTitle = kmpStringResource(Res.string.kmplib_contact_success_title),
+        successMessage = kmpStringResource(Res.string.kmplib_contact_success_message),
+        continueButton = kmpStringResource(Res.string.kmplib_back),
+        backContentDescription = kmpStringResource(Res.string.kmplib_back),
     )

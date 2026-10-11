@@ -3,7 +3,7 @@ package br.com.codecacto.kmplib.ui.components
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_password_hide
 import br.com.codecacto.kmplib.generated.resources.kmplib_password_show
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,7 +149,7 @@ fun AppTextField(
             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                 Icon(
                     imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                    contentDescription = stringResource(
+                    contentDescription = kmpStringResource(
                         if (passwordVisible) Res.string.kmplib_password_hide else Res.string.kmplib_password_show,
                     )
                 )

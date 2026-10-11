@@ -45,6 +45,11 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.288.0
+    motivo: "chave PLACEHOLDER_* configurava o SDK da RevenueCat com chave de mentira; build de QA com o dublê abria o paywall vazio"
+    simbolos: [createEntitlementProvider]
+    bloqueia: false
+
   - versao: 2.270.0
     motivo: "log de requisição gravava a URL inteira com a query (termo de busca = e-mail/telefone/nome) no logcat/console do release"
     simbolos: [createHttpClient]

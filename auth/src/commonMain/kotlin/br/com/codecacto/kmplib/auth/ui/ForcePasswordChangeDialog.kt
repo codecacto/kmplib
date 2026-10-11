@@ -30,7 +30,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_password_required
 import br.com.codecacto.kmplib.generated.resources.kmplib_password_same_as_temporary
 import br.com.codecacto.kmplib.generated.resources.kmplib_password_min_length
 import br.com.codecacto.kmplib.generated.resources.kmplib_password_mismatch
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * **Primeiro acesso: o diálogo que não fecha.**
@@ -70,9 +70,9 @@ fun ForcePasswordChangeDialog(
     temporaryPassword: String = TEMPORARY_PASSWORD,
     isLoading: Boolean = false,
     errorMessage: String? = null,
-    title: String = stringResource(Res.string.kmplib_first_access_title),
-    description: String = stringResource(Res.string.kmplib_first_access_description),
-    confirmLabel: String = stringResource(Res.string.kmplib_first_access_confirm),
+    title: String = kmpStringResource(Res.string.kmplib_first_access_title),
+    description: String = kmpStringResource(Res.string.kmplib_first_access_description),
+    confirmLabel: String = kmpStringResource(Res.string.kmplib_first_access_confirm),
     texts: ForcePasswordChangeTexts = rememberForcePasswordChangeTexts(),
 ) {
     var senha by remember { mutableStateOf("") }
@@ -197,16 +197,16 @@ data class ForcePasswordChangeTexts(
 @Composable
 fun rememberForcePasswordChangeTexts(): ForcePasswordChangeTexts {
     // Modelos lidos sem argumento (com `%1$s`/`%1$d`) e preenchidos no lambda.
-    val saudacao = stringResource(Res.string.kmplib_first_access_greeting)
-    val minimo = stringResource(Res.string.kmplib_password_min_length)
+    val saudacao = kmpStringResource(Res.string.kmplib_first_access_greeting)
+    val minimo = kmpStringResource(Res.string.kmplib_password_min_length)
     return ForcePasswordChangeTexts(
-        newPasswordLabel = stringResource(Res.string.kmplib_first_access_new_password),
-        repeatPasswordLabel = stringResource(Res.string.kmplib_first_access_repeat_password),
+        newPasswordLabel = kmpStringResource(Res.string.kmplib_first_access_new_password),
+        repeatPasswordLabel = kmpStringResource(Res.string.kmplib_first_access_repeat_password),
         greeting = { nome -> saudacao.replace("%1\$s", nome) },
-        passwordRequired = stringResource(Res.string.kmplib_password_required),
-        sameAsTemporary = stringResource(Res.string.kmplib_password_same_as_temporary),
+        passwordRequired = kmpStringResource(Res.string.kmplib_password_required),
+        sameAsTemporary = kmpStringResource(Res.string.kmplib_password_same_as_temporary),
         minLength = { min -> minimo.replace("%1\$d", min.toString()) },
-        passwordMismatch = stringResource(Res.string.kmplib_password_mismatch),
+        passwordMismatch = kmpStringResource(Res.string.kmplib_password_mismatch),
     )
 }
 

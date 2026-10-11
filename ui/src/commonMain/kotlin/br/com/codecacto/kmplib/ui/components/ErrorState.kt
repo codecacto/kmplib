@@ -30,7 +30,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_offline_me
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_offline_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_state_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_retry
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos do [ErrorState]. Sem `texts`, o componente usa [rememberErrorStateTexts] — os recursos da lib
@@ -47,10 +47,10 @@ data class ErrorStateTexts(
 /** [ErrorStateTexts] no idioma do aparelho (2.219.0). Para trocar um texto: `.copy(title = …)`. */
 @Composable
 fun rememberErrorStateTexts(): ErrorStateTexts = ErrorStateTexts(
-    title = stringResource(Res.string.kmplib_error_state_title),
-    retryButton = stringResource(Res.string.kmplib_retry),
-    offlineTitle = stringResource(Res.string.kmplib_error_state_offline_title),
-    offlineMessage = stringResource(Res.string.kmplib_error_state_offline_message),
+    title = kmpStringResource(Res.string.kmplib_error_state_title),
+    retryButton = kmpStringResource(Res.string.kmplib_retry),
+    offlineTitle = kmpStringResource(Res.string.kmplib_error_state_offline_title),
+    offlineMessage = kmpStringResource(Res.string.kmplib_error_state_offline_message),
 )
 
 /**

@@ -33,7 +33,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_message_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_email_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_whatsapp_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos customizáveis para a FeedbackScreen.
@@ -81,34 +81,34 @@ data class FeedbackTexts(
 @Composable
 fun rememberFeedbackTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat()): FeedbackTexts =
     FeedbackTexts(
-        title = stringResource(Res.string.kmplib_feedback_title),
-        subtitle = stringResource(Res.string.kmplib_feedback_subtitle),
-        motivoLabel = stringResource(Res.string.kmplib_feedback_reason_label),
-        motivoSugestao = stringResource(Res.string.kmplib_feedback_reason_suggestion),
-        motivoBug = stringResource(Res.string.kmplib_feedback_reason_bug),
-        motivoReclamacao = stringResource(Res.string.kmplib_feedback_reason_complaint),
-        motivoDuvida = stringResource(Res.string.kmplib_feedback_reason_question),
-        motivoElogio = stringResource(Res.string.kmplib_feedback_reason_praise),
-        motivoOutro = stringResource(Res.string.kmplib_feedback_reason_other),
-        mensagemLabel = stringResource(Res.string.kmplib_feedback_message_label),
-        mensagemPlaceholder = stringResource(Res.string.kmplib_feedback_message_placeholder),
-        nomeLabel = stringResource(Res.string.kmplib_feedback_name_label),
-        nomePlaceholder = stringResource(Res.string.kmplib_feedback_name_placeholder),
-        emailLabel = stringResource(Res.string.kmplib_feedback_email_label),
-        emailPlaceholder = stringResource(Res.string.kmplib_email_placeholder),
-        whatsappLabel = stringResource(Res.string.kmplib_feedback_whatsapp_label),
+        title = kmpStringResource(Res.string.kmplib_feedback_title),
+        subtitle = kmpStringResource(Res.string.kmplib_feedback_subtitle),
+        motivoLabel = kmpStringResource(Res.string.kmplib_feedback_reason_label),
+        motivoSugestao = kmpStringResource(Res.string.kmplib_feedback_reason_suggestion),
+        motivoBug = kmpStringResource(Res.string.kmplib_feedback_reason_bug),
+        motivoReclamacao = kmpStringResource(Res.string.kmplib_feedback_reason_complaint),
+        motivoDuvida = kmpStringResource(Res.string.kmplib_feedback_reason_question),
+        motivoElogio = kmpStringResource(Res.string.kmplib_feedback_reason_praise),
+        motivoOutro = kmpStringResource(Res.string.kmplib_feedback_reason_other),
+        mensagemLabel = kmpStringResource(Res.string.kmplib_feedback_message_label),
+        mensagemPlaceholder = kmpStringResource(Res.string.kmplib_feedback_message_placeholder),
+        nomeLabel = kmpStringResource(Res.string.kmplib_feedback_name_label),
+        nomePlaceholder = kmpStringResource(Res.string.kmplib_feedback_name_placeholder),
+        emailLabel = kmpStringResource(Res.string.kmplib_feedback_email_label),
+        emailPlaceholder = kmpStringResource(Res.string.kmplib_email_placeholder),
+        whatsappLabel = kmpStringResource(Res.string.kmplib_feedback_whatsapp_label),
         whatsappPlaceholder = rememberPhonePlaceholder(phoneFormat),
-        submitButton = stringResource(Res.string.kmplib_feedback_submit),
-        cancelButton = stringResource(Res.string.kmplib_cancel),
-        successTitle = stringResource(Res.string.kmplib_thanks),
-        successMessage = stringResource(Res.string.kmplib_feedback_success),
-        continueButton = stringResource(Res.string.kmplib_continue),
-        errorMessage = stringResource(Res.string.kmplib_feedback_error),
-        motivoError = stringResource(Res.string.kmplib_feedback_reason_error),
-        mensagemError = stringResource(Res.string.kmplib_feedback_message_error),
-        emailError = stringResource(Res.string.kmplib_email_error),
-        whatsappError = stringResource(Res.string.kmplib_whatsapp_error),
-        backContentDescription = stringResource(Res.string.kmplib_back),
+        submitButton = kmpStringResource(Res.string.kmplib_feedback_submit),
+        cancelButton = kmpStringResource(Res.string.kmplib_cancel),
+        successTitle = kmpStringResource(Res.string.kmplib_thanks),
+        successMessage = kmpStringResource(Res.string.kmplib_feedback_success),
+        continueButton = kmpStringResource(Res.string.kmplib_continue),
+        errorMessage = kmpStringResource(Res.string.kmplib_feedback_error),
+        motivoError = kmpStringResource(Res.string.kmplib_feedback_reason_error),
+        mensagemError = kmpStringResource(Res.string.kmplib_feedback_message_error),
+        emailError = kmpStringResource(Res.string.kmplib_email_error),
+        whatsappError = kmpStringResource(Res.string.kmplib_whatsapp_error),
+        backContentDescription = kmpStringResource(Res.string.kmplib_back),
     )
 
 /**

@@ -57,7 +57,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_digitbox_missing_one
 import br.com.codecacto.kmplib.generated.resources.kmplib_digitbox_missing_other
 import br.com.codecacto.kmplib.generated.resources.kmplib_digitbox_state
 import br.com.codecacto.kmplib.generated.resources.kmplib_digitbox_too_many
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 // ---------------------------------------------------------------------------------------------
 // Textos
@@ -83,11 +83,11 @@ data class DigitBoxTexts(
 
 @Composable
 fun rememberDigitBoxTexts(): DigitBoxTexts {
-    val one = stringResource(Res.string.kmplib_digitbox_missing_one)
-    val other = stringResource(Res.string.kmplib_digitbox_missing_other)
-    val tooMany = stringResource(Res.string.kmplib_digitbox_too_many)
-    val description = stringResource(Res.string.kmplib_digitbox_description)
-    val state = stringResource(Res.string.kmplib_digitbox_state)
+    val one = kmpStringResource(Res.string.kmplib_digitbox_missing_one)
+    val other = kmpStringResource(Res.string.kmplib_digitbox_missing_other)
+    val tooMany = kmpStringResource(Res.string.kmplib_digitbox_too_many)
+    val description = kmpStringResource(Res.string.kmplib_digitbox_description)
+    val state = kmpStringResource(Res.string.kmplib_digitbox_state)
     return remember(one, other, tooMany, description, state) {
         DigitBoxTexts(
             missing = { n -> if (n == 1) one else formatDigitBoxTemplate(other, n) },

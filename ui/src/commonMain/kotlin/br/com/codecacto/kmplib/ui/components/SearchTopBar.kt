@@ -48,7 +48,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_menu
 import br.com.codecacto.kmplib.generated.resources.kmplib_search
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_clear
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_close
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
@@ -71,13 +71,13 @@ data class SearchTopBarTexts(
 /** [SearchTopBarTexts] no idioma do aparelho (2.219.0). */
 @Composable
 fun rememberSearchTopBarTexts(): SearchTopBarTexts = SearchTopBarTexts(
-    searchPlaceholder = stringResource(Res.string.kmplib_search),
-    openSearchDescription = stringResource(Res.string.kmplib_search),
-    closeSearchDescription = stringResource(Res.string.kmplib_search_close),
-    clearQueryDescription = stringResource(Res.string.kmplib_search_clear),
-    filterDescription = stringResource(Res.string.kmplib_filters),
-    backDescription = stringResource(Res.string.kmplib_back),
-    menuDescription = stringResource(Res.string.kmplib_menu),
+    searchPlaceholder = kmpStringResource(Res.string.kmplib_search),
+    openSearchDescription = kmpStringResource(Res.string.kmplib_search),
+    closeSearchDescription = kmpStringResource(Res.string.kmplib_search_close),
+    clearQueryDescription = kmpStringResource(Res.string.kmplib_search_clear),
+    filterDescription = kmpStringResource(Res.string.kmplib_filters),
+    backDescription = kmpStringResource(Res.string.kmplib_back),
+    menuDescription = kmpStringResource(Res.string.kmplib_menu),
 )
 
 /**
@@ -309,7 +309,7 @@ fun SearchTopBar(
 @Composable
 fun FilterIconButton(
     filter: FilterAction,
-    contentDescription: String = stringResource(Res.string.kmplib_filters),
+    contentDescription: String = kmpStringResource(Res.string.kmplib_filters),
     modifier: Modifier = Modifier,
 ) {
     val badge = filterBadgeLabel(filter.activeCount)

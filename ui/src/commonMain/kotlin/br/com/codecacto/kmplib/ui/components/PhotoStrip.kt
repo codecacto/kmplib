@@ -6,7 +6,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_photo_add
 import br.com.codecacto.kmplib.generated.resources.kmplib_photo_cover
 import br.com.codecacto.kmplib.generated.resources.kmplib_photo_remove
 import br.com.codecacto.kmplib.generated.resources.kmplib_try_again_short
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -149,10 +149,10 @@ fun PhotoStrip(
     onRetry: ((PhotoStripItem) -> Unit)? = null,
     canAdd: Boolean = true,
     itemSize: Dp = 104.dp,
-    addLabel: String = stringResource(Res.string.kmplib_photo_add),
-    coverLabel: String = stringResource(Res.string.kmplib_photo_cover),
-    removeLabel: String = stringResource(Res.string.kmplib_photo_remove),
-    retryLabel: String = stringResource(Res.string.kmplib_try_again_short),
+    addLabel: String = kmpStringResource(Res.string.kmplib_photo_add),
+    coverLabel: String = kmpStringResource(Res.string.kmplib_photo_cover),
+    removeLabel: String = kmpStringResource(Res.string.kmplib_photo_remove),
+    retryLabel: String = kmpStringResource(Res.string.kmplib_try_again_short),
 ) {
     val scheme = MaterialTheme.colorScheme
     val canto = RoundedCornerShape(12.dp)

@@ -5,6 +5,63 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.288.0 — Idiomas declarados pelo app (`KmpLibLocales`, GAP-PT-M31) e trava da chave da loja na fundação (`initializeWhenStoreAvailable`)
+
+**Por quê.** (1) O `compose-resources` escolhe a pasta `values-*` **por biblioteca**. A kmplib traz os 4
+idiomas da fábrica; um app só pt-BR (`store_reach = BR`, só `values/`) num aparelho em inglês saía com o app
+em pt-BR e as telas da lib em inglês — no paywall do App do Personal: "No plans available", "Restore
+purchases", "Terms of Use", "R$ 190,80/year". (2) Na build de QA com o dublê da loja
+(`-Pqa.paywallDemo=true`) e chave `PLACEHOLDER_*`, a casca mandava o paywall para o stub e ele abria VAZIO
+com o dublê carregado; o App do Personal corrigiu no projeto (commit 9278d4e) — a regra subiu para a lib.
+
+**O que entrou.**
+- **`kmplib-core` — `KmpLibLocales`** (`core.locale`): `configure(supported)` (uma vez no boot, ao lado do
+  `KmpLibAudience.configure`; a base pt-BR entra sempre; tag inválida → `IllegalArgumentException`),
+  `supported`, `reset()`, `normalize`, `libraryLanguageTag`, **`shouldUseBaseTexts(languageTag, supported)`**
+  (pura: `true` só quando a pasta da lib cairia num idioma ≠ pt-BR que o app não mostra). Default =
+  `FactoryLocales.ALL` → **app GLOBAL não muda nada**.
+- **`appLanguageTag()`** passa a ter como default os idiomas declarados (`KmpLibLocales.supported`), então
+  `Accept-Language` do `DeviceLocaleHeaders`, `locale` do cadastro, `Countries` e os textos do
+  `SignaturePad` acompanham o app (antes: app só pt-BR mandava `en` ao servidor com a tela em português).
+- **`kmplib-ui` — resolvedor central `kmpStringResource` / `kmpGetString`** (`ui.locale`): TODA leitura de
+  texto da lib (574 chamadas em 50 arquivos, 15 módulos — telas, `remember…Texts()` e os `load…Texts()` dos
+  ViewModels: erros de compra, nomes/durações de plano, sufixo de período do preço, mensagens do
+  `DomainApiClient`, own-auth) passa por ele. Com a base ligada, o texto sai da tabela pt-BR **gerada no
+  build do próprio `values/strings.xml`** (`generateKmpLibBaseStrings`, escapes como o plugin do Compose);
+  fora disso, delega ao `compose-resources` como sempre. `uiLanguageTag()` também.
+  - **Por que um resolvedor e não reescrever cada texto:** uma regra num ponto só vale para a lib inteira e
+    para o texto que entrar amanhã. **Por que não escolher a pasta pela API do Compose:** o
+    `ResourceEnvironment` com outro idioma exige `LanguageQualifier`/`RegionQualifier`, que são
+    `@InternalResourceApi` — a família do `LocalComposeEnvironment` que a constituição veta (CMP-8376). A
+    tabela usa só API pública (`StringResource.key`) e dado nosso.
+- **`kmplib-monetization` — a trava da chave:** `isStoreApiKeyConfigured(key)` (não vazia, não
+  `PLACEHOLDER*`), `PurchaseConfig.platformApiKey`/`hasStoreApiKey`, `PurchaseManager.hasInstalledStore`,
+  `MonetizationManager.hasStore(purchase)` e **`MonetizationManager.initializeWhenStoreAvailable(config)`**
+  (null → `declareNotMonetized`; AdsOnly → inicializa; vende com chave **ou** loja instalada → inicializa;
+  vende sem nenhum → gratuito sem configurar o SDK).
+- **Correção em `createEntitlementProvider`:** chave `PLACEHOLDER_*`/em branco com loja já instalada (o
+  dublê de QA) → `PurchaseManagerEntitlementProvider` (fala com o dublê); sem loja → stub. Até a 2.287.0 uma
+  config com chave `PLACEHOLDER_*` **não nula** configurava o SDK com a chave de mentira.
+- Testes `kmplib-workout`: nomes com vírgula impediam o `compileTestKotlinIosArm64` (K/N recusa `,` em
+  nome) — renomeados; nenhum caso mudou.
+
+**Como um app adota.** App BR: `KmpLibLocales.configure(listOf(FactoryLocales.PT_BR))` no
+`Application.onCreate` e no `MainViewController` (antes da 1ª tela). App com pt-BR+en+es: a lista das suas
+pastas `values*`. Monetização: trocar o `if (!chave) declareNotMonetized() else initialize(...)` por
+`MonetizationManager.initializeWhenStoreAvailable(monetizationConfigFor(modo, purchaseConfig))` e passar o
+`PurchaseConfig` direto ao `createEntitlementProvider` (a lib decide). Nada quebra quem não mexe.
+
+**Resíduo registrado (backlog):** nomes de MÊS do `RegionalFormat` (`DateSkeletons.MEDIUM`/`LONG`) seguem a
+língua do aparelho — "10 Oct 2026" num app só pt-BR; é formato regional, fica para a próxima rodada.
+
+**Criticidade:** sem aviso. Idioma misturado não para nada (a tela funciona, só sai em duas línguas) e só
+acontece com app que traduz menos que a lib; o paywall vazio era só da build de QA. Piso para
+`createEntitlementProvider` em `docs/pisos.yaml` com `bloqueia: false` (aviso no selo, não reprova).
+
+**Provas.** JVM: `testDebugUnitTest` da lib inteira verde (novos: `KmpLibLocalesTest` 9, `KmpLibBaseStringsTest`
+5, `KmpLibStringsTest` 2, `StoreAvailabilityTest` 7, `PaywallAppLanguageTest` 3).
+`compileKotlinIosArm64 compileTestKotlinIosArm64 -Pkmplib.forceAppleTargets=true` verde, 0 SKIPPED.
+
 ## 2.287.0 — Fila de envio direto durável (`DirectUploadOutbox`), gravador de nota de voz (`AudioRecorder` + `VoiceNoteRecorder`/`VoiceNotePlayer` com onda) e kit de conversa (`kmplib-chat`)
 
 **Por quê.** App do Personal, Onda 2, itens 2.1/2.2 (lacuna **L-K2** = `GAP-PT-M05` + `M06` + `M12`; 2º

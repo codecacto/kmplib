@@ -47,7 +47,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -69,13 +69,13 @@ data class AppTimeFieldTexts(
 /** [AppTimeFieldTexts] no idioma do aparelho (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberAppTimeFieldTexts(): AppTimeFieldTexts {
-    val confirm = stringResource(Res.string.kmplib_time_confirm)
-    val dismiss = stringResource(Res.string.kmplib_time_dismiss)
-    val placeholder = stringResource(Res.string.kmplib_time_placeholder)
+    val confirm = kmpStringResource(Res.string.kmplib_time_confirm)
+    val dismiss = kmpStringResource(Res.string.kmplib_time_dismiss)
+    val placeholder = kmpStringResource(Res.string.kmplib_time_placeholder)
     // Sem argumento, o stringResource devolve o modelo cru ("… até %1$s"); a hora entra no lambda,
     // porque ela só é conhecida quando o limite viola — não na composição dos textos.
-    val notAfter = stringResource(Res.string.kmplib_time_not_after)
-    val notBefore = stringResource(Res.string.kmplib_time_not_before)
+    val notAfter = kmpStringResource(Res.string.kmplib_time_not_after)
+    val notBefore = kmpStringResource(Res.string.kmplib_time_not_before)
     return remember(confirm, dismiss, placeholder, notAfter, notBefore) {
         AppTimeFieldTexts(
             confirm = confirm,

@@ -64,7 +64,7 @@ import br.com.codecacto.kmplib.ui.compare.formatCompareTemplate
 import br.com.codecacto.kmplib.ui.theme.AppColors
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
 import kotlinx.datetime.LocalDate
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import kotlin.math.abs
 
 // ---------------------------------------------------------------------------------------------
@@ -156,18 +156,18 @@ data class ReferenceBandChartTexts(
 
 @Composable
 fun rememberReferenceBandChartTexts(): ReferenceBandChartTexts {
-    val range = stringResource(Res.string.kmplib_chart_band_range)
-    val from = stringResource(Res.string.kmplib_chart_band_from)
-    val upTo = stringResource(Res.string.kmplib_chart_band_up_to)
-    val below = stringResource(Res.string.kmplib_chart_status_below)
-    val within = stringResource(Res.string.kmplib_chart_status_within)
-    val above = stringResource(Res.string.kmplib_chart_status_above)
-    val summary = stringResource(Res.string.kmplib_chart_summary)
-    val point = stringResource(Res.string.kmplib_chart_point)
-    val pointNoStatus = stringResource(Res.string.kmplib_chart_point_no_status)
-    val next = stringResource(Res.string.kmplib_chart_next)
-    val previous = stringResource(Res.string.kmplib_chart_previous)
-    val empty = stringResource(Res.string.kmplib_chart_empty)
+    val range = kmpStringResource(Res.string.kmplib_chart_band_range)
+    val from = kmpStringResource(Res.string.kmplib_chart_band_from)
+    val upTo = kmpStringResource(Res.string.kmplib_chart_band_up_to)
+    val below = kmpStringResource(Res.string.kmplib_chart_status_below)
+    val within = kmpStringResource(Res.string.kmplib_chart_status_within)
+    val above = kmpStringResource(Res.string.kmplib_chart_status_above)
+    val summary = kmpStringResource(Res.string.kmplib_chart_summary)
+    val point = kmpStringResource(Res.string.kmplib_chart_point)
+    val pointNoStatus = kmpStringResource(Res.string.kmplib_chart_point_no_status)
+    val next = kmpStringResource(Res.string.kmplib_chart_next)
+    val previous = kmpStringResource(Res.string.kmplib_chart_previous)
+    val empty = kmpStringResource(Res.string.kmplib_chart_empty)
     return remember(range, from, upTo, below, within, above, summary, point, pointNoStatus, next, previous, empty) {
         ReferenceBandChartTexts(
             bandRange = { a, b -> formatCompareTemplate(range, a, b) },

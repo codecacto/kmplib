@@ -26,7 +26,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_compare_timeline
 import br.com.codecacto.kmplib.generated.resources.kmplib_compare_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_compare_view_fallback
 import br.com.codecacto.kmplib.generated.resources.kmplib_compare_views
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos do comparador ([PhotoCompare], [CompareTimeline], [PhotoCompareDialog]) — os MESMOS do
@@ -82,28 +82,28 @@ data class PhotoCompareTexts(
 /** Os textos do comparador no idioma da tela. */
 @Composable
 fun rememberPhotoCompareTexts(): PhotoCompareTexts {
-    val title = stringResource(Res.string.kmplib_compare_title)
-    val singleTitle = stringResource(Res.string.kmplib_compare_single_title)
-    val singleHint = stringResource(Res.string.kmplib_compare_single_hint)
-    val modes = stringResource(Res.string.kmplib_compare_modes)
-    val modeSlider = stringResource(Res.string.kmplib_compare_mode_slider)
-    val modeSideBySide = stringResource(Res.string.kmplib_compare_mode_side_by_side)
-    val views = stringResource(Res.string.kmplib_compare_views)
-    val viewFallback = stringResource(Res.string.kmplib_compare_view_fallback)
-    val before = stringResource(Res.string.kmplib_compare_before)
-    val after = stringResource(Res.string.kmplib_compare_after)
-    val beforeBadge = stringResource(Res.string.kmplib_compare_before_badge)
-    val afterBadge = stringResource(Res.string.kmplib_compare_after_badge)
-    val sliderBetween = stringResource(Res.string.kmplib_compare_slider_between)
-    val sliderValue = stringResource(Res.string.kmplib_compare_slider_value)
-    val timeline = stringResource(Res.string.kmplib_compare_timeline)
-    val missingPhoto = stringResource(Res.string.kmplib_compare_missing_photo)
-    val loadError = stringResource(Res.string.kmplib_compare_load_error)
-    val empty = stringResource(Res.string.kmplib_compare_empty)
-    val loading = stringResource(Res.string.kmplib_compare_loading)
-    val fullScreen = stringResource(Res.string.kmplib_compare_fullscreen)
-    val close = stringResource(Res.string.kmplib_compare_close)
-    val resetZoom = stringResource(Res.string.kmplib_compare_reset_zoom)
+    val title = kmpStringResource(Res.string.kmplib_compare_title)
+    val singleTitle = kmpStringResource(Res.string.kmplib_compare_single_title)
+    val singleHint = kmpStringResource(Res.string.kmplib_compare_single_hint)
+    val modes = kmpStringResource(Res.string.kmplib_compare_modes)
+    val modeSlider = kmpStringResource(Res.string.kmplib_compare_mode_slider)
+    val modeSideBySide = kmpStringResource(Res.string.kmplib_compare_mode_side_by_side)
+    val views = kmpStringResource(Res.string.kmplib_compare_views)
+    val viewFallback = kmpStringResource(Res.string.kmplib_compare_view_fallback)
+    val before = kmpStringResource(Res.string.kmplib_compare_before)
+    val after = kmpStringResource(Res.string.kmplib_compare_after)
+    val beforeBadge = kmpStringResource(Res.string.kmplib_compare_before_badge)
+    val afterBadge = kmpStringResource(Res.string.kmplib_compare_after_badge)
+    val sliderBetween = kmpStringResource(Res.string.kmplib_compare_slider_between)
+    val sliderValue = kmpStringResource(Res.string.kmplib_compare_slider_value)
+    val timeline = kmpStringResource(Res.string.kmplib_compare_timeline)
+    val missingPhoto = kmpStringResource(Res.string.kmplib_compare_missing_photo)
+    val loadError = kmpStringResource(Res.string.kmplib_compare_load_error)
+    val empty = kmpStringResource(Res.string.kmplib_compare_empty)
+    val loading = kmpStringResource(Res.string.kmplib_compare_loading)
+    val fullScreen = kmpStringResource(Res.string.kmplib_compare_fullscreen)
+    val close = kmpStringResource(Res.string.kmplib_compare_close)
+    val resetZoom = kmpStringResource(Res.string.kmplib_compare_reset_zoom)
     return remember(
         title, singleTitle, singleHint, modes, modeSlider, modeSideBySide, views, viewFallback, before, after,
         beforeBadge, afterBadge, sliderBetween, sliderValue, timeline, missingPhoto, loadError, empty, loading,

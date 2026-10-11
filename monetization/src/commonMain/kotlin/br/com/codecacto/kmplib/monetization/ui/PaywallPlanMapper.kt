@@ -2,8 +2,8 @@ package br.com.codecacto.kmplib.ui.screens.paywall
 
 import androidx.compose.runtime.Composable
 import kotlinx.coroutines.CancellationException
-import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpGetString
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_plan_monthly
 import br.com.codecacto.kmplib.generated.resources.kmplib_plan_semiannual
@@ -362,14 +362,14 @@ data class PaywallPlanLabels(
 suspend fun loadPaywallPlanLabels(): PaywallPlanLabels =
     try {
         PaywallPlanLabels(
-            monthly = getString(Res.string.kmplib_plan_monthly),
-            semiAnnual = getString(Res.string.kmplib_plan_semiannual),
-            yearly = getString(Res.string.kmplib_plan_yearly),
-            oneMonth = getString(Res.string.kmplib_duration_one_month),
-            oneYear = getString(Res.string.kmplib_duration_one_year),
-            monthsTemplate = getString(Res.string.kmplib_duration_months),
-            oneDay = getString(Res.string.kmplib_duration_one_day),
-            daysTemplate = getString(Res.string.kmplib_duration_days),
+            monthly = kmpGetString(Res.string.kmplib_plan_monthly),
+            semiAnnual = kmpGetString(Res.string.kmplib_plan_semiannual),
+            yearly = kmpGetString(Res.string.kmplib_plan_yearly),
+            oneMonth = kmpGetString(Res.string.kmplib_duration_one_month),
+            oneYear = kmpGetString(Res.string.kmplib_duration_one_year),
+            monthsTemplate = kmpGetString(Res.string.kmplib_duration_months),
+            oneDay = kmpGetString(Res.string.kmplib_duration_one_day),
+            daysTemplate = kmpGetString(Res.string.kmplib_duration_days),
         )
     } catch (e: CancellationException) {
         throw e
@@ -380,12 +380,12 @@ suspend fun loadPaywallPlanLabels(): PaywallPlanLabels =
 /** [PaywallPlanLabels] no idioma do aparelho, para quem monta os planos na composição. */
 @Composable
 fun rememberPaywallPlanLabels(): PaywallPlanLabels = PaywallPlanLabels(
-    monthly = stringResource(Res.string.kmplib_plan_monthly),
-    semiAnnual = stringResource(Res.string.kmplib_plan_semiannual),
-    yearly = stringResource(Res.string.kmplib_plan_yearly),
-    oneMonth = stringResource(Res.string.kmplib_duration_one_month),
-    oneYear = stringResource(Res.string.kmplib_duration_one_year),
-    monthsTemplate = stringResource(Res.string.kmplib_duration_months),
-    oneDay = stringResource(Res.string.kmplib_duration_one_day),
-    daysTemplate = stringResource(Res.string.kmplib_duration_days),
+    monthly = kmpStringResource(Res.string.kmplib_plan_monthly),
+    semiAnnual = kmpStringResource(Res.string.kmplib_plan_semiannual),
+    yearly = kmpStringResource(Res.string.kmplib_plan_yearly),
+    oneMonth = kmpStringResource(Res.string.kmplib_duration_one_month),
+    oneYear = kmpStringResource(Res.string.kmplib_duration_one_year),
+    monthsTemplate = kmpStringResource(Res.string.kmplib_duration_months),
+    oneDay = kmpStringResource(Res.string.kmplib_duration_one_day),
+    daysTemplate = kmpStringResource(Res.string.kmplib_duration_days),
 )

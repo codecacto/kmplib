@@ -10,6 +10,7 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.RestoreResult
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import br.com.codecacto.kmplib.monetization.purchase.hasStoreApiKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -259,9 +260,20 @@ class StubEntitlementProvider : EntitlementProvider {
 }
 
 /**
- * Seleciona o provider conforme a presença de credenciais RevenueCat: [purchaseConfig] `null` ⇒ stub
- * fail-closed; não-nulo ⇒ provider real. O app decide passando (ou não) a config (ex.:
- * `if (RevenueCatConfig.temChave) purchaseConfig else null`).
+ * Seleciona o provider conforme haja loja com que falar:
+ *
+ * - [purchaseConfig] com chave **de verdade** nesta plataforma ([PurchaseConfig.hasStoreApiKey]) ⇒
+ *   provider real ([RevenueCatEntitlementProvider]);
+ * - sem chave (config `null`, em branco ou `PLACEHOLDER_*`) mas com **uma loja já instalada** no
+ *   processo ([PurchaseManager.hasInstalledStore] — o dublê da `kmplib-testing` no build de QA,
+ *   instalado no boot antes do Koin) ⇒ [PurchaseManagerEntitlementProvider], que fala com ela sem
+ *   inicializar nada (2.288.0);
+ * - nada disso ⇒ stub fail-closed ([StubEntitlementProvider]).
+ *
+ * Até a 2.287.0, a chave `PLACEHOLDER_*` do app recém-nascido mandava o build de QA com o dublê
+ * carregado para o stub (catálogo `Indisponivel`, paywall vazio) — e uma config com chave
+ * `PLACEHOLDER_*` **não nula** configurava o SDK com a chave de mentira. O App do Personal contornou
+ * no projeto; a regra mora aqui agora.
  *
  * [monetizationConfig] declara a **postura** do app quando este provider for o primeiro a inicializar
  * o [MonetizationManager]; `null` (default) usa [MonetizationConfig.FreemiumQuota] — ver
@@ -270,13 +282,12 @@ class StubEntitlementProvider : EntitlementProvider {
 fun createEntitlementProvider(
     purchaseConfig: PurchaseConfig?,
     monetizationConfig: MonetizationConfig? = null,
-): EntitlementProvider =
-    if (purchaseConfig != null) {
-        RevenueCatEntitlementProvider(
-            purchaseConfig = purchaseConfig,
-            monetizationConfig = monetizationConfig
-                ?: MonetizationConfig.FreemiumQuota(purchase = purchaseConfig),
-        )
-    } else {
-        StubEntitlementProvider()
-    }
+): EntitlementProvider = when {
+    purchaseConfig != null && purchaseConfig.hasStoreApiKey -> RevenueCatEntitlementProvider(
+        purchaseConfig = purchaseConfig,
+        monetizationConfig = monetizationConfig
+            ?: MonetizationConfig.FreemiumQuota(purchase = purchaseConfig),
+    )
+    PurchaseManager.hasInstalledStore -> PurchaseManagerEntitlementProvider()
+    else -> StubEntitlementProvider()
+}

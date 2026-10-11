@@ -3,7 +3,7 @@ package br.com.codecacto.kmplib.ui.components
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_search
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_no_results
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,7 +80,7 @@ fun AppPickerField(
      */
     searchable: Boolean = false,
     /** Placeholder do campo de busca. */
-    searchPlaceholder: String = stringResource(Res.string.kmplib_search),
+    searchPlaceholder: String = kmpStringResource(Res.string.kmplib_search),
     /** Frase da lista filtrada vazia; recebe o termo buscado (2.219.0 — antes, pt-BR fixo). */
     noResultsText: (query: String) -> String = rememberNoResultsText(),
 ) {
@@ -211,6 +211,6 @@ private fun String.semAcento(): String {
 @Composable
 private fun rememberNoResultsText(): (String) -> String {
     // Lido sem argumento (modelo cru, com `%1$s`) e preenchido no lambda: o termo muda a cada tecla.
-    val modelo = stringResource(Res.string.kmplib_search_no_results)
+    val modelo = kmpStringResource(Res.string.kmplib_search_no_results)
     return { termo -> modelo.replace("%1\$s", termo) }
 }

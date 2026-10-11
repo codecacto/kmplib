@@ -63,7 +63,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_parental_gate_progress
 import br.com.codecacto.kmplib.generated.resources.kmplib_parental_gate_title
 import br.com.codecacto.kmplib.platform.audience.ParentalGate
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import kotlin.random.Random
 
 /** Ids do portão de pais para a automação (Maestro). Desde 2.259.0. */
@@ -143,21 +143,21 @@ data class ParentalGateTexts(
 @Composable
 fun rememberParentalGateTexts(): ParentalGateTexts {
     val words = listOf(
-        stringResource(Res.string.kmplib_parental_gate_number_0),
-        stringResource(Res.string.kmplib_parental_gate_number_1),
-        stringResource(Res.string.kmplib_parental_gate_number_2),
-        stringResource(Res.string.kmplib_parental_gate_number_3),
-        stringResource(Res.string.kmplib_parental_gate_number_4),
-        stringResource(Res.string.kmplib_parental_gate_number_5),
-        stringResource(Res.string.kmplib_parental_gate_number_6),
-        stringResource(Res.string.kmplib_parental_gate_number_7),
-        stringResource(Res.string.kmplib_parental_gate_number_8),
-        stringResource(Res.string.kmplib_parental_gate_number_9),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_0),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_1),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_2),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_3),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_4),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_5),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_6),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_7),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_8),
+        kmpStringResource(Res.string.kmplib_parental_gate_number_9),
     )
     return ParentalGateTexts(
-        title = stringResource(Res.string.kmplib_parental_gate_title),
-        instruction = stringResource(Res.string.kmplib_parental_gate_instruction),
-        cancel = stringResource(Res.string.kmplib_parental_gate_cancel),
+        title = kmpStringResource(Res.string.kmplib_parental_gate_title),
+        instruction = kmpStringResource(Res.string.kmplib_parental_gate_instruction),
+        cancel = kmpStringResource(Res.string.kmplib_parental_gate_cancel),
         numberWords = words,
     )
 }
@@ -248,7 +248,7 @@ fun ParentalGateDialog(
                 ProgressDots(
                     entered = entered.size,
                     total = challenge.digits.size,
-                    description = stringResource(
+                    description = kmpStringResource(
                         Res.string.kmplib_parental_gate_progress,
                         entered.size,
                         challenge.digits.size,

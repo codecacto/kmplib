@@ -38,7 +38,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_reorder_move_to_top
 import br.com.codecacto.kmplib.generated.resources.kmplib_reorder_move_up
 import br.com.codecacto.kmplib.generated.resources.kmplib_reorder_position
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -116,11 +116,11 @@ data class ReorderableListTexts(
 
 @Composable
 fun rememberReorderableListTexts(): ReorderableListTexts {
-    val up = stringResource(Res.string.kmplib_reorder_move_up)
-    val down = stringResource(Res.string.kmplib_reorder_move_down)
-    val top = stringResource(Res.string.kmplib_reorder_move_to_top)
-    val bottom = stringResource(Res.string.kmplib_reorder_move_to_bottom)
-    val position = stringResource(Res.string.kmplib_reorder_position)
+    val up = kmpStringResource(Res.string.kmplib_reorder_move_up)
+    val down = kmpStringResource(Res.string.kmplib_reorder_move_down)
+    val top = kmpStringResource(Res.string.kmplib_reorder_move_to_top)
+    val bottom = kmpStringResource(Res.string.kmplib_reorder_move_to_bottom)
+    val position = kmpStringResource(Res.string.kmplib_reorder_position)
     return remember(up, down, top, bottom, position) {
         ReorderableListTexts(
             moveUp = up,

@@ -15,7 +15,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_barcode_retry
 import br.com.codecacto.kmplib.generated.resources.kmplib_barcode_starting
 import br.com.codecacto.kmplib.generated.resources.kmplib_barcode_torch_off
 import br.com.codecacto.kmplib.generated.resources.kmplib_barcode_torch_on
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos visíveis do [BarcodeScannerView] (i18n).
@@ -56,17 +56,17 @@ data class BarcodeScannerTexts(
  */
 @Composable
 fun rememberBarcodeScannerTexts(): BarcodeScannerTexts = BarcodeScannerTexts(
-    aimHint = stringResource(Res.string.kmplib_barcode_aim_hint),
-    starting = stringResource(Res.string.kmplib_barcode_starting),
-    permissionTitle = stringResource(Res.string.kmplib_barcode_permission_title),
-    permissionMessage = stringResource(Res.string.kmplib_barcode_permission_message),
-    permissionAllow = stringResource(Res.string.kmplib_barcode_permission_allow),
-    permissionDeniedMessage = stringResource(Res.string.kmplib_barcode_permission_denied_message),
-    openSettings = stringResource(Res.string.kmplib_barcode_open_settings),
-    cameraUnavailable = stringResource(Res.string.kmplib_barcode_camera_unavailable),
-    initializationFailed = stringResource(Res.string.kmplib_barcode_init_failed),
-    retry = stringResource(Res.string.kmplib_barcode_retry),
-    manualEntry = stringResource(Res.string.kmplib_barcode_manual_entry),
-    torchOn = stringResource(Res.string.kmplib_barcode_torch_on),
-    torchOff = stringResource(Res.string.kmplib_barcode_torch_off),
+    aimHint = kmpStringResource(Res.string.kmplib_barcode_aim_hint),
+    starting = kmpStringResource(Res.string.kmplib_barcode_starting),
+    permissionTitle = kmpStringResource(Res.string.kmplib_barcode_permission_title),
+    permissionMessage = kmpStringResource(Res.string.kmplib_barcode_permission_message),
+    permissionAllow = kmpStringResource(Res.string.kmplib_barcode_permission_allow),
+    permissionDeniedMessage = kmpStringResource(Res.string.kmplib_barcode_permission_denied_message),
+    openSettings = kmpStringResource(Res.string.kmplib_barcode_open_settings),
+    cameraUnavailable = kmpStringResource(Res.string.kmplib_barcode_camera_unavailable),
+    initializationFailed = kmpStringResource(Res.string.kmplib_barcode_init_failed),
+    retry = kmpStringResource(Res.string.kmplib_barcode_retry),
+    manualEntry = kmpStringResource(Res.string.kmplib_barcode_manual_entry),
+    torchOn = kmpStringResource(Res.string.kmplib_barcode_torch_on),
+    torchOff = kmpStringResource(Res.string.kmplib_barcode_torch_off),
 )

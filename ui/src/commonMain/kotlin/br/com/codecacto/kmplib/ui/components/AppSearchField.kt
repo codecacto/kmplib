@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_search
 import br.com.codecacto.kmplib.generated.resources.kmplib_search_clear
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /** Ids estáveis do [AppSearchField] para o Maestro (2.258.0). */
 object SearchFieldTestTags {
@@ -136,12 +136,12 @@ fun AppSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String? = stringResource(Res.string.kmplib_search),
+    placeholder: String? = kmpStringResource(Res.string.kmplib_search),
     label: String? = null,
     enabled: Boolean = true,
     helperText: String? = null,
     onSearch: (String) -> Unit = {},
-    clearDescription: String = stringResource(Res.string.kmplib_search_clear),
+    clearDescription: String = kmpStringResource(Res.string.kmplib_search_clear),
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,

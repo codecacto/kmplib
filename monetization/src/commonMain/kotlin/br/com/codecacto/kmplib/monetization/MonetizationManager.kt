@@ -11,7 +11,9 @@ import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentity
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityError
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentityException
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseConfig
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
+import br.com.codecacto.kmplib.monetization.purchase.hasStoreApiKey
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityBinder
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityGateway
@@ -195,6 +197,55 @@ object MonetizationManager {
         updatePremiumStatus { current ->
             if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
         }
+    }
+
+    /**
+     * Há loja com que falar? (2.288.0) — a chave pública **desta plataforma** configurada
+     * ([PurchaseConfig.hasStoreApiKey]: não vazia, não `PLACEHOLDER_*`) **ou** uma loja já instalada
+     * no processo ([PurchaseManager.hasInstalledStore] — no boot, só o dublê do build de QA instala).
+     *
+     * Fail-closed: sem nenhum dos dois, `false` — o app é gratuito e o paywall diz "indisponível",
+     * nunca premium de graça.
+     */
+    fun hasStore(purchase: PurchaseConfig?): Boolean =
+        PurchaseManager.hasInstalledStore || purchase?.hasStoreApiKey == true
+
+    /**
+     * **A inicialização da monetização com a trava da chave, num lugar só** (2.288.0) — o que cada app
+     * (e a `casca-mobile`) escrevia à mão no `initMonetization`:
+     *
+     * - [config] `null` (app que não monetiza) → [declareNotMonetized], `false`;
+     * - modo sem assinatura ([MonetizationConfig.AdsOnly]) → [initialize], `true` (não precisa de loja);
+     * - modo que vende e [hasStore] → [initialize], `true`. Com o dublê de QA já instalado, o
+     *   `initialize` **não** configura o SDK (o `PurchaseManager` já está inicializado) e só liga o
+     *   modo, o [premiumStatus] e a identidade sobre ele — é o que faz o paywall da build de QA abrir
+     *   com os planos do dublê mesmo com a chave `PLACEHOLDER_*`;
+     * - modo que vende e **sem** loja → [declareNotMonetized], `false` (degrada para gratuito em vez
+     *   de configurar o SDK com chave de mentira).
+     *
+     * ```kotlin
+     * MonetizationManager.initializeWhenStoreAvailable(monetizationConfigFor(modo, purchaseConfig))
+     * ```
+     *
+     * @return `true` se inicializou.
+     */
+    fun initializeWhenStoreAvailable(
+        config: MonetizationConfig?,
+        userId: String? = null,
+        premiumResolutionTimeout: Duration = PremiumStatus.DEFAULT_TIMEOUT,
+    ): Boolean {
+        if (config == null) {
+            declareNotMonetized()
+            return false
+        }
+        val purchase = config.purchaseConfig
+        if (purchase != null && !hasStore(purchase)) {
+            AppLogger.w(TAG, "Sem chave da loja nesta plataforma e sem loja instalada: o app segue gratuito")
+            declareNotMonetized()
+            return false
+        }
+        initialize(config, userId, premiumResolutionTimeout)
+        return true
     }
 
     /**

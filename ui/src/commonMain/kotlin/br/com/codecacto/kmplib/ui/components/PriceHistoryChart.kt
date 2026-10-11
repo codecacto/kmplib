@@ -56,7 +56,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_price_history_selected
 import br.com.codecacto.kmplib.generated.resources.kmplib_price_history_summary
 import br.com.codecacto.kmplib.ui.theme.AppColors
 import kotlinx.datetime.TimeZone
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * Textos do [PriceHistoryChart]. O default ([rememberPriceHistoryChartTexts]) sai dos recursos da
@@ -82,13 +82,13 @@ data class PriceHistoryChartTexts(
 /** Textos padrão do [PriceHistoryChart], no idioma da tela. */
 @Composable
 fun rememberPriceHistoryChartTexts(): PriceHistoryChartTexts {
-    val empty = stringResource(Res.string.kmplib_price_history_empty)
-    val lowest = stringResource(Res.string.kmplib_price_history_lowest)
-    val summary = stringResource(Res.string.kmplib_price_history_summary)
-    val selected = stringResource(Res.string.kmplib_price_history_selected)
-    val next = stringResource(Res.string.kmplib_price_history_next)
-    val previous = stringResource(Res.string.kmplib_price_history_previous)
-    val clear = stringResource(Res.string.kmplib_price_history_clear)
+    val empty = kmpStringResource(Res.string.kmplib_price_history_empty)
+    val lowest = kmpStringResource(Res.string.kmplib_price_history_lowest)
+    val summary = kmpStringResource(Res.string.kmplib_price_history_summary)
+    val selected = kmpStringResource(Res.string.kmplib_price_history_selected)
+    val next = kmpStringResource(Res.string.kmplib_price_history_next)
+    val previous = kmpStringResource(Res.string.kmplib_price_history_previous)
+    val clear = kmpStringResource(Res.string.kmplib_price_history_clear)
     return remember(empty, lowest, summary, selected, next, previous, clear) {
         PriceHistoryChartTexts(
             empty = empty,

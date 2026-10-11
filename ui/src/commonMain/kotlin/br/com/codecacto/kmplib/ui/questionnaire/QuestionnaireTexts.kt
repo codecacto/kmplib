@@ -36,7 +36,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_questionnaire_unanswer
 import br.com.codecacto.kmplib.generated.resources.kmplib_questionnaire_unavailable
 import br.com.codecacto.kmplib.generated.resources.kmplib_questionnaire_unsaved
 import br.com.codecacto.kmplib.ui.components.LikertScaleTexts
-import org.jetbrains.compose.resources.stringResource
+import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
  * O vocabulário do runner — o `QuestionnaireRunnerLabels` da weblib, mais o que os tipos novos
@@ -117,34 +117,34 @@ fun formatQuestionnaireNumber(value: Double, maxFractionDigits: Int = 2): String
 /** [QuestionnaireTexts] no idioma da tela (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberQuestionnaireTexts(): QuestionnaireTexts {
-    val blockProgress = stringResource(Res.string.kmplib_questionnaire_block_progress)
-    val questionProgress = stringResource(Res.string.kmplib_questionnaire_question_progress)
-    val answered = stringResource(Res.string.kmplib_questionnaire_answered)
-    val missingOne = stringResource(Res.string.kmplib_questionnaire_missing_one)
-    val missingOther = stringResource(Res.string.kmplib_questionnaire_missing_other)
-    val back = stringResource(Res.string.kmplib_questionnaire_back)
-    val next = stringResource(Res.string.kmplib_questionnaire_next)
-    val finish = stringResource(Res.string.kmplib_questionnaire_finish)
-    val finishing = stringResource(Res.string.kmplib_questionnaire_finishing)
-    val requiredScale = stringResource(Res.string.kmplib_questionnaire_required_scale)
-    val requiredChoice = stringResource(Res.string.kmplib_questionnaire_required_choice)
-    val requiredMulti = stringResource(Res.string.kmplib_questionnaire_required_multi_choice)
-    val requiredField = stringResource(Res.string.kmplib_questionnaire_required_field)
-    val requiredDate = stringResource(Res.string.kmplib_questionnaire_required_date)
-    val outOfRange = stringResource(Res.string.kmplib_questionnaire_out_of_range)
-    val atLeast = stringResource(Res.string.kmplib_questionnaire_at_least)
-    val atMost = stringResource(Res.string.kmplib_questionnaire_at_most)
-    val optional = stringResource(Res.string.kmplib_questionnaire_optional)
-    val reserved = stringResource(Res.string.kmplib_questionnaire_reserved_pending)
-    val filledBy = stringResource(Res.string.kmplib_questionnaire_filled_by)
-    val scoreIncomplete = stringResource(Res.string.kmplib_questionnaire_score_incomplete)
-    val dateLabel = stringResource(Res.string.kmplib_questionnaire_date_label)
-    val unavailable = stringResource(Res.string.kmplib_questionnaire_unavailable)
-    val unsaved = stringResource(Res.string.kmplib_questionnaire_unsaved)
-    val option = stringResource(Res.string.kmplib_questionnaire_option)
-    val of = stringResource(Res.string.kmplib_questionnaire_of)
-    val unanswered = stringResource(Res.string.kmplib_questionnaire_unanswered)
-    val invalidScale = stringResource(Res.string.kmplib_questionnaire_invalid_scale)
+    val blockProgress = kmpStringResource(Res.string.kmplib_questionnaire_block_progress)
+    val questionProgress = kmpStringResource(Res.string.kmplib_questionnaire_question_progress)
+    val answered = kmpStringResource(Res.string.kmplib_questionnaire_answered)
+    val missingOne = kmpStringResource(Res.string.kmplib_questionnaire_missing_one)
+    val missingOther = kmpStringResource(Res.string.kmplib_questionnaire_missing_other)
+    val back = kmpStringResource(Res.string.kmplib_questionnaire_back)
+    val next = kmpStringResource(Res.string.kmplib_questionnaire_next)
+    val finish = kmpStringResource(Res.string.kmplib_questionnaire_finish)
+    val finishing = kmpStringResource(Res.string.kmplib_questionnaire_finishing)
+    val requiredScale = kmpStringResource(Res.string.kmplib_questionnaire_required_scale)
+    val requiredChoice = kmpStringResource(Res.string.kmplib_questionnaire_required_choice)
+    val requiredMulti = kmpStringResource(Res.string.kmplib_questionnaire_required_multi_choice)
+    val requiredField = kmpStringResource(Res.string.kmplib_questionnaire_required_field)
+    val requiredDate = kmpStringResource(Res.string.kmplib_questionnaire_required_date)
+    val outOfRange = kmpStringResource(Res.string.kmplib_questionnaire_out_of_range)
+    val atLeast = kmpStringResource(Res.string.kmplib_questionnaire_at_least)
+    val atMost = kmpStringResource(Res.string.kmplib_questionnaire_at_most)
+    val optional = kmpStringResource(Res.string.kmplib_questionnaire_optional)
+    val reserved = kmpStringResource(Res.string.kmplib_questionnaire_reserved_pending)
+    val filledBy = kmpStringResource(Res.string.kmplib_questionnaire_filled_by)
+    val scoreIncomplete = kmpStringResource(Res.string.kmplib_questionnaire_score_incomplete)
+    val dateLabel = kmpStringResource(Res.string.kmplib_questionnaire_date_label)
+    val unavailable = kmpStringResource(Res.string.kmplib_questionnaire_unavailable)
+    val unsaved = kmpStringResource(Res.string.kmplib_questionnaire_unsaved)
+    val option = kmpStringResource(Res.string.kmplib_questionnaire_option)
+    val of = kmpStringResource(Res.string.kmplib_questionnaire_of)
+    val unanswered = kmpStringResource(Res.string.kmplib_questionnaire_unanswered)
+    val invalidScale = kmpStringResource(Res.string.kmplib_questionnaire_invalid_scale)
     return remember(
         blockProgress, questionProgress, answered, missingOne, missingOther, back, next, finish, finishing,
         requiredScale, requiredChoice, requiredMulti, requiredField, requiredDate, outOfRange, atLeast,

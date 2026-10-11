@@ -47,3 +47,29 @@ enum class SubscriptionPeriod {
     SEMI_ANNUAL,
     ANNUAL
 }
+
+/**
+ * A chave pública da RevenueCat **desta plataforma** — [PurchaseConfig.androidApiKey] no Android,
+ * [PurchaseConfig.iosApiKey] no iOS (2.288.0). É a que o SDK recebe no `configure`.
+ */
+expect val PurchaseConfig.platformApiKey: String
+
+/**
+ * Há chave pública **de verdade** para esta plataforma? (2.288.0) — [isStoreApiKeyConfigured] sobre
+ * [platformApiKey]. Chave em branco ou `PLACEHOLDER_*` (o app que ainda não tem projeto na RevenueCat
+ * nasce assim, da casca) não fala com loja nenhuma.
+ */
+val PurchaseConfig.hasStoreApiKey: Boolean
+    get() = isStoreApiKeyConfigured(platformApiKey)
+
+/**
+ * Regra única da fábrica para "a chave da loja está configurada" (2.288.0): não vazia e não começando
+ * por `PLACEHOLDER` (o marcador que a `casca-mobile` e o provisionador deixam até o app ganhar projeto
+ * na RevenueCat). Até aqui cada app tinha a sua cópia (`isMonetizationConfigured`,
+ * `RevenueCatApiKey.isConfigured`).
+ */
+fun isStoreApiKeyConfigured(key: String?): Boolean =
+    !key.isNullOrBlank() && !key.trim().startsWith(STORE_API_KEY_PLACEHOLDER_PREFIX, ignoreCase = true)
+
+/** Prefixo da chave de mentira que o app carrega até ter projeto na RevenueCat. */
+const val STORE_API_KEY_PLACEHOLDER_PREFIX: String = "PLACEHOLDER"
