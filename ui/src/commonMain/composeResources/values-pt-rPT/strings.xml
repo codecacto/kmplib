@@ -380,6 +380,8 @@
     <string name="kmplib_form_unsupported">Pergunta indisponível nesta versão da aplicação.</string>
     <string name="kmplib_form_unsaved">As suas respostas estão neste ecrã, mas ainda não foram guardadas.</string>
     <string name="kmplib_form_date_label">Data</string>
+    <string name="kmplib_form_yes">Sim</string>
+    <string name="kmplib_form_no">Não</string>
     <string name="kmplib_form_issue_unknown_question">Esta pergunta não existe neste formulário.</string>
     <string name="kmplib_form_issue_not_answerable">Este item é apenas informativo e não recebe resposta.</string>
     <string name="kmplib_form_issue_wrong_type">A resposta tem um formato inválido.</string>

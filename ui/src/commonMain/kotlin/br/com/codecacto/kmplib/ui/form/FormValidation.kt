@@ -347,7 +347,8 @@ private fun checkScalar(
             val scale = formLikertScaleOf(question, section)
             if (scale == null || scale.points().none { it == number }) fail(FormIssueCode.LIKERT_OFF_SCALE) else null
         }
-        FormQuestionType.CONSENT -> if (value.booleanOrNull() == null) fail(FormIssueCode.WRONG_TYPE) else null
+        FormQuestionType.CONSENT, FormQuestionType.YES_NO ->
+            if (value.booleanOrNull() == null) fail(FormIssueCode.WRONG_TYPE) else null
         FormQuestionType.INFO -> fail(FormIssueCode.NOT_ANSWERABLE)
         // `list`/`file` como campo de item (o contrato não permite), ou tipo que esta versão não conhece.
         FormQuestionType.LIST, FormQuestionType.FILE, FormQuestionType.UNSUPPORTED -> fail(FormIssueCode.WRONG_TYPE)

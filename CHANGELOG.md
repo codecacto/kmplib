@@ -5,6 +5,34 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.289.0 — Pergunta sim/não no `FormRunner` (`FormQuestionType.YES_NO`, L-B08 lado cliente)
+
+**Por quê.** O `backlib-forms` 0.176.0 ganhou `QuestionType.YES_NO` (`"yesNo"`) e as fixtures compartilhadas
+subiram para `fixturesVersion` 2. O app instalado lia `yesNo` como `UNSUPPORTED` ("Pergunta indisponível nesta
+versão do app") e não a conferia — a anamnese personalizável do App do Personal (MA9 no app do aluno, MP9 no
+reenvio pelo personal) é feita sobretudo de perguntas sim/não.
+
+**O que entrou (`kmplib-ui`, `ui.form`).**
+- **`FormQuestionType.YES_NO`** (`"yesNo"`): resposta booleana; `false` É resposta (conta no progresso e
+  satisfaz `required` — diferente de `consent`, em que `false` é "ainda não"). Sem configuração. Texto `"sim"`/
+  `"true"` e número `0`/`1` = `WRONG_TYPE` no salvamento e no envio. Condição sobre ela: `eq`/`neq` com booleano e
+  `answered`/`notAnswered` (o motor de condição já comparava booleano sem conversão de tipo — `"true"` texto não é
+  `true`). Não pontua e não é campo de item de lista (recusa do lint do servidor).
+- **Controle Sim/Não acessível** no `FormRunner`: dois botões de rádio lado a lado ("Sim" primeiro) num grupo
+  selecionável, alvo de 48 dp, estado "sem resposta" lido até a escolha, erro no campo pós-envio; ids
+  `formulario-<id>-opcao-sim` / `formulario-<id>-opcao-nao`.
+- **`FormRunnerTexts.yes`/`no`** (recursos `kmplib_form_yes`/`kmplib_form_no` em pt-BR/en/es/pt-PT; o default
+  `rememberFormRunnerTexts()` já os traz). Puras `formYesNoOptionKey(Boolean)`/`formYesNoFromOptionKey(String)` e
+  `FORM_YES_NO_YES_KEY`/`FORM_YES_NO_NO_KEY` para quem desenha a própria tela por cima do protótipo.
+- **Fixtures v2** copiadas sem edição do `backlib-forms` (commit `236f06a`): `conditions` 64, `visibility` 14,
+  `prune` 4, `validation` 75, schema `sim-nao` — o `FormSchemaFixturesTest` passa inteiro no Android e compila no iOS.
+
+**Provas.** `:kmplib-ui:testDebugUnitTest` verde (1011 testes, 0 falha; novos: `FormYesNoTest` 7, fixtures v2);
+`compileKotlinIosArm64` + `compileTestKotlinIosArm64` do `kmplib-ui` verdes, 0 tarefa de compilação SKIPPED.
+
+**Compatibilidade.** Aditivo. App que não sobe continua mostrando `yesNo` como pergunta indisponível (o servidor
+confere o envio). Sem aviso, sem piso.
+
 ## 2.288.0 — Idiomas declarados pelo app (`KmpLibLocales`, GAP-PT-M31) e trava da chave da loja na fundação (`initializeWhenStoreAvailable`)
 
 **Por quê.** (1) O `compose-resources` escolhe a pasta `values-*` **por biblioteca**. A kmplib traz os 4

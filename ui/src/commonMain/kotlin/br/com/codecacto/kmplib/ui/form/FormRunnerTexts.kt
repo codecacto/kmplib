@@ -54,6 +54,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_form_submit
 import br.com.codecacto.kmplib.generated.resources.kmplib_form_submitting
 import br.com.codecacto.kmplib.generated.resources.kmplib_form_unsaved
 import br.com.codecacto.kmplib.generated.resources.kmplib_form_unsupported
+import br.com.codecacto.kmplib.generated.resources.kmplib_form_yes
+import br.com.codecacto.kmplib.generated.resources.kmplib_form_no
 import br.com.codecacto.kmplib.ui.questionnaire.fillQuestionnaireTemplate
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
@@ -155,6 +157,10 @@ data class FormRunnerTexts(
     val unsavedAnswers: String = "Suas respostas estão nesta tela, mas ainda não foram salvas.",
     /** Rótulo dentro do campo de data (o enunciado fica acima). */
     val dateLabel: String = "Data",
+    /** Opção afirmativa da pergunta `yesNo` (2.289.0). */
+    val yes: String = "Sim",
+    /** Opção negativa da pergunta `yesNo` (2.289.0). */
+    val no: String = "Não",
 )
 
 private fun String.lowercaseFirst(): String = replaceFirstChar { it.lowercase() }
@@ -212,6 +218,8 @@ fun rememberFormRunnerTexts(): FormRunnerTexts {
     val unsupported = kmpStringResource(Res.string.kmplib_form_unsupported)
     val unsaved = kmpStringResource(Res.string.kmplib_form_unsaved)
     val dateLabel = kmpStringResource(Res.string.kmplib_form_date_label)
+    val yes = kmpStringResource(Res.string.kmplib_form_yes)
+    val no = kmpStringResource(Res.string.kmplib_form_no)
     val all = listOf(
         stepProgress, questionProgress, estimate, answered, missingOne, missingOther, attentionOne, attentionOther, back,
         next, submit, submitting, stepsNav, stepDone, stepHasIssues, optional, reserved, reservedPending,
@@ -219,7 +227,7 @@ fun rememberFormRunnerTexts(): FormRunnerTexts {
         fileAddPhoto, fileAddPdf, fileHintImage, fileHintPdf, fileHintBoth, fileUploading, fileFallbackName, fileRemove,
         fileRetry, fileUploadError, fileTooBig, wrongImage, wrongPdf, wrongBoth, fileUnreadable, cameraDenied,
         cameraUnavailable, filesPending, opensExternally, scoreIncomplete, scoreLabel, scoreLabelBand, unsupported,
-        unsaved, dateLabel,
+        unsaved, dateLabel, yes, no,
     )
     return remember(all) {
         FormRunnerTexts(
@@ -276,6 +284,8 @@ fun rememberFormRunnerTexts(): FormRunnerTexts {
             unsupported = unsupported,
             unsavedAnswers = unsaved,
             dateLabel = dateLabel,
+            yes = yes,
+            no = no,
         )
     }
 }

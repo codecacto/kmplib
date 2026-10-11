@@ -380,6 +380,8 @@
     <string name="kmplib_form_unsupported">Esta pregunta no está disponible en esta versión de la app.</string>
     <string name="kmplib_form_unsaved">Tus respuestas están en esta pantalla, pero aún no se han guardado.</string>
     <string name="kmplib_form_date_label">Fecha</string>
+    <string name="kmplib_form_yes">Sí</string>
+    <string name="kmplib_form_no">No</string>
     <string name="kmplib_form_issue_unknown_question">Esta pregunta no existe en el formulario.</string>
     <string name="kmplib_form_issue_not_answerable">Este elemento es solo informativo y no recibe respuesta.</string>
     <string name="kmplib_form_issue_wrong_type">La respuesta tiene un formato no válido.</string>

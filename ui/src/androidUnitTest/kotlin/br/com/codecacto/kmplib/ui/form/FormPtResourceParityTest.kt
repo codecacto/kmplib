@@ -76,6 +76,8 @@ class FormPtResourceParityTest {
         assertEquals(d.unsupported, pt["unsupported"])
         assertEquals(d.unsavedAnswers, pt["unsaved"])
         assertEquals(d.dateLabel, pt["date_label"])
+        assertEquals(d.yes, pt["yes"])
+        assertEquals(d.no, pt["no"])
     }
 
     @Test
@@ -116,6 +118,6 @@ class FormPtResourceParityTest {
         assertEquals(m.listTooShort(2), fill("issue_list_too_short_other", 2))
         assertEquals(m.listItemIncomplete, pt["issue_list_item_incomplete"])
         assertEquals(m.listItemEmpty, pt["issue_list_item_empty"])
-        assertEquals(85, pt.size, "chave nova no recurso precisa entrar nos defaults (e neste teste)")
+        assertEquals(87, pt.size, "chave nova no recurso precisa entrar nos defaults (e neste teste)")
     }
 }

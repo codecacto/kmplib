@@ -380,6 +380,8 @@
     <string name="kmplib_form_unsupported">This question isn't available in this version of the app.</string>
     <string name="kmplib_form_unsaved">Your answers are on this screen but have not been saved yet.</string>
     <string name="kmplib_form_date_label">Date</string>
+    <string name="kmplib_form_yes">Yes</string>
+    <string name="kmplib_form_no">No</string>
     <string name="kmplib_form_issue_unknown_question">This question is not part of the form.</string>
     <string name="kmplib_form_issue_not_answerable">This item is for information only and takes no answer.</string>
     <string name="kmplib_form_issue_wrong_type">This answer is in an invalid format.</string>

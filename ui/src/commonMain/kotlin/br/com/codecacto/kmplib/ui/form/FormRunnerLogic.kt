@@ -53,6 +53,22 @@ fun resolveFormStepIndex(schema: FormSchemaV1, steps: List<FormRunnerStep>, sect
 fun countsAsAnswered(question: FormQuestion, value: FormAnswerValue?): Boolean =
     if (question.type == FormQuestionType.CONSENT) value?.booleanOrNull() == true else isFormAnswered(value)
 
+/** Chave da opção "Sim" de uma pergunta `yesNo` — o sufixo do id de automação (`…-opcao-sim`). */
+const val FORM_YES_NO_YES_KEY: String = "sim"
+
+/** Chave da opção "Não" de uma pergunta `yesNo` (`…-opcao-nao`). */
+const val FORM_YES_NO_NO_KEY: String = "nao"
+
+/** A chave da opção de uma resposta `yesNo` ([FORM_YES_NO_YES_KEY]/[FORM_YES_NO_NO_KEY]). */
+fun formYesNoOptionKey(answer: Boolean): String = if (answer) FORM_YES_NO_YES_KEY else FORM_YES_NO_NO_KEY
+
+/** A resposta de uma chave de opção `yesNo`; `null` para chave desconhecida. */
+fun formYesNoFromOptionKey(key: String): Boolean? = when (key) {
+    FORM_YES_NO_YES_KEY -> true
+    FORM_YES_NO_NO_KEY -> false
+    else -> null
+}
+
 /** Quantas perguntas de um escopo já têm resposta. */
 @Immutable
 data class FormProgress(val answered: Int, val total: Int) {

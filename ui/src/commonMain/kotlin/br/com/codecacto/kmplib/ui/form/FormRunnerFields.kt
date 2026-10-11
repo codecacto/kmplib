@@ -202,6 +202,7 @@ internal fun FormQuestionItem(env: FormFieldEnv, question: FormQuestion, section
                     FormQuestionType.LIKERT -> LikertField(env, question, section)
                     FormQuestionType.LIST -> ListField(env, question)
                     FormQuestionType.FILE -> FileField(env, question)
+                    FormQuestionType.YES_NO -> YesNoField(env, question)
                 }
             }
         }
@@ -554,6 +555,33 @@ private fun SingleChoiceField(env: FormFieldEnv, question: FormQuestion) {
             )
         }
     }
+}
+
+/**
+ * Sim/não (`yesNo`): dois botões de rádio lado a lado ("Sim" primeiro), num grupo selecionável — o
+ * leitor de tela ouve "Sim, botão de opção, 1 de 2" e o estado "sem resposta" até a escolha. `false` é
+ * resposta (diferente do consentimento). Os rótulos são da MOLDURA ([FormRunnerTexts.yes]/[no], no
+ * idioma da tela): a pergunta não traz opção. Ids: `formulario-<id>-opcao-sim` / `-opcao-nao`.
+ */
+@Composable
+private fun YesNoField(env: FormFieldEnv, question: FormQuestion) {
+    val chosen = env.state.answers[question.id]?.booleanOrNull()?.let(::formYesNoOptionKey)
+    OptionList(
+        tags = env.tags(question.id),
+        rows = listOf(
+            OptionRow(value = FORM_YES_NO_YES_KEY, leading = null, label = env.texts.yes, description = null),
+            OptionRow(value = FORM_YES_NO_NO_KEY, leading = null, label = env.texts.no, description = null),
+        ),
+        multi = false,
+        selected = setOfNotNull(chosen),
+        enabled = env.enabled,
+        errorText = env.questionMessage(question.id),
+        unansweredLabel = env.likertTexts.unanswered,
+        onToggle = { key ->
+            formYesNoFromOptionKey(key)?.let { env.dispatch(FormRunnerAction.Answer(question.id, FormAnswerValue.bool(it))) }
+        },
+        flow = true,
+    )
 }
 
 @Composable

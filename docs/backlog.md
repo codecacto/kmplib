@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 10/out/2026 — L-B08 (lado cliente) entregue na 2.289.0 (lib-mobile)
+- [x] **L-B08 / GAP-PT-B08 — pergunta sim/não no `FormRunner`: ENTREGUE na 2.289.0.** `FormQuestionType.YES_NO`
+      (`"yesNo"`, booleano, `false` é resposta) no motor (validação, visibilidade, descarte, condição) + controle Sim/Não
+      acessível (`formulario-<id>-opcao-sim`/`-nao`, `FormRunnerTexts.yes`/`no` nos 4 idiomas); fixtures v2 do
+      `backlib-forms` 0.176.0 passando. Consumidor previsto: App do Personal (MA9 anamnese no app do aluno, MP9 reenvio).
+
 ### Registrado em 10/out/2026 — GAP-PT-M31 entregue na 2.288.0 (lib-mobile)
 - [x] **GAP-PT-M31 — idiomas declarados pelo app: ENTREGUE na 2.288.0.** `KmpLibLocales.configure(supported)` +
       resolvedor central `kmpStringResource`/`kmpGetString` (base pt-BR gerada do `values/strings.xml`); todo texto da

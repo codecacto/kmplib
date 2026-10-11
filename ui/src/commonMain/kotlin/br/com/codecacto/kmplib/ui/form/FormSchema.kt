@@ -147,8 +147,14 @@ fun FormLikertScale.points(): List<FormDecimal> {
 /**
  * O tipo de pergunta e a forma da resposta de cada um:
  * `text`/`longText`/`singleChoice`/`date` → texto (`date` = `"AAAA-MM-DD"`) · `number`/`likert` →
- * número · `multiChoice` → lista de textos · `list` → itens · `file` → `[{fileId}]` · `consent` →
- * booleano · `info` → nenhuma.
+ * número · `multiChoice` → lista de textos · `list` → itens · `file` → `[{fileId}]` · `consent`/`yesNo`
+ * → booleano · `info` → nenhuma.
+ *
+ * [YES_NO] (`"yesNo"`, kmplib 2.289.0 = backlib-forms 0.176.0) — sim/não: `true`/`false`, e `false` É
+ * resposta (conta como respondida, satisfaz `required`). Sem configuração: os rótulos "Sim"/"Não" são
+ * do cliente ([FormRunnerTexts.yes]/[FormRunnerTexts.no]), no idioma da tela. Condição sobre ela:
+ * `eq`/`neq` com booleano, `answered`/`notAnswered`. Diferente de `consent`, `false` não barra o envio.
+ * Não pontua e não é campo de item de lista (o lint do servidor recusa).
  *
  * [UNSUPPORTED] = tipo que esta versão do app não conhece (o servidor está à frente): a tela mostra um
  * aviso, o cliente não o valida nem o exige — a conferência fica com o servidor.
@@ -166,6 +172,7 @@ enum class FormQuestionType(val wireName: String) {
     FILE("file"),
     CONSENT("consent"),
     INFO("info"),
+    YES_NO("yesNo"),
     UNSUPPORTED("unsupported"),
     ;
 

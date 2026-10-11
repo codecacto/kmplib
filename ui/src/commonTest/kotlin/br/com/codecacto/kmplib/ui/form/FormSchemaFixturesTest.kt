@@ -31,7 +31,7 @@ import kotlinx.serialization.json.jsonPrimitive
 class FormSchemaFixturesTest {
 
     /** A versão das fixtures que ESTA cópia representa — sobe junto com a do servidor. */
-    private val fixturesVersion = 1
+    private val fixturesVersion = 2
 
     private val root: JsonObject = Json.parseToJsonElement(FORM_SCHEMA_FIXTURES_JSON).jsonObject
     private val schemas: JsonObject = root.getValue("schemas").jsonObject
@@ -67,7 +67,7 @@ class FormSchemaFixturesTest {
 
     @Test
     fun `todos os schemas nomeados das fixtures sao lidos pelo modelo do app`() {
-        assertEquals(19, schemas.size)
+        assertEquals(20, schemas.size)
         schemas.forEach { (name, element) ->
             val schema = FormJson.format.decodeFromJsonElement(FormSchemaV1.serializer(), element)
             assertTrue(schema.sections.isNotEmpty(), name)
@@ -80,7 +80,7 @@ class FormSchemaFixturesTest {
     @Test
     fun conditions() {
         val all = cases("conditions")
-        assertEquals(51, all.size)
+        assertEquals(64, all.size)
         val failures = all.mapNotNull { case ->
             val condition = FormJson.format.decodeFromJsonElement(FormCondition.serializer(), case.getValue("condition"))
             val answers = answersOf(case)
@@ -94,7 +94,7 @@ class FormSchemaFixturesTest {
     @Test
     fun visibility() {
         val all = cases("visibility")
-        assertEquals(10, all.size)
+        assertEquals(14, all.size)
         val failures = all.mapNotNull { case ->
             val visibility = schemaOf(case.getValue("schema")).evaluateVisibility(answersOf(case), contextOf(case))
             val sections = case.getValue("visibleSections").jsonArray.map { it.jsonPrimitive.content }
@@ -111,7 +111,7 @@ class FormSchemaFixturesTest {
     @Test
     fun prune() {
         val all = cases("prune")
-        assertEquals(3, all.size)
+        assertEquals(4, all.size)
         val failures = all.mapNotNull { case ->
             val kept = schemaOf(case.getValue("schema")).pruneAnswers(answersOf(case), contextOf(case)).keys.toList()
             val expected = case.getValue("kept").jsonArray.map { it.jsonPrimitive.content }
@@ -123,7 +123,7 @@ class FormSchemaFixturesTest {
     @Test
     fun validation() {
         val all = cases("validation")
-        assertEquals(66, all.size)
+        assertEquals(75, all.size)
         val failures = all.mapNotNull { case ->
             val schema = schemaOf(case.getValue("schema"))
             val today = LocalDate.parse(case.getValue("today").jsonPrimitive.content)
