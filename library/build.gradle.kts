@@ -10,6 +10,9 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kover)
     alias(libs.plugins.sqldelight)
+    // Trava de grafo (2.291.0): o umbrella é o grafo INTEIRO — Analytics/Crashlytics/measurement/
+    // AdMob reprovam o build aqui também.
+    id("kmplib.sem-sdk-proibido")
 }
 
 group = "br.com.codecacto"
@@ -267,7 +270,7 @@ kotlin {
             api(libs.androidx.lifecycle.viewmodel)
 
             // Firebase GitLive (Auth + Storage + Remote Config; SEM Firestore — decisão de arquitetura:
-            // dados via REST/apps-api, Firebase só para Auth e Crashlytics).
+            // dados via REST/apps-api, Firebase só para Auth e push).
             // `implementation` CORRETO (auditado em 2.101.0): FirebaseAuth/FirebaseUser/
             // FirebaseStorage/Data são `private`/`internal` — a API pública é toda em tipos
             // próprios (IAuthRepository, User, StorageService). É o que permite a um projeto
@@ -361,11 +364,11 @@ kotlin {
 
             // Firebase Android (required by GitLive) - exposed as api() for consumer projects.
             // Crashlytics saiu (2.75.0): observabilidade de crashes migrou para sentry-kotlin-multiplatform
-            // (módulo `observability`). Firebase Analytics mantido (base para Auth/Config).
+            // (módulo `observability`). Firebase Analytics saiu na 2.291.0: Crashlytics, Analytics e
+            // AD_ID nunca existem em app da fábrica (fundador, 11/out/2026).
             api(libs.firebase.auth.android)
             api(libs.firebase.storage.android)
             api(libs.firebase.common.android)
-            api(libs.firebase.analytics.android)
             api(libs.firebase.config.android)
 
             // AndroidX Activity Compose (for ImagePicker camera/gallery launchers)

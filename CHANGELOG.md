@@ -5,6 +5,50 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.291.0 — Sem Google Analytics, Crashlytics nem AD_ID: `kmplib-auth` não depende mais do `kmplib-firebase`; trava de grafo na lib
+
+Regra do fundador (11/out/2026): **Crashlytics, Google Analytics for Firebase e a permissão `AD_ID` nunca existem em
+app da fábrica.** Achado no Meu Advogado: o `kmplib-auth` fazia `api(kmplib-firebase)`, e o `kmplib-firebase`
+declarava `api(firebase-analytics-ktx)` — **todo app com login** recebia Firebase Analytics,
+`play-services-measurement*` e as permissões `AD_ID` / `ACCESS_ADSERVICES_AD_ID` / `ACCESS_ADSERVICES_ATTRIBUTION`
+sem pedir. Com elas no APK, a declaração "não usa ID de publicidade" do Play Console diverge do binário e o release é
+barrado (docs/42); o app tinha de contornar com exclusões no próprio grafo. Higiene, sem aviso; sem piso (o AD_ID já
+tem checagem própria no auditor de loja, como na 2.260.0).
+
+### O que mudou
+
+- **`kmplib-firebase`: `firebase-analytics-ktx` SAIU** (e do umbrella, que repetia a lista). Auth, Storage e Remote
+  Config não precisam dele — o Remote Config só declara o `firebase-measurement-connector` (interface vazia, sem SDK
+  nem permissão). A linha `firebase-analytics-android` saiu do `libs.versions.toml`.
+- **`kmplib-auth` NÃO depende mais do `kmplib-firebase`** (como o `kmplib-sync` na 2.260.0). O own-auth só usava os
+  contratos neutros; **`AuthException` mudou-se para o `kmplib-core`**, MESMO pacote
+  (`br.com.codecacto.kmplib.firebase.auth`) — `IAuthRepository` e `User` já moravam lá. Nenhum import quebra: o
+  `kmplib-firebase` continua expondo os três via `api(kmplib-core)`, e o `AuthRepository` do Firebase segue lançando
+  os mesmos tipos. App com login own-auth deixa de levar Firebase Auth/Storage/Remote Config.
+- **`kmplib-monetization` remove `AD_ID` e `ACCESS_ADSERVICES_*` no manifesto** (`tools:node="remove"`). A RevenueCat
+  declara `play-services-ads-identifier` 17.0.1 (sem a permissão), mas a 18.0.0+ a declara, e qualquer dependência do
+  app que suba a versão por conflito a traria de volta. O marcador mora no módulo que DECLARA o SDK porque entre
+  bibliotecas o `remove` só vale contra manifestos de prioridade menor: no `kmplib-core`, testado na casca com o
+  transitivo forçado para 18.0.0, o merger registrou `REJECTED from [:kmplib:kmplib-core]` e a permissão ficou; no
+  `kmplib-monetization` ela sai (`REJECTED from [play-services-ads-identifier:18.0.0]`). SDK declarado direto pelo
+  APP só sai pelo manifesto do app (a casca já traz, agora incondicional).
+- **Trava de grafo: `verificarSdksProibidos`** (convention plugin `kmplib.sem-sdk-proibido`, aplicado a todo
+  `kmplib.module` e ao umbrella). Percorre o `releaseRuntimeClasspath` inteiro e reprova se aparecer
+  `firebase-analytics*`, `play-services-measurement*`, `firebase-crashlytics*` ou AdMob (`play-services-ads`,
+  `-lite`, `-api`, `-base`). Entra no `check` e antes de todo `publish*`. Prova negativa: devolver o Analytics ao
+  `kmplib-firebase` reprova o build listando os 8 artefatos de medição.
+- **iOS:** nenhum produto SPM de Analytics/Crashlytics é exigido pela lib (Firebase só `FirebaseAuth`,
+  `FirebaseStorage`, `FirebaseRemoteConfig`, `FirebaseMessaging` — `IOS_INTEGRATION.md`). O `Package.swift` residual
+  da raiz (era AdMob) deixou de declarar `GoogleMobileAds`; nenhum app nem a casca o referencia.
+
+### Para o app
+
+- **Nada a migrar** para compilar. App que declara `kmplib-auth` e usa o `AuthRepository`/`AuthStateManager`/
+  `StorageService` do **Firebase** declara `kmplib-firebase` explicitamente (quem usa o umbrella já o recebe).
+- As exclusões feitas no grafo do app para tirar o Analytics (ex.: `exclude(group = "com.google.firebase", module =
+  "firebase-analytics…")`) podem sair ao subir. O `tools:node="remove"` de AD_ID no manifesto do app **fica** — é a
+  camada do app, a única que vence um SDK que o próprio app declare.
+
 ## 2.290.0 — Campo de texto não derruba mais o app no iOS ao voltar à tela; `NavType` de enum com igualdade; exceção não tratada no log do aparelho (Vitalis)
 
 Três achados da suíte de funcionalidades do Vitalis (backlog, 10/out/2026).

@@ -15,6 +15,8 @@ plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
     id("com.vanniktech.maven.publish")
+    // Trava de grafo (2.291.0): Analytics/Crashlytics/measurement/AdMob reprovam o build.
+    id("kmplib.sem-sdk-proibido")
 }
 
 // Em script pré-compilado não existe o acessor `libs` — o catálogo se lê pelo tipo gerado.

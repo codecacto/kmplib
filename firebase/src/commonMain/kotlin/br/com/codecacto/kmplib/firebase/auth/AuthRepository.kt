@@ -348,18 +348,4 @@ class AuthRepository : IAuthRepository {
     }
 }
 
-/**
- * Exceções de autenticação.
- */
-sealed class AuthException(message: String) : Exception(message) {
-    data object InvalidEmail : AuthException("Email inválido")
-    data object InvalidCredentials : AuthException("Email ou senha incorretos")
-    data object UserNotFound : AuthException("Usuário não encontrado")
-    data object EmailAlreadyInUse : AuthException("Este email já está em uso")
-    data object WeakPassword : AuthException("Senha muito fraca. Use pelo menos 6 caracteres")
-    data object TooManyRequests : AuthException("Muitas tentativas. Tente novamente mais tarde")
-    data object NetworkError : AuthException("Erro de conexão. Verifique sua internet")
-    data object RequiresRecentLogin : AuthException("Por segurança, faça login novamente")
-    data object NotAuthenticated : AuthException("Usuário não autenticado")
-    data class UnknownError(override val message: String) : AuthException(message)
-}
+// `AuthException` mora no `kmplib-core` desde a 2.291.0 (mesmo pacote) — ver AuthException.kt.

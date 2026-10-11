@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      ID de publicidade — NUNCA no binário de app da fábrica (fundador, 11/out/2026: Crashlytics,
+      Google Analytics for Firebase e AD_ID "a gente nunca vai ter"). 2.291.0.
+
+      POR QUE AQUI, e não no kmplib-core. A RevenueCat (`purchases`, dependência deste módulo)
+      declara `play-services-ads-identifier`. Na 17.0.1 que ela pede, o manifesto não traz AD_ID —
+      mas a 18.0.0+ traz, e basta qualquer outra dependência do app subir a versão por resolução de
+      conflito para a permissão reaparecer no APK. Um marcador `tools:node="remove"` só vale contra
+      manifestos de PRIORIDADE MENOR, e entre bibliotecas a prioridade segue a ordem de dependência:
+      o módulo que DECLARA o SDK vem antes dos manifestos do SDK. No kmplib-core (testado em
+      11/out/2026 na casca, com o ads-identifier transitivo forçado para 18.0.0) o merger registrou
+      `REJECTED from [:kmplib:kmplib-core]` e a permissão ficou; aqui ela sai.
+
+      Até a 2.290.0 quem trazia as três era o `firebase-analytics` (via `kmplib-firebase`, e pelo
+      `kmplib-auth` a todo app com login) — ele saiu da lib. O house ad do apps-api conta impressão
+      sem identificador; com AD_ID no APK, a declaração "não usa ID de publicidade" do Play Console
+      diverge do binário e o release é barrado (docs/42). `tools:node="remove"` é a forma
+      documentada pelo Google para desligá-las.
+    -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
+
+</manifest>

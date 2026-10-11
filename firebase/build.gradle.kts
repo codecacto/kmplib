@@ -26,7 +26,10 @@ kotlin {
             api(libs.firebase.auth.android)
             api(libs.firebase.storage.android)
             api(libs.firebase.common.android)
-            api(libs.firebase.analytics.android)
+            // SEM firebase-analytics (2.291.0): Google Analytics for Firebase NUNCA existe em app da
+            // fábrica (fundador, 11/out/2026). Ele levava `play-services-measurement` e a permissão
+            // AD_ID ao manifesto de todo app com login. Auth/Storage/Remote Config não precisam
+            // dele — o Remote Config só usa o `firebase-measurement-connector` (interface vazia).
             api(libs.firebase.config.android)
         }
     }

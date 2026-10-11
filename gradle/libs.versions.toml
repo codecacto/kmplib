@@ -145,7 +145,7 @@ firebase-storage-android = { module = "com.google.firebase:firebase-storage", ve
 firebase-common-android = { module = "com.google.firebase:firebase-common-ktx", version = "21.0.0" }
 firebase-config = { module = "dev.gitlive:firebase-config", version.ref = "firebaseGitlive" }
 firebase-config-android = { module = "com.google.firebase:firebase-config", version = "22.0.1" }
-firebase-analytics-android = { module = "com.google.firebase:firebase-analytics-ktx", version = "22.1.2" }
+# firebase-analytics SAIU (2.291.0) — Analytics/Crashlytics/AD_ID nunca existem em app da fábrica.
 
 # Observabilidade de crashes (Sentry KMP) — o artefato já expõe android + iosArm64/iosSimulatorArm64/iosX64
 sentry-kmp = { module = "io.sentry:sentry-kotlin-multiplatform", version.ref = "sentry" }
