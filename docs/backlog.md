@@ -3,6 +3,19 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/out/2026 — avisos/anúncios do app entregues na 2.294.0 (lib-mobile)
+- [x] **GAP-ANNOUNCEMENT-01 — componente de AVISO reutilizável: ENTREGUE na 2.294.0** (`ui.announcement`, artefato
+      `kmplib-ui`). Pedido do fundador: manutenção ("tal dia, de tal hora a tal hora"), atualização, novidade, "também
+      temos a versão web" — bonito e para todo app. `Announcement` (+ `AnnouncementKind`/`Window`/`Action`/`Frequency`),
+      mesmo JSON do par da weblib; `AnnouncementStore` sobre `AppPreferences`; `rememberAnnouncementState` (prioridade
+      MAINTENANCE > UPDATE > CROSS_PLATFORM > NEWS > INFO, janela de visibilidade, ONCE/UNTIL_DISMISSED/ALWAYS);
+      `AnnouncementBanner`/`AnnouncementHost` (cor por tipo com contraste AA conferido, janela no fuso do aparelho, 4
+      idiomas). Primeiro consumidor previsto: LocAki.
+- [ ] **GAP-ANNOUNCEMENT-02 (Médio) — `fetchAnnouncements` no `kmplib-central`.** Depende do apps-api:
+      `GET {appsApi}/public/announcements?project=<slug>&platform=android|ios|web` → `List<Announcement>`, alimentado
+      pelo Nexus → Avisos. O modelo e o `decodeAnnouncements` já estão prontos; falta a rota no servidor, o cadastro no
+      Nexus e a função no `central` (com cache local para abrir sem rede).
+
 ### Registrado em 10/out/2026 — L-B08 (lado cliente) entregue na 2.289.0 (lib-mobile)
 - [x] **L-B08 / GAP-PT-B08 — pergunta sim/não no `FormRunner`: ENTREGUE na 2.289.0.** `FormQuestionType.YES_NO`
       (`"yesNo"`, booleano, `false` é resposta) no motor (validação, visibilidade, descarte, condição) + controle Sim/Não

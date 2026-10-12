@@ -525,4 +525,14 @@
     <string name="kmplib_chat_voice_message">Mensaje de voz, %1$s</string>
     <string name="kmplib_chat_you">Tú</string>
     <string name="kmplib_chat_load_error">No se pudo cargar la conversación.</string>
+    <!-- Avisos / anúncios (ui.announcement, 2.294.0) -->
+    <string name="kmplib_announcement_dismiss">Descartar aviso</string>
+    <string name="kmplib_announcement_kind_maintenance">Mantenimiento programado</string>
+    <string name="kmplib_announcement_kind_update">Actualización</string>
+    <string name="kmplib_announcement_kind_news">Novedad</string>
+    <string name="kmplib_announcement_kind_cross_platform">También disponible</string>
+    <string name="kmplib_announcement_kind_info">Aviso</string>
+    <string name="kmplib_announcement_window_same_day">%1$s, de %2$s a %3$s</string>
+    <string name="kmplib_announcement_window_range">Desde %1$s hasta %2$s</string>
+    <string name="kmplib_announcement_window_ongoing">En curso — hasta %1$s</string>
 </resources>

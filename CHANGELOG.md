@@ -5,6 +5,49 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.294.0 — Avisos do app: manutenção, atualização, novidade, "também temos a versão web" (`ui.announcement`)
+
+Pedido do fundador (12/out/2026): um componente de aviso da biblioteca, para todo app, para os
+diferentes tipos de informação — manutenção ("tal dia fica fora do ar de tal hora a tal hora"),
+atualização, novidade, "temos versão web" — e bonito. Mora no `kmplib-ui` (pacote
+`br.com.codecacto.kmplib.ui.announcement`): é componente de tela sem rede, e o `kmplib-central` (que
+fala com o apps-api) já depende do `ui` — a busca no servidor, quando existir, pluga de lá. É o PAR do
+`Announcement` da weblib: mesmos nomes, mesmo JSON.
+
+- **Modelo `@Serializable`**: `Announcement(id, kind, title, message, window, visibleFrom,
+  visibleUntil, action, frequency = ONCE, dismissible = true)`, `AnnouncementKind`
+  (`NEWS`/`UPDATE`/`MAINTENANCE`/`CROSS_PLATFORM`/`INFO` → `"news"`/`"update"`/`"maintenance"`/
+  `"crossPlatform"`/`"info"`; desconhecido vira `INFO`), `AnnouncementWindow(start, end)` (ISO-8601 com
+  fuso), `AnnouncementAction(label, url)`, `AnnouncementFrequency` (`"once"`/`"untilDismissed"`/
+  `"always"`). `AnnouncementJson`, `decodeAnnouncements(json)` (item malformado é descartado sem levar
+  os outros) e `encodeAnnouncements`.
+- **Regras puras**: `selectAnnouncement` (primeiro pendente dentro da janela de visibilidade, prioridade
+  MAINTENANCE > UPDATE > CROSS_PLATFORM > NEWS > INFO, empate pela ordem da lista), `isVisibleAt`,
+  `effectiveVisibleUntil` (sem `visibleUntil`, some ao fim da janela do evento), `isPending`,
+  `nextAnnouncementChange`, `describeAnnouncementWindow` (fase UPCOMING/ONGOING/ENDED no fuso dado).
+- **Persistência**: `AnnouncementStore` + `PreferencesAnnouncementStore(AppPreferences)` (visto e
+  dispensado por id, epoch millis) + `InMemoryAnnouncementStore`. Memória do aparelho, não da conta.
+- **Estado**: `AnnouncementController` (fora do Compose) e `rememberAnnouncementState(list, store,
+  clock)` → `current`, `now`, `dismiss(id)`; reavalia sozinho quando um aviso entra/sai da janela e no
+  `ON_RESUME`. ONCE fica a sessão inteira e não volta; UNTIL_DISMISSED volta até o X; ALWAYS volta a
+  cada abertura (o X vale para a sessão); não dispensável ignora o X.
+- **Cartão**: `AnnouncementBanner(announcement, onDismiss, onAction, modifier, now, texts,
+  extraContent)` — Material 3, ícone e cor por tipo (manutenção = `warning`, aviso = `info`, os demais
+  da marca), cores derivadas por contraste WCAG (`announcementColors`, AA conferido em teste nos temas
+  claro e escuro), rótulo do tipo, título como `heading`, mensagem, janela escrita no fuso e na região
+  do aparelho ("sábado, 18 de outubro, das 22:00 às 02:00" / "Em andamento — até 02:00"), botão de
+  ação (default abre a URL pelo `UrlLauncher`, com portão de pais em app infantil), X com
+  `contentDescription`; fora do telefone, teto de 720 dp. `AnnouncementHost(...)` junta estado e
+  cartão com transição suave (nenhuma com "reduzir movimento"). Ids `aviso`, `aviso-titulo`,
+  `aviso-janela`, `aviso-btn-acao`, `aviso-btn-dispensar` (`AnnouncementTestTags`).
+- **Textos**: `kmplib_announcement_*` em pt-BR, en, es e pt-PT (`rememberAnnouncementTexts()`).
+- **Contrato futuro (só documentado)**: `GET {appsApi}/public/announcements?project=<slug>&platform=
+  android|ios|web` → `List<Announcement>`, alimentado pelo Nexus → Avisos (backlog GAP-ANNOUNCEMENT-02).
+- Aditivo: nenhum app muda nada. Sem piso, sem aviso.
+- Testes: `AnnouncementSerializationTest` (7), `AnnouncementSelectionTest` (12),
+  `AnnouncementControllerTest` (8), `AnnouncementColorsTest` (3); `:kmplib-ui:testDebugUnitTest` verde
+  (1048). `compileKotlinIosArm64` + `compileTestKotlinIosArm64` do `kmplib-ui` sem SKIPPED.
+
 ## 2.293.0 — Publicidade: build de debug não conta mais no painel
 
 Pedido do fundador (12/out/2026): o painel Anúncios → Estatísticas somava os testes de desenvolvimento
