@@ -5,6 +5,20 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.293.0 — Publicidade: build de debug não conta mais no painel
+
+Pedido do fundador (12/out/2026): o painel Anúncios → Estatísticas somava os testes de desenvolvimento
+e homologação aos números de produção. O `RestAdStatsRecorder` passa a mandar `debug` no corpo do
+`POST /public/ad-stats` (`BuildInfo.isDebug`, lido a cada evento), e o apps-api descarta o evento
+quando `debug=true`. O servidor também já ignora app cujo projeto não está em **Produção** no Nexus —
+o `debug` cobre o caso que ele não enxerga: testar um app que já está na loja.
+
+- `RestAdStatsRecorder(httpClient, appsApiBaseUrl, isDebugBuild = { BuildInfo.isDebug })` — o
+  terceiro parâmetro é novo e tem default; nenhum app muda código.
+- Aditivo: servidor antigo ignora a chave nova; app antigo (sem a chave) segue contando só pelo filtro
+  de projeto em Produção.
+- Testes: `RestAdStatsRecorderTest` (+2: debug true/false). `compileKotlinIosArm64` sem SKIPPED.
+
 ## 2.292.0 — Own-auth: a sessão sobrevive a fechar o app (cofre Android durável e sem apagar por falha passageira; Keychain troca no lugar)
 
 Achado no Meu Advogado (voo-atrasado, emulador Android, 11/out/2026): logado, fechar e reabrir o app —

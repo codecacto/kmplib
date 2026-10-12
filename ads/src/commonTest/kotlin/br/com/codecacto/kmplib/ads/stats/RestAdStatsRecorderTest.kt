@@ -20,6 +20,7 @@ class RestAdStatsRecorderTest {
     private fun recorder(
         captured: Captured = Captured(),
         status: HttpStatusCode = HttpStatusCode.OK,
+        isDebugBuild: Boolean = false,
     ): RestAdStatsRecorder {
         val engine = MockEngine { request ->
             captured.url = request.url.toString()
@@ -27,7 +28,7 @@ class RestAdStatsRecorderTest {
             captured.body = (request.body as? io.ktor.http.content.TextContent)?.text
             respond(content = "{}", status = status, headers = jsonHeader)
         }
-        return RestAdStatsRecorder(httpClient = HttpClient(engine))
+        return RestAdStatsRecorder(httpClient = HttpClient(engine), isDebugBuild = { isDebugBuild })
     }
 
     @Test
@@ -68,6 +69,22 @@ class RestAdStatsRecorderTest {
         assertTrue(body.contains("\"adId\":\"all\""), body)
         assertTrue(body.contains("\"impressions\":0"), body)
         assertTrue(body.contains("\"clicks\":1"), body)
+    }
+
+    @Test
+    fun `build de debug manda debug true para o servidor descartar`() = runTest {
+        val cap = Captured()
+        recorder(captured = cap, isDebugBuild = true)
+            .record(AdProviderTag.CUSTOM, "meu-app", AdFormat.BANNER, "ad1", AdEventType.CLICK)
+        assertTrue(cap.body!!.contains("\"debug\":true"), cap.body)
+    }
+
+    @Test
+    fun `build de release manda debug false`() = runTest {
+        val cap = Captured()
+        recorder(captured = cap, isDebugBuild = false)
+            .record(AdProviderTag.CUSTOM, "meu-app", AdFormat.BANNER, "ad1", AdEventType.IMPRESSION)
+        assertTrue(cap.body!!.contains("\"debug\":false"), cap.body)
     }
 
     @Test

@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ads.stats
 import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.core.util.BuildInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.post
@@ -22,7 +23,7 @@ import kotlinx.serialization.json.Json
  * ```
  * POST {appsApiBaseUrl}/public/ad-stats
  *   { "provider": "custom", "appId": "...", "format": "banner"|"interstitial",
- *     "adId": "...", "impressions": 0|1, "clicks": 0|1 }
+ *     "adId": "...", "impressions": 0|1, "clicks": 0|1, "debug": true|false }
  * ```
  *
  * Um unico evento por chamada: uma IMPRESSION envia `impressions=1, clicks=0`; um CLICK envia
@@ -36,11 +37,17 @@ import kotlinx.serialization.json.Json
  * qualquer erro (rede/4xx/5xx) e logado e ignorado — estatistica de ad NUNCA pode quebrar o app.
  *
  * @param httpClient `HttpClient` (Ktor) do app — o mesmo de feedback/developer/custom ads.
+ * **`debug` (2.293.0):** build de debug manda `debug=true` e o apps-api DESCARTA o evento — a metrica
+ * do painel e so de quem usa o app publicado (fundador, 12/out/2026). O servidor tambem ignora app
+ * cujo projeto nao esta em Producao no Nexus; o `debug` cobre o teste de um app que ja esta na loja.
+ *
  * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
+ * @param isDebugBuild lido a cada evento (no Android o contexto so existe depois do init da lib).
  */
 class RestAdStatsRecorder(
     private val httpClient: HttpClient,
     private val appsApiBaseUrl: String = DEFAULT_APPS_API_BASE_URL,
+    private val isDebugBuild: () -> Boolean = { BuildInfo.isDebug },
 ) : AdStatsRecorder {
     companion object {
         private const val TAG = "RestAdStatsRecorder"
@@ -68,6 +75,7 @@ class RestAdStatsRecorder(
             adId = adId?.ifBlank { null } ?: "all",
             impressions = if (type == AdEventType.IMPRESSION) 1 else 0,
             clicks = if (type == AdEventType.CLICK) 1 else 0,
+            debug = isDebugBuild(),
         )
 
         val url = appsApiBaseUrl.trimEnd('/') + PATH
@@ -96,4 +104,5 @@ internal data class AdStatsRequest(
     val adId: String,
     val impressions: Int,
     val clicks: Int,
+    val debug: Boolean = false,
 )
