@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.core.central
 
+import br.com.codecacto.kmplib.announcement.AnnouncementConfig
+import br.com.codecacto.kmplib.announcement.AnnouncementService
 import br.com.codecacto.kmplib.contact.ContactConfig
 import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperConfig
@@ -16,7 +18,9 @@ import kotlin.concurrent.Volatile
  * Inicializa de uma vez os três toques públicos do **apps-api central** — sem login, sem Firestore:
  * - [FeedbackService] — envio de feedback (`POST /feedback/v1`);
  * - [ContactService] — "Entrar em contato" (`POST /contact/v1`), MESMO lead do site;
- * - [DeveloperInfoService] — grade "Desenvolvido por CodeCacto" (`GET /public/developer`).
+ * - [DeveloperInfoService] — grade "Desenvolvido por CodeCacto" (`GET /public/developer`);
+ * - [AnnouncementService] — avisos do app do Nexus (`GET /public/announcements`, 2.295.0), que o
+ *   `RemoteAnnouncementHost` mostra.
  *
  * Nenhum dado de domínio trafega aqui — apps offline-first (arquétipo A) guardam local e usam o
  * central só nestes toques; apps com backend próprio também reusam esta amarração para os 3 públicos.
@@ -93,6 +97,16 @@ object CentralServices {
                 ),
             )
         }
+
+        if (config.enableAnnouncements) {
+            AnnouncementService.initialize(
+                AnnouncementConfig(
+                    projectSlug = config.projectSlug,
+                    httpClient = config.httpClient,
+                    appsApiBaseUrl = config.appsApiBaseUrl,
+                ),
+            )
+        }
     }
 
     /**
@@ -123,6 +137,8 @@ object CentralServices {
  * @property enableFeedback liga o [FeedbackService] (default `true`).
  * @property enableContact liga o [ContactService] (default `true`).
  * @property enableDeveloper liga o [DeveloperInfoService] (default `true`).
+ * @property enableAnnouncements liga o [AnnouncementService] (default `true`; 2.295.0). Só faz
+ *   requisição quando uma tela usa o `RemoteAnnouncementHost`/`rememberRemoteAnnouncements`.
  */
 data class CentralServicesConfig(
     val projectSlug: String,
@@ -135,6 +151,7 @@ data class CentralServicesConfig(
     val enableFeedback: Boolean = true,
     val enableContact: Boolean = true,
     val enableDeveloper: Boolean = true,
+    val enableAnnouncements: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_APPS_API_BASE_URL: String = "https://apps-api.codecacto.com.br"

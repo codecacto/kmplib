@@ -11,10 +11,11 @@
       MAINTENANCE > UPDATE > CROSS_PLATFORM > NEWS > INFO, janela de visibilidade, ONCE/UNTIL_DISMISSED/ALWAYS);
       `AnnouncementBanner`/`AnnouncementHost` (cor por tipo com contraste AA conferido, janela no fuso do aparelho, 4
       idiomas). Primeiro consumidor previsto: LocAki.
-- [ ] **GAP-ANNOUNCEMENT-02 (Médio) — `fetchAnnouncements` no `kmplib-central`.** Depende do apps-api:
-      `GET {appsApi}/public/announcements?project=<slug>&platform=android|ios|web` → `List<Announcement>`, alimentado
-      pelo Nexus → Avisos. O modelo e o `decodeAnnouncements` já estão prontos; falta a rota no servidor, o cadastro no
-      Nexus e a função no `central` (com cache local para abrir sem rede).
+- [x] **GAP-ANNOUNCEMENT-02 (Médio) — busca dos avisos no `kmplib-central`: ENTREGUE na 2.295.0.**
+      `AnnouncementService.fetch` / `AnnouncementClient` (`GET {appsApi}/public/announcements?project&platform&locale`),
+      `rememberRemoteAnnouncements` (ON_RESUME, intervalo mínimo 5 min), `mergeAnnouncements` e `RemoteAnnouncementHost`;
+      inicializado pelo `CentralServices`. Cache é de PROCESSO (memória): abrir o app sem rede ainda mostra só os avisos
+      locais — cache em disco fica para quando um app pedir (GAP-ANNOUNCEMENT-03, não aberto).
 
 ### Registrado em 10/out/2026 — L-B08 (lado cliente) entregue na 2.289.0 (lib-mobile)
 - [x] **L-B08 / GAP-PT-B08 — pergunta sim/não no `FormRunner`: ENTREGUE na 2.289.0.** `FormQuestionType.YES_NO`

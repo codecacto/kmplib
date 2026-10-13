@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.core.central
 
+import br.com.codecacto.kmplib.announcement.AnnouncementService
 import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.feedback.FeedbackService
@@ -11,6 +12,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -21,11 +23,13 @@ class CentralServicesTest {
     @BeforeTest
     fun reset() {
         CentralServices.resetForTesting()
+        AnnouncementService.resetForTesting()
     }
 
     @AfterTest
     fun cleanup() {
         CentralServices.resetForTesting()
+        AnnouncementService.resetForTesting()
     }
 
     @Test
@@ -54,6 +58,19 @@ class CentralServicesTest {
         assertEquals("numeros-da-sorte-app", ct.source)
 
         assertNotNull(DeveloperInfoService.config)
+
+        val av = AnnouncementService.client?.config
+        assertNotNull(av)
+        assertEquals("numeros-da-sorte", av.projectSlug)
+        assertEquals("https://apps-api.example", av.appsApiBaseUrl)
+    }
+
+    @Test
+    fun initialize_canDisableAnnouncements() {
+        CentralServices.initialize(
+            CentralServicesConfig(projectSlug = "z", httpClient = client(), enableAnnouncements = false),
+        )
+        assertFalse(AnnouncementService.isInitialized)
     }
 
     @Test

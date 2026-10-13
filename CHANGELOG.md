@@ -5,6 +5,39 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.295.0 — Avisos do app vindos do Nexus: busca no apps-api (`kmplib-central`, GAP-ANNOUNCEMENT-02)
+
+O modelo da 2.294.0 passa a ser alimentado pelo **Nexus → Avisos**. Contrato fixo do apps-api:
+`GET {appsApi}/public/announcements?project=<slug>&platform=android|ios&locale=<bcp47>` → array JSON de
+`Announcement` (o formato do `decodeAnnouncements`), sem auth, `Cache-Control` 60 s. Pacote
+`br.com.codecacto.kmplib.announcement`, artefato `kmplib-central` (também no umbrella).
+
+- **`AnnouncementService.fetch(platform = currentPlatform, locale = appLanguageTag())`** →
+  `List<Announcement>`; **nunca lança** (rede, HTTP fora de 2xx, corpo que não é array → lista vazia;
+  item malformado é descartado pelo `decodeAnnouncements`). Sem inicialização devolve vazio.
+- **`AnnouncementClient(config, timeSource)`** — `fetch`, `fetchOrNull` (separa FALHA = `null` de
+  "não há aviso" = `[]`), `refresh(minInterval, platform, locale)` + `latest: StateFlow`: a última lista
+  boa fica em memória no processo, falha MANTÉM a anterior (sem rede o aviso de manutenção não some) e
+  não conta para o intervalo; chamadas simultâneas fazem uma requisição; troca de plataforma/idioma
+  busca de novo. `AnnouncementConfig(projectSlug, httpClient, appsApiBaseUrl)`.
+- **`CentralServices` inicializa o serviço** com o slug e o `HttpClient` que o app já passa
+  (`CentralServicesConfig.enableAnnouncements = true`, default) — o app não escreve nada no bootstrap.
+  A central não usa Koin (os serviços são objetos inicializados pelo `CentralServices`); não há registro
+  no Koin, de propósito, para seguir o padrão do módulo.
+- **`rememberRemoteAnnouncements(client, minRefreshInterval = 5 min, platform, locale)`** — busca ao
+  entrar e a cada `ON_RESUME`, no máximo uma vez a cada 5 min (relógio monotônico); devolve
+  `State<List<Announcement>>`.
+- **`mergeAnnouncements(local, remote)`** — dedupe por `id`, o REMOTO vence (o painel corrige o texto sem
+  release); remotos primeiro, depois os locais restantes.
+- **`RemoteAnnouncementHost(local = emptyList(), modifier, …)`** — busca + merge + `AnnouncementHost`: o
+  app põe UMA linha.
+- **Locale**: o default é o idioma da TELA (`appLanguageTag()`, que segue o `KmpLibLocales.configure`),
+  não o cru do aparelho — app só pt-BR num aparelho em inglês pede o aviso em pt-BR, igual ao resto da tela.
+- Testes: `AnnouncementServiceTest` (18 — sucesso, query `project`/`platform`/`locale`, HTTP 500/404,
+  JSON inválido, objeto × array vazio, erro de rede, intervalo mínimo, falha mantém a lista, dedupe/merge,
+  concorrência) + `CentralServicesTest` (+1). `compileKotlinIosArm64` sem SKIPPED.
+- Aditivo: sem piso, sem aviso.
+
 ## 2.294.0 — Avisos do app: manutenção, atualização, novidade, "também temos a versão web" (`ui.announcement`)
 
 Pedido do fundador (12/out/2026): um componente de aviso da biblioteca, para todo app, para os
