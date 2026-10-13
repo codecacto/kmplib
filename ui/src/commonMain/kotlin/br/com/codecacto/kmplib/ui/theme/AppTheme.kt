@@ -29,7 +29,11 @@ import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
  * caixa-preta (Maestro/Appium), via [WithTestTagsAsResourceId] — uma vez, na raiz, para todo app da
  * fábrica. Nada a configurar; ver o KDoc daquela função para o porquê.
  *
- * @param darkTheme Se true, usa o tema escuro. Padrão: isSystemInDarkTheme()
+ * @param darkTheme Se true, usa o tema escuro. Padrão: isSystemInDarkTheme() — o app SEGUE O SISTEMA.
+ *   Para o usuário escolher outro, a escolha mora em **Configurações** (`ThemeModeSelector`) e chega
+ *   aqui como `darkTheme = controller.mode.collectAsState().value.isDarkTheme()` (`ThemeModeController`,
+ *   2.298.0). **Não ponha botão fixo de alternar claro/escuro na barra do topo** — em app isso não
+ *   existe (padrão da fábrica, fundador, 13/out/2026); é convenção de site.
  * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default
  * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default. Com [displayFontFamily], vale
  *   só para o texto corrido e os rótulos (titleMedium/titleSmall, body, label).

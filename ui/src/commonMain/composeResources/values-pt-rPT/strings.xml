@@ -552,4 +552,16 @@
     <string name="kmplib_announcement_dialog_duration_hours_minutes">%1$s h %2$s min</string>
     <string name="kmplib_announcement_dialog_duration_prefix">Duração: %1$s</string>
     <string name="kmplib_announcement_dialog_opens_outside">abre fora da app</string>
+    <!-- Tela Sobre (AboutScreen) e tema (ThemeModeSelector) — 2.298.0 -->
+    <string name="kmplib_about_title">Sobre</string>
+    <string name="kmplib_about_version">Versão %1$s</string>
+    <string name="kmplib_about_version_build">Versão %1$s (%2$s)</string>
+    <string name="kmplib_about_terms">Termos de utilização</string>
+    <string name="kmplib_about_privacy">Política de privacidade</string>
+    <string name="kmplib_about_developed_by">Desenvolvido por</string>
+    <string name="kmplib_about_open_in_browser">abrir no navegador</string>
+    <string name="kmplib_theme_title">Tema</string>
+    <string name="kmplib_theme_system">Predefinição do sistema</string>
+    <string name="kmplib_theme_light">Claro</string>
+    <string name="kmplib_theme_dark">Escuro</string>
 </resources>

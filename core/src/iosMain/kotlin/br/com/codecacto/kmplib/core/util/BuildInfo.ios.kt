@@ -14,4 +14,13 @@ actual object BuildInfo {
                 ?: bundle.objectForInfoDictionaryKey("CFBundleName") as? String
             return nome?.trim()?.takeIf { it.isNotEmpty() }
         }
+
+    actual val appVersionName: String?
+        get() = bundleString("CFBundleShortVersionString")
+
+    actual val appBuildNumber: String?
+        get() = bundleString("CFBundleVersion")
+
+    private fun bundleString(key: String): String? =
+        (NSBundle.mainBundle.objectForInfoDictionaryKey(key) as? String)?.trim()?.takeIf { it.isNotEmpty() }
 }

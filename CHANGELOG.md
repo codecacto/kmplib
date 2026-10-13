@@ -5,6 +5,57 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.298.0 — Tela **Sobre** padrão (`AboutScreen`) + tema que segue o sistema com a troca em **Configurações** (`ThemeMode`)
+
+Dois padrões da fábrica para TODO app, pedidos pelo fundador na homologação do Vitalis (13/out/2026).
+Aditivo: nenhuma API existente mudou. Sem piso, sem aviso.
+
+### `kmplib-ui` — `AboutScreen` (`br.com.codecacto.kmplib.ui.screens.about`)
+- **A tela Sobre = ícone do app, nome, versão, Termos de uso, Política de privacidade e "Desenvolvido por"
+  — e só.** Os três últimos moram AQUI, nunca soltos no menu principal; o único item que fica fora, visível,
+  é o **Enviar feedback** (com "Sobre" logo abaixo).
+- `AboutScreen(onBack, termsUrl, privacyUrl, onDevelopedByClick, modifier, appName = BuildInfo.appName,
+  appIcon = rememberAppIconPainter(), versionName = BuildInfo.appVersionName, buildNumber =
+  BuildInfo.appBuildNumber, showBuildNumber = false, onOpenUrl, bottomBar, texts)`: ícone + nome pelo
+  `AppBrandHeader`, versão do SISTEMA (certa em todo flavor, sem repasse), links legais no **navegador**
+  (`UrlLauncher`, resolvido no toque; em app KIDS passa pelo portão de pais), "Desenvolvido por" por callback
+  (o app navega à `DeveloperScreen` — a tela não importa o `kmplib-central`). `AppTopBar` com voltar,
+  `bottomBar` para house ad, largura máxima 560 dp no tablet, link em branco = linha omitida.
+- `AboutTexts`/`rememberAboutTexts()`/`loadAboutTexts()` (4 idiomas), `aboutVersionLabel(...)` (regra pura:
+  sem versão = sem linha; "Versão 1.4.2" / "Versão 1.4.2 (37)"), `AboutTestTags` (`sobre-tela`,
+  `sobre-versao`, `sobre-btn-termos`, `sobre-btn-privacidade`, `sobre-btn-desenvolvido-por`).
+  Acessibilidade: cada linha é um botão com rótulo de ação "abrir no navegador" nos links externos.
+
+### `kmplib-ui` — `ThemeMode` / `ThemeModeController` / `ThemeModeSelector` (`ui.theme`)
+- **App segue o tema do sistema; a troca (Sistema/Claro/Escuro) fica em Configurações, persistida. Não existe
+  botão fixo de alternar claro/escuro na barra** — isso é convenção de site (Apple HIG *Dark Mode*,
+  Material *Dark theme*).
+- `ThemeMode` (`SYSTEM` default / `LIGHT` / `DARK`, `storageValue` estável, `fromStorage` tolerante,
+  `resolveDark(systemIsDark)`), `@Composable ThemeMode.isDarkTheme()` → `AppTheme(darkTheme = …)`.
+- `ThemeModeController(preferences = appPreferences(), scope, key = "kmplib.theme_mode")`: `mode:
+  StateFlow<ThemeMode>`, `isLoaded`, `currentMode`, `setMode(mode)` (troca na hora, grava em 2º plano; a
+  escolha feita antes de a leitura terminar vence a leitura — CAS). Um por app (`single` no Koin).
+- `ThemeModeSelector(selected, onSelect, modifier, showTitle = true, texts)` — as três opções em rádio
+  (linha inteira é o alvo, ≥ 56 dp, `selectableGroup`, papel de rádio), ids `tema`, `tema-sistema`,
+  `tema-claro`, `tema-escuro` (`ThemeModeTestTags`); `ThemeModeTexts`/`rememberThemeModeTexts()` (4 idiomas).
+- KDoc do `AppTheme(darkTheme)` e do `PrefKeys.DARK_MODE` (booleano não representa "seguir o sistema")
+  apontam para o padrão novo. A lib não tinha toggle de barra — nada a depreciar.
+
+### `kmplib-core` — `BuildInfo.appVersionName` / `appBuildNumber`
+- A versão e o build do app como a loja mostra: Android `PackageInfo.versionName`/`longVersionCode`
+  (`PackageInfoFlags` no 33+), iOS `CFBundleShortVersionString`/`CFBundleVersion`. `null` quando ilegível.
+
+### Testes
+- `ThemeModeTest` (10: leitura, gravação, toques rápidos, escolha antes da leitura, falha de disco, ids) e
+  `AboutScreenTest` (6). `kmplib-ui` 1082 verdes; `compileKotlinIosArm64` de core/ui sem `SKIPPED`.
+
+### O que o app consumidor muda
+- Menu principal: **Enviar feedback** visível + **Sobre** logo abaixo; tirar "Desenvolvido por", "Termos" e
+  "Privacidade" soltos do menu (e de "Conta e privacidade"). Rota nova com `AboutScreen`.
+- Tema: apagar qualquer botão de alternar tema da barra; `single { ThemeModeController() }` no Koin,
+  `AppTheme(darkTheme = controller.mode.collectAsState().value.isDarkTheme())` na raiz, e
+  `ThemeModeSelector` na tela de Configurações. Molde: `casca-mobile` (`features/about`, `features/settings`).
+
 ## 2.297.0 — Cardio estruturado no `kmplib-workout` (L-WK2) + temporizador de disparo na `GuidedCamera` (GAP-PT-M28)
 
 Pedido do App do Personal (`docs/plano-onda-2.md` §2.5 A15b / §3, K-13). Aditivo: plano sem cardio executa

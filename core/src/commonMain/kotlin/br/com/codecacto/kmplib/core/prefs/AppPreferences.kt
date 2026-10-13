@@ -65,6 +65,12 @@ expect fun appPreferences(): AppPreferences
  */
 object PrefKeys {
     const val THEME = "theme"
+
+    /**
+     * Booleano claro/escuro — **não use em tela nova**: ele não representa "seguir o sistema", que é
+     * o default da fábrica. A escolha de tema é o `ThemeModeController` da `kmplib-ui` (2.298.0),
+     * com as três opções em Configurações. Mantido só para quem já grava nesta chave.
+     */
     const val DARK_MODE = "dark_mode"
     const val LANGUAGE = "language"
     const val ONBOARDING_SEEN = "onboarding_seen"
