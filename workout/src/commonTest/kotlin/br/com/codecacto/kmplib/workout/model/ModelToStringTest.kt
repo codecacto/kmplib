@@ -48,7 +48,7 @@ class ModelToStringTest {
         val texto = result().toString()
         assertEquals(
             "SetResult(blockId=block-1, exerciseStepId=ex-1, setIndex=1, stageIndex=2, roundIndex=null, skipped=false, " +
-                "hasDuration=false, exerciseRefId=null, swappedFromExerciseId=null)",
+                "hasDuration=false, exerciseRefId=null, swappedFromExerciseId=null, cardioPhase=null)",
             texto,
         )
         sensiveis.forEach { assertFalse(texto.contains(it), "vazou '$it' em $texto") }

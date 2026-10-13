@@ -2,16 +2,19 @@ package br.com.codecacto.kmplib.workout.protocol
 
 import br.com.codecacto.kmplib.workout.engine.Cursor
 import br.com.codecacto.kmplib.workout.engine.WorkoutEvent
+import br.com.codecacto.kmplib.workout.model.CardioPhase
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import kotlinx.serialization.Serializable
 
 /**
  * Versão do conteúdo das mensagens. **2** (kmplib 2.266.0): `StateSnapshot.stageIndex` (drop-set) e
  * `SetTarget.Reps.stages` dentro do `PlanSnapshot`. **3** (kmplib 2.275.0): `CommandEvent.CompleteSet.
- * durationSeconds` e `CommandEvent.SwapExercise`. Quem recebe `v` maior do que conhece deve pedir um
+ * durationSeconds` e `CommandEvent.SwapExercise`. **4** (kmplib 2.297.0): cardio estruturado —
+ * `ExerciseStep.cardio` dentro do `PlanSnapshot`, `StateSnapshot.cardioPhase`/`phaseEndsAtEpochMillis` e
+ * `CommandEvent.SkipPhase`. Quem recebe `v` maior do que conhece deve pedir um
  * `PlanSnapshot` novo em vez de adivinhar o formato.
  */
-const val WORKOUT_PROTOCOL_VERSION: Int = 3
+const val WORKOUT_PROTOCOL_VERSION: Int = 4
 
 /**
  * Mensagens celular<->relógio, versionadas (`v`) e idempotentes por `seq` crescente (resistem a
@@ -33,7 +36,12 @@ data class PlanSnapshot(
 
 /** Serialização textual compacta do estado, para não exigir que o outro lado conheça as classes
  * seladas de `GuidedWorkoutEngine` — a máquina de estados fica só de um lado da ponte. Os índices são
- * os do `Cursor` (em bi-set/circuito a volta é o `setIndex`; no drop-set o estágio é o `stageIndex`). */
+ * os do `Cursor` (em bi-set/circuito a volta é o `setIndex`; no drop-set o estágio é o `stageIndex`).
+ *
+ * Cardio (2.297.0): numa fase de cardio, [cardioPhase] diz QUAL fase (a tela escreve "TRABALHO"/
+ * "DESCANSO" em texto) e [phaseEndsAtEpochMillis] é o instante final ABSOLUTO dela (o
+ * `GuidedWorkoutEngine.phaseEndsAt`) — o outro lado desenha o anel a partir dele, nunca de um contador
+ * próprio. Pausado, [phaseEndsAtEpochMillis] vem nulo (o fim anda junto com a pausa). */
 @Serializable
 data class StateSnapshot(
     override val seq: Long,
@@ -44,6 +52,8 @@ data class StateSnapshot(
     val restEndsAtEpochMillis: Long? = null,
     override val v: Int = WORKOUT_PROTOCOL_VERSION,
     val stageIndex: Int = 0,
+    val cardioPhase: CardioPhase? = null,
+    val phaseEndsAtEpochMillis: Long? = null,
 ) : WorkoutMessage {
     /** O cursor que este instantâneo descreve. */
     val cursor: Cursor get() = Cursor(blockIndex, exerciseIndex, setIndex, stageIndex)
@@ -83,6 +93,10 @@ sealed interface CommandEvent {
     @Serializable
     data object SkipRest : CommandEvent
 
+    /** "Pular fase" do cardio pedido do outro lado (2.297.0) — regra em `WorkoutEvent.SkipPhase`. */
+    @Serializable
+    data object SkipPhase : CommandEvent
+
     @Serializable
     data class AddRestTime(val seconds: Int) : CommandEvent
 
@@ -109,6 +123,7 @@ fun CommandEvent.toWorkoutEvent(): WorkoutEvent = when (this) {
     is CommandEvent.CompleteSet -> WorkoutEvent.CompleteSet(reps, load, durationSeconds = durationSeconds)
     is CommandEvent.SwapExercise -> WorkoutEvent.SwapExercise(stepId, toExerciseId, reason)
     CommandEvent.SkipRest -> WorkoutEvent.SkipRest
+    CommandEvent.SkipPhase -> WorkoutEvent.SkipPhase
     is CommandEvent.AddRestTime -> WorkoutEvent.AddRestTime(seconds)
     is CommandEvent.SkipExercise -> WorkoutEvent.SkipExercise(reason)
     CommandEvent.Undo -> WorkoutEvent.Undo

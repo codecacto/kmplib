@@ -1,10 +1,13 @@
 package br.com.codecacto.kmplib.workout.metrics
 
+import br.com.codecacto.kmplib.workout.engine.ExecutionStep
 import br.com.codecacto.kmplib.workout.engine.executionOrder
+import br.com.codecacto.kmplib.workout.model.CardioPhase
 import br.com.codecacto.kmplib.workout.model.SET_DURATION_RANGE
 import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
+import br.com.codecacto.kmplib.workout.model.phaseDurationRange
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -29,7 +32,9 @@ sealed interface RunIssue {
     /**
      * O passo não existe no plano: bloco/exercício desconhecido, série ou estágio fora do intervalo, ou
      * volta/estágio declarados que não batem com o método (ex.: `roundIndex` num bloco `NORMAL`,
-     * `stageIndex` nulo numa série com estágios).
+     * `stageIndex` nulo numa série com estágios). Cardio (2.297.0): `cardioPhase` em item que não é
+     * cardio, sem `cardioPhase` em item de cardio, fase que o bloco não tem (`REST` com descanso 0) ou
+     * volta do cardio além de `rounds`.
      */
     @Serializable
     @SerialName("UNKNOWN_STEP")
@@ -52,7 +57,8 @@ sealed interface RunIssue {
 
     /**
      * `SetResult.durationSeconds` informado fora de `SET_DURATION_RANGE` (1..3600) ou numa série que não
-     * é por tempo (`SetTarget.Timed` no plano). 2.275.0.
+     * é por tempo (`SetTarget.Timed` no plano). 2.275.0. Numa fase de cardio (2.297.0) a faixa é
+     * 0..segundos planejados da fase.
      */
     @Serializable
     @SerialName("INVALID_DURATION")
@@ -92,29 +98,31 @@ fun validateRun(plan: WorkoutPlan, run: WorkoutRun): List<RunIssue> {
     val issues = mutableListOf<RunIssue>()
     if (run.planId != plan.id) issues += RunIssue.PlanMismatch(plan.id, run.planId)
 
-    data class Key(val blockId: String, val exerciseId: String, val setIndex: Int, val stageIndex: Int?, val roundIndex: Int?)
+    data class Key(
+        val blockId: String,
+        val exerciseId: String,
+        val setIndex: Int,
+        val stageIndex: Int?,
+        val roundIndex: Int?,
+        val cardioPhase: CardioPhase?,
+    )
 
-    val steps = plan.executionOrder()
-        .mapTo(HashSet()) { Key(it.blockId, it.exercise.id, it.setIndex, it.stageIndex, it.roundIndex) }
-    val stepById = plan.blocks.flatMap { block -> block.exercises.map { block to it } }
-        .flatMap { (block, exercise) -> exercise.sets.indices.map { Triple(block.id, exercise.id, it) to exercise } }
-        .toMap()
+    val stepByKey: Map<Key, ExecutionStep> = plan.executionOrder()
+        .associateBy { Key(it.blockId, it.exercise.id, it.setIndex, it.stageIndex, it.roundIndex, it.cardioPhase) }
     val seen = HashSet<Key>()
     run.sets.forEachIndexed { index, set ->
-        val key = Key(set.blockId, set.exerciseStepId, set.setIndex, set.stageIndex, set.roundIndex)
+        val key = Key(set.blockId, set.exerciseStepId, set.setIndex, set.stageIndex, set.roundIndex, set.cardioPhase)
+        // Passo desconhecido é apontado aqui (UNKNOWN_STEP): duração e troca só se conferem em passo do plano.
+        val step = stepByKey[key]
         when {
-            key !in steps -> issues += RunIssue.UnknownStep(index)
+            step == null -> issues += RunIssue.UnknownStep(index)
             !seen.add(key) -> issues += RunIssue.DuplicateStep(index)
         }
         if (set.completedAt < set.startedAt) issues += RunIssue.NegativeDuration(index)
-        // Passo desconhecido já foi apontado (UNKNOWN_STEP): duração e troca só se conferem em passo do plano.
-        val step = if (key in steps) stepById[Triple(set.blockId, set.exerciseStepId, set.setIndex)] else null
         set.durationSeconds?.let { seconds ->
-            if (step != null && (seconds !in SET_DURATION_RANGE || step.sets[set.setIndex] !is SetTarget.Timed)) {
-                issues += RunIssue.InvalidDuration(index)
-            }
+            if (step != null && !durationAccepted(step, seconds)) issues += RunIssue.InvalidDuration(index)
         }
-        if (step != null && !swapConsistent(step.exerciseRefId, set.exerciseRefId, set.swappedFromExerciseId)) {
+        if (step != null && !swapConsistent(step.exercise.exerciseRefId, set.exerciseRefId, set.swappedFromExerciseId)) {
             issues += RunIssue.InvalidSwap(index)
         }
     }
@@ -129,6 +137,21 @@ fun validateRun(plan: WorkoutPlan, run: WorkoutRun): List<RunIssue> {
         }
     }
     return issues
+}
+
+/**
+ * Duração informada aceita no passo: na fase de cardio, 0..planejado da fase (0 = pulada no primeiro
+ * instante — o motor nunca grava mais que o planejado); na série de força, `SET_DURATION_RANGE` e só em
+ * série por tempo.
+ */
+private fun durationAccepted(step: ExecutionStep, seconds: Int): Boolean {
+    val cardio = step.cardio
+    val phase = step.cardioPhase
+    return if (cardio != null && phase != null) {
+        seconds in cardio.phaseDurationRange(phase)
+    } else {
+        seconds in SET_DURATION_RANGE && step.target is SetTarget.Timed
+    }
 }
 
 /**

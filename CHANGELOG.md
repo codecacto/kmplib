@@ -5,6 +5,68 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.297.0 — Cardio estruturado no `kmplib-workout` (L-WK2) + temporizador de disparo na `GuidedCamera` (GAP-PT-M28)
+
+Pedido do App do Personal (`docs/plano-onda-2.md` §2.5 A15b / §3, K-13). Aditivo: plano sem cardio executa
+exatamente como antes; nenhum parâmetro existente mudou. Sem piso, sem aviso.
+
+### `kmplib-workout` — bloco de intervalos na máquina de estados
+- **Modelo** (`model/Cardio.kt`): `CardioBlock(mode, workSeconds, restSeconds, rounds, targetZone)` = o
+  `CardioBlockDto`, campo a campo; `CardioBlock.interval(…)` / `CardioBlock.continuous(duração, zona)` — o
+  **contínuo é 1 volta sem descanso** (K-13: mesmo contrato, o backend não tem caso à parte); `totalSeconds`
+  (voltas × (trabalho + descanso)), `invalidFields()`/`isValid` com as faixas do contrato (trabalho 10..3600,
+  contínuo até 7200; descanso 0..900, contínuo 0; voltas 1..50, contínuo 1); `CardioMode`, `CardioPhase`
+  (`WORK`/`REST` — a fase que a tela escreve **em texto**), `HeartRateZone` Z1..Z5 (% da FC máxima),
+  `phasesPerRound`, `secondsOf`, `phaseDurationRange`. `ExerciseStep.cardio: CardioBlock? = null`
+  (+ `isCardio`); `SetResult.cardioPhase: CardioPhase? = null`.
+- **Ordem de execução**: o item de cardio vira **uma fase por passo** (volta a volta, trabalho e — se houver —
+  descanso); `ExecutionStep.cardio`/`cardioPhase`/`isCardio`/`phaseSeconds`; `setIndex` = volta do cardio,
+  `cursor.stageIndex` = fase na volta. Em `BI_SET`/`CIRCUIT` o cardio roda inteiro na primeira volta do bloco e
+  não conta para `roundCount` (bloco só de cardio = 1 volta). `Cursor.set(plan)` no cardio devolve a fase como
+  `SetTarget.Timed` (não estoura o índice). `plannedSetCount`/`completedSetCount`/`reconcile`/
+  `timeUnderTensionSeconds` não contam fase de cardio.
+- **Motor** (`GuidedWorkoutEngine`): cada fase é um `InSet` com **instante final absoluto**
+  (`phaseEndsAt(state)` = `setStartedAt + segundos`; `timeRemaining(state, now)` nunca negativo, congelado na
+  pausa). Eventos novos `WorkoutEvent.Tick` ("o relógio andou": fecha cada fase vencida **no seu instante
+  final**, repondo de uma vez as voltas que correram com o app em 2º plano/processo morto) e
+  `WorkoutEvent.SkipPhase` (fecha como pulada). `CompleteSet` numa fase fecha agora com o que correu (FC
+  gravada); `Pause`/`Resume` devolvem o tempo parado; `Finish` grava a fase parcial (≥ 1 s); `Undo` desfaz a
+  última fase e a recomeça; `SkipExercise` pula o resto do cardio. Fases do mesmo item se emendam (o descanso
+  do intervalado É uma fase); depois da última vale o `restSeconds` do item. Todo evento aplica o acerto do
+  relógio antes de agir. Relógio que volta não gera duração negativa.
+- **Resultado agregado** (`workout.cardio`): `WorkoutRun.cardioResult(plan, exerciseStepId, …)` →
+  `CardioResult(completedRounds, workSecondsDone, restSecondsDone, skippedPhases, avgHr, maxHr,
+  timeInTargetZoneSeconds)` = o `cardioResult` do envio (sem série temporal de FC; `toString` sem FC).
+  Zonas: `estimatedMaxHeartRate(idade)` (Tanaka 208 − 0,7 × idade), `HeartRateZone.bpmRange(fcMax)`,
+  `heartRateZoneOf(bpm, fcMax)`, `positionOf` → `ZonePosition` `BELOW`/`INSIDE`/`ABOVE` (texto, além da cor),
+  `secondsInZone(amostras, zona, fcMax, de, até, maxGap = 5 s)` com `HeartRateSample` (em memória, `toString`
+  redigido).
+- **Validação do servidor** (`validateRun`): fase de cardio confere bloco/item/volta/fase; `UNKNOWN_STEP` para
+  `cardioPhase` em item de força, item de cardio sem fase, `REST` em bloco sem descanso, volta além de `rounds`;
+  `INVALID_DURATION` fora de 0..planejado da fase.
+- **Protocolo 4** (`WORKOUT_PROTOCOL_VERSION`): `ExerciseStep.cardio` no `PlanSnapshot`,
+  `StateSnapshot.cardioPhase` + `phaseEndsAtEpochMillis` (o outro lado desenha o anel do instante absoluto),
+  `CommandEvent.SkipPhase`. Mensagem v3 sem os campos lê como força.
+- **Tabelas de casos** (artefato `kmplib-workout-fixtures`): `engine-transitions.json` **versão 2** — eventos
+  `tick`/`skipPhase`, estado esperado com `cardioPhase`/`phaseEndsAtSeconds`, 4 casos de cardio (intervalado com
+  tick atrasado, pausa/pular/concluir/undo/encerrar, contínuo, cardio no circuito); `session-validation.json`
+  **versão 2** — sessões do motor nos 3 planos de cardio + 11 casos à mão. Leitor da tabela de transições tem de
+  mapear `tick` e `skipPhase`.
+- Testes: `CardioEngineTest` (29), `CardioModelTest`, `CardioResultTest`, `HeartRateZonesTest`,
+  `CardioProtocolTest` + as tabelas — workout 173 (JVM) / 169 (Android) verdes; `compileKotlinIosArm64` e
+  `compileKotlinWatchosArm64` sem SKIPPED.
+
+### `kmplib-camera` — temporizador de disparo (GAP-PT-M28)
+- `GuidedCamera(…, captureTimerSeconds = 0, allowTimerToggle = false)` (parâmetros novos ANTES de
+  `overlayContent`, que segue sendo a lambda final): com temporizador > 0 o disparo abre contagem regressiva
+  grande no centro (anunciada ao leitor de tela) e a foto sai no fim; tocar no disparo de novo cancela; trocar de
+  câmera e mudar o temporizador ficam desligados durante a contagem; câmera saindo do ar cancela.
+  `allowTimerToggle` mostra no topo o botão desligado → 5 s → 10 s (`CAPTURE_TIMER_OPTIONS`,
+  `MAX_CAPTURE_TIMER_SECONDS` = 10). Ids `camera-guiada-btn-temporizador` e `camera-guiada-contagem`.
+  `GuidedCameraTexts.countdown`/`cancelTimer`/`timerOff`/`timerSeconds`/`timerLabel`; textos
+  `kmplib_guided_camera_{countdown,cancel_timer,timer_off,timer_seconds}` nos 4 idiomas (recursos do `kmplib-ui`).
+- Testes: `GuidedCameraTimerTest` (7); camera 87 e ui 1066 verdes; `compileKotlinIosArm64` sem SKIPPED.
+
 ## 2.296.0 — Comunicado em MODAL: `AnnouncementDialog` + `AnnouncementDialogHost` (pedido do fundador)
 
 "Modal maior, centralizado, quadrado ou retangular em pé, com foto opcional, bonito." Spec de design

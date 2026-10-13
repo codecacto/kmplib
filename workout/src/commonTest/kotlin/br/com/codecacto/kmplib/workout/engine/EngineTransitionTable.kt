@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.workout.engine
 
+import br.com.codecacto.kmplib.workout.model.CardioPhase
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
@@ -23,8 +24,13 @@ import kotlin.time.Duration.Companion.seconds
  * - `completeSet.durationSeconds` (2.275.0, opcional) = o cronômetro da série por tempo;
  * - `swapExercise` (2.275.0) = troca o exercício do item `stepId` por `toExerciseId`; `swaps` no estado
  *   esperado = as trocas ativas, `"<stepId>-><toExerciseId>"`, na ordem.
+ *
+ * **Versão 2** (2.297.0, cardio estruturado): eventos `tick` ("o relógio andou": fecha cada fase de cardio
+ * vencida no SEU instante final) e `skipPhase`; no estado esperado `IN_SET` de uma fase de cardio,
+ * `cardioPhase` (`WORK`/`REST`) e `phaseEndsAtSeconds` (instante final absoluto da fase); fora dela os
+ * dois vêm `null`. Num passo de cardio o cursor é `[bloco, exercício, volta do cardio, fase na volta]`.
  */
-const val TRANSITION_TABLE_VERSION: Int = 1
+const val TRANSITION_TABLE_VERSION: Int = 2
 
 @Serializable
 data class TransitionTable(
@@ -80,6 +86,14 @@ sealed interface TableEvent {
 
     @Serializable @SerialName("finish")
     data object Finish : TableEvent
+
+    /** "O relógio andou" (versão 2) — `WorkoutEvent.Tick`. */
+    @Serializable @SerialName("tick")
+    data object Tick : TableEvent
+
+    /** "Pular fase" do cardio (versão 2) — `WorkoutEvent.SkipPhase`. */
+    @Serializable @SerialName("skipPhase")
+    data object SkipPhase : TableEvent
 }
 
 @Serializable
@@ -95,6 +109,8 @@ data class ExpectedState(
     val recordedSteps: Int? = null,
     val skippedExercises: List<String> = emptyList(),
     val swaps: List<String> = emptyList(),
+    val cardioPhase: CardioPhase? = null,
+    val phaseEndsAtSeconds: Long? = null,
 )
 
 val TABLE_T0: Instant = T0
@@ -111,6 +127,8 @@ fun TableEvent.toWorkoutEvent(case: TransitionCase): WorkoutEvent = when (this) 
     TableEvent.Pause -> WorkoutEvent.Pause
     TableEvent.Resume -> WorkoutEvent.Resume
     TableEvent.Finish -> WorkoutEvent.Finish
+    TableEvent.Tick -> WorkoutEvent.Tick
+    TableEvent.SkipPhase -> WorkoutEvent.SkipPhase
 }
 
 private fun Instant.sinceT0(): Long = (this - TABLE_T0).inWholeSeconds
@@ -131,6 +149,8 @@ fun WorkoutState.project(): ExpectedState = when (this) {
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
         swaps = run.swapList(),
+        cardioPhase = plan.stepAt(cursor)?.cardioPhase,
+        phaseEndsAtSeconds = PROJECTION_ENGINE.phaseEndsAt(this)?.takeIf { plan.stepAt(cursor)?.isCardio == true }?.sinceT0(),
     )
     is WorkoutState.Resting -> ExpectedState(
         phase = TablePhase.RESTING,
@@ -155,6 +175,12 @@ fun WorkoutState.project(): ExpectedState = when (this) {
         swaps = run.swapList(),
     )
 }
+
+private val PROJECTION_ENGINE = GuidedWorkoutEngine()
+
+/** Fase de cardio em andamento: [phase] começou em [startedAt] e termina sozinha em [endsAt]. */
+private fun cardio(cursor: List<Int>, startedAt: Long, recorded: Int, phase: CardioPhase, endsAt: Long) =
+    ExpectedState(TablePhase.IN_SET, cursor, setStartedAtSeconds = startedAt, recordedSteps = recorded, cardioPhase = phase, phaseEndsAtSeconds = endsAt)
 
 private fun inSet(cursor: List<Int>, startedAt: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
     ExpectedState(TablePhase.IN_SET, cursor, setStartedAtSeconds = startedAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
@@ -363,6 +389,60 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(70, TableEvent.Undo, inSet(listOf(0, 1, 0, 0), 70, 1, swaps = listOf("ex-2->pushdown"))),
             step(71, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 71, 0, swaps = listOf("ex-2->pushdown"))),
             step(72, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 72, 0)),
+        ),
+    ),
+    // ── 2.297.0: cardio estruturado (versão 2 da tabela) ──
+    TransitionCase(
+        name = "cardio intervalado: tick antes do fim não muda nada; no fim a fase fecha no instante final; um tick atrasado repõe as voltas; depois da última fase, o descanso do item",
+        plan = cardioIntervalPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, cardio(listOf(0, 0, 0, 0), 0, 0, CardioPhase.WORK, 40)),
+            step(30, TableEvent.Tick, cardio(listOf(0, 0, 0, 0), 0, 0, CardioPhase.WORK, 40)),
+            step(40, TableEvent.Tick, cardio(listOf(0, 0, 0, 1), 40, 1, CardioPhase.REST, 60)),
+            step(130, TableEvent.Tick, cardio(listOf(0, 0, 2, 0), 120, 4, CardioPhase.WORK, 160)),
+            step(200, TableEvent.Tick, resting(listOf(0, 1, 0, 0), 240, 6)),
+            step(210, TableEvent.Tick, resting(listOf(0, 1, 0, 0), 240, 6)),
+            step(240, TableEvent.SkipRest, inSet(listOf(0, 1, 0, 0), 240, 6)),
+            step(245, TableEvent.Tick, inSet(listOf(0, 1, 0, 0), 240, 6)),
+            step(246, TableEvent.SkipPhase, inSet(listOf(0, 1, 0, 0), 240, 6)),
+            step(270, DONE, finished(270, 7)),
+        ),
+    ),
+    TransitionCase(
+        name = "cardio: a pausa devolve o tempo à fase; pular fase; concluir fase antes do fim; undo recomeça a fase; encerrar grava a parcial",
+        plan = cardioIntervalPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, cardio(listOf(0, 0, 0, 0), 0, 0, CardioPhase.WORK, 40)),
+            step(10, TableEvent.Pause, paused(listOf(0, 0, 0, 0), 0)),
+            step(30, TableEvent.Resume, cardio(listOf(0, 0, 0, 0), 20, 0, CardioPhase.WORK, 60)),
+            step(50, TableEvent.SkipPhase, cardio(listOf(0, 0, 0, 1), 50, 1, CardioPhase.REST, 70)),
+            step(60, TableEvent.CompleteSet(null, null), cardio(listOf(0, 0, 1, 0), 60, 2, CardioPhase.WORK, 100)),
+            step(70, TableEvent.Undo, cardio(listOf(0, 0, 0, 1), 70, 1, CardioPhase.REST, 90)),
+            step(75, TableEvent.Finish, finished(75, 2)),
+        ),
+    ),
+    TransitionCase(
+        name = "cardio contínuo: 1 volta sem descanso; o tick depois do fim termina o treino no instante final",
+        plan = cardioContinuousPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, cardio(listOf(0, 0, 0, 0), 0, 0, CardioPhase.WORK, 300)),
+            step(299, TableEvent.Tick, cardio(listOf(0, 0, 0, 0), 0, 0, CardioPhase.WORK, 300)),
+            step(400, TableEvent.Tick, finished(300, 1)),
+        ),
+    ),
+    TransitionCase(
+        name = "cardio no circuito: roda inteiro na primeira volta, sem descanso entre as fases nem antes do próximo exercício",
+        plan = cardioCircuitPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(30, TableEvent.CompleteSet(null, null), cardio(listOf(0, 1, 0, 0), 30, 1, CardioPhase.WORK, 60)),
+            step(60, TableEvent.Tick, cardio(listOf(0, 1, 1, 0), 60, 2, CardioPhase.WORK, 90)),
+            step(90, TableEvent.Tick, inSet(listOf(0, 2, 0, 0), 90, 3)),
+            step(120, DONE, resting(listOf(0, 0, 1, 0), 165, 4)),
         ),
     ),
 )

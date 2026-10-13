@@ -25,27 +25,30 @@ fun WorkoutRun.heartRateMaxOverall(): Int? = sets.mapNotNull { it.heartRateMax }
 
 /** Tempo sob tensão: soma da duração de cada série concluída, em segundos — a INFORMADA
  * (`SetResult.durationSeconds`, série por tempo) quando houver, senão fim - início
- * (`effectiveDurationSeconds`). Série pulada não entra. */
+ * (`effectiveDurationSeconds`). Série pulada não entra; fase de cardio também não (não é tensão —
+ * o agregado do cardio é `cardioResult`). */
 fun WorkoutRun.timeUnderTensionSeconds(): Long =
-    sets.filterNot { it.skipped }.sumOf { it.effectiveDurationSeconds }
+    sets.filterNot { it.skipped || it.cardioPhase != null }.sumOf { it.effectiveDurationSeconds }
 
 /**
  * Séries concluídas na sessão (sem as puladas). Uma série de drop-set conta UMA vez, por mais estágios
- * registrados que tenha — é a mesma régua de `plannedSetCount()`, para "8 de 10 séries" fechar.
+ * registrados que tenha — é a mesma régua de `plannedSetCount()`, para "8 de 10 séries" fechar. Fase de
+ * cardio não é série e não conta.
  */
 fun WorkoutRun.completedSetCount(): Int = sets
-    .filterNot { it.skipped }
+    .filterNot { it.skipped || it.cardioPhase != null }
     .distinctBy { Triple(it.blockId, it.exerciseStepId, it.setIndex) }
     .size
 
 /** Conciliação planejado x feito: quantas séries o plano previa contra quantas de fato foram
  * concluídas (sem contar as puladas; drop-set conta a série uma vez, não cada estágio), por exercício.
- * Alimenta o relatório do aluno e do personal. */
+ * Alimenta o relatório do aluno e do personal. Item de cardio aparece com 0 de 0 (o feito do cardio é
+ * `cardioResult`). */
 data class ExerciseReconciliation(val exerciseStepId: String, val plannedSets: Int, val completedSets: Int)
 
 fun reconcile(plan: WorkoutPlan, run: WorkoutRun): List<ExerciseReconciliation> {
     val completedByExercise: Map<String, Int> = run.sets
-        .filterNot { it.skipped }
+        .filterNot { it.skipped || it.cardioPhase != null }
         .distinctBy { it.exerciseStepId to it.setIndex }
         .groupingBy { it.exerciseStepId }
         .eachCount()
@@ -53,7 +56,7 @@ fun reconcile(plan: WorkoutPlan, run: WorkoutRun): List<ExerciseReconciliation> 
     return plan.blocks.flatMap { it.exercises }.map { exercise ->
         ExerciseReconciliation(
             exerciseStepId = exercise.id,
-            plannedSets = exercise.sets.size,
+            plannedSets = if (exercise.cardio != null) 0 else exercise.sets.size,
             completedSets = completedByExercise[exercise.id] ?: 0,
         )
     }

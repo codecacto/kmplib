@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material.icons.outlined.NoPhotography
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,8 +62,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import br.com.codecacto.kmplib.platform.permission.AppPermission
 import br.com.codecacto.kmplib.platform.permission.rememberPermissionState
@@ -114,9 +117,17 @@ import kotlinx.coroutines.delay
  * ([GuidedCameraError]) para o app registrar ou oferecer a galeria. Foto que falha no disparo vira
  * aviso na tela + [GuidedCameraError.CAPTURE_FAILED], e a câmera segue no ar.
  *
+ * ## Temporizador de disparo (2.297.0)
+ * Com [captureTimerSeconds] > 0, o disparo abre uma contagem regressiva grande no centro ("5, 4, 3…",
+ * anunciada ao leitor de tela) e a foto sai no fim — para quem apoia o celular e se afasta até caber
+ * na silhueta. Tocar no disparo de novo durante a contagem CANCELA; trocar de câmera e mudar o
+ * temporizador ficam desligados enquanto conta; a câmera sair do ar (permissão, falha) também cancela.
+ * Com [allowTimerToggle], um botão no topo passa por desligado → 5 s → 10 s ([CAPTURE_TIMER_OPTIONS]),
+ * começando em [captureTimerSeconds]; sem ele, o valor é o do app.
+ *
  * ## Acessibilidade e automação
  * Botão de disparo com 76 dp, descrição "Tirar foto" e anúncio "Tirando a foto…"; trocar de câmera
- * diz para qual vai; o flash diz o modo. Ids em [GuidedCameraTestTags].
+ * diz para qual vai; o flash diz o modo; o temporizador diz o valor. Ids em [GuidedCameraTestTags].
  *
  * @param onCaptured a foto pronta, na main thread.
  * @param guide o desenho sobre o preview; `null` = câmera sem guia.
@@ -124,6 +135,9 @@ import kotlinx.coroutines.delay
  * @param initialLens a câmera ao abrir; sem ela no aparelho, abre a outra.
  * @param allowLensSwitch mostrar o botão de trocar de câmera (só aparece se houver as duas).
  * @param allowFlash mostrar o botão de flash (só aparece se a câmera em uso tiver flash).
+ * @param captureTimerSeconds temporizador de disparo, em segundos (0..[MAX_CAPTURE_TIMER_SECONDS];
+ *   0 = dispara na hora). Com [allowTimerToggle], é o valor inicial do botão.
+ * @param allowTimerToggle mostrar o botão de temporizador no topo (desligado → 5 s → 10 s).
  * @param onError por que a foto não veio — além do que a tela já mostra.
  * @param onClose quando informado, mostra o "X" no topo.
  * @param overlayContent slot desenhado por cima de tudo (contador "1 de 3", miniatura da anterior).
@@ -142,6 +156,8 @@ fun GuidedCamera(
     texts: GuidedCameraTexts = rememberGuidedCameraTexts(),
     onError: (GuidedCameraError) -> Unit = {},
     onClose: (() -> Unit)? = null,
+    captureTimerSeconds: Int = 0,
+    allowTimerToggle: Boolean = false,
     overlayContent: @Composable BoxScope.() -> Unit = {},
 ) {
     val permission = rememberPermissionState(AppPermission.CAMERA)
@@ -159,6 +175,13 @@ fun GuidedCamera(
     var flashOrdinal by rememberSaveable { mutableIntStateOf(CameraFlashMode.OFF.ordinal) }
     val lens = CameraLens.entries[lensOrdinal]
     val flashMode = CameraFlashMode.entries[flashOrdinal]
+
+    // O temporizador escolhido no botão sobrevive à rotação; o do app vale enquanto ninguém mexe.
+    var timerSeconds by rememberSaveable(captureTimerSeconds) {
+        mutableIntStateOf(coerceCaptureTimerSeconds(captureTimerSeconds))
+    }
+    // Número da contagem na tela; `null` = sem contagem. Não sobrevive à rotação (a sessão recomeça).
+    var countdown by remember { mutableStateOf<Int?>(null) }
 
     var cameraStatus by remember { mutableStateOf<GuidedCameraStatus?>(null) }
     // "Tentar novamente" precisa RECRIAR a sessão: o token entra como `key` do preview.
@@ -179,7 +202,7 @@ fun GuidedCamera(
 
     val activeLens = (cameraStatus as? GuidedCameraStatus.Ready)?.activeLens ?: lens
 
-    fun disparar() {
+    fun capturarAgora() {
         if (capturing || state !is GuidedCameraState.Live) return
         capturing = true
         handle.trigger { resultado ->
@@ -191,6 +214,30 @@ fun GuidedCamera(
                     currentOnError(GuidedCameraError.CAPTURE_FAILED)
                 }
             }
+        }
+    }
+
+    fun disparar() {
+        when {
+            countdown != null -> countdown = null // tocar de novo durante a contagem cancela
+            capturing || state !is GuidedCameraState.Live -> Unit
+            timerSeconds > 0 -> countdown = timerSeconds
+            else -> capturarAgora()
+        }
+    }
+
+    // A câmera saiu do ar no meio da contagem: nada de foto atrasada quando ela voltar.
+    val aoVivo = state is GuidedCameraState.Live
+    LaunchedEffect(aoVivo) { if (!aoVivo) countdown = null }
+
+    // Contagem: um passo por segundo; depois do 1, a foto.
+    LaunchedEffect(countdown) {
+        val atual = countdown ?: return@LaunchedEffect
+        delay(1_000L)
+        if (countdown == atual) {
+            val proximo = nextCountdown(atual)
+            countdown = proximo
+            if (proximo == null) capturarAgora()
         }
     }
 
@@ -274,17 +321,27 @@ fun GuidedCamera(
                 Spacer(Modifier.size(CHROME_BUTTON_SIZE))
             }
             val live = state as? GuidedCameraState.Live
-            if (allowFlash && live?.flashAvailable == true) {
-                ChromeIconButton(
-                    icon = when (flashMode) {
-                        CameraFlashMode.OFF -> Icons.Filled.FlashOff
-                        CameraFlashMode.AUTO -> Icons.Filled.FlashAuto
-                        CameraFlashMode.ON -> Icons.Filled.FlashOn
-                    },
-                    description = texts.flashLabel(flashMode),
-                    testTag = GuidedCameraTestTags.FLASH,
-                    onClick = { flashOrdinal = flashMode.next().ordinal },
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (allowTimerToggle && live != null) {
+                    TimerButton(
+                        seconds = timerSeconds,
+                        description = texts.timerLabel(timerSeconds),
+                        enabled = countdown == null && !capturing,
+                        onClick = { timerSeconds = nextCaptureTimer(timerSeconds) },
+                    )
+                }
+                if (allowFlash && live?.flashAvailable == true) {
+                    ChromeIconButton(
+                        icon = when (flashMode) {
+                            CameraFlashMode.OFF -> Icons.Filled.FlashOff
+                            CameraFlashMode.AUTO -> Icons.Filled.FlashAuto
+                            CameraFlashMode.ON -> Icons.Filled.FlashOn
+                        },
+                        description = texts.flashLabel(flashMode),
+                        testTag = GuidedCameraTestTags.FLASH,
+                        onClick = { flashOrdinal = flashMode.next().ordinal },
+                    )
+                }
             }
         }
 
@@ -323,7 +380,7 @@ fun GuidedCamera(
                     Spacer(Modifier.size(CHROME_BUTTON_SIZE))
                     ShutterButton(
                         capturing = capturing,
-                        description = texts.capture,
+                        description = if (countdown != null) texts.cancelTimer else texts.capture,
                         capturingDescription = texts.capturing,
                         onClick = ::disparar,
                     )
@@ -332,7 +389,7 @@ fun GuidedCamera(
                             icon = Icons.Filled.Cameraswitch,
                             description = texts.switchLensLabel(activeLens),
                             testTag = GuidedCameraTestTags.SWITCH_LENS,
-                            enabled = !capturing,
+                            enabled = !capturing && countdown == null,
                             onClick = {
                                 cameraStatus = null
                                 lensOrdinal = activeLens.toggled().ordinal
@@ -345,7 +402,56 @@ fun GuidedCamera(
             }
         }
 
+        val contagem = countdown
+        if (contagem != null) {
+            Text(
+                text = contagem.toString(),
+                color = CameraChrome.content,
+                fontSize = 96.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(CameraChrome.scrim, CircleShape)
+                    .padding(horizontal = 36.dp, vertical = 8.dp)
+                    .semantics {
+                        contentDescription = texts.countdown(contagem)
+                        liveRegion = LiveRegionMode.Assertive
+                    }
+                    .testTag(GuidedCameraTestTags.COUNTDOWN),
+            )
+        }
+
         overlayContent()
+    }
+}
+
+/** O botão de temporizador: ícone riscado desligado, o número ("5s"/"10s") ligado. */
+@Composable
+private fun TimerButton(seconds: Int, description: String, enabled: Boolean, onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(CHROME_BUTTON_SIZE)
+            .semantics { contentDescription = description }
+            .testTag(GuidedCameraTestTags.TIMER),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = CameraChrome.scrim,
+            contentColor = CameraChrome.content,
+            disabledContainerColor = CameraChrome.scrim,
+            disabledContentColor = CameraChrome.content.copy(alpha = 0.4f),
+        ),
+    ) {
+        if (seconds <= 0) {
+            Icon(imageVector = Icons.Filled.TimerOff, contentDescription = null)
+        } else {
+            Text(
+                text = "${seconds}s",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        }
     }
 }
 

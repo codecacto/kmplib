@@ -10,13 +10,19 @@ import br.com.codecacto.kmplib.workout.model.WorkoutPlan
 import br.com.codecacto.kmplib.workout.model.WorkoutRun
 import br.com.codecacto.kmplib.workout.model.SET_DURATION_RANGE
 import br.com.codecacto.kmplib.workout.model.currentExerciseId
+import br.com.codecacto.kmplib.workout.model.phasesPerRound
+import br.com.codecacto.kmplib.workout.model.secondsOf
 import kotlinx.datetime.Instant
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Posição corrente dentro do plano: bloco, exercício dentro do bloco, série dentro do exercício e
  * estágio dentro da série (drop-set; 0 quando a série não tem estágios). Em `BI_SET`/`CIRCUIT` a volta
  * é o próprio [setIndex] — a volta *r* faz a série *r* de cada exercício.
+ *
+ * Num item de cardio (2.297.0), [setIndex] é a VOLTA do cardio e [stageIndex] a fase dentro da volta
+ * (0 = trabalho, 1 = descanso) — a fase de fato está em `plan.stepAt(cursor).cardioPhase`.
  */
 data class Cursor(
     val blockIndex: Int,
@@ -28,8 +34,16 @@ data class Cursor(
 
     fun block(plan: WorkoutPlan): Block = plan.blocks[blockIndex]
 
-    /** A série inteira do cursor (com todos os estágios); o estágio resolvido está em `plan.stepAt`. */
-    fun set(plan: WorkoutPlan): SetTarget = exercise(plan).sets[setIndex]
+    /**
+     * A série inteira do cursor (com todos os estágios); o estágio resolvido está em `plan.stepAt`. Num
+     * item de cardio (2.297.0), a fase do cursor como `SetTarget.Timed` com os segundos planejados — o
+     * item de cardio não tem série, e ler `sets[setIndex]` estouraria o índice.
+     */
+    fun set(plan: WorkoutPlan): SetTarget {
+        val exercise = exercise(plan)
+        val cardio = exercise.cardio ?: return exercise.sets[setIndex]
+        return SetTarget.Timed(cardio.secondsOf(cardio.phasesPerRound()[stageIndex]))
+    }
 }
 
 /**
@@ -117,6 +131,28 @@ sealed interface WorkoutEvent {
 
     data object SkipRest : WorkoutEvent
 
+    /**
+     * "O relógio andou" (2.297.0): fecha toda fase de cardio cujo instante final absoluto
+     * (`setStartedAt + segundos da fase`) já passou, cada uma NO SEU instante final — não no `now`. É o
+     * que faz o cardio sobreviver a app em 2º plano, processo morto e tela apagada: ao voltar, um único
+     * `Tick` repõe as voltas que correram enquanto ninguém olhava, com os horários certos, e para na
+     * fase corrente (ou no descanso entre itens, ou no próximo exercício, ou em `Finished`).
+     *
+     * Fora de uma fase de cardio não tem efeito — o descanso entre séries de força continua terminando
+     * por `SkipRest` (decisão da tela), como sempre. Pausado, o relógio não anda. Todo outro evento num
+     * passo de cardio aplica o mesmo acerto ANTES de agir (ex.: `Pause` atrasado pausa a fase em que o
+     * aluno de fato estava). Mande um `Tick` a cada segundo com a tela de cardio aberta e um ao voltar
+     * ao primeiro plano.
+     */
+    data object Tick : WorkoutEvent
+
+    /**
+     * "Pular fase" do cardio (2.297.0): encerra a fase corrente agora, registrada como pulada
+     * (`SetResult.skipped = true`, `durationSeconds` = o que já correu), e entra na próxima. Fora de uma
+     * fase de cardio não tem efeito (no descanso entre séries use `SkipRest`).
+     */
+    data object SkipPhase : WorkoutEvent
+
     data class AddRestTime(val seconds: Int) : WorkoutEvent
 
     data class SkipExercise(val reason: String? = null) : WorkoutEvent {
@@ -171,6 +207,23 @@ sealed interface WorkoutEvent {
  *
  * `reduce` nunca lê o relógio do sistema: tudo que depende de tempo recebe `now` de fora, para o
  * mesmo teste valer em JVM, Android, iOS e watchOS.
+ *
+ * ## Cardio (2.297.0)
+ * Item com `ExerciseStep.cardio` é conduzido por FASES (`ExecutionStep.cardioPhase`), cada uma um
+ * `InSet` com instante final absoluto ([phaseEndsAt]):
+ *
+ * | Evento numa fase de cardio | Efeito |
+ * |---|---|
+ * | `Tick` com `now` ≥ fim | fecha a fase no instante FINAL (`durationSeconds` = planejado) e entra na próxima nesse instante; repete enquanto houver fase vencida |
+ * | `CompleteSet` | fecha a fase agora (`durationSeconds` = o que correu); carga/repetições ignoradas, FC gravada |
+ * | `SkipPhase` | fecha a fase agora como PULADA |
+ * | `Pause`/`Resume` | o relógio da fase para e é devolvido (o fim anda junto) |
+ * | `Finish` | grava a fase corrente PARCIAL (se correu ≥ 1 s) — "salvar o que já fez" |
+ * | `SkipExercise` | pula o resto do bloco de cardio |
+ * | `Undo` | desfaz a última fase registrada e a recomeça agora |
+ *
+ * Entre as fases do MESMO item não há descanso de série (o descanso do intervalado É uma fase). Depois
+ * da última fase vale o `restSeconds` do item, como depois de uma série de força.
  */
 class GuidedWorkoutEngine {
 
@@ -189,10 +242,34 @@ class GuidedWorkoutEngine {
         } else {
             state
         }
-        WorkoutEvent.Pause -> pause(state, now)
+        WorkoutEvent.Pause -> pause(catchUp(state, now), now)
         WorkoutEvent.Resume -> if (state is WorkoutState.Paused) resume(state, now) else state
-        WorkoutEvent.Finish -> finish(state, now)
-        else -> reduceActive(state, event, now)
+        WorkoutEvent.Finish -> finish(catchUp(state, now), now)
+        else -> reduceActive(catchUp(state, now), event, now)
+    }
+
+    /**
+     * Instante em que a fase corrente termina sozinha (2.297.0): numa fase de cardio, `setStartedAt` +
+     * segundos da fase; no descanso, `restEndsAt`. `null` em série de força, pausado, fora do treino. É
+     * o que o anel desenha — calculado de um instante absoluto, nunca de um contador.
+     */
+    fun phaseEndsAt(state: WorkoutState): Instant? = when (state) {
+        is WorkoutState.InSet -> state.plan.stepAt(state.cursor)?.phaseSeconds?.let { state.setStartedAt + it.seconds }
+        is WorkoutState.Resting -> state.restEndsAt
+        else -> null
+    }
+
+    /**
+     * Quanto falta para a fase corrente terminar (2.297.0), nunca negativo. Pausado, o valor fica
+     * CONGELADO no instante da pausa (o anel parado mostra o que faltava). `null` quando não há fim
+     * ([phaseEndsAt] nulo).
+     */
+    fun timeRemaining(state: WorkoutState, now: Instant): Duration? {
+        val (end, reference) = when (state) {
+            is WorkoutState.Paused -> (phaseEndsAt(state.previous) ?: return null) to (state.pausedAt ?: now)
+            else -> (phaseEndsAt(state) ?: return null) to now
+        }
+        return (end - reference).coerceAtLeast(Duration.ZERO)
     }
 
     private fun load(state: WorkoutState, event: WorkoutEvent.Load): WorkoutState = when (state) {
@@ -240,15 +317,42 @@ class GuidedWorkoutEngine {
     }
 
     private fun finish(state: WorkoutState, now: Instant): WorkoutState = when (state) {
-        is WorkoutState.InSet -> WorkoutState.Finished(state.plan, state.run.copy(finishedAt = now))
+        is WorkoutState.InSet -> WorkoutState.Finished(state.plan, withPartialPhase(state, now).copy(finishedAt = now))
         is WorkoutState.Resting -> WorkoutState.Finished(state.plan, state.run.copy(finishedAt = now))
-        is WorkoutState.Paused -> WorkoutState.Finished(state.plan, state.run.copy(finishedAt = now))
+        is WorkoutState.Paused -> {
+            val previous = state.previous as? WorkoutState.InSet
+            val run = if (previous != null) withPartialPhase(previous, state.pausedAt ?: now) else state.run
+            WorkoutState.Finished(state.plan, run.copy(finishedAt = now))
+        }
         else -> state
+    }
+
+    /** A sessão com a fase de cardio corrente registrada até [at], se ela correu ≥ 1 s (encerrar no meio). */
+    private fun withPartialPhase(state: WorkoutState.InSet, at: Instant): WorkoutRun {
+        val step = state.plan.stepAt(state.cursor)?.takeIf { it.isCardio } ?: return state.run
+        if (elapsedSeconds(state, step, at) < 1) return state.run
+        return state.run.copy(sets = state.run.sets + phaseResult(state, step, at, skipped = false, null, null))
+    }
+
+    /**
+     * Fecha, cada uma no seu instante final, as fases de cardio já vencidas em [now] (regra no KDoc de
+     * [WorkoutEvent.Tick]). Fora de uma fase de cardio devolve o próprio estado.
+     */
+    private fun catchUp(state: WorkoutState, now: Instant): WorkoutState {
+        var current = state
+        while (current is WorkoutState.InSet) {
+            val step = current.plan.stepAt(current.cursor)?.takeIf { it.isCardio } ?: break
+            val end = current.setStartedAt + (step.phaseSeconds ?: break).seconds
+            if (now < end) break
+            current = closePhase(current, step, end, skipped = false, heartRateAvg = null, heartRateMax = null)
+        }
+        return current
     }
 
     private fun reduceActive(state: WorkoutState, event: WorkoutEvent, now: Instant): WorkoutState = when (state) {
         is WorkoutState.InSet -> when (event) {
             is WorkoutEvent.CompleteSet -> completeStep(state, event, now)
+            WorkoutEvent.SkipPhase -> skipPhase(state, now)
             is WorkoutEvent.SkipExercise -> skipExercise(state.plan, state.cursor, state.run, event, now)
             is WorkoutEvent.SwapExercise -> swapExercise(state, state.plan, state.cursor, state.run, event, now)
             WorkoutEvent.Undo -> undo(state, state.plan, state.run, now)
@@ -271,6 +375,9 @@ class GuidedWorkoutEngine {
         val plan = state.plan
         val order = plan.executionOrder()
         val current = order.firstOrNull { it.cursor == state.cursor } ?: return state
+        if (current.isCardio) {
+            return closePhase(state, current, now, skipped = false, event.heartRateAvg, event.heartRateMax)
+        }
         val performed = state.run.currentExerciseId(current.exercise)
         val swapped = performed != current.exercise.exerciseRefId
         val duration = event.durationSeconds?.takeIf { current.target is SetTarget.Timed && it in SET_DURATION_RANGE }
@@ -291,17 +398,86 @@ class GuidedWorkoutEngine {
             exerciseRefId = if (swapped) performed else null,
             swappedFromExerciseId = if (swapped) current.exercise.exerciseRefId else null,
         )
-        val nextRun = state.run.copy(sets = state.run.sets + result)
-        val next = nextStep(order, current.cursor, skippedIds(nextRun))
-            ?: return WorkoutState.Finished(plan, nextRun.copy(finishedAt = now))
+        return advance(plan, order, current, state.run.copy(sets = state.run.sets + result), now)
+    }
 
+    /**
+     * Depois de registrar o passo [current] em [nextRun], no instante [at]: o próximo passo (com ou sem
+     * descanso antes) ou `Finished`.
+     */
+    private fun advance(
+        plan: WorkoutPlan,
+        order: List<ExecutionStep>,
+        current: ExecutionStep,
+        nextRun: WorkoutRun,
+        at: Instant,
+    ): WorkoutState {
+        val next = nextStep(order, current.cursor, skippedIds(nextRun))
+            ?: return WorkoutState.Finished(plan, nextRun.copy(finishedAt = at))
         val restSeconds = restBetween(current, next)
         return if (restSeconds > 0) {
-            WorkoutState.Resting(plan, next.cursor, nextRun, now + restSeconds.seconds)
+            WorkoutState.Resting(plan, next.cursor, nextRun, at + restSeconds.seconds)
         } else {
-            enterSet(plan, next.cursor, nextRun, now)
+            enterSet(plan, next.cursor, nextRun, at)
         }
     }
+
+    /** "Pular fase": só numa fase de cardio (regra no KDoc de [WorkoutEvent.SkipPhase]). */
+    private fun skipPhase(state: WorkoutState.InSet, now: Instant): WorkoutState {
+        val step = state.plan.stepAt(state.cursor)?.takeIf { it.isCardio } ?: return state
+        return closePhase(state, step, now, skipped = true, heartRateAvg = null, heartRateMax = null)
+    }
+
+    /** Registra a fase de cardio [step] terminada em [at] e anda para o que vem depois, nesse instante. */
+    private fun closePhase(
+        state: WorkoutState.InSet,
+        step: ExecutionStep,
+        at: Instant,
+        skipped: Boolean,
+        heartRateAvg: Int?,
+        heartRateMax: Int?,
+    ): WorkoutState {
+        val result = phaseResult(state, step, at, skipped, heartRateAvg, heartRateMax)
+        val end = if (at < state.setStartedAt) state.setStartedAt else at
+        return advance(state.plan, state.plan.executionOrder(), step, state.run.copy(sets = state.run.sets + result), end)
+    }
+
+    private fun phaseResult(
+        state: WorkoutState.InSet,
+        step: ExecutionStep,
+        at: Instant,
+        skipped: Boolean,
+        heartRateAvg: Int?,
+        heartRateMax: Int?,
+    ): SetResult {
+        val performed = state.run.currentExerciseId(step.exercise)
+        val swapped = performed != step.exercise.exerciseRefId
+        // Relógio que voltou para trás não produz fim antes do início (seria NEGATIVE_DURATION).
+        val end = if (at < state.setStartedAt) state.setStartedAt else at
+        return SetResult(
+            blockId = step.blockId,
+            exerciseStepId = step.exercise.id,
+            setIndex = step.setIndex,
+            target = step.target,
+            repsDone = null,
+            loadDone = null,
+            skipped = skipped,
+            startedAt = state.setStartedAt,
+            completedAt = end,
+            heartRateAvg = heartRateAvg,
+            heartRateMax = heartRateMax,
+            stageIndex = null,
+            roundIndex = step.roundIndex,
+            durationSeconds = elapsedSeconds(state, step, at),
+            exerciseRefId = if (swapped) performed else null,
+            swappedFromExerciseId = if (swapped) step.exercise.exerciseRefId else null,
+            cardioPhase = step.cardioPhase,
+        )
+    }
+
+    /** Segundos inteiros que a fase correu até [at], entre 0 e o planejado. */
+    private fun elapsedSeconds(state: WorkoutState.InSet, step: ExecutionStep, at: Instant): Int =
+        (at - state.setStartedAt).inWholeSeconds.coerceIn(0L, (step.phaseSeconds ?: 0).toLong()).toInt()
 
     /**
      * Pula o exercício do [cursor] no RESTO do treino (em bi-set/circuito, nas voltas que faltam) e vai
@@ -382,7 +558,12 @@ class GuidedWorkoutEngine {
         val blockIndex = plan.blocks.indexOfFirst { it.id == lastSet.blockId }
         val exerciseIndex = plan.blocks.getOrNull(blockIndex)?.exercises
             ?.indexOfFirst { it.id == lastSet.exerciseStepId } ?: -1
-        val restored = Cursor(blockIndex, exerciseIndex, lastSet.setIndex, lastSet.stageIndex ?: 0)
+        val cardio = plan.blocks.getOrNull(blockIndex)?.exercises?.getOrNull(exerciseIndex)?.cardio
+        val stage = when (val phase = lastSet.cardioPhase) {
+            null -> lastSet.stageIndex ?: 0
+            else -> cardio?.phasesPerRound()?.indexOf(phase) ?: -1
+        }
+        val restored = Cursor(blockIndex, exerciseIndex, lastSet.setIndex, stage)
         if (plan.stepAt(restored) == null) return state
         val nextRun = run.copy(
             sets = run.sets.dropLast(1),
@@ -413,6 +594,11 @@ class GuidedWorkoutEngine {
      */
     private fun restBetween(current: ExecutionStep, next: ExecutionStep?): Int {
         if (next == null || !current.isLastStage) return 0
+        // Fases do mesmo bloco de cardio se emendam: o descanso do intervalado É uma fase.
+        val sameCardioItem = current.isCardio &&
+            next.cursor.blockIndex == current.cursor.blockIndex &&
+            next.cursor.exerciseIndex == current.cursor.exerciseIndex
+        if (sameCardioItem) return 0
         val sameRound = current.roundIndex != null &&
             next.cursor.blockIndex == current.cursor.blockIndex &&
             next.roundIndex == current.roundIndex

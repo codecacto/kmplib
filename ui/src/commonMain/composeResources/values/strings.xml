@@ -447,6 +447,10 @@
     <string name="kmplib_guided_camera_retry">Tentar novamente</string>
     <string name="kmplib_guided_camera_capture_failed">A foto não saiu. Tente de novo.</string>
     <string name="kmplib_guided_camera_capturing">Tirando a foto…</string>
+    <string name="kmplib_guided_camera_countdown">A foto sai em %1$s</string>
+    <string name="kmplib_guided_camera_cancel_timer">Cancelar temporizador</string>
+    <string name="kmplib_guided_camera_timer_off">Temporizador desligado</string>
+    <string name="kmplib_guided_camera_timer_seconds">Temporizador de %1$s segundos</string>
     <!-- Gravador de vídeo (kmplib-camera, camera.video — 2.286.0) -->
     <string name="kmplib_video_recorder_record">Gravar vídeo</string>
     <string name="kmplib_video_recorder_stop">Parar gravação</string>

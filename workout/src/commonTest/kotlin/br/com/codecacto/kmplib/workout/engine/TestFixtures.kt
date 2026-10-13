@@ -1,6 +1,8 @@
 package br.com.codecacto.kmplib.workout.engine
 
 import br.com.codecacto.kmplib.workout.model.Block
+import br.com.codecacto.kmplib.workout.model.CardioBlock
+import br.com.codecacto.kmplib.workout.model.HeartRateZone
 import br.com.codecacto.kmplib.workout.model.DropStage
 import br.com.codecacto.kmplib.workout.model.ExerciseStep
 import br.com.codecacto.kmplib.workout.model.SetTarget
@@ -164,6 +166,83 @@ fun timedPlan(): WorkoutPlan = WorkoutPlan(
             exercises = listOf(
                 ExerciseStep("ex-t", "plank", "Prancha", List(2) { SetTarget.Timed(45) }, restSeconds = 30),
                 ExerciseStep("ex-r", "squat", "Agachamento", listOf(repsSet()), restSeconds = 30),
+            ),
+        ),
+    ),
+)
+
+/**
+ * Cardio intervalado (2.297.0): bloco NORMAL com a esteira em 3 voltas de 40 s de trabalho + 20 s de
+ * descanso, zona Z4, e 60 s de descanso DEPOIS do item; em seguida um exercício de força.
+ * Ordem: [0,0,0,0] W, [0,0,0,1] R, [0,0,1,0] W, [0,0,1,1] R, [0,0,2,0] W, [0,0,2,1] R, [0,1,0,0] força.
+ */
+fun cardioIntervalPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-cardio",
+    name = "Treino Cardio",
+    blocks = listOf(
+        Block(
+            id = "block-1",
+            method = WorkoutMethod.NORMAL,
+            exercises = listOf(
+                ExerciseStep(
+                    id = "ex-run",
+                    exerciseRefId = "treadmill",
+                    name = "Esteira",
+                    sets = emptyList(),
+                    restSeconds = 60,
+                    cardio = CardioBlock.interval(workSeconds = 40, restSeconds = 20, rounds = 3, targetZone = HeartRateZone.Z4),
+                ),
+                ExerciseStep("ex-1", "squat", "Agachamento", listOf(repsSet()), restSeconds = 30),
+            ),
+        ),
+    ),
+)
+
+/** Cardio contínuo (K-13): 1 volta de 300 s sem descanso, item sem descanso depois, e o fim do plano. */
+fun cardioContinuousPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-cardio-cont",
+    name = "Treino Contínuo",
+    blocks = listOf(
+        Block(
+            id = "block-1",
+            method = WorkoutMethod.NORMAL,
+            exercises = listOf(
+                ExerciseStep(
+                    id = "ex-bike",
+                    exerciseRefId = "bike",
+                    name = "Bicicleta",
+                    sets = emptyList(),
+                    restSeconds = 0,
+                    cardio = CardioBlock.continuous(300, HeartRateZone.Z2),
+                ),
+            ),
+        ),
+    ),
+)
+
+/**
+ * Circuito com um item de cardio (2 voltas 30/0 = só trabalho) entre dois de força de 2 séries: o
+ * cardio roda INTEIRO na primeira volta do circuito. Ordem: volta 0 = A, cardio W, cardio W, B;
+ * volta 1 = A, B.
+ */
+fun cardioCircuitPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-cardio-circuit",
+    name = "Circuito com cardio",
+    blocks = listOf(
+        Block(
+            id = "block-c",
+            method = WorkoutMethod.CIRCUIT,
+            exercises = listOf(
+                ExerciseStep("c-a", "jump", "Polichinelo", List(2) { SetTarget.Timed(30) }, restSeconds = 0),
+                ExerciseStep(
+                    id = "c-rope",
+                    exerciseRefId = "rope",
+                    name = "Corda",
+                    sets = emptyList(),
+                    restSeconds = 0,
+                    cardio = CardioBlock.interval(workSeconds = 30, restSeconds = 0, rounds = 2),
+                ),
+                ExerciseStep("c-b", "burpee", "Burpee", List(2) { repsSet(10, null) }, restSeconds = 45),
             ),
         ),
     ),

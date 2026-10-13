@@ -64,7 +64,13 @@ fun SetTarget.stageTarget(stageIndex: Int): SetTarget = when {
     }
 }
 
-/** Um exercício dentro de um bloco, com a meta de cada série e o descanso depois dela. */
+/**
+ * Um exercício dentro de um bloco, com a meta de cada série e o descanso depois dela.
+ *
+ * Com [cardio] (2.297.0) o item é um **bloco de cardio**: a execução são as fases dele (voltas de
+ * trabalho/descanso, ver [CardioBlock]) e [sets] é IGNORADO (o contrato manda vir vazio — cardio não
+ * tem série de força). [restSeconds] continua sendo o descanso DEPOIS do item, antes do próximo.
+ */
 @Serializable
 data class ExerciseStep(
     val id: String,
@@ -73,7 +79,11 @@ data class ExerciseStep(
     val sets: List<SetTarget>,
     val restSeconds: Int,
     val videoRequested: Boolean = false,
+    val cardio: CardioBlock? = null,
 )
+
+/** `true` quando o item é um bloco de cardio (`ExerciseStep.cardio` presente). */
+val ExerciseStep.isCardio: Boolean get() = cardio != null
 
 /**
  * Um bloco de exercícios executado pela regra do seu [method] (ver [WorkoutMethod]). Em
@@ -91,9 +101,16 @@ data class Block(
 
     /**
      * Voltas do bloco = o MAIOR número de séries entre os exercícios (o exercício com menos séries é
-     * pulado nas voltas que faltam). Fora de `BI_SET`/`CIRCUIT` não há volta: 0.
+     * pulado nas voltas que faltam). Fora de `BI_SET`/`CIRCUIT` não há volta: 0. Item de cardio não
+     * entra na conta (não tem série); num bloco por volta ele roda INTEIRO na primeira volta, e um bloco
+     * só de cardio tem 1 volta.
      */
-    val roundCount: Int get() = if (isRoundBased) exercises.maxOfOrNull { it.sets.size } ?: 0 else 0
+    val roundCount: Int get() = if (isRoundBased) {
+        val bySets = exercises.filterNot { it.isCardio }.maxOfOrNull { it.sets.size } ?: 0
+        if (bySets == 0 && exercises.any { it.isCardio }) 1 else bySets
+    } else {
+        0
+    }
 }
 
 /** Instantâneo imutável do treino prescrito — o que o aluno baixa e executa, mesmo offline. */
@@ -143,6 +160,12 @@ data class SetResult(
      * com outro exercício — mesmo depois de trocas encadeadas (A→B→C registra C trocado de A).
      */
     val swappedFromExerciseId: String? = null,
+    /**
+     * Fase de cardio deste registro (2.297.0): `WORK`/`REST` quando o passo é uma fase de um bloco de
+     * cardio (aí [setIndex] é a VOLTA do cardio, [target] é `SetTarget.Timed` com a duração planejada da
+     * fase e [durationSeconds] é o que de fato correu, 0..planejado). `null` em série de força.
+     */
+    val cardioPhase: CardioPhase? = null,
 ) {
     /**
      * Só ids, índices e flags (2.272.0; 2.275.0 + troca/duração). Carga, repetições, meta, duração e
@@ -154,7 +177,7 @@ data class SetResult(
         "SetResult(blockId=$blockId, exerciseStepId=$exerciseStepId, setIndex=$setIndex, " +
             "stageIndex=$stageIndex, roundIndex=$roundIndex, skipped=$skipped, " +
             "hasDuration=${durationSeconds != null}, exerciseRefId=$exerciseRefId, " +
-            "swappedFromExerciseId=$swappedFromExerciseId)"
+            "swappedFromExerciseId=$swappedFromExerciseId, cardioPhase=$cardioPhase)"
 }
 
 /**

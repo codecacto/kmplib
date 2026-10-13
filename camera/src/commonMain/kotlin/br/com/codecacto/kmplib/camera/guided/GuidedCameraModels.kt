@@ -268,4 +268,36 @@ object GuidedCameraTestTags {
     const val CLOSE: String = "camera-guiada-btn-fechar"
     const val PRIMARY_ACTION: String = "camera-guiada-btn-acao"
     const val MESSAGE: String = "camera-guiada-mensagem"
+
+    /** Botão do temporizador (2.297.0) — só com `allowTimerToggle`. */
+    const val TIMER: String = "camera-guiada-btn-temporizador"
+
+    /** O número da contagem regressiva do temporizador (2.297.0), no centro do preview. */
+    const val COUNTDOWN: String = "camera-guiada-contagem"
 }
+
+/** Maior temporizador de disparo aceito, em segundos (2.297.0). */
+const val MAX_CAPTURE_TIMER_SECONDS: Int = 10
+
+/**
+ * As opções do botão de temporizador da [GuidedCamera] (2.297.0), na ordem em que o toque passa por
+ * elas: desligado → 5 s → 10 s → desligado — as da câmera do sistema para foto sozinho (o aluno que
+ * apoia o celular e se afasta para caber inteiro na silhueta).
+ */
+val CAPTURE_TIMER_OPTIONS: List<Int> = listOf(0, 5, 10)
+
+/** O temporizador pedido preso em 0..[MAX_CAPTURE_TIMER_SECONDS] (negativo = desligado). */
+internal fun coerceCaptureTimerSeconds(value: Int): Int = value.coerceIn(0, MAX_CAPTURE_TIMER_SECONDS)
+
+/**
+ * A opção seguinte do botão de temporizador: a primeira de [CAPTURE_TIMER_OPTIONS] maior que [current];
+ * depois da última, desligado. Um valor fora da lista (ex.: 3 s vindo do app) vai para a próxima maior.
+ */
+internal fun nextCaptureTimer(current: Int): Int =
+    CAPTURE_TIMER_OPTIONS.firstOrNull { it > current } ?: CAPTURE_TIMER_OPTIONS.first()
+
+/**
+ * Um passo da contagem regressiva do disparo: o número seguinte, ou `null` quando chegou a hora de
+ * tirar a foto (o 1 é o último número mostrado).
+ */
+internal fun nextCountdown(remaining: Int): Int? = if (remaining > 1) remaining - 1 else null

@@ -2,10 +2,12 @@ package br.com.codecacto.kmplib.camera.guided
 
 import androidx.compose.runtime.Composable
 import br.com.codecacto.kmplib.generated.resources.Res
+import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_cancel_timer
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_capture
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_capture_failed
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_capturing
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_close
+import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_countdown
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_flash_auto
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_flash_off
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_flash_on
@@ -17,6 +19,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_permissi
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_permission_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_retry
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_starting
+import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_timer_off
+import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_timer_seconds
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_unavailable
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_use_back
 import br.com.codecacto.kmplib.generated.resources.kmplib_guided_camera_use_front
@@ -49,7 +53,18 @@ data class GuidedCameraTexts(
     val retry: String = "Tentar novamente",
     val captureFailed: String = "A foto não saiu. Tente de novo.",
     val capturing: String = "Tirando a foto…",
+    /** Anúncio de cada número da contagem do temporizador (2.297.0). */
+    val countdown: (seconds: Int) -> String = { s -> "A foto sai em $s" },
+    /** Descrição do disparo durante a contagem — tocar de novo cancela (2.297.0). */
+    val cancelTimer: String = "Cancelar temporizador",
+    /** Descrição do botão de temporizador desligado (2.297.0). */
+    val timerOff: String = "Temporizador desligado",
+    /** Descrição do botão de temporizador ligado (2.297.0). */
+    val timerSeconds: (seconds: Int) -> String = { s -> "Temporizador de $s segundos" },
 ) {
+    /** A descrição do botão de temporizador para o valor atual (o leitor de tela lê o estado). */
+    fun timerLabel(seconds: Int): String = if (seconds <= 0) timerOff else timerSeconds(seconds)
+
     /** A descrição do botão de flash para o modo atual (o leitor de tela lê o estado). */
     fun flashLabel(mode: CameraFlashMode): String = when (mode) {
         CameraFlashMode.OFF -> flashOff
@@ -83,4 +98,10 @@ fun rememberGuidedCameraTexts(): GuidedCameraTexts = GuidedCameraTexts(
     retry = kmpStringResource(Res.string.kmplib_guided_camera_retry),
     captureFailed = kmpStringResource(Res.string.kmplib_guided_camera_capture_failed),
     capturing = kmpStringResource(Res.string.kmplib_guided_camera_capturing),
+    countdown = kmpStringResource(Res.string.kmplib_guided_camera_countdown, "\u0001")
+        .let { modelo -> { s: Int -> modelo.replace("\u0001", s.toString()) } },
+    cancelTimer = kmpStringResource(Res.string.kmplib_guided_camera_cancel_timer),
+    timerOff = kmpStringResource(Res.string.kmplib_guided_camera_timer_off),
+    timerSeconds = kmpStringResource(Res.string.kmplib_guided_camera_timer_seconds, "\u0001")
+        .let { modelo -> { s: Int -> modelo.replace("\u0001", s.toString()) } },
 )

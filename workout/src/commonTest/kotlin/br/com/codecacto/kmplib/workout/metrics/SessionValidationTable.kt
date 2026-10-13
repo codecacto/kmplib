@@ -6,6 +6,9 @@ import br.com.codecacto.kmplib.workout.engine.T0
 import br.com.codecacto.kmplib.workout.engine.WorkoutEvent
 import br.com.codecacto.kmplib.workout.engine.WorkoutState
 import br.com.codecacto.kmplib.workout.engine.biSetPlan
+import br.com.codecacto.kmplib.workout.engine.cardioCircuitPlan
+import br.com.codecacto.kmplib.workout.engine.cardioContinuousPlan
+import br.com.codecacto.kmplib.workout.engine.cardioIntervalPlan
 import br.com.codecacto.kmplib.workout.engine.circuitPlan
 import br.com.codecacto.kmplib.workout.engine.circuitShortLastPlan
 import br.com.codecacto.kmplib.workout.engine.dropSetPlan
@@ -15,7 +18,9 @@ import br.com.codecacto.kmplib.workout.engine.simplePlan
 import br.com.codecacto.kmplib.workout.engine.timedPlan
 import br.com.codecacto.kmplib.workout.engine.toWorkoutEvent
 import br.com.codecacto.kmplib.workout.engine.twoExercisePlan
+import br.com.codecacto.kmplib.workout.model.CardioPhase
 import br.com.codecacto.kmplib.workout.model.ExerciseSwap
+import br.com.codecacto.kmplib.workout.model.SetTarget
 import br.com.codecacto.kmplib.workout.model.SetResult
 import br.com.codecacto.kmplib.workout.model.SkippedExercise
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
@@ -35,10 +40,13 @@ import kotlin.time.Duration.Companion.seconds
  *   produz sessão inválida", escrito à mão;
  * - **à mão**: sessões montadas passo a passo, com o veredito exato (ordem incluída) escrito à mão.
  *
+ * **Versão 2** (2.297.0): casos de cardio estruturado — `ExerciseStep.cardio` no plano e
+ * `SetResult.cardioPhase` na sessão (volta do cardio em `setIndex`, `durationSeconds` 0..planejado).
+ *
  * O formato de cada caso usa só tipos do artefato principal (`WorkoutPlan`, `WorkoutRun`,
  * `RunIssue`) — o backend não precisa de nada desta tabela além do JSON.
  */
-const val SESSION_VALIDATION_TABLE_VERSION: Int = 1
+const val SESSION_VALIDATION_TABLE_VERSION: Int = 2
 
 @Serializable
 data class SessionValidationTable(
@@ -87,7 +95,7 @@ private fun engineCases(): List<SessionValidationCase> {
     }
     val complete = listOf(
         simplePlan(), twoExercisePlan(), biSetPlan(), circuitPlan(), circuitShortLastPlan(), dropSetPlan(),
-        dropSetWithoutStagesPlan(), timedPlan(),
+        dropSetWithoutStagesPlan(), timedPlan(), cardioIntervalPlan(), cardioContinuousPlan(), cardioCircuitPlan(),
     ).map { plan -> SessionValidationCase("motor (completo): ${plan.id}", plan, runToEnd(plan), emptyList()) }
     return fromTable + complete
 }
@@ -124,6 +132,39 @@ private fun result(
     )
 }
 
+/** Uma fase de cardio registrada (2.297.0): sem carga nem repetições, a meta é a duração planejada. */
+private fun phase(
+    plan: WorkoutPlan,
+    exerciseId: String,
+    round: Int,
+    phase: CardioPhase,
+    durationSeconds: Int?,
+    skipped: Boolean = false,
+    roundIndex: Int? = null,
+    startS: Long = 0,
+): SetResult {
+    val block = plan.blocks.first { b -> b.exercises.any { it.id == exerciseId } }
+    val cardio = block.exercises.first { it.id == exerciseId }.cardio
+    val planned = when (phase) {
+        CardioPhase.WORK -> cardio?.workSeconds ?: 30
+        CardioPhase.REST -> cardio?.restSeconds ?: 30
+    }
+    return SetResult(
+        blockId = block.id,
+        exerciseStepId = exerciseId,
+        setIndex = round,
+        target = SetTarget.Timed(planned),
+        repsDone = null,
+        loadDone = null,
+        skipped = skipped,
+        startedAt = T0 + startS.seconds,
+        completedAt = T0 + (startS + (durationSeconds ?: 0)).seconds,
+        roundIndex = roundIndex,
+        durationSeconds = durationSeconds,
+        cardioPhase = phase,
+    )
+}
+
 private fun session(
     plan: WorkoutPlan,
     vararg sets: SetResult,
@@ -146,6 +187,9 @@ private fun handCases(): List<SessionValidationCase> {
     val biSet = biSetPlan()
     val drop = dropSetPlan()
     val timed = timedPlan()
+    val interval = cardioIntervalPlan()
+    val continuous = cardioContinuousPlan()
+    val circuit = cardioCircuitPlan()
     fun case(name: String, plan: WorkoutPlan, run: WorkoutRun, vararg issues: RunIssue) =
         SessionValidationCase("à mão: $name", plan, run, issues.toList())
 
@@ -322,6 +366,82 @@ private fun handCases(): List<SessionValidationCase> {
             ),
             RunIssue.InvalidSwapRecord(0),
             RunIssue.InvalidSwapRecord(1),
+        ),
+        // ── 2.297.0: cardio estruturado ──
+        case(
+            "cardio intervalado: fases cheias, parcial e pulada no primeiro instante (0 s)",
+            interval,
+            session(
+                interval,
+                phase(interval, "ex-run", 0, CardioPhase.WORK, 40),
+                phase(interval, "ex-run", 0, CardioPhase.REST, 20, startS = 40),
+                phase(interval, "ex-run", 1, CardioPhase.WORK, 25, startS = 60),
+                phase(interval, "ex-run", 1, CardioPhase.REST, 0, skipped = true, startS = 85),
+                result(interval, "block-1", "ex-1", 0),
+            ),
+        ),
+        case(
+            "cardio contínuo: uma fase de trabalho, sem duração informada",
+            continuous,
+            session(continuous, phase(continuous, "ex-bike", 0, CardioPhase.WORK, null)),
+        ),
+        case(
+            "cardio no circuito: a volta do bloco é a primeira",
+            circuit,
+            session(
+                circuit,
+                phase(circuit, "c-rope", 0, CardioPhase.WORK, 30, roundIndex = 0),
+                phase(circuit, "c-rope", 1, CardioPhase.WORK, 30, roundIndex = 0),
+            ),
+        ),
+        case(
+            "a mesma fase de cardio duas vezes",
+            interval,
+            session(interval, phase(interval, "ex-run", 0, CardioPhase.WORK, 40), phase(interval, "ex-run", 0, CardioPhase.WORK, 40)),
+            RunIssue.DuplicateStep(1),
+        ),
+        case(
+            "fase de cardio num item de força",
+            interval,
+            session(interval, phase(interval, "ex-1", 0, CardioPhase.WORK, 30)),
+            RunIssue.UnknownStep(0),
+        ),
+        case(
+            "item de cardio registrado como série de força (sem a fase)",
+            interval,
+            session(interval, result(interval, "block-1", "ex-run", 0)),
+            RunIssue.UnknownStep(0),
+        ),
+        case(
+            "descanso num cardio contínuo (não tem descanso)",
+            continuous,
+            session(continuous, phase(continuous, "ex-bike", 0, CardioPhase.REST, 10)),
+            RunIssue.UnknownStep(0),
+        ),
+        case(
+            "volta do cardio além das voltas do bloco",
+            interval,
+            session(interval, phase(interval, "ex-run", 3, CardioPhase.WORK, 40)),
+            RunIssue.UnknownStep(0),
+        ),
+        case(
+            "cardio no circuito com a volta do bloco diferente da primeira",
+            circuit,
+            session(circuit, phase(circuit, "c-rope", 0, CardioPhase.WORK, 30, roundIndex = 1)),
+            RunIssue.UnknownStep(0),
+        ),
+        case(
+            "fase de cardio com duração acima da planejada",
+            interval,
+            session(interval, phase(interval, "ex-run", 0, CardioPhase.WORK, 41)),
+            RunIssue.InvalidDuration(0),
+        ),
+        case(
+            "fase de cardio com duração negativa",
+            interval,
+            session(interval, phase(interval, "ex-run", 0, CardioPhase.REST, -1, startS = 40)),
+            RunIssue.NegativeDuration(0),
+            RunIssue.InvalidDuration(0),
         ),
     )
 }
