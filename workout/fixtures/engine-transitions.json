@@ -1,6 +1,6 @@
 {
-    "version": 2,
-    "protocolVersion": 4,
+    "version": 3,
+    "protocolVersion": 5,
     "epochBaseSeconds": 1700000000,
     "cases": [
         {
@@ -35,7 +35,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -56,7 +57,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -79,7 +81,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -105,7 +108,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -128,7 +132,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -149,7 +154,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -186,7 +192,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -207,7 +214,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -230,7 +238,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -253,7 +262,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -279,7 +289,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -305,7 +316,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -329,7 +341,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -352,7 +365,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -389,7 +403,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -410,7 +425,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -433,7 +449,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -459,7 +476,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -482,7 +500,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -505,7 +524,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -523,7 +543,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -560,7 +581,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -581,7 +603,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -604,7 +627,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -627,7 +651,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -650,7 +675,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -673,7 +699,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -699,7 +726,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -722,7 +750,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -745,7 +774,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -763,7 +793,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -800,7 +831,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -821,7 +853,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -844,7 +877,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -867,7 +901,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -893,7 +928,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -916,7 +952,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -942,7 +979,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 }
             ]
@@ -989,7 +1027,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1010,7 +1049,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1033,7 +1073,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1059,7 +1100,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -1082,7 +1124,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1103,7 +1146,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -1174,7 +1218,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1195,7 +1240,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1218,7 +1264,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1244,7 +1291,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1270,7 +1318,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
                     }
                 },
                 {
@@ -1293,7 +1342,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -1356,7 +1406,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -1378,7 +1429,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1399,7 +1451,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1422,7 +1475,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1448,7 +1502,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1474,7 +1529,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1500,7 +1556,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -1523,7 +1580,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -1604,7 +1662,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-n",
@@ -1626,7 +1685,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1647,7 +1707,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1670,7 +1731,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1696,7 +1758,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1722,7 +1785,8 @@
                         ],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1750,7 +1814,8 @@
                         ],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
                     }
                 },
                 {
@@ -1775,7 +1840,8 @@
                         ],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1803,7 +1869,8 @@
                         ],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -1832,7 +1899,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1850,7 +1918,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -1887,7 +1956,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1908,7 +1978,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1931,7 +2002,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1949,7 +2021,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1970,7 +2043,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -1988,7 +2062,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2006,7 +2081,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -2043,7 +2119,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2064,7 +2141,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2085,7 +2163,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2103,7 +2182,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2121,7 +2201,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2139,7 +2220,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2157,7 +2239,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2175,7 +2258,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2198,7 +2282,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2221,7 +2306,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -2270,7 +2356,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2291,7 +2378,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2314,7 +2402,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2340,7 +2429,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -2363,7 +2453,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2389,7 +2480,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -2412,7 +2504,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2433,7 +2526,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -2470,7 +2564,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2491,7 +2586,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2514,7 +2610,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2542,7 +2639,8 @@
                             "ex-1->leg-press"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2565,7 +2663,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2593,7 +2692,8 @@
                             "ex-1->leg-press"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2621,7 +2721,8 @@
                             "ex-1->leg-press"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2649,7 +2750,8 @@
                             "ex-1->leg-press"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2677,7 +2779,8 @@
                             "ex-1->leg-press"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -2706,7 +2809,8 @@
                             "ex-1->hack"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -2732,7 +2836,8 @@
                             "ex-1->hack"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2756,7 +2861,8 @@
                             "ex-1->hack"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -2827,7 +2933,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2848,7 +2955,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2871,7 +2979,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2899,7 +3008,8 @@
                             "ex-2->pushdown"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2927,7 +3037,8 @@
                             "ex-2->pushdown"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -2955,7 +3066,8 @@
                             "ex-2->pushdown"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
                     }
                 },
                 {
@@ -2980,7 +3092,8 @@
                             "ex-2->pushdown"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3005,7 +3118,8 @@
                             "ex-2->pushdown"
                         ],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3028,7 +3142,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -3074,7 +3189,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3095,7 +3211,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3118,7 +3235,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 40
+                        "phaseEndsAtSeconds": 40,
+                        "restKind": null
                     }
                 },
                 {
@@ -3141,7 +3259,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 40
+                        "phaseEndsAtSeconds": 40,
+                        "restKind": null
                     }
                 },
                 {
@@ -3164,7 +3283,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "REST",
-                        "phaseEndsAtSeconds": 60
+                        "phaseEndsAtSeconds": 60,
+                        "restKind": null
                     }
                 },
                 {
@@ -3187,7 +3307,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 160
+                        "phaseEndsAtSeconds": 160,
+                        "restKind": null
                     }
                 },
                 {
@@ -3210,7 +3331,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -3233,7 +3355,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "SET"
                     }
                 },
                 {
@@ -3256,7 +3379,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3279,7 +3403,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3302,7 +3427,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3323,7 +3449,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -3369,7 +3496,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3390,7 +3518,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3413,7 +3542,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 40
+                        "phaseEndsAtSeconds": 40,
+                        "restKind": null
                     }
                 },
                 {
@@ -3436,7 +3566,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3459,7 +3590,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 60
+                        "phaseEndsAtSeconds": 60,
+                        "restKind": null
                     }
                 },
                 {
@@ -3482,7 +3614,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "REST",
-                        "phaseEndsAtSeconds": 70
+                        "phaseEndsAtSeconds": 70,
+                        "restKind": null
                     }
                 },
                 {
@@ -3508,7 +3641,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 100
+                        "phaseEndsAtSeconds": 100,
+                        "restKind": null
                     }
                 },
                 {
@@ -3531,7 +3665,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "REST",
-                        "phaseEndsAtSeconds": 90
+                        "phaseEndsAtSeconds": 90,
+                        "restKind": null
                     }
                 },
                 {
@@ -3549,7 +3684,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -3579,7 +3715,8 @@
                                     "targetZone": "Z2"
                                 }
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3600,7 +3737,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3623,7 +3761,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 300
+                        "phaseEndsAtSeconds": 300,
+                        "restKind": null
                     }
                 },
                 {
@@ -3646,7 +3785,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 300
+                        "phaseEndsAtSeconds": 300,
+                        "restKind": null
                     }
                 },
                 {
@@ -3664,7 +3804,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]
@@ -3734,7 +3875,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3755,7 +3897,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3778,7 +3921,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3804,7 +3948,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 60
+                        "phaseEndsAtSeconds": 60,
+                        "restKind": null
                     }
                 },
                 {
@@ -3827,7 +3972,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": "WORK",
-                        "phaseEndsAtSeconds": 90
+                        "phaseEndsAtSeconds": 90,
+                        "restKind": null
                     }
                 },
                 {
@@ -3850,7 +3996,8 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 },
                 {
@@ -3876,7 +4023,902 @@
                         "skippedExercises": [],
                         "swaps": [],
                         "cardioPhase": null,
-                        "phaseEndsAtSeconds": null
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "circuito com transição: descanso de transição entre os exercícios da volta, descanso de volta no fim, e o fim do bloco descansa o do último",
+            "plan": {
+                "id": "plan-circuit-transition",
+                "name": "Circuito com transição",
+                "blocks": [
+                    {
+                        "id": "block-t",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "t-a",
+                                "exerciseRefId": "jump",
+                                "name": "Polichinelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "t-b",
+                                "exerciseRefId": "pushup",
+                                "name": "Flexão",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "t-c",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 15,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 15,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 15
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "row",
+                                "name": "Remada",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 0
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 30,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 45,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "TRANSITION"
+                    }
+                },
+                {
+                    "atSeconds": 45,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 45,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 75,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            2,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 90,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "TRANSITION"
+                    }
+                },
+                {
+                    "atSeconds": 80,
+                    "event": {
+                        "type": "addRestTime",
+                        "seconds": 10
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            2,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 100,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "TRANSITION"
+                    }
+                },
+                {
+                    "atSeconds": 100,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 100,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 130,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 220,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
+                    }
+                },
+                {
+                    "atSeconds": 140,
+                    "event": {
+                        "type": "pause"
+                    },
+                    "expect": {
+                        "phase": "PAUSED",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 150,
+                    "event": {
+                        "type": "resume"
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 230,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
+                    }
+                },
+                {
+                    "atSeconds": 230,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 230,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 260,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            1,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 275,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 4,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "TRANSITION"
+                    }
+                },
+                {
+                    "atSeconds": 265,
+                    "event": {
+                        "type": "undo"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 265,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 270,
+                    "event": {
+                        "type": "skipExercise",
+                        "reason": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 270,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 300,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            2,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 315,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 4,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "TRANSITION"
+                    }
+                },
+                {
+                    "atSeconds": 315,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 315,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 4,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 345,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            1,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 435,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 5,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
+                    }
+                },
+                {
+                    "atSeconds": 435,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            1,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 435,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 5,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 465,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 465,
+                        "recordedSteps": 6,
+                        "skippedExercises": [
+                            "t-a"
+                        ],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                }
+            ]
+        },
+        {
+            "name": "tri-set (conjugado de 3): segue direto A1 → A2 → A3, descanso de volta só depois do A3; transição do bloco é ignorada fora do circuito",
+            "plan": {
+                "id": "plan-triset",
+                "name": "Tri-set",
+                "blocks": [
+                    {
+                        "id": "block-3",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "a1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "a2",
+                                "exerciseRefId": "hammer",
+                                "name": "Rosca martelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 16.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 16.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "a3",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 20
+                    }
+                ]
+            },
+            "localRunId": "run-1",
+            "steps": [
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "load"
+                    },
+                    "expect": {
+                        "phase": "READY",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": null,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 0,
+                    "event": {
+                        "type": "start"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 0,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 0,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 20,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 20,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 1,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 40,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            0,
+                            0
+                        ],
+                        "setStartedAtSeconds": 40,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 2,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 60,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "RESTING",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": 150,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": "ROUND"
+                    }
+                },
+                {
+                    "atSeconds": 150,
+                    "event": {
+                        "type": "skipRest"
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            0,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 150,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 3,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 170,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            1,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 170,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 4,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 190,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "IN_SET",
+                        "cursor": [
+                            0,
+                            2,
+                            1,
+                            0
+                        ],
+                        "setStartedAtSeconds": 190,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": null,
+                        "recordedSteps": 5,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
+                    }
+                },
+                {
+                    "atSeconds": 210,
+                    "event": {
+                        "type": "completeSet",
+                        "reps": 10,
+                        "load": 20.0,
+                        "durationSeconds": null
+                    },
+                    "expect": {
+                        "phase": "FINISHED",
+                        "cursor": null,
+                        "setStartedAtSeconds": null,
+                        "restEndsAtSeconds": null,
+                        "finishedAtSeconds": 210,
+                        "recordedSteps": 6,
+                        "skippedExercises": [],
+                        "swaps": [],
+                        "cardioPhase": null,
+                        "phaseEndsAtSeconds": null,
+                        "restKind": null
                     }
                 }
             ]

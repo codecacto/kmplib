@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "cases": [
         {
             "name": "motor (tabela): normal: carregar, iniciar, série, descanso, pular descanso, última série termina",
@@ -34,7 +34,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -132,7 +133,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -206,7 +208,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -280,7 +283,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -329,7 +333,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -413,7 +418,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -545,7 +551,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -669,7 +676,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -691,7 +699,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -833,7 +842,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-n",
@@ -855,7 +865,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -997,7 +1008,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1058,7 +1070,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1176,7 +1189,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1325,7 +1339,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1383,7 +1398,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1598,7 +1614,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1685,7 +1702,8 @@
                                     "targetZone": "Z2"
                                 }
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1790,7 +1808,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -1899,6 +1918,507 @@
             "expectedIssues": []
         },
         {
+            "name": "motor (tabela): circuito com transição: descanso de transição entre os exercícios da volta, descanso de volta no fim, e o fim do bloco descansa o do último",
+            "plan": {
+                "id": "plan-circuit-transition",
+                "name": "Circuito com transição",
+                "blocks": [
+                    {
+                        "id": "block-t",
+                        "method": "CIRCUIT",
+                        "exercises": [
+                            {
+                                "id": "t-a",
+                                "exerciseRefId": "jump",
+                                "name": "Polichinelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                                        "seconds": 30
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "t-b",
+                                "exerciseRefId": "pushup",
+                                "name": "Flexão",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "t-c",
+                                "exerciseRefId": "squat",
+                                "name": "Agachamento",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 15,
+                                        "load": null,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 15,
+                                        "load": null,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 15
+                    },
+                    {
+                        "id": "block-n",
+                        "method": "NORMAL",
+                        "exercises": [
+                            {
+                                "id": "n-1",
+                                "exerciseRefId": "row",
+                                "name": "Remada",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 0
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-circuit-transition",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:21:05Z",
+                "sets": [
+                    {
+                        "blockId": "block-t",
+                        "exerciseStepId": "t-a",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Timed",
+                            "seconds": 30
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-t",
+                        "exerciseStepId": "t-b",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:05Z",
+                        "completedAt": "2023-11-14T22:14:35Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-t",
+                        "exerciseStepId": "t-c",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 15,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:15:00Z",
+                        "completedAt": "2023-11-14T22:15:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-t",
+                        "exerciseStepId": "t-b",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:17:50Z",
+                        "completedAt": "2023-11-14T22:18:20Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-t",
+                        "exerciseStepId": "t-c",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 15,
+                            "load": null,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:18:35Z",
+                        "completedAt": "2023-11-14T22:19:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-n",
+                        "exerciseStepId": "n-1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:20:35Z",
+                        "completedAt": "2023-11-14T22:21:05Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": null,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    }
+                ],
+                "skippedExercises": [
+                    {
+                        "exerciseStepId": "t-a",
+                        "reason": null,
+                        "at": "2023-11-14T22:17:50Z"
+                    }
+                ],
+                "effort": null,
+                "comment": null,
+                "swaps": []
+            },
+            "expectedIssues": []
+        },
+        {
+            "name": "motor (tabela): tri-set (conjugado de 3): segue direto A1 → A2 → A3, descanso de volta só depois do A3; transição do bloco é ignorada fora do circuito",
+            "plan": {
+                "id": "plan-triset",
+                "name": "Tri-set",
+                "blocks": [
+                    {
+                        "id": "block-3",
+                        "method": "BI_SET",
+                        "exercises": [
+                            {
+                                "id": "a1",
+                                "exerciseRefId": "curl",
+                                "name": "Rosca direta",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 20.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 30,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "a2",
+                                "exerciseRefId": "hammer",
+                                "name": "Rosca martelo",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 16.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 10,
+                                        "load": 16.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 45,
+                                "videoRequested": false,
+                                "cardio": null
+                            },
+                            {
+                                "id": "a3",
+                                "exerciseRefId": "triceps",
+                                "name": "Tríceps corda",
+                                "sets": [
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    },
+                                    {
+                                        "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                                        "reps": 12,
+                                        "load": 15.0,
+                                        "stages": []
+                                    }
+                                ],
+                                "restSeconds": 90,
+                                "videoRequested": false,
+                                "cardio": null
+                            }
+                        ],
+                        "transitionRestSeconds": 20
+                    }
+                ]
+            },
+            "run": {
+                "localId": "run-1",
+                "planId": "plan-triset",
+                "startedAt": "2023-11-14T22:13:20Z",
+                "finishedAt": "2023-11-14T22:16:50Z",
+                "sets": [
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a1",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:20Z",
+                        "completedAt": "2023-11-14T22:13:40Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a2",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 16.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:13:40Z",
+                        "completedAt": "2023-11-14T22:14:00Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a3",
+                        "setIndex": 0,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:14:00Z",
+                        "completedAt": "2023-11-14T22:14:20Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 0,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a1",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 20.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:15:50Z",
+                        "completedAt": "2023-11-14T22:16:10Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a2",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 10,
+                            "load": 16.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:16:10Z",
+                        "completedAt": "2023-11-14T22:16:30Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    },
+                    {
+                        "blockId": "block-3",
+                        "exerciseStepId": "a3",
+                        "setIndex": 1,
+                        "target": {
+                            "type": "br.com.codecacto.kmplib.workout.model.SetTarget.Reps",
+                            "reps": 12,
+                            "load": 15.0,
+                            "stages": []
+                        },
+                        "repsDone": 10,
+                        "loadDone": 20.0,
+                        "skipped": false,
+                        "startedAt": "2023-11-14T22:16:30Z",
+                        "completedAt": "2023-11-14T22:16:50Z",
+                        "heartRateAvg": null,
+                        "heartRateMax": null,
+                        "stageIndex": null,
+                        "roundIndex": 1,
+                        "durationSeconds": null,
+                        "exerciseRefId": null,
+                        "swappedFromExerciseId": null,
+                        "cardioPhase": null
+                    }
+                ],
+                "skippedExercises": [],
+                "effort": null,
+                "comment": null,
+                "swaps": []
+            },
+            "expectedIssues": []
+        },
+        {
             "name": "motor (completo): plan-1",
             "plan": {
                 "id": "plan-1",
@@ -1930,7 +2450,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2038,7 +2559,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2170,7 +2692,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2408,7 +2931,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-n",
@@ -2430,7 +2954,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2712,7 +3237,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-n",
@@ -2734,7 +3260,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -2954,7 +3481,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -2976,7 +3504,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3194,7 +3723,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3304,7 +3834,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3431,7 +3962,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3630,7 +4162,8 @@
                                     "targetZone": "Z2"
                                 }
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3735,7 +4268,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3921,7 +4455,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -3970,7 +4505,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4102,7 +4638,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4250,7 +4787,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -4272,7 +4810,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4457,7 +4996,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4537,7 +5077,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4664,7 +5205,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4743,7 +5285,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4822,7 +5365,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -4927,7 +5471,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -4949,7 +5494,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5067,7 +5613,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -5089,7 +5636,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5207,7 +5755,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     },
                     {
                         "id": "block-2",
@@ -5229,7 +5778,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5308,7 +5858,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5421,7 +5972,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5534,7 +6086,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5613,7 +6166,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5692,7 +6246,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5799,7 +6354,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5864,7 +6420,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -5998,7 +6555,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6104,7 +6662,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6195,7 +6754,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6284,7 +6844,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6361,7 +6922,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6468,7 +7030,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6547,7 +7110,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6626,7 +7190,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6705,7 +7270,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6784,7 +7350,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -6868,7 +7435,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7023,7 +7591,8 @@
                                     "targetZone": "Z2"
                                 }
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7128,7 +7697,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7231,7 +7801,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7339,7 +7910,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7425,7 +7997,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7497,7 +8070,8 @@
                                     "targetZone": "Z2"
                                 }
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7583,7 +8157,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7693,7 +8268,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7779,7 +8355,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },
@@ -7865,7 +8442,8 @@
                                 "videoRequested": false,
                                 "cardio": null
                             }
-                        ]
+                        ],
+                        "transitionRestSeconds": 0
                     }
                 ]
             },

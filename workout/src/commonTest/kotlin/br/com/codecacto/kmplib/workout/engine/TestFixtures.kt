@@ -247,3 +247,51 @@ fun cardioCircuitPlan(): WorkoutPlan = WorkoutPlan(
         ),
     ),
 )
+
+/**
+ * Circuito com DESCANSO DE TRANSIÇÃO (2.299.0): 3 estações x 2 voltas, 15 s entre as estações, 90 s no
+ * fim da volta (o `restSeconds` da C, que fecha a volta) e um bloco NORMAL depois. Ordem: volta 0 =
+ * A, (15) B, (15) C, (90); volta 1 = A, (15) B, (15) C, (90) → bloco seguinte.
+ */
+fun circuitTransitionPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-circuit-transition",
+    name = "Circuito com transição",
+    blocks = listOf(
+        Block(
+            id = "block-t",
+            method = WorkoutMethod.CIRCUIT,
+            exercises = listOf(
+                ExerciseStep("t-a", "jump", "Polichinelo", List(2) { SetTarget.Timed(30) }, restSeconds = 30),
+                ExerciseStep("t-b", "pushup", "Flexão", List(2) { repsSet(10, null) }, restSeconds = 45),
+                ExerciseStep("t-c", "squat", "Agachamento", List(2) { repsSet(15, null) }, restSeconds = 90),
+            ),
+            transitionRestSeconds = 15,
+        ),
+        Block(
+            id = "block-n",
+            method = WorkoutMethod.NORMAL,
+            exercises = listOf(ExerciseStep("n-1", "row", "Remada", listOf(repsSet()), restSeconds = 30)),
+        ),
+    ),
+)
+
+/**
+ * Tri-set (conjugado de 3, D7): 2 séries de cada, sem descanso entre A1 → A2 → A3, 90 s depois do A3. O
+ * bloco traz `transitionRestSeconds` de propósito — fora do `CIRCUIT` ele é IGNORADO.
+ */
+fun triSetPlan(): WorkoutPlan = WorkoutPlan(
+    id = "plan-triset",
+    name = "Tri-set",
+    blocks = listOf(
+        Block(
+            id = "block-3",
+            method = WorkoutMethod.BI_SET,
+            exercises = listOf(
+                ExerciseStep("a1", "curl", "Rosca direta", List(2) { repsSet(10, 20.0) }, restSeconds = 30),
+                ExerciseStep("a2", "hammer", "Rosca martelo", List(2) { repsSet(10, 16.0) }, restSeconds = 45),
+                ExerciseStep("a3", "triceps", "Tríceps corda", List(2) { repsSet(12, 15.0) }, restSeconds = 90),
+            ),
+            transitionRestSeconds = 20,
+        ),
+    ),
+)

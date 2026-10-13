@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.299.0
+    motivo: "gasto calórico de treino curto (< ~1 min) zerado: CalorieEstimator arredondava tudo para a dezena (0 kcal na tela e no histórico)"
+    simbolos: [CalorieEstimator]
+
   - versao: 2.292.0
     motivo: "own-auth: sessão perdida ao fechar o app (Android gravava o par rotativo com apply(); Keystore passageiro apagava o cofre; iOS apagava antes de gravar)"
     simbolos: [OwnAuthTokenManager, secureTokenStorage, AuthSessionStore, ownAuth]

@@ -8,8 +8,11 @@ import kotlinx.serialization.Serializable
  * - `NORMAL` e `DROP_SET`: exercício a exercício, série a série, descansando o `restSeconds` do
  *   exercício depois de cada série. No `DROP_SET` cada série tem ESTÁGIOS (`SetTarget.Reps.stages`),
  *   feitos sem descanso entre si; o descanso vem só depois do último estágio.
- * - `BI_SET` e `CIRCUIT`: por VOLTA. A volta *r* faz a série *r* de cada exercício do bloco, na ordem e
- *   sem descanso; depois do último exercício da volta, descansa o `restSeconds` dele.
+ * - `BI_SET` (conjugado: bi-set, tri-set, 4+) e `CIRCUIT`: por VOLTA. A volta *r* faz a série *r* de cada
+ *   exercício do bloco, na ordem; depois do último exercício da volta, descansa o `restSeconds` dele
+ *   (descanso de VOLTA). Dentro da volta o conjugado segue direto ("sem descanso — segue para A2"); o
+ *   circuito descansa o `Block.transitionRestSeconds` entre um exercício e o seguinte (descanso de
+ *   TRANSIÇÃO, trocar de estação — 0 = segue direto, 2.299.0).
  */
 @Serializable
 enum class WorkoutMethod { NORMAL, BI_SET, DROP_SET, CIRCUIT }
@@ -95,7 +98,27 @@ data class Block(
     val id: String,
     val method: WorkoutMethod,
     val exercises: List<ExerciseStep>,
+    /**
+     * Descanso de TRANSIÇÃO do circuito, em segundos (2.299.0): entre um exercício e o seguinte DENTRO da
+     * mesma volta (trocar de estação). O descanso do fim da volta continua sendo o `restSeconds` do
+     * exercício que fecha a volta. Só vale em `CIRCUIT` — nos outros métodos é ignorado (o conjugado
+     * segue direto por definição). Default 0 = segue direto, o comportamento de antes do campo; espelha o
+     * `transitionRestSeconds` do bloco no contrato do App do Personal (0..300, ausente = 0). Leia
+     * [effectiveTransitionRestSeconds], nunca o campo cru.
+     */
+    val transitionRestSeconds: Int = 0,
 ) {
+    /**
+     * O descanso de transição que o motor de fato aplica: o [transitionRestSeconds] limitado a
+     * [TRANSITION_REST_RANGE] em `CIRCUIT`; 0 em qualquer outro método.
+     */
+    val effectiveTransitionRestSeconds: Int
+        get() = if (method == WorkoutMethod.CIRCUIT) {
+            transitionRestSeconds.coerceIn(TRANSITION_REST_RANGE.first, TRANSITION_REST_RANGE.last)
+        } else {
+            0
+        }
+
     /** `true` em `BI_SET`/`CIRCUIT`: o bloco é percorrido por volta, não por exercício. */
     val isRoundBased: Boolean get() = method == WorkoutMethod.BI_SET || method == WorkoutMethod.CIRCUIT
 
@@ -112,6 +135,12 @@ data class Block(
         0
     }
 }
+
+/**
+ * Faixa do descanso de transição do circuito (`Block.transitionRestSeconds`): 0 a 300 s — a mesma do
+ * contrato do App do Personal (`ProgramFields.TRANSITION_REST_MAX`). Fora dela o motor limita.
+ */
+val TRANSITION_REST_RANGE: IntRange = 0..300
 
 /** Instantâneo imutável do treino prescrito — o que o aluno baixa e executa, mesmo offline. */
 @Serializable

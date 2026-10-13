@@ -5,6 +5,54 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.299.0 — Calorias de treino curto não zeram mais (`CalorieEstimator`) + **descanso de transição** do circuito no motor de treino + `LoginScreen` com **imagem de fundo**
+
+Pedido do App do Personal (tarefas T6/T13/T20 de 13/out/2026, itens 8, 19 e 23 do fundador). Um conserto
+(item 1, com piso) e dois aditivos. Sem aviso: dado de calorias zerado em treino curto é defeito de
+exibição que não para fluxo nenhum (o app já mostrava "< 10 kcal" como remendo) — entra pela régua de pisos.
+
+### `kmplib-workout` — calorias: a régua de exibição na ORIGEM (conserto, piso 2.299.0)
+- **Até a 2.298.0 todo valor ia para a dezena (`roundToTens`), e treino curto (< ~1 min, só aquecimento)
+  virava `0 kcal`** — na tela e no histórico. A régua agora é uma só, pública:
+  **`CalorieEstimator.roundKcal(value: Double): Int`** — ≥ 10 kcal → dezena (a estimativa erra 30–50%,
+  a unidade seria precisão que ela não tem); > 0 e < 10 → unidade, **no mínimo 1**; ≤ 0/não finito → 0.
+  Meio para cima (4,5 → 5; 15 → 20).
+- **`Estimate.exactKcal: Double`** (default = `kcal`, construção antiga continua valendo) = o valor da conta
+  sem arredondar: é o que se SOMA (semana/mês, depois `roundKcal` na soma) e o que se manda ao backend.
+- `fromHeartRate` devolve **`null`** quando a equação de Keytel dá gasto ≤ 0 (FC baixa demais, fórmula
+  feminina perto de 60 bpm) — antes `Estimate(0)` "pela sua FC" num treino que durou; o `estimate()` cai
+  para o MET. `estimate(deviceKcal = 0.0, …)` trata 0 do dispositivo como ausente (o repositório de saúde
+  devolve 0 sem registro no intervalo). O teto da FC (2× MET) compara os valores exatos.
+- **Ação no app:** apagar o remendo "< 10 kcal" — o `Estimate.kcal` já vem certo; somas usam `exactKcal`.
+
+### `kmplib-workout` — descanso de TRANSIÇÃO no circuito + tipo do descanso (aditivo)
+- **`Block.transitionRestSeconds: Int = 0`** (espelha o `transitionRestSeconds` do bloco no contrato do App do
+  Personal, backend v26; 0..300, ausente = 0) + `Block.effectiveTransitionRestSeconds` (só `CIRCUIT`, limitado
+  a **`TRANSITION_REST_RANGE`** = 0..300; ignorado nos outros métodos).
+- Motor: no **circuito**, entre um exercício e o seguinte da MESMA volta abre o descanso de transição; depois
+  do exercício que fecha a volta, o `restSeconds` dele (descanso de volta), como antes. No **conjugado**
+  (`BI_SET`, 2–8 exercícios: bi-set/tri-set/conjugado) segue direto A1 → A2 → A3 e descansa só ao fim de cada
+  série do grupo — já era assim, agora com caso de tri-set na tabela. Exercício pulado sai da volta e a
+  transição leva a quem sobrou; pausa, `AddRestTime` e `Undo` valem igual.
+- **`RestKind`** (`SET`/`TRANSITION`/`ROUND`, `@Serializable`) em **`WorkoutState.Resting.kind`** (default
+  `SET`) e **`GuidedWorkoutEngine.nextRest(plan, cursor, run): ScheduledRest?`** (`ScheduledRest(seconds, kind)`)
+  = o descanso que concluir o passo vai abrir, com o tipo — a tela escreve "Transição — vá para a próxima
+  estação" / "Fim da volta" / "sem descanso — segue para A2" sem refazer a regra. `restAfter` continua (= `nextRest?.seconds ?: 0`).
+- **Protocolo 5**: `Block.transitionRestSeconds` dentro do `PlanSnapshot` e **`StateSnapshot.restKind`** (nulo fora do descanso).
+- **Fixtures**: `engine-transitions.json` versão **3** (`restKind` no estado `RESTING`; casos "circuito com
+  transição" e "tri-set"); `session-validation.json` só muda o `protocolVersion` e o campo novo (0) nos planos.
+  Leitor da tabela (backend/relógio) precisa aceitar o `restKind`.
+
+### `kmplib-auth` — `LoginScreen(background = …)` (aditivo)
+- **`LoginBackground(painter, contentScale = Crop, alignment, scrimColor = Black, scrimTopAlpha = 0.25f,
+  scrimBottomAlpha = 0.60f, cardColor = null, cardElevation = 8.dp)`** + `loginBackground(image:
+  DrawableResource, …)` (recurso do app) + `LoginBackgroundDefaults` (ids `login-cartao`, `login-fundo`).
+- Foto de borda a borda (decorativa, sem descrição), degradê para contraste das barras e das bordas, e o
+  **formulário inteiro num cartão opaco** na superfície do tema — o texto nunca fica sobre a foto. Mesmos
+  campos, mesma ordem, mesmas ações (usuário ou e-mail + senha com olho, esqueci a senha, Cadastrar-se,
+  social embaixo, termos, `footerSlot`), mesmo painel de marca em janela expandida. Ícones das barras pela
+  cor do degradê (escuro → claros). Android e iOS (commonMain). `background = null` (padrão) = o login de sempre.
+
 ## 2.298.0 — Tela **Sobre** padrão (`AboutScreen`) + tema que segue o sistema com a troca em **Configurações** (`ThemeMode`)
 
 Dois padrões da fábrica para TODO app, pedidos pelo fundador na homologação do Vitalis (13/out/2026).

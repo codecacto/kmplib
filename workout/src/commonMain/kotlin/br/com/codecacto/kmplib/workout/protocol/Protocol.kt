@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.workout.protocol
 
 import br.com.codecacto.kmplib.workout.engine.Cursor
+import br.com.codecacto.kmplib.workout.engine.RestKind
 import br.com.codecacto.kmplib.workout.engine.WorkoutEvent
 import br.com.codecacto.kmplib.workout.model.CardioPhase
 import br.com.codecacto.kmplib.workout.model.WorkoutPlan
@@ -11,10 +12,11 @@ import kotlinx.serialization.Serializable
  * `SetTarget.Reps.stages` dentro do `PlanSnapshot`. **3** (kmplib 2.275.0): `CommandEvent.CompleteSet.
  * durationSeconds` e `CommandEvent.SwapExercise`. **4** (kmplib 2.297.0): cardio estruturado —
  * `ExerciseStep.cardio` dentro do `PlanSnapshot`, `StateSnapshot.cardioPhase`/`phaseEndsAtEpochMillis` e
- * `CommandEvent.SkipPhase`. Quem recebe `v` maior do que conhece deve pedir um
+ * `CommandEvent.SkipPhase`. **5** (kmplib 2.299.0): descanso de transição do circuito —
+ * `Block.transitionRestSeconds` dentro do `PlanSnapshot` e `StateSnapshot.restKind`. Quem recebe `v` maior do que conhece deve pedir um
  * `PlanSnapshot` novo em vez de adivinhar o formato.
  */
-const val WORKOUT_PROTOCOL_VERSION: Int = 4
+const val WORKOUT_PROTOCOL_VERSION: Int = 5
 
 /**
  * Mensagens celular<->relógio, versionadas (`v`) e idempotentes por `seq` crescente (resistem a
@@ -41,7 +43,10 @@ data class PlanSnapshot(
  * Cardio (2.297.0): numa fase de cardio, [cardioPhase] diz QUAL fase (a tela escreve "TRABALHO"/
  * "DESCANSO" em texto) e [phaseEndsAtEpochMillis] é o instante final ABSOLUTO dela (o
  * `GuidedWorkoutEngine.phaseEndsAt`) — o outro lado desenha o anel a partir dele, nunca de um contador
- * próprio. Pausado, [phaseEndsAtEpochMillis] vem nulo (o fim anda junto com a pausa). */
+ * próprio. Pausado, [phaseEndsAtEpochMillis] vem nulo (o fim anda junto com a pausa).
+ *
+ * Descanso (2.299.0): em `RESTING`, [restKind] diz QUE descanso é (`SET`, `TRANSITION` do circuito,
+ * `ROUND` do fim da volta — o `WorkoutState.Resting.kind`); fora do descanso vem nulo. */
 @Serializable
 data class StateSnapshot(
     override val seq: Long,
@@ -54,6 +59,7 @@ data class StateSnapshot(
     val stageIndex: Int = 0,
     val cardioPhase: CardioPhase? = null,
     val phaseEndsAtEpochMillis: Long? = null,
+    val restKind: RestKind? = null,
 ) : WorkoutMessage {
     /** O cursor que este instantâneo descreve. */
     val cursor: Cursor get() = Cursor(blockIndex, exerciseIndex, setIndex, stageIndex)

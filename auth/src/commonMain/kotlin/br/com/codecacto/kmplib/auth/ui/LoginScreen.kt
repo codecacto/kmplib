@@ -158,6 +158,9 @@ internal fun loginImeDoneAction(state: LoginState): LoginAction? =
  * @param appBrand `true` (padrão) = sem `logo` e sem título, a tela desenha a **marca do app** no
  *   topo — ícone do launcher + nome (`AppBrandHeader`), lidos do sistema. `false` para o login que
  *   é sem marca de propósito. Quem passa `logo` ou `LoginTexts.title` não é afetado (2.241.0).
+ * @param background Imagem de fundo (2.299.0): foto de borda a borda + degradê para contraste, e o
+ *   formulário inteiro num cartão opaco — mesmos campos, mesma ordem, mesmas ações. `null` (padrão) =
+ *   o login de sempre. Ver [LoginBackground]; de recurso do app, [loginBackground].
  */
 @Composable
 fun LoginScreen(
@@ -199,10 +202,12 @@ fun LoginScreen(
      */
     footerSlot: (@Composable () -> Unit)? = null,
     appBrand: Boolean = true,
+    background: LoginBackground? = null,
 ) {
     // Ícones da status bar pela cor que ESTA tela pinta atrás deles: o `colors` pode ser claro num
     // app (ou aparelho) em modo escuro. Sai da pilha quando a tela sai — volta o pedido do tema.
-    SystemBarsAppearance(colors.background)
+    // Com imagem de fundo, quem fica atrás das barras é o degradê dela (2.299.0).
+    SystemBarsAppearance(background?.let(::loginSystemBarsBackground) ?: colors.background)
     MaterialTheme(
         colorScheme = MaterialTheme.colorScheme.copy(
             primary = colors.primary,
@@ -230,12 +235,14 @@ fun LoginScreen(
             // Repetir o lockup no topo do formulário põe a mesma logo duas vezes lado a lado — e
             // era o que acontecia, porque quem chama passa o `logo` sem saber em que ramo vai cair.
             // Decidir aqui, e não no app, é o que impede o próximo consumidor de herdar o defeito.
+            // Com imagem de fundo (2.299.0) o MESMO corpo vai dentro de um cartão opaco: o texto nunca
+            // fica direto sobre a foto. O respiro de topo/base passa a ser do cartão, não da tela.
+            val emCartao = background != null
+            if (background != null) LoginBackgroundLayer(background)
             val formulario: @Composable (comPainelDeMarca: Boolean) -> Unit = { comPainelDeMarca ->
-                FormContainer(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                val corpo: @Composable ColumnScope.() -> Unit = {
                     // Mais respiro no topo (logo não colada no topo da tela).
-                    Spacer(modifier = Modifier.height(64.dp))
+                    Spacer(modifier = Modifier.height(if (emCartao) 8.dp else 64.dp))
 
                     // Logo
                     if (logo != null && !comPainelDeMarca) {
@@ -516,7 +523,31 @@ fun LoginScreen(
                         footerSlot()
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(if (emCartao) 8.dp else 32.dp))
+                }
+                FormContainer(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (background != null) {
+                        Spacer(modifier = Modifier.height(LoginBackgroundDefaults.CardTopSpacing))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().testTag(LoginBackgroundDefaults.CARD_TEST_TAG),
+                            shape = RoundedCornerShape(LoginBackgroundDefaults.CardCornerRadius),
+                            color = background.cardColor ?: colors.surface,
+                            contentColor = colors.textPrimary,
+                            shadowElevation = background.cardElevation,
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                content = corpo,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(LoginBackgroundDefaults.CardTopSpacing))
+                    } else {
+                        corpo()
+                    }
                 }
             }
 

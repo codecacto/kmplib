@@ -29,8 +29,13 @@ import kotlin.time.Duration.Companion.seconds
  * vencida no SEU instante final) e `skipPhase`; no estado esperado `IN_SET` de uma fase de cardio,
  * `cardioPhase` (`WORK`/`REST`) e `phaseEndsAtSeconds` (instante final absoluto da fase); fora dela os
  * dois vêm `null`. Num passo de cardio o cursor é `[bloco, exercício, volta do cardio, fase na volta]`.
+ *
+ * **Versão 3** (2.299.0, descanso de transição): no estado esperado `RESTING`, `restKind` (`SET` depois de
+ * série, `TRANSITION` entre exercícios da volta do circuito — o `transitionRestSeconds` do bloco —,
+ * `ROUND` depois do exercício que fecha a volta); fora do descanso vem `null`. O plano pode trazer
+ * `transitionRestSeconds` no bloco (ausente = 0).
  */
-const val TRANSITION_TABLE_VERSION: Int = 2
+const val TRANSITION_TABLE_VERSION: Int = 3
 
 @Serializable
 data class TransitionTable(
@@ -111,6 +116,7 @@ data class ExpectedState(
     val swaps: List<String> = emptyList(),
     val cardioPhase: CardioPhase? = null,
     val phaseEndsAtSeconds: Long? = null,
+    val restKind: RestKind? = null,
 )
 
 val TABLE_T0: Instant = T0
@@ -159,6 +165,7 @@ fun WorkoutState.project(): ExpectedState = when (this) {
         recordedSteps = run.sets.size,
         skippedExercises = run.skippedExercises.map { it.exerciseStepId },
         swaps = run.swapList(),
+        restKind = kind,
     )
     is WorkoutState.Paused -> ExpectedState(
         phase = TablePhase.PAUSED,
@@ -185,8 +192,14 @@ private fun cardio(cursor: List<Int>, startedAt: Long, recorded: Int, phase: Car
 private fun inSet(cursor: List<Int>, startedAt: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
     ExpectedState(TablePhase.IN_SET, cursor, setStartedAtSeconds = startedAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
 
-private fun resting(cursor: List<Int>, endsAt: Long, recorded: Int, skipped: List<String> = emptyList(), swaps: List<String> = emptyList()) =
-    ExpectedState(TablePhase.RESTING, cursor, restEndsAtSeconds = endsAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps)
+private fun resting(
+    cursor: List<Int>,
+    endsAt: Long,
+    recorded: Int,
+    skipped: List<String> = emptyList(),
+    swaps: List<String> = emptyList(),
+    kind: RestKind = RestKind.SET,
+) = ExpectedState(TablePhase.RESTING, cursor, restEndsAtSeconds = endsAt, recordedSteps = recorded, skippedExercises = skipped, swaps = swaps, restKind = kind)
 
 private fun paused(cursor: List<Int>, recorded: Int) =
     ExpectedState(TablePhase.PAUSED, cursor, recordedSteps = recorded)
@@ -283,7 +296,7 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(0, TableEvent.Load, READY),
             step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
             step(30, DONE, inSet(listOf(0, 1, 0, 0), 30, 1)),
-            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 2)),
+            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 2, kind = RestKind.ROUND)),
             step(150, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 150, 2)),
         ),
     ),
@@ -307,7 +320,7 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
             step(30, TableEvent.CompleteSet(null, null), inSet(listOf(0, 1, 0, 0), 30, 1)),
             step(35, TableEvent.SkipExercise("dor no punho"), inSet(listOf(0, 2, 0, 0), 35, 1, listOf("c-b"))),
-            step(75, TableEvent.CompleteSet(null, null), resting(listOf(0, 0, 1, 0), 135, 2, listOf("c-b"))),
+            step(75, TableEvent.CompleteSet(null, null), resting(listOf(0, 0, 1, 0), 135, 2, listOf("c-b"), kind = RestKind.ROUND)),
             step(135, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 135, 2, listOf("c-b"))),
             step(165, TableEvent.CompleteSet(null, null), inSet(listOf(0, 2, 1, 0), 165, 3, listOf("c-b"))),
         ),
@@ -385,7 +398,7 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
             step(5, TableEvent.SwapExercise("ex-2", "pushdown"), inSet(listOf(0, 0, 0, 0), 0, 0, swaps = listOf("ex-2->pushdown"))),
             step(30, DONE, inSet(listOf(0, 1, 0, 0), 30, 1, swaps = listOf("ex-2->pushdown"))),
-            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 2, swaps = listOf("ex-2->pushdown"))),
+            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 2, swaps = listOf("ex-2->pushdown"), kind = RestKind.ROUND)),
             step(70, TableEvent.Undo, inSet(listOf(0, 1, 0, 0), 70, 1, swaps = listOf("ex-2->pushdown"))),
             step(71, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 71, 0, swaps = listOf("ex-2->pushdown"))),
             step(72, TableEvent.Undo, inSet(listOf(0, 0, 0, 0), 72, 0)),
@@ -442,7 +455,47 @@ val ENGINE_TRANSITION_CASES: List<TransitionCase> = listOf(
             step(30, TableEvent.CompleteSet(null, null), cardio(listOf(0, 1, 0, 0), 30, 1, CardioPhase.WORK, 60)),
             step(60, TableEvent.Tick, cardio(listOf(0, 1, 1, 0), 60, 2, CardioPhase.WORK, 90)),
             step(90, TableEvent.Tick, inSet(listOf(0, 2, 0, 0), 90, 3)),
-            step(120, DONE, resting(listOf(0, 0, 1, 0), 165, 4)),
+            step(120, DONE, resting(listOf(0, 0, 1, 0), 165, 4, kind = RestKind.ROUND)),
+        ),
+    ),
+    TransitionCase(
+        name = "circuito com transição: descanso de transição entre os exercícios da volta, descanso de volta no fim, e o fim do bloco descansa o do último",
+        plan = circuitTransitionPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(30, DONE, resting(listOf(0, 1, 0, 0), 45, 1, kind = RestKind.TRANSITION)),
+            step(45, TableEvent.SkipRest, inSet(listOf(0, 1, 0, 0), 45, 1)),
+            step(75, DONE, resting(listOf(0, 2, 0, 0), 90, 2, kind = RestKind.TRANSITION)),
+            step(80, TableEvent.AddRestTime(10), resting(listOf(0, 2, 0, 0), 100, 2, kind = RestKind.TRANSITION)),
+            step(100, TableEvent.SkipRest, inSet(listOf(0, 2, 0, 0), 100, 2)),
+            step(130, DONE, resting(listOf(0, 0, 1, 0), 220, 3, kind = RestKind.ROUND)),
+            step(140, TableEvent.Pause, paused(listOf(0, 0, 1, 0), 3)),
+            step(150, TableEvent.Resume, resting(listOf(0, 0, 1, 0), 230, 3, kind = RestKind.ROUND)),
+            step(230, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 230, 3)),
+            step(260, DONE, resting(listOf(0, 1, 1, 0), 275, 4, kind = RestKind.TRANSITION)),
+            step(265, TableEvent.Undo, inSet(listOf(0, 0, 1, 0), 265, 3)),
+            step(270, TableEvent.SkipExercise(), inSet(listOf(0, 1, 1, 0), 270, 3, listOf("t-a"))),
+            step(300, DONE, resting(listOf(0, 2, 1, 0), 315, 4, listOf("t-a"), kind = RestKind.TRANSITION)),
+            step(315, TableEvent.SkipRest, inSet(listOf(0, 2, 1, 0), 315, 4, listOf("t-a"))),
+            step(345, DONE, resting(listOf(1, 0, 0, 0), 435, 5, listOf("t-a"), kind = RestKind.ROUND)),
+            step(435, TableEvent.SkipRest, inSet(listOf(1, 0, 0, 0), 435, 5, listOf("t-a"))),
+            step(465, DONE, finished(465, 6, listOf("t-a"))),
+        ),
+    ),
+    TransitionCase(
+        name = "tri-set (conjugado de 3): segue direto A1 → A2 → A3, descanso de volta só depois do A3; transição do bloco é ignorada fora do circuito",
+        plan = triSetPlan(),
+        steps = listOf(
+            step(0, TableEvent.Load, READY),
+            step(0, TableEvent.Start, inSet(listOf(0, 0, 0, 0), 0, 0)),
+            step(20, DONE, inSet(listOf(0, 1, 0, 0), 20, 1)),
+            step(40, DONE, inSet(listOf(0, 2, 0, 0), 40, 2)),
+            step(60, DONE, resting(listOf(0, 0, 1, 0), 150, 3, kind = RestKind.ROUND)),
+            step(150, TableEvent.SkipRest, inSet(listOf(0, 0, 1, 0), 150, 3)),
+            step(170, DONE, inSet(listOf(0, 1, 1, 0), 170, 4)),
+            step(190, DONE, inSet(listOf(0, 2, 1, 0), 190, 5)),
+            step(210, DONE, finished(210, 6)),
         ),
     ),
 )

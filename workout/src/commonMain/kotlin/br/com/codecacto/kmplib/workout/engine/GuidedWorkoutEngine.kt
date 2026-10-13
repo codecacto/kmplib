@@ -13,6 +13,7 @@ import br.com.codecacto.kmplib.workout.model.currentExerciseId
 import br.com.codecacto.kmplib.workout.model.phasesPerRound
 import br.com.codecacto.kmplib.workout.model.secondsOf
 import kotlinx.datetime.Instant
+import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -69,12 +70,15 @@ sealed interface WorkoutState {
     ) : WorkoutState
 
     /** `restEndsAt` é absoluto (não "segundos restantes"): sobrevive a app em 2º plano e troca de
-     * dispositivo, e fica testável sem mockar um timer de verdade. `cursor` já aponta o PRÓXIMO passo. */
+     * dispositivo, e fica testável sem mockar um timer de verdade. `cursor` já aponta o PRÓXIMO passo.
+     * [kind] (2.299.0) diz QUE descanso é este — a tela escreve "Descanso", "Transição — vá para a
+     * próxima estação" ou "Fim da volta 2 de 3" sem refazer a regra do método (ver [RestKind]). */
     data class Resting(
         val plan: WorkoutPlan,
         val cursor: Cursor,
         val run: WorkoutRun,
         val restEndsAt: Instant,
+        val kind: RestKind = RestKind.SET,
     ) : WorkoutState
 
     /**
@@ -93,6 +97,21 @@ sealed interface WorkoutState {
 
     data class Finished(val plan: WorkoutPlan, val run: WorkoutRun) : WorkoutState
 }
+
+/**
+ * Que descanso é o `WorkoutState.Resting` corrente (2.299.0):
+ * - [SET]: depois de uma série (ou do último estágio do drop-set, ou do fim de um item de cardio) —
+ *   o `restSeconds` do exercício. Também é o descanso que separa um bloco `NORMAL`/`DROP_SET` do seguinte.
+ * - [TRANSITION]: no CIRCUITO, entre um exercício e o seguinte dentro da MESMA volta — o
+ *   `Block.transitionRestSeconds` (trocar de estação). Nunca acontece no conjugado (`BI_SET`).
+ * - [ROUND]: no conjugado/circuito, depois do exercício que FECHA a volta — o `restSeconds` dele. Também
+ *   é o descanso que separa um bloco por volta do seguinte.
+ */
+@Serializable
+enum class RestKind { SET, TRANSITION, ROUND }
+
+/** Um descanso que o motor vai abrir: [seconds] (> 0) e o [kind] dele (ver [RestKind]). */
+data class ScheduledRest(val seconds: Int, val kind: RestKind)
 
 sealed interface WorkoutEvent {
     /** Carrega o plano: `Idle`/`Finished` -> `Ready`. Em qualquer outro estado não tem efeito (não se
@@ -199,7 +218,11 @@ sealed interface WorkoutEvent {
  * |---|---|---|
  * | `NORMAL` | exercício → série | `restSeconds` do exercício depois de cada série |
  * | `DROP_SET` | exercício → série → estágio | nenhum entre estágios; `restSeconds` depois do último estágio |
- * | `BI_SET`/`CIRCUIT` | volta → exercício (→ estágio) | nenhum dentro da volta; depois do último exercício da volta, o `restSeconds` DELE |
+ * | `BI_SET` (conjugado) | volta → exercício (→ estágio) | nenhum dentro da volta ("segue para A2"); depois do último exercício da volta, o `restSeconds` DELE (`RestKind.ROUND`) |
+ * | `CIRCUIT` | volta → exercício (→ estágio) | entre exercícios da volta, o `Block.transitionRestSeconds` (`RestKind.TRANSITION`; 0 = segue direto); depois do último da volta, o `restSeconds` DELE (`RestKind.ROUND`) |
+ *
+ * Qual descanso está correndo sai em `WorkoutState.Resting.kind`; o que concluir o passo atual vai abrir,
+ * em [nextRest] (2.299.0).
  *
  * O descanso da última série/volta de um bloco também separa esse bloco do seguinte; o último passo do
  * plano termina em `Finished`, sem descanso. Exercício pulado sai das voltas que faltam — se ele era o
@@ -293,10 +316,17 @@ class GuidedWorkoutEngine {
      * direto (estágio que não é o último, exercício que não fecha a volta, fim do plano). É o que decide
      * o rótulo do botão ("Concluir estágio" × "Concluir série") sem a tela conhecer a regra do método.
      */
-    fun restAfter(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun): Int {
+    fun restAfter(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun): Int = nextRest(plan, cursor, run)?.seconds ?: 0
+
+    /**
+     * O descanso que concluir o passo do [cursor] vai abrir, com o TIPO (2.299.0) — `null` quando o
+     * próximo passo entra direto. É o que a tela usa para o rótulo de antes do toque ("Concluir — depois,
+     * 15 s de transição") e para "Próximo: …" no conjugado ("sem descanso — segue para A2").
+     */
+    fun nextRest(plan: WorkoutPlan, cursor: Cursor, run: WorkoutRun): ScheduledRest? {
         val order = plan.executionOrder()
-        val current = order.firstOrNull { it.cursor == cursor } ?: return 0
-        return restBetween(current, nextStep(order, cursor, skippedIds(run)))
+        val current = order.firstOrNull { it.cursor == cursor } ?: return null
+        return restBetween(plan, current, nextStep(order, cursor, skippedIds(run)))
     }
 
     private fun pause(state: WorkoutState, now: Instant): WorkoutState = when (state) {
@@ -414,12 +444,9 @@ class GuidedWorkoutEngine {
     ): WorkoutState {
         val next = nextStep(order, current.cursor, skippedIds(nextRun))
             ?: return WorkoutState.Finished(plan, nextRun.copy(finishedAt = at))
-        val restSeconds = restBetween(current, next)
-        return if (restSeconds > 0) {
-            WorkoutState.Resting(plan, next.cursor, nextRun, at + restSeconds.seconds)
-        } else {
-            enterSet(plan, next.cursor, nextRun, at)
-        }
+        val rest = restBetween(plan, current, next)
+            ?: return enterSet(plan, next.cursor, nextRun, at)
+        return WorkoutState.Resting(plan, next.cursor, nextRun, at + rest.seconds.seconds, rest.kind)
     }
 
     /** "Pular fase": só numa fase de cardio (regra no KDoc de [WorkoutEvent.SkipPhase]). */
@@ -588,20 +615,26 @@ class GuidedWorkoutEngine {
     }
 
     /**
-     * Descanso entre o passo concluído e o próximo (tabela no KDoc da classe). Estágio que não é o
-     * último nunca descansa; em bi-set/circuito, só descansa quem FECHA a volta — o próximo passo é de
-     * outra volta ou de outro bloco.
+     * Descanso entre o passo concluído e o próximo (tabela no KDoc da classe), ou `null` quando não há.
+     * Estágio que não é o último nunca descansa; em bi-set/circuito, dentro da volta só o circuito
+     * descansa (a transição), e o descanso de volta é de quem FECHA a volta — o próximo passo é de outra
+     * volta ou de outro bloco.
      */
-    private fun restBetween(current: ExecutionStep, next: ExecutionStep?): Int {
-        if (next == null || !current.isLastStage) return 0
+    private fun restBetween(plan: WorkoutPlan, current: ExecutionStep, next: ExecutionStep?): ScheduledRest? {
+        if (next == null || !current.isLastStage) return null
         // Fases do mesmo bloco de cardio se emendam: o descanso do intervalado É uma fase.
         val sameCardioItem = current.isCardio &&
             next.cursor.blockIndex == current.cursor.blockIndex &&
             next.cursor.exerciseIndex == current.cursor.exerciseIndex
-        if (sameCardioItem) return 0
+        if (sameCardioItem) return null
         val sameRound = current.roundIndex != null &&
             next.cursor.blockIndex == current.cursor.blockIndex &&
             next.roundIndex == current.roundIndex
-        return if (sameRound) 0 else current.exercise.restSeconds
+        val (seconds, kind) = when {
+            sameRound -> plan.blocks[current.cursor.blockIndex].effectiveTransitionRestSeconds to RestKind.TRANSITION
+            current.roundIndex != null -> current.exercise.restSeconds to RestKind.ROUND
+            else -> current.exercise.restSeconds to RestKind.SET
+        }
+        return if (seconds > 0) ScheduledRest(seconds, kind) else null
     }
 }
