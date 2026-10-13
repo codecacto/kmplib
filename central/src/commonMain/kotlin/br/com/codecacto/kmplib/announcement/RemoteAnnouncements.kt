@@ -54,8 +54,13 @@ fun rememberRemoteAnnouncements(
 /**
  * O aviso do app numa linha: os avisos do servidor central ([rememberRemoteAnnouncements]) somados aos
  * [local] do app ([mergeAnnouncements] — mesmo `id`, vale o remoto) e mostrados pelo
- * [AnnouncementHost] (prioridade, janela, frequência, visto/dispensado, animação). Sem aviso pendente
- * não ocupa espaço.
+ * [AnnouncementHost] (prioridade, janela, frequência, visto/dispensado, animação). Cada um aparece pela
+ * sua `presentation` (2.296.0): `MODAL` (default) em diálogo centralizado com fila e teto de 3 por
+ * sessão; `BANNER` no lugar do host. Sem aviso pendente não ocupa espaço.
+ *
+ * @param dialogReady segura o modal até o app estar pronto (depois da Splash/login).
+ * @param dialogSuppressed segura o modal durante paywall, compra ou câmera (a manutenção que bloqueia
+ *   abre mesmo assim).
  *
  * ```kotlin
  * RemoteAnnouncementHost(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -73,6 +78,8 @@ fun RemoteAnnouncementHost(
     clock: Clock = Clock.System,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     extraContent: (@Composable (Announcement) -> Unit)? = null,
+    dialogReady: Boolean = true,
+    dialogSuppressed: Boolean = false,
 ) {
     val remote = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
     val merged = remember(local, remote) { mergeAnnouncements(local, remote) }
@@ -83,5 +90,7 @@ fun RemoteAnnouncementHost(
         clock = clock,
         onAction = onAction,
         extraContent = extraContent,
+        dialogReady = dialogReady,
+        dialogSuppressed = dialogSuppressed,
     )
 }

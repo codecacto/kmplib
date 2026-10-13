@@ -3,6 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/out/2026 — Nexus/Comunicados (pedido do fundador) — design em `Lib/weblib/docs/design/comunicado-modal.md`
+- [x] **(P1) `AnnouncementDialog` / `AnnouncementDialogHost`: ENTREGUE na 2.296.0** — comunicado como MODAL
+      (AppBasicAlertDialog, 440 dp, retrato), foto opcional por Coil (`image: {url, alt, focus}` — objeto aninhado no
+      lugar dos campos planos do design), `presentation` (default `modal`), fila "1 de N" com teto de 3 por sessão,
+      não-fechável bloqueante só durante a janela, `AnnouncementHost`/`RemoteAnnouncementHost` escolhendo modal/banner.
+      4 idiomas.
+
 ### Registrado em 12/out/2026 — avisos/anúncios do app entregues na 2.294.0 (lib-mobile)
 - [x] **GAP-ANNOUNCEMENT-01 — componente de AVISO reutilizável: ENTREGUE na 2.294.0** (`ui.announcement`, artefato
       `kmplib-ui`). Pedido do fundador: manutenção ("tal dia, de tal hora a tal hora"), atualização, novidade, "também

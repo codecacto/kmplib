@@ -520,9 +520,15 @@ fun rememberAnnouncementState(
 }
 
 /**
- * Conveniência: [rememberAnnouncementState] + [AnnouncementBanner], com transição suave entre um
- * aviso e o próximo (sem animação com "reduzir movimento" ligado). Sem aviso pendente, não ocupa
- * espaço nenhum.
+ * Conveniência: o aviso do app numa linha. Cada comunicado aparece pela sua
+ * [Announcement.presentation] (2.296.0):
+ *
+ * - [AnnouncementPresentation.BANNER] → [rememberAnnouncementState] + [AnnouncementBanner] aqui, no
+ *   lugar do host, com transição suave entre um aviso e o próximo (sem animação com "reduzir
+ *   movimento"). Sem banner pendente, não ocupa espaço nenhum.
+ * - [AnnouncementPresentation.MODAL] (o default) → [AnnouncementDialogHost]: diálogo centralizado,
+ *   um por vez, no máximo 3 por sessão. [dialogReady] segura a abertura até o app estar pronto
+ *   (depois da Splash/login); [dialogSuppressed] segura durante paywall, compra ou câmera.
  *
  * ```kotlin
  * AnnouncementHost(
@@ -539,12 +545,28 @@ fun AnnouncementHost(
     clock: Clock = Clock.System,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     extraContent: (@Composable (Announcement) -> Unit)? = null,
+    dialogReady: Boolean = true,
+    dialogSuppressed: Boolean = false,
 ) {
-    val state = rememberAnnouncementState(announcements, store, clock)
+    val banners = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.BANNER } }
+    val modals = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.MODAL } }
+    val state = rememberAnnouncementState(banners, store, clock)
     AnnouncementHost(state = state, modifier = modifier, onAction = onAction, extraContent = extraContent)
+    AnnouncementDialogHost(
+        announcements = modals,
+        ready = dialogReady,
+        suppressed = dialogSuppressed,
+        store = store,
+        clock = clock,
+        onAction = onAction,
+    )
 }
 
-/** O mesmo [AnnouncementHost], sobre um [AnnouncementState] que a tela já tem. */
+/**
+ * O mesmo [AnnouncementHost], sobre um [AnnouncementState] que a tela já tem — SÓ banner: mostra
+ * como cartão o que o estado escolher, qualquer que seja a `presentation`. Para o modal, some um
+ * [AnnouncementDialogHost] (ou filtre a lista por `presentation` antes do [rememberAnnouncementState]).
+ */
 @Composable
 fun AnnouncementHost(
     state: AnnouncementState,

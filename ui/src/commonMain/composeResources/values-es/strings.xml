@@ -535,4 +535,17 @@
     <string name="kmplib_announcement_window_same_day">%1$s, de %2$s a %3$s</string>
     <string name="kmplib_announcement_window_range">Desde %1$s hasta %2$s</string>
     <string name="kmplib_announcement_window_ongoing">En curso — hasta %1$s</string>
+    <string name="kmplib_announcement_dialog_got_it">Entendido</string>
+    <string name="kmplib_announcement_dialog_close">Cerrar</string>
+    <string name="kmplib_announcement_dialog_counter">%1$s de %2$s</string>
+    <string name="kmplib_announcement_dialog_auto_close">Este mensaje se cerrará solo cuando termine el mantenimiento.</string>
+    <string name="kmplib_announcement_dialog_window_label_maintenance">Ventana de mantenimiento</string>
+    <string name="kmplib_announcement_dialog_window_label">Período</string>
+    <string name="kmplib_announcement_dialog_ongoing">En curso</string>
+    <string name="kmplib_announcement_dialog_window_at">%1$s a las %2$s</string>
+    <string name="kmplib_announcement_dialog_duration_hours">%1$s h</string>
+    <string name="kmplib_announcement_dialog_duration_minutes">%1$s min</string>
+    <string name="kmplib_announcement_dialog_duration_hours_minutes">%1$s h %2$s min</string>
+    <string name="kmplib_announcement_dialog_duration_prefix">Duración: %1$s</string>
+    <string name="kmplib_announcement_dialog_opens_outside">se abre fuera de la app</string>
 </resources>

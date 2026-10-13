@@ -5,6 +5,63 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.296.0 — Comunicado em MODAL: `AnnouncementDialog` + `AnnouncementDialogHost` (pedido do fundador)
+
+"Modal maior, centralizado, quadrado ou retangular em pé, com foto opcional, bonito." Spec de design
+compartilhada com a weblib: `Lib/weblib/docs/design/comunicado-modal.md`. Aditivo; o `AnnouncementBanner`
+continua existindo.
+
+- **Modelo (`kmplib-ui`, `ui.announcement`)** — `Announcement` ganha, com default:
+  `image: AnnouncementImage? = null` (`url`, `alt: String? = null`, `focus: AnnouncementImageFocus = CENTER`) e
+  `presentation: AnnouncementPresentation = MODAL`. Contrato público (par da weblib / apps-api):
+  `"image": {"url","alt"?,"focus":"center"|"top"|"bottom"}`, `"presentation": "modal"|"banner"`. Leitura
+  tolerante: `image` sem `url`, malformado ou com URL que não é **https** vira `null` — perde-se SÓ a foto, nunca o
+  aviso; `focus`/`presentation` desconhecidos caem em `CENTER`/`MODAL`. `Announcement.displayImage` refaz a
+  checagem para aviso montado no código; `isSecureAnnouncementImageUrl`.
+- **`AnnouncementDialog(announcement, onDismiss, onAction, position, total, now, dismissible, texts)`** —
+  `AppBasicAlertDialog` com `DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress/ClickOutside =
+  dismissible efetivo)`. Cartão retrato de 440 dp (92% da largura no telefone, 358 dp em 390), altura máx.
+  min(85% da janela, 760 dp), piso 400 dp sem foto fora do telefone; foto 1:1 no topo por Coil `AsyncImage`
+  (`ContentScale.Crop`, alinhamento pelo `focus`, até 44–46% da altura), falhou → **faixa-herói** do tipo
+  (degradê 22%→6% + círculo com o ícone); selo do tipo, título (`heading`), mensagem — a região que ROLA, com sombra
+  interna onde há texto escondido —, **bloco da janela** (data + hora grandes tabulares, duas linhas se cruza a
+  meia-noite, "Duração: 4 h", "● Em andamento" com pulso — sem pulso com `LocalReduceMotion`) e botões FIXOS
+  (ação = `AppButton` primário com ↗, abre pela `getUrlLauncher` — portão de pais em app KIDS — e dispensa;
+  "Entendi" = `AppOutlinedButton`, ou o primário quando não há ação). X 44 dp e contador "1 de N" sobre a foto em
+  chip legível sobre qualquer imagem. Janela baixa (< 500 dp, paisagem): layout horizontal. Entrada 220 ms
+  (fade + escala .96→1), saída 150 ms, troca na fila sem piscar o véu; só fade com reduzir movimento.
+  `AnnouncementDialogCard` (o cartão sem a janela) exposto para pré-visualização.
+- **`AnnouncementDialogHost(announcements, ready, suppressed, openDelay = 800 ms, store, clock, session,
+  maxPerSession = 3, onAction, texts)`** — fila UM por vez (bloqueante em andamento → prioridade do tipo →
+  `visibleFrom` mais recente → ordem da lista), contador "1 de N", **teto de 3 por sessão** (processo:
+  `AnnouncementDialogSession.Shared`, compartilhada entre telas — navegar não fura o teto nem reabre o que foi
+  fechado); abre só com `ready` e ~800 ms depois, nunca com `suppressed` (paywall/compra/câmera) nem com o teclado
+  aberto (`WindowInsets.ime`) — exceto a manutenção que bloqueia, que abre na hora. Também
+  `rememberAnnouncementDialogState` / `AnnouncementDialogController` (fora do Compose) / `AnnouncementDialogUiState`.
+- **Não-fechável só bloqueia DURANTE a janela** (`Announcement.isBlockingAt(now)` /
+  `isDialogDismissibleAt`): dentro de `[window.start, window.end)` — sem janela, só com `visibleUntil` — o modal
+  não tem X, "Entendi", voltar nem toque fora, passa por cima do teto e da frequência e some sozinho no fim.
+  ANTES da janela é fechável por sessão (nada gravado; volta na próxima abertura e volta na mesma sessão quando a
+  manutenção começa). Regras puras: `selectAnnouncementDialogQueue`, `isDialogPending`.
+- **`AnnouncementHost(announcements, …, dialogReady, dialogSuppressed)` e `RemoteAnnouncementHost`
+  (`kmplib-central`) escolhem pela `presentation`**: `BANNER` segue no cartão inline de sempre; `MODAL` vai para o
+  `AnnouncementDialogHost`. Parâmetros novos no fim, com default — chamada existente compila igual. A sobrecarga
+  `AnnouncementHost(state)` continua só banner. ⚠️ Como o default é `MODAL`, aviso montado no código sem
+  `presentation` passa a abrir em modal; para manter o cartão, `presentation = AnnouncementPresentation.BANNER`
+  (nenhum app consumia os avisos até esta versão).
+- **Textos** `kmplib_announcement_dialog_*` (Entendi, Fechar, "%1$s de %2$s", rodapé "fecha sozinha", rótulos da
+  janela, "Em andamento", duração, "abre fora do app") em pt-BR/en/es/pt-PT. **Contraste**:
+  `announcementDialogColors` (pura) — textos ≥ 4,5:1 no cartão, selo e bloco da janela; ícone da faixa e ponto de
+  "Em andamento" ≥ 3:1; chips ≥ 4,5:1 sobre foto preta, branca e cinza; testado nos temas claro e escuro.
+- **Ids Maestro** (`AnnouncementDialogTestTags`): `aviso-modal`, `aviso-modal-titulo`, `aviso-modal-mensagem`,
+  `aviso-modal-imagem`, `aviso-modal-faixa`, `aviso-modal-janela`, `aviso-modal-em-andamento`,
+  `aviso-modal-contador`, `aviso-modal-acao`, `aviso-modal-entendi`, `aviso-modal-fechar`,
+  `aviso-modal-fecha-sozinho`.
+- Testes: `AnnouncementDialogTest` (18: fila e contador, teto por sessão entre telas e entre sessões, bloqueante
+  passa por cima, não-fechável antes/durante/depois da janela, gravação da dispensa, duração, serialização dos
+  campos novos com URL insegura/malformada, contraste AA). `kmplib-ui` 1066 verdes, `kmplib-central` 56;
+  `compileKotlinIosArm64` (ui + central) sem SKIPPED. Aditivo: sem piso, sem aviso.
+
 ## 2.295.0 — Avisos do app vindos do Nexus: busca no apps-api (`kmplib-central`, GAP-ANNOUNCEMENT-02)
 
 O modelo da 2.294.0 passa a ser alimentado pelo **Nexus → Avisos**. Contrato fixo do apps-api:
