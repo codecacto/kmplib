@@ -735,6 +735,13 @@ sealed class DomainResult<out T> {
             get() = code == SUBSCRIPTION_BLOCK_STATUS && SubscriptionBlockReason.fromCode(serverCode) != null
 
         /**
+         * `true` no 403 de **conta com exclusão programada** (2.301.0) — `ACCOUNT_PENDING_DELETION`.
+         * Quem cobre a tela é o `AccountDeletionGate` (kmplib-auth).
+         */
+        val isAccountPendingDeletion: Boolean
+            get() = br.com.codecacto.kmplib.account.isAccountPendingDeletion(code, serverCode)
+
+        /**
          * A frase para a tela: a do **servidor** em recusa de negócio/validação (4xx, exceto 401 e
          * 429 — "sessão expirada" e "muitas requisições" são textos locais de propósito), e a
          * [message] local no resto. 5xx nunca mostra a frase do servidor: ela é para o log, não para

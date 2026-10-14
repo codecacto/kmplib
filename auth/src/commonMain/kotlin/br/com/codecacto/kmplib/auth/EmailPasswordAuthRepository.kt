@@ -4,9 +4,11 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 /**
  * Implementação own-auth do [IAuthRepository] — e-mail + senha contra o backend REST próprio (sem
@@ -68,9 +70,14 @@ class EmailPasswordAuthRepository(
     }
 
     override suspend fun signOut() {
-        // Revoga a família do refresh no servidor (best-effort) e limpa a sessão local.
-        tokenManager.session.value?.refreshToken?.let { api.logout(it) }
-        tokenManager.clear()
+        // Revoga a família do refresh no servidor (best-effort) e limpa a sessão local — a limpeza
+        // local acontece SEMPRE (2.301.0): `finally` + `NonCancellable`, para que uma exceção ou o
+        // cancelamento da tela no meio do `logout` não deixe o par de tokens no cofre do aparelho.
+        try {
+            tokenManager.session.value?.refreshToken?.let { api.logout(it) }
+        } finally {
+            withContext(NonCancellable) { tokenManager.clear() }
+        }
     }
 
     // ---- OwnAuthService --------------------------------------------------

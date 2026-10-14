@@ -575,4 +575,19 @@
     <string name="kmplib_subscription_block_whatsapp_required">Olá! Vim pela app %1$s. A minha subscrição não está ativa e quero continuar a utilizar.</string>
     <string name="kmplib_subscription_block_whatsapp_trial_noname">Olá! O meu período de teste terminou e quero continuar a utilizar.</string>
     <string name="kmplib_subscription_block_whatsapp_required_noname">Olá! A minha subscrição não está ativa e quero continuar a utilizar.</string>
+    <string name="kmplib_account_deletion_dialog_title">Eliminar a sua conta?</string>
+    <string name="kmplib_account_deletion_dialog_message">A sua conta será eliminada definitivamente após %1$d dias. Até lá, pode desistir: a conta fica bloqueada e os seus dados ficam guardados — ao voltar a iniciar sessão, poderá restaurá-la.</string>
+    <string name="kmplib_account_deletion_dialog_instruction">Para continuar, escreva %1$s abaixo.</string>
+    <string name="kmplib_account_deletion_dialog_field_label">Escreva %1$s</string>
+    <string name="kmplib_account_deletion_dialog_field_error">Escreva %1$s para confirmar</string>
+    <string name="kmplib_account_deletion_dialog_confirm">Eliminar</string>
+    <string name="kmplib_account_deletion_dialog_cancel">Cancelar</string>
+    <string name="kmplib_account_pending_title">A sua conta será eliminada definitivamente após %1$d dias a contar do pedido</string>
+    <string name="kmplib_account_pending_remaining_days">Faltam %1$d dias para ser possível a eliminação definitiva.</string>
+    <string name="kmplib_account_pending_remaining_one_day">Falta 1 dia para ser possível a eliminação definitiva.</string>
+    <string name="kmplib_account_pending_remaining_none">O prazo de %1$d dias já terminou; a eliminação definitiva pode acontecer a qualquer momento.</string>
+    <string name="kmplib_account_pending_message">Entretanto, a conta fica bloqueada e os seus dados ficam guardados. Restaure-a para voltar a utilizá-la normalmente.</string>
+    <string name="kmplib_account_pending_restore">Restaurar conta</string>
+    <string name="kmplib_account_pending_sign_out">Terminar sessão</string>
+    <string name="kmplib_account_pending_restore_failed">Não foi possível restaurar a sua conta. Tente novamente.</string>
 </resources>

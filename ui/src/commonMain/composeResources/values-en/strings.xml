@@ -575,4 +575,19 @@
     <string name="kmplib_subscription_block_whatsapp_required">Hi! I came from the %1$s app. My subscription is not active and I want to keep using it.</string>
     <string name="kmplib_subscription_block_whatsapp_trial_noname">Hi! My free trial has ended and I want to keep using the app.</string>
     <string name="kmplib_subscription_block_whatsapp_required_noname">Hi! My subscription is not active and I want to keep using the app.</string>
+    <string name="kmplib_account_deletion_dialog_title">Delete your account?</string>
+    <string name="kmplib_account_deletion_dialog_message">Your account will be permanently deleted after %1$d days. Until then, you can change your mind: the account stays locked and your data is kept — sign in again to restore it.</string>
+    <string name="kmplib_account_deletion_dialog_instruction">To continue, type %1$s below.</string>
+    <string name="kmplib_account_deletion_dialog_field_label">Type %1$s</string>
+    <string name="kmplib_account_deletion_dialog_field_error">Type %1$s to confirm</string>
+    <string name="kmplib_account_deletion_dialog_confirm">Delete</string>
+    <string name="kmplib_account_deletion_dialog_cancel">Cancel</string>
+    <string name="kmplib_account_pending_title">Your account will be permanently deleted after %1$d days from your request</string>
+    <string name="kmplib_account_pending_remaining_days">%1$d days left before permanent deletion can take place.</string>
+    <string name="kmplib_account_pending_remaining_one_day">1 day left before permanent deletion can take place.</string>
+    <string name="kmplib_account_pending_remaining_none">The %1$d-day period has ended; permanent deletion may happen at any time.</string>
+    <string name="kmplib_account_pending_message">Meanwhile, the account is locked and your data is kept. Restore it to keep using the app normally.</string>
+    <string name="kmplib_account_pending_restore">Restore account</string>
+    <string name="kmplib_account_pending_sign_out">Sign out</string>
+    <string name="kmplib_account_pending_restore_failed">We couldn't restore your account. Please try again.</string>
 </resources>

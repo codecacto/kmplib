@@ -18,6 +18,11 @@ kotlin {
 
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)
+
+            // AccountDeletionGate (2.301.0): `viewModel { }` na composição e o voltar do sistema
+            // segurado enquanto a conta com exclusão programada cobre a área logada.
+            implementation(libs.androidx.lifecycle.viewmodel.compose)
+            implementation(libs.compose.ui.backhandler)
         }
 
         commonTest.dependencies {

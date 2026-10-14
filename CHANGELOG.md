@@ -5,6 +5,79 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.301.0 — **Exclusão de conta com carência de 30 dias e restauração**: `AccountDeletionDialog` + `AccountDeletionGate` + 403 `ACCOUNT_PENDING_DELETION` interceptado
+
+Decisão do fundador (14/out/2026, todas as contas): excluir a conta PROGRAMA a exclusão — a conta fica bloqueada,
+os dados guardados, e entrando de novo dá para restaurar; a eliminação definitiva fica liberada após 30 dias (é
+manual e pode acontecer depois do dia 30, por isso **nenhum texto promete data**: "Sua conta será excluída
+definitivamente após 30 dias."). Par do contrato da **backlib 0.181.0**: `{me}` = `/v1/me/data` —
+`DELETE {me}` com `{"confirmacao":"EXCLUIR"}` → 202 (400 `CONFIRMATION_REQUIRED`, 401 `REAUTH_REQUIRED` com login
+de mais de 5 min), `GET {me}/deletion`, `POST {me}/deletion/restore`, 403 `ACCOUNT_PENDING_DELETION` (campos em
+`details`) em toda rota autenticada, inclusive `GET /v1/auth/me`. Aditivo: o wipe imediato (`deleteAccountAndData`)
+continua igual. Sem piso, sem aviso.
+
+### `kmplib-core` (pacote `br.com.codecacto.kmplib.account`)
+- **`AccountDeletionStatus(pending, requestedAt, scheduledFor, daysRemaining)`** + `daysRemainingAt(agora)` (o
+  `daysRemaining` do servidor vence; sem ele, conta da data arredondando para CIMA; nunca negativo),
+  `scheduledForEpochMillis`, `NotPending`.
+- **`parseAccountDeletionStatus(body)`** (`pending` booleano, ou `status: "PENDING_DELETION"` do 202) e
+  **`parseAccountPendingDeletion(status, body)`** (só 403 com `code` `ACCOUNT_PENDING_DELETION`, na raiz ou em
+  `error`; dias/datas em `details` ou no próprio objeto). Nunca lançam.
+- **`AccountDeletionState`** (`pending: StateFlow`, `isPending`, `report`, `reportIfPending`, `clear`;
+  `AccountDeletionState.Shared`).
+- **`AccountDeletionDetector`** (plugin Ktor) — **ligado por default** no `createHttpClient`
+  (`HttpClientOptions.accountDeletion = AccountDeletionState.Shared`; `null` desliga): só lê o corpo de 403 JSON
+  (ou sem `Content-Type`; 403 de mídia/HTML passa sem leitura) e o chamador continua lendo. Um 2xx de rota
+  protegida do MESMO serviço (host + primeiro segmento do caminho) tira o bloqueio; rotas neutras (`auth`,
+  `public`, `health`, `me`, `deletion`, `restore`) não, e **só conta 2xx de requisição com `Authorization`**.
+  **`HttpClientOptions.accountDeletionHosts`** = os hosts observados (recomendado: o host da API do projeto — o
+  estado é de processo). Sem o gate na tela, o estado só é escrito.
+- **`DomainResult.Error.isAccountPendingDeletion`** / **`ApiResult.Error.isAccountPendingDeletion`**;
+  `isAccountPendingDeletion(code, serverCode)`.
+
+### `kmplib-auth` (pacote `br.com.codecacto.kmplib.account`)
+- **`AccountDeletionPaths(request, status, restore)`** + `forMe("/<slug>/v1/me/data")` (default `/v1/me/data`) — as
+  rotas isoladas em config.
+- **`AccountDeletionRepository`** (`requestDeletion(confirmation)`, `deletionStatus()`, `restore()`, tudo em
+  `Result`) e **`RestAccountDeletionRepository(api, paths, state, confirmationField)`** sobre o `DomainApiClient`:
+  a confirmação digitada vai no corpo (`{"confirmacao": …}`); o pedido NÃO cobre a tela (quem pediu está
+  saindo); a consulta pendente cobre e a não pendente limpa (o 403 do portão na própria consulta também conta);
+  restaurar limpa. `REAUTH_REQUIRED` → `ReauthRequiredException`; o resto → `AccountDeletionRequestException`
+  (`httpCode`, `serverCode`, `isOffline`).
+- **`AccountDeletionService.scheduleAccountDeletion(confirmation): Result<AccountDeletionScheduled>`** (novo
+  parâmetro `deletionRepository`): `DELETE {me}` → `signOut()` (NUNCA `deleteAccount()` — a credencial é o caminho
+  da restauração) → limpa o estado e o que a conta deixou no aparelho (mesmo passo do wipe, com o sync segurado).
+  Falha no pedido = sessão preservada. **`signOut` que falha depois do 202** = `AccountDeletionScheduled(status,
+  signedOut = false)` e o estado marcado como pendente (o gate cobre com Restaurar/Sair; a tela não navega).
+- **own-auth: `signOut()` limpa o cofre SEMPRE** (`finally` + `NonCancellable`) — exceção ou cancelamento no
+  `logout` do servidor não deixa mais o par de tokens no aparelho.
+- **`AccountDeletionDialog(show, onDismiss, onConfirm: (digitado) -> Unit, isLoading, confirmationWord, texts)`**
+  — o `AppInputDialog` com o "digite EXCLUIR" (confirmar desligado até conferir; erro só depois de digitar algo
+  errado; campo limpo a cada abertura) e o texto dos 30 dias. Sem tarja de aviso.
+  `ACCOUNT_DELETION_CONFIRMATION_WORD`, `ACCOUNT_DELETION_GRACE_DAYS`, `rememberAccountDeletionDialogTexts`.
+- **`AccountPendingDeletionScreen(status, onRestore, onSignOut, isRestoring, errorMessage, texts)`** — "Sua conta
+  será excluída definitivamente após 30 dias do pedido" + "Faltam X dias para liberar a exclusão definitiva" (1 dia;
+  0 = "O prazo de 30 dias já terminou; a exclusão definitiva pode acontecer a qualquer momento"; sem prazo do
+  servidor = sem linha), Restaurar conta e Sair; tema do app, 420 dp, rola, insets; erro junto do botão (região
+  viva). `AccountPendingDeletionTexts.remainingFor(dias)`. Ids `conta-exclusao-pendente-*` (`AccountDeletionTestTags`,
+  com `PRAZO`).
+- **`AccountDeletionGate(repository, accountKey, onSignOut, modifier, onRestored, state, texts) { content }`**
+  (e a variante com `viewModel`) + **`AccountDeletionGateViewModel`** (MVI: `AccountChanged`/`Restore`/`SignOut`/
+  `DismissError` → `Restored`/`SignOutRequested`): consulta `GET {me}/deletion` a cada conta nova (é o "logo após
+  o login"), cobre em qualquer 403 do detector, conteúdo composto por baixo (pilha preservada), sem toque, fora
+  da árvore de acessibilidade, voltar do sistema segurado. Consulta que falha não bloqueia (o 403 do servidor
+  cobre). "Sair" mantém a cobertura até a conta virar `null`. Troca de conta limpa.
+- Dependências novas: `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose` (o `viewModel { }` do gate)
+  e `compose.ui.backhandler`.
+
+### `kmplib-ui`
+- 15 textos novos `kmplib_account_deletion_dialog_*`/`kmplib_account_pending_*` nos 4 idiomas.
+
+### Testes
+`AccountPendingDeletionTest` (19, core), `AccountScheduledDeletionTest` (14), `AccountDeletionGateViewModelTest`
+(15) e `EmailPasswordAuthRepositoryTest` (+1, auth); core 525 + auth 343 + ui verdes; `compileKotlinIosArm64` de
+core/mask/platform/ui/auth sem SKIPPED.
+
 ## 2.300.0 — **Portão pós-teste dos SaaS no app**: 402 `TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED` → "Seu teste grátis terminou" + `categoria` (contrato/isento) no entitlement
 
 Decisão do fundador (14/out/2026, LocaSys T4): nos SaaS com app (LocaSys, Suzy, Meu Barbeiro), conta comum

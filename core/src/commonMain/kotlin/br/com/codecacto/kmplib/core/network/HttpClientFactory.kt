@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.core.network
 
+import br.com.codecacto.kmplib.account.AccountDeletionDetector
+import br.com.codecacto.kmplib.account.AccountDeletionState
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockDetector
 import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockState
@@ -120,6 +122,14 @@ internal fun createHttpClient(
         install(SubscriptionBlockDetector) { state = blockState }
     }
 
+    // 403 ACCOUNT_PENDING_DELETION → estado único que o AccountDeletionGate (kmplib-auth) lê (2.301.0).
+    options.accountDeletion?.let { deletionState ->
+        install(AccountDeletionDetector) {
+            state = deletionState
+            onlyHosts = options.accountDeletionHosts
+        }
+    }
+
     configure()
 }
 
@@ -206,6 +216,13 @@ internal fun createHttpClient(
  *   estado todo 402 `TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED` — o portão pós-teste dos SaaS com app.
  *   **Default `null` (desligado)**; app de SaaS passa [SubscriptionBlockState.Shared], o mesmo que o
  *   `SubscriptionBlockGate` lê.
+ * @property accountDeletion instala o [AccountDeletionDetector] (2.301.0) registrando neste estado
+ *   todo 403 `ACCOUNT_PENDING_DELETION` (conta com exclusão programada, carência de 30 dias). **Ligado
+ *   por default** ([AccountDeletionState.Shared], o mesmo que o `AccountDeletionGate` lê): só lê o
+ *   corpo de 403 JSON, e sem o gate na tela ninguém consome o estado. `null` desliga.
+ * @property accountDeletionHosts os hosts que o [AccountDeletionDetector] observa (2.301.0). `null`
+ *   (default) = todo host. **Recomendado: o host da API do projeto** — o estado é de processo, e um
+ *   403 de outro servidor com o mesmo `code` não deve cobrir a tela.
  */
 data class HttpClientOptions(
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
@@ -219,6 +236,8 @@ data class HttpClientOptions(
     val sendLocaleHeaders: Boolean = false,
     val retry: HttpRetryPolicy = HttpRetryPolicy(),
     val subscriptionBlock: SubscriptionBlockState? = null,
+    val accountDeletion: AccountDeletionState? = AccountDeletionState.Shared,
+    val accountDeletionHosts: Set<String>? = null,
 ) {
     companion object {
         const val DEFAULT_REQUEST_TIMEOUT_MILLIS: Long = 30_000

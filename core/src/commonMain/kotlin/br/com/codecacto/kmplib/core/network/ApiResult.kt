@@ -48,6 +48,13 @@ sealed class ApiResult<out T> {
         val isSubscriptionBlocked: Boolean
             get() = code == SUBSCRIPTION_BLOCK_STATUS && SubscriptionBlockReason.fromCode(serverCode) != null
 
+        /**
+         * `true` no 403 de **conta com exclusão programada** (2.301.0) — `ACCOUNT_PENDING_DELETION`.
+         * Quem cobre a tela é o `AccountDeletionGate` (kmplib-auth).
+         */
+        val isAccountPendingDeletion: Boolean
+            get() = br.com.codecacto.kmplib.account.isAccountPendingDeletion(code, serverCode)
+
         /** O erro tipado para atravessar `Result`/`withRecentAuth`; só tem sentido se [isReauthRequired]. */
         fun toReauthRequiredException(): ReauthRequiredException =
             ReauthRequiredException(RecentAuthChallenge.maxAgeSeconds(details, null), message)

@@ -71,6 +71,20 @@ class EmailPasswordAuthRepositoryTest {
     }
 
     @Test
+    fun `signOut limpa a sessao local mesmo quando o logout no servidor explode`() = runTest {
+        val (api, _) = mockOwnAuthApi { path, _ ->
+            if (path.endsWith("logout")) throw IllegalStateException("rede caiu no meio")
+            HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r-abc")
+        }
+        val tm = OwnAuthTokenManager(api, AuthSessionStore(FakeSecureTokenStorage()), 60) { now }
+        val repo = EmailPasswordAuthRepository(api, tm)
+        repo.signInWithEmail("a@x.com", "p")
+        runCatching { repo.signOut() }
+        assertFalse(repo.isLoggedInSync, "o par de tokens não fica no aparelho (2.301.0)")
+        assertNull(repo.currentUser.first())
+    }
+
+    @Test
     fun `getIdToken devolve access token quando logado e NotAuthenticated quando nao`() = runTest {
         val repo = repo { _, _ -> HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r1") }
         assertIs<AuthException.NotAuthenticated>(repo.getIdToken().exceptionOrNull())

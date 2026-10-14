@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.account
 
+import br.com.codecacto.kmplib.core.network.ReauthRequiredException
 import br.com.codecacto.kmplib.core.storage.AccountLocalDataPurger
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
@@ -40,6 +41,12 @@ import kotlinx.serialization.json.JsonPrimitive
  * @param localData limpeza do que a conta deixou **no aparelho** — ver o KDoc do parâmetro.
  * @param clearSharedFiles apaga as cópias de compartilhamento e os temporários de PDF e impressão
  *   (`clearKmpLibTemporaryFiles`, 2.280.0) — ver o KDoc do parâmetro.
+ *
+ * ### Exclusão com carência de 30 dias (2.301.0)
+ * Com [deletionRepository], a tela chama [scheduleAccountDeletion]: `DELETE {me}` PROGRAMA a exclusão
+ * (conta bloqueada, dados guardados no servidor), a sessão local sai e o aparelho é limpo — a
+ * credencial fica, porque é entrando de novo que a pessoa restaura (`AccountDeletionGate`).
+ * [deleteAccountAndData] continua sendo o wipe imediato, para quem o usa.
  *
  * ### 3. O aparelho (2.217.0)
  * Dado o wipe no servidor, a conta ainda existia **no aparelho**: espelho do sync, outbox, fotos da
@@ -105,7 +112,83 @@ class AccountDeletionService(
      * que a tela exige digitar. Só é usado quando [deleteAccountAndData] recebe `confirmation`.
      */
     private val confirmationField: String = DEFAULT_CONFIRMATION_FIELD,
+    /**
+     * **Exclusão com carência de 30 dias** (2.301.0) — as rotas `DELETE {me}` /
+     * `GET {me}/deletion` / `POST {me}/deletion/restore`. Com ele, a tela chama
+     * [scheduleAccountDeletion] em vez de [deleteAccountAndData]. `null` = só o wipe imediato.
+     */
+    private val deletionRepository: AccountDeletionRepository? = null,
+    /** O estado que o `AccountDeletionGate` lê — limpo ao sair depois do pedido. */
+    private val deletionState: AccountDeletionState = AccountDeletionState.Shared,
 ) {
+
+    /**
+     * **Programa a exclusão da conta** com carência de 30 dias (2.301.0) e encerra a sessão.
+     *
+     * 1. (**autenticado**) `DELETE {me}` com a [confirmation] digitada no corpo → 202: a conta fica
+     *    bloqueada e os dados guardados no servidor; entrando de novo dentro do prazo, o
+     *    `AccountDeletionGate` oferece restaurar. Falhou ⇒ nada muda e a sessão continua (repita).
+     *    401 `REAUTH_REQUIRED` ⇒ `ReauthRequiredException` (passe pelo `RecentAuthState.run`).
+     * 2. Encerra a sessão local (`signOut`) — **nunca** `deleteAccount()`: a credencial tem de existir
+     *    para a pessoa poder entrar e restaurar.
+     * 3. Limpa o que a conta deixou no aparelho (o mesmo passo do [deleteAccountAndData]): espelho,
+     *    fila, temporários. Os dados continuam no servidor, e voltam com a restauração.
+     *
+     * Devolve [AccountDeletionScheduled]: o que o servidor respondeu e se a sessão local saiu. Se o
+     * `signOut` FALHAR depois do 202, a sessão continua no aparelho com a conta já bloqueada no
+     * servidor: o [AccountDeletionState] é marcado como pendente (o `AccountDeletionGate` cobre a área
+     * logada com Restaurar/Sair) e o resultado volta com `signedOut = false` — a tela não deve fingir
+     * que voltou ao login. Nunca lança. Sem [deletionRepository] configurado ⇒ falha (erro de
+     * montagem, não do usuário).
+     */
+    suspend fun scheduleAccountDeletion(confirmation: String?): Result<AccountDeletionScheduled> {
+        val repo = deletionRepository ?: return Result.failure(
+            IllegalStateException("AccountDeletionService sem deletionRepository: exclusão com carência não configurada"),
+        )
+        auth.currentUserSync?.id ?: return Result.failure(AuthException.NotAuthenticated)
+
+        val purger = localData ?: return programar(repo, contaLocal = null, confirmation = confirmation)
+        val conta = purger.activeAccountId()
+        return purger.withSyncPaused { programar(repo, contaLocal = conta, confirmation = confirmation) }
+    }
+
+    private suspend fun programar(
+        repo: AccountDeletionRepository,
+        contaLocal: String?,
+        confirmation: String?,
+    ): Result<AccountDeletionScheduled> {
+        val pedido = repo.requestDeletion(confirmation)
+        val status = pedido.getOrElse { falha ->
+            if (falha !is ReauthRequiredException) {
+                AppLogger.e(TAG, "Pedido de exclusão recusado; sessão preservada")
+            }
+            return Result.failure(
+                if (falha is AccountDeletionRequestException && falha.message.isNullOrBlank()) {
+                    IllegalStateException(texts.deleteFailed)
+                } else {
+                    falha
+                },
+            )
+        }
+        val saiu = try {
+            auth.signOut()
+            true
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            AppLogger.w(TAG, "Exclusão programada; signOut local falhou", e)
+            false
+        }
+        if (saiu) {
+            deletionState.clear()
+        } else {
+            // A conta já está bloqueada no servidor e a sessão ficou: o portão cobre a área logada
+            // (Restaurar/Sair) em vez de a tela seguir como se nada tivesse acontecido.
+            deletionState.report(status.copy(pending = true))
+        }
+        purgeLocalData(contaLocal)
+        return Result.success(AccountDeletionScheduled(status = status, signedOut = saiu))
+    }
 
     /**
      * Exclui **todos os dados** do usuário (wipe server-side) e, por último, a **conta** de
@@ -303,3 +386,17 @@ internal fun deletionLocalFileSteps(clearSharedFiles: Boolean, purgerRuns: Boole
         if (!purgerRuns) add(DeletionLocalFileStep.CAMERA_ORIGINALS)
         add(DeletionLocalFileStep.PRIVATE_PHOTO_CACHE)
     }
+
+/**
+ * Resultado de [AccountDeletionService.scheduleAccountDeletion] (2.301.0).
+ *
+ * @property status o que o servidor respondeu ao `DELETE {me}` (202).
+ * @property signedOut `true` = a sessão local saiu e a tela volta ao login. `false` = o `signOut`
+ *   falhou depois do 202: a conta está bloqueada no servidor, a sessão continua no aparelho e o
+ *   [AccountDeletionState] foi marcado como pendente — o `AccountDeletionGate` cobre a área logada
+ *   (Restaurar conta / Sair). Não navegue para o login nesse caso.
+ */
+data class AccountDeletionScheduled(
+    val status: AccountDeletionStatus,
+    val signedOut: Boolean,
+)
