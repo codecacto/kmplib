@@ -189,16 +189,27 @@ internal data class EntitlementDto(
     /** 2.231.0 — registro `trial_usage` do central (uma conta = um trial). Ausente em servidor antigo. */
     val trialUsadoEm: String? = null,
     val trialOrigem: String? = null,
+    /** 2.300.0 — `contrato` · `isento` · `null` (conta comum). Ausente em servidor antigo. */
+    val categoria: String? = null,
 ) {
     fun toModel(): Entitlement {
         val trialUsadoEm = trialUsadoEm?.takeIf { it.isNotBlank() }
         val trialOrigem = trialOrigem?.takeIf { it.isNotBlank() }?.lowercase()
+        val categoria = EntitlementCategory.normalize(categoria)
         // SEGURANCA: a autoridade do direito vigente e o campo `ativo` (calculado pelo servidor,
         // `isActive(now)`), NUNCA a mera presenca de um `plano` pago. Um entitlement expirado/cancelado
         // pode vir com `plano="premium"` e `ativo=false`; honra-lo provocaria autopromocao. Por isso,
         // sem direito vigente rebaixamos para Free (nao-premium) — mas o "trial ja usado" PERMANECE:
         // e com o acesso vencido que o paywall precisa saber que nao pode oferecer outro.
-        if (!ativo) return Entitlement.FREE.copy(trialUsadoEm = trialUsadoEm, trialOrigem = trialOrigem)
+        // A CATEGORIA (contrato/isento) tambem atravessa: e o servidor que a afirma, e ela libera a
+        // conta mesmo sem grant pago vigente (paga por fora). Nao e autopromocao — o cliente so le.
+        if (!ativo) {
+            return Entitlement.FREE.copy(
+                trialUsadoEm = trialUsadoEm,
+                trialOrigem = trialOrigem,
+                categoria = categoria,
+            )
+        }
         return Entitlement(
             plano = plano,
             features = features.toSet(),
@@ -207,6 +218,7 @@ internal data class EntitlementDto(
             atualizadoEm = atualizadoEm?.takeIf { it.isNotBlank() },
             trialUsadoEm = trialUsadoEm,
             trialOrigem = trialOrigem,
+            categoria = categoria,
         )
     }
 }

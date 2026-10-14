@@ -1,6 +1,8 @@
 package br.com.codecacto.kmplib.core.network
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockDetector
+import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockState
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.HttpClientEngine
@@ -113,6 +115,11 @@ internal fun createHttpClient(
         install(DeviceLocaleHeaders)
     }
 
+    // 402 TRIAL_EXPIRED / SUBSCRIPTION_REQUIRED → estado único que o SubscriptionBlockGate lê.
+    options.subscriptionBlock?.let { blockState ->
+        install(SubscriptionBlockDetector) { state = blockState }
+    }
+
     configure()
 }
 
@@ -195,6 +202,10 @@ internal fun createHttpClient(
  *   `unexpected end of stream`, timeout de conexão/socket) e em 502/503/504 — nunca POST/PATCH,
  *   nunca 4xx, nunca cancelamento. O `requestTimeoutMillis` continua sendo o teto da chamada
  *   inteira. [HttpRetryPolicy.Disabled] desliga. Detalhe em [HttpRetryPolicy].
+ * @property subscriptionBlock instala o [SubscriptionBlockDetector] (2.300.0) registrando neste
+ *   estado todo 402 `TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED` — o portão pós-teste dos SaaS com app.
+ *   **Default `null` (desligado)**; app de SaaS passa [SubscriptionBlockState.Shared], o mesmo que o
+ *   `SubscriptionBlockGate` lê.
  */
 data class HttpClientOptions(
     val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
@@ -207,6 +218,7 @@ data class HttpClientOptions(
     val json: Json = DefaultHttpClientJson,
     val sendLocaleHeaders: Boolean = false,
     val retry: HttpRetryPolicy = HttpRetryPolicy(),
+    val subscriptionBlock: SubscriptionBlockState? = null,
 ) {
     companion object {
         const val DEFAULT_REQUEST_TIMEOUT_MILLIS: Long = 30_000

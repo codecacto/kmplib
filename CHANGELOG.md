@@ -5,6 +5,50 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.300.0 — **Portão pós-teste dos SaaS no app**: 402 `TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED` → "Seu teste grátis terminou" + `categoria` (contrato/isento) no entitlement
+
+Decisão do fundador (14/out/2026, LocaSys T4): nos SaaS com app (LocaSys, Suzy, Meu Barbeiro), conta comum
+com teste de 7 dias vencido e sem pagamento é BLOQUEADA também no app. Par do `SubscriptionGuard` da
+`backlib-billing` (402 `{code, message}`) e da tela de bloqueio da weblib. Aditivo e **opt-in**: nada muda
+para quem não liga. Sem piso, sem aviso.
+
+### `kmplib-core` — detecção num ponto só (`br.com.codecacto.kmplib.monetization.access`)
+- **`SubscriptionBlockReason`** (`TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED`, `fromCode`), **`SubscriptionBlock(reason,
+  serverMessage)`**, **`parseSubscriptionBlock(status, body)`** (só 402; `code` na raiz ou em `error`; o 402 de
+  COTA continua sendo cota), **`SubscriptionBlockState`** (`block: StateFlow`, `isBlocked`, `report`,
+  `reportIfBlocked`, `clear`; `SubscriptionBlockState.Shared` = a do processo).
+- **`SubscriptionBlockDetector`** (plugin Ktor) e **`HttpClientOptions(subscriptionBlock = SubscriptionBlockState.Shared)`**
+  (default `null` = desligado). Lê o corpo só no 402 (o chamador continua lendo). Um 2xx de rota protegida do
+  MESMO host tira o bloqueio (pagou na web/virou contrato — a recarga do `ON_RESUME` prova); rotas neutras
+  (`auth`, `public`, `health`, `billing`, `subscription(s)`, `entitlement`, `plans`, `checkout`, `me`) e outro
+  host (admin-api central) não tiram. Config: `state`, `onlyHosts`, `clearOnSuccess`, `neutralPathSegments`.
+- `DomainApiClient`: o 402 sem cota passa a trazer `serverCode`/`serverMessage`; **`DomainResult.Error.isSubscriptionBlocked`**
+  e **`ApiResult.Error.isSubscriptionBlocked`** — o ViewModel não mostra banner por ele (o gate já cobriu a tela).
+- **`Entitlement.categoria`** (`"contrato"`/`"isento"`/`null`) + `isContract`/`isExempt`/`isGrantedByCategory`;
+  **contrato e isento contam como liberado** (`isPremium = true`, `isFree = false`, qualquer `plano`).
+  `EntitlementCategory` (`CONTRACT`, `EXEMPT`, `normalize`). Categoria desconhecida não libera nada.
+
+### `kmplib-monetization`
+- `AdminApiEntitlementRepository` lê `categoria` do `/me/entitlement` (opcional; servidor antigo = `null`) e a
+  mantém mesmo com `ativo=false` (conta por contrato sem grant pago continua liberada).
+- **`SubscriptionBlockedScreen(reason, onSubscribe, onWhatsApp, onSignOut, modifier, texts)`** (pacote
+  `br.com.codecacto.kmplib.ui.screens.subscription`): título por motivo ("Seu teste grátis terminou" / "Sua
+  assinatura não está ativa"), "Seus dados estão guardados. Assine para continuar usando.", **Assinar**,
+  **Falar no WhatsApp**, **Sair** (vermelho). Tema do app, 420 dp de largura de leitura, rola, insets.
+  4 idiomas (`rememberSubscriptionBlockedTexts(appName = BuildInfo.appName)`; a mensagem do WhatsApp diz de
+  qual app a pessoa veio). Ids `assinatura-bloqueio*` (`SubscriptionBlockedTestTags`).
+- **`SubscriptionBlockGate(onSignOut, paywall, modifier, state, hasAccess, accountKey, whatsAppPhone, onWhatsApp, texts) { content }`**:
+  cobre a área logada com a tela quando bloqueado — o conteúdo **continua composto** por baixo (pilha de
+  navegação preservada), sem toque, fora da árvore de acessibilidade, voltar do sistema seguro. "Assinar" abre
+  o slot `paywall` (o `PaywallHost` do app — **só a loja**, nunca checkout web); fechar volta à tela.
+  `hasAccess` (premium da loja / contrato) nunca bloqueia e limpa o estado; trocar `accountKey` limpa; "Sair"
+  limpa e chama `onSignOut`. WhatsApp default = `SubscriptionBlockDefaults.WHATSAPP_PHONE` (5565998030240).
+- Depende de `org.jetbrains.compose.ui:ui-backhandler` (já usado por ui/platform).
+
+### Testes
+`SubscriptionBlockTest` (13), `DomainApiClientSubscriptionBlockTest` (3), `EntitlementCategoryTest` (7),
+`SubscriptionBlockedTextsTest` (3); core 506 + monetization 381 verdes; `compileKotlinIosArm64` de core/ui/monetization sem SKIPPED.
+
 ## 2.299.0 — Calorias de treino curto não zeram mais (`CalorieEstimator`) + **descanso de transição** do circuito no motor de treino + `LoginScreen` com **imagem de fundo**
 
 Pedido do App do Personal (tarefas T6/T13/T20 de 13/out/2026, itens 8, 19 e 23 do fundador). Um conserto

@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.core.network
 
+import br.com.codecacto.kmplib.monetization.access.SUBSCRIPTION_BLOCK_STATUS
+import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockReason
 import br.com.codecacto.kmplib.sync.rest.ServerErrorDetails
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -38,6 +40,13 @@ sealed class ApiResult<out T> {
          * [RecentAuthChallenge]. O `RestRepository` não chama `onUnauthorized` nele.
          */
         val isReauthRequired: Boolean get() = code == 401 && serverCode == RecentAuthChallenge.CODE
+
+        /**
+         * `true` no 402 de conta bloqueada por assinatura (2.300.0) — `TRIAL_EXPIRED`/
+         * `SUBSCRIPTION_REQUIRED`. Quem cobre a tela é o `SubscriptionBlockGate`.
+         */
+        val isSubscriptionBlocked: Boolean
+            get() = code == SUBSCRIPTION_BLOCK_STATUS && SubscriptionBlockReason.fromCode(serverCode) != null
 
         /** O erro tipado para atravessar `Result`/`withRecentAuth`; só tem sentido se [isReauthRequired]. */
         fun toReauthRequiredException(): ReauthRequiredException =

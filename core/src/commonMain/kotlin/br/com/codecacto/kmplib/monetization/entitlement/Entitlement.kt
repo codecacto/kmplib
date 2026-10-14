@@ -28,7 +28,24 @@ data class Entitlement(
     @SerialName("trialUsadoEm") val trialUsadoEm: String? = null,
     /** Onde o trial foi usado: `web` · `apple` · `google` (2.231.0). */
     @SerialName("trialOrigem") val trialOrigem: String? = null,
+    /**
+     * Categoria da conta na central (2.300.0): `contrato` (paga por fora — boleto/Pix combinado, sem
+     * gateway) · `isento` (review da loja, parceiro, conta de demonstração) · `null` = conta comum.
+     * Contrato e isento contam como **liberado** ([isPremium]) mesmo sem plano pago vigente: o
+     * servidor também não os bloqueia ao fim do teste. Valor sempre em minúsculas (ver
+     * [EntitlementCategory]); categoria desconhecida não libera nada.
+     */
+    @SerialName("categoria") val categoria: String? = null,
 ) {
+    /** Conta por contrato — paga por fora, tudo liberado (2.300.0). */
+    val isContract: Boolean get() = categoria == EntitlementCategory.CONTRACT
+
+    /** Conta isenta — review da loja, parceiro (2.300.0). */
+    val isExempt: Boolean get() = categoria == EntitlementCategory.EXEMPT
+
+    /** Liberada pela CATEGORIA, sem depender de plano/loja: contrato ou isenta (2.300.0). */
+    val isGrantedByCategory: Boolean get() = isContract || isExempt
+
     /** A conta já usou o teste grátis (em qualquer ponta) — o paywall não oferece outro. */
     val trialUsed: Boolean get() = trialUsadoEm != null
 
@@ -38,9 +55,11 @@ data class Entitlement(
      * O mapeamento na camada de rede ([AdminApiEntitlementRepository]) ja rebaixa para "free"
      * qualquer entitlement inativo (EXPIRED/CANCELED), entao `plano == "free"` aqui significa
      * "sem direito pago vigente". Comparacao com `equals` insensivel a maiusculas; trata `plano`
-     * vazio como free.
+     * vazio como free. Conta por **contrato** ou **isenta** ([isGrantedByCategory], 2.300.0) nunca é
+     * free, qualquer que seja o `plano` — é liberada por fora da loja e do gateway.
      */
-    val isFree: Boolean get() = plano.isBlank() || plano.equals("free", ignoreCase = true)
+    val isFree: Boolean
+        get() = !isGrantedByCategory && (plano.isBlank() || plano.equals("free", ignoreCase = true))
 
     /**
      * Tem um plano pago vigente. Espelha a semantica da weblib (`premium = active && !isFreePlan`):
@@ -55,6 +74,21 @@ data class Entitlement(
         /** Entitlement default (free, sem features) usado como estado inicial/offline. */
         val FREE = Entitlement(plano = "free")
     }
+}
+
+/**
+ * Valores de [Entitlement.categoria] (2.300.0) — o mesmo vocabulário do `EntitlementDto.categoria`
+ * do admin-api e da `backlib-billing`.
+ */
+object EntitlementCategory {
+    /** Paga por fora (contrato); nunca bloqueia ao fim do teste. */
+    const val CONTRACT: String = "contrato"
+
+    /** Isenta (review da loja, parceiro); liberada como contrato. */
+    const val EXEMPT: String = "isento"
+
+    /** Normaliza o valor do fio: minúsculas, sem espaço; vazio ⇒ `null`. Valor desconhecido passa como veio. */
+    fun normalize(value: String?): String? = value?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
 }
 
 /**

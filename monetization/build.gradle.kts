@@ -15,6 +15,8 @@ kotlin {
             api(libs.kotlinx.serialization.json)
             // PaywallHost (2.224.0): relê a oferta a cada ON_RESUME e coleta o estado com lifecycle.
             implementation(libs.androidx.lifecycle.runtime.compose)
+            // SubscriptionBlockGate (2.300.0): o voltar do sistema não desempilha a navegação coberta.
+            implementation(libs.compose.ui.backhandler)
 
             // RevenueCat — `implementation` está auditado e correto: o repositório concreto é
             // internal e a API pública é NEUTRA ao fornecedor (PurchaseResult, PurchasePackage,

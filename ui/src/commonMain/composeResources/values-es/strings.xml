@@ -564,4 +564,15 @@
     <string name="kmplib_theme_system">Predeterminado del sistema</string>
     <string name="kmplib_theme_light">Claro</string>
     <string name="kmplib_theme_dark">Oscuro</string>
+
+    <!-- Bloqueio por assinatura (2.300.0) -->
+    <string name="kmplib_subscription_block_trial_title">Tu prueba gratuita terminó</string>
+    <string name="kmplib_subscription_block_required_title">Tu suscripción no está activa</string>
+    <string name="kmplib_subscription_block_message">Tus datos están guardados. Suscríbete para seguir usando la app.</string>
+    <string name="kmplib_subscription_block_whatsapp">Hablar por WhatsApp</string>
+    <string name="kmplib_subscription_block_sign_out">Cerrar sesión</string>
+    <string name="kmplib_subscription_block_whatsapp_trial">¡Hola! Vengo de la app %1$s. Mi prueba gratuita terminó y quiero seguir usándola.</string>
+    <string name="kmplib_subscription_block_whatsapp_required">¡Hola! Vengo de la app %1$s. Mi suscripción no está activa y quiero seguir usándola.</string>
+    <string name="kmplib_subscription_block_whatsapp_trial_noname">¡Hola! Mi prueba gratuita terminó y quiero seguir usando la app.</string>
+    <string name="kmplib_subscription_block_whatsapp_required_noname">¡Hola! Mi suscripción no está activa y quiero seguir usando la app.</string>
 </resources>

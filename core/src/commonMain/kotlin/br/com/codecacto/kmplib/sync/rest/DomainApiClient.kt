@@ -4,6 +4,8 @@ import br.com.codecacto.kmplib.core.network.ReauthRequiredException
 import br.com.codecacto.kmplib.core.network.RecentAuthChallenge
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
+import br.com.codecacto.kmplib.monetization.access.SUBSCRIPTION_BLOCK_STATUS
+import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockReason
 import br.com.codecacto.kmplib.monetization.entitlement.QuotaExceeded
 import br.com.codecacto.kmplib.monetization.entitlement.parseQuotaExceeded
 import io.ktor.client.HttpClient
@@ -488,8 +490,21 @@ class DomainApiClient(
             // 304 só é resposta válida a um GET condicional ([getJsonWithEtag]); fora dele é erro.
             status == 304 && notModifiedIsSuccess -> DomainResult.Success(response)
             status == 402 -> {
-                val quota = parseQuotaExceeded(runCatching { response.bodyAsText() }.getOrNull())
-                if (quota != null) DomainResult.Quota(quota) else DomainResult.Error(status, currentTexts().quotaReached)
+                val body = runCatching { response.bodyAsText() }.getOrNull()
+                val quota = parseQuotaExceeded(body)
+                if (quota != null) {
+                    DomainResult.Quota(quota)
+                } else {
+                    // 402 sem cota = bloqueio da conta (TRIAL_EXPIRED/SUBSCRIPTION_REQUIRED, 2.300.0):
+                    // o `serverCode` é o que deixa a tela distinguir — ver `isSubscriptionBlocked`.
+                    val envelope = parseServerErrorEnvelope(body)
+                    DomainResult.Error(
+                        code = status,
+                        message = currentTexts().quotaReached,
+                        serverCode = envelope?.code,
+                        serverMessage = envelope?.message,
+                    )
+                }
             }
             else -> {
                 val envelope = envelopeDeErro(response)
@@ -710,6 +725,14 @@ sealed class DomainResult<out T> {
 
         /** `true` se o servidor apontou ao menos um campo. */
         val hasFieldErrors: Boolean get() = details.isNotEmpty()
+
+        /**
+         * `true` no 402 de **conta bloqueada por assinatura** (2.300.0) — `TRIAL_EXPIRED` ou
+         * `SUBSCRIPTION_REQUIRED`. Não é erro da tela: o `SubscriptionBlockGate` já a cobriu (com o
+         * detector ligado no `HttpClient`); o ViewModel não mostra banner por ele.
+         */
+        val isSubscriptionBlocked: Boolean
+            get() = code == SUBSCRIPTION_BLOCK_STATUS && SubscriptionBlockReason.fromCode(serverCode) != null
 
         /**
          * A frase para a tela: a do **servidor** em recusa de negócio/validação (4xx, exceto 401 e
