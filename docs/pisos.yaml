@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.302.0
+    motivo: "exclusão de conta com carência: recusa do servidor (ex.: 409) aparecia como \"Erro do servidor\" e restaurar com sessão anterior ao pedido (401 REAUTH_REQUIRED) caía no erro genérico, sem saída"
+    simbolos: [RestAccountDeletionRepository, AccountDeletionGate]
+
   - versao: 2.299.0
     motivo: "gasto calórico de treino curto (< ~1 min) zerado: CalorieEstimator arredondava tudo para a dezena (0 kcal na tela e no histórico)"
     simbolos: [CalorieEstimator]

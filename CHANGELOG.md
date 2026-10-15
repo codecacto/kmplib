@@ -5,6 +5,49 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.302.0 — **Exclusão com carência: a frase do servidor chega à tela, e "Restaurar" com sessão antiga reautentica** (correção da 2.301.0)
+
+Dois defeitos achados no piloto da Suzy (14/out/2026), sobre o MESMO contrato da backlib 0.183.0 — nenhum dado novo
+é enviado; muda só a mensagem e o fluxo de tela. **Piso** em `docs/pisos.yaml` (`RestAccountDeletionRepository`,
+`AccountDeletionGate`). Sem aviso: quem está na 2.301.0 vê uma frase genérica, nada deixa de funcionar de forma
+irrecuperável (o "Sair" e entrar de novo sempre restaurou).
+
+### 1. A recusa do servidor se perdia
+`RestAccountDeletionRepository` montava a `AccountDeletionRequestException` com a frase LOCAL do `DomainApiClient`
+("Erro do servidor (409)"): o `409 OWNER_HAS_ACTIVE_ESTABLISHMENT` da Suzy ("transfira ou encerre o estabelecimento
+antes de excluir") chegava à pessoa como erro técnico, no pedido e na restauração.
+- **`AccountDeletionRequestException(httpCode, message, serverCode, serverMessage = null)`** — `serverMessage` novo
+  (a `message` crua do envelope), **`localMessage`** (a frase local) e **`hasServerMessage`**. A **`message`** passa
+  a ser a frase PARA A TELA, pela régua do `DomainResult.Error.userMessage`: a do servidor em recusa 4xx (exceto
+  401 e 429), a local no resto — 5xx nunca mostra a frase do servidor. Construtor antigo segue compilando.
+- `AccountDeletionService.scheduleAccountDeletion` repassa a exceção: `falha.message` já é a frase do servidor.
+- **`AccountDeletionDialog(…, errorMessage)`** — a recusa aparece no diálogo, junto dos botões.
+- **`AppInputDialog(…, errorMessage)`** (`kmplib-ui`) — erro que não é do campo, acima dos botões, em vermelho,
+  região viva; id **`DialogTestTags.ERRO`** = `dialogo-erro` (`kmplib-platform`).
+- O log continua só com status + `serverCode` (a frase do servidor pode citar dado da conta).
+
+### 2. "Restaurar conta" com sessão anterior ao pedido caía no erro genérico
+A backlib 0.183.0 só restaura com sessão aberta DEPOIS do pedido (401 `REAUTH_REQUIRED`,
+`details.reason = SESSION_PREDATES_DELETION_REQUEST`); o gate mostrava "Não foi possível restaurar", e tentar de
+novo dava o mesmo. Agora, como a weblib 0.257.0:
+- **`AccountDeletionGate(…, recentAuth: RecentAuthCoordinator? = null)`** / **`AccountDeletionGateViewModel(repository,
+  state, recentAuth)`** — com o coordenador, o Restaurar passa por `RecentAuthState.run`: pede a senha (ou login
+  social) da MESMA conta e repete a restauração **uma** vez; o gate desenha o `RecentAuthHost` sozinho
+  (`viewModel.recentAuthState`). Fechar o pedido de senha não é erro.
+- Sem coordenador, sem como reautenticar (sessão sem identificador, sem social), sessão encerrada ou 401 comum:
+  **`AccountDeletionGateError.needsSignIn`** → "Entre de novo para restaurar a conta." e o **Sair vira o botão
+  principal** (`AccountPendingDeletionScreen(…, signOutIsPrimary)`; Restaurar passa a contorno). Credencial de outra
+  conta → `accountMismatch` (frase do `RecentAuthHost`).
+- Recusa do servidor na restauração (4xx com frase) → a frase dele; sem rede → a frase local; resto → o padrão.
+- `AccountPendingDeletionTexts` ganha `restoreNeedsSignIn`, `restoreAccountMismatch` (com default) e
+  `restoreErrorMessage(error)`; string nova **`kmplib_account_pending_restore_needs_sign_in`** nos 4 idiomas. Sem data.
+- Puro e testado: `restoreErrorOf(falha)`.
+
+**Migração:** suba e passe `recentAuth = koinInject()` ao `AccountDeletionGate` (a casca já registra o
+`RecentAuthCoordinator`); na tela de conta, `AccountDeletionDialog(errorMessage = …)` com a `message` da falha.
+
+Testes: auth 353 + platform 461 + ui verdes; `compileKotlinIosArm64` platform/ui/auth sem SKIPPED.
+
 ## 2.301.0 — **Exclusão de conta com carência de 30 dias e restauração**: `AccountDeletionDialog` + `AccountDeletionGate` + 403 `ACCOUNT_PENDING_DELETION` interceptado
 
 Decisão do fundador (14/out/2026, todas as contas): excluir a conta PROGRAMA a exclusão — a conta fica bloqueada,

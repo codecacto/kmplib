@@ -12,6 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import androidx.compose.ui.graphics.Color
@@ -207,6 +210,10 @@ fun AppAlertDialog(
  *   [onConfirm] não é chamado. É o "digite EXCLUIR" da exclusão de conta: passe
  *   `confirmEnabled = typedConfirmationMatches(digitado, "EXCLUIR")` — o confirmar só acende quando
  *   a palavra confere. O cancelar não é afetado.
+ * @param errorMessage erro que **não é do campo** (2.302.0) — a recusa do servidor ("Transfira ou
+ *   encerre o estabelecimento antes de excluir a conta"). Aparece logo acima dos botões, em vermelho,
+ *   como região viva (o leitor de tela anuncia), com o id `dialogo-erro`. `null` = nada. Erro do
+ *   próprio campo continua em [textFieldError].
  */
 @Composable
 fun AppInputDialog(
@@ -225,6 +232,7 @@ fun AppInputDialog(
     onConfirm: () -> Unit,
     isLoading: Boolean = false,
     confirmEnabled: Boolean = true,
+    errorMessage: String? = null,
 ) {
     AppDialog(
         show = show,
@@ -255,6 +263,20 @@ fun AppInputDialog(
             enabled = !isLoading,
             modifier = Modifier.testTag(DialogTestTags.INPUT)
         )
+
+        // Erro que não é do campo: junto dos botões, onde o olho está depois do toque.
+        errorMessage?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(DialogTestTags.ERRO)
+                    .semantics { liveRegion = LiveRegionMode.Polite }
+            )
+        }
 
         // Botões de ação
         Row(

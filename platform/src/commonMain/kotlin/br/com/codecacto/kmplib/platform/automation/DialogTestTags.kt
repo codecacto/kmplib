@@ -66,6 +66,12 @@ object DialogTestTags {
     /** "Baixar" da tela cheia de imagem (2.256.0). */
     const val BTN_BAIXAR: String = "dialogo-btn-baixar"
 
+    /**
+     * Erro do diálogo que não é de campo — a recusa do servidor, junto dos botões (2.302.0; ex.: o
+     * 409 da exclusão de conta). Só existe enquanto há erro.
+     */
+    const val ERRO: String = "dialogo-erro"
+
     /** Folha inferior modal. */
     const val FOLHA: String = "dialogo-folha"
 
@@ -82,6 +88,7 @@ object DialogTestTags {
         BTN_CANCELAR,
         BTN_FECHAR,
         BTN_BAIXAR,
+        ERRO,
         FOLHA,
         MENU,
     )

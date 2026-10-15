@@ -272,4 +272,89 @@ class AccountScheduledDeletionTest {
         assertIs<ReauthRequiredException>(r.exceptionOrNull())
         assertFalse(auth.signOutCalled)
     }
+
+    // ---------------------------------------------------------------- 2.302.0: a frase do servidor
+
+    @Test
+    fun pedido_409_trazAFraseDoServidor() = runTest {
+        val srv = Servidor { _, _ ->
+            HttpStatusCode.Conflict to
+                """{"code":"OWNER_HAS_ACTIVE_ESTABLISHMENT","message":"Transfira ou encerre o estabelecimento antes de excluir a conta."}"""
+        }
+        val e = assertIs<AccountDeletionRequestException>(
+            RestAccountDeletionRepository(api(srv), state = AccountDeletionState()).requestDeletion("EXCLUIR").exceptionOrNull(),
+        )
+        assertEquals(409, e.httpCode)
+        assertEquals("OWNER_HAS_ACTIVE_ESTABLISHMENT", e.serverCode)
+        assertEquals("Transfira ou encerre o estabelecimento antes de excluir a conta.", e.serverMessage)
+        assertEquals("Transfira ou encerre o estabelecimento antes de excluir a conta.", e.message)
+        assertTrue(e.hasServerMessage)
+        assertFalse(e.localMessage == e.message, "a frase local continua disponível à parte")
+    }
+
+    @Test
+    fun servico_409_sobeComAFraseDoServidor_eSessaoFica() = runTest {
+        val srv = Servidor { _, _ ->
+            HttpStatusCode.Conflict to """{"code":"OWNER_HAS_ACTIVE_ESTABLISHMENT","message":"Transfira o estabelecimento."}"""
+        }
+        val auth = FakeAuth(user)
+        val r = AccountDeletionService(
+            api = api(srv),
+            auth = auth,
+            deletionRepository = RestAccountDeletionRepository(api(srv), state = AccountDeletionState()),
+            deletionState = AccountDeletionState(),
+            clearSharedFiles = false,
+        ).scheduleAccountDeletion("EXCLUIR")
+        assertEquals("Transfira o estabelecimento.", r.exceptionOrNull()?.message)
+        assertFalse(auth.signOutCalled)
+    }
+
+    @Test
+    fun restaurar_409_trazAFraseDoServidor_e5xxNao() = runTest {
+        val st = AccountDeletionState()
+        st.report(AccountDeletionStatus(pending = true))
+        val conflito = RestAccountDeletionRepository(
+            api(Servidor { _, _ -> HttpStatusCode.Conflict to """{"code":"X","message":"Prazo encerrado."}""" }),
+            state = st,
+        ).restore().exceptionOrNull()
+        assertEquals("Prazo encerrado.", assertIs<AccountDeletionRequestException>(conflito).message)
+
+        val erro500 = assertIs<AccountDeletionRequestException>(
+            RestAccountDeletionRepository(
+                api(Servidor { _, _ -> HttpStatusCode.InternalServerError to """{"message":"NullPointerException em X"}""" }),
+                state = st,
+            ).restore().exceptionOrNull(),
+        )
+        assertFalse(erro500.hasServerMessage, "5xx: a frase do servidor é para o log, não para a tela")
+        assertEquals(erro500.localMessage, erro500.message)
+        assertEquals("NullPointerException em X", erro500.serverMessage)
+    }
+
+    @Test
+    fun restaurar_sessaoAnteriorAoPedido_viraReauth() = runTest {
+        val st = AccountDeletionState()
+        st.report(AccountDeletionStatus(pending = true))
+        val r = RestAccountDeletionRepository(
+            api(
+                Servidor { _, _ ->
+                    HttpStatusCode.Unauthorized to
+                        """{"code":"REAUTH_REQUIRED","details":{"reason":"SESSION_PREDATES_DELETION_REQUEST"}}"""
+                },
+            ),
+            state = st,
+        ).restore()
+        assertIs<ReauthRequiredException>(r.exceptionOrNull())
+        assertTrue(st.isPending, "nada restaurado: a cobertura fica")
+    }
+
+    @Test
+    fun reguaDaFraseDoServidor() {
+        assertEquals("srv", AccountDeletionRequestException(400, "local", serverMessage = "srv").message)
+        assertEquals("local", AccountDeletionRequestException(401, "local", serverMessage = "srv").message)
+        assertEquals("local", AccountDeletionRequestException(429, "local", serverMessage = "srv").message)
+        assertEquals("local", AccountDeletionRequestException(503, "local", serverMessage = "srv").message)
+        assertEquals("local", AccountDeletionRequestException(409, "local", serverMessage = "  ").message)
+        assertEquals("local", AccountDeletionRequestException(-1, "local").message)
+        assertEquals("local", AccountDeletionRequestException(409, "local").message, "construtor antigo segue valendo")
+    }
 }

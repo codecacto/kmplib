@@ -600,4 +600,5 @@
     <string name="kmplib_account_pending_restore">Restaurar conta</string>
     <string name="kmplib_account_pending_sign_out">Sair</string>
     <string name="kmplib_account_pending_restore_failed">Não foi possível restaurar sua conta. Tente novamente.</string>
+    <string name="kmplib_account_pending_restore_needs_sign_in">Entre de novo para restaurar a conta.</string>
 </resources>

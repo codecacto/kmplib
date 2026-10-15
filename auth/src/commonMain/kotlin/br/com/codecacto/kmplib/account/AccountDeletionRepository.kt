@@ -30,17 +30,43 @@ data class AccountDeletionPaths(
 }
 
 /**
- * Falha de uma chamada da exclusão com carência. A [message] já é a frase para a tela (idioma do
- * aparelho, vinda do `DomainApiClient`); [httpCode] = `-1` quando não houve resposta (sem conexão).
+ * Falha de uma chamada da exclusão com carência.
+ *
+ * A [message] é **a frase para a tela** (2.302.0): a do **servidor** ([serverMessage]) quando ele
+ * recusou por regra de negócio — 4xx, exceto 401 e 429, a mesma régua do `DomainResult.Error.userMessage`
+ * (ex.: 409 `OWNER_HAS_ACTIVE_ESTABLISHMENT` → "Transfira ou encerre o estabelecimento antes…") —, e
+ * a frase local ([localMessage], idioma da tela, do `DomainApiClient`) no resto. Até a 2.301.0 a
+ * [message] era sempre a local ("Erro do servidor (409)") e a frase do servidor se perdia.
+ *
+ * [httpCode] = `-1` quando não houve resposta (sem conexão). 5xx nunca mostra a frase do servidor.
+ *
+ * @param message a frase LOCAL (vira [localMessage]); a [message] do objeto é a escolhida para a tela.
+ * @property serverCode o código de negócio do envelope (`{"code": …}`), ou `null`.
+ * @property serverMessage a `message` do envelope, crua, ou `null` (2.302.0).
  */
 class AccountDeletionRequestException(
     val httpCode: Int,
     message: String,
     val serverCode: String? = null,
-) : Exception(message) {
+    val serverMessage: String? = null,
+) : Exception(accountDeletionUserMessage(httpCode, message, serverMessage)) {
+    /** A frase local (genérica) que o `DomainApiClient` montou (2.302.0). */
+    val localMessage: String = message
+
     /** `true` quando nem chegou ao servidor (sem conexão/timeout). */
     val isOffline: Boolean get() = httpCode == DomainResult.OFFLINE_CODE
+
+    /** `true` quando a [message] é a frase do servidor (2.302.0). */
+    val hasServerMessage: Boolean
+        get() = accountDeletionServerMessageApplies(httpCode, serverMessage)
 }
+
+/** A régua do `DomainResult.Error.userMessage`: frase do servidor em recusa 4xx (exceto 401/429). */
+internal fun accountDeletionServerMessageApplies(httpCode: Int, serverMessage: String?): Boolean =
+    !serverMessage.isNullOrBlank() && httpCode in 400..499 && httpCode != 401 && httpCode != 429
+
+internal fun accountDeletionUserMessage(httpCode: Int, localMessage: String, serverMessage: String?): String =
+    if (accountDeletionServerMessageApplies(httpCode, serverMessage)) serverMessage!!.trim() else localMessage
 
 /**
  * **A exclusão de conta com carência de 30 dias** (2.301.0) — as três chamadas do contrato.
@@ -140,8 +166,9 @@ class RestAccountDeletionRepository(
             if (isReauthRequired) {
                 Result.failure(toReauthRequiredException())
             } else {
+                // Só status e código de negócio no log: a frase do servidor pode citar dado da conta.
                 AppLogger.w(TAG, "Falha na $etapa: HTTP $code ${serverCode.orEmpty()}")
-                Result.failure(AccountDeletionRequestException(code, message, serverCode))
+                Result.failure(AccountDeletionRequestException(code, message, serverCode, serverMessage))
             }
         }
     }

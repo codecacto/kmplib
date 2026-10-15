@@ -27,7 +27,7 @@ class DialogTestTagsTest {
 
     @Test
     fun `todos os ids estao listados e sao unicos`() {
-        assertEquals(10, DialogTestTags.all.size)
+        assertEquals(11, DialogTestTags.all.size)
         assertEquals(DialogTestTags.all.size, DialogTestTags.all.toSet().size)
     }
 

@@ -57,12 +57,17 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_account_deletion_dialo
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_restore
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_restore_failed
+import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_restore_needs_sign_in
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_account_mismatch
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_sign_out
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_remaining_days
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_remaining_none
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_remaining_one_day
 import br.com.codecacto.kmplib.generated.resources.kmplib_account_pending_title
+import br.com.codecacto.kmplib.auth.RecentAuthCoordinator
 import br.com.codecacto.kmplib.ui.components.AppButton
+import br.com.codecacto.kmplib.ui.components.AppOutlinedButton
+import br.com.codecacto.kmplib.ui.components.RecentAuthHost
 import br.com.codecacto.kmplib.ui.components.AppInputDialog
 import br.com.codecacto.kmplib.ui.components.typedConfirmationMatches
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
@@ -143,6 +148,12 @@ internal fun accountDeletionFieldError(typed: String, confirmationWord: String, 
  * [onConfirm] recebe o que foi digitado — passe para `AccountDeletionService.scheduleAccountDeletion`
  * (vai no corpo do `DELETE`, para o servidor conferir). O campo se limpa a cada abertura e o texto
  * digitado não entra no estado salvo.
+ *
+ * [errorMessage] (2.302.0) = a recusa do pedido, mostrada junto dos botões (`dialogo-erro`). Passe a
+ * frase da falha do `scheduleAccountDeletion`: a `message` da [AccountDeletionRequestException] já é
+ * a do SERVIDOR quando ele recusou por regra (ex.: 409 "Transfira o estabelecimento antes…"). Com o
+ * `RecentAuthState.run`, `rememberRecentAuthTexts().errorMessage(falha)` dá a frase certa (e `null`
+ * quando a pessoa desistiu da senha). Limpe ao fechar ou ao digitar de novo.
  */
 @Composable
 fun AccountDeletionDialog(
@@ -153,6 +164,7 @@ fun AccountDeletionDialog(
     isLoading: Boolean = false,
     confirmationWord: String = ACCOUNT_DELETION_CONFIRMATION_WORD,
     texts: AccountDeletionDialogTexts = rememberAccountDeletionDialogTexts(confirmationWord),
+    errorMessage: String? = null,
 ) {
     var typed by remember { mutableStateOf("") }
     LaunchedEffect(show) { if (!show) typed = "" }
@@ -174,6 +186,7 @@ fun AccountDeletionDialog(
         confirmEnabled = confere,
         onConfirm = { if (confere && !isLoading) onConfirm(typed) },
         modifier = modifier,
+        errorMessage = errorMessage,
     )
 }
 
@@ -196,7 +209,19 @@ data class AccountPendingDeletionTexts(
     val restore: String,
     val signOut: String,
     val restoreFailed: String,
+    /** (2.302.0) A restauração exige uma sessão nova e não deu para reautenticar aqui. */
+    val restoreNeedsSignIn: String = "Entre de novo para restaurar a conta.",
+    /** (2.302.0) A reautenticação foi feita com outra conta. */
+    val restoreAccountMismatch: String = "Esta não é a conta conectada. Confirme com a conta desta sessão.",
 ) {
+    /** A frase da falha da restauração (2.302.0) — `null` = nada a mostrar. */
+    fun restoreErrorMessage(error: AccountDeletionGateError?): String? = when {
+        error == null -> null
+        error.needsSignIn -> restoreNeedsSignIn
+        error.accountMismatch -> restoreAccountMismatch
+        else -> error.message ?: restoreFailed
+    }
+
     /** A linha de prazo para [days] (`null` = o servidor não disse ⇒ sem linha). */
     fun remainingFor(days: Int?): String? = when {
         days == null -> null
@@ -223,6 +248,8 @@ fun rememberAccountPendingDeletionTexts(
         restore = kmpStringResource(Res.string.kmplib_account_pending_restore),
         signOut = kmpStringResource(Res.string.kmplib_account_pending_sign_out),
         restoreFailed = kmpStringResource(Res.string.kmplib_account_pending_restore_failed),
+        restoreNeedsSignIn = kmpStringResource(Res.string.kmplib_account_pending_restore_needs_sign_in),
+        restoreAccountMismatch = kmpStringResource(Res.string.kmplib_reauth_account_mismatch),
     )
 }
 
@@ -238,6 +265,9 @@ internal fun fillDaysTemplate(template: String, days: Int): String =
  *
  * Tema do app (`MaterialTheme`/`AppTheme`), largura de leitura em tablet, rola em tela baixa, respeita
  * as barras do sistema. O erro da restauração aparece junto do botão (região viva para o leitor de tela).
+ *
+ * [signOutIsPrimary] (2.302.0): a restauração só funciona entrando de novo — o **Sair** vira o botão
+ * cheio e o **Restaurar** passa a contorno (continua tocável: a pessoa pode ter reautenticado).
  */
 @OptIn(ExperimentalTime::class)
 @Composable
@@ -250,6 +280,7 @@ fun AccountPendingDeletionScreen(
     errorMessage: String? = null,
     texts: AccountPendingDeletionTexts = rememberAccountPendingDeletionTexts(),
     nowEpochMillis: Long = remember(status) { Clock.System.now().toEpochMilliseconds() },
+    signOutIsPrimary: Boolean = false,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.background,
@@ -314,19 +345,35 @@ fun AccountPendingDeletionScreen(
                             .semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
-                AppButton(
-                    text = texts.restore,
-                    onClick = onRestore,
-                    isLoading = isRestoring,
-                    modifier = Modifier.fillMaxWidth().testTag(AccountDeletionTestTags.BTN_RESTAURAR),
-                )
-                Spacer(Modifier.height(16.dp))
-                TextButton(
-                    onClick = onSignOut,
-                    enabled = !isRestoring,
-                    modifier = Modifier.height(48.dp).testTag(AccountDeletionTestTags.BTN_SAIR),
-                ) {
-                    Text(text = texts.signOut)
+                if (signOutIsPrimary) {
+                    AppButton(
+                        text = texts.signOut,
+                        onClick = onSignOut,
+                        enabled = !isRestoring,
+                        modifier = Modifier.fillMaxWidth().testTag(AccountDeletionTestTags.BTN_SAIR),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    AppOutlinedButton(
+                        text = texts.restore,
+                        onClick = onRestore,
+                        isLoading = isRestoring,
+                        modifier = Modifier.fillMaxWidth().testTag(AccountDeletionTestTags.BTN_RESTAURAR),
+                    )
+                } else {
+                    AppButton(
+                        text = texts.restore,
+                        onClick = onRestore,
+                        isLoading = isRestoring,
+                        modifier = Modifier.fillMaxWidth().testTag(AccountDeletionTestTags.BTN_RESTAURAR),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        onClick = onSignOut,
+                        enabled = !isRestoring,
+                        modifier = Modifier.height(48.dp).testTag(AccountDeletionTestTags.BTN_SAIR),
+                    ) {
+                        Text(text = texts.signOut)
+                    }
                 }
             }
         }
@@ -354,7 +401,12 @@ fun AccountPendingDeletionScreen(
  *   tela e segura o voltar do sistema. O conteúdo continua composto por baixo (a pilha de navegação é
  *   preservada: restaurou, a pessoa está onde estava).
  * - **Restaurar conta** → `POST {me}/deletion/restore`; deu certo, a cobertura sai e [onRestored] é
- *   chamado (recarregue o que estiver na tela). Falhou → a frase aparece junto do botão.
+ *   chamado (recarregue o que estiver na tela). Falhou → a frase aparece junto do botão — a do
+ *   servidor quando ele recusou por regra (2.302.0).
+ * - **Sessão anterior ao pedido** (backlib ≥ 0.183.0: 401 `REAUTH_REQUIRED`): com [recentAuth] o gate
+ *   pede a senha/login social da mesma conta e repete a restauração uma vez (2.302.0); sem ele — ou
+ *   sem como reautenticar — diz "Entre de novo para restaurar a conta." e o **Sair** vira o botão
+ *   principal. Passe o `RecentAuthCoordinator` do app: `recentAuth = koinInject()`.
  * - **Sair** → [onSignOut]; o pedido de exclusão segue. A cobertura fica até [accountKey] virar `null`.
  * - [accountKey] é **obrigatório** (o id da conta logada, `null` deslogado): é o que dispara a consulta
  *   pós-login e impede a conta seguinte de herdar o bloqueio da anterior.
@@ -370,9 +422,12 @@ fun AccountDeletionGate(
     onRestored: () -> Unit = {},
     state: AccountDeletionState = AccountDeletionState.Shared,
     texts: AccountPendingDeletionTexts = rememberAccountPendingDeletionTexts(),
+    recentAuth: RecentAuthCoordinator? = null,
     content: @Composable () -> Unit,
 ) {
-    val viewModel = viewModel(key = GATE_VIEW_MODEL_KEY) { AccountDeletionGateViewModel(repository, state) }
+    val viewModel = viewModel(key = GATE_VIEW_MODEL_KEY) {
+        AccountDeletionGateViewModel(repository, state, recentAuth)
+    }
     AccountDeletionGate(
         viewModel = viewModel,
         accountKey = accountKey,
@@ -426,12 +481,15 @@ fun AccountDeletionGate(
                 AccountPendingDeletionScreen(
                     status = pending,
                     isRestoring = gate.isRestoring,
-                    errorMessage = gate.restoreError?.let { it.message ?: texts.restoreFailed },
+                    errorMessage = texts.restoreErrorMessage(gate.restoreError),
                     onRestore = { viewModel.dispatch(AccountDeletionGateAction.Restore) },
                     onSignOut = { viewModel.dispatch(AccountDeletionGateAction.SignOut) },
                     texts = texts,
+                    signOutIsPrimary = gate.restoreError?.needsSignIn == true,
                 )
             }
+            // O pedido de senha da restauração (2.302.0): janela própria, por cima da cobertura.
+            viewModel.recentAuthState?.let { RecentAuthHost(it) }
         }
     }
 }

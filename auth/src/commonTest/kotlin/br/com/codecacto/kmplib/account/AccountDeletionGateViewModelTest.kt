@@ -1,6 +1,19 @@
 package br.com.codecacto.kmplib.account
 
+import br.com.codecacto.kmplib.auth.AuthSessionStore
+import br.com.codecacto.kmplib.auth.EmailPasswordAuthRepository
+import br.com.codecacto.kmplib.auth.FakeSecureTokenStorage
+import br.com.codecacto.kmplib.auth.OwnAuthException
+import br.com.codecacto.kmplib.auth.OwnAuthTokenManager
+import br.com.codecacto.kmplib.auth.ReauthAccountMismatchException
+import br.com.codecacto.kmplib.auth.ReauthCancelledException
+import br.com.codecacto.kmplib.auth.ReauthCredential
+import br.com.codecacto.kmplib.auth.RecentAuthCoordinator
+import br.com.codecacto.kmplib.auth.fakeJwt
+import br.com.codecacto.kmplib.auth.mockOwnAuthApi
+import br.com.codecacto.kmplib.auth.tokensJson
 import br.com.codecacto.kmplib.core.network.ReauthRequiredException
+import io.ktor.http.HttpStatusCode
 import br.com.codecacto.kmplib.ui.components.typedConfirmationMatches
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -143,20 +156,143 @@ class AccountDeletionGateViewModelTest {
     }
 
     @Test
-    fun restaurar_falhaSemFrase_ouReauth_usaOTextoPadrao() = runTest {
+    fun restaurar_falhaSemFrase_usaOTextoPadrao() = runTest {
         val st = AccountDeletionState()
         val repo = FakeRepo(st).apply {
             statusResult = Result.success(pendente)
-            restoreResult = Result.failure(AccountDeletionRequestException(500, ""))
+            restoreResult = Result.failure(AccountDeletionRequestException(500, "Erro do servidor (500)"))
         }
         val vm = AccountDeletionGateViewModel(repo, st)
         vm.dispatch(AccountDeletionGateAction.AccountChanged("u1"))
         vm.dispatch(AccountDeletionGateAction.Restore)
         assertEquals(AccountDeletionGateError(message = null), vm.state.value.restoreError)
+    }
 
-        repo.restoreResult = Result.failure(ReauthRequiredException(300L, "x"))
+    // ---------------------------------------------------------------- 2.302.0
+
+    @Test
+    fun restaurar_recusaDoServidor_mostraAFraseDele() = runTest {
+        val st = AccountDeletionState()
+        val repo = FakeRepo(st).apply {
+            statusResult = Result.success(pendente)
+            restoreResult = Result.failure(
+                AccountDeletionRequestException(409, "Erro do servidor (409)", "DELETION_EXPIRED", "O prazo de restauração terminou."),
+            )
+        }
+        val vm = AccountDeletionGateViewModel(repo, st)
+        vm.dispatch(AccountDeletionGateAction.AccountChanged("u1"))
         vm.dispatch(AccountDeletionGateAction.Restore)
-        assertEquals(AccountDeletionGateError(message = null), vm.state.value.restoreError)
+        assertEquals("O prazo de restauração terminou.", vm.state.value.restoreError?.message)
+        assertFalse(vm.state.value.restoreError!!.needsSignIn)
+    }
+
+    @Test
+    fun restaurar_reauthSemCoordenador_pedeEntrarDeNovo() = runTest {
+        val st = AccountDeletionState()
+        val repo = FakeRepo(st).apply {
+            statusResult = Result.success(pendente)
+            restoreResult = Result.failure(ReauthRequiredException(null, "x"))
+        }
+        val vm = AccountDeletionGateViewModel(repo, st)
+        assertNull(vm.recentAuthState)
+        vm.dispatch(AccountDeletionGateAction.AccountChanged("u1"))
+        vm.dispatch(AccountDeletionGateAction.Restore)
+        val erro = assertNotNull(vm.state.value.restoreError)
+        assertTrue(erro.needsSignIn)
+        assertTrue(vm.state.value.isBlocking)
+        assertEquals(1, repo.restoreCalls)
+
+        val t = textos()
+        assertEquals("Entre de novo para restaurar a conta.", t.restoreErrorMessage(erro))
+    }
+
+    @Test
+    fun restaurar_reauthComCoordenador_pedeASenha_eRepeteUmaVez() = runTest {
+        val st = AccountDeletionState()
+        val repo = FakeRepo(st).apply { statusResult = Result.success(pendente) }
+        var tentativas = 0
+        val repoReauth = object : AccountDeletionRepository by repo {
+            override suspend fun restore(): Result<AccountDeletionStatus> {
+                tentativas++
+                return if (tentativas == 1) Result.failure(ReauthRequiredException(null, "x")) else repo.restore()
+            }
+        }
+        val vm = AccountDeletionGateViewModel(repoReauth, st, coordenadorLogado())
+        val reauth = assertNotNull(vm.recentAuthState)
+        vm.dispatch(AccountDeletionGateAction.AccountChanged("u1"))
+        vm.dispatch(AccountDeletionGateAction.Restore)
+
+        assertTrue(reauth.isPrompting, "o 401 abre o pedido de senha, não um erro")
+        assertNull(vm.state.value.restoreError)
+        reauth.submit(ReauthCredential.Password("senha"))
+
+        assertEquals(AccountDeletionGateEffect.Restored, vm.effect.first())
+        assertEquals(2, tentativas, "repete UMA vez")
+        assertFalse(vm.state.value.isBlocking)
+        assertFalse(reauth.isPrompting)
+    }
+
+    @Test
+    fun restaurar_desistirDaSenha_naoEErro() = runTest {
+        val st = AccountDeletionState()
+        val repo = FakeRepo(st).apply {
+            statusResult = Result.success(pendente)
+            restoreResult = Result.failure(ReauthRequiredException(null, "x"))
+        }
+        val vm = AccountDeletionGateViewModel(repo, st, coordenadorLogado())
+        vm.dispatch(AccountDeletionGateAction.AccountChanged("u1"))
+        vm.dispatch(AccountDeletionGateAction.Restore)
+        vm.recentAuthState!!.dismiss()
+
+        vm.state.first { !it.isRestoring }
+        assertNull(vm.state.value.restoreError, "fechou o diálogo: a tela volta como estava")
+        assertTrue(vm.state.value.isBlocking)
+    }
+
+    @Test
+    fun falhaDaRestauracao_comoEstado() {
+        assertNull(restoreErrorOf(ReauthCancelledException()))
+        assertTrue(restoreErrorOf(ReauthRequiredException())!!.needsSignIn)
+        assertTrue(restoreErrorOf(OwnAuthException.NotAuthenticated("x"))!!.needsSignIn)
+        assertTrue(restoreErrorOf(OwnAuthException.Unsupported("x"))!!.needsSignIn)
+        assertTrue(restoreErrorOf(AccountDeletionRequestException(401, "Sessão expirada"))!!.needsSignIn)
+        assertTrue(restoreErrorOf(ReauthAccountMismatchException())!!.accountMismatch)
+        assertEquals(
+            AccountDeletionGateError(message = "Sem conexão", isOffline = true),
+            restoreErrorOf(AccountDeletionRequestException(-1, "Sem conexão")),
+        )
+        assertEquals(AccountDeletionGateError(), restoreErrorOf(IllegalStateException("x")))
+
+        val t = textos()
+        assertNull(t.restoreErrorMessage(null))
+        assertEquals("falhou", t.restoreErrorMessage(AccountDeletionGateError()))
+        assertEquals("srv", t.restoreErrorMessage(AccountDeletionGateError(message = "srv")))
+        assertEquals(t.restoreAccountMismatch, t.restoreErrorMessage(AccountDeletionGateError(accountMismatch = true)))
+    }
+
+    private fun textos() = AccountPendingDeletionTexts(
+        title = "t",
+        remainingDays = { "$it" },
+        remainingOneDay = "1",
+        remainingNone = "0",
+        message = "m",
+        restore = "Restaurar conta",
+        signOut = "Sair",
+        restoreFailed = "falhou",
+    )
+
+    /** Coordenador de verdade sobre uma sessão own-auth de `acc-1` (o login da reautenticação devolve a mesma conta). */
+    private suspend fun coordenadorLogado(): RecentAuthCoordinator {
+        val (api, _) = mockOwnAuthApi { path, n ->
+            when {
+                path.endsWith("/login") -> HttpStatusCode.OK to tokensJson(fakeJwt("acc-1"), "r$n")
+                path.endsWith("/logout") -> HttpStatusCode.NoContent to ""
+                else -> HttpStatusCode.NotFound to """{"message":"nf"}"""
+            }
+        }
+        val tm = OwnAuthTokenManager(api, AuthSessionStore(FakeSecureTokenStorage()), 60) { 1_700_000_000_000L }
+        EmailPasswordAuthRepository(api, tm).signInWithEmail("ana@x.com", "senha").getOrThrow()
+        return RecentAuthCoordinator(api, tm)
     }
 
     @Test
