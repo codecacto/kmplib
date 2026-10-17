@@ -5,6 +5,63 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.303.0 — **Dinheiro em QUALQUER moeda: tipo `Money` (contrato `{"amount","currency"}`), formatação oficial por ISO 4217, campo e seletor de moeda**
+
+Origem: o Backhand vai para o mundo com **moeda por conta** (fundador, 17/out/2026), e a moeda virou solução de
+fundação para todo projeto global — o MESMO contrato `Money` existe na weblib e na backlib. Aditivo: sem piso, sem aviso.
+
+### `kmplib-core` — `core.currency` (novo pacote)
+- **`Money(minorUnits: Long, currency: String)`** — valor exato em UNIDADES MENORES da própria moeda (centavos em
+  BRL/USD/EUR, o iene em JPY, o fils em KWD) + código ISO 4217. `fractionDigits`, `isZero`/`isNegative`/`isWhole`,
+  `toAmountString()` (`"2880.00"`, JPY `"2880"`), `format(showCentsWhenWhole)`, `+`/`-`/unário `-`/`× Long|Int`
+  (exatos; estouro lança `ArithmeticException`), `compareTo` (moedas diferentes lançam), `Money.zero`,
+  `Money.ofMajor(units, cur)`, **`Money.parse`/`parseOrNull(amount, currency)`** (aceita menos casas; mais casas só se
+  forem zero; recusa vírgula, milhar, expoente, `+`) e **`Money.fractionDigitsOf(code)`** = tabela **ISO 4217**
+  (0: JPY/KRW/CLP/VND/ISK/PYG/francos CFA…; 3: BHD/IQD/JOD/KWD/LYD/OMR/TND; 4: CLF/UYW; sem unidade menor = 0) —
+  a mesma resposta do `java.util.Currency` do JDK. **A escala é a ISO, não o CLDR do aparelho** (divergem em ~12
+  moedas), para o valor ser idêntico no app, no web e no backend.
+- **`MoneySerializer`** (`@Serializable(with = …)` no próprio `Money`) — JSON **`{"amount": "2880.00", "currency": "BRL"}`**,
+  amount como STRING com exatamente as casas da moeda; número JSON, vírgula ou casas a mais não-zero viram
+  `SerializationException`.
+- `isIsoCurrencyCodeFormat(code)`.
+- Não confundir com o `core.money.Money` (objeto antigo, só BRL sobre strings) — continua igual.
+
+### `kmplib-core` — `core.locale`
+- **`RegionalFormat.formatMoney(minorUnits, currencyCode, showCentsWhenWhole = true)`** (+ sobrecarga com `Money`) —
+  Android `NumberFormat.getCurrencyInstance(Locale.getDefault())` + `Currency.getInstance(code)` sobre `BigDecimal`
+  exato; iOS `NSNumberFormatter` (`currency`, `currencyCode`, `currentLocale`) sobre `NSDecimalNumber` exato.
+  `showCentsWhenWhole = false` → "R$ 2.880" (cartão); valor com fração mantém as casas. Código bem formado que a
+  plataforma não conhece não derruba a tela ("ZZZ 2.880,00"); malformado lança.
+- **`RegionalFormat.currencySymbol(code)`** — prefixo de campo (`R$`, `$`/`US$`, `€`, `￥`).
+- **`defaultCurrencyForRegion(region: String?)`** — CLDR do sistema (Android `Currency.getInstance(Locale com a
+  região)`, iOS `NSLocaleCurrencyCode` de um locale só com a região); `null`/malformada/desconhecida/sem moeda →
+  **`FALLBACK_CURRENCY` = USD**, nunca BRL.
+- **`isValidCurrencyCode(code)`** — 3 letras maiúsculas E conhecida da plataforma.
+- **`Currencies`** (`all(languageTag)` = moedas EM CIRCULAÇÃO (a de cada país), nome no idioma da tela;
+  `info`/`name`; `preferredCodes(region)` = a da região + `COMMON_CURRENCIES` (BRL, USD, EUR, GBP); `ordered`;
+  `search` por pedaço de nome/código/símbolo sem acento) + `CurrencyInfo(code, name, symbol)`.
+
+### `kmplib-mask`
+- **`MoneyVisualTransformation(currency, showZeroWhenEmpty = false)`** (campo `value`/`onValueChange`) e
+  **`MoneyInputTransformation(maxDigits)`** + **`MoneyOutputTransformation(currency, showZeroWhenEmpty)`** (campo com
+  `TextFieldState`) — estado só com algarismos = unidades menores, exibição pelo formatador da plataforma. Helpers
+  `filterMoneyInput`, `moneyFromInputDigits`, `Money?.toMoneyInputDigits()`, `formatMoneyInput`, `MONEY_INPUT_MAX_DIGITS` (15).
+
+### `kmplib-ui`
+- **`MoneyField(value: Money?, onValueChange: (Money?) -> Unit, currency, …)`** — texto no campo (`TextFieldState`,
+  sem perder dígito no iOS), teclado numérico, entrega `Money` pronto.
+- **`CurrencyPickerField(value, onValueChange, …, region = deviceRegion())`** — `AppPickerField` com busca: a moeda da
+  região, BRL, USD, EUR, GBP no topo, depois todas em ordem alfabética; rótulo `Real brasileiro (BRL)`; `currencyPickerOptions`.
+  String `kmplib_currency` nos 4 idiomas.
+
+### Depreciado (aviso, sem quebra)
+- `formatCurrencyUSD`, `formatCurrencyEUR` e `formatCurrency(…separadores…)` (`core.format`) — separadores à mão e
+  `Double`; use `RegionalFormat.formatMoney`. Os de BRL seguem para app só-Brasil.
+
+Testes: core 549 + mask 92 + ui 1084 verdes (inclui `MoneyContractTest`, `CurrenciesTest`, `RegionalMoneyAndroidTest`
+com o texto exato em pt-BR/en-US/de-DE/ja-JP, `MoneyMaskTest`, `CurrencyPickerOptionsTest`);
+`compileKotlinIosArm64` core/mask/ui sem SKIPPED.
+
 ## 2.302.0 — **Exclusão com carência: a frase do servidor chega à tela, e "Restaurar" com sessão antiga reautentica** (correção da 2.301.0)
 
 Dois defeitos achados no piloto da Suzy (14/out/2026), sobre o MESMO contrato da backlib 0.183.0 — nenhum dado novo

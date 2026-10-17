@@ -13,6 +13,11 @@ import kotlin.math.roundToLong
  *
  * Sem dependencia de ICU/java.text para funcionar em todos os targets KMP
  * (Android, iOS, JVM, wasmJs).
+ *
+ * **App global / moeda por conta (2.303.0):** NÃO use estes — use `RegionalFormat.formatMoney`
+ * (`core.locale`) e o tipo `Money` (`core.currency`): formatador oficial da plataforma, qualquer
+ * moeda ISO 4217, na região do aparelho, valor exato em unidades menores. USD/EUR/genérico daqui
+ * ficaram `@Deprecated`; os de BRL seguem para app só-Brasil.
  */
 
 private fun formatNumberParts(value: Double, thousandsSep: String, decimalSep: String): Pair<String, String> {
@@ -31,6 +36,10 @@ fun formatCurrencyBR(value: Double): String = formatCurrencyBRL(value)
 /**
  * "$1,234.56" (en-US).
  */
+@Deprecated(
+    "Separadores escritos à mão e Double. Use RegionalFormat.formatMoney(minorUnits, \"USD\") " +
+        "(core.locale, 2.303.0): formatador oficial da plataforma, na região do aparelho, valor exato em unidades menores.",
+)
 fun formatCurrencyUSD(value: Double): String {
     val (integerPart, centsPart) = formatNumberParts(value, ",", ".")
     val sign = if (value < 0) "-" else ""
@@ -40,6 +49,10 @@ fun formatCurrencyUSD(value: Double): String {
 /**
  * "1.234,56 €" (es-ES, Eurozone).
  */
+@Deprecated(
+    "Separadores escritos à mão e Double. Use RegionalFormat.formatMoney(minorUnits, \"EUR\") " +
+        "(core.locale, 2.303.0): formatador oficial da plataforma, na região do aparelho, valor exato em unidades menores.",
+)
 fun formatCurrencyEUR(value: Double): String {
     val (integerPart, centsPart) = formatNumberParts(value, ".", ",")
     val sign = if (value < 0) "-" else ""
@@ -50,6 +63,10 @@ fun formatCurrencyEUR(value: Double): String {
  * Suporte generico: gera "<sign><prefix><int><dec><cents><suffix>" usando os
  * separadores informados. Util para locales nao listados aqui.
  */
+@Deprecated(
+    "Separadores escritos à mão e Double. Use RegionalFormat.formatMoney(minorUnits, codigoIso) " +
+        "(core.locale, 2.303.0): formatador oficial da plataforma, qualquer moeda ISO 4217.",
+)
 fun formatCurrency(
     value: Double,
     thousandsSeparator: String,

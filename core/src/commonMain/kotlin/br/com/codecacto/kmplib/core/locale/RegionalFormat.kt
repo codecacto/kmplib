@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.core.locale
 
+import br.com.codecacto.kmplib.core.currency.Money
+import br.com.codecacto.kmplib.core.currency.isIsoCurrencyCodeFormat
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 
@@ -100,6 +102,69 @@ object RegionalFormat {
     fun datePlaceholder(yearLetter: Char, skeleton: String = DateSkeletons.SHORT): String =
         placeholderFromDatePattern(datePattern(skeleton), yearLetter)
 
+    /**
+     * # Dinheiro de QUALQUER moeda para a tela, pelo formatador OFICIAL da plataforma
+     *
+     * - **Android:** `NumberFormat.getCurrencyInstance(Locale.getDefault())` + `Currency.getInstance(code)`;
+     * - **iOS:** `NSNumberFormatter` com `numberStyle = currency`, `currencyCode` e `NSLocale.currentLocale`.
+     *
+     * O símbolo, a posição dele, o espaço e os separadores são da REGIÃO do aparelho, não da moeda:
+     * BRL em pt-BR → `R$ 2.880,00`; USD em en-US → `$2,880.00`; USD em pt-BR → `US$ 2.880,00`;
+     * EUR em de-DE → `2.880,00 €`; JPY em ja-JP → `￥2,880`.
+     *
+     * **Entrada em UNIDADES MENORES da própria moeda** (`Long`, exato, nunca `Double`): centavos para
+     * BRL/USD/EUR, o iene para JPY, o fils para KWD — as casas são as da ISO 4217
+     * ([Money.fractionDigitsOf]): `formatMoney(288000, "BRL")` = R$ 2.880,00 e
+     * `formatMoney(2880, "JPY")` = ¥2.880. O valor vai à plataforma como decimal EXATO
+     * (`BigDecimal` / `NSDecimalNumber`), e sempre com exatamente essas casas — o CLDR do aparelho
+     * não muda a escala.
+     *
+     * @param showCentsWhenWhole `true` (default) → `R$ 2.880,00` (campo, recibo). `false` → valor
+     *   INTEIRO sai sem casas, `R$ 2.880` (cartão, lista); valor com fração continua com todas
+     *   (`R$ 2.880,50`) — nunca se arredonda dinheiro na tela. Moeda de 0 casas ignora o parâmetro.
+     * @throws IllegalArgumentException [currencyCode] que não é três letras maiúsculas. Código bem
+     *   formado que a plataforma não conhece não derruba a tela: sai `"XYZ 2.880,00"`, com os
+     *   separadores da região.
+     */
+    fun formatMoney(minorUnits: Long, currencyCode: String, showCentsWhenWhole: Boolean = true): String {
+        require(isIsoCurrencyCodeFormat(currencyCode)) { "código de moeda inválido: \"$currencyCode\"" }
+        val scale = Money.fractionDigitsOf(currencyCode)
+        val whole = scale == 0 || minorUnits % pow10(scale) == 0L
+        val shown = if (whole && !showCentsWhenWhole) 0 else scale
+        return platformFormatCurrency(minorUnits, scale, shown, currencyCode)
+            ?: fallbackMoney(minorUnits, scale, shown, currencyCode)
+    }
+
+    /** [formatMoney] de um [Money]. */
+    fun formatMoney(money: Money, showCentsWhenWhole: Boolean = true): String =
+        formatMoney(money.minorUnits, money.currency, showCentsWhenWhole)
+
+    /**
+     * Símbolo da moeda na região do aparelho — o prefixo/sufixo do campo de digitação:
+     * BRL → `R$`; USD → `$` (en-US) ou `US$` (pt-BR); EUR → `€`; JPY → `￥`/`¥`.
+     * Moeda que a plataforma não conhece devolve o próprio código.
+     */
+    fun currencySymbol(currencyCode: String): String {
+        require(isIsoCurrencyCodeFormat(currencyCode)) { "código de moeda inválido: \"$currencyCode\"" }
+        return platformCurrencySymbol(currencyCode)?.takeIf { it.isNotBlank() } ?: currencyCode
+    }
+
+    private fun fallbackMoney(minorUnits: Long, scale: Int, shown: Int, code: String): String {
+        val texto = minorUnits.toString()
+        val negativo = texto.startsWith('-')
+        val cheio = texto.removePrefix("-").padStart(scale + 1, '0')
+        val inteiro = cheio.dropLast(scale).ifEmpty { "0" }
+        val grupo = groupingSeparator()
+        val agrupado = buildString {
+            inteiro.forEachIndexed { i, c ->
+                if (i > 0 && (inteiro.length - i) % 3 == 0) append(grupo)
+                append(c)
+            }
+        }
+        val fracao = if (shown > 0) decimalSeparator() + cheio.takeLast(scale).take(shown) else ""
+        return (if (negativo) "-" else "") + "$code $agrupado$fracao"
+    }
+
     private const val MILLIS_PER_DAY: Long = 86_400_000L
     private const val NOON_MILLIS: Long = 43_200_000L
     private const val UTC_ID: String = "UTC"
@@ -165,6 +230,21 @@ fun placeholderFromDatePattern(pattern: String, yearLetter: Char): String {
     }
     return out.toString()
 }
+
+private fun pow10(n: Int): Long {
+    var r = 1L
+    repeat(n) { r *= 10 }
+    return r
+}
+
+/**
+ * Formata [minorUnits] (escala [scale] casas) na moeda [code] com exatamente [shownDigits] casas
+ * ([shownDigits] ≤ [scale]; quando menor, o valor é inteiro e nada se perde). `null` = a plataforma
+ * não conhece [code].
+ */
+internal expect fun platformFormatCurrency(minorUnits: Long, scale: Int, shownDigits: Int, code: String): String?
+
+internal expect fun platformCurrencySymbol(code: String): String?
 
 internal expect fun platformDecimalSeparator(): Char
 

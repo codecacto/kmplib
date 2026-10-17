@@ -1,11 +1,16 @@
 package br.com.codecacto.kmplib.core.locale
 
 import platform.Foundation.ISOCountryCodes
+import platform.Foundation.ISOCurrencyCodes
 import platform.Foundation.NSDate
 import platform.Foundation.NSDateFormatter
+import platform.Foundation.NSDecimalNumber
 import platform.Foundation.NSLocale
 import platform.Foundation.NSNumber
+import platform.Foundation.NSLocaleCountryCode
+import platform.Foundation.NSLocaleCurrencyCode
 import platform.Foundation.NSNumberFormatter
+import platform.Foundation.NSNumberFormatterCurrencyStyle
 import platform.Foundation.NSNumberFormatterDecimalStyle
 import platform.Foundation.NSNumberFormatterPercentStyle
 import platform.Foundation.NSNumberFormatterRoundHalfUp
@@ -17,7 +22,9 @@ import platform.Foundation.decimalSeparator
 import platform.Foundation.groupingSeparator
 import platform.Foundation.localeWithLocaleIdentifier
 import platform.Foundation.localizedStandardCompare
+import platform.Foundation.localeIdentifierFromComponents
 import platform.Foundation.localizedStringForCountryCode
+import platform.Foundation.localizedStringForCurrencyCode
 import platform.Foundation.numberWithDouble
 import platform.Foundation.preferredLanguages
 import platform.Foundation.timeZoneWithName
@@ -96,3 +103,55 @@ internal actual fun platformCountryName(code: String, languageTag: String): Stri
 /** `NSLocale` do idioma pedido; a tag BCP 47 (`pt-BR`) serve de identificador (`pt_BR` também). */
 private fun localeFor(languageTag: String): NSLocale =
     NSLocale.localeWithLocaleIdentifier(languageTag.replace('-', '_'))
+
+// ---- Moeda (2.303.0) -------------------------------------------------------------------------------
+// NSNumberFormatter de estilo moeda no `currentLocale` (região e preferências de formato do aparelho);
+// a escala do valor é a da ISO 4217 (`Money.fractionDigitsOf`) e é imposta pelo min/max de casas.
+
+internal actual fun platformFormatCurrency(minorUnits: Long, scale: Int, shownDigits: Int, code: String): String? {
+    if (code !in knownCurrencyCodes) return null
+    val formato = currencyFormatter(code)
+    // Depois do `currencyCode`: trocar a moeda redefine as casas para o default dela.
+    formato.minimumFractionDigits = shownDigits.toULong()
+    formato.maximumFractionDigits = shownDigits.toULong()
+    return formato.stringFromNumber(exactDecimal(minorUnits, scale))
+}
+
+internal actual fun platformCurrencySymbol(code: String): String? {
+    if (code !in knownCurrencyCodes) return null
+    return currencyFormatter(code).currencySymbol
+}
+
+internal actual fun platformCurrencyForRegion(region: String): String? {
+    if (region !in NSLocale.ISOCountryCodes.mapNotNull { it as? String }) return null
+    // Locale só com a região (idioma neutro): a moeda de um locale vem da REGIÃO dele.
+    val id = NSLocale.localeIdentifierFromComponents(mapOf<Any?, Any?>(NSLocaleCountryCode to region))
+    return NSLocale.localeWithLocaleIdentifier(id).objectForKey(NSLocaleCurrencyCode) as? String
+}
+
+internal actual fun platformKnownCurrencyCodes(): Set<String> = knownCurrencyCodes
+
+private val knownCurrencyCodes: Set<String> by lazy {
+    NSLocale.ISOCurrencyCodes.mapNotNull { it as? String }.toSet()
+}
+
+internal actual fun platformCurrencyName(code: String, languageTag: String): String? =
+    localeFor(languageTag).localizedStringForCurrencyCode(code)
+
+internal actual fun platformRegionCodes(): List<String> = NSLocale.ISOCountryCodes.mapNotNull { it as? String }
+
+private fun currencyFormatter(code: String): NSNumberFormatter {
+    val formato = NSNumberFormatter()
+    formato.locale = NSLocale.currentLocale
+    formato.numberStyle = NSNumberFormatterCurrencyStyle
+    formato.currencyCode = code
+    return formato
+}
+
+/** `minorUnits × 10^-scale` exato (mantissa inteira + expoente), sem passar por Double. */
+private fun exactDecimal(minorUnits: Long, scale: Int): NSDecimalNumber {
+    val negativo = minorUnits < 0
+    // |Long.MIN_VALUE| não cabe em Long, mas cabe em ULong.
+    val modulo: ULong = if (negativo) (-(minorUnits + 1)).toULong() + 1u else minorUnits.toULong()
+    return NSDecimalNumber(mantissa = modulo, exponent = (-scale).toShort(), isNegative = negativo)
+}

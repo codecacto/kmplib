@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 17/out/2026 — dinheiro em QUALQUER moeda (Backhand BHM1; fundador: solução de biblioteca p/ todo projeto global)
+- [x] **(P1) `Money` + formatação ISO 4217 + `MoneyField` + `CurrencyPickerField`: ENTREGUE na 2.303.0** — contrato
+      `{"amount": "2880.00", "currency": "BRL"}` (mesmo da weblib/backlib), casas pela ISO 4217, formatador oficial da
+      plataforma (`NumberFormat`+`Currency` / `NSNumberFormatter`), `defaultCurrencyForRegion` (null → USD). Ver
+      `references/money.md` no catálogo. Aberto: valor negativo no campo; cabeçalho "mais usadas" no seletor.
+
 ### Registrado em 12/out/2026 — Nexus/Comunicados (pedido do fundador) — design em `Lib/weblib/docs/design/comunicado-modal.md`
 - [x] **(P1) `AnnouncementDialog` / `AnnouncementDialogHost`: ENTREGUE na 2.296.0** — comunicado como MODAL
       (AppBasicAlertDialog, 440 dp, retrato), foto opcional por Coil (`image: {url, alt, focus}` — objeto aninhado no

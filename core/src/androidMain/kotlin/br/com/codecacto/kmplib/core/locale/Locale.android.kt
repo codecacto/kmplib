@@ -1,12 +1,14 @@
 package br.com.codecacto.kmplib.core.locale
 
 import android.text.format.DateFormat
+import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.Collator
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.util.Currency
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -90,3 +92,48 @@ internal actual fun platformCountryName(code: String, languageTag: String): Stri
 
 /** `Locale` só com a região — pelo `Builder`, já que o construtor `Locale(String, String)` saiu de moda. */
 private fun regionLocale(code: String): Locale = Locale.Builder().setRegion(code).build()
+
+// ---- Moeda (2.303.0) -------------------------------------------------------------------------------
+// `java.util.Currency` no Android é servido pelo ICU do sistema (CLDR); a escala do valor, porém, é a
+// da ISO 4217 (`Money.fractionDigitsOf`) e é imposta aqui pelo min/max de casas.
+
+internal actual fun platformFormatCurrency(minorUnits: Long, scale: Int, shownDigits: Int, code: String): String? {
+    val moeda = currencyOrNull(code) ?: return null
+    val formato = NumberFormat.getCurrencyInstance(Locale.getDefault())
+    formato.currency = moeda
+    // Depois do `currency`: trocar a moeda redefine as casas para o default dela.
+    formato.minimumFractionDigits = shownDigits
+    formato.maximumFractionDigits = shownDigits
+    // Exato: o BigDecimal carrega a escala; nenhum Double no caminho. Quando shownDigits < scale o valor
+    // é inteiro (formatMoney garante), então o arredondamento nunca muda o número.
+    (formato as? DecimalFormat)?.roundingMode = RoundingMode.UNNECESSARY
+    return formato.format(BigDecimal.valueOf(minorUnits, scale))
+}
+
+internal actual fun platformCurrencySymbol(code: String): String? =
+    currencyOrNull(code)?.getSymbol(Locale.getDefault())
+
+internal actual fun platformCurrencyForRegion(region: String): String? =
+    try {
+        Currency.getInstance(regionLocale(region))?.currencyCode
+    } catch (_: IllegalArgumentException) {
+        null // região que o sistema não conhece
+    }
+
+internal actual fun platformKnownCurrencyCodes(): Set<String> = knownCurrencyCodes
+
+private val knownCurrencyCodes: Set<String> by lazy {
+    Currency.getAvailableCurrencies().mapTo(HashSet()) { it.currencyCode }
+}
+
+internal actual fun platformCurrencyName(code: String, languageTag: String): String? =
+    currencyOrNull(code)?.getDisplayName(Locale.forLanguageTag(languageTag))
+
+internal actual fun platformRegionCodes(): List<String> = Locale.getISOCountries().toList()
+
+private fun currencyOrNull(code: String): Currency? =
+    try {
+        Currency.getInstance(code)
+    } catch (_: IllegalArgumentException) {
+        null
+    }

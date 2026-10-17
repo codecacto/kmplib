@@ -36,6 +36,7 @@
     <string name="kmplib_continue">Continuar</string>
     <string name="kmplib_send">Enviar</string>
     <string name="kmplib_search">Buscar</string>
+    <string name="kmplib_currency">Moneda</string>
     <string name="kmplib_search_close">Cerrar búsqueda</string>
     <string name="kmplib_search_clear">Borrar búsqueda</string>
     <string name="kmplib_filters">Filtros</string>
