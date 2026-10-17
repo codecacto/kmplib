@@ -5,6 +5,67 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.304.0 — **Reautenticação pelo login social (contrato da backlib 0.190.0): navegador por `POST /social/reauth/start`, nativo por `POST /social/reauth/nonce`, recusas como resultado próprio**
+
+Origem: security-review da backlib 0.189.0/0.190.0 — a sessão aberta pelo login social passou a levar `amr: ["fed"]`
+e **nunca** vale como autenticação recente: toda rota com `requireRecentAuth` (excluir conta) responde 401
+`REAUTH_REQUIRED` a ela. Até a 2.303.0 o `RecentAuthCoordinator` refazia o login social COMUM (`GET /social/start`
+ou `GET /social/nonce` + `POST /social`), que devolve outra sessão `fed` — a ação voltava a pedir reautenticação e
+quem só tem conta Google/Apple **não conseguia excluir a conta** num backend ≥ 0.190.0. **Piso** (`RecentAuthCoordinator`,
+`SocialSignIn`): vale para app com login social cujo backend esteja na backlib ≥ 0.190.0.
+
+### `kmplib-auth`
+- **`SocialReauthenticator.reauthenticate(provider, accessToken)`** (método default novo; o de um argumento continua
+  sendo o abstrato, lambdas antigas compilam). O `RecentAuthCoordinator` passa o access token da sessão
+  (`OwnAuthTokenManager.accessToken()`), e o `SocialSignIn` o usa nos dois caminhos — o servidor amarra a
+  reautenticação à conta do Bearer e só aceita a identidade **já vinculada** a ela.
+- **Navegador** (Google no modo `BACKEND`): `OwnAuthApi.socialReauthStart(provider, appId, codeChallenge, accessToken,
+  loginHint)` → `POST {auth}/social/reauth/start` com Bearer → `authorizationUrl` aberta no Custom Tab /
+  `ASWebAuthenticationSession` → `?codigo=` → `POST /social/exchange`. O `GET /social/start?reauth=1` da 0.189.0 (400
+  na 0.190.0) **não é usado**; o login comum continua no `GET /social/start` sem marca.
+- **Nativo** (Apple no iOS, Google no modo `NATIVE`): `OwnAuthApi.socialReauthNonce(provider, platform, accessToken)` →
+  `POST {auth}/social/reauth/nonce` com Bearer (`platform` = `currentPlatform`) → pedido nativo com o nonce → `POST
+  /social`. **Google pede a claim `auth_time` como essencial**: `GoogleAuthProvider.signIn(nonce, requestAuthTime)`
+  (Android: `GetGoogleIdOption.setClaims(listOf(Claim("auth_time", true)))` — **googleid 1.1.1 → 1.2.1** e
+  **androidx.credentials 1.5.0 → 1.6.0**; iOS: `GoogleSignInBridge.setSignInStarterWithClaims { id, nonce,
+  requestAuthTime -> }` com `claims: [GIDClaim.essentialAuthTime()]`, GoogleSignIn-iOS ≥ 9.1.0 — com o executor
+  antigo o pedido sai sem a claim e o servidor recusa, fail-closed). **Apple: não existe pedido de reautenticação**
+  (`ASAuthorizationAppleIDRequest` sem `prompt`/`max_age`/`claims`); a prova é a folha do sistema (Face ID/Touch ID/
+  código) + o nonce de uso único amarrado à conta — o servidor aceita `auth_time` se vier, senão o `iat`.
+  403 `SOCIAL_DIRECT_EXCHANGE_DISABLED` → o `SocialSignIn` refaz pelo navegador quando tem `backendAppId`/`redirectScheme`.
+- **Recusas com tipo próprio** (nunca "falha"/"credencial inválida"): **`SocialReauthRejectedException(provider)`** —
+  `?erro=reautenticacao_necessaria` no deep link ou 401 `REAUTH_REQUIRED` em `/social`/`/social/exchange`
+  (`SOCIAL_REAUTH_REJECTED_REASON`, `Throwable.isSocialReauthRejected()`); **`SocialIdentityNotLinkedException(provider)`**
+  — 409 `SOCIAL_IDENTITY_NOT_LINKED` (o coordenador TIRA o provedor do pedido seguinte); 
+  **`SocialDirectExchangeDisabledException(provider)`**. 401 sem código nas rotas de reauth = `NotAuthenticated`.
+- `SocialSignIn.reauthenticate(provider)` (sem sessão) passa a devolver falha — a 0.190.0 exige o Bearer.
+- **Mesma conta, sempre:** os tokens da reautenticação social continuam conferidos contra o `sub` da sessão antes de
+  trocar; outra conta → `ReauthAccountMismatchException`, tokens novos revogados, ação não repetida.
+- **`OwnAuthConfig(socialReauthStartSuffix, socialReauthNonceSuffix)`** (defaults `social/reauth/start`/`social/reauth/nonce`).
+- **`RecentAuthHost`**: a recusa diz o que fazer — `RecentAuthTexts.socialNotRecent(provider, passwordAvailable)`
+  ("O Google não pediu que você entrasse de novo… Digite a senha da conta." / "…Saia da conta Google no navegador…") e
+  `socialNotLinked(provider, passwordAvailable)`; `errorMessage(e)` cobre os dois; a mensagem de erro do diálogo ganhou
+  o id `dialogo-erro`. ⚠️ "Oferecer a senha" = a sessão tem e-mail/usuário (`ReauthRequest.passwordAvailable`, o
+  critério que o diálogo já usava) — a lib não sabe se a conta social tem senha; sem senha, o servidor responde 401 e
+  o caminho é "esqueci a senha".
+
+### `kmplib-ui`
+- 4 textos novos nos 4 idiomas (`kmplib_reauth_social_not_recent[_password]`, `kmplib_reauth_social_not_linked[_password]`).
+
+### Pré-requisitos do lado do projeto
+- Backend com **backlib ≥ 0.190.0** e a migração `V__auth_local_social_reauth.sql`.
+- Google: app verificado no Google Auth Platform e **"Session age claims"** ligado — sem isso toda reautenticação pelo
+  Google é recusada e o app oferece a senha.
+- iOS com Google nativo: trocar `setSignInStarter` por `setSignInStarterWithClaims` (molde na casca-mobile) e
+  GoogleSignIn-iOS ≥ 9.1.0 no SPM.
+
+Testes: `SocialReauthTest` 20 (navegador: POST com Bearer e corpo, abre a `authorizationUrl`, nunca o GET; login
+comum sem marca; `reautenticacao_necessaria`; cancelado; 409 sem abrir navegador; 401 = sessão; 401 `REAUTH_REQUIRED`
+na troca; sem sessão recusa · nativo: nonce de reauth com Bearer e `auth_time` no Google, Apple sem claim e `ios`,
+401 `REAUTH_REQUIRED`, 401 genérico, 403 → navegador / sem BFF → erro · coordenador: Bearer da sessão, recusa →
+senha conclui, sem vínculo tira o provedor, outra conta pelo navegador e pelo nativo recusada e revogada · textos).
+`kmplib-auth` 373 verdes; `compileKotlinIosArm64` auth/ui sem SKIPPED; Android release compila.
+
 ## 2.303.0 — **Dinheiro em QUALQUER moeda: tipo `Money` (contrato `{"amount","currency"}`), formatação oficial por ISO 4217, campo e seletor de moeda**
 
 Origem: o Backhand vai para o mundo com **moeda por conta** (fundador, 17/out/2026), e a moeda virou solução de

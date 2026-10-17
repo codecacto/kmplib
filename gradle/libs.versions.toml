@@ -66,11 +66,11 @@ biometric = "1.1.0"
 androidxFragment = "1.5.7"
 exifinterface = "1.4.1"
 lifecycle = "2.9.6"
-credentials = "1.5.0"
+credentials = "1.6.0"
 securityCrypto = "1.1.0-alpha06"
 
 # Google Identity
-googleid = "1.1.1"
+googleid = "1.2.1"
 
 # Coil (Image loading for Custom Ads)
 coil = "3.0.4"

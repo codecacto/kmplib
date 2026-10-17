@@ -299,6 +299,10 @@
     <string name="kmplib_reauth_account_mismatch">This is not the signed-in account. Confirm with the account of this session.</string>
     <string name="kmplib_reauth_required">Confirm your identity to continue.</string>
     <string name="kmplib_reauth_failed">Could not confirm. Try again.</string>
+    <string name="kmplib_reauth_social_not_recent_password">%1$s didn't ask you to sign in again, so the confirmation didn't count. Enter the account password.</string>
+    <string name="kmplib_reauth_social_not_recent">%1$s didn't ask you to sign in again, so the confirmation didn't count. Sign out of %1$s in the browser, sign in again and try once more.</string>
+    <string name="kmplib_reauth_social_not_linked_password">This account isn't linked to %1$s. Enter the account password.</string>
+    <string name="kmplib_reauth_social_not_linked">This account isn't linked to %1$s. Confirm with the sign-in method you use for this account.</string>
 
     <!-- Questionário (ui.questionnaire, GAP-VIT-K05) -->
     <string name="kmplib_questionnaire_block_progress">Section %1$d of %2$d</string>

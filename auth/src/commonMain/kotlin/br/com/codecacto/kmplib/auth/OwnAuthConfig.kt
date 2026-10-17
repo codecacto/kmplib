@@ -41,6 +41,8 @@ class OwnAuthConfig(
     socialNonceSuffix: String = DEFAULT_SOCIAL_NONCE_SUFFIX,
     socialStartSuffix: String = DEFAULT_SOCIAL_START_SUFFIX,
     socialExchangeSuffix: String = DEFAULT_SOCIAL_EXCHANGE_SUFFIX,
+    socialReauthStartSuffix: String = DEFAULT_SOCIAL_REAUTH_START_SUFFIX,
+    socialReauthNonceSuffix: String = DEFAULT_SOCIAL_REAUTH_NONCE_SUFFIX,
 ) {
     /**
      * As mensagens fixas: as que o app passou ou, sem elas, os defaults pt-BR. O fluxo em si usa
@@ -68,6 +70,12 @@ class OwnAuthConfig(
 
     /** Sufixo de `POST .../social/exchange` — troca o código do *deep link* pela sessão. */
     val socialExchangeSuffix: String = socialExchangeSuffix.trim('/')
+
+    /** Sufixo de `POST .../social/reauth/start` (Bearer) — reautenticação pelo navegador (2.304.0). */
+    val socialReauthStartSuffix: String = socialReauthStartSuffix.trim('/')
+
+    /** Sufixo de `POST .../social/reauth/nonce` (Bearer) — nonce da reautenticação nativa (2.304.0). */
+    val socialReauthNonceSuffix: String = socialReauthNonceSuffix.trim('/')
 
     init {
         // Sufixo em branco casaria com TODA rota no roteamento de erro (`"login".startsWith("")`),
@@ -99,6 +107,17 @@ class OwnAuthConfig(
 
         /** `POST {authBasePath}/social/exchange` — o código do *deep link* vira sessão. */
         const val DEFAULT_SOCIAL_EXCHANGE_SUFFIX: String = "social/exchange"
+
+        /**
+         * `POST {authBasePath}/social/reauth/start` (backlib ≥ 0.190.0) — com o Bearer da sessão,
+         * devolve `{authorizationUrl}` da reautenticação pelo navegador. O `GET /social/start?reauth=1`
+         * da 0.189.0 responde 400 (`REAUTH_START_REQUIRES_POST`): o navegador não manda `Authorization`
+         * numa navegação de topo, e token na URL vazaria.
+         */
+        const val DEFAULT_SOCIAL_REAUTH_START_SUFFIX: String = "social/reauth/start"
+
+        /** `POST {authBasePath}/social/reauth/nonce` (backlib ≥ 0.190.0) — nonce amarrado à conta. */
+        const val DEFAULT_SOCIAL_REAUTH_NONCE_SUFFIX: String = "social/reauth/nonce"
     }
 }
 

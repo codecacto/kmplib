@@ -127,6 +127,9 @@ private fun queryOf(url: NSURL): Map<String, String> {
 internal fun mensagemDe(erro: String): String = when (erro) {
     "cancelado" -> "Login cancelado."
     "sessao_expirada" -> "A sessão de login expirou. Tente novamente."
+    // backlib ≥ 0.189.0: reautenticação recusada (o provedor não autenticou a pessoa agora). O
+    // `RecentAuthCoordinator` troca isto por SocialReauthRejectedException e a tela usa o texto dela.
+    "reautenticacao_necessaria" -> "O provedor não confirmou sua identidade agora."
     else -> "Não foi possível concluir o login. Tente novamente."
 }
 

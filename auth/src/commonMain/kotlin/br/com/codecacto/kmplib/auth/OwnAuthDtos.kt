@@ -148,6 +148,23 @@ internal data class PasswordResetBody(val token: String, val newPassword: String
 @Serializable
 internal data class SocialExchangeBody(val code: String, val codeVerifier: String)
 
+/** Corpo de `POST {authBasePath}/social/reauth/start` (backlib ≥ 0.190.0). A conta vem do Bearer. */
+@Serializable
+internal data class SocialReauthStartBody(
+    val app: String,
+    val provider: String,
+    val codeChallenge: String,
+    val loginHint: String? = null,
+)
+
+/** Resposta de `POST {authBasePath}/social/reauth/start`: para onde abrir o navegador do sistema. */
+@Serializable
+internal data class SocialReauthStartResponse(val authorizationUrl: String)
+
+/** Corpo de `POST {authBasePath}/social/reauth/nonce` (backlib ≥ 0.190.0). */
+@Serializable
+internal data class SocialReauthNonceBody(val provider: String, val platform: String)
+
 /**
  * Perfil da conta autenticada — `GET {authBasePath}/me` e resposta do `PATCH {authBasePath}/me`
  * (`AuthLocalMeResponse` da backlib-auth-local; `username` desde a 0.140.0).

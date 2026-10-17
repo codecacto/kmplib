@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.network.ReauthRequiredException
+import br.com.codecacto.kmplib.core.network.RecentAuthChallenge
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.sync.rest.ServerErrorEnvelope
 import br.com.codecacto.kmplib.sync.rest.parseServerErrorEnvelope
@@ -272,6 +274,85 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             json.encodeToString(SocialExchangeBody.serializer(), SocialExchangeBody(code, codeVerifier)),
         )
 
+    /**
+     * `POST {authBasePath}/social/reauth/start` (backlib ≥ 0.190.0) — começa a **reautenticação pelo
+     * navegador** com o Bearer da sessão atual e devolve a `authorizationUrl` para abrir no Custom
+     * Tab / `ASWebAuthenticationSession`. O backend grava a conta esperada no fluxo e o callback só
+     * aceita a identidade já vinculada a ela.
+     *
+     * Erros: 409 `SOCIAL_IDENTITY_NOT_LINKED` → [SocialIdentityNotLinkedException] (a conta não tem
+     * identidade neste provedor — ofereça a senha); 401 → [OwnAuthException.NotAuthenticated].
+     */
+    suspend fun socialReauthStart(
+        provider: SocialProvider,
+        appId: String,
+        codeChallenge: String,
+        accessToken: String,
+        loginHint: String? = null,
+    ): Result<String> =
+        sendWithBearer(
+            config.socialReauthStartSuffix,
+            json.encodeToString(
+                SocialReauthStartBody.serializer(),
+                SocialReauthStartBody(
+                    app = appId,
+                    provider = provider.wire,
+                    codeChallenge = codeChallenge,
+                    loginHint = loginHint?.trim()?.takeIf { it.isNotEmpty() },
+                ),
+            ),
+            accessToken,
+            provider,
+        ).mapCatching { response ->
+            json.decodeFromString(SocialReauthStartResponse.serializer(), response.bodyAsText()).authorizationUrl
+        }
+
+    /**
+     * `POST {authBasePath}/social/reauth/nonce` (backlib ≥ 0.190.0) — nonce de uso único (5 min)
+     * amarrado à conta do Bearer, ao provedor e ao client ID da [platform] (`ios`/`android`). Vai
+     * ao pedido nativo (Apple: SHA-256 hex; Google: `setNonce`) e depois ao [social] de sempre.
+     *
+     * Erros: 409 `SOCIAL_IDENTITY_NOT_LINKED` → [SocialIdentityNotLinkedException]; 403
+     * `SOCIAL_DIRECT_EXCHANGE_DISABLED` → [SocialDirectExchangeDisabledException] (provedor só pelo
+     * navegador); 401 → [OwnAuthException.NotAuthenticated].
+     */
+    suspend fun socialReauthNonce(
+        provider: SocialProvider,
+        platform: String,
+        accessToken: String,
+    ): Result<SocialNonce> =
+        sendWithBearer(
+            config.socialReauthNonceSuffix,
+            json.encodeToString(SocialReauthNonceBody.serializer(), SocialReauthNonceBody(provider.wire, platform)),
+            accessToken,
+            provider,
+        ).mapCatching { response ->
+            json.decodeFromString(SocialNonce.serializer(), response.bodyAsText())
+        }
+
+    private suspend fun sendWithBearer(
+        suffix: String,
+        body: String,
+        accessToken: String,
+        provider: SocialProvider,
+    ): Result<HttpResponse> =
+        send(suffix, "POST") {
+            client.post(config.url(suffix)) {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                setBody(body)
+            }
+        }.recoverCatching { e ->
+            // As rotas de reautenticação exigem a SESSÃO: o 401 delas é sessão inválida, não
+            // credencial social recusada; os códigos próprios ganham o provedor para a tela.
+            throw when {
+                e is SocialIdentityNotLinkedException -> SocialIdentityNotLinkedException(provider)
+                e is SocialDirectExchangeDisabledException -> SocialDirectExchangeDisabledException(provider)
+                e is OwnAuthException && e.code == 401 -> OwnAuthException.NotAuthenticated(texts().sessionExpired)
+                else -> e
+            }
+        }
+
     /** `logout` revoga a família do refresh. Best-effort e idempotente (204). */
     suspend fun logout(refreshToken: String): Result<Unit> =
         postForUnit("logout", json.encodeToString(LogoutBody(refreshToken)))
@@ -327,6 +408,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             // A mensagem do servidor é mais útil que qualquer texto fixo daqui: ele é quem sabe o
             // mínimo de caracteres exigido, qual campo faltou, etc. O texto local vira fallback.
             val envelope = parseServerErrorEnvelope(runCatching { response.bodyAsText() }.getOrNull())
+            socialReauthFailure(suffix, status, envelope)?.let { return Result.failure(it) }
             Result.failure(mapStatus(texts(), suffix, status, envelope))
         }
     }
@@ -349,6 +431,30 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             if (estranhos.isEmpty()) " — só ASCII imprimível" else " — NÃO-ASCII: ${estranhos.joinToString(" ")}")
         AppLogger.d(TAG, "$suffix senha=${password.length} chars" +
             (if (password != password.trim()) " — ATENÇÃO: tem espaço no começo/fim" else ""))
+    }
+
+    /**
+     * Recusas da reautenticação social (backlib ≥ 0.190.0) com tipo próprio — nenhuma delas é
+     * "credencial inválida" nem logout:
+     * - 401 `REAUTH_REQUIRED` em `/social` ou `/social/exchange` → [ReauthRequiredException] (o
+     *   provedor não autenticou agora, ou a identidade não é a vinculada à conta);
+     * - 409 `SOCIAL_IDENTITY_NOT_LINKED` → [SocialIdentityNotLinkedException];
+     * - 403 `SOCIAL_DIRECT_EXCHANGE_DISABLED` → [SocialDirectExchangeDisabledException].
+     */
+    private fun socialReauthFailure(suffix: String, status: Int, envelope: ServerErrorEnvelope?): Exception? {
+        val social = suffix == config.socialSuffix || suffix == config.socialExchangeSuffix ||
+            suffix == config.socialReauthStartSuffix || suffix == config.socialReauthNonceSuffix
+        if (!social) return null
+        return when {
+            status == 401 && envelope?.code == RecentAuthChallenge.CODE &&
+                (suffix == config.socialSuffix || suffix == config.socialExchangeSuffix) ->
+                ReauthRequiredException(message = envelope.message ?: ReauthRequiredException.DEFAULT_MESSAGE)
+            status == 409 && envelope?.code == SocialIdentityNotLinkedException.CODE ->
+                SocialIdentityNotLinkedException(null)
+            status == 403 && envelope?.code == SocialDirectExchangeDisabledException.CODE ->
+                SocialDirectExchangeDisabledException(null)
+            else -> null
+        }
     }
 
     private fun mapStatus(texts: OwnAuthTexts, suffix: String, status: Int, envelope: ServerErrorEnvelope?): OwnAuthException {

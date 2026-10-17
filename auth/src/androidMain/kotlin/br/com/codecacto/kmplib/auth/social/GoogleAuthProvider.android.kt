@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.auth.social
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import com.google.android.libraries.identity.googleid.Claim
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 
@@ -16,7 +17,10 @@ actual class GoogleAuthProvider actual constructor(private val webClientId: Stri
 
     actual suspend fun signIn(nonce: String): GoogleSignInResult = perform(nonce = nonce)
 
-    private suspend fun perform(nonce: String?): GoogleSignInResult {
+    actual suspend fun signIn(nonce: String, requestAuthTime: Boolean): GoogleSignInResult =
+        perform(nonce = nonce, requestAuthTime = requestAuthTime)
+
+    private suspend fun perform(nonce: String?, requestAuthTime: Boolean = false): GoogleSignInResult {
         val activity = GoogleAuthHolder.getActivity()
             ?: return GoogleSignInResult(
                 idToken = null,
@@ -29,6 +33,9 @@ actual class GoogleAuthProvider actual constructor(private val webClientId: Stri
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(webClientId)
                 .apply { if (!nonce.isNullOrBlank()) setNonce(nonce) }
+                // Reautenticação: `auth_time` essencial (Security bundle do Google) — o servidor
+                // confere quão recente foi a autenticação no Google.
+                .apply { if (requestAuthTime) setClaims(listOf(Claim(AUTH_TIME_CLAIM, true))) }
                 .build()
 
             val request = GetCredentialRequest.Builder()
@@ -63,3 +70,5 @@ actual class GoogleAuthProvider actual constructor(private val webClientId: Stri
         }
     }
 }
+
+private const val AUTH_TIME_CLAIM: String = "auth_time"

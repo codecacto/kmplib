@@ -35,4 +35,18 @@ expect class GoogleAuthProvider(webClientId: String) {
      * cliente não prova nada — quem quiser replicar um `idToken` roubado escolhe o mesmo valor.
      */
     suspend fun signIn(nonce: String): GoogleSignInResult
+
+    /**
+     * Como [signIn] com nonce e, com [requestAuthTime], pede a claim **`auth_time` como essencial**
+     * (2.304.0) — a prova de quando o Google autenticou a pessoa, que a reautenticação nativa exige
+     * (backlib ≥ 0.190.0). Android: `GetGoogleIdOption.setClaims(listOf(Claim("auth_time", true)))`
+     * (googleid ≥ 1.2.0). iOS: o executor Swift registrado por
+     * `GoogleSignInBridge.setSignInStarterWithClaims` passa `claims: [GIDClaim.essentialAuthTime()]`
+     * (GoogleSignIn-iOS ≥ 9.1.0); com o executor antigo, o pedido sai sem a claim e o servidor recusa
+     * a reautenticação (fail-closed — a tela oferece a senha).
+     *
+     * O `auth_time` só vem com o app verificado no Google Auth Platform e **"Session age claims"**
+     * ligado (Settings → Advanced Settings).
+     */
+    suspend fun signIn(nonce: String, requestAuthTime: Boolean): GoogleSignInResult
 }

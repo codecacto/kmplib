@@ -309,6 +309,10 @@
     <string name="kmplib_reauth_account_mismatch">Esta não é a conta conectada. Confirme com a conta desta sessão.</string>
     <string name="kmplib_reauth_required">Confirme sua identidade para continuar.</string>
     <string name="kmplib_reauth_failed">Não foi possível confirmar. Tente novamente.</string>
+    <string name="kmplib_reauth_social_not_recent_password">O %1$s não pediu que você entrasse de novo, então a confirmação não valeu. Digite a senha da conta.</string>
+    <string name="kmplib_reauth_social_not_recent">O %1$s não pediu que você entrasse de novo, então a confirmação não valeu. Saia da conta %1$s no navegador, entre de novo e tente outra vez.</string>
+    <string name="kmplib_reauth_social_not_linked_password">Esta conta não está ligada ao %1$s. Digite a senha da conta.</string>
+    <string name="kmplib_reauth_social_not_linked">Esta conta não está ligada ao %1$s. Confirme com a forma de entrar que você usa nesta conta.</string>
 
     <!-- Questionário (ui.questionnaire, GAP-VIT-K05) -->
     <string name="kmplib_questionnaire_block_progress">Bloco %1$d de %2$d</string>

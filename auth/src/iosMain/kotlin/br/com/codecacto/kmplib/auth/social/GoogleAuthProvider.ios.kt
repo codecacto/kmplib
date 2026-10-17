@@ -14,4 +14,11 @@ actual class GoogleAuthProvider actual constructor(private val webClientId: Stri
 
     actual suspend fun signIn(nonce: String): GoogleSignInResult =
         GoogleSignInBridge.awaitSignIn(webClientId, nonce = nonce.takeIf { it.isNotBlank() })
+
+    actual suspend fun signIn(nonce: String, requestAuthTime: Boolean): GoogleSignInResult =
+        GoogleSignInBridge.awaitSignIn(
+            webClientId,
+            nonce = nonce.takeIf { it.isNotBlank() },
+            requestAuthTime = requestAuthTime,
+        )
 }

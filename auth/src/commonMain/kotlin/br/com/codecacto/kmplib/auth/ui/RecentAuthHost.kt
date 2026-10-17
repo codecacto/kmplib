@@ -26,6 +26,8 @@ import br.com.codecacto.kmplib.auth.ReauthPrompt
 import br.com.codecacto.kmplib.auth.ReauthRequest
 import br.com.codecacto.kmplib.auth.RecentAuthCoordinator
 import br.com.codecacto.kmplib.auth.SocialProvider
+import br.com.codecacto.kmplib.auth.SocialIdentityNotLinkedException
+import br.com.codecacto.kmplib.auth.SocialReauthRejectedException
 import br.com.codecacto.kmplib.core.network.ReauthRequiredException
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
@@ -39,6 +41,10 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_message_social
 import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_password
 import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_required
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_social_not_linked
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_social_not_linked_password
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_social_not_recent
+import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_social_not_recent_password
 import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_reauth_wrong_password
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
@@ -146,7 +152,16 @@ fun RecentAuthHost(state: RecentAuthState, texts: RecentAuthTexts = rememberRece
         ?.let { texts.wrongPassword }
     val erroGeral = erroAnterior
         ?.takeIf { erroNoCampo == null }
-        ?.let { (it as? OwnAuthException)?.message ?: texts.failed }
+        ?.let { e ->
+            when (e) {
+                // O provedor não autenticou agora: dizer o que fazer (senha, se há; senão sair da
+                // conta do provedor no navegador) — "tente novamente" daria o mesmo resultado.
+                is SocialReauthRejectedException -> texts.socialNotRecent(e.provider, request.passwordAvailable)
+                is SocialIdentityNotLinkedException ->
+                    texts.socialNotLinked(e.provider, request.passwordAvailable)
+                else -> (e as? OwnAuthException)?.message ?: texts.failed
+            }
+        }
 
     val enviarSenha = {
         if (senha.isNotEmpty()) state.submit(ReauthCredential.Password(senha))
@@ -196,6 +211,7 @@ fun RecentAuthHost(state: RecentAuthState, texts: RecentAuthTexts = rememberRece
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.testTag(DialogTestTags.ERRO),
             )
         }
 
@@ -269,7 +285,38 @@ data class RecentAuthTexts(
     val accountMismatch: String = "Esta não é a conta conectada. Confirme com a conta desta sessão.",
     val reauthRequired: String = ReauthRequiredException.DEFAULT_MESSAGE,
     val failed: String = "Não foi possível confirmar. Tente novamente.",
+    /**
+     * Reautenticação social recusada por não ser recente (2.304.0) e a sessão TEM identificador —
+     * o campo de senha continua no diálogo. `%1$s` = nome do provedor.
+     */
+    val socialNotRecentWithPassword: (String) -> String = {
+        "O $it não pediu que você entrasse de novo, então a confirmação não valeu. Digite a senha da conta."
+    },
+    /** Idem, sem caminho por senha: sair da conta do provedor no navegador e entrar de novo. */
+    val socialNotRecent: (String) -> String = {
+        "O $it não pediu que você entrasse de novo, então a confirmação não valeu. Saia da conta $it no navegador, entre de novo e tente outra vez."
+    },
+    /** A conta não tem identidade no provedor (409, 2.304.0) e há senha a digitar. `%1$s` = provedor. */
+    val socialNotLinkedWithPassword: (String) -> String = {
+        "Esta conta não está ligada ao $it. Digite a senha da conta."
+    },
+    /** Idem, sem senha a digitar aqui. */
+    val socialNotLinked: (String) -> String = {
+        "Esta conta não está ligada ao $it. Confirme com a forma de entrar que você usa nesta conta."
+    },
 ) {
+    /** Frase para [SocialIdentityNotLinkedException] — oferece a senha quando ela é um caminho. */
+    fun socialNotLinked(provider: SocialProvider?, passwordAvailable: Boolean): String {
+        val nome = provider?.let(::providerName) ?: ""
+        return if (passwordAvailable) socialNotLinkedWithPassword(nome) else socialNotLinked(nome)
+    }
+
+    /** Frase para [SocialReauthRejectedException] — oferece a senha quando ela é um caminho. */
+    fun socialNotRecent(provider: SocialProvider, passwordAvailable: Boolean): String {
+        val nome = providerName(provider)
+        return if (passwordAvailable) socialNotRecentWithPassword(nome) else socialNotRecent(nome)
+    }
+
     fun continueWith(provider: SocialProvider): String = when (provider) {
         SocialProvider.GOOGLE -> continueWithGoogle
         SocialProvider.APPLE -> continueWithApple
@@ -283,15 +330,27 @@ data class RecentAuthTexts(
     fun errorMessage(error: Throwable): String? = when (error) {
         is ReauthCancelledException -> null
         is ReauthAccountMismatchException -> accountMismatch
+        is SocialReauthRejectedException -> socialNotRecent(error.provider, passwordAvailable = false)
+        is SocialIdentityNotLinkedException -> socialNotLinked(error.provider, passwordAvailable = false)
         is ReauthRequiredException -> reauthRequired
         else -> error.message ?: failed
     }
+}
+
+/** Nome do provedor como marca (não se traduz). */
+internal fun providerName(provider: SocialProvider): String = when (provider) {
+    SocialProvider.GOOGLE -> "Google"
+    SocialProvider.APPLE -> "Apple"
 }
 
 /** [RecentAuthTexts] no idioma do aparelho (pt-BR, en, es, pt-PT). */
 @Composable
 fun rememberRecentAuthTexts(): RecentAuthTexts {
     val conta = kmpStringResource(Res.string.kmplib_reauth_account)
+    val naoRecenteSenha = kmpStringResource(Res.string.kmplib_reauth_social_not_recent_password)
+    val naoRecente = kmpStringResource(Res.string.kmplib_reauth_social_not_recent)
+    val semVinculoSenha = kmpStringResource(Res.string.kmplib_reauth_social_not_linked_password)
+    val semVinculo = kmpStringResource(Res.string.kmplib_reauth_social_not_linked)
     return RecentAuthTexts(
         title = kmpStringResource(Res.string.kmplib_reauth_title),
         message = kmpStringResource(Res.string.kmplib_reauth_message),
@@ -306,5 +365,9 @@ fun rememberRecentAuthTexts(): RecentAuthTexts {
         accountMismatch = kmpStringResource(Res.string.kmplib_reauth_account_mismatch),
         reauthRequired = kmpStringResource(Res.string.kmplib_reauth_required),
         failed = kmpStringResource(Res.string.kmplib_reauth_failed),
+        socialNotRecentWithPassword = { naoRecenteSenha.replace("%1\$s", it) },
+        socialNotRecent = { naoRecente.replace("%1\$s", it) },
+        socialNotLinkedWithPassword = { semVinculoSenha.replace("%1\$s", it) },
+        socialNotLinked = { semVinculo.replace("%1\$s", it) },
     )
 }

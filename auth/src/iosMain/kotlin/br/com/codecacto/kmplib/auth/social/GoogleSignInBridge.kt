@@ -68,6 +68,21 @@ import kotlin.native.ObjCName
  * }
  * ```
  *
+ * **3-b) Reautenticação (kmplib ≥ 2.304.0, backlib ≥ 0.190.0) — registre o executor COM claims**
+ * no lugar do de cima (GoogleSignIn-iOS ≥ 9.1.0). Ele recebe se o pedido exige `auth_time`:
+ * ```swift
+ * GoogleSignInBridge.shared.setSignInStarterWithClaims { serverClientId, nonce, requestAuthTime in
+ *     // … mesmo root/configuration do passo 3 …
+ *     let claims: Set<GIDClaim>? = requestAuthTime.boolValue ? [GIDClaim.essentialAuthTime()] : nil
+ *     GIDSignIn.sharedInstance.signIn(withPresenting: root, hint: nil, additionalScopes: nil,
+ *                                     nonce: nonce, claims: claims) { result, error in
+ *         // … mesmos callbacks do passo 3 …
+ *     }
+ * }
+ * ```
+ * Com só o executor antigo, a reautenticação pelo Google nativo sai sem `auth_time` e o servidor a
+ * recusa (a tela oferece a senha) — o login comum segue igual.
+ *
  * **4) Abrir a URL de retorno:**
  * ```swift
  * .onOpenURL { url in _ = GIDSignIn.sharedInstance.handle(url) }   // SwiftUI
@@ -89,10 +104,14 @@ object GoogleSignInBridge {
 
     private val mutex = Mutex()
     private var starter: ((String, String?) -> Unit)? = null
+    private var claimsStarter: ((String, String?, Boolean) -> Unit)? = null
     private var pending: CompletableDeferred<GoogleSignInResult>? = null
 
     /** `true` quando o Swift já registrou o executor ([setSignInStarter]). */
-    val isConfigured: Boolean get() = starter != null
+    val isConfigured: Boolean get() = starter != null || claimsStarter != null
+
+    /** `true` quando o executor sabe pedir a claim `auth_time` ([setSignInStarterWithClaims]). */
+    val supportsAuthTimeClaim: Boolean get() = claimsStarter != null
 
     /**
      * Registra o bloco Swift que dispara o `GIDSignIn`. Recebe o **server client ID** (o client ID
@@ -101,6 +120,17 @@ object GoogleSignInBridge {
      */
     fun setSignInStarter(starter: (serverClientId: String, nonce: String?) -> Unit) {
         this.starter = starter
+    }
+
+    /**
+     * Registra o executor que também recebe **se o pedido exige `auth_time`** (2.304.0) — o Swift
+     * passa `claims: [GIDClaim.essentialAuthTime()]` ao `GIDSignIn` (GoogleSignIn-iOS ≥ 9.1.0)
+     * quando `requestAuthTime` é `true`. Substitui [setSignInStarter] (vence quando os dois existem).
+     */
+    fun setSignInStarterWithClaims(
+        starter: (serverClientId: String, nonce: String?, requestAuthTime: Boolean) -> Unit,
+    ) {
+        this.claimsStarter = starter
     }
 
     /** Chamado pelo Swift quando o Google devolveu o `idToken`. */
@@ -132,8 +162,23 @@ object GoogleSignInBridge {
     }
 
     /** Inicia o fluxo e suspende até o Swift responder. Usado pelo [GoogleAuthProvider] do iOS. */
-    internal suspend fun awaitSignIn(serverClientId: String, nonce: String?): GoogleSignInResult {
-        val start = starter ?: return GoogleSignInResult.error(NOT_CONFIGURED)
+    internal suspend fun awaitSignIn(
+        serverClientId: String,
+        nonce: String?,
+        requestAuthTime: Boolean = false,
+    ): GoogleSignInResult {
+        val comClaims = claimsStarter
+        val antigo = starter
+        val start: (String, String?) -> Unit = when {
+            comClaims != null -> { id, n -> comClaims(id, n, requestAuthTime) }
+            antigo != null -> {
+                if (requestAuthTime) {
+                    AppLogger.w(TAG, "Executor sem claims: auth_time não será pedido (setSignInStarterWithClaims).")
+                }
+                antigo
+            }
+            else -> return GoogleSignInResult.error(NOT_CONFIGURED)
+        }
         return mutex.withLock {
             val deferred = CompletableDeferred<GoogleSignInResult>()
             pending = deferred

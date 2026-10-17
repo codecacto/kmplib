@@ -13,7 +13,20 @@ import kotlinx.coroutines.withContext
  * reautenticação. O `SocialSignIn` da lib implementa (nos dois modos, `NATIVE` e `BACKEND`).
  */
 fun interface SocialReauthenticator {
+    /**
+     * Sem a sessão. Serve a implementação própria do app (ou dublê de teste); o `SocialSignIn` da
+     * lib a recusa — desde a backlib 0.190.0 a reautenticação social exige o Bearer da sessão.
+     */
     suspend fun reauthenticate(provider: SocialProvider): Result<OwnAuthTokens>
+
+    /**
+     * **Com o access token da sessão que pede** (2.304.0, backlib ≥ 0.190.0) — é o que o
+     * `RecentAuthCoordinator` chama. O servidor amarra a reautenticação à conta do Bearer
+     * (`POST /social/reauth/start` no navegador, `POST /social/reauth/nonce` no nativo) e só aceita
+     * a identidade já vinculada a ela. O default ignora o token e cai em [reauthenticate].
+     */
+    suspend fun reauthenticate(provider: SocialProvider, accessToken: String): Result<OwnAuthTokens> =
+        reauthenticate(provider)
 }
 
 /** A credencial que a pessoa forneceu para reautenticar. */
@@ -73,6 +86,73 @@ class ReauthCancelledException : Exception("Confirmação de identidade cancelad
 class ReauthAccountMismatchException :
     Exception("A confirmação foi feita com outra conta. Entre com a conta desta sessão.")
 
+/**
+ * O provedor social **não autenticou a pessoa agora** (2.304.0, backlib ≥ 0.190.0) — a
+ * reautenticação por [provider] foi recusada pelo servidor, e a ação sensível não roda por ela.
+ *
+ * Chega de dois jeitos, e os dois viram esta exceção no `RecentAuthCoordinator`:
+ * - navegador (BFF): o *deep link* volta com `?erro=reautenticacao_necessaria`
+ *   ([SOCIAL_REAUTH_REJECTED_REASON]) — `auth_time` ausente, anterior ao fluxo ou no futuro, ou
+ *   identidade diferente da vinculada à conta;
+ * - nativo: 401 `REAUTH_REQUIRED` no `POST /social` (identidade não vinculada à conta do nonce ou
+ *   sem prova de autenticação no provedor).
+ *
+ * **Não é senha errada.** O caso típico é o Google: ele **não força** nova senha ("Google does not
+ * support Google Account reauth requests") e só manda `auth_time` com o app verificado e
+ * **"Session age claims"** ligado no Google Auth Platform — sem isso TODA reautenticação pelo Google
+ * é recusada (fail-closed). A saída é a SENHA (o diálogo continua com o campo quando há
+ * identificador) ou sair da conta do provedor e entrar de novo — é o que o `RecentAuthHost` diz.
+ */
+class SocialReauthRejectedException(val provider: SocialProvider) :
+    Exception("O provedor não confirmou a identidade agora; a reautenticação não valeu.")
+
+/**
+ * A conta da sessão **não tem identidade** neste provedor (409 `SOCIAL_IDENTITY_NOT_LINKED`,
+ * backlib ≥ 0.190.0) — reautenticar por ele é impossível; a tela oferece a senha ("esqueci a senha"
+ * se a conta não tiver uma). [provider] é `null` só no instante entre o cliente HTTP e o
+ * coordenador, que o preenche.
+ */
+class SocialIdentityNotLinkedException(val provider: SocialProvider?) :
+    Exception("A conta não está ligada a este provedor.") {
+    companion object {
+        const val CODE: String = "SOCIAL_IDENTITY_NOT_LINKED"
+    }
+}
+
+/**
+ * O servidor só aceita [provider] pelo **navegador** (403 `SOCIAL_DIRECT_EXCHANGE_DISABLED`,
+ * backlib ≥ 0.190.0): o `SocialSignIn` refaz a reautenticação pelo caminho do navegador quando o
+ * app tem o modo BACKEND configurado; sem ele, a falha chega à tela.
+ */
+class SocialDirectExchangeDisabledException(val provider: SocialProvider?) :
+    Exception("Este provedor só aceita a confirmação pelo navegador.") {
+    companion object {
+        const val CODE: String = "SOCIAL_DIRECT_EXCHANGE_DISABLED"
+    }
+}
+
+/** Valor de `?erro=` com que o backend recusa a reautenticação social. */
+const val SOCIAL_REAUTH_REJECTED_REASON: String = "reautenticacao_necessaria"
+
+/** `true` se a reautenticação social foi recusada por não ser recente — ver [SocialReauthRejectedException]. */
+fun Throwable.isSocialReauthRejected(): Boolean = this is SocialReauthRejectedException
+
+/**
+ * Normaliza a recusa de reautenticação social vinda de qualquer camada (deep link com
+ * [SOCIAL_REAUTH_REJECTED_REASON], 401 `REAUTH_REQUIRED`, 409 sem provedor) no tipo próprio, com
+ * [provider] preenchido. Qualquer outro erro volta como está.
+ */
+internal fun Throwable.asSocialReauthRejection(provider: SocialProvider): Throwable = when {
+    this is SocialReauthRejectedException -> this
+    this is ReauthRequiredException -> SocialReauthRejectedException(provider)
+    this is br.com.codecacto.kmplib.auth.social.SocialBrowserException &&
+        reason == SOCIAL_REAUTH_REJECTED_REASON -> SocialReauthRejectedException(provider)
+    this is SocialIdentityNotLinkedException && this.provider == null -> SocialIdentityNotLinkedException(provider)
+    this is SocialDirectExchangeDisabledException && this.provider == null ->
+        SocialDirectExchangeDisabledException(provider)
+    else -> this
+}
+
 /** `true` se a pessoa desistiu da reautenticação — a tela fica quieta. */
 fun Throwable.isReauthCancelled(): Boolean = this is ReauthCancelledException
 
@@ -90,7 +170,9 @@ fun Throwable.isReauthCancelled(): Boolean = this is ReauthCancelledException
  * ## O contrato (literal do servidor)
  * 1. **Não é logout.** O 401 `REAUTH_REQUIRED` chega aqui como [ReauthRequiredException] — os
  *    clientes da lib já o separam do 401 de sessão expirada (sem refresh, sem `onUnauthorized`).
- * 2. Reautentica (`POST /auth/login` com a senha, ou o fluxo social) **sem adotar** os tokens, e
+ * 2. Reautentica (`POST /auth/login` com a senha, ou o fluxo social de reautenticação — com o Bearer
+ *    da sessão, backlib ≥ 0.190.0; sessão aberta pelo social leva `amr: ["fed"]` e SEMPRE cai aqui)
+ *    **sem adotar** os tokens, e
  *    confere que o `sub` do novo access token é o `sub` da sessão. Outra conta → revoga os tokens
  *    novos no servidor, descarta e aborta com [ReauthAccountMismatchException].
  * 3. Mesma conta → troca o par (atômico, sob a trava da renovação), revoga a família antiga e
@@ -135,7 +217,7 @@ class RecentAuthCoordinator(
         }
 
         val identifier = session.email.trim().ifEmpty { session.username?.trim().orEmpty() }.ifEmpty { null }
-        val providers = if (social != null) socialProviders else emptySet()
+        var providers = if (social != null) socialProviders else emptySet()
         if (identifier == null && providers.isEmpty()) {
             AppLogger.w(TAG, "Sessão sem identificador e sem login social; reautenticação impossível aqui.")
             return Result.failure(challenge)
@@ -162,6 +244,13 @@ class RecentAuthCoordinator(
             obtained.onSuccess { tokens = it }.onFailure { e ->
                 // Login social cancelado não é erro a mostrar: a pessoa volta ao pedido, limpo.
                 previousError = if (e.foiCancelado()) null else e
+            }
+            // Conta sem identidade neste provedor (409): o botão dele sai do pedido — tentar de novo
+            // daria o mesmo 409. Sobrando nada (sem senha, sem outro provedor), não há o que pedir.
+            val semVinculo = previousError as? SocialIdentityNotLinkedException
+            if (semVinculo?.provider != null) {
+                providers = providers - semVinculo.provider
+                if (identifier == null && providers.isEmpty()) return Result.failure(semVinculo)
             }
         }
         val novos = tokens!!
@@ -211,13 +300,22 @@ class RecentAuthCoordinator(
             if (reauth == null || credential.provider !in providers) {
                 Result.failure(OwnAuthException.Unsupported(loadOwnAuthTexts().unsupported))
             } else {
-                try {
-                    reauth.reauthenticate(credential.provider)
+                // A reautenticação social é amarrada à conta pelo Bearer da sessão (backlib ≥ 0.190.0).
+                val bearer = tokenManager.accessToken()
+                    ?: return Result.failure(OwnAuthException.NotAuthenticated(loadOwnAuthTexts().sessionExpired))
+                val result = try {
+                    reauth.reauthenticate(credential.provider, bearer)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     Result.failure(e)
                 }
+                // A recusa "não foi agora" vira resultado próprio, venha do deep link ou do 401 —
+                // a tela oferece a senha em vez de um "tente novamente" que daria o mesmo resultado.
+                result.exceptionOrNull()
+                    ?.asSocialReauthRejection(credential.provider)
+                    ?.let { Result.failure(it) }
+                    ?: result
             }
         }
     }

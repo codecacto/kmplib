@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.304.0
+    motivo: "conta só com login social não consegue confirmar a identidade (excluir conta) em backend com backlib ≥ 0.190.0"
+    simbolos: [RecentAuthCoordinator, SocialSignIn]
+
   - versao: 2.302.0
     motivo: "exclusão de conta com carência: recusa do servidor (ex.: 409) aparecia como \"Erro do servidor\" e restaurar com sessão anterior ao pedido (401 REAUTH_REQUIRED) caía no erro genérico, sem saída"
     simbolos: [RestAccountDeletionRepository, AccountDeletionGate]
