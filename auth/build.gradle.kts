@@ -36,6 +36,8 @@ kotlin {
             implementation(libs.androidx.credentials)
             implementation(libs.androidx.credentials.play.services)
             implementation(libs.google.googleid)
+            // Custom Tabs oficial — o navegador do sistema do login social pelo backend (RFC 8252).
+            implementation(libs.androidx.browser)
             // Cofre cifrado no Android Keystore para o refresh token do own-auth.
             implementation(libs.androidx.security.crypto)
         }

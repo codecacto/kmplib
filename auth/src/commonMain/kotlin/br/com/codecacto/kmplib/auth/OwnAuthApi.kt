@@ -2,6 +2,8 @@ package br.com.codecacto.kmplib.auth
 
 import br.com.codecacto.kmplib.core.network.ReauthRequiredException
 import br.com.codecacto.kmplib.core.network.RecentAuthChallenge
+import br.com.codecacto.kmplib.auth.social.SocialBrowserException
+import br.com.codecacto.kmplib.auth.social.isTrustedAuthorizationUrl
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.sync.rest.ServerErrorEnvelope
 import br.com.codecacto.kmplib.sync.rest.parseServerErrorEnvelope
@@ -304,8 +306,19 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             accessToken,
             provider,
         ).mapCatching { response ->
-            json.decodeFromString(SocialReauthStartResponse.serializer(), response.bodyAsText()).authorizationUrl
+            val url = json.decodeFromString(SocialReauthStartResponse.serializer(), response.bodyAsText()).authorizationUrl
+            // Só abre no navegador o que for https para o provedor ou para a própria API — uma
+            // resposta adulterada não leva o `state` do login a uma página de terceiro.
+            if (!isTrustedAuthorizationUrl(url, apiHost)) {
+                AppLogger.w(TAG, "authorizationUrl fora da allowlist recusada.")
+                throw SocialBrowserException("Endereço de confirmação não confiável.", reason = "falha")
+            }
+            url
         }
+
+    /** Host da base da API — o único além dos provedores aceito como início no navegador. */
+    internal val apiHost: String?
+        get() = runCatching { io.ktor.http.Url(config.baseUrl).host }.getOrNull()
 
     /**
      * `POST {authBasePath}/social/reauth/nonce` (backlib ≥ 0.190.0) — nonce de uso único (5 min)

@@ -153,6 +153,45 @@ class SocialReauthTest {
     }
 
     @Test
+    fun `authorizationUrl fora da allowlist nao abre o navegador`() = runTest {
+        val ruins = listOf(
+            "http://accounts.google.com/o/oauth2/v2/auth?state=s1",
+            "https://accounts.google.com.evil.example/auth",
+            "https://evil.example/auth?next=accounts.google.com",
+            "https://user:pw@accounts.google.com/auth",
+            "javascript:alert(1)",
+            "intent://accounts.google.com/#Intent;scheme=https;end",
+        )
+        for (ruim in ruins) {
+            val c = cenario(Respostas(start = HttpStatusCode.OK to """{"authorizationUrl":"$ruim"}"""))
+            val urls = mutableListOf<String>()
+            val e = signIn(c, urls = urls).reauthenticate(SocialProvider.GOOGLE, sessionAccess).exceptionOrNull()
+            assertIs<SocialBrowserException>(e, ruim)
+            assertTrue(urls.isEmpty(), ruim)
+            assertTrue(c.req("/social/exchange").isEmpty(), ruim)
+        }
+    }
+
+    @Test
+    fun `allowlist aceita provedores e o host da propria API`() {
+        assertTrue(isTrustedAuthorizationUrl("https://accounts.google.com/o/oauth2/v2/auth?x=1", null))
+        assertTrue(isTrustedAuthorizationUrl("https://appleid.apple.com/auth/authorize", null))
+        assertTrue(isTrustedAuthorizationUrl("https://API.example.com/v1/auth/social/callback", "api.example.com"))
+        assertFalse(isTrustedAuthorizationUrl("https://outra.example.com/x", "api.example.com"))
+        assertFalse(isTrustedAuthorizationUrl("https://accounts.google.com:8443.evil/x", null))
+    }
+
+    @Test
+    fun `volta do navegador so casa o esquema pedido`() {
+        assertTrue(isExpectedRedirect("brcodecacto.x://auth?codigo=1", "brcodecacto.x"))
+        assertTrue(isExpectedRedirect("BRCODECACTO.X://auth?codigo=1", "brcodecacto.x"))
+        assertFalse(isExpectedRedirect("outroapp://auth?codigo=1", "brcodecacto.x"))
+        assertFalse(isExpectedRedirect("brcodecacto.x.evil://auth?codigo=1", "brcodecacto.x"))
+        assertFalse(isExpectedRedirect("brcodecacto.x://auth?codigo=1", null))
+        assertFalse(isExpectedRedirect("sem-esquema", "brcodecacto.x"))
+    }
+
+    @Test
     fun `login comum continua pelo GET social start sem marca de reauth`() = runTest {
         val c = cenario()
         val urls = mutableListOf<String>()

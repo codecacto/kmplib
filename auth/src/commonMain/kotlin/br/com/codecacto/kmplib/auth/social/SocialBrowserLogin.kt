@@ -75,6 +75,36 @@ expect object PkceCrypto {
     fun sha256(input: ByteArray): ByteArray
 }
 
+/**
+ * `true` se [uri] é a volta do login com o esquema [expectedScheme] (comparação sem caixa, como a
+ * RFC 3986 manda para esquema). Sem esquema esperado, nada casa.
+ */
+internal fun isExpectedRedirect(uri: String, expectedScheme: String?): Boolean {
+    val esperado = expectedScheme?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
+    val i = uri.indexOf(':')
+    if (i <= 0) return false
+    return uri.substring(0, i).lowercase() == esperado
+}
+
+/**
+ * `true` se [url] pode ser aberta como início da reautenticação (2.304.0, security-review): só
+ * `https`, sem credencial embutida, e host EXATO entre os do provedor (`accounts.google.com`,
+ * `appleid.apple.com`) ou o da própria API ([apiHost]). Uma resposta adulterada do servidor não pode
+ * levar o navegador do sistema para uma página de terceiro com o `state` do login.
+ */
+internal fun isTrustedAuthorizationUrl(url: String, apiHost: String?): Boolean {
+    val parsed = runCatching { io.ktor.http.Url(url) }.getOrNull() ?: return false
+    if (!url.trim().startsWith("https://", ignoreCase = true)) return false
+    if (parsed.protocol.name != "https") return false
+    if (parsed.user != null || parsed.password != null) return false
+    val host = parsed.host.lowercase()
+    val permitidos = TRUSTED_AUTHORIZATION_HOSTS + listOfNotNull(apiHost?.lowercase()?.takeIf { it.isNotBlank() })
+    return host in permitidos
+}
+
+/** Hosts dos provedores aceitos como início da reautenticação pelo navegador. */
+internal val TRUSTED_AUTHORIZATION_HOSTS: Set<String> = setOf("accounts.google.com", "appleid.apple.com")
+
 /** base64url sem preenchimento, como a RFC 7636 exige. */
 internal fun base64UrlNoPadding(bytes: ByteArray): String {
     val alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"

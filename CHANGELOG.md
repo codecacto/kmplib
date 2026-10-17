@@ -49,6 +49,18 @@ quem só tem conta Google/Apple **não conseguia excluir a conta** num backend �
   critério que o diálogo já usava) — a lib não sabe se a conta social tem senha; sem senha, o servidor responde 401 e
   o caminho é "esqueci a senha".
 
+### Ajustes do security-review (no mesmo release)
+- **[Médio] `authorizationUrl` só abre se for confiável:** `https`, sem credencial embutida e host EXATO
+  `accounts.google.com`/`appleid.apple.com` ou o host da base da API (`isTrustedAuthorizationUrl`) — conferido no
+  `OwnAuthApi.socialReauthStart` e de novo no `SocialSignIn` antes de abrir; fora disso `SocialBrowserException`
+  (`falha`) e o navegador não abre.
+- **[Baixo] Android: a volta só completa o login com o esquema pedido** — `SocialBrowserRedirect.handleRedirect`
+  ignora URI de outro esquema (`isExpectedRedirect`); o pedido segue esperando.
+- **[Baixo] Android: Custom Tabs pela biblioteca oficial** — `CustomTabsIntent` (**androidx.browser 1.10.0**,
+  `SHARE_STATE_OFF`) no lugar do `ACTION_VIEW` cru com extras.
+- **[Baixo] iOS: `SecRandomCopyBytes` conferido** — status ≠ `errSecSuccess` lança em vez de seguir com um verifier
+  PKCE zerado.
+
 ### `kmplib-ui`
 - 4 textos novos nos 4 idiomas (`kmplib_reauth_social_not_recent[_password]`, `kmplib_reauth_social_not_linked[_password]`).
 
@@ -59,12 +71,12 @@ quem só tem conta Google/Apple **não conseguia excluir a conta** num backend �
 - iOS com Google nativo: trocar `setSignInStarter` por `setSignInStarterWithClaims` (molde na casca-mobile) e
   GoogleSignIn-iOS ≥ 9.1.0 no SPM.
 
-Testes: `SocialReauthTest` 20 (navegador: POST com Bearer e corpo, abre a `authorizationUrl`, nunca o GET; login
+Testes: `SocialReauthTest` 23 (allowlist da `authorizationUrl`, esquema da volta; navegador: POST com Bearer e corpo, abre a `authorizationUrl`, nunca o GET; login
 comum sem marca; `reautenticacao_necessaria`; cancelado; 409 sem abrir navegador; 401 = sessão; 401 `REAUTH_REQUIRED`
 na troca; sem sessão recusa · nativo: nonce de reauth com Bearer e `auth_time` no Google, Apple sem claim e `ios`,
 401 `REAUTH_REQUIRED`, 401 genérico, 403 → navegador / sem BFF → erro · coordenador: Bearer da sessão, recusa →
 senha conclui, sem vínculo tira o provedor, outra conta pelo navegador e pelo nativo recusada e revogada · textos).
-`kmplib-auth` 373 verdes; `compileKotlinIosArm64` auth/ui sem SKIPPED; Android release compila.
+`kmplib-auth` 376 verdes; `compileKotlinIosArm64` auth/ui sem SKIPPED; Android release compila.
 
 ## 2.303.0 — **Dinheiro em QUALQUER moeda: tipo `Money` (contrato `{"amount","currency"}`), formatação oficial por ISO 4217, campo e seletor de moeda**
 

@@ -142,7 +142,7 @@
 
 ### Registrado em 07/out/2026 — GAP-B-REAUTH-ADOCAO-01 (step-up), pendências do security-review da 2.261.0
 > Entregue na 2.261.0: `RecentAuthCoordinator`/`RecentAuthHost` + 401 `REAUTH_REQUIRED` tipado no `DomainApiClient`/`RestRepository`.
-- [ ] **GAP-REAUTH-SOCIAL-PROVA-01 (Médio) — reautenticação SOCIAL não força nova prova no provedor.** `SocialSignIn.reauthenticate`
+- [x] **GAP-REAUTH-SOCIAL-PROVA-01 (Médio) — ATENDIDO na 2.304.0** (par da backlib 0.190.0: `/social/reauth/start` e `/social/reauth/nonce` com Bearer, `auth_time` do Google conferido, sessão social `amr fed`). Texto original: reautenticação SOCIAL não forçava nova prova no provedor. `SocialSignIn.reauthenticate`
       refaz o login normal: com a sessão do Google viva no aparelho, confirmar vira escolher a conta. Correção cruzada: no fluxo de
       reautenticação mandar `prompt=login` + `max_age=0` (Credential Manager/`GIDSignIn` no nativo; `/social/start?reauth=1` no BFF) **e**
       a backlib conferir o `auth_time` do id_token do provedor dentro da janela antes de emitir `auth_time` novo. Par em `Lib/backlib/docs/backlog.md`.

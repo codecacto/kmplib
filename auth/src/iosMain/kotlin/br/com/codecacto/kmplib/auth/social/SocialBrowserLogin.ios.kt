@@ -14,6 +14,7 @@ import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLComponents
 import platform.Security.SecRandomCopyBytes
+import platform.Security.errSecSuccess
 import platform.Security.kSecRandomDefault
 import platform.UIKit.UIApplication
 import platform.UIKit.UIWindow
@@ -138,10 +139,14 @@ actual object PkceCrypto {
 
     actual fun randomBytes(size: Int): ByteArray {
         val bytes = ByteArray(size)
-        memScoped {
+        val status = memScoped {
             bytes.usePinned { pinned ->
                 SecRandomCopyBytes(kSecRandomDefault, size.toULong(), pinned.addressOf(0))
             }
+        }
+        // Falha do gerador = bytes zerados: um verifier PKCE previsível. Nunca seguir com eles.
+        if (status != errSecSuccess) {
+            throw SocialBrowserException("Gerador aleatório do sistema indisponível (status $status).", reason = "falha")
         }
         return bytes
     }

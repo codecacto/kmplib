@@ -149,6 +149,10 @@ class SocialSignIn internal constructor(
         val pkce = PkcePair.generate()
         val url = api.socialReauthStart(provider, backendAppId, pkce.challenge, accessToken)
             .getOrElse { return Result.failure(it) }
+        // Segunda trava, no ponto de abrir: https + host do provedor ou da API, nada além.
+        if (!isTrustedAuthorizationUrl(url, api.apiHost)) {
+            return Result.failure(SocialBrowserException("Endereço de confirmação não confiável.", reason = "falha"))
+        }
         val codigo = abrirNavegador(url).getOrElse { return Result.failure(it) }
         return api.socialExchange(codigo, pkce.verifier)
     }

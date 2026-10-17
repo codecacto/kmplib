@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import kotlinx.coroutines.CompletableDeferred
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -13,6 +14,14 @@ internal object SocialBrowserLoginState {
     // Escrito pela corrotina do login e lido na thread principal (redirect, vigia de retorno).
     @Volatile
     var pendente: CompletableDeferred<String>? = null
+
+    /**
+     * O esquema do *deep link* que o login em andamento espera (2.304.0). Outro aplicativo pode
+     * abrir a Activity de callback com qualquer URI que ela aceite; só a do esquema pedido completa
+     * o login.
+     */
+    @Volatile
+    var esquemaEsperado: String? = null
 }
 
 /**
@@ -83,13 +92,14 @@ actual class SocialBrowserLogin actual constructor() {
             SocialBrowserException("Login substituído por outro.", reason = "cancelado"),
         )
         SocialBrowserLoginState.pendente = aguardando
+        SocialBrowserLoginState.esquemaEsperado = redirectScheme
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(startUrl)).apply {
-            if (activity == null) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // Extras de Custom Tabs: sem a dependência androidx.browser, o navegador que as suporta
-            // as lê do próprio Intent; quem não suporta ignora e abre normalmente.
-            putExtra("android.support.customtabs.extra.SHARE_STATE", 2 /* SHARE_STATE_OFF */)
-        }
+        // Custom Tabs pela biblioteca oficial (androidx.browser): o navegador que não as suporta abre
+        // a URL normalmente, com o mesmo fluxo. Sem compartilhar: a URL leva o `state` do login.
+        val customTab = CustomTabsIntent.Builder()
+            .setShareState(CustomTabsIntent.SHARE_STATE_OFF)
+            .build()
+            .apply { if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
 
         // Registrado ANTES de abrir o navegador: é a pausa da tela, logo em seguida, que arma o vigia.
         val vigia = (context.applicationContext as? Application)?.let { app ->
@@ -106,7 +116,7 @@ actual class SocialBrowserLogin actual constructor() {
         }
 
         try {
-            context.startActivity(intent)
+            customTab.launchUrl(context, Uri.parse(startUrl))
         } catch (e: Exception) {
             // Qualquer falha ao abrir (não só a falta de navegador) desfaz o pedido: sem isto o vigia
             // ficaria registrado e o próximo deep link completaria um login que nunca abriu.
@@ -143,6 +153,8 @@ object SocialBrowserRedirect {
      */
     fun handleRedirect(uri: String) {
         val alvo = SocialBrowserLoginState.pendente ?: return
+        // URI de outro esquema não é a volta deste login: ignorada, o pedido segue esperando.
+        if (!isExpectedRedirect(uri, SocialBrowserLoginState.esquemaEsperado)) return
         val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return
         val erro = parsed.getQueryParameter("erro")
         val codigo = parsed.getQueryParameter("codigo")
