@@ -16,6 +16,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -281,7 +287,8 @@ class StoreIdentityBinderTest {
 
         store.resetFails = false
         binder.reconcile()
-        assertEquals(listOf("reset", "reset"), store.calls)
+        // sync + porta da compra (ainda falhando, 2.305.1) + reconciliação
+        assertEquals(listOf("reset", "reset", "reset"), store.calls)
         assertTrue(PurchaseIdentity.isAnonymous(store.appUserId))
     }
 
@@ -293,6 +300,33 @@ class StoreIdentityBinderTest {
         binder.sync(StoreSubject.Account("  "))
         assertEquals(listOf("identify:u1", "reset"), store.calls)
         assertEquals("StoreSubject.Account(…)", StoreSubject.Account("segredo").toString())
+    }
+
+    @Test
+    fun `reset que falhou na sessao sem sujeito e refeito na porta da compra`() = runTest {
+        val store = RecordingStore(appUserId = "fisio-1")
+        val binder = StoreIdentityBinder(store)
+        store.resetFails = true
+        binder.bindSubjects(flowOf(StoreSubject.Anonymous, StoreSubject.Anonymous)) // reemissão filtrada
+        assertEquals(listOf("reset"), store.calls)
+
+        store.resetFails = false
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+        assertEquals(listOf("reset", "reset"), store.calls)
+        assertTrue(PurchaseIdentity.isAnonymous(store.appUserId))
+
+        // Já anônima: a porta não chama mais a loja.
+        binder.ensureForPurchase()
+        assertEquals(2, store.calls.size)
+    }
+
+    @Test
+    fun `deslogado nao reseta na porta da compra — so a sessao sem sujeito por regra`() = runTest {
+        val store = RecordingStore(appUserId = "fisio-1")
+        val binder = StoreIdentityBinder(store)
+        binder.sync(StoreSubject.SignedOut)
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+        assertTrue(store.calls.isEmpty())
     }
 
     // ------------------------------------------------------------------ gerenciado desde a declaração (2.305.0)
@@ -412,6 +446,49 @@ class StoreIdentityBinderTest {
     }
 
     @Test
+    fun `MonetizationManager - reconcileIdentity refaz o reset que falhou ao voltar ao primeiro plano`() = runTest {
+        val repo = FakePurchaseRepository()
+        PurchaseManager.initializeWith(repo)
+        MonetizationManager.syncIdentity("fisio-1")
+        repo.nextIdentityFailure = PurchaseIdentityError.STORE
+        MonetizationManager.syncIdentity(StoreSubject.Anonymous)
+        assertEquals("fisio-1", MonetizationManager.currentAppUserId())
+
+        MonetizationManager.reconcileIdentity()
+        assertTrue(PurchaseIdentity.isAnonymous(MonetizationManager.currentAppUserId()))
+    }
+
+    @Test
+    fun `MonetizationManager - reconcileIdentity sem identidade declarada nao chama a loja`() = runTest {
+        val repo = FakePurchaseRepository(initialAppUserId = "conta-antiga")
+        PurchaseManager.initializeWith(repo)
+        MonetizationManager.reconcileIdentity()
+        assertEquals(0, repo.identifyCalls + repo.resetCalls)
+    }
+
+    @Test
+    fun `MonetizationManager - premium da conta so com a loja vinculada a ela`() = runBlocking<Unit> {
+        val repo = FakePurchaseRepository(premiumFor = setOf("fisio-1"))
+        PurchaseManager.initializeWith(repo)
+        MonetizationManager.syncIdentity("fisio-1")
+        MonetizationManager.initialize(
+            MonetizationConfig.Freemium(PurchaseConfig(androidApiKey = "goog_x", iosApiKey = "appl_x")),
+        )
+        assertTrue(aguardar { MonetizationManager.isPremium.value })
+        assertTrue(MonetizationManager.isPremiumForSubject("fisio-1"))
+        assertTrue(MonetizationManager.premiumForSubject("fisio-1").first())
+        assertFalse(MonetizationManager.isPremiumForSubject("outra-conta"))
+        assertFalse(MonetizationManager.isPremiumForSubject(""))
+
+        // Paciente entra e o reset falha: o premium GLOBAL ainda é do fisio; o da sessão, não.
+        repo.nextIdentityFailure = PurchaseIdentityError.STORE
+        MonetizationManager.syncIdentity(StoreSubject.Anonymous)
+        assertTrue(MonetizationManager.isPremium.value)
+        assertFalse(MonetizationManager.isPremiumForSubject("fisio-1"))
+        assertFalse(MonetizationManager.premiumForSubject("fisio-1").first())
+    }
+
+    @Test
     fun `MonetizationManager - reset volta a UNMANAGED`() = runTest {
         MonetizationManager.syncIdentity("u1")
         MonetizationManager.reset()
@@ -442,4 +519,11 @@ private class FakeAuth(private val users: List<User?>) : IAuthRepository {
     override suspend fun getIdToken(forceRefresh: Boolean): Result<String> = unused()
 
     private fun <T> unused(): Result<T> = Result.failure(UnsupportedOperationException("não usado"))
+}
+
+private suspend fun aguardar(condicao: () -> Boolean): Boolean = withContext(Dispatchers.Default) {
+    withTimeoutOrNull(3_000) {
+        while (!condicao()) delay(10)
+        true
+    } ?: false
 }

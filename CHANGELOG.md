@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.305.1 — **Identidade da loja: o reset da sessão sem sujeito é refeito; premium lido por conta**
+
+Origem: re-revisão de segurança da 2.305.0. **Piso** (`bindStoreSubject`, `StoreSubject`).
+
+### `kmplib-monetization`
+- **[Baixo] Reset que falhou em `StoreSubject.Anonymous` é refeito.** Na 2.305.0 só a entrada na sessão tentava o
+  reset: o `distinctUntilChanged` do bind filtrava a reemissão e a reconciliação interna só rodava quando a loja nascia.
+  Agora, enquanto a sessão é `Anonymous` e a loja não está anônima, o reset é refeito na **porta da compra**
+  (`ensureIdentityForPurchase`) e em **`MonetizationManager.reconcileIdentity()`** (novo, público) — chame ao voltar ao
+  primeiro plano (`LifecycleResumeEffect`); o módulo não observa ciclo de vida sozinho. Também refaz o `identify` de
+  conta que não pegou. Idempotente; sem identidade declarada não chama a loja. `StoreIdentityBinder.reconcile()` ficou
+  público.
+- **[Info] Premium da CONTA:** `MonetizationManager.premiumForSubject(subjectId): Flow<Boolean>` e
+  `isPremiumForSubject(subjectId): Boolean` — `true` só com a loja identificada exatamente com aquele sujeito e a
+  assinatura ativa. Em app com `StoreSubject`, `isPremium`/`premiumStatus`/`shouldShowAds` são globais da loja e, com
+  um reset falho, ainda refletem o assinante anterior do aparelho (KDoc de `bindStoreSubject`).
+
+**Ação do app:** subir; chamar `reconcileIdentity()` no `ON_RESUME` da raiz; exibir premium por
+`premiumForSubject(conta)` (substitui um `premiumDaLojaParaConta` escrito no app).
+
+Testes: `StoreIdentityBinderTest` +5 (33): reset falho refeito na porta (e não mais chamado com a loja já anônima);
+deslogado não reseta na porta; `reconcileIdentity` refaz o reset e não chama nada sem identidade declarada; premium
+da conta só com a loja vinculada (reset falho: global `true`, da conta `false`). `kmplib-monetization` 396 verdes;
+`compileKotlinIosArm64` (monetization) compilado.
+
 ## 2.305.0 — **Identidade da loja: sessão que não compra força a loja anônima; o bind nasce gerenciado**
 
 Origem: security-review do Meu Fisio (fisioterapeuta assina, paciente não compra). **Piso** (`bindIdentity`,

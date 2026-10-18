@@ -224,7 +224,12 @@ class StoreIdentityBinder internal constructor(
     suspend fun ensureForPurchase(): StoreIdentityStatus = lock.withLock {
         if (!isManaged) return@withLock StoreIdentityStatus.UNMANAGED
         if (store.currentAppUserId() == null) return@withLock StoreIdentityStatus.NO_STORE
-        val id = _subject.value ?: return@withLock StoreIdentityStatus.NO_SUBJECT
+        val id = _subject.value ?: run {
+            // Sessão sem sujeito por regra (2.305.1): o reset que falhou no `sync` é refeito aqui — o
+            // `distinctUntilChanged` do bind filtra a reemissão, e esta é uma das poucas chances.
+            if (anonymousByRule) resetLocked()
+            return@withLock StoreIdentityStatus.NO_SUBJECT
+        }
         val failure = identifyLocked(id)
         // A igualdade só vale para um id que identifica alguém: um sujeito reservado ou anônimo do
         // SDK "casaria" com a loja anônima e liberaria a venda para ninguém.
@@ -247,7 +252,14 @@ class StoreIdentityBinder internal constructor(
      * Reaplica o sujeito corrente — chamado quando a loja passa a existir (inicialização tardia,
      * depois do login): sem isto, o sujeito que chegou antes da loja só seria aplicado na compra.
      */
-    internal suspend fun reconcile() {
+    /**
+     * Reaplica o estado corrente na loja (2.305.1) — chame ao **voltar ao primeiro plano**
+     * (`ON_RESUME`/`ON_START` da raiz) via `MonetizationManager.reconcileIdentity()`. Refaz o `identify`
+     * da conta que não pegou e, em [StoreSubject.Anonymous], o reset que falhou: sem isto, um reset que
+     * falhou na entrada da sessão só seria tentado de novo na porta da compra. Idempotente: com a loja
+     * já no estado certo, não chama nada. A lib não observa o ciclo de vida sozinha neste módulo.
+     */
+    suspend fun reconcile() {
         lock.withLock {
             val id = _subject.value
             when {

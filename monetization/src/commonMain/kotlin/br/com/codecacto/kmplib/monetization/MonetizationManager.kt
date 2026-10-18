@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -481,6 +482,12 @@ object MonetizationManager {
      *     }
      * }
      * ```
+     *
+     * ⚠️ **Exibição do premium:** com sessões que não compram, [isPremium], [premiumStatus] e
+     * [shouldShowAds] são GLOBAIS da loja — se o reset para anônima falhar, ainda refletem o assinante
+     * anterior do aparelho. Para decidir o que a sessão vê, leia [premiumForSubject]/[isPremiumForSubject]
+     * (premium só quando a loja está identificada com AQUELE sujeito), e chame [reconcileIdentity] ao
+     * voltar ao primeiro plano.
      */
     suspend fun bindStoreSubject(
         auth: IAuthRepository,
@@ -511,6 +518,43 @@ object MonetizationManager {
      * tela ("não foi possível vincular a compra à sua conta"). O `PaywallViewModel` já chama sozinho.
      */
     suspend fun ensureIdentityForPurchase(): StoreIdentityStatus = storeIdentity.ensureForPurchase()
+
+    /**
+     * Reaplica a identidade corrente na loja (2.305.1): refaz o `identify` que não pegou e, numa sessão
+     * [StoreSubject.Anonymous], o reset que falhou. **Chame ao voltar ao primeiro plano** — a lib não
+     * observa o ciclo de vida neste módulo:
+     *
+     * ```kotlin
+     * LifecycleResumeEffect(Unit) {
+     *     scope.launch { MonetizationManager.reconcileIdentity() }
+     *     onPauseOrDispose { }
+     * }
+     * ```
+     * Idempotente e serializado com login/logout/compra. Sem identidade declarada, não faz nada.
+     */
+    suspend fun reconcileIdentity() {
+        if (storeIdentity.isManaged) storeIdentity.reconcile()
+    }
+
+    /**
+     * Premium **desta conta** (2.305.1): `true` só quando a loja está identificada exatamente com
+     * [subjectId] (o sujeito declarado no binder e o app user id da loja) **e** a assinatura está ativa.
+     * É a leitura certa em app com [StoreSubject] — o [isPremium] global reflete quem a loja for, e
+     * numa sessão que não compra (ou num reset que falhou) pode ser o assinante anterior do aparelho.
+     * Sujeito inválido para a loja (branco, reservado, anônimo do SDK) → sempre `false`.
+     */
+    fun premiumForSubject(subjectId: String): Flow<Boolean> =
+        combine(isPremium, storeIdentity.subject) { premium, subject ->
+            premium && subject == subjectId && isStoreBoundTo(subjectId)
+        }.distinctUntilChanged()
+
+    /** Leitura pontual de [premiumForSubject]. */
+    fun isPremiumForSubject(subjectId: String): Boolean =
+        isPremium.value && storeIdentity.subject.value == subjectId && isStoreBoundTo(subjectId)
+
+    private fun isStoreBoundTo(subjectId: String): Boolean =
+        PurchaseIdentity.check(subjectId) is AppUserIdCheck.Valid &&
+            PurchaseManager.currentAppUserId() == subjectId
 
     /**
      * App user id corrente na loja — para log/diagnóstico ("identifiquei quem?"). `null` sem loja
