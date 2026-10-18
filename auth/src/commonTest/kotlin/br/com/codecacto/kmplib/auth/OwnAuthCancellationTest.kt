@@ -7,6 +7,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -299,5 +300,108 @@ class OwnAuthCancellationTest {
 
         assertEquals("r-outra", tm.session.value?.refreshToken)
         assertEquals("r-outra", AuthSessionStore(storage).load()?.refreshToken)
+    }
+
+    // ---- 4. Nunca o token de OUTRA conta; refresh com teto próprio (2.304.2) ---------------
+
+    private fun refreshThatWaits(started: CompletableDeferred<Unit>, release: CompletableDeferred<HttpStatusCode>) =
+        MockEngine { request ->
+            if (request.url.encodedPath.endsWith("refresh")) {
+                started.complete(Unit)
+                val status = release.await()
+                val body = if (status == HttpStatusCode.OK) tokensJson(fakeJwt("acc-A"), "rA-2") else ""
+                respond(body, status, jsonHeaders)
+            } else {
+                respond("", HttpStatusCode.NoContent, jsonHeaders)
+            }
+        }
+
+    private suspend fun sessionSwappedDuringRefresh(answer: HttpStatusCode): Triple<String?, String?, OwnAuthTokenManager> =
+        kotlinx.coroutines.coroutineScope {
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<HttpStatusCode>()
+            val tm = OwnAuthTokenManager(api(refreshThatWaits(started, release)), AuthSessionStore(FakeSecureTokenStorage()), 60) { now }
+            tm.adopt(OwnAuthTokens(fakeJwt("acc-A"), "rA-1", 5), "a@x.com", "Ana") // conta A, expirando
+
+            val first = async { tm.accessToken() } // leva o refresh à rede
+            withContext(Dispatchers.Default) { withTimeout(5_000) { started.await() } }
+            val second = async { tm.accessToken() } // leu a sessão A e espera a trava da renovação
+            kotlinx.coroutines.yield()
+
+            tm.adopt(OwnAuthTokens(fakeJwt("acc-B"), "rB-1", 3600), "b@x.com", "Bia") // outra pessoa entra
+            release.complete(answer)
+
+            val a = withContext(Dispatchers.Default) { withTimeout(5_000) { first.await() } }
+            val b = withContext(Dispatchers.Default) { withTimeout(5_000) { second.await() } }
+            Triple(a, b, tm)
+        }
+
+    @Test
+    fun `sessao trocada por outra conta durante o refresh aceito - quem pediu na conta A nao recebe o token de B`() = runTest {
+        val (first, second, tm) = sessionSwappedDuringRefresh(HttpStatusCode.OK)
+        assertNull(first, "o refresh que partiu de A não devolve o token de B")
+        assertNull(second, "quem esperava a trava com a sessão A também não")
+        assertEquals("acc-B", tm.session.value?.accountId, "a sessão de B segue intacta")
+        assertEquals("rB-1", tm.session.value?.refreshToken)
+    }
+
+    @Test
+    fun `sessao trocada por outra conta durante refresh com falha passageira - nao devolve o token de B`() = runTest {
+        val (first, second, tm) = sessionSwappedDuringRefresh(HttpStatusCode.ServiceUnavailable)
+        assertNull(first)
+        assertNull(second)
+        assertEquals("acc-B", tm.session.value?.accountId)
+    }
+
+    @Test
+    fun `sessao trocada por outra conta durante refresh recusado - nao devolve o token de B nem a derruba`() = runTest {
+        val (first, second, tm) = sessionSwappedDuringRefresh(HttpStatusCode.Unauthorized)
+        assertNull(first)
+        assertNull(second)
+        assertEquals("rB-1", tm.session.value?.refreshToken)
+    }
+
+    @Test
+    fun `mesma conta renovada por outro caminho durante a espera continua recebendo o token`() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<HttpStatusCode>()
+        val tm = OwnAuthTokenManager(api(refreshThatWaits(started, release)), AuthSessionStore(FakeSecureTokenStorage()), 60) { now }
+        tm.adopt(OwnAuthTokens(fakeJwt("acc-A"), "rA-1", 5), "a@x.com", "Ana")
+
+        val first = async { tm.accessToken() }
+        withContext(Dispatchers.Default) { withTimeout(5_000) { started.await() } }
+        release.complete(HttpStatusCode.OK)
+        val token = withContext(Dispatchers.Default) { withTimeout(5_000) { first.await() } }
+        assertEquals("rA-2", tm.session.value?.refreshToken)
+        assertEquals(tm.session.value?.accessToken, token)
+    }
+
+    @Test
+    fun `refresh pendurado num HttpClient sem timeout para no teto proprio e preserva a sessao`() = runTest {
+        var refreshes = 0
+        val engine = MockEngine { request ->
+            if (request.url.encodedPath.endsWith("refresh")) {
+                refreshes++
+                awaitCancellation() // cliente cru, sem HttpTimeout: a rede nunca responde
+            }
+            respond("", HttpStatusCode.OK, jsonHeaders)
+        }
+        val storage = FakeSecureTokenStorage()
+        val tm = OwnAuthTokenManager(api(engine), AuthSessionStore(storage), 60) { now }
+        tm.refreshTimeoutMillis = 300 // o teto corre em tempo REAL (Dispatchers.Default); encurtado no teste
+        val stale = fakeJwt("acc-1")
+        tm.adopt(OwnAuthTokens(stale, "r1", 5), "a@x.com", "Ana")
+
+        // Sem o teto, esta chamada nunca voltaria.
+        val token = withContext(Dispatchers.Default) { withTimeout(5_000) { tm.accessToken() } }
+
+        assertEquals(30_000L, OwnAuthTokenManager.REFRESH_TIMEOUT_MILLIS)
+        assertEquals(stale, token, "estouro é falha passageira: devolve o access corrente")
+        assertEquals("r1", tm.session.value?.refreshToken, "a sessão é preservada")
+        assertEquals("r1", AuthSessionStore(storage).load()?.refreshToken)
+
+        // A trava da renovação foi solta: o próximo pedido tenta de novo (e para no teto de novo).
+        assertEquals(stale, withContext(Dispatchers.Default) { withTimeout(5_000) { tm.accessToken(forceRefresh = true) } })
+        assertEquals(2, refreshes)
     }
 }

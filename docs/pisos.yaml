@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.304.2
+    motivo: "own-auth: sessão trocada por outra conta durante um refresh devolvia o token da conta nova a pedido da antiga; refresh sem teto próprio podia travar todo pedido autenticado (HttpClient sem timeout)"
+    simbolos: [OwnAuthTokenManager, EmailPasswordAuthRepository, ownAuth]
+
   - versao: 2.304.1
     motivo: "own-auth: tela fechada no meio de um refresh deslogava a pessoa (refresh antigo no cofre → reuso → família revogada); \"Sair\" sem rede girava até 60 s"
     simbolos: [OwnAuthTokenManager, EmailPasswordAuthRepository, ownAuth]

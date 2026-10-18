@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.304.2 — **Sessão own-auth: o refresh nunca devolve o token de OUTRA conta e tem teto próprio**
+
+Origem: dois achados Baixos do security-review da 2.304.1. **Piso** (`OwnAuthTokenManager`,
+`EmailPasswordAuthRepository`, `ownAuth`).
+
+### `kmplib-auth`
+- **Nunca o token de outra conta.** Quando a sessão era trocada durante um refresh (outra pessoa entrou no mesmo
+  aparelho), `accessToken()` devolvia o access token da sessão NOVA a quem tinha pedido na antiga: no caminho
+  single-flight (`latest.accessToken`), no par descartado e nas falhas 4xx/passageiras. Um pedido da conta A podia ser
+  refeito com a credencial da conta B. Agora o token só volta se o `accountId` (`sub`) for o mesmo e não vazio; senão
+  `null` (falha fechada). Mesma conta renovada por outro caminho continua recebendo o token.
+- **Teto próprio do refresh: `OwnAuthTokenManager.REFRESH_TIMEOUT_MILLIS` (30 s).** O `POST /refresh` não cancelável
+  dependia do `HttpTimeout` do `HttpClient` injetado no `OwnAuthConfig`; um cliente cru, sem timeout, segurava a trava
+  da renovação para sempre (todo pedido autenticado parado). Agora roda em `withTimeoutOrNull` DENTRO do
+  `NonCancellable`, com o relógio do `Dispatchers.Default` (tempo real); o estouro é falha passageira — a sessão fica e
+  o próximo pedido tenta de novo.
+
+Testes: `OwnAuthCancellationTest` +5 (sessão trocada por outra conta durante refresh aceito, passageiro e recusado —
+quem pediu e quem esperava a trava recebem `null`, a sessão nova fica intacta; mesma conta segue recebendo; refresh
+pendurado num cliente sem timeout volta no teto, preserva a sessão e solta a trava). Os 3 de outra conta **falham**
+sem a correção. `kmplib-auth` 390 verdes; `compileKotlinIosArm64` (auth) compilado.
+
 ## 2.304.1 — **Sessão own-auth: a rotação do refresh sobrevive ao cancelamento, o "Sair" não espera a rede e vence o refresh em voo**
 
 Origem: revisão de segurança do módulo `auth`. **Piso** (`OwnAuthTokenManager`, `EmailPasswordAuthRepository`,

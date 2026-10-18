@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.auth
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,9 @@ class OwnAuthTokenManager(
      * grava o estado usa [stateLock] e nunca espera a rede (2.304.1).
      */
     private val mutex = Mutex()
+
+    /** Teto do refresh ([REFRESH_TIMEOUT_MILLIS]); `internal` e mutável só para o teste encurtar. */
+    internal var refreshTimeoutMillis: Long = REFRESH_TIMEOUT_MILLIS
 
     /**
      * Guarda o par **cofre + [session]**: toda gravação (login, perfil, limpeza, a confirmação de um
@@ -199,8 +203,10 @@ class OwnAuthTokenManager(
             // Single-flight: o refresh é ROTATIVO, então uma renovação concorrente troca o refresh
             // token guardado. Se ele mudou desde a nossa leitura pré-lock, alguém já rotacionou usando
             // o MESMO refresh que usaríamos — refazer reusaria um token já revogado. Reaproveita o novo.
+            // Mas só se ainda for a MESMA conta (2.304.2): se a sessão foi trocada enquanto se esperava a
+            // trava, o token corrente é de OUTRA pessoa e não pode autenticar um pedido feito pela primeira.
             if (latest.refreshToken != current.refreshToken) {
-                return@withLock latest.accessToken
+                return@withLock tokenForSameAccount(origin = current, now = latest)
             }
             performRefresh(latest)
         }
@@ -226,8 +232,22 @@ class OwnAuthTokenManager(
      * Agora a rotação ou se completa inteira (pedido → gravação → publicação) ou não começa (o
      * cancelamento chegou antes, ainda na espera da trava). Quem chamou continua livre para deixar de
      * esperar: o `withContext` relança o cancelamento ao voltar, e o resultado é descartado — mas o
-     * par novo já está no cofre e em [session]. O teto de espera é o timeout de requisição do
-     * `HttpClient` (o `createHttpClient` usa 30 s).
+     * par novo já está no cofre e em [session].
+     *
+     * ### ⚠️ Teto próprio de [REFRESH_TIMEOUT_MILLIS] (2.304.2)
+     * Um pedido não cancelável sem teto seguraria o [mutex] enquanto a rede deixasse — e o teto do
+     * `HttpClient` injetado no [OwnAuthConfig] não é garantido (o `createHttpClient` traz 30 s, um
+     * `HttpClient()` cru não traz nenhum). O pedido roda em `withTimeoutOrNull` DENTRO do
+     * `NonCancellable`: o cancelamento de quem chamou não o interrompe, o relógio sim. Estouro =
+     * falha passageira (como rede fora): a sessão é preservada. Se o servidor tiver rotacionado e só
+     * a resposta tiver se perdido, o próximo refresh é visto como reuso — o mesmo risco de qualquer
+     * resposta perdida, inevitável sem o servidor tolerar a repetição.
+     *
+     * ### ⚠️ Nunca devolve o token de OUTRA conta (2.304.2)
+     * Se a sessão foi trocada durante o refresh (login de outra pessoa), quem pediu o token partiu da
+     * sessão antiga: devolver o access token corrente refaria um pedido da conta A com a credencial
+     * da conta B. Nesses casos a resposta é `null` (sem sessão para aquele pedido) — ver
+     * [tokenForSameAccount].
      *
      * ### ⚠️ O `signOut` vence o refresh em voo (2.304.1)
      * A ida à rede acontece SEM a [stateLock]; a confirmação, com ela. Na volta, o par novo só é
@@ -239,13 +259,21 @@ class OwnAuthTokenManager(
      * novo feito durante o refresh não é apagado pela recusa do par antigo.
      */
     private suspend fun performRefresh(session: OwnAuthSession): String? = withContext(NonCancellable) {
-        val result = api.refresh(session.refreshToken)
+        // Teto PRÓPRIO (2.304.2): sem ele, o limite do pedido não cancelável dependia do `HttpTimeout`
+        // do `HttpClient` injetado — e um cliente sem timeout segurava a trava da renovação para
+        // sempre (todo pedido autenticado do app parado). O estouro é falha PASSAGEIRA: a sessão
+        // fica, e o próximo pedido tenta de novo.
+        // O relógio do teto é o do `Dispatchers.Default` — tempo REAL, não o do dispatcher de quem
+        // chamou (sob `runTest`, um teto em tempo virtual estouraria antes de a rede responder).
+        val result = withContext(Dispatchers.Default) {
+            withTimeoutOrNull(refreshTimeoutMillis) { api.refresh(session.refreshToken) }
+        } ?: Result.failure(OwnAuthException.Network(REFRESH_TIMEOUT_MESSAGE))
         result.fold(
             onSuccess = { tokens ->
                 val outcome = stateLock.withLock {
                     val current = _session.value
                     if (current == null || current.refreshToken != session.refreshToken) {
-                        return@withLock RefreshCommit.Discarded(current?.accessToken)
+                        return@withLock RefreshCommit.Discarded(tokenForSameAccount(origin = session, now = current))
                     }
                     // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar
                     // o token não converte um login social em login por senha. Lê da sessão CORRENTE,
@@ -276,15 +304,29 @@ class OwnAuthTokenManager(
                             store.clear()
                             _session.value = null
                         }
-                        _session.value?.accessToken
+                        tokenForSameAccount(origin = session, now = _session.value)
                     }
                 } else {
-                    // Rede/5xx: transitório — preserva a sessão e devolve o access corrente.
+                    // Rede/5xx/teto: transitório — preserva a sessão e devolve o access corrente.
                     AppLogger.w(TAG, "Refresh transitório falhou (${authError?.code}); mantendo sessão.")
-                    _session.value?.accessToken
+                    tokenForSameAccount(origin = session, now = _session.value)
                 }
             },
         )
+    }
+
+    /**
+     * O access token de [now] **só se for a mesma conta de [origin]** (o `accountId`, `sub` do JWT,
+     * igual e não vazio). Sessão encerrada, trocada por outra conta ou sem `sub` legível → `null`
+     * (falha fechada): o pedido feito em nome de [origin] não pode sair com a credencial de outra.
+     */
+    private fun tokenForSameAccount(origin: OwnAuthSession, now: OwnAuthSession?): String? {
+        if (now == null) return null
+        if (origin.accountId.isBlank() || now.accountId != origin.accountId) {
+            AppLogger.w(TAG, "Sessão trocada por outra conta durante a renovação; token não reaproveitado.")
+            return null
+        }
+        return now.accessToken
     }
 
     /** Resultado da confirmação de um refresh sob a [stateLock]. */
@@ -332,5 +374,12 @@ class OwnAuthTokenManager(
     companion object {
         private const val TAG = "OwnAuthTokenManager"
         private const val DISCARDED_REVOCATION_TIMEOUT_MILLIS = 5_000L
+
+        /**
+         * Teto do `POST {auth}/refresh` (2.304.2), independente do `HttpClient` injetado — o mesmo
+         * valor do `requestTimeoutMillis` default do `createHttpClient`.
+         */
+        const val REFRESH_TIMEOUT_MILLIS: Long = 30_000L
+        private const val REFRESH_TIMEOUT_MESSAGE = "Renovação da sessão passou do teto."
     }
 }
