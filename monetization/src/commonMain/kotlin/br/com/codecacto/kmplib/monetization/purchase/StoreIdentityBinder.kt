@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -29,7 +30,11 @@ enum class StoreIdentityStatus {
     /** Sem loja neste build (sem chave): a compra já sai como "indisponível" por outro caminho. */
     NO_STORE,
 
-    /** O app declarou a identidade, mas ninguém está logado: não há a quem atribuir a compra. */
+    /**
+     * O app declarou a identidade, mas não há a quem atribuir a compra: ninguém logado, sessão ainda
+     * não emitida (o binder nasce gerenciado no `bind`, 2.305.0) ou sessão que **não compra por regra**
+     * ([StoreSubject.Anonymous] — ex.: paciente que não assina).
+     */
     NO_SUBJECT,
 
     /**
@@ -42,6 +47,40 @@ enum class StoreIdentityStatus {
     /** `true` quando a compra/restauração pode seguir para a loja. */
     val allowsPurchase: Boolean
         get() = this == BOUND || this == UNMANAGED || this == NO_STORE
+}
+
+/**
+ * **Quem a loja deve refletir agora** (2.305.0) — o estado que o app emite para o [StoreIdentityBinder]
+ * quando precisa distinguir "ninguém logado" de "logado, mas sem quem assine".
+ *
+ * - [Account] — a conta (ou organização) que assina: a loja é identificada com ela.
+ * - [SignedOut] — **sem sessão** (o `null` de sempre). Abrir o app assim **não** chama a loja: a sessão
+ *   costuma nascer nula e ser restaurada um instante depois. Só anonimiza se havia um sujeito antes
+ *   (logout).
+ * - [Anonymous] — **sessão ativa SEM sujeito por regra** (ex.: paciente do Meu Fisio, que não compra).
+ *   **Força a loja anônima** sempre que ela não estiver anônima — inclusive em processo novo, quando o
+ *   SDK da loja ainda guarda o último app user id do aparelho (o de quem assinou antes). Sem isto, o
+ *   aparelho em que um assinante ficou identificado mostraria o premium dele durante a sessão de
+ *   outra pessoa. Compra e restauração respondem [StoreIdentityStatus.NO_SUBJECT].
+ */
+sealed interface StoreSubject {
+    /** A conta/organização que assina. Id em branco é tratado como [SignedOut]. */
+    data class Account(val id: String) : StoreSubject {
+        // O id é do titular: não vai a log por acidente.
+        override fun toString(): String = "StoreSubject.Account(…)"
+    }
+
+    /** Ninguém logado. */
+    data object SignedOut : StoreSubject
+
+    /** Logado, mas esta sessão não compra por regra do produto: a loja fica anônima. */
+    data object Anonymous : StoreSubject
+
+    companion object {
+        /** `null`/branco → [SignedOut]; senão [Account]. A ponte do contrato antigo (`String?`). */
+        fun of(id: String?): StoreSubject =
+            id?.trim()?.takeIf { it.isNotEmpty() }?.let(::Account) ?: SignedOut
+    }
 }
 
 /**
@@ -71,6 +110,11 @@ internal interface StoreIdentityGateway {
  *   existido (logout, conta excluída, refresh expirado) → `resetIdentity`. Abrir o app sem sessão
  *   (`null` desde o início) **não** chama a loja: a sessão costuma nascer `null` e ser restaurada um
  *   instante depois, e anonimizar ali seria um `logOut` + `logIn` na loja a cada abertura.
+ * - **Sessão sem sujeito por regra** ([StoreSubject.Anonymous], 2.305.0) é outra coisa: força a loja
+ *   anônima mesmo sem sujeito anterior neste processo — o SDK guarda o último id entre aberturas.
+ * - **Gerenciado desde a declaração** (2.305.0): [bind] marca o binder como gerenciado ANTES da primeira
+ *   emissão, e [declareManaged] permite fazê-lo já no boot. Até a sessão chegar, a porta responde
+ *   [StoreIdentityStatus.NO_SUBJECT] — nunca `UNMANAGED`, que liberaria a compra anônima.
  * - **Tudo serializado por um [Mutex]**: login e logout em sequência rápida não se cruzam na loja.
  * - **A porta da compra compara IGUALDADE** ([ensureForPurchase]), não "não é anônimo": se o reset do
  *   logout e o identify do login seguinte falharem em sequência, a loja continua sendo a **conta
@@ -92,9 +136,16 @@ class StoreIdentityBinder internal constructor(
     /** Sujeito (conta ou organização) que a loja deve refletir agora; `null` = ninguém logado. */
     val subject: StateFlow<String?> = _subject.asStateFlow()
 
-    /** `true` depois que o app declarou a identidade ([bind] ou [sync] chamados ao menos uma vez). */
-    var isManaged: Boolean = false
-        private set
+    private val _managed = MutableStateFlow(false)
+
+    /**
+     * `true` depois que o app declarou a identidade ([declareManaged], [bind] ou [sync]). Gerenciado,
+     * a compra exige sujeito: antes da primeira emissão a porta responde `NO_SUBJECT`.
+     */
+    val isManaged: Boolean get() = _managed.value
+
+    /** `true` enquanto o estado corrente for [StoreSubject.Anonymous] (sessão que não compra). */
+    private var anonymousByRule = false
 
     private var alerts: PaymentAlertReporter? = null
 
@@ -107,24 +158,58 @@ class StoreIdentityBinder internal constructor(
      * @param alerts destino dos alertas de pagamento; `null` = só log.
      */
     suspend fun bind(subjectIds: Flow<String?>, alerts: PaymentAlertReporter? = null) {
+        bindSubjects(subjectIds.map { StoreSubject.of(it) }, alerts)
+    }
+
+    /**
+     * Como [bind], mas pelo estado completo ([StoreSubject]) — a forma do app em que uma sessão pode
+     * existir **sem** quem assine (emita [StoreSubject.Anonymous] para ela). Gerenciado desde já.
+     */
+    suspend fun bindSubjects(subjects: Flow<StoreSubject>, alerts: PaymentAlertReporter? = null) {
         if (alerts != null) this.alerts = alerts
-        subjectIds.distinctUntilChanged().collect { sync(it) }
+        declareManaged()
+        subjects.distinctUntilChanged().collect { sync(it) }
+    }
+
+    /**
+     * Declara, **já no boot**, que este app amarra a loja à sessão — antes de o `bind` começar a coletar
+     * (ex.: no módulo Koin ou no `Application.onCreate`). A partir daqui, compra/restauração sem
+     * sujeito responde [StoreIdentityStatus.NO_SUBJECT]. Idempotente; não chama a loja.
+     */
+    fun declareManaged() {
+        _managed.value = true
     }
 
     /**
      * Aplica um sujeito pontualmente — para o app que já observa a sessão por conta própria.
      * Idempotente: repetir o estado corrente não chama a loja.
      */
-    suspend fun sync(subjectId: String?) {
+    suspend fun sync(subjectId: String?) = sync(StoreSubject.of(subjectId))
+
+    /**
+     * Aplica o estado completo pontualmente. [StoreSubject.Anonymous] anonimiza a loja **sempre que ela
+     * não estiver anônima** (reemitir é seguro: com a loja já anônima não há chamada).
+     */
+    suspend fun sync(subject: StoreSubject) {
         lock.withLock {
-            isManaged = true
-            val next = subjectId?.trim()?.takeIf { it.isNotEmpty() }
+            _managed.value = true
             val previous = _subject.value
-            _subject.value = next
-            when {
-                next != null -> identifyLocked(next)
-                previous != null -> resetLocked()
-                else -> Unit // null → null: nada a desfazer.
+            when (val next = normalize(subject)) {
+                is StoreSubject.Account -> {
+                    anonymousByRule = false
+                    _subject.value = next.id
+                    identifyLocked(next.id)
+                }
+                StoreSubject.Anonymous -> {
+                    anonymousByRule = true
+                    _subject.value = null
+                    resetLocked()
+                }
+                StoreSubject.SignedOut -> {
+                    anonymousByRule = false
+                    _subject.value = null
+                    if (previous != null) resetLocked() // null → null: nada a desfazer.
+                }
             }
         }
     }
@@ -163,13 +248,22 @@ class StoreIdentityBinder internal constructor(
      * depois do login): sem isto, o sujeito que chegou antes da loja só seria aplicado na compra.
      */
     internal suspend fun reconcile() {
-        lock.withLock { _subject.value?.let { identifyLocked(it) } }
+        lock.withLock {
+            val id = _subject.value
+            when {
+                id != null -> identifyLocked(id)
+                // Loja que nasceu depois do estado "sem sujeito por regra": o SDK pode ter configurado
+                // com o id guardado do aparelho (processo novo). Anonimiza.
+                anonymousByRule -> resetLocked()
+            }
+        }
     }
 
     /** Volta ao estado de fábrica (testes / `MonetizationManager.reset()`). */
     internal fun reset() {
         _subject.value = null
-        isManaged = false
+        _managed.value = false
+        anonymousByRule = false
         alerts = null
     }
 
@@ -185,6 +279,9 @@ class StoreIdentityBinder internal constructor(
         }
         return reason
     }
+
+    private fun normalize(subject: StoreSubject): StoreSubject =
+        if (subject is StoreSubject.Account) StoreSubject.of(subject.id) else subject
 
     private suspend fun resetLocked() {
         val current = store.currentAppUserId() ?: return

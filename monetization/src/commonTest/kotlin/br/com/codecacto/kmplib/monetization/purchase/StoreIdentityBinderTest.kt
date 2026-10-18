@@ -214,6 +214,114 @@ class StoreIdentityBinderTest {
         assertEquals(StoreIdentityStatus.MISMATCH, binder.ensureForPurchase())
     }
 
+    // ------------------------------------------------------------------ sessão sem sujeito por regra (2.305.0)
+
+    @Test
+    fun `assinante identificado - processo novo - sessao sem sujeito por regra - a loja e anonimizada`() = runTest {
+        // Processo 1: o fisio entra e a loja fica com o id dele.
+        val store = RecordingStore()
+        StoreIdentityBinder(store).sync("fisio-1")
+        assertEquals("fisio-1", store.appUserId)
+
+        // Processo novo: binder zerado, mas o SDK guardou o último app user id do aparelho.
+        store.calls.clear()
+        val binder = StoreIdentityBinder(store)
+        binder.sync(StoreSubject.Anonymous) // o paciente entra
+
+        assertEquals(listOf("reset"), store.calls)
+        assertTrue(PurchaseIdentity.isAnonymous(store.appUserId))
+        assertEquals(null, binder.subject.value)
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+    }
+
+    @Test
+    fun `sem sujeito por regra com a loja ja anonima nao chama a loja e reemitir e seguro`() = runTest {
+        val store = RecordingStore()
+        val binder = StoreIdentityBinder(store)
+        binder.sync(StoreSubject.Anonymous)
+        binder.sync(StoreSubject.Anonymous)
+        assertTrue(store.calls.isEmpty())
+    }
+
+    @Test
+    fun `abrir sem sessao pelo estado completo continua sem logOut`() = runTest {
+        val store = RecordingStore(appUserId = "fisio-1")
+        val binder = StoreIdentityBinder(store)
+        binder.bindSubjects(flowOf(StoreSubject.SignedOut))
+        assertTrue(store.calls.isEmpty())
+        assertEquals("fisio-1", store.appUserId)
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+    }
+
+    @Test
+    fun `sessao inteira pelo estado completo - paciente - sai - fisio - paciente`() = runTest {
+        val store = RecordingStore(appUserId = "fisio-1")
+        val binder = StoreIdentityBinder(store)
+        binder.bindSubjects(
+            flowOf(
+                StoreSubject.SignedOut,
+                StoreSubject.Anonymous,
+                StoreSubject.SignedOut,
+                StoreSubject.Account("fisio-2"),
+                StoreSubject.Anonymous,
+            ),
+            alerts,
+        )
+        assertEquals(listOf("reset", "identify:fisio-2", "reset"), store.calls)
+        assertTrue(PurchaseIdentity.isAnonymous(store.appUserId))
+    }
+
+    @Test
+    fun `reset que falha na sessao sem sujeito e tentado de novo e a compra segue recusada`() = runTest {
+        val store = RecordingStore(appUserId = "fisio-1")
+        val binder = StoreIdentityBinder(store)
+        store.resetFails = true
+        binder.sync(StoreSubject.Anonymous)
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+
+        store.resetFails = false
+        binder.reconcile()
+        assertEquals(listOf("reset", "reset"), store.calls)
+        assertTrue(PurchaseIdentity.isAnonymous(store.appUserId))
+    }
+
+    @Test
+    fun `conta em branco no estado completo conta como deslogado`() = runTest {
+        val store = RecordingStore()
+        val binder = StoreIdentityBinder(store)
+        binder.sync(StoreSubject.Account("u1"))
+        binder.sync(StoreSubject.Account("  "))
+        assertEquals(listOf("identify:u1", "reset"), store.calls)
+        assertEquals("StoreSubject.Account(…)", StoreSubject.Account("segredo").toString())
+    }
+
+    // ------------------------------------------------------------------ gerenciado desde a declaração (2.305.0)
+
+    @Test
+    fun `compra antes da primeira emissao do bind e NO_SUBJECT, nunca UNMANAGED`() = runTest {
+        val store = RecordingStore()
+        val binder = StoreIdentityBinder(store)
+        val subjects = MutableSharedFlow<String?>()
+        val job = launch { binder.bind(subjects, alerts) }
+        testScheduler.runCurrent() // bind começou a coletar; nada emitido ainda
+
+        assertTrue(binder.isManaged)
+        val status = binder.ensureForPurchase()
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, status)
+        assertFalse(status.allowsPurchase)
+        assertTrue(store.calls.isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `declareManaged no boot fecha a janela antes do bind`() = runTest {
+        val store = RecordingStore()
+        val binder = StoreIdentityBinder(store)
+        binder.declareManaged()
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, binder.ensureForPurchase())
+        assertTrue(store.calls.isEmpty())
+    }
+
     // ------------------------------------------------------------------ serialização
 
     @Test
@@ -280,6 +388,27 @@ class StoreIdentityBinderTest {
         PurchaseManager.initializeWith(repo)
         MonetizationManager.bindIdentity(FakeAuth(listOf(user("u7"))), subjectOf = { "org-${it.id}" })
         assertEquals("org-u7", MonetizationManager.currentAppUserId())
+    }
+
+    @Test
+    fun `MonetizationManager - bindStoreSubject forca a loja anonima para a sessao que nao compra`() = runTest {
+        val repo = FakePurchaseRepository()
+        PurchaseManager.initializeWith(repo)
+        MonetizationManager.syncIdentity("fisio-1")
+        assertEquals("fisio-1", MonetizationManager.currentAppUserId())
+
+        MonetizationManager.bindStoreSubject(FakeAuth(listOf(null, user("paciente-1")))) { u ->
+            if (u.id.startsWith("paciente")) StoreSubject.Anonymous else StoreSubject.Account(u.id)
+        }
+        assertTrue(PurchaseIdentity.isAnonymous(MonetizationManager.currentAppUserId()))
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, MonetizationManager.ensureIdentityForPurchase())
+    }
+
+    @Test
+    fun `MonetizationManager - declareIdentityManaged recusa compra antes da sessao`() = runTest {
+        PurchaseManager.initializeWith(FakePurchaseRepository())
+        MonetizationManager.declareIdentityManaged()
+        assertEquals(StoreIdentityStatus.NO_SUBJECT, MonetizationManager.ensureIdentityForPurchase())
     }
 
     @Test

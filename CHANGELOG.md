@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.305.0 — **Identidade da loja: sessão que não compra força a loja anônima; o bind nasce gerenciado**
+
+Origem: security-review do Meu Fisio (fisioterapeuta assina, paciente não compra). **Piso** (`bindIdentity`,
+`syncIdentity`).
+
+### `kmplib-monetization`
+- **[Médio] Sessão SEM sujeito por regra força a loja anônima.** `sync(null)` com o binder já em `null` (processo novo,
+  ou reset anterior que falhou) não chamava a loja — de propósito, para abrir sem sessão não fazer `logOut` a cada
+  abertura. Mas o SDK da RevenueCat guarda o último app user id entre aberturas: no aparelho em que um assinante
+  ficou identificado, a sessão de quem não compra seguia com o uid e o premium dele. Novo estado
+  **`StoreSubject`** (`Account(id)` · `SignedOut` · `Anonymous`): `Anonymous` roda o reset na loja sempre que ela não
+  estiver anônima (dentro do mesmo `Mutex`; reemitir é seguro; a reconciliação da loja tardia também reseta).
+  `SignedOut` mantém o comportamento antigo (sem `logOut` ao abrir sem sessão). API:
+  `MonetizationManager.bindStoreSubject(auth, alerts) { user -> StoreSubject }`, `bindStoreSubject(Flow<StoreSubject>)`,
+  `syncIdentity(StoreSubject)`; no binder `bindSubjects`/`sync(StoreSubject)`. Compra/restauração com `Anonymous` =
+  `NO_SUBJECT`. `StoreSubject.Account.toString()` não mostra o id.
+- **[Baixo] O binder nasce gerenciado no `bind`.** Até aqui ficava `isManaged = false` até a PRIMEIRA emissão da sessão,
+  e a porta respondia `UNMANAGED` — que libera compra/restauração anônima. Agora `bindIdentity`/`bindStoreSubject`
+  declaram gerenciado antes de coletar (compra antes da sessão = `NO_SUBJECT`), e
+  `MonetizationManager.declareIdentityManaged()` (não suspenso) fecha a janela já no boot.
+
+**Ação do app:** subir. Quem tem sessão que não compra por regra troca `bindIdentity` por `bindStoreSubject`
+emitindo `StoreSubject.Anonymous` para ela. Contrato `String?` antigo inalterado.
+
+Testes: `StoreIdentityBinderTest` +10 (assinante identificado → processo novo → `Anonymous` → loja resetada e
+`NO_SUBJECT`; abrir sem sessão não faz `logOut`; compra antes da primeira emissão do `bind` = `NO_SUBJECT`;
+`declareManaged`; reset que falha é tentado de novo na reconciliação; sequência completa; `MonetizationManager`).
+`kmplib-monetization` 391 verdes; `compileKotlinIosArm64` (monetization) compilado.
+
 ## 2.304.2 — **Sessão own-auth: o refresh nunca devolve o token de OUTRA conta e tem teto próprio**
 
 Origem: dois achados Baixos do security-review da 2.304.1. **Piso** (`OwnAuthTokenManager`,

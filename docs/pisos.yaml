@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.305.0
+    motivo: "identidade da loja: sessão que não compra por regra herdava o uid/premium do assinante que ficou no aparelho (StoreSubject.Anonymous força a loja anônima); bind ficava UNMANAGED até a 1ª emissão e liberava compra anônima"
+    simbolos: [bindIdentity, syncIdentity]
+
   - versao: 2.304.2
     motivo: "own-auth: sessão trocada por outra conta durante um refresh devolvia o token da conta nova a pedido da antiga; refresh sem teto próprio podia travar todo pedido autenticado (HttpClient sem timeout)"
     simbolos: [OwnAuthTokenManager, EmailPasswordAuthRepository, ownAuth]

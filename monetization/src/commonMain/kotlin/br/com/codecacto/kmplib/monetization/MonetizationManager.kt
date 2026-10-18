@@ -16,6 +16,7 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.hasStoreApiKey
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityBinder
+import br.com.codecacto.kmplib.monetization.purchase.StoreSubject
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityGateway
 import br.com.codecacto.kmplib.monetization.purchase.StoreIdentityStatus
 import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
@@ -464,6 +465,45 @@ object MonetizationManager {
 
     /** Aplica um sujeito pontualmente (app que já observa a sessão). Ver `StoreIdentityBinder.sync`. */
     suspend fun syncIdentity(subjectId: String?) = storeIdentity.sync(subjectId)
+
+    /**
+     * **Sessão que pode existir SEM quem assine** (2.305.0) — ex.: no Meu Fisio o fisioterapeuta assina
+     * e o paciente não compra. Mapeie cada usuário logado para [StoreSubject.Account] (assina) ou
+     * [StoreSubject.Anonymous] (não compra por regra — a loja é **forçada a anônima**, mesmo que o
+     * aparelho tenha ficado identificado com outra conta numa abertura anterior). Usuário `null` vira
+     * [StoreSubject.SignedOut] (abrir sem sessão não chama a loja). Chame no lugar de [bindIdentity],
+     * em `LaunchedEffect(Unit)` na raiz.
+     *
+     * ```kotlin
+     * LaunchedEffect(Unit) {
+     *     MonetizationManager.bindStoreSubject(authRepository, alerts = paymentAlerts) { user ->
+     *         if (user.ehPaciente) StoreSubject.Anonymous else StoreSubject.Account(user.id)
+     *     }
+     * }
+     * ```
+     */
+    suspend fun bindStoreSubject(
+        auth: IAuthRepository,
+        alerts: PaymentAlertReporter? = null,
+        subjectFor: (User) -> StoreSubject,
+    ) = storeIdentity.bindSubjects(
+        auth.currentUser.map { user -> user?.let(subjectFor) ?: StoreSubject.SignedOut },
+        alerts,
+    )
+
+    /** Variante por [Flow] de [StoreSubject] — o app que monta o estado por conta própria. */
+    suspend fun bindStoreSubject(subjects: Flow<StoreSubject>, alerts: PaymentAlertReporter? = null) =
+        storeIdentity.bindSubjects(subjects, alerts)
+
+    /** Aplica o estado completo pontualmente. Ver [StoreSubject] e `StoreIdentityBinder.sync`. */
+    suspend fun syncIdentity(subject: StoreSubject) = storeIdentity.sync(subject)
+
+    /**
+     * Declara no boot (antes de o `bindIdentity`/`bindStoreSubject` coletar) que a loja é amarrada à
+     * sessão: daí em diante, comprar/restaurar sem sujeito responde `NO_SUBJECT`, nunca `UNMANAGED`.
+     * Não chama a loja. O `bind*` já declara sozinho ao começar; isto fecha a janela antes dele.
+     */
+    fun declareIdentityManaged() = storeIdentity.declareManaged()
 
     /**
      * **Porta da compra e da restauração**: tenta identificar de novo e responde se a loja pode vender
