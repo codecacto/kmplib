@@ -5,6 +5,38 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.304.1 — **Sessão own-auth: a rotação do refresh sobrevive ao cancelamento, o "Sair" não espera a rede e vence o refresh em voo**
+
+Origem: revisão de segurança do módulo `auth`. **Piso** (`OwnAuthTokenManager`, `EmailPasswordAuthRepository`,
+`ownAuth`): vale para todo app com own-auth.
+
+### `kmplib-auth`
+- **Refresh cancelado no meio não desloga mais ninguém.** `OwnAuthTokenManager.performRefresh` roda `api.refresh` +
+  `store.save` + publicação em `withContext(NonCancellable)`. Até a 2.304.0, cancelar a corrotina que pediu o token
+  (tela fechada, `viewModelScope` encerrado) DEPOIS de o servidor rotacionar e ANTES do `store.save` deixava o refresh
+  antigo no cofre; o próximo refresh era tratado como **reuso** e a família inteira era revogada — logout por lentidão.
+  Agora a rotação completa inteira ou não começa; quem chamou ainda pode deixar de esperar (o resultado é descartado,
+  o par novo fica no cofre).
+- **"Sair" limpa o aparelho primeiro.** `EmailPasswordAuthRepository.signOut()` tira a sessão do cofre e publica o
+  deslogado (`OwnAuthTokenManager.clearAndTake`, interno, `NonCancellable`, lê o cofre se a memória estiver vazia) e
+  **só depois** revoga no servidor — best-effort, com teto de **5 s** (`LOGOUT_REVOCATION_TIMEOUT_MILLIS`), sem lançar.
+  Até a 2.304.0 a limpeza esperava o `POST /logout`: sem rede, o "Sair" ficava até 60 s girando. Desenho:
+  `withTimeoutOrNull` dentro da concorrência estruturada de quem chama (a lib não tem escopo de aplicação; `GlobalScope`
+  não é opção); a UI já reagiu ao `currentUser = null` antes da rede.
+- **O `signOut` vence um refresh em voo.** O gerenciador passou a ter duas travas: a da renovação (só a ida à rede,
+  single-flight) e a do estado (cofre + `session`, nunca com rede). O refresh, ao voltar, só grava o par novo se a sessão
+  corrente ainda for a de que partiu (mesmo refresh token); se ela foi encerrada ou trocada no meio, o par novo é
+  **descartado** (nada volta ao cofre, nada de estado logado republicado) e revogado no servidor, best-effort (5 s). A
+  recusa 4xx também só derruba a sessão se ela ainda for a mesma — um login novo feito durante o refresh não é apagado.
+  O "Sair" não espera mais um refresh pendurado na rede.
+- Sem mudança de API pública além da constante `EmailPasswordAuthRepository.LOGOUT_REVOCATION_TIMEOUT_MILLIS`.
+
+Testes: `OwnAuthCancellationTest` 9 (cancelamento no meio do refresh aceito e do recusado; signOut sem rede volta no
+teto com o cofre limpo; deslogado publicado e cofre limpo ANTES do `POST /logout`; erro no servidor não lança; revoga o
+refresh do cofre antes do `restore()`; sem sessão não chama o servidor; refresh em voo + signOut → cofre vazio,
+deslogado, os dois refresh revogados; recusa que volta depois de login novo não o derruba). Os 3 de cancelamento/cofre
+**falham** com o código da 2.304.0. `kmplib-auth` 385 verdes; `compileKotlinIosArm64` (auth) compilado, sem SKIPPED.
+
 ## 2.304.0 — **Reautenticação pelo login social (contrato da backlib 0.190.0): navegador por `POST /social/reauth/start`, nativo por `POST /social/reauth/nonce`, recusas como resultado próprio**
 
 Origem: security-review da backlib 0.189.0/0.190.0 — a sessão aberta pelo login social passou a levar `amr: ["fed"]`

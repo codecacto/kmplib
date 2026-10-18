@@ -2,11 +2,15 @@ package br.com.codecacto.kmplib.auth
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Gerencia os tokens da autenticação própria: **persiste** a sessão no cofre seguro, **renova** o
@@ -32,7 +36,20 @@ class OwnAuthTokenManager(
     private val refreshSkewSeconds: Long = OwnAuthConfig.DEFAULT_REFRESH_SKEW_SECONDS,
     private val nowMillis: () -> Long = ::currentTimeMillis,
 ) {
+    /**
+     * **Single-flight da renovação** — só o refresh (que vai à rede) passa por aqui. Quem só lê ou
+     * grava o estado usa [stateLock] e nunca espera a rede (2.304.1).
+     */
     private val mutex = Mutex()
+
+    /**
+     * Guarda o par **cofre + [session]**: toda gravação (login, perfil, limpeza, a confirmação de um
+     * refresh) passa por ela, e nenhuma ida à rede acontece com ela travada. É o que deixa o
+     * `signOut` encerrar a sessão na hora mesmo com um refresh pendurado na rede — e é sob ela que o
+     * refresh, ao voltar, confere se a sessão de que partiu ainda é a corrente antes de gravar.
+     * Ordem de aquisição fixa: [mutex] → [stateLock], nunca o contrário.
+     */
+    private val stateLock = Mutex()
     private val _session = MutableStateFlow<OwnAuthSession?>(null)
 
     /** Sessão corrente (null = deslogado). Espelha o cofre; reagir a null = ir para o login. */
@@ -42,8 +59,8 @@ class OwnAuthTokenManager(
      * Semeia [session] a partir do cofre. Chamar no bootstrap, **na raiz do app** (um deep link não
      * passa pela Splash) — e pode ser chamada de mais de um lugar: é **idempotente**.
      *
-     * ### ⚠️ Roda sob a MESMA trava da renovação (2.203.0)
-     * Até a 2.202.0 a leitura do cofre e a publicação corriam fora do [mutex]. Com `restore()` em
+     * ### ⚠️ Roda sob a trava do estado, a mesma em que o refresh confirma o par novo (2.203.0; 2.304.1)
+     * Até a 2.202.0 a leitura do cofre e a publicação corriam fora da trava. Com `restore()` em
      * paralelo a uma renovação, a ordem "restore lê r1 → refresh troca r1 por r2 e publica → restore
      * publica r1" deixava a sessão **velha** em memória; o refresh seguinte mandava r1, que o servidor
      * já tinha rotacionado — **reuso**, e a família inteira de tokens é revogada: a pessoa é deslogada
@@ -53,7 +70,7 @@ class OwnAuthTokenManager(
      * grava no cofre antes, sob a mesma trava, e a memória nunca está atrás dele — já o contrário
      * acontece (uma gravação no cofre que falhou), e reler ali trocaria o par novo pelo antigo.
      */
-    suspend fun restore(): OwnAuthSession? = mutex.withLock {
+    suspend fun restore(): OwnAuthSession? = stateLock.withLock {
         _session.value ?: store.load().also { _session.value = it }
     }
 
@@ -70,7 +87,7 @@ class OwnAuthTokenManager(
         username: String? = null,
     ) {
         val session = tokens.toSession(email, name, providerId, username)
-        mutex.withLock {
+        stateLock.withLock {
             store.save(session)
             _session.value = session
         }
@@ -84,7 +101,7 @@ class OwnAuthTokenManager(
      * a origem do login. Conta sem `sub` legível nunca casa (falha fechada).
      */
     internal suspend fun adoptIfSameAccount(tokens: OwnAuthTokens, expectedAccountId: String): AdoptOutcome =
-        mutex.withLock {
+        stateLock.withLock {
             val current = _session.value
             if (current == null || expectedAccountId.isBlank() || current.accountId != expectedAccountId) {
                 return@withLock AdoptOutcome.SessionChanged
@@ -119,7 +136,7 @@ class OwnAuthTokenManager(
      * sessão com senha temporária o `/me` omite e-mail e usuário de propósito, e isso não significa
      * que a conta deixou de tê-los.
      */
-    suspend fun applyProfile(profile: OwnAuthProfile): OwnAuthSession? = mutex.withLock {
+    suspend fun applyProfile(profile: OwnAuthProfile): OwnAuthSession? = stateLock.withLock {
         val current = _session.value ?: return@withLock null
         if (profile.id.isNotBlank() && current.accountId.isNotBlank() && profile.id != current.accountId) {
             AppLogger.w(TAG, "Perfil de outra conta ignorado (a sessão mudou durante a leitura).")
@@ -142,9 +159,29 @@ class OwnAuthTokenManager(
      * Serializada com a renovação: um refresh em voo não ressuscita a sessão encerrada.
      */
     suspend fun clear() {
-        mutex.withLock {
+        stateLock.withLock {
             store.clear()
             _session.value = null
+        }
+    }
+
+    /**
+     * **Encerra a sessão local e devolve a que estava valendo** (2.304.1, `signOut`) — numa só
+     * passada sob a trava do estado, sem rede nenhuma — e **sem esperar um refresh em voo** (ele usa
+     * outra trava para a rede). É o que deixa o "Sair" limpar o aparelho ANTES de falar com o
+     * servidor; o refresh pendurado, quando voltar, vê que a sessão acabou e descarta o par novo
+     * (ver [performRefresh]).
+     *
+     * Lê o cofre quando a memória está vazia (app que saiu antes do `restore()`), para que a
+     * revogação no servidor não seja pulada. Roda inteira em [NonCancellable]: cancelar quem chamou
+     * no meio não deixa o par de tokens no cofre.
+     */
+    internal suspend fun clearAndTake(): OwnAuthSession? = withContext(NonCancellable) {
+        stateLock.withLock {
+            val previous = _session.value ?: store.load()
+            store.clear()
+            _session.value = null
+            previous
         }
     }
 
@@ -175,33 +212,100 @@ class OwnAuthTokenManager(
         return session.accessExpiresAtEpochSeconds - nowSeconds <= refreshSkewSeconds
     }
 
-    /** Executa o refresh rotativo já sob o [mutex]. Devolve o novo access token, ou trata a falha. */
-    private suspend fun performRefresh(session: OwnAuthSession): String? {
+    /**
+     * Executa o refresh rotativo já sob o [mutex]. Devolve o novo access token, ou trata a falha.
+     *
+     * ### ⚠️ A rotação é atômica frente ao cancelamento (2.304.1)
+     * `api.refresh` + `store.save` + a publicação rodam em [NonCancellable]. Até a 2.304.0, se a
+     * corrotina de quem pediu o token fosse cancelada (a tela saiu, o `viewModelScope` acabou) **depois**
+     * de o servidor rotacionar o refresh e **antes** do `store.save`, o cofre ficava com o refresh
+     * ANTIGO — já revogado no servidor. O refresh seguinte mandava esse token, o servidor via
+     * **reuso** e revogava a família inteira: a pessoa era deslogada por uma tela lenta, sem ter
+     * feito nada.
+     *
+     * Agora a rotação ou se completa inteira (pedido → gravação → publicação) ou não começa (o
+     * cancelamento chegou antes, ainda na espera da trava). Quem chamou continua livre para deixar de
+     * esperar: o `withContext` relança o cancelamento ao voltar, e o resultado é descartado — mas o
+     * par novo já está no cofre e em [session]. O teto de espera é o timeout de requisição do
+     * `HttpClient` (o `createHttpClient` usa 30 s).
+     *
+     * ### ⚠️ O `signOut` vence o refresh em voo (2.304.1)
+     * A ida à rede acontece SEM a [stateLock]; a confirmação, com ela. Na volta, o par novo só é
+     * gravado se a sessão corrente ainda for a de que o refresh partiu (mesmo refresh token). Se ela
+     * foi encerrada ([clear]/[clearAndTake]) ou trocada ([adopt]/[adoptIfSameAccount]) no meio, o
+     * par novo é **descartado** — nada volta ao cofre, nenhum estado logado é republicado — e
+     * revogado no servidor, best-effort, para não deixar uma família viva que ninguém guarda.
+     * O mesmo vale para a recusa (4xx): só derruba a sessão se ela ainda for a mesma — um login
+     * novo feito durante o refresh não é apagado pela recusa do par antigo.
+     */
+    private suspend fun performRefresh(session: OwnAuthSession): String? = withContext(NonCancellable) {
         val result = api.refresh(session.refreshToken)
-        return result.fold(
+        result.fold(
             onSuccess = { tokens ->
-                // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar o
-                // token não converte um login social em login por senha.
-                val renewed = tokens.toSession(session.email, session.name, session.providerId, session.username)
-                store.save(renewed)
-                _session.value = renewed
-                renewed.accessToken
+                val outcome = stateLock.withLock {
+                    val current = _session.value
+                    if (current == null || current.refreshToken != session.refreshToken) {
+                        return@withLock RefreshCommit.Discarded(current?.accessToken)
+                    }
+                    // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar
+                    // o token não converte um login social em login por senha. Lê da sessão CORRENTE,
+                    // para não desfazer um perfil aplicado enquanto o pedido estava na rede.
+                    val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
+                    store.save(renewed)
+                    _session.value = renewed
+                    RefreshCommit.Saved(renewed.accessToken)
+                }
+                when (outcome) {
+                    is RefreshCommit.Saved -> outcome.accessToken
+                    is RefreshCommit.Discarded -> {
+                        AppLogger.w(TAG, "Sessão encerrada ou trocada durante o refresh; par novo descartado.")
+                        revokeDiscarded(tokens.refreshToken)
+                        outcome.accessToken
+                    }
+                }
             },
             onFailure = { error ->
                 val authError = error as? OwnAuthException
                 if (authError != null && authError.isClientError) {
-                    // 4xx: refresh inválido/revogado/reusado → fail-closed (derruba a sessão).
+                    // 4xx: refresh inválido/revogado/reusado → fail-closed (derruba a sessão) — se ela
+                    // ainda for a mesma de que o refresh partiu.
                     AppLogger.w(TAG, "Refresh rejeitado (${authError.code}); encerrando sessão.")
-                    store.clear()
-                    _session.value = null
-                    null
+                    stateLock.withLock {
+                        val current = _session.value
+                        if (current != null && current.refreshToken == session.refreshToken) {
+                            store.clear()
+                            _session.value = null
+                        }
+                        _session.value?.accessToken
+                    }
                 } else {
                     // Rede/5xx: transitório — preserva a sessão e devolve o access corrente.
                     AppLogger.w(TAG, "Refresh transitório falhou (${authError?.code}); mantendo sessão.")
-                    session.accessToken
+                    _session.value?.accessToken
                 }
             },
         )
+    }
+
+    /** Resultado da confirmação de um refresh sob a [stateLock]. */
+    private sealed interface RefreshCommit {
+        class Saved(val accessToken: String) : RefreshCommit
+        class Discarded(val accessToken: String?) : RefreshCommit
+    }
+
+    /** Revoga, com teto curto e sem lançar, o par que o refresh trouxe e não foi adotado. */
+    private suspend fun revokeDiscarded(refreshToken: String) {
+        if (refreshToken.isBlank()) return
+        val result = try {
+            withTimeoutOrNull(DISCARDED_REVOCATION_TIMEOUT_MILLIS) { api.logout(refreshToken) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+        if (result == null || result.isFailure) {
+            AppLogger.w(TAG, "Revogação do par descartado não confirmada; ele expira sozinho no servidor.")
+        }
     }
 
     private fun OwnAuthTokens.toSession(
@@ -227,5 +331,6 @@ class OwnAuthTokenManager(
 
     companion object {
         private const val TAG = "OwnAuthTokenManager"
+        private const val DISCARDED_REVOCATION_TIMEOUT_MILLIS = 5_000L
     }
 }

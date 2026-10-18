@@ -2,8 +2,10 @@ package br.com.codecacto.kmplib.auth
 
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -64,7 +66,9 @@ class EmailPasswordAuthRepositoryTest {
         val tm = OwnAuthTokenManager(api, AuthSessionStore(FakeSecureTokenStorage()), 60) { now }
         val repo = EmailPasswordAuthRepository(api, tm)
         repo.signInWithEmail("a@x.com", "p")
-        repo.signOut()
+        // Tempo REAL: a revogação tem teto (2.304.1), e em tempo virtual o teto vence antes de o
+        // MockEngine (outro dispatcher) responder.
+        withContext(Dispatchers.Default) { repo.signOut() }
         assertFalse(repo.isLoggedInSync)
         assertNull(repo.currentUser.first())
         assertTrue(cap.any { it.url.endsWith("logout") && "r-abc" in it.body })

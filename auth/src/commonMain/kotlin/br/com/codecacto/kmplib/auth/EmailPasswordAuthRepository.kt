@@ -4,11 +4,11 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.AuthException
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Implementação own-auth do [IAuthRepository] — e-mail + senha contra o backend REST próprio (sem
@@ -69,14 +69,50 @@ class EmailPasswordAuthRepository(
         return Result.success(token)
     }
 
+    /**
+     * Sai da conta: **primeiro o aparelho, depois o servidor** (2.304.1).
+     *
+     * 1. Numa só passada, sob a trava do estado e em `NonCancellable`, tira a sessão do cofre,
+     *    publica o estado deslogado ([currentUser] emite `null`) e guarda o refresh token que estava
+     *    valendo ([OwnAuthTokenManager.clearAndTake]). Nada aqui depende de rede.
+     * 2. Só então revoga a família desse refresh no servidor — **best-effort**, com teto de
+     *    [LOGOUT_REVOCATION_TIMEOUT_MILLIS] (5 s): rede fora, servidor lento ou erro não viram falha
+     *    do "Sair", e o retorno nunca espera mais que isso.
+     *
+     * Até a 2.304.0 a ordem era a inversa: a limpeza esperava o `POST /logout`, e sem rede o "Sair"
+     * ficava até 60 s girando (timeout de conexão + leitura) com a pessoa ainda "logada".
+     *
+     * ### Por que `withTimeoutOrNull` e não um escopo de aplicação
+     * A lib não tem um escopo que viva mais que a tela e que seja do app — `GlobalScope` é
+     * desaconselhado pela própria documentação do kotlinx.coroutines (sem dono, sem cancelamento,
+     * sem tratamento de erro), e exigir um `CoroutineScope` injetado mudaria o construtor de todo app.
+     * Com o teto curto, a revogação continua dentro da concorrência estruturada de quem chamou, e o
+     * custo é no máximo 5 s de retorno — sem afetar a UI, que já reagiu ao `null` do passo 1. Se a
+     * tela for cancelada durante a revogação, só a revogação se perde: o aparelho já está limpo, e o
+     * refresh que ficou vivo no servidor expira sozinho e não existe mais em lugar nenhum do aparelho.
+     */
     override suspend fun signOut() {
-        // Revoga a família do refresh no servidor (best-effort) e limpa a sessão local — a limpeza
-        // local acontece SEMPRE (2.301.0): `finally` + `NonCancellable`, para que uma exceção ou o
-        // cancelamento da tela no meio do `logout` não deixe o par de tokens no cofre do aparelho.
+        val previous = tokenManager.clearAndTake()
+        val refreshToken = previous?.refreshToken?.takeIf { it.isNotBlank() } ?: return
+        revokeQuietly(refreshToken)
+    }
+
+    /** `POST {auth}/logout` com teto curto; nunca lança (exceto o cancelamento de quem chamou). */
+    private suspend fun revokeQuietly(refreshToken: String) {
         try {
-            tokenManager.session.value?.refreshToken?.let { api.logout(it) }
-        } finally {
-            withContext(NonCancellable) { tokenManager.clear() }
+            val result = withTimeoutOrNull(LOGOUT_REVOCATION_TIMEOUT_MILLIS) { api.logout(refreshToken) }
+            when {
+                result == null -> AppLogger.w(TAG, "Revogação no servidor passou do teto; sessão local já encerrada.")
+                result.isFailure -> AppLogger.w(
+                    TAG,
+                    "Revogação no servidor falhou (${result.exceptionOrNull()?.let { it::class.simpleName }}); " +
+                        "sessão local já encerrada.",
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Revogação no servidor falhou (${e::class.simpleName}); sessão local já encerrada.")
         }
     }
 
@@ -401,7 +437,10 @@ class EmailPasswordAuthRepository(
         else -> AuthException.UnknownError(message ?: "Erro desconhecido")
     }
 
-    private companion object {
-        const val TAG = "EmailPasswordAuthRepository"
+    companion object {
+        private const val TAG = "EmailPasswordAuthRepository"
+
+        /** Teto da revogação no servidor durante o [signOut] (2.304.1). */
+        const val LOGOUT_REVOCATION_TIMEOUT_MILLIS: Long = 5_000L
     }
 }

@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.304.1
+    motivo: "own-auth: tela fechada no meio de um refresh deslogava a pessoa (refresh antigo no cofre → reuso → família revogada); \"Sair\" sem rede girava até 60 s"
+    simbolos: [OwnAuthTokenManager, EmailPasswordAuthRepository, ownAuth]
+
   - versao: 2.304.0
     motivo: "conta só com login social não consegue confirmar a identidade (excluir conta) em backend com backlib ≥ 0.190.0"
     simbolos: [RecentAuthCoordinator, SocialSignIn]
