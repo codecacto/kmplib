@@ -596,4 +596,16 @@
     <string name="kmplib_account_pending_sign_out">Terminar sessão</string>
     <string name="kmplib_account_pending_restore_failed">Não foi possível restaurar a sua conta. Tente novamente.</string>
     <string name="kmplib_account_pending_restore_needs_sign_in">Inicie sessão novamente para restaurar a conta.</string>
+    <!-- Relatórios do app (pdf/report). %1$s = endereço do portal / data. -->
+    <string name="kmplib_report_dre_title">Demonstração de resultados</string>
+    <string name="kmplib_report_highlights">Destaques do período</string>
+    <string name="kmplib_report_export_pdf">Exportar PDF</string>
+    <string name="kmplib_report_full">Ver relatório completo</string>
+    <string name="kmplib_report_web_title">Relatório completo no portal</string>
+    <string name="kmplib_report_web_body">Os relatórios completos, com filtros e detalhes, estão no portal. No computador, aceda a %1$s e entre com o mesmo utilizador e palavra-passe da aplicação.</string>
+    <string name="kmplib_report_web_open">Abrir o portal</string>
+    <string name="kmplib_report_web_dismiss">Agora não</string>
+    <string name="kmplib_report_pdf_column_line">Descrição</string>
+    <string name="kmplib_report_pdf_column_value">Valor</string>
+    <string name="kmplib_report_pdf_generated_at">Gerado em %1$s</string>
 </resources>

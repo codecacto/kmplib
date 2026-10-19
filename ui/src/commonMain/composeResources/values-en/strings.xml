@@ -596,4 +596,16 @@
     <string name="kmplib_account_pending_sign_out">Sign out</string>
     <string name="kmplib_account_pending_restore_failed">We couldn't restore your account. Please try again.</string>
     <string name="kmplib_account_pending_restore_needs_sign_in">Sign in again to restore the account.</string>
+    <!-- Relatórios do app (pdf/report). %1$s = endereço do portal / data. -->
+    <string name="kmplib_report_dre_title">Income statement</string>
+    <string name="kmplib_report_highlights">Period highlights</string>
+    <string name="kmplib_report_export_pdf">Export PDF</string>
+    <string name="kmplib_report_full">See full report</string>
+    <string name="kmplib_report_web_title">Full report on the web portal</string>
+    <string name="kmplib_report_web_body">The full reports, with filters and details, are on the web portal. On a computer, go to %1$s and sign in with the same username and password you use in the app.</string>
+    <string name="kmplib_report_web_open">Open portal</string>
+    <string name="kmplib_report_web_dismiss">Not now</string>
+    <string name="kmplib_report_pdf_column_line">Description</string>
+    <string name="kmplib_report_pdf_column_value">Amount</string>
+    <string name="kmplib_report_pdf_generated_at">Generated on %1$s</string>
 </resources>

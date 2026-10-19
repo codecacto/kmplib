@@ -5,6 +5,34 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.306.0 — **Relatórios do app: o DRE do celular, o PDF dele e o "Ver relatório completo" (`pdf.report`)**
+
+Origem: premissa da fábrica (fundador, 18/out/2026) — relatório completo é coisa de WEB; no app vai o DRE do
+período, uns poucos números que importam, **Exportar PDF** e **Ver relatório completo**, que explica e leva ao
+portal. Antes cada app (LocaSys, LocAki, Meu Frete) desenhava a sua tela; agora é uma só. Aditivo, sem piso.
+
+### `kmplib-pdf` — pacote novo `br.com.codecacto.kmplib.pdf.report`
+- **`DreSummary`** (`periodLabel`, `lines: List<DreSummaryLine>`, `result`, `highlights: List<ReportHighlight>`,
+  `breakdown` + `breakdownTitle` — o resultado aberto num eixo, ex. "Por área" —, `notes`). Tudo já formatado:
+  a lib não soma nem formata dinheiro. `DreLineKind` = `REVENUE`/`DEDUCTION`/`SUBTOTAL`/`ITEM`/`TOTAL` (decide
+  recuo, peso e divisória, na tela e no PDF); `ReportTone` pinta o destaque.
+- **`ReportSummaryContent(summary, onOpenFullReport, onExportPdf, exporting, texts)`** — resultado em destaque,
+  destaques em grade de 2, o demonstrativo num cartão e os dois botões (`ReportSummaryActions`). Não rola nem
+  puxa para atualizar: entra no `RefreshableBox` + `verticalScroll` do app, abaixo do seletor de período dele.
+  `onExportPdf = null` esconde o botão. Ids: `relatorio-resumo`, `relatorio-resultado`, `relatorio-dre`,
+  `relatorio-exportar-pdf`, `relatorio-ver-completo`, `relatorio-abrir-portal`.
+- **`FullReportOnWebDialog(show, portal, onOpen, onDismiss)`** — "os relatórios completos ficam no portal; no
+  computador, acesse `<portal>` e entre com o mesmo usuário e senha do aplicativo". Sobre o `AppAlertDialog`.
+- **`DreSummaryPdf.build(summary, company, texts, generatedAt): DocumentPdfData`** (cabeçalho da empresa,
+  destaques em cartões, demonstrativo em tabela, resultado em caixa, abertura, notas, "Gerado em …") e
+  **`exportDreSummaryPdf(...)`** (gera + compartilhar do sistema, arquivo `DRE_<período sem acento>.pdf`).
+- **`ReportSummaryTexts`** + **`rememberReportSummaryTexts()`** — pt-BR, en, es, pt-PT (strings
+  `kmplib_report_*` em `kmplib-ui`).
+
+**Ação do app:** quem tem Relatórios no app troca a tela própria pelo `ReportSummaryContent` +
+`FullReportOnWebDialog` e declara `api(libs.kmplib.pdf)`. Testes: `DreSummaryPdfTest` 7; `kmplib-pdf` verde;
+`compileKotlinIosArm64` pdf/ui sem SKIPPED.
+
 ## 2.305.1 — **Identidade da loja: o reset da sessão sem sujeito é refeito; premium lido por conta**
 
 Origem: re-revisão de segurança da 2.305.0. **Piso** (`bindStoreSubject`, `StoreSubject`).
