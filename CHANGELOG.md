@@ -5,6 +5,50 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.307.0 — **Tour guiado dos menus (`ui.tour`): `ProductTourHost` + `Modifier.tourTarget`**
+
+Origem: o fundador aprovou no portal do Vitalis o tour do primeiro acesso (driver.js: tela escurece, destaca
+um menu de cada vez, balão com título, frase, "N de M" e **Pular · Voltar · Próximo**, "Começar a usar" no
+último; "Refazer o tour" no menu da conta) e quer o MESMO nos apps — piloto no LocAki. Aditivo, sem piso.
+
+**Decisão (pesquisa de 19/out/2026):** a única biblioteca de *coach mark* para Compose **Multiplatform** é a
+Reveal (svenjacobs, MIT, mantida). Ficou de fora por dois motivos objetivos: (1) o próprio README declara que
+fora do Android os alvos "não são bem testados" — iOS é metade do nosso público; (2) as versões mantidas
+(4.3+/5.x) exigem Kotlin 2.4 e Compose MP 1.11–1.12, e a kmplib está em Kotlin 2.3.0 / CMP 1.10.0 — usá-la
+seria fixar uma linha antiga sem correção ou arrastar todos os apps a um bump de compilador. As alternativas
+maduras (Intro Showcase da Canopas, TapTargetCompose, Spotlight) são só Android. Implementado na lib com as
+APIs oficiais do Compose: `Modifier.Node` (`GlobalPositionAwareModifierNode` + `boundsInRoot`) para medir,
+camada `CompositingStrategy.Offscreen` + `BlendMode.DstOut` para o recorte (DstOut no lugar de Clear para o
+recorte poder esmaecer), `Layout` próprio para o balão, `WindowInsets.safeDrawing`, semântica e foco.
+
+### `kmplib-ui` — pacote novo `br.com.codecacto.kmplib.ui.tour`
+- **`Modifier.tourTarget(id)`** marca o alvo (no-op fora de um host). **Itens da `AppBottomNavBar` e destinos
+  do `AdaptiveScaffold` já são alvos** pelo próprio id de automação (`nav-item-<route>`) — o app não marca nada.
+- **`TourStep(targetId, title, description)`** — `targetId = null` = balão centralizado (boas-vindas). Passo
+  cujo alvo não está na tela no começo é pulado e sai da contagem; alvo que some no meio é pulado ao navegar.
+- **`rememberProductTourState(onEnd)`** → `ProductTourState`: `start(steps)` (o "Refazer o tour"), `next`,
+  `back`, `skip`, `isActive`, `currentStep`, `currentNumber`/`stepCount`, `canGoBack`, `isLastStep`;
+  `TourEndReason` `COMPLETED`/`SKIPPED`/`NOTHING_TO_SHOW`.
+- **`ProductTourHost(state, firstRunKey, firstRunSteps, firstRunEnabled, …) { raiz }`** — envolve a tela raiz
+  (cobre top bar, bottom bar e banner); balão acima/abaixo do alvo sem sair da área segura, com seta; recorte
+  com respiro de 6 dp e cantos de 10 dp (os do portal), cortina `scrim` a 55 %; cores do `MaterialTheme`
+  (claro/escuro); destaque desliza entre alvos (salta com "reduzir movimento"); toque fora não fecha; voltar
+  do sistema pula. Acessibilidade: tela por baixo fora da semântica enquanto aberto, balão = painel nomeado,
+  título cabeçalho anunciado a cada passo, foco no botão principal.
+- **Primeira vez:** `firstRunKey` (versione: `"tour.inicio.v1"`) abre sozinho uma vez, 600 ms depois de a
+  tela aparecer; concluir ou pular grava em `AppPreferences` (`ProductTourFirstRun`, chave
+  `kmplib.tour.seen.<key>`). **Build de teste (`AutomationMode`) não abre sozinho** — flows existentes não
+  quebram; `suppressFirstRunInAutomation = false` muda isso.
+- **`ProductTourTexts`/`rememberProductTourTexts()`** (pt-BR, en, es, pt-PT; `restart` = rótulo "Refazer o
+  tour" para o menu do app), **`ProductTourStyle`/`ProductTourDefaults`**, ids **`ProductTourTestTags`**
+  (`tour`, `tour-balao`, `tour-progresso`, `tour-titulo`, `tour-descricao`, `tour-btn-pular`,
+  `tour-btn-voltar`, `tour-btn-proximo`, `tour-btn-concluir`).
+
+**Ação do app:** nenhuma obrigatória. Para ligar: envolver a raiz no `ProductTourHost`, marcar os alvos que não
+são abas com `tourTarget`, e um item "Refazer o tour" chamando `state.start(passos)`. Testes:
+`ProductTourStateTest` 13, `TourBalloonPlacementTest` 8, `ProductTourFirstRunTest` 4; `kmplib-ui` 1109 verdes;
+`:kmplib-ui:compileKotlinIosArm64` compilado (sem SKIPPED).
+
 ## 2.306.0 — **Relatórios do app: o DRE do celular, o PDF dele e o "Ver relatório completo" (`pdf.report`)**
 
 Origem: premissa da fábrica (fundador, 18/out/2026) — relatório completo é coisa de WEB; no app vai o DRE do

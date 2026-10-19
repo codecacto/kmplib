@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.ui.tour.tourTarget
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -327,7 +328,9 @@ fun AppBottomNavBar(
                 enabled = item.enabled,
                 onClick = { onItemClick(item) },
                 // Id por item (2.240.0): cai no nó `selectable` da aba, que é o que o Maestro toca.
-                modifier = Modifier.testTag(item.effectiveTestTag),
+                // 2.307.0: o mesmo id é alvo do tour guiado (`TourStep("nav-item-<route>", …)`);
+                // fora de um `ProductTourHost` o `tourTarget` não faz nada.
+                modifier = Modifier.testTag(item.effectiveTestTag).tourTarget(item.effectiveTestTag),
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = selectedContentColor,
                     selectedTextColor = selectedContentColor,

@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import br.com.codecacto.kmplib.ui.tour.tourTarget
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -160,6 +161,7 @@ private fun AdaptiveBottomBar(
                         onClick = { onSelect(destino.id) },
                     )
                     .testTag(BottomNavTestTags.item(destino.id))
+                    .tourTarget(BottomNavTestTags.item(destino.id))
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -236,6 +238,7 @@ private fun AdaptiveRail(
                             onClick = { onSelect(destino.id) },
                         )
                         .testTag(BottomNavTestTags.item(destino.id))
+                        .tourTarget(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -265,6 +268,7 @@ private fun AdaptiveRail(
                             onClick = { onSelect(destino.id) },
                         )
                         .testTag(BottomNavTestTags.item(destino.id))
+                        .tourTarget(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),

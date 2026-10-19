@@ -618,4 +618,13 @@
     <string name="kmplib_report_pdf_column_line">Descrição</string>
     <string name="kmplib_report_pdf_column_value">Valor</string>
     <string name="kmplib_report_pdf_generated_at">Gerado em %1$s</string>
+
+    <!-- Tour guiado (ui.tour, 2.307.0) -->
+    <string name="kmplib_tour_skip">Pular</string>
+    <string name="kmplib_tour_back">Voltar</string>
+    <string name="kmplib_tour_next">Próximo</string>
+    <string name="kmplib_tour_done">Começar a usar</string>
+    <string name="kmplib_tour_progress">%1$d de %2$d</string>
+    <string name="kmplib_tour_restart">Refazer o tour</string>
+    <string name="kmplib_tour_pane">Tour guiado</string>
 </resources>
