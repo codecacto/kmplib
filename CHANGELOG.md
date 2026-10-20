@@ -5,6 +5,36 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.310.0 — **Modo automação cala o comunicado em modal, e a marca do runner passa a valer no Android com só o `initKmpLibCore`**
+
+Origem: piloto da suíte Maestro mais rápida do **LocAki** (T7 de `LocAki/docs/tarefas/2026-10-20-suite-maestro-mais-rapida.md`).
+O subflow de abertura pagava até ~35 s de espera fixa por reabertura para fechar o comunicado e o tour. Sem piso e
+sem aviso: o defeito só afeta a suíte de teste (build depurável), nunca o usuário final — release não lê a marca.
+
+### `ui/announcement` + `announcement` (central) — comunicado fechável calado em build de teste
+- **`AnnouncementDialogHost(…, suppressInAutomation: Boolean = true)`** (as duas sobrecargas),
+  **`AnnouncementHost(…, dialogSuppressInAutomation = true)`** e **`RemoteAnnouncementHost(…, dialogSuppressInAutomation = true)`**:
+  com o `AutomationMode` ligado (dublê da loja, Test Harness, marca do runner de QA em binário depurável) o modal
+  **fechável** não abre — no mesmo ponto em que o modo já cala avaliação, atualização opcional e o tour automático.
+  A **manutenção que bloqueia continua abrindo** (como o Hard update). Nada é gravado como visto/fechado: desligada
+  a marca, o comunicado aparece normalmente. O comunicado em **banner** (`presentation = BANNER`) não muda — não cobre a tela.
+- Suíte que quer ver o comunicado: `dialogSuppressInAutomation = false` no app de teste, ou rodar sem a marca.
+  Nenhuma suíte da fábrica testava o comunicado como produto em 20/out/2026 (todas só o fecham, de forma opcional).
+- Regra pura `announcementDialogCanOpen(…)` (interna) + `AnnouncementDialogAutomationTest` (5).
+
+### `platform/automation` — a marca do runner no Android não dependia só do `initKmpLibPlatform`… e dependia
+- **Causa do tour aberto na suíte do LocAki (19/out/2026):** a elegibilidade da marca (`FLAG_DEBUGGABLE`) lia o
+  `Context` só do `AutomationContextHolder`, preenchido pelo `initKmpLibPlatform`. App de módulos granulares que chama
+  **só o `initKmpLibCore`** (o LocAki) nunca o preenchia, e `isQaRunnerMarked()` respondia `false` para sempre — com o
+  `setprop` feito e conferido pelo runner. No iOS não há `Context`, por isso lá a marca pegava.
+- **Correção:** `AutomationContextHolder.contextOrNull()` cai no `AndroidAppContext` do core quando o platform não foi
+  inicializado. Elegibilidade igual (app depurável); `isDebuggableApp` nulo-seguro. Teste novo em `QaRunnerSignalAndroidTest`.
+- KDoc do `AutomationMode`: a tabela do que se cala ganhou o tour (2.307.0) e o comunicado (2.310.0).
+
+### Compilação
+`kmplib-platform`/`kmplib-ui` testes de automação/anúncio/tour verdes; `kmplib-central` Android; `compileKotlinIosArm64`
+de platform/ui/central sem SKIPPED; LocAki (fonte) `:composeApp:compileDebugKotlinAndroid` e `compileKotlinIosArm64` verdes.
+
 ## 2.309.0 — **Cor de marca por tema (`AppColorPalette.lightBrand`/`darkBrand`) e "Ver relatório completo" opcional**
 
 Origem: redesign do **Todos a Bordo** (GAP-TB-M-04 e GAP-TB-M-05). Tudo aditivo — sem piso, sem aviso.

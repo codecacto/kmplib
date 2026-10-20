@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import kotlin.concurrent.Volatile
 
 internal actual fun isDeviceInTestHarness(): Boolean = try {
@@ -16,23 +17,35 @@ internal actual fun isDeviceInTestHarness(): Boolean = try {
 
 /**
  * O `Context` da aplicação para a marca do runner de QA ([AutomationSignal.QA_RUNNER]), registrado
- * por `initKmpLibPlatform` (o `KmpLib.init` do umbrella já chama). Sem ele a marca não vale —
- * fecha para o lado seguro: sem saber se o app é depurável, não se cala nada.
+ * por `initKmpLibPlatform` (o `KmpLib.init` do umbrella já chama) e, desde 2.310.0, também lido do
+ * `AndroidAppContext` do core (`initKmpLibCore`). Sem nenhum dos dois a marca não vale — fecha para
+ * o lado seguro: sem saber se o app é depurável, não se cala nada.
+ *
+ * Por que o core também (2.310.0): app que declara os módulos granulares costuma chamar SÓ o
+ * `initKmpLibCore` (LocAki) — e aí a marca do runner nunca valia no Android, com o `setprop` feito
+ * e conferido: o tour dos menus abria no meio da suíte Maestro (19/out/2026) e o comunicado também
+ * abriria. A elegibilidade continua a mesma (app depurável); muda só de onde vem o `Context`.
  */
 internal object AutomationContextHolder {
     @Volatile
     private var appContext: Context? = null
 
+    /** Só para teste: de onde vem o `Context` quando o platform não foi inicializado. */
+    @Volatile
+    internal var fallback: () -> Context? = { AndroidAppContext.get() }
+
     fun init(context: Context) {
         appContext = context.applicationContext
     }
 
-    fun contextOrNull(): Context? = appContext
+    fun contextOrNull(): Context? = appContext ?: fallback()
 }
 
 /** O app é depurável? Vem do manifesto mesclado do build (`debuggable`), que a Play recusa em release. */
-internal fun isDebuggableApp(context: Context?): Boolean =
-    context != null && (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+internal fun isDebuggableApp(context: Context?): Boolean {
+    val flags = context?.applicationInfo?.flags ?: return false
+    return (flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+}
 
 /**
  * Lê `debug.codecacto.automacao` pelo binário `getprop` do sistema — API pública (`ProcessBuilder`),

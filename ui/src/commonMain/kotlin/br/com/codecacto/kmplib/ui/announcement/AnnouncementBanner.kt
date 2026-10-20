@@ -528,7 +528,9 @@ fun rememberAnnouncementState(
  *   movimento"). Sem banner pendente, não ocupa espaço nenhum.
  * - [AnnouncementPresentation.MODAL] (o default) → [AnnouncementDialogHost]: diálogo centralizado,
  *   um por vez, no máximo 3 por sessão. [dialogReady] segura a abertura até o app estar pronto
- *   (depois da Splash/login); [dialogSuppressed] segura durante paywall, compra ou câmera.
+ *   (depois da Splash/login); [dialogSuppressed] segura durante paywall, compra ou câmera. Em build
+ *   de teste (`AutomationMode`) o modal fechável não abre (2.310.0) — [dialogSuppressInAutomation]
+ *   `= false` para a suíte que quer vê-lo.
  *
  * ```kotlin
  * AnnouncementHost(
@@ -547,6 +549,7 @@ fun AnnouncementHost(
     extraContent: (@Composable (Announcement) -> Unit)? = null,
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
+    dialogSuppressInAutomation: Boolean = true,
 ) {
     val banners = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.BANNER } }
     val modals = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.MODAL } }
@@ -559,6 +562,7 @@ fun AnnouncementHost(
         store = store,
         clock = clock,
         onAction = onAction,
+        suppressInAutomation = dialogSuppressInAutomation,
     )
 }
 

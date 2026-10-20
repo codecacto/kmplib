@@ -61,6 +61,9 @@ fun rememberRemoteAnnouncements(
  * @param dialogReady segura o modal até o app estar pronto (depois da Splash/login).
  * @param dialogSuppressed segura o modal durante paywall, compra ou câmera (a manutenção que bloqueia
  *   abre mesmo assim).
+ * @param dialogSuppressInAutomation `true` (default): em build de teste (`AutomationMode` — dublê da
+ *   loja, Test Harness, marca do runner de QA) o modal fechável não abre (2.310.0); `false` para a
+ *   suíte que testa o próprio comunicado.
  *
  * ```kotlin
  * RemoteAnnouncementHost(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -80,6 +83,7 @@ fun RemoteAnnouncementHost(
     extraContent: (@Composable (Announcement) -> Unit)? = null,
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
+    dialogSuppressInAutomation: Boolean = true,
 ) {
     val remote = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
     val merged = remember(local, remote) { mergeAnnouncements(local, remote) }
@@ -92,5 +96,6 @@ fun RemoteAnnouncementHost(
         extraContent = extraContent,
         dialogReady = dialogReady,
         dialogSuppressed = dialogSuppressed,
+        dialogSuppressInAutomation = dialogSuppressInAutomation,
     )
 }

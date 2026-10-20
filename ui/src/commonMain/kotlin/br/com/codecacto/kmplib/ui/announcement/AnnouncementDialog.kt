@@ -51,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -853,10 +854,18 @@ fun rememberAnnouncementDialogState(
  *   com [suppressed] (paywall, compra, câmera) nem com o teclado aberto — exceto a manutenção que
  *   bloqueia, que abre na hora.
  * - Não fechável só bloqueia DURANTE a janela; antes dela, fecha por sessão.
+ * - **Build de teste não abre comunicado** (2.310.0): com o `AutomationMode` ligado (dublê da loja,
+ *   Test Harness, marca do runner de QA em binário depurável), o modal fechável não abre — como o
+ *   pedido de avaliação e a atualização opcional. A manutenção que BLOQUEIA continua abrindo (como o
+ *   Hard update). Release nunca lê a marca. A suíte que quer ver o comunicado passa
+ *   `suppressInAutomation = false` (ou roda sem a marca). Nada é gravado como visto: com o modo
+ *   desligado, o comunicado aparece normalmente.
  *
  * ```kotlin
  * AnnouncementDialogHost(announcements = avisos, ready = usuarioLogado)
  * ```
+ *
+ * @param suppressInAutomation `false` deixa o modal fechável abrir também em build de teste.
  */
 @Composable
 fun AnnouncementDialogHost(
@@ -870,12 +879,17 @@ fun AnnouncementDialogHost(
     maxPerSession: Int = DEFAULT_ANNOUNCEMENT_DIALOGS_PER_SESSION,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
+    suppressInAutomation: Boolean = true,
 ) {
     val state = rememberAnnouncementDialogState(announcements, store, clock, session, maxPerSession)
-    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts)
+    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts, suppressInAutomation)
 }
 
-/** O mesmo [AnnouncementDialogHost], sobre um [AnnouncementDialogState] que a tela já tem. */
+/**
+ * O mesmo [AnnouncementDialogHost], sobre um [AnnouncementDialogState] que a tela já tem.
+ *
+ * @param suppressInAutomation `false` deixa o modal fechável abrir também em build de teste.
+ */
 @Composable
 fun AnnouncementDialogHost(
     state: AnnouncementDialogState,
@@ -884,13 +898,23 @@ fun AnnouncementDialogHost(
     openDelay: Duration = DEFAULT_ANNOUNCEMENT_DIALOG_OPEN_DELAY,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
+    suppressInAutomation: Boolean = true,
 ) {
     val ui = state.ui
     val current = ui.current
     val blocking = current != null && !ui.dismissible
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var allowed by remember { mutableStateOf(false) }
-    val canOpen = current != null && (blocking || (ready && !suppressed && !imeVisible))
+    // Lido a cada composição: o AutomationMode já guarda a leitura da marca por alguns segundos.
+    val automationMuted = suppressInAutomation && current != null && AutomationMode.suppressesAutomaticPrompts
+    val canOpen = announcementDialogCanOpen(
+        hasCurrent = current != null,
+        blocking = blocking,
+        ready = ready,
+        suppressed = suppressed,
+        imeVisible = imeVisible,
+        automationMuted = automationMuted,
+    )
 
     LaunchedEffect(canOpen, blocking) {
         if (canOpen && !allowed) {
@@ -899,7 +923,7 @@ fun AnnouncementDialogHost(
         }
     }
 
-    val show = allowed && current != null && (blocking || !suppressed)
+    val show = allowed && current != null && (blocking || (!suppressed && !automationMuted))
     // O último conteúdo exibido — é ele que anima a SAÍDA depois que a fila esvazia.
     val lastShown = remember { arrayOfNulls<AnnouncementDialogUiState>(1) }
     if (show) lastShown[0] = ui
@@ -920,6 +944,19 @@ fun AnnouncementDialogHost(
         texts = texts,
     )
 }
+
+/**
+ * O modal pode abrir agora? A manutenção que bloqueia abre sempre; o fechável espera o app pronto,
+ * sem [suppressed], sem teclado e fora do modo automação ([automationMuted], 2.310.0).
+ */
+internal fun announcementDialogCanOpen(
+    hasCurrent: Boolean,
+    blocking: Boolean,
+    ready: Boolean,
+    suppressed: Boolean,
+    imeVisible: Boolean,
+    automationMuted: Boolean,
+): Boolean = hasCurrent && (blocking || (ready && !suppressed && !imeVisible && !automationMuted))
 
 /** Espera default entre o app ficar pronto e o modal abrir. */
 val DEFAULT_ANNOUNCEMENT_DIALOG_OPEN_DELAY: Duration = 800.milliseconds

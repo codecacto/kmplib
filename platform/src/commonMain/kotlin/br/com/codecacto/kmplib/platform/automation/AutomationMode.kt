@@ -66,8 +66,13 @@ enum class AutomationSignal {
      *   instalado e some ao desinstalar. Variável `SIMCTL_CHILD_*` não serve: o Maestro abre o app
      *   pelo XCTest, não por `simctl launch`.
      *
-     * Efeito: o MESMO de todo sinal — só [AutomationMode.suppressesAutomaticPrompts] (avaliação e
-     * atualização opcional). Anúncio, paywall, cobrança e atualização obrigatória não mudam.
+     * Efeito: o MESMO de todo sinal — só [AutomationMode.suppressesAutomaticPrompts] (avaliação,
+     * atualização opcional, tour automático e comunicado fechável em modal). Anúncio, paywall,
+     * cobrança, atualização obrigatória e manutenção que bloqueia não mudam.
+     *
+     * **Android, de onde vem o `Context` (2.310.0):** do `initKmpLibPlatform` ou, se o app só chama
+     * o `initKmpLibCore` (módulos granulares), do `AndroidAppContext` do core. Até a 2.309.0 só o
+     * primeiro valia, e num app assim a marca nunca pegava (LocAki: tour aberto na suíte, 19/out/2026).
      */
     QA_RUNNER,
 }
@@ -104,7 +109,8 @@ object QaRunnerSignal {
  *
  * ## A regra
  *
- * **Build de teste nunca pede avaliação** (nem oferece atualização opcional). Com o modo ligado,
+ * **Build de teste nunca pede avaliação** (nem oferece atualização opcional, nem abre sozinho o tour
+ * ou o comunicado fechável). Com o modo ligado,
  * [suppressesAutomaticPrompts] é `true` e a lib cala os pedidos que ELA dispara sozinha:
  *
  * | Pedido | Com o modo ligado |
@@ -112,6 +118,8 @@ object QaRunnerSignal {
  * | `AppReviewManager.onCompletion()`/`shouldShow()` | `false`, e o contador NÃO anda |
  * | `AppReviewDialog` | não desenha (salvo `suppressInAutomation = false`) |
  * | `SoftUpdateDialog` do `AppServiceGate`/`AppUpdateGate` | não oferece (o Hard e a manutenção CONTINUAM bloqueando) |
+ * | `ProductTourHost` (tour dos menus, 2.307.0) | não abre sozinho no primeiro acesso (`state.start` explícito — "Refazer o tour" — abre) |
+ * | Comunicado em modal (`AnnouncementDialogHost`/`AnnouncementHost`/`RemoteAnnouncementHost`, 2.310.0) | o fechável não abre (`suppressInAutomation = false` reabre); a manutenção que BLOQUEIA continua abrindo; nada é gravado como visto |
  *
  * Fica **de fora, de propósito**: o intersticial (é testado como produto — `AdsTestTags`) e os
  * pedidos de permissão (o app pede quando quer, e o Maestro os responde com `permissions:` no
