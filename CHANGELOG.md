@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.309.0 — **Cor de marca por tema (`AppColorPalette.lightBrand`/`darkBrand`) e "Ver relatório completo" opcional**
+
+Origem: redesign do **Todos a Bordo** (GAP-TB-M-04 e GAP-TB-M-05). Tudo aditivo — sem piso, sem aviso.
+
+### `ui/theme` — `AppBrandColors` por tema (GAP-TB-M-04)
+- **`AppColorPalette(…, lightBrand: AppBrandColors? = null, darkBrand: AppBrandColors? = null)`** — cores de
+  marca próprias de cada tema. `null` (default) = comportamento idêntico ao de antes (teste prova os esquemas
+  iguais). Marca de cor clara (amarelo, lima, ciano) era ilegível como `primary` no claro (~1,5:1 no
+  TextButton/foco/seleção):
+  `AppColorPalette(primary = Color(0xFFFFC83D), lightBrand = AppBrandColors(primary = Color(0xFF1E2A4A)))`.
+- **`AppBrandColors(primary, onPrimary, secondary, onSecondary, tertiary, onTertiary)`** — todos opcionais.
+  `on*` `null` = derivado por contraste WCAG sobre a cor exibida (≥ 4,5:1, como desde 2.262.2); informado à
+  mão vale como veio e o `AppTheme` avisa no log em depuração abaixo de 4,5:1 (**`brandContrastWarnings(palette,
+  darkTheme)`**). Secundária/terciária no default da paleta (= `primary`) acompanham a primária do tema.
+- Containers tonais, `on*Container`, `surfaceTint` derivam das cores efetivas do tema; **`inversePrimary`**
+  passa a ser a primária do OUTRO tema (o par invertido do Material) — sem sobreposição, idêntico ao antigo.
+- **`AppColorPalette.forTheme(darkTheme)`** — a paleta resolvida; o `AppTheme` a provê em `AppColors.current`,
+  então `AppColors.current.primary` (pino do mapa, etc.) acompanha o modo como o `colorScheme`.
+- O app que sobrescrevia `MaterialTheme.colorScheme.primary/onPrimary` dentro do `AppTheme` pode tirar o remendo.
+
+### `pdf.report` — `onOpenFullReport` nulável (GAP-TB-M-05)
+- **`ReportSummaryContent(summary, onOpenFullReport: (() -> Unit)?, onExportPdf, …)`** e
+  **`ReportSummaryActions(onOpenFullReport: (() -> Unit)?, …)`**: `null` esconde o "Ver relatório completo" —
+  app SEM portal web (offline, financeiro só no aparelho). Sem default, de propósito (app com portal não
+  esquece o botão); chamadas existentes compilam igual. Sem nenhum dos dois botões, o pé não é desenhado.
+
+### Testes
+- `AppBrandColorsTest` (7) e `ReportSummaryActionsTest` (2); `kmplib-ui` e `kmplib-pdf` verdes.
+
 ## 2.308.0 — **Ronda em campo: `kmplib-location-session` + `kmplib-alarm` (opt-in), onboarding de bateria, `SubscriptionBlockGate(paywallEnabled)`**
 
 Origem: o **RondAki** (vigia fazendo check-in em pontos de ronda) precisa de localização com a tela apagada,

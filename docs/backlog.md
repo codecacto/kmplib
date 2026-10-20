@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 20/out/2026 — origem: redesign do **Todos a Bordo** (`5-Apps-Online-Freemium-Cota/Todos a Bordo/docs/design/redesign-2026-10.md` §9)
+- [x] **ENTREGUE na 2.309.0** (`AppColorPalette(lightBrand/darkBrand = AppBrandColors(primary, onPrimary, secondary, onSecondary, tertiary, onTertiary))`, `forTheme`, `brandContrastWarnings`). **(P2) GAP-TB-M-04 — `primary` por tema na `AppColorPalette`** (ex.: `primaryDark: Color? = null`,
+      ou `brandLight`/`brandDark`). Marca amarela (`#FFC83D`) é ilegível como `primary` no tema claro
+      (TextButton/foco/seleção a 1,5:1), e o azul-noite estrutural some no escuro; hoje o app precisa
+      sobrescrever `MaterialTheme.colorScheme.primary/onPrimary` dentro do `AppTheme`. Aditivo, `null` =
+      comportamento atual. Serve a toda marca de cor clara (amarelo, lima, ciano).
+- [x] **ENTREGUE na 2.309.0** (`onOpenFullReport: (() -> Unit)?`, sem default; `null` esconde o botão). **(P2) GAP-TB-M-05 — `ReportSummaryContent(onOpenFullReport: (() -> Unit)? = …)`** nulável: app
+      SEM portal web (Todos a Bordo, apps offline com financeiro) não tem "relatório completo" para
+      oferecer; com o parâmetro obrigatório, o botão "Ver relatório completo" aparece sem destino.
+      `null` = esconde o botão. Aditivo.
+
 ### Registrado em 20/out/2026 — entregue/aberto na 2.308.0 (RondAki: ronda em campo)
 - [x] **`kmplib-location-session`** (opt-in) — sessão de localização contínua (FGS `location` + Fused; CLBackgroundActivitySession/CLServiceSession).
 - [x] **`kmplib-alarm`** (opt-in) — `setAlarmClock`/`setExactAndAllowWhileIdle`/`setWindow`; AlarmKit por ponte Swift; Time Sensitive.

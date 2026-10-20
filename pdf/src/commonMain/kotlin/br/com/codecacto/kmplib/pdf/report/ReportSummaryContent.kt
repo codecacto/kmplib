@@ -113,13 +113,17 @@ fun rememberReportSummaryTexts(): ReportSummaryTexts {
  * Não rola nem puxa para atualizar sozinha: o app a põe dentro do `RefreshableBox` + `verticalScroll`
  * dele, abaixo do seletor de período que já tem (cada produto escolhe mês, dia ou intervalo).
  *
+ * @param onOpenFullReport abre o [FullReportOnWebDialog]. `null` esconde o **Ver relatório completo**
+ *   (2.309.0) — para app SEM portal web (offline, com o financeiro só no aparelho), onde o botão não
+ *   teria destino. Passe `null` explicitamente: o parâmetro não tem default de propósito, para app com
+ *   portal não esquecer o botão.
  * @param onExportPdf `null` esconde o botão (PDF indisponível naquele app).
  * @param exporting troca o ícone do botão por um progresso e o desabilita.
  */
 @Composable
 fun ReportSummaryContent(
     summary: DreSummary,
-    onOpenFullReport: () -> Unit,
+    onOpenFullReport: (() -> Unit)?,
     onExportPdf: (() -> Unit)?,
     modifier: Modifier = Modifier,
     exporting: Boolean = false,
@@ -282,15 +286,19 @@ private fun StatementRow(line: DreSummaryLine) {
     }
 }
 
-/** Os dois botões do pé da tela de Relatórios. */
+/**
+ * Os dois botões do pé da tela de Relatórios. Cada um some com o seu callback `null`
+ * ([onOpenFullReport] desde 2.309.0); sem nenhum dos dois, não desenha nada.
+ */
 @Composable
 fun ReportSummaryActions(
-    onOpenFullReport: () -> Unit,
+    onOpenFullReport: (() -> Unit)?,
     onExportPdf: (() -> Unit)?,
     modifier: Modifier = Modifier,
     exporting: Boolean = false,
     texts: ReportSummaryTexts = rememberReportSummaryTexts(),
 ) {
+    if (!reportSummaryShowsActions(onOpenFullReport != null, onExportPdf != null)) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (onExportPdf != null) {
             OutlinedButton(
@@ -308,17 +316,23 @@ fun ReportSummaryActions(
                 Text(texts.exportPdf, fontWeight = FontWeight.SemiBold)
             }
         }
-        Button(
-            onClick = onOpenFullReport,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("relatorio-ver-completo"),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Icon(Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(texts.fullReport, fontWeight = FontWeight.SemiBold)
+        if (onOpenFullReport != null) {
+            Button(
+                onClick = onOpenFullReport,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("relatorio-ver-completo"),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Icon(Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(texts.fullReport, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
+
+/** Há botão a desenhar no pé do resumo? Sem nenhum, a coluna (e o seu espaçamento) não entra. */
+internal fun reportSummaryShowsActions(hasFullReport: Boolean, hasExportPdf: Boolean): Boolean =
+    hasFullReport || hasExportPdf
 
 /**
  * O diálogo do **Ver relatório completo**: explica que o completo fica no portal e que se entra com o

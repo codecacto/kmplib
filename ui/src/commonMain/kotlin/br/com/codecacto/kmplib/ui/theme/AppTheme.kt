@@ -34,7 +34,8 @@ import br.com.codecacto.kmplib.platform.motion.rememberReduceMotion
  *   aqui como `darkTheme = controller.mode.collectAsState().value.isDarkTheme()` (`ThemeModeController`,
  *   2.298.0). **Não ponha botão fixo de alternar claro/escuro na barra do topo** — em app isso não
  *   existe (padrão da fábrica, fundador, 13/out/2026); é convenção de site.
- * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default
+ * @param colorPalette Paleta de cores customizada. Padrão: AppColorPalettes.Default. Cores de marca
+ *   diferentes no claro e no escuro: `AppColorPalette.lightBrand`/`darkBrand` (2.309.0).
  * @param fontFamily FontFamily customizada. Padrão: FontFamily.Default. Com [displayFontFamily], vale
  *   só para o texto corrido e os rótulos (titleMedium/titleSmall, body, label).
  * @param fontScale Escala de fonte global de acessibilidade (multiplica toda a [AppTypography] e é
@@ -90,9 +91,15 @@ fun AppTheme(
             val surfaces = if (darkTheme) colorPalette.darkSurfaces else colorPalette.lightSurfaces
             surfaces?.let { surfaceContrastWarnings(it) }
                 ?.forEach { AppLogger.w("AppTheme", "Contraste de superfície abaixo do alvo — $it") }
+            brandContrastWarnings(colorPalette, darkTheme)
+                .forEach { AppLogger.w("AppTheme", "Contraste de marca abaixo do alvo — $it") }
         }
         scheme
     }
+
+    // A paleta exposta em `AppColors.current` traz as cores de marca DO MODO corrente
+    // (`lightBrand`/`darkBrand`, 2.309.0) — a mesma primária que o `colorScheme` pinta.
+    val themedPalette = remember(colorPalette, darkTheme) { colorPalette.forTheme(darkTheme) }
 
     val effectiveScale = clampFontScale(fontScale)
     val reduceMotion by rememberReduceMotion()
@@ -100,7 +107,7 @@ fun AppTheme(
 
     // Fornecer a paleta customizada, a escala de fonte e o alto contraste via CompositionLocal
     CompositionLocalProvider(
-        LocalAppColorPalette provides colorPalette,
+        LocalAppColorPalette provides themedPalette,
         LocalFontScale provides effectiveScale,
         LocalHighContrast provides highContrast,
         LocalReduceMotion provides reduceMotion,

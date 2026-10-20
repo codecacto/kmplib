@@ -31,6 +31,21 @@ import androidx.compose.ui.graphics.Color
  * @param darkSurfaces Superfícies do esquema **escuro** (ver [AppSurfaceColors]). `null` = superfícies
  *   padrão do Material (retrocompatível).
  * @param lightSurfaces Superfícies do esquema **claro**. `null` = superfícies padrão do Material.
+ * @param lightBrand Cores de MARCA próprias do tema **claro** (2.309.0) — ver [AppBrandColors]. `null`
+ *   (default) = o claro usa [primary]/[secondary]/[tertiary], como sempre.
+ * @param darkBrand Cores de MARCA próprias do tema **escuro** (2.309.0). `null` = idem.
+ *
+ * **Marca de cor clara (amarelo, lima, ciano):** como `primary` ela é ilegível no tema claro — texto de
+ * `TextButton`, foco, seleção e ícone ativo ficam a ~1,5:1 sobre o branco. O conserto é dar ao claro
+ * uma primária estrutural escura e deixar a marca para o escuro, onde ela brilha:
+ * ```kotlin
+ * AppColorPalette(
+ *     primary = Color(0xFFFFC83D),                               // marca: vale para o escuro
+ *     lightBrand = AppBrandColors(primary = Color(0xFF1E2A4A)),  // azul-noite no claro
+ * )
+ * ```
+ * Leia a cor de marca do tema corrente por `MaterialTheme.colorScheme.primary` ou
+ * `AppColors.current.primary` — o `AppTheme` provê a paleta já resolvida para o modo ([forTheme]).
  */
 data class AppColorPalette(
     val primary: Color,
@@ -41,8 +56,82 @@ data class AppColorPalette(
     val warning: Color = Color(0xFFF59E0B),
     val info: Color = Color(0xFF3B82F6),
     val darkSurfaces: AppSurfaceColors? = null,
-    val lightSurfaces: AppSurfaceColors? = null
+    val lightSurfaces: AppSurfaceColors? = null,
+    val lightBrand: AppBrandColors? = null,
+    val darkBrand: AppBrandColors? = null
 )
+
+/**
+ * Cores de **marca** de UM tema (claro ou escuro), sobrepostas às de [AppColorPalette] — 2.309.0
+ * (GAP-TB-M-04). Todo campo é opcional; `null` = o valor da paleta base.
+ *
+ * - [primary]/[secondary]/[tertiary]: a cor preenchida (botão, aba ativa, foco) naquele tema.
+ *   Sem [secondary] e com a [AppColorPalette.secondary] no default (igual à `primary` da paleta), a
+ *   secundária ACOMPANHA a [primary] deste tema — o mesmo "secundária = primária" do construtor da
+ *   paleta. O mesmo vale para [tertiary].
+ * - [onPrimary]/[onSecondary]/[onTertiary]: o texto/ícone sobre a cor preenchida. `null` (o
+ *   recomendado) = escolhido por contraste WCAG sobre a cor EXIBIDA (≥ 4,5:1, como desde 2.262.2).
+ *   Informado à mão, vale como veio, e o `AppTheme` avisa no log em depuração se ficar abaixo de
+ *   4,5:1 ([brandContrastWarnings]).
+ *
+ * Os containers tonais (`primaryContainer`, `on*Container`), `surfaceTint` e `inversePrimary` derivam
+ * das cores efetivas do tema, sem nada a configurar.
+ */
+data class AppBrandColors(
+    val primary: Color? = null,
+    val onPrimary: Color? = null,
+    val secondary: Color? = null,
+    val onSecondary: Color? = null,
+    val tertiary: Color? = null,
+    val onTertiary: Color? = null
+)
+
+/**
+ * A paleta com as cores de marca do tema pedido já aplicadas ([AppColorPalette.lightBrand] /
+ * [AppColorPalette.darkBrand]) — o que o `AppTheme` provê em `AppColors.current`, para quem lê
+ * `AppColors.current.primary` ver a mesma primária do `colorScheme`. Sem sobreposição para aquele
+ * tema, devolve a própria instância. 2.309.0.
+ */
+fun AppColorPalette.forTheme(darkTheme: Boolean): AppColorPalette {
+    val brand = (if (darkTheme) darkBrand else lightBrand) ?: return this
+    val p = brand.primary ?: primary
+    // Secundária/terciária no default ("= primary") acompanham a primária do tema.
+    val s = brand.secondary ?: if (secondary == primary) p else secondary
+    val t = brand.tertiary ?: if (tertiary == primary) p else tertiary
+    if (p == primary && s == secondary && t == tertiary) return this
+    return copy(primary = p, secondary = s, tertiary = t)
+}
+
+/** As cores de conteúdo informadas à mão para o tema, se houver. */
+private fun AppColorPalette.brandFor(darkTheme: Boolean): AppBrandColors? = if (darkTheme) darkBrand else lightBrand
+
+/**
+ * Verifica o contraste WCAG dos `on*` de marca informados **à mão** ([AppBrandColors.onPrimary] etc.)
+ * sobre a cor preenchida como aparece naquele tema (no escuro, a marca a 90% sobre o fundo). Os
+ * derivados já saem com ≥ 4,5:1 e não são reavaliados. Puro; o `AppTheme` loga em depuração.
+ * 2.309.0.
+ */
+fun brandContrastWarnings(palette: AppColorPalette, darkTheme: Boolean): List<String> {
+    val brand = palette.brandFor(darkTheme) ?: return emptyList()
+    val eff = palette.forTheme(darkTheme)
+    val backdrop = palette.darkSurfaces?.background ?: DARK_BACKGROUND
+    fun shown(c: Color): Color =
+        if (darkTheme) ColorContrast.compositeOver(c, DARK_BRAND_ALPHA, backdrop)
+        else if (c.alpha < 1f) ColorContrast.compositeOver(c, 1f, Color.White) else c
+    val warnings = mutableListOf<String>()
+    fun check(label: String, on: Color?, fill: Color) {
+        if (on == null) return
+        val bg = shown(fill)
+        if (!ColorContrast.meetsTextContrast(on, bg)) {
+            val ratio = ColorContrast.contrastRatio(on, bg)
+            warnings += "$label: razão ${ratio.format2()}:1 < ${ColorContrast.AA_TEXT}:1 (WCAG AA texto)"
+        }
+    }
+    check("onPrimary/primary", brand.onPrimary, eff.primary)
+    check("onSecondary/secondary", brand.onSecondary, eff.secondary)
+    check("onTertiary/tertiary", brand.onTertiary, eff.tertiary)
+    return warnings
+}
 
 /**
  * Conjunto **completo** de superfícies do Material 3, para o app abrir/customizar o fundo e os cartões
@@ -280,25 +369,29 @@ private const val DARK_BRAND_ALPHA = 0.9f
 fun createLightColorScheme(
     palette: AppColorPalette
 ): ColorScheme {
+    val brand = palette.lightBrand
+    val eff = palette.forTheme(darkTheme = false)
+    // O par invertido (inverseSurface escura) usa a primária do tema ESCURO.
+    val darkPrimary = palette.forTheme(darkTheme = true).primary
     // O container é a marca a 10% sobre o fundo/cartão: o `on*Container` se mede nessa mistura.
     val lightBackdrops = palette.lightSurfaces?.resolve()?.let { listOf(it.background, it.surface) }
         ?: listOf(LIGHT_BACKGROUND, LIGHT_SURFACE)
     fun onContainer(brand: Color): Color = onBrandContainerColorFor(brand, LIGHT_CONTAINER_ALPHA, lightBackdrops)
     val base = lightColorScheme(
-        primary = palette.primary,
-        onPrimary = onBrandColorFor(palette.primary),
-        primaryContainer = palette.primary.copy(alpha = LIGHT_CONTAINER_ALPHA),
-        onPrimaryContainer = onContainer(palette.primary),
+        primary = eff.primary,
+        onPrimary = brand?.onPrimary ?: onBrandColorFor(eff.primary),
+        primaryContainer = eff.primary.copy(alpha = LIGHT_CONTAINER_ALPHA),
+        onPrimaryContainer = onContainer(eff.primary),
 
-        secondary = palette.secondary,
-        onSecondary = onBrandColorFor(palette.secondary),
-        secondaryContainer = palette.secondary.copy(alpha = LIGHT_CONTAINER_ALPHA),
-        onSecondaryContainer = onContainer(palette.secondary),
+        secondary = eff.secondary,
+        onSecondary = brand?.onSecondary ?: onBrandColorFor(eff.secondary),
+        secondaryContainer = eff.secondary.copy(alpha = LIGHT_CONTAINER_ALPHA),
+        onSecondaryContainer = onContainer(eff.secondary),
 
-        tertiary = palette.tertiary,
-        onTertiary = onBrandColorFor(palette.tertiary),
-        tertiaryContainer = palette.tertiary.copy(alpha = LIGHT_CONTAINER_ALPHA),
-        onTertiaryContainer = onContainer(palette.tertiary),
+        tertiary = eff.tertiary,
+        onTertiary = brand?.onTertiary ?: onBrandColorFor(eff.tertiary),
+        tertiaryContainer = eff.tertiary.copy(alpha = LIGHT_CONTAINER_ALPHA),
+        onTertiaryContainer = onContainer(eff.tertiary),
 
         error = palette.error,
         onError = onBrandColorFor(palette.error),
@@ -320,9 +413,9 @@ fun createLightColorScheme(
 
         inverseSurface = Color(0xFF1C1C1C),
         inverseOnSurface = Color(0xFFFAFAFA),
-        inversePrimary = palette.primary.copy(alpha = 0.8f),
+        inversePrimary = darkPrimary.copy(alpha = 0.8f),
 
-        surfaceTint = palette.primary
+        surfaceTint = eff.primary
     )
     return palette.lightSurfaces?.let { base.withSurfaces(it.resolve()) } ?: base
 }
@@ -337,6 +430,10 @@ fun createLightColorScheme(
 fun createDarkColorScheme(
     palette: AppColorPalette
 ): ColorScheme {
+    val brand = palette.darkBrand
+    val eff = palette.forTheme(darkTheme = true)
+    // O par invertido (inverseSurface clara) usa a primária do tema CLARO.
+    val lightPrimary = palette.forTheme(darkTheme = false).primary
     // A marca é desenhada a 90% sobre o fundo: o contraste do `on*` se mede na cor EXIBIDA.
     val backdrop = palette.darkSurfaces?.background ?: DARK_BACKGROUND
     fun onFor(brand: Color): Color =
@@ -345,20 +442,20 @@ fun createDarkColorScheme(
         ?: listOf(DARK_BACKGROUND, DARK_SURFACE)
     fun onContainer(brand: Color): Color = onBrandContainerColorFor(brand, DARK_CONTAINER_ALPHA, darkBackdrops)
     val base = darkColorScheme(
-        primary = palette.primary.copy(alpha = 0.9f),
-        onPrimary = onFor(palette.primary),
-        primaryContainer = palette.primary.copy(alpha = DARK_CONTAINER_ALPHA),
-        onPrimaryContainer = onContainer(palette.primary),
+        primary = eff.primary.copy(alpha = 0.9f),
+        onPrimary = brand?.onPrimary ?: onFor(eff.primary),
+        primaryContainer = eff.primary.copy(alpha = DARK_CONTAINER_ALPHA),
+        onPrimaryContainer = onContainer(eff.primary),
 
-        secondary = palette.secondary.copy(alpha = 0.9f),
-        onSecondary = onFor(palette.secondary),
-        secondaryContainer = palette.secondary.copy(alpha = DARK_CONTAINER_ALPHA),
-        onSecondaryContainer = onContainer(palette.secondary),
+        secondary = eff.secondary.copy(alpha = 0.9f),
+        onSecondary = brand?.onSecondary ?: onFor(eff.secondary),
+        secondaryContainer = eff.secondary.copy(alpha = DARK_CONTAINER_ALPHA),
+        onSecondaryContainer = onContainer(eff.secondary),
 
-        tertiary = palette.tertiary.copy(alpha = 0.9f),
-        onTertiary = onFor(palette.tertiary),
-        tertiaryContainer = palette.tertiary.copy(alpha = DARK_CONTAINER_ALPHA),
-        onTertiaryContainer = onContainer(palette.tertiary),
+        tertiary = eff.tertiary.copy(alpha = 0.9f),
+        onTertiary = brand?.onTertiary ?: onFor(eff.tertiary),
+        tertiaryContainer = eff.tertiary.copy(alpha = DARK_CONTAINER_ALPHA),
+        onTertiaryContainer = onContainer(eff.tertiary),
 
         error = palette.error.copy(alpha = 0.9f),
         onError = onFor(palette.error),
@@ -380,9 +477,9 @@ fun createDarkColorScheme(
 
         inverseSurface = Color(0xFFE0E0E0),
         inverseOnSurface = Color(0xFF1C1C1C),
-        inversePrimary = palette.primary,
+        inversePrimary = lightPrimary,
 
-        surfaceTint = palette.primary.copy(alpha = 0.9f)
+        surfaceTint = eff.primary.copy(alpha = 0.9f)
     )
     return palette.darkSurfaces?.let { base.withSurfaces(it.resolve()) } ?: base
 }
