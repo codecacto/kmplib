@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kmplib_alarm_channel_patrol">Inicio de ronda</string>
+    <string name="kmplib_alarm_channel_reminder">Recordatorios</string>
+    <string name="kmplib_alarm_text_patrol">Es hora de iniciar la ronda.</string>
+    <string name="kmplib_alarm_text_reminder">Recordatorio de la ronda.</string>
+</resources>

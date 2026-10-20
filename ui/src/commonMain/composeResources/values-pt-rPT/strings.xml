@@ -580,6 +580,10 @@
     <string name="kmplib_subscription_block_whatsapp_required">Olá! Vim pela app %1$s. A minha subscrição não está ativa e quero continuar a utilizar.</string>
     <string name="kmplib_subscription_block_whatsapp_trial_noname">Olá! O meu período de teste terminou e quero continuar a utilizar.</string>
     <string name="kmplib_subscription_block_whatsapp_required_noname">Olá! A minha subscrição não está ativa e quero continuar a utilizar.</string>
+    <string name="kmplib_subscription_block_suspended_title">Acesso suspenso</string>
+    <string name="kmplib_subscription_block_suspended_message">O acesso da sua organização está suspenso. Fale com o administrador para o reativar.</string>
+    <string name="kmplib_subscription_block_whatsapp_suspended">Olá! Vim pela app %1$s. O meu acesso está suspenso.</string>
+    <string name="kmplib_subscription_block_whatsapp_suspended_noname">Olá! O meu acesso à app está suspenso.</string>
     <string name="kmplib_account_deletion_dialog_title">Eliminar a sua conta?</string>
     <string name="kmplib_account_deletion_dialog_message">A sua conta será eliminada definitivamente após %1$d dias. Até lá, pode desistir: a conta fica bloqueada e os seus dados ficam guardados — ao voltar a iniciar sessão, poderá restaurá-la.</string>
     <string name="kmplib_account_deletion_dialog_instruction">Para continuar, escreva %1$s abaixo.</string>

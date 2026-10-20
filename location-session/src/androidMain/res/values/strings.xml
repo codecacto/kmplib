@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kmplib_patrol_channel_name">Ronda em andamento</string>
+    <string name="kmplib_patrol_notification_title">Ronda em andamento</string>
+    <string name="kmplib_patrol_notification_text">Registrando sua localização durante a ronda.</string>
+</resources>

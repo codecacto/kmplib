@@ -153,6 +153,17 @@ project(":kmplib-workout-fixtures").projectDir = file("workout-fixtures")
 include(":kmplib-health")
 project(":kmplib-health").projectDir = file("health")
 
+// `kmplib-location-session` (2.308.0) — localização CONTÍNUA durante uma sessão (ronda): foreground
+// service `location` + Fused (Android), CLBackgroundActivitySession/CLServiceSession (iOS). OPT-IN, fora
+// do umbrella: o manifesto traz ACCESS_BACKGROUND_LOCATION, que exige declaração na Play.
+include(":kmplib-location-session")
+project(":kmplib-location-session").projectDir = file("location-session")
+
+// `kmplib-alarm` (2.308.0) — alarme que acorda o aparelho (setAlarmClock / AlarmKit / Time Sensitive).
+// OPT-IN, fora do umbrella: SCHEDULE_EXACT_ALARM é permissão de uso restrito na Play.
+include(":kmplib-alarm")
+project(":kmplib-alarm").projectDir = file("alarm")
+
 // O módulo se mantém na pasta `library/` no disco, mas é exposto ao Gradle como
 // `:kmplib`. Isso é necessário porque o Kotlin Multiplatform deriva o artifactId
 // dos artefatos por-target (iosArm64/iosSimulatorArm64/iosX64) do NOME DO PROJETO

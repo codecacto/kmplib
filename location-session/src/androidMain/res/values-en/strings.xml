@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kmplib_patrol_channel_name">Patrol in progress</string>
+    <string name="kmplib_patrol_notification_title">Patrol in progress</string>
+    <string name="kmplib_patrol_notification_text">Recording your location during the patrol.</string>
+</resources>

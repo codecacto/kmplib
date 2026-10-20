@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kmplib_alarm_channel_patrol">Patrol start</string>
+    <string name="kmplib_alarm_channel_reminder">Reminders</string>
+    <string name="kmplib_alarm_text_patrol">Time to start the patrol.</string>
+    <string name="kmplib_alarm_text_reminder">Patrol reminder.</string>
+</resources>

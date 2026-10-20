@@ -5,6 +5,80 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.308.0 — **Ronda em campo: `kmplib-location-session` + `kmplib-alarm` (opt-in), onboarding de bateria, `SubscriptionBlockGate(paywallEnabled)`**
+
+Origem: o **RondAki** (vigia fazendo check-in em pontos de ronda) precisa de localização com a tela apagada,
+alarme de início de ronda que acorda o aparelho, um jeito de ensinar o vigia a liberar a bateria nos
+fabricantes que matam app em 2º plano, e uma tela de bloqueio SEM compra (o vigia não assina; a empresa
+contrata). Tudo aditivo — sem piso.
+
+### Módulo NOVO `kmplib-location-session` — OPT-IN, fora do umbrella
+- Pacote `br.com.codecacto.kmplib.location.session`. **`PatrolLocationSession`**: `startPatrol(sessionId,
+  accuracy): PatrolStartResult` (`Started`/`PermissionRequired`/`LocationDisabled`/`NotInitialized`/
+  `Failed(reason)`; idempotente, troca de sessão sem religar o GPS), `stopPatrol()`, `fixes: Flow<LocationFix>`,
+  `lastFix`, `isPatrolActive: StateFlow<Boolean>`, `activeSessionId`, `accuracy`, `interruption`
+  (`PatrolInterruption` `PERMISSION_REVOKED`/`LOCATION_DISABLED`/`STOPPED_BY_SYSTEM`), `setAccuracy`,
+  **`updateDistanceToCheckpoint(m)`** (≤ 200 m → `HIGH`), `resumePatrolIfNeeded()`.
+- **`LocationFix(latitude, longitude, accuracy, timestampMillis, isMock, speed)`** + `distanceTo`/`distanceMeters`
+  (haversine). `toString` SEM coordenadas (dado pessoal fora do log).
+- **`PatrolAccuracy`** `BALANCED` (10 s) / `HIGH` (5 s), `forDistanceToCheckpoint`; `shouldEmitFix` espaça as
+  leituras nas duas plataformas (fix mais preciso que chega cedo passa).
+- **Android:** Foreground Service `foregroundServiceType="location"` (`PatrolLocationService`, notificação fixa
+  "Ronda em andamento" em 4 idiomas, `PatrolNotificationConfig` para título/ícone) + Fused Location Provider
+  (`PRIORITY_BALANCED_POWER_ACCURACY` ↔ `PRIORITY_HIGH_ACCURACY`); `isMock` por `Location.isMock` (31+) /
+  `isFromMockProvider`; `START_STICKY` retoma a sessão salva quando a localização em 2º plano está concedida —
+  senão `STOPPED_BY_SYSTEM` e `resumePatrolIfNeeded()` no `ON_RESUME`. `initKmpLibLocationSession(context)`.
+  Manifesto: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` (⚠️ exige a declaração de localização em 2º plano
+  no Play Console — por isso o módulo é opt-in).
+- **iOS:** `CLLocationManager` com `allowsBackgroundLocationUpdates`, `pausesLocationUpdatesAutomatically =
+  false`, `showsBackgroundLocationIndicator`, **`CLBackgroundActivitySession`** (17+) e **`CLServiceSession`**
+  exigindo "ao usar o app" (18+); `isMock` por `sourceInformation.isSimulatedBySoftware` (15+).
+  `initKmpLibLocationSession()` retoma a sessão salva no relançamento. Info.plist sem `UIBackgroundModes`
+  `location` → `Failed` (setar o modo sem ele derrubaria o app). Info.plist do app:
+  `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `UIBackgroundModes`.
+
+### Módulo NOVO `kmplib-alarm` — OPT-IN, fora do umbrella
+- Pacote `br.com.codecacto.kmplib.alarm`. **`createAlarmScheduler(): AlarmScheduler`** —
+  `schedulePatrolStart`, `scheduleReminder`, `cancel`, `cancelAll`, `hasExactAlarmPermission`,
+  `openPermissionSettings`; **`AlarmResult`** `Scheduled`/`PermissionDenied`/`FallbackWindow`; regra pura
+  `planAndroidAlarm`, `remindersTooClose` (espaçamento ≥ 9 min do Doze), `ALARM_ID_EXTRA`.
+- **Android:** início de ronda `setAlarmClock` (acorda em Doze), lembrete `setExactAndAllowWhileIdle`, sem alarme
+  exato `setWindow` (10 min); `canScheduleExactAlarms()`; notificação no disparo (canal de despertador com som de
+  alarme / canal de lembrete), toque abre o app com o id; **reagenda no boot, na atualização e na concessão do
+  alarme exato**. Manifesto: `SCHEDULE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `POST_NOTIFICATIONS`.
+  **`USE_EXACT_ALARM` NÃO é declarada** (a Play só aceita em app cuja função principal é despertador/agenda —
+  o app que se enquadra declara no próprio manifesto). `initKmpLibAlarm(context, AlarmNotificationConfig)`.
+- **iOS:** **AlarmKit (26+) pela ponte Swift `AlarmKitBridge`** (`AlarmKitBridgeRegistry.register`) — o AlarmKit
+  é Swift-only, o cinterop não o enxerga (o klib só traz a versão); sem ponte: notificação **Time Sensitive**
+  (`interruptionLevel`), que exige o entitlement `com.apple.developer.usernotifications.time-sensitive`.
+- Plano B por push (FCM alta prioridade) fica no backend do app — documentado, não implementado aqui.
+
+### `kmplib-platform` — onboarding de bateria (`platform.battery`)
+- **`needsBatteryOnboarding()`**: Android em Xiaomi/Redmi/POCO, Samsung, Motorola ou Huawei/Honor **e**
+  `isIgnoringBatteryOptimizations == false`; iOS sempre `false`. `deviceBatteryVendor()`, `BatteryVendor`,
+  `batteryVendorOf` (puro), `isIgnoringBatteryOptimizations()`, `openBatteryOptimizationRequest()`,
+  `openAppBatterySettings()`.
+- **`BatteryOnboardingContent(onDismiss)`**: passos do menu do fabricante (HyperOS/MIUI, One UI, Motorola,
+  EMUI/MagicOS; genérico nos demais) + **Permitir em segundo plano** (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
+  quando o APP declara `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; senão a lista do sistema) — relido no `ON_RESUME`;
+  **Abrir configurações do app**; **Concluir**. Textos em 4 idiomas (`BatteryOnboardingTexts.forLanguage`), ids
+  `bateria-onboarding-*`. iOS: não desenha nada. A lib NÃO declara `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
+  (permissão restrita na Play; o umbrella levaria a todo app).
+
+### `kmplib-monetization` — `SubscriptionBlockGate(paywallEnabled = false)` (GAP-M-01)
+- Modo **sistema B2B**: "Acesso suspenso — fale com o administrador", **sem** botão "Assinar" e sem preço; ficam
+  WhatsApp e Sair (`SubscriptionBlockedScreen(paywallEnabled)`, ícone próprio, mensagem do WhatsApp própria).
+- `paywall` passou a ser **nulável** (`paywall = null` no B2B; chamadas existentes compilam igual). Paywall nulo
+  com `paywallEnabled = true` também cai no modo sem compra (botão sem destino seria controle mudo).
+- `SubscriptionBlockedTexts` ganhou `suspendedTitle`/`suspendedMessage`/`suspendedWhatsAppMessage` (com default),
+  `titleFor(reason, paywallEnabled)`, `messageFor`, `whatsAppMessageFor`; `subscriptionBlockOffersPurchase`.
+  Strings `kmplib_subscription_block_suspended_*` nos 4 idiomas (`kmplib-ui`).
+
+Testes: `PatrolSessionControllerTest` 14, `AlarmPolicyTest` 7, `BatteryOnboardingTest` 5,
+`SubscriptionBlockedTextsTest` 7 (+4); `kmplib-platform` 466 e `kmplib-monetization` 400 verdes;
+`compileKotlinIosArm64` de location-session/alarm/platform/monetization sem SKIPPED.
+
 ## 2.307.0 — **Tour guiado dos menus (`ui.tour`): `ProductTourHost` + `Modifier.tourTarget`**
 
 Origem: o fundador aprovou no portal do Vitalis o tour do primeiro acesso (driver.js: tela escurece, destaca

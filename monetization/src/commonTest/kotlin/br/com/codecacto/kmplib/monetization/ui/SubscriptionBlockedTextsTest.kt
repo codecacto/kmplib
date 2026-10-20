@@ -4,8 +4,10 @@ import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockReason
 import br.com.codecacto.kmplib.ui.screens.subscription.SubscriptionBlockDefaults
 import br.com.codecacto.kmplib.ui.screens.subscription.SubscriptionBlockedTestTags
 import br.com.codecacto.kmplib.ui.screens.subscription.SubscriptionBlockedTexts
+import br.com.codecacto.kmplib.ui.screens.subscription.subscriptionBlockOffersPurchase
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** 2.300.0 — título por motivo, ids estáveis para o Maestro e o WhatsApp da empresa. */
@@ -43,5 +45,38 @@ class SubscriptionBlockedTextsTest {
     @Test
     fun whatsAppDaEmpresa() {
         assertEquals("5565998030240", SubscriptionBlockDefaults.WHATSAPP_PHONE)
+    }
+
+    // ---- 2.308.0: paywallEnabled = false (sistema B2B, GAP-M-01) ----
+
+    @Test
+    fun semCompraOTituloESempreAcessoSuspenso() {
+        for (reason in SubscriptionBlockReason.entries) {
+            assertEquals("Acesso suspenso", texts.titleFor(reason, paywallEnabled = false))
+        }
+        assertEquals("Seu teste grátis terminou", texts.titleFor(SubscriptionBlockReason.TRIAL_EXPIRED, paywallEnabled = true))
+    }
+
+    @Test
+    fun semCompraAMensagemMandaFalarComOAdministradorSemPreco() {
+        val msg = texts.messageFor(paywallEnabled = false)
+        assertTrue(msg.contains("administrador"))
+        assertFalse(msg.contains("Assine"))
+        assertEquals(texts.message, texts.messageFor(paywallEnabled = true))
+    }
+
+    @Test
+    fun whatsAppAcompanhaOModo() {
+        assertEquals("msg-SUBSCRIPTION_REQUIRED", texts.whatsAppMessageFor(SubscriptionBlockReason.SUBSCRIPTION_REQUIRED, true))
+        assertEquals(texts.suspendedWhatsAppMessage, texts.whatsAppMessageFor(SubscriptionBlockReason.SUBSCRIPTION_REQUIRED, false))
+    }
+
+    @Test
+    fun compraSoComPaywallLigadoEPresente() {
+        assertTrue(subscriptionBlockOffersPurchase(paywallEnabled = true, hasPaywall = true))
+        assertFalse(subscriptionBlockOffersPurchase(paywallEnabled = false, hasPaywall = true))
+        // Paywall nulo: "Assinar" sem destino seria controle mudo — cai no modo sem compra.
+        assertFalse(subscriptionBlockOffersPurchase(paywallEnabled = true, hasPaywall = false))
+        assertFalse(subscriptionBlockOffersPurchase(paywallEnabled = false, hasPaywall = false))
     }
 }

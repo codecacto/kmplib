@@ -3,11 +3,45 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 20/out/2026 — entregue/aberto na 2.308.0 (RondAki: ronda em campo)
+- [x] **`kmplib-location-session`** (opt-in) — sessão de localização contínua (FGS `location` + Fused; CLBackgroundActivitySession/CLServiceSession).
+- [x] **`kmplib-alarm`** (opt-in) — `setAlarmClock`/`setExactAndAllowWhileIdle`/`setWindow`; AlarmKit por ponte Swift; Time Sensitive.
+- [x] **`platform.battery`** — `needsBatteryOnboarding` + `BatteryOnboardingContent`.
+- [ ] **(P2) Validação em aparelho (Mac/device)** — location-session com tela apagada e relançamento no iOS; AlarmKit real (iOS 26); `setAlarmClock` em Xiaomi/Samsung. Compila no servidor (`compileKotlinIosArm64` verde), sem prova em aparelho.
+- [ ] **(P3) `location-session`: detectar localização DESLIGADA no meio da sessão no Android** (`PROVIDERS_CHANGED`) — hoje o enum `LOCATION_DISABLED` só é usado na partida; o Fused apenas para de entregar.
+- [ ] **(P3) `kmplib-alarm`: fluxo `fired` em processo** (hoje o app sabe do disparo pelo toque — `ALARM_ID_EXTRA`/`userInfo`).
+
+### Registrado em 19/out/2026 — origem: design **RondAki** (`8-Sistemas-Portal-App/RondAki/docs/design/wireframes.md` §GAP-M-01)
+
+- [x] **ENTREGUE na 2.308.0** (`paywallEnabled = false` + `paywall` nulável; RondAki pode tirar o local). **(P2) `SubscriptionBlockGate` com `paywallEnabled = false`** — o componente atual (2.300.0)
+      bloqueia o acesso e sempre exibe o paywall com botão "Assinar pela loja". No RondAki (e em
+      todo sistema com papéis distintos), o vigia nunca pode ver opção de compra; quando a
+      organização não tem plano ativo, ele deve ver apenas "Acesso suspenso — fale com o
+      administrador" (sem preço, sem botão de assinatura). Proposta: parâmetro `paywallEnabled:
+      Boolean = true`; quando `false`, exibe somente a mensagem de suspensão e botão de contato
+      (e-mail/WhatsApp do admin). Alternativa: componente separado `AccessSuspendedGate`.
+      Até existir: o RondAki implementa localmente com `AppDialog` + `EmptyState`.
+
 ### Registrado em 17/out/2026 — dinheiro em QUALQUER moeda (Backhand BHM1; fundador: solução de biblioteca p/ todo projeto global)
 - [x] **(P1) `Money` + formatação ISO 4217 + `MoneyField` + `CurrencyPickerField`: ENTREGUE na 2.303.0** — contrato
       `{"amount": "2880.00", "currency": "BRL"}` (mesmo da weblib/backlib), casas pela ISO 4217, formatador oficial da
       plataforma (`NumberFormat`+`Currency` / `NSNumberFormatter`), `defaultCurrencyForRegion` (null → USD). Ver
       `references/money.md` no catálogo. Aberto: valor negativo no campo; cabeçalho "mais usadas" no seletor.
+
+### Registrado em 13/out/2026 — design dos temas do **Suzy** (`8-Sistemas-Portal-App/Suzy/docs/temas/temas-suzy.md` §6–7)
+- [ ] **(P2) `SelectableCardGrid`** — grade de escolha exclusiva em cartões de prévia (2 colunas em compacta, 4 em
+      expandida; `selected` com anel + selo de check; semântica `Role.RadioButton`/`selectable`; id de teste por
+      opção, ex. `tema-<id>`; slot `preview`). Não é o `ThemeModeSelector` (claro/escuro/sistema). Enquanto isso, o
+      Suzy implementa local mínimo.
+
+### Registrado em 13/out/2026 — origem: design de temas do **Meu Barbeiro/Suzy** (`Meu Barbeiro/docs/temas/temas-meu-barbeiro.md`)
+- [ ] **(P2) `SelectableCardGrid` / `SelectableCard`** — par mobile do item homônimo da weblib: grade de 2 colunas de
+      cartões de escolha única com miniatura (slot), rótulo, selecionado = borda 2 dp + selo ✓, `Role.RadioButton`,
+      `selectableGroup`, alvo ≥ 48 dp, ids `<grupo>-<chave>` (padrão `OptionTestTags`). `ChoiceChipGroup`/`SegmentedControl`
+      não comportam miniatura. Enquanto não existir, o app implementa local mínimo e marca o gap.
+- [ ] **(P3) `AppTheme` com tema de MARCA escuro escolhido pelo dono** — hoje o app seleciona `darkTheme` por parâmetro;
+      confirmar que `AppColorPalette(darkSurfaces = …)` + `darkTheme = true` fixo (sem seguir o sistema) é suportado e
+      coberto por teste, já que o tema de marca escolhido na Personalização vence o modo do aparelho.
 
 ### Registrado em 12/out/2026 — Nexus/Comunicados (pedido do fundador) — design em `Lib/weblib/docs/design/comunicado-modal.md`
 - [x] **(P1) `AnnouncementDialog` / `AnnouncementDialogHost`: ENTREGUE na 2.296.0** — comunicado como MODAL
@@ -47,6 +81,22 @@
       pt-BR em aparelho em inglês mostra "Oct 10, 2026". Pedido: para esqueletos com texto, montar o locale com a LÍNGUA
       de `appLanguageTag()` e a REGIÃO do aparelho (Android `Locale.Builder`, iOS `NSLocale(localeIdentifier:)`), mantendo a
       ordem regional; testes por esqueleto. Numéricos (`SHORT`, `TIME`) não mudam.
+
+### Registrado em 10/out/2026 — LM-AUD: áudio AUTENTICADO no `VoiceNotePlayer` (dev-mobile, Vitalis M2.4)
+- [ ] **LM-AUD (Médio) — `VoiceNoteSource` para rota autenticada do produto.** O `VoiceNotePlayer` (2.287.0) baixa
+      `Url`/`Remote` com um `HttpClient` SEM Bearer (o caso da conversa: URL assinada). O áudio do diário do paciente no
+      Vitalis é `GET /v1/alerts/{id}/audio` — rota do produto, com Bearer own-auth e `X-Clinic-Id`, sem URL assinada.
+      Pedido: fonte autenticada pelo `DomainApiClient`, par do `PhotoSource.authenticated(api, path, accountId)` — ex.:
+      `VoiceNoteSource.authenticated(api, path, cacheKey)` (usa `getBytes`, que já faz Bearer + refresh no 401 + 1
+      retentativa) ou `VoiceNoteSource.Loader(cacheKey) { bytes }`. Interino no app (Vitalis
+      `features/alertas/AudioDosAlertas.kt`): cliente próprio com plugin que põe o Bearer do `IAuthRepository` SÓ no host do
+      `vitalis-api` e SÓ no caminho exato `/v1/alerts/{uuid}/audio`; o 401 é tratado como "URL vencida" (`onRenewUrl` força
+      o refresh do token). Sai quando a fonte autenticada existir.
+- [ ] **LM-AUD-2 (Alto, iOS) — áudio `audio/webm` (Opus) não toca no iOS.** O relato do paciente é gravado no NAVEGADOR:
+      Chrome/Android grava `audio/webm;codecs=opus`, Safari grava `audio/mp4`. O `AudioPlayer` do iOS (`AVAudioPlayer`) não
+      abre contêiner WebM — o player fica em erro. Decidir a solução certa com o backend: transcodificar para AAC/m4a no
+      servidor ao receber (o recomendado: um formato só para todos os clientes) ou a lib decodificar Opus no iOS. Android
+      (Media3/MediaPlayer) toca os dois. Enquanto isso, no iOS o médico lê a transcrição (quando a IA está ligada).
 
 ### Registrado em 10/out/2026 — dev-mobile (Vitalis)
 - [x] **GAP-TEXTSTATE-SAVER-01 (Alto, iOS) — `rememberSyncedTextFieldState(saveable = true)` derruba o app ao voltar à
@@ -118,6 +168,65 @@
       padrão da fábrica). Achado ao portar o questionário, que por isso NÃO passa `minValue` ao campo. Correção: conferir
       só o máximo na tecla e deixar o mínimo para o `errorMessage` de quem chama; entra com piso (`simbolos: [NumberField]`
       restrito a quem passa `minValue`).
+
+### Registrado em 08/out/2026 — origem: design do **Vitalis** (`Estudo-Sistema-Medico/docs/design/wireframes.md`)
+> Sistema para médico autônomo/clínica pequena (prontuário, agenda, receita, estoque, financeiro).
+> App do médico/secretária com paridade total ao portal web (sem videochamada). Par web em
+> `Lib/weblib/docs/backlog.md` (mesma data). Protótipo real aprovado — "protótipo vence a
+> biblioteca": os itens abaixo são o que o protótipo exige e NENHUMA das duas libs cobre hoje.
+
+- [ ] **GAP-VIT-K01 (P1) — cabeçalho clínico COMPACTO fixo, com alerta por severidade e
+      "pulse" ao bater com item de receita.** Barra fixa no topo da Consulta e da Receita (mesmo
+      componente nas duas telas): identificação (nome·idade·peso·altura) + alergias (destaque
+      vermelho se grave; "Nega alergias"/"Alergias não informadas" como estado neutro, não erro) +
+      comorbidades + em uso + gestante. No app: **2 linhas compactas, expansíveis por toque**
+      (RF-CON-02 do PRD do Vitalis). Ao incluir item de receita que bate com alergia/uso, o bloco
+      correspondente pisca por ~2 ciclos (nunca contínuo). Não existe hoje nada parecido em
+      `ui`/`ui.theme` — o mais próximo é `StatusChip`/`Badge`, que não cobre "contexto fixo
+      multi-linha com estado de alerta e pulse". Par web: `GAP-VIT-W01`. Telas: PW-22/AM-09 (e
+      onde ele aparece: PW-23/PW-29/AM-10/AM-12). Interino: componente do PRÓPRIO projeto
+      (`core/ui/ClinicalHeader.kt`), usando `StatusChip`/tokens de severidade como peça interna.
+- [ ] **GAP-VIT-K02 (P1) — comparador de fotos (lado a lado / controle deslizante / linha do
+      tempo).** Já citado como lacuna no PRD do Vitalis (`§4`, "componente de comparação de fotos
+      (weblib e kmplib)") e confirmado pelo protótipo (`App Médico v2` "Seção do prontuário" /
+      fluxo de Fotos). Modo deslizante = duas imagens com `clip-path` controlado por slider; modo
+      lado a lado = duas imagens 3:4; linha do tempo = tiras de sessão clicáveis. Não é
+      `FullScreenGallery`/`ZoomableBox` (que são para UMA foto ou navegação sequencial, não
+      comparação de DUAS). Par web: `GAP-VIT-W02`. Tela: AM-08 (sub-aba Fotos)/AM-17 (nova sessão).
+      1º consumidor; promover quando houver 2º (QueiMap já tem o mesmo pedido registrado,
+      `GAP-QUEIMAP-04` no backlog da weblib — **é o 2º consumidor real**, considerar promover já).
+- [ ] **GAP-VIT-K03 (P1) — câmera com CONTORNO-GUIA da foto de referência (overlay semitransparente
+      sobre o preview, posicionado como a foto anterior da mesma pose).** Diferencial #6 do produto
+      (RF-FOT-02). `camera/` tem `PlateOcrAnalyzer`/preview de câmera, mas nenhum composable que
+      desenhe uma silhueta/imagem de referência por cima do preview com alpha, para alinhar a pose.
+      Tela: AM-17 ("Nova foto", contorno = recorte/silhueta da sessão anterior na mesma posição —
+      frente/perfil D/E/costas). Sem par web (é câmera nativa — só mobile tira foto de progresso).
+      Interino: `Canvas`/overlay desenhado no projeto sobre o preview da `camera`.
+- [ ] **GAP-VIT-K04 (P1) — checklist de protocolo com itens "pendentes" para confirmar/desmarcar
+      antes de aplicar, entrando como CÓPIA EDITÁVEL na lista principal (mudar a dose não altera o
+      modelo).** É o coração do diferencial #2 (receita por protocolo, item a item — RF-REC-02):
+      marcar "Multivitamínico" abre um painel com os itens PRÉ-marcados, o médico desmarca o que
+      não quer, "Aplicar à receita" copia os itens restantes como entradas editáveis independentes
+      do protocolo original. Não é um `Checkbox`/`ChoiceChipGroup` comum (eles não têm o estado
+      intermediário "staged, aguardando confirmação em lote" nem a semântica de cópia). Par web:
+      `GAP-VIT-W03`. Telas: AM-12 (Receita no app). Interino: painel próprio do projeto sobre
+      `AppCheckbox` + lista.
+- [x] **(Entregue na 2.265.0 — ver o registro de 09/out acima.)** **GAP-VIT-K05 (P2) — "runner" de formulário clínico CONFIGURÁVEL (modelo → seção → pergunta),
+      com pergunta condicional, pontuação e flag "reservada" (a secretária não vê/pergunta).** A
+      weblib já tem `QuestionnaireRunner` (`/ui`) para isso na web; a kmplib **não tem equivalente**
+      — hoje quem roda um formulário de pré-consulta/anamnese/escala no app precisaria reescrever a
+      lógica de seção→pergunta→condicional na tela. Usado pelo Vitalis em AM-13 (Triagem) e no
+      "preencher pré-consulta pelo médico" dentro da consulta (AM-11). Escalas citadas no PRD:
+      PHQ-2, GAD-2, Epworth, STOP-Bang, IPAQ curto, AUDIT-C, Bristol, ADAM, AMS, IIEF-5, IPSS, MRS —
+      todas "modelo→seção→pergunta" com pontuação e exibição condicional por sexo/idade/resposta
+      anterior. Par web: construtor fica só na weblib (admin), mas o RUNNER deveria ser o MESMO
+      contrato de dados nas duas plataformas (o modelo é JSON vindo do backend, igual nos dois).
+      Proposta: `FormRunner(template: FormTemplate, state, onAnswer)` em `ui` ou módulo novo,
+      espelhando a API já pensada para `QuestionnaireRunner` da weblib.
+- [ ] Não registrado como gap mobile: gravador de áudio com forma de onda (diário do paciente/
+      "ditar consulta") — a kmplib **já tem** `voice`/`media` (`createSpeechRecognizer`,
+      `AudioCapture` com `levels`/`frames`); é gap **só do lado web** (`GAP-VIT-W04`), onde o
+      paciente usa a PÁGINA por link, sem app.
 
 ### Registrado em 08/out/2026 — manifesto do app herda superfície que ele não usa (security-review do Escuta)
 - [ ] **GAP-MANIFESTO-TRANSITIVO-01 (Baixo) — `kmplib-firebase` e `kmplib-monetization` mesclam no manifesto de todo app
@@ -5350,3 +5459,12 @@ Meu Fisio, PalpiteCerto, Exiba, LocaSys 3; Salmos, LocAki, Emprestei, FX Investi
 MinhaArena, MinhaEstadia, PontoFirme, Suzy 2; Colinha do Voto, MeuEstacionamento, MinhaAgenda, MinhaDespensa,
 PapelStudio, FolhaDeAxe, LiveCount, MeuFrete, MinhaObra, QueiMap, RedeDeOfertas, TattooStudio 1). Candidato a
 auditor no `Nexus/fabrica` (padrão `value = <x>.<query>` + `onValueChange = { onAction(…) }`).
+
+## GAP-KM-402-ENVELOPE — 402 que NÃO é cota chega sem `serverCode`/`details` (10/out/2026, Vitalis M1.8)
+
+`DomainApiClient.classify` lê o corpo do 402 só para o `QuotaExceeded`; quando ele não casa, devolve
+`DomainResult.Error(402, quotaReached)` **sem** `serverCode`, `serverMessage` nem `details` — o envelope da
+backlib é descartado. O Vitalis devolve 402 `SUBSCRIPTION_REQUIRED` `{details.state}` (somente leitura por
+assinatura vencida) e o app hoje decide pelo STATUS (`core/network/VitalisApi.kt`, único 402 daquele backend)
+e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo "não é cota", preencher
+`serverCode`/`serverMessage`/`details`/`detailsJson` com o mesmo `envelopeDeErro` dos outros status.

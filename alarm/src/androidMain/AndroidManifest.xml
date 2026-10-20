@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      kmplib-alarm (2.308.0) — OPT-IN (fora do umbrella).
+
+      SCHEDULE_EXACT_ALARM: `setAlarmClock` e `setExactAndAllowWhileIdle` exigem a permissão de
+        alarme exato no Android 12+. No Android 14+ ela nasce NEGADA em instalação nova: o app confere
+        com `AlarmScheduler.hasExactAlarmPermission()` e leva a pessoa à tela do sistema com
+        `openPermissionSettings()`. Sem ela a lib degrada para `setWindow` (FallbackWindow).
+
+      USE_EXACT_ALARM NÃO é declarada aqui, de propósito: a Play só a aceita em app cuja função
+        PRINCIPAL é despertador ou agenda, e reprova o resto. Ela é concedida na instalação (o que
+        torna a permissão acima desnecessária), então o app que se enquadra declara no PRÓPRIO
+        manifesto:
+            <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+        e assume a declaração no Play Console. A lib funciona com qualquer uma das duas.
+
+      RECEIVE_BOOT_COMPLETED: o AlarmManager perde todos os alarmes no reboot; o receiver abaixo os
+        reagenda a partir do registro da lib.
+      POST_NOTIFICATIONS: o alarme vira notificação (Android 13+ pede em runtime — é do app pedir).
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!-- Dispara a notificação do alarme. exported=false: só o PendingIntent da lib o chama. -->
+        <receiver
+            android:name="br.com.codecacto.kmplib.alarm.AlarmReceiver"
+            android:exported="false" />
+
+        <!--
+          Reagenda depois do boot, da atualização do app e da concessão de alarme exato.
+          exported=true é obrigatório (quem envia é o sistema); os três broadcasts são protegidos.
+        -->
+        <receiver
+            android:name="br.com.codecacto.kmplib.alarm.AlarmRescheduleReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

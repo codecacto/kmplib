@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      kmplib-location-session (2.308.0) — OPT-IN (fora do umbrella).
+
+      ACCESS_FINE_LOCATION: a ronda precisa do GPS (precisão de metros para o check-in no ponto).
+      FOREGROUND_SERVICE + FOREGROUND_SERVICE_LOCATION: o serviço em primeiro plano tipo "location"
+        (obrigatório desde o Android 14 para o tipo declarado abaixo).
+      ACCESS_BACKGROUND_LOCATION: só é necessária para RETOMAR a ronda quando o sistema recria o
+        serviço sem o app na frente (START_STICKY após matar o processo). Ronda iniciada com o app
+        aberto funciona só com a FINE. ⚠️ Na Play, declarar esta permissão exige o formulário de
+        "localização em segundo plano" (com vídeo) no Play Console — o app que usa este módulo assume
+        essa declaração. Quem não quer: `tools:node="remove"` no manifesto do app e chamar
+        `PatrolLocationSession.resumePatrolIfNeeded()` no ON_RESUME.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <application>
+        <!--
+          exported="false": só a própria lib inicia o serviço (Context.startForegroundService).
+        -->
+        <service
+            android:name="br.com.codecacto.kmplib.location.session.PatrolLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+
+</manifest>
