@@ -8,6 +8,7 @@ import com.revenuecat.purchases.kmp.models.CustomerInfo
 import com.revenuecat.purchases.kmp.models.StoreTransaction
 import com.revenuecat.purchases.kmp.models.CacheFetchPolicy
 import com.revenuecat.purchases.kmp.models.DiscountPaymentMode
+import com.revenuecat.purchases.kmp.models.GoogleReplacementMode
 import com.revenuecat.purchases.kmp.models.IntroEligibilityStatus
 import com.revenuecat.purchases.kmp.models.OfferPaymentMode
 import com.revenuecat.purchases.kmp.models.Period
@@ -17,6 +18,7 @@ import com.revenuecat.purchases.kmp.models.PackageType
 import com.revenuecat.purchases.kmp.models.ProductCategory
 import com.revenuecat.purchases.kmp.models.PurchasesError
 import com.revenuecat.purchases.kmp.models.PurchasesErrorCode
+import com.revenuecat.purchases.kmp.models.Store
 import com.revenuecat.purchases.kmp.models.StoreProduct
 import com.revenuecat.purchases.kmp.models.VerificationResult
 import kotlin.concurrent.Volatile
@@ -258,6 +260,48 @@ internal class RevenueCatPurchaseRepository(
                     onSuccess = onSuccess,
                 )
             }
+        }
+    }
+
+    /**
+     * Troca de plano (2.316.0): no Android a RevenueCat leva [SubscriptionChange.oldProductId] e o
+     * `GoogleReplacementMode` ao Play Billing (`SubscriptionUpdateParams`); no iOS os dois são
+     * ignorados pelo SDK e a compra no mesmo grupo de assinatura é a troca (a Apple decide quando vale).
+     */
+    override suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseResult {
+        // App infantil (2.259.0): troca também é compra — passa pelo portão de pais.
+        if (!ParentalGate.awaitPass()) return PurchaseResult.Cancelled
+        val pkg = cachedPackages[packageId]
+            ?: run {
+                readOffering(cachedOfferingId)
+                cachedPackages[packageId]
+            }
+            ?: return PurchaseResult.Error(
+                message = "Pacote nao encontrado: $packageId",
+                code = PurchaseErrorCode.PRODUCT_NOT_FOUND
+            )
+        val oldProductId = normalizeStoreProductId(change.oldProductId)
+        if (oldProductId.isEmpty()) {
+            return PurchaseResult.Error(
+                message = "Troca de plano sem o produto atual",
+                code = PurchaseErrorCode.CONFIGURATION_ERROR,
+            )
+        }
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.purchase(
+                packageToPurchase = pkg,
+                onError = { error, userCancelled ->
+                    continuation.resume(error.toPurchaseResult(userCancelled))
+                },
+                onSuccess = { _, customerInfo ->
+                    val subscriptionInfo = customerInfo.toSubscriptionInfo()
+                    publish(subscriptionInfo)
+                    continuation.resume(PurchaseResult.Success(subscriptionInfo))
+                },
+                isPersonalizedPrice = null,
+                oldProductId = oldProductId,
+                replacementMode = change.replacementMode.toGoogleReplacementMode(),
+            )
         }
     }
 
@@ -752,7 +796,8 @@ internal class RevenueCatPurchaseRepository(
                 isActive = true,
                 productId = premiumEntitlement.productIdentifier,
                 expirationDate = null,
-                willRenew = premiumEntitlement.willRenew
+                willRenew = premiumEntitlement.willRenew,
+                store = premiumEntitlement.store.toPurchaseStore(),
             )
         } else {
             SubscriptionInfo(isActive = false)
@@ -802,6 +847,21 @@ internal class RevenueCatPurchaseRepository(
         }
         val total = value * cycles
         return if (total > 0) FreeTrialPeriod(total, unidade) else null
+    }
+
+    /** Loja da assinatura ativa: Play e App Store; o resto (promocional, Stripe, teste) = desconhecida. */
+    private fun Store.toPurchaseStore(): PurchaseStore = when (this) {
+        Store.PLAY_STORE -> PurchaseStore.PLAY_STORE
+        Store.APP_STORE, Store.MAC_APP_STORE -> PurchaseStore.APP_STORE
+        else -> PurchaseStore.UNKNOWN
+    }
+
+    private fun StoreReplacementMode.toGoogleReplacementMode(): GoogleReplacementMode = when (this) {
+        StoreReplacementMode.WITH_TIME_PRORATION -> GoogleReplacementMode.WITH_TIME_PRORATION
+        StoreReplacementMode.CHARGE_PRORATED_PRICE -> GoogleReplacementMode.CHARGE_PRORATED_PRICE
+        StoreReplacementMode.CHARGE_FULL_PRICE -> GoogleReplacementMode.CHARGE_FULL_PRICE
+        StoreReplacementMode.WITHOUT_PRORATION -> GoogleReplacementMode.WITHOUT_PRORATION
+        StoreReplacementMode.DEFERRED -> GoogleReplacementMode.DEFERRED
     }
 
     private fun PackageType.toPurchasePackageType(): PurchasePackageType = when (this) {

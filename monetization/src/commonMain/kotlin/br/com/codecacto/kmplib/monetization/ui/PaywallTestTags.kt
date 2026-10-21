@@ -1,5 +1,7 @@
 package br.com.codecacto.kmplib.ui.screens.paywall
 
+import br.com.codecacto.kmplib.ui.components.OptionTestTags
+
 /**
  * **Ids canônicos do paywall para automação de UI** — os mesmos nomes do conjunto declarado no
  * briefing de QA (`AUTOMACAO-QA-BRIEFING-RUNNER.md`), e os mesmos que a `PricingTable` da weblib
@@ -56,6 +58,22 @@ object PaywallTestTags {
 
     /** Card de erro do paywall. */
     const val ERRO: String = "paywall-erro"
+
+    /**
+     * Grupo de chips de degrau (2.316.0). Cada chip: [degrau] — `paywall-degrau-<id do degrau>`
+     * (`paywall-degrau-v3`), o mesmo id do `monetizacao.yaml`. Os planos do degrau escolhido seguem
+     * com os ids de sempre ([PLANO_MENSAL]…): só um degrau fica na tela por vez.
+     */
+    const val SELETOR_DE_DEGRAU: String = "paywall-degrau"
+
+    /** Id do chip do degrau [tierId] (2.316.0). */
+    fun degrau(tierId: String): String = OptionTestTags.option(SELETOR_DE_DEGRAU, tierId)
+
+    /** Seção "Trocar de plano" de quem já assina (2.316.0). */
+    const val TROCA_DE_PLANO: String = "paywall-troca-de-plano"
+
+    /** Aviso de como a troca vale nas lojas, na seção de troca (2.316.0). */
+    const val AVISO_DE_TROCA: String = "paywall-aviso-troca"
 
     /**
      * Sufixo estável de um plano: **`mensal` / `semestral` / `anual`** pela duração canônica.

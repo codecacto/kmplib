@@ -536,8 +536,10 @@ open class OfflineFirstRestRepository<T : Any>(
             }
         }
 
+    /** A frase da linha recusada: a do servidor quando veio (2.316.0), senão a genérica com o recurso. */
     private fun quotaMessage(quota: DomainResult.Quota): String =
-        "Limite do plano atingido${quota.quota.feature.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}."
+        quota.serverMessage
+            ?: "Limite do plano atingido${quota.quota.feature.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}."
 
     // -- Sync (RestCrudSyncParticipant) ------------------------------------
 

@@ -324,7 +324,8 @@
 - [x] **GAP-PT-M07 (P1) — player de revisão — ENTREGUE na 2.286.0**: `VideoPlayerState.stepFrame(±1)` + busca exata no iOS,
       `VideoTimeline(markers, onSeek, onAddAt)` e `VideoFrameStepControls`. Fica: textos do `kmplib-video` nos 4 idiomas (hoje pt-BR literal).
 - [ ] **GAP-PT-M08 (P1) — `platform`: `Haptics.vibrate(pattern)` + `NotificationScheduler.scheduleOnce/cancel`** (fim do descanso com o app em 2º plano; `SoundEffectPlayer` não toca no Silencioso).
-- [ ] **GAP-PT-M09 (P1) — `monetization`: degrau × ciclo no paywall** (`PaywallTier`; 4 degraus × 3 ciclos = 9 produtos por loja; selo "Melhor valor" derivado).
+- [x] **GAP-PT-M09 (P1) — `monetization`: degrau × ciclo no paywall** — ✅ **2.316.0**: `PaywallConfig.tiers = PaywallTierConfig`, chips de degrau, selo por degrau, degrau atual de fora, troca de plano pela loja (Play `oldProductId` + `replacementMode`; Apple mesmo grupo). Origem: RondAki (`ProvedorDaFaixa` sai na migração).
+- [x] **GAP-RONDAKI-QUOTA-DETAILS — `DomainResult.Quota` descartava `code`/`message`/`details` do 402** — ✅ **2.316.0**: `Quota(quota, serverCode, serverMessage, message, details, detailsJson)` + `recurso`/`limite`/`uso`/`degrauSugerido`/`faleConosco`/`decodeDetail`. Origem: RondAki (`degrauSugerido` abre o paywall no degrau certo).
 - [ ] **GAP-PT-M17 (P1, verificação) — `AppTheme` com `colorScheme`/`displayFontFamily` trocados em runtime** (marca do personal depois do login).
 - [ ] **GAP-PT-M01 (P1, nasce no projeto) — `MuscleMap`** frente/costas, 3 níveis, leitura e seleção; **candidato** a `kmplib-ui` no 2º consumidor (Meu Fisio).
 - [ ] Candidatos P2/P3 (nascem no projeto): M13 cálculos de avaliação física · M14 `WeeklyBars`/`MonthCalendar`/`HeatGrid` · M15 `RestRing` · M16 `PhotoCompare` · M10 relógio Fase 1 (Live Activity + notificação contínua, molde na casca) · verificações M18 (`AppBottomNavBar` sem indicador) e M19 (botões sociais públicos).

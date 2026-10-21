@@ -104,11 +104,16 @@ fun parseQuotaExceeded(body: String?): QuotaExceeded? {
     return candidates.firstNotNullOfOrNull { fromDetails(it) }
 }
 
-/** Mapeia um objeto `details` (numeros como string OU number) para [QuotaExceeded]. */
+/**
+ * Mapeia um objeto `details` (numeros como string OU number) para [QuotaExceeded].
+ *
+ * Aceita também o vocabulário em português que backends de projeto usam (2.316.0): `recurso` no lugar
+ * de `feature` e `uso` no lugar de `contagem` — o nome em inglês vence quando vêm os dois.
+ */
 private fun fromDetails(details: JsonObject): QuotaExceeded? {
-    val feature = details["feature"]?.jsonPrimitiveOrNull()?.contentOrNull ?: return null
+    val feature = (details["feature"] ?: details["recurso"])?.jsonPrimitiveOrNull()?.contentOrNull ?: return null
     val limite = details["limite"]?.toIntOrNull() ?: return null
-    val contagem = details["contagem"]?.toIntOrNull() ?: return null
+    val contagem = (details["contagem"] ?: details["uso"])?.toIntOrNull() ?: return null
     val upgradeUrl = details["upgradeUrl"]?.jsonPrimitiveOrNull()?.contentOrNull
     return QuotaExceeded(feature = feature, limite = limite, contagem = contagem, upgradeUrl = upgradeUrl)
 }

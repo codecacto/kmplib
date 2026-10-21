@@ -30,6 +30,12 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_back
 import br.com.codecacto.kmplib.generated.resources.kmplib_ok
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_month
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_months
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_choose_tier
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_current_tier
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_change_plan_title
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_change_plan_cta
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_current_plan
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_tier_change_notice
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_semester
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_price_per_year
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_start_trial
@@ -66,6 +72,10 @@ import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
  *   sem trial: a tela diz "Assinar" e nao promete nada. **Nunca preencha a mao** — vem de
  *   `PurchasePackage.offerableFreeTrial` pelos mapeadores ([toPaywallPlans]/[toPaywallPlansFromStore]).
  *   Botao "X dias gratis" que cobra na hora e recusa 3.1.2 da Apple (docs/43).
+ * @property tierId degrau do plano (2.316.0) — preenchido pelos mapeadores de degrau
+ *   ([toPaywallTierPlansFromStore]/[toPaywallTierPlans]); `null` na vitrine de um degrau só.
+ * @property isCurrent e o produto ATIVO de quem ja assina (2.316.0): o card mostra "Plano atual" e o
+ *   botao fica desligado. So o [PaywallViewModel] marca (pelo produto ativo na loja).
  */
 data class PaywallPlan(
     val id: String,
@@ -80,6 +90,8 @@ data class PaywallPlan(
     val durationMonths: Int? = null,
     val isFree: Boolean = false,
     val trial: PaywallTrial? = null,
+    val tierId: String? = null,
+    val isCurrent: Boolean = false,
 )
 
 /**
@@ -105,6 +117,12 @@ data class PaywallTrial(
  * @property isPurchasing Compra/restauracao em andamento (desabilita CTAs).
  * @property purchasingPlanId Id do plano cujo CTA esta em loading; `null` durante o restore.
  * @property error Mensagem de erro a exibir (opcional).
+ * @property tiers os chips de degrau (2.316.0), na ordem crescente — vazio sem `PaywallConfig.tiers`.
+ *   Com degraus, [plans] sao os do degrau [selectedTierId].
+ * @property selectedTierId o degrau cujos planos estao na tela.
+ * @property currentTierId o degrau em que a pessoa esta (de fora ou da loja); `null` = nenhum.
+ * @property canChangePlan quem ja assina pode TROCAR de plano nesta tela (2.316.0): ha degraus e a
+ *   assinatura ativa e desta loja. Com ele, a tela mostra a assinatura ativa E os planos para troca.
  */
 data class PaywallState(
     val plans: List<PaywallPlan> = emptyList(),
@@ -116,6 +134,10 @@ data class PaywallState(
     val isPurchasing: Boolean = false,
     val purchasingPlanId: String? = null,
     val error: String? = null,
+    val tiers: List<PaywallTierOption> = emptyList(),
+    val selectedTierId: String? = null,
+    val currentTierId: String? = null,
+    val canChangePlan: Boolean = false,
 )
 
 /** Acoes do paywall disparadas pela UI stateless para o ViewModel do app. */
@@ -198,6 +220,20 @@ data class PaywallTexts(
     val pricePerYearTemplate: String = "%1\$s/ano",
     /** Duracao fora dos 3 tipos: `%1$s` = preco, `%2$d` = meses. */
     val pricePerMonthsTemplate: String = "%1\$s a cada %2\$d meses",
+    // Degraus e troca de plano (2.316.0) — so aparecem com `PaywallConfig.tiers`.
+    /** Rotulo acima dos chips de degrau. */
+    val chooseTierLabel: String = "Escolha o nível",
+    /** Selo do degrau em que a pessoa esta, no chip: "Até 3 vigias (atual)". `%1$s` = nome. */
+    val currentTierTemplate: String = "%1\$s (atual)",
+    /** Titulo da secao de troca, para quem ja assina. */
+    val changePlanTitle: String = "Trocar de plano",
+    /** CTA de um plano na troca. */
+    val ctaChangePlan: String = "Trocar para este plano",
+    /** Botao (desligado) do card do plano ativo. */
+    val currentPlanLabel: String = "Plano atual",
+    /** Como a troca vale — o que as duas lojas fazem com os modos default (`PaywallTierChangeModes`). */
+    val tierChangeNotice: String = "Subir de nível vale na hora, com o valor ajustado pela loja. " +
+        "Descer de nível ou trocar o período vale na próxima renovação.",
 ) {
     /**
      * Texto do botao de compra de [plan]: "Começar 7 dias grátis" quando a loja confirmou o trial,
@@ -232,6 +268,10 @@ data class PaywallTexts(
         }
         return template.replace("%1\$s", plan.priceLabel)
     }
+
+    /** Rotulo do chip de degrau: o nome, com "(atual)" no degrau em que a pessoa esta (2.316.0). */
+    fun tierLabel(option: PaywallTierOption): String =
+        if (option.isCurrent) currentTierTemplate.replace("%1\$s", option.name) else option.name
 }
 
 /** [PaywallTexts] no idioma do aparelho (2.219.0). O disclosure legal vem traduzido nos 4 idiomas. */
@@ -268,4 +308,10 @@ fun rememberPaywallTexts(): PaywallTexts = PaywallTexts(
     pricePerSemesterTemplate = kmpStringResource(Res.string.kmplib_paywall_price_per_semester),
     pricePerYearTemplate = kmpStringResource(Res.string.kmplib_paywall_price_per_year),
     pricePerMonthsTemplate = kmpStringResource(Res.string.kmplib_paywall_price_per_months),
+    chooseTierLabel = kmpStringResource(Res.string.kmplib_paywall_choose_tier),
+    currentTierTemplate = kmpStringResource(Res.string.kmplib_paywall_current_tier),
+    changePlanTitle = kmpStringResource(Res.string.kmplib_paywall_change_plan_title),
+    ctaChangePlan = kmpStringResource(Res.string.kmplib_paywall_change_plan_cta),
+    currentPlanLabel = kmpStringResource(Res.string.kmplib_paywall_current_plan),
+    tierChangeNotice = kmpStringResource(Res.string.kmplib_paywall_tier_change_notice),
 )

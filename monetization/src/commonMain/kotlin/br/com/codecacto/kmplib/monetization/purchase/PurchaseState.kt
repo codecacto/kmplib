@@ -4,12 +4,20 @@ import kotlinx.datetime.Instant
 
 /**
  * Estado atual da assinatura do usuario.
+ *
+ * @param productId produto da assinatura ATIVA na loja (`EntitlementInfo.productIdentifier`). No Play
+ *   vem sem o plano base (`premium_v3_mensal_rondaki`); compare com [normalizeStoreProductId].
+ * @param store em que loja a assinatura ativa foi feita (2.316.0) — `null` quando não se sabe (dublê,
+ *   repositório antigo). Loja que não é Play nem App Store (promocional, Stripe, Test Store) chega como
+ *   [PurchaseStore.UNKNOWN]. É o que impede a troca de plano de criar uma SEGUNDA assinatura quando a
+ *   pessoa assinou no iPhone e abriu o app no Android (a troca só existe dentro da mesma loja).
  */
 data class SubscriptionInfo(
     val isActive: Boolean,
     val productId: String? = null,
     val expirationDate: Instant? = null,
-    val willRenew: Boolean = false
+    val willRenew: Boolean = false,
+    val store: PurchaseStore? = null,
 )
 
 /**

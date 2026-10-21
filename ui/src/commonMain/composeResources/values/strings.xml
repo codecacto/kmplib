@@ -211,6 +211,14 @@
     <string name="kmplib_paywall_nothing_to_restore">Nenhuma compra encontrada para restaurar.</string>
     <string name="kmplib_paywall_unavailable">Assinatura indisponível no momento.</string>
     <string name="kmplib_paywall_identity_unconfirmed">Não foi possível vincular a compra à sua conta. Tente de novo em instantes.</string>
+    <string name="kmplib_paywall_choose_tier">Escolha o nível</string>
+    <string name="kmplib_paywall_current_tier">%1$s (atual)</string>
+    <string name="kmplib_paywall_change_plan_title">Trocar de plano</string>
+    <string name="kmplib_paywall_change_plan_cta">Trocar para este plano</string>
+    <string name="kmplib_paywall_current_plan">Plano atual</string>
+    <string name="kmplib_paywall_tier_change_notice">Subir de nível vale na hora, com o valor ajustado pela loja. Descer de nível ou trocar o período vale na próxima renovação.</string>
+    <string name="kmplib_paywall_tier_change_scheduled">Troca agendada: o novo plano vale a partir da próxima renovação.</string>
+    <string name="kmplib_paywall_tier_change_other_store">Sua assinatura foi feita em outra loja. Para trocar de plano, use o aparelho em que você assinou.</string>
     <string name="kmplib_paywall_savings">Economize %1$s</string>
     <string name="kmplib_paywall_start_trial">Começar %1$s grátis</string>
     <string name="kmplib_paywall_trial_terms">Grátis por %1$s, depois %2$s. Renova automaticamente; cancele quando quiser.</string>

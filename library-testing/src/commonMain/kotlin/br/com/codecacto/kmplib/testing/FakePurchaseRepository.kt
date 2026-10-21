@@ -23,7 +23,9 @@ import br.com.codecacto.kmplib.monetization.purchase.StoreItem
 import br.com.codecacto.kmplib.monetization.purchase.StoreItemsOutcome
 import br.com.codecacto.kmplib.monetization.purchase.StorePurchaseClaim
 import br.com.codecacto.kmplib.monetization.purchase.StoreVerification
+import br.com.codecacto.kmplib.monetization.purchase.SubscriptionChange
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
+import br.com.codecacto.kmplib.monetization.purchase.normalizeStoreProductId
 import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -195,6 +197,28 @@ class FakePurchaseRepository(
         return resultado
     }
 
+    /** Cada troca de plano concluída (2.316.0): o `packageId` novo e a troca pedida (produto antigo + modo). */
+    val trocasDePlano: List<Pair<String, SubscriptionChange>> get() = _trocasDePlano.toList()
+    private val _trocasDePlano = mutableListOf<Pair<String, SubscriptionChange>>()
+
+    /**
+     * Troca de plano (2.316.0): o dublê só aceita trocar o produto que ESTÁ ativo — trocar a partir de
+     * outro produto devolve `CONFIGURATION_ERROR`, que é o que o Play faz com um `oldProductId` que a
+     * conta não assina. Concluída, vira a assinatura ativa (como uma compra) e fica em [trocasDePlano].
+     */
+    override suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseResult {
+        val ativo = _subscriptionState.value.productId?.let(::normalizeStoreProductId)
+        if (ativo == null || !ativo.equals(normalizeStoreProductId(change.oldProductId), ignoreCase = true)) {
+            return PurchaseResult.Error(
+                "troca a partir de '${change.oldProductId}', mas o ativo é '$ativo' (dublê de teste)",
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+            )
+        }
+        val resultado = purchasePackage(packageId)
+        if (resultado is PurchaseResult.Success) _trocasDePlano += packageId to change
+        return resultado
+    }
+
     @Deprecated("Assinaturas usam getOfferings() (Offerings/Packages).", ReplaceWith("getOfferings()"))
     override suspend fun getProducts(): Result<List<PurchaseProduct>> = Result.success(emptyList())
 
@@ -353,6 +377,36 @@ class FakePurchaseRepository(
             plano(PACOTE_SEMESTRAL, PurchasePackageType.SIX_MONTH, "R$ 99,90", 99_900_000, 6),
             plano(PACOTE_ANUAL, PurchasePackageType.ANNUAL, "R$ 179,90", 179_900_000, 12),
         )
+
+        /**
+         * **Escada de degraus** (2.316.0) — os pacotes que o provisionador cria com `degraus:` no
+         * `monetizacao.yaml`: package `<degrau>_<ciclo>` e produto `premium_<degrau>_<ciclo>_<app>`, os
+         * três ciclos por degrau, na ordem dos [degraus]. Preço sobe com o degrau (o mensal do degrau
+         * `i` custa `(i + 1) × R$ 19,90`; semestral 5×, anual 9× o mensal).
+         */
+        fun planosPorDegrau(degraus: List<String>, app: String = "fake"): List<PurchasePackage> =
+            degraus.flatMapIndexed { i, degrau ->
+                val mensal = 19_900_000L * (i + 1)
+                listOf(
+                    Triple("mensal", PurchasePackageType.MONTHLY, 1),
+                    Triple("semestral", PurchasePackageType.SIX_MONTH, 6),
+                    Triple("anual", PurchasePackageType.ANNUAL, 12),
+                ).map { (ciclo, tipo, meses) ->
+                    val micros = when (meses) {
+                        1 -> mensal
+                        6 -> mensal * 5
+                        else -> mensal * 9
+                    }
+                    plano(
+                        packageId = "${degrau}_$ciclo",
+                        tipo = tipo,
+                        precoFormatado = "R$ ${micros / 1_000_000},${((micros % 1_000_000) / 10_000).toString().padStart(2, '0')}",
+                        precoEmMicros = micros,
+                        duracaoEmMeses = meses,
+                        idDoProdutoNaLoja = "premium_${degrau}_${ciclo}_$app",
+                    )
+                }
+            }
 
         /** Só o mensal — para o app cujo catálogo tem um plano só. */
         val SO_MENSAL: List<PurchasePackage> = listOf(PLANOS_PADRAO.first())
@@ -586,8 +640,11 @@ class FakePurchaseRepository(
             PACOTE_MENSAL -> "premium_mensal_fake"
             PACOTE_SEMESTRAL -> "premium_semestral_fake"
             PACOTE_ANUAL -> "premium_anual_fake"
-            else -> packageId.removePrefix("\$rc_")
+            // Pacote de degrau (`v3_mensal`, 2.316.0): o produto da convenção do provisionador.
+            else -> if (DEGRAU_CICLO.matches(packageId)) "premium_${packageId}_fake" else packageId.removePrefix("\$rc_")
         }
+
+        private val DEGRAU_CICLO = Regex("^[a-z0-9]+_(mensal|semestral|anual)$")
 
         private fun assinaturaAtiva(
             idDoProdutoNaLoja: String = produtoDoPacote(PACOTE_MENSAL),

@@ -5,6 +5,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_identity_uncon
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_nothing_to_restore
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_savings
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_unavailable
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_tier_change_other_store
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_tier_change_scheduled
 import br.com.codecacto.kmplib.monetization.entitlement.EntitlementController
 import br.com.codecacto.kmplib.monetization.entitlement.PlansResult
 import br.com.codecacto.kmplib.monetization.entitlement.UsageSnapshot
@@ -46,6 +48,12 @@ sealed interface PaywallHostAction : UiAction {
 
     /** Ação da [PaywallScreen] repassada ao ViewModel. */
     data class Paywall(val action: PaywallAction) : PaywallHostAction
+
+    /**
+     * A pessoa escolheu o degrau [tierId] nos chips (2.316.0). A escolha vale até sair da tela: a
+     * releitura do `ON_RESUME` não a devolve ao degrau inicial. Degrau fora da vitrine é ignorado.
+     */
+    data class SelectTier(val tierId: String) : PaywallHostAction
 }
 
 /** Efeitos do [PaywallViewModel] — o [PaywallHost] já executa todos. */
@@ -177,6 +185,9 @@ class PaywallTrialPolicy(
  *   cache do `AdminApiEntitlementRepository` para a próxima leitura refletir o webhook. Falha aqui é
  *   logada e não desfaz a compra.
  * @param trialPolicy uma conta = um trial em produto web + app (2.231.0). Default: só a loja decide.
+ * @param tiers escada de degraus (2.316.0, [PaywallTierConfig]): chips de degrau, degrau atual vindo de
+ *   fora e troca de plano pela loja para quem já assina. `null` (default) = a vitrine de um degrau só,
+ *   exatamente como antes.
  */
 class PaywallConfig(
     val termsUrl: String,
@@ -188,6 +199,7 @@ class PaywallConfig(
     val afterActivation: PaywallAfterActivation = PaywallAfterActivation.ShowActive,
     val onPremiumActivated: suspend () -> Unit = {},
     val trialPolicy: PaywallTrialPolicy = PaywallTrialPolicy(),
+    val tiers: PaywallTierConfig? = null,
 )
 
 /**
@@ -204,6 +216,11 @@ data class PaywallMessages(
     val savingsTemplate: String = "Economize %1\$s",
     /** Compra/restauração recusada: a loja não ficou com a conta logada (2.233.0). */
     val identityUnconfirmed: String = "Não foi possível vincular a compra à sua conta. Tente de novo em instantes.",
+    /** Troca que só vale na renovação (descer de degrau, trocar o ciclo) concluída na loja (2.316.0). */
+    val tierChangeScheduled: String = "Troca agendada: o novo plano vale a partir da próxima renovação.",
+    /** Assinatura ativa feita na loja da OUTRA plataforma: a troca só existe na loja de origem (2.316.0). */
+    val tierChangeOtherStore: String =
+        "Sua assinatura foi feita em outra loja. Para trocar de plano, use o aparelho em que você assinou.",
 ) {
     /** "Economize 33%". O `%` vai no argumento: `%%` na string não desescapa igual no iOS. */
     fun savingsLabel(percent: Int): String = savingsTemplate.replace("%1\$s", "$percent%")
@@ -217,6 +234,8 @@ suspend fun loadPaywallMessages(): PaywallMessages {
             unavailable = kmpGetString(Res.string.kmplib_paywall_unavailable),
             savingsTemplate = kmpGetString(Res.string.kmplib_paywall_savings),
             identityUnconfirmed = kmpGetString(Res.string.kmplib_paywall_identity_unconfirmed),
+            tierChangeScheduled = kmpGetString(Res.string.kmplib_paywall_tier_change_scheduled),
+            tierChangeOtherStore = kmpGetString(Res.string.kmplib_paywall_tier_change_other_store),
         )
     } catch (e: CancellationException) {
         throw e

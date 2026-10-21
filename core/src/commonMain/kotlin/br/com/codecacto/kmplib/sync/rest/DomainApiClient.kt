@@ -33,6 +33,7 @@ import io.ktor.http.Url
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -662,7 +663,18 @@ class DomainApiClient(
                 val body = runCatching { response.bodyAsText() }.getOrNull()
                 val quota = parseQuotaExceeded(body)
                 if (quota != null) {
-                    DomainResult.Quota(quota)
+                    // 2.316.0: o 402 chega inteiro (código, frase e `details`), não só o contexto mínimo.
+                    val envelope = parseServerErrorEnvelope(body)
+                    val payloadDireto = if (envelope?.detailsJson.isNullOrEmpty()) quotaDetailsAtRoot(body) else null
+                    DomainResult.Quota(
+                        quota = quota,
+                        serverCode = envelope?.code,
+                        serverMessage = envelope?.message,
+                        message = currentTexts().quotaReached,
+                        details = envelope?.details?.takeIf { it.isNotEmpty() } ?: payloadDireto?.first.orEmpty(),
+                        detailsJson = envelope?.detailsJson?.takeIf { it.isNotEmpty() }
+                            ?: payloadDireto?.second ?: ServerErrorDetails.EMPTY,
+                    )
                 } else {
                     // 402 sem cota = bloqueio da conta (TRIAL_EXPIRED/SUBSCRIPTION_REQUIRED, 2.300.0):
                     // o `serverCode` é o que deixa a tela distinguir — ver `isSubscriptionBlocked`.
@@ -878,8 +890,98 @@ data class DomainApiTexts(
 sealed class DomainResult<out T> {
     data class Success<T>(val data: T) : DomainResult<T>()
 
-    /** 402 — cota estourada; abre o Paywall com o contexto ([QuotaExceeded]). */
-    data class Quota(val quota: QuotaExceeded) : DomainResult<Nothing>()
+    /**
+     * 402 — cota estourada; abre o Paywall com o contexto ([QuotaExceeded]).
+     *
+     * Desde a 2.316.0 o 402 chega **inteiro**: além do [quota] (recurso/limite/contagem/`upgradeUrl`),
+     * o código e a frase do servidor e o `details` todo — até a 2.315.0 eles eram descartados, e a tela
+     * não tinha como dizer "assine a faixa de 10 vigias" nem "fale conosco", que é o que o servidor
+     * mandava. Aditivo: `Quota(quota)` e `r.quota` continuam como estavam.
+     *
+     * @param quota o contexto mínimo que todo 402 de cota traz.
+     * @param serverCode o código de negócio (`QUOTA_EXCEEDED`); `null` se não veio.
+     * @param serverMessage a frase do servidor ("Seu plano permite até 3 vigias ativos. Assine uma faixa
+     *   maior…"); `null` se não veio. Para a tela, [userMessage].
+     * @param message a frase LOCAL (`DomainApiTexts.quotaReached`), sempre presente.
+     * @param details o `details` só com os valores primitivos, como texto (`"limite" to "3"`).
+     * @param detailsJson o `details` inteiro, como veio (listas e objetos inclusive).
+     *
+     * Os campos comuns têm leitura pronta — [recurso], [limite], [uso], [upgradeUrl], [degrauSugerido],
+     * [degrauSugeridoNome], [faleConosco] —, aceitando os dois vocabulários em uso (`feature`/`recurso`,
+     * `contagem`/`uso`). O resto se lê com [detail], [detailString], [detailLong], [detailBoolean],
+     * [detailList], [detailObject] e [decodeDetail], que nunca lançam.
+     */
+    data class Quota(
+        val quota: QuotaExceeded,
+        val serverCode: String? = null,
+        val serverMessage: String? = null,
+        val message: String = DEFAULT_QUOTA_MESSAGE,
+        val details: Map<String, String> = emptyMap(),
+        val detailsJson: JsonObject = ServerErrorDetails.EMPTY,
+    ) : DomainResult<Nothing>() {
+
+        /** O recurso que estourou (`vigias_ativos`): `details.recurso`, senão o `feature` do [quota]. */
+        val recurso: String get() = detailString("recurso") ?: quota.feature
+
+        /** O limite do plano: `details.limite`, senão o do [quota]. */
+        val limite: Long get() = detailLong("limite") ?: quota.limite.toLong()
+
+        /** Quanto já está em uso: `details.uso`, senão `details.contagem`/o do [quota]. */
+        val uso: Long get() = detailLong("uso") ?: detailLong("contagem") ?: quota.contagem.toLong()
+
+        /** Onde assinar mais, se o servidor mandou. */
+        val upgradeUrl: String? get() = detailString("upgradeUrl") ?: quota.upgradeUrl
+
+        /** O degrau que liberaria a ação (`v10`) — o paywall abre nele; `null` = nenhum à venda. */
+        val degrauSugerido: String? get() = detailString("degrauSugerido")
+
+        /** O nome do [degrauSugerido] para a tela ("Até 10 vigias"), se o servidor mandou. */
+        val degrauSugeridoNome: String? get() = detailString("degrauSugeridoNome")
+
+        /**
+         * `true` quando nenhum plano à venda resolve e o caminho é falar com a empresa (plano sob
+         * medida) — `details.faleConosco` como booleano ou `"true"`.
+         */
+        val faleConosco: Boolean get() = detailBoolean("faleConosco") == true
+
+        /** A frase para a tela: a do servidor quando veio, senão a local ([message]). */
+        val userMessage: String get() = serverMessage ?: message
+
+        /** O valor CRU de `details[key]`; `null` se ausente. */
+        fun detail(key: String): JsonElement? = ServerErrorDetails.element(detailsJson, key)
+
+        /** `details[key]` como texto (primitivo, sem espaços nas pontas, nunca em branco). */
+        fun detailString(key: String): String? =
+            (detail(key) as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                ?: details[key]?.trim()?.takeIf { it.isNotEmpty() }
+
+        /** `details[key]` como número inteiro (aceita `3`, `"3"` e `"3.0"`); `null` se não for número. */
+        fun detailLong(key: String): Long? {
+            val texto = detailString(key) ?: return null
+            return texto.toLongOrNull() ?: texto.toDoubleOrNull()?.takeIf { it.isFinite() }?.toLong()
+        }
+
+        /** `details[key]` como booleano (aceita `true` e `"true"`, sem caixa); `null` se não for. */
+        fun detailBoolean(key: String): Boolean? = when (detailString(key)?.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+
+        /** `details[key]` como lista de textos — mesma regra de [Error.detailList]. */
+        fun detailList(key: String): List<String>? = ServerErrorDetails.list(detailsJson, key)
+
+        /** `details[key]` como objeto JSON; `null` se não for objeto. */
+        fun detailObject(key: String): JsonObject? = ServerErrorDetails.obj(detailsJson, key)
+
+        /** `details[key]` decodificado como [T] (campos a mais ignorados); `null` se não casar. */
+        inline fun <reified T> decodeDetail(key: String): T? = ServerErrorDetails.decode<T>(detailsJson, key)
+
+        companion object {
+            /** A frase local de quem constrói `Quota(quota)` sem texto (o default de [DomainApiTexts.quotaReached]). */
+            const val DEFAULT_QUOTA_MESSAGE: String = "Limite atingido."
+        }
+    }
 
     /**
      * @param code o status HTTP, ou [OFFLINE_CODE] quando nem chegou a haver resposta.
@@ -1066,6 +1168,21 @@ fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching 
 }.getOrNull()
 
 private val errorEnvelopeJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+/**
+ * O formato retrocompatível do 402 (`{"feature": …, "limite": …, "contagem": …}` na raiz, sem `details`):
+ * a própria raiz É o `details`. Devolve (primitivos como texto, objeto inteiro); `null` se não for objeto.
+ */
+private fun quotaDetailsAtRoot(body: String?): Pair<Map<String, String>, JsonObject>? = runCatching {
+    val texto = body?.trim().orEmpty()
+    if (!texto.startsWith("{")) return@runCatching null
+    val raiz = errorEnvelopeJson.parseToJsonElement(texto).jsonObject
+    val primitivos = raiz.mapNotNull { (campo, valor) ->
+        val v = (valor as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull?.trim()
+        if (campo.isBlank() || v.isNullOrEmpty()) null else campo to v
+    }.toMap()
+    primitivos to raiz
+}.getOrNull()
 
 /**
  * Nome de arquivo pronto para o `filename="…"` de uma parte multipart (2.311.0). Faz o que o

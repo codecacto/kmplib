@@ -9,6 +9,7 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchasePackage
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.RestoreResult
+import br.com.codecacto.kmplib.monetization.purchase.SubscriptionChange
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import br.com.codecacto.kmplib.monetization.purchase.hasStoreApiKey
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,6 +88,17 @@ interface EntitlementProvider {
      * normal ([purchasePackage]).
      */
     suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome =
+        purchasePackage(packageId)
+
+    /**
+     * **Troca de plano de quem já assina** (2.316.0) — subir/descer de degrau ou trocar o ciclo pela
+     * loja, sem criar uma segunda assinatura. Ver [SubscriptionChange] para o fluxo de cada plataforma.
+     *
+     * Default: [purchasePackage] — para provider de teste/recorte (ex.: o que filtra a offering por
+     * degrau) seguir compilando. ⚠️ Provider próprio que fala com o Play de verdade precisa sobrescrever
+     * (ou delegar a este método do provider da lib), senão a troca vira uma segunda assinatura.
+     */
+    suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseOutcome =
         purchasePackage(packageId)
 
     /** Restaura compras anteriores (novo device/reinstalação). */
@@ -214,6 +226,15 @@ class PurchaseManagerEntitlementProvider : EntitlementProvider {
         }
     }
 
+    override suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseOutcome {
+        val repo = PurchaseManager.repository ?: return PurchaseOutcome.Indisponivel
+        return when (val r = repo.changeSubscription(packageId, change)) {
+            is PurchaseResult.Success -> PurchaseOutcome.Ativado
+            is PurchaseResult.Cancelled -> PurchaseOutcome.Cancelado
+            is PurchaseResult.Error -> PurchaseOutcome.Falha(r.message, r.code)
+        }
+    }
+
     override suspend fun restore(): PurchaseOutcome {
         val repo = PurchaseManager.repository ?: return PurchaseOutcome.Indisponivel
         return when (val r = repo.restorePurchases()) {
@@ -254,6 +275,9 @@ class StubEntitlementProvider : EntitlementProvider {
     override suspend fun loadOfferings(offeringId: String): OfferingsOutcome = OfferingsOutcome.Indisponivel
 
     override suspend fun purchasePackage(packageId: String, withoutFreeTrial: Boolean): PurchaseOutcome =
+        PurchaseOutcome.Indisponivel
+
+    override suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseOutcome =
         PurchaseOutcome.Indisponivel
 
     override suspend fun restore(): PurchaseOutcome = PurchaseOutcome.Indisponivel

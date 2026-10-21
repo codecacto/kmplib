@@ -67,6 +67,22 @@ interface PurchaseRepository {
         purchasePackage(packageId)
 
     /**
+     * **Troca de plano de quem já assina** (2.316.0) — compra o pacote [packageId] SUBSTITUINDO a
+     * assinatura ativa, pelo fluxo oficial da loja (ver [SubscriptionChange]): no Play, com o produto
+     * antigo e o modo de substituição; na App Store, como compra no mesmo grupo (a Apple decide quando
+     * vale). Atualiza [subscriptionState] como uma compra.
+     *
+     * Na troca que só vale na renovação (descer de degrau, trocar o ciclo) a compra **conclui com
+     * sucesso e a assinatura ativa continua a antiga** até a data — não é falha.
+     *
+     * Default: [purchasePackage] — o comportamento de qualquer repositório sem loja de verdade (dublê,
+     * build sem billing). ⚠️ Repositório próprio que fala com o Play e não sobrescreve isto cria uma
+     * SEGUNDA assinatura em vez de trocar.
+     */
+    suspend fun changeSubscription(packageId: String, change: SubscriptionChange): PurchaseResult =
+        purchasePackage(packageId)
+
+    /**
      * Retorna os produtos disponiveis para compra.
      *
      * @deprecated Assinaturas agora usam [getOfferings] (Offerings/Packages do RevenueCat). Permanece

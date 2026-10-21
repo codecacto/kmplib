@@ -202,6 +202,14 @@
     <string name="kmplib_paywall_nothing_to_restore">No purchases found to restore.</string>
     <string name="kmplib_paywall_unavailable">Subscription unavailable right now.</string>
     <string name="kmplib_paywall_identity_unconfirmed">We couldn't link the purchase to your account. Please try again in a moment.</string>
+    <string name="kmplib_paywall_choose_tier">Choose your level</string>
+    <string name="kmplib_paywall_current_tier">%1$s (current)</string>
+    <string name="kmplib_paywall_change_plan_title">Change plan</string>
+    <string name="kmplib_paywall_change_plan_cta">Switch to this plan</string>
+    <string name="kmplib_paywall_current_plan">Current plan</string>
+    <string name="kmplib_paywall_tier_change_notice">Moving up a level takes effect right away, with the price adjusted by the store. Moving down or changing the billing period takes effect at the next renewal.</string>
+    <string name="kmplib_paywall_tier_change_scheduled">Change scheduled: the new plan starts at your next renewal.</string>
+    <string name="kmplib_paywall_tier_change_other_store">Your subscription was purchased in another store. To change plans, use the device you subscribed on.</string>
     <string name="kmplib_paywall_savings">Save %1$s</string>
     <string name="kmplib_paywall_start_trial">Try %1$s free</string>
     <string name="kmplib_paywall_trial_terms">Free for %1$s, then %2$s. Renews automatically; cancel anytime.</string>

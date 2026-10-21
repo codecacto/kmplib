@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo
 import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.ui.components.AppButton
+import br.com.codecacto.kmplib.ui.components.ChoiceChipGroup
 import br.com.codecacto.kmplib.ui.components.NeedHelpSection
 import br.com.codecacto.kmplib.ui.components.UsageMeter
 import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
@@ -80,6 +81,8 @@ import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
  *   no estado nao-premium. Ver o KDoc de [PaywallContent].
  * @param afterPlansContent Slot abaixo dos cards e acima do bloco legal (ex.: "assinar por Pix no
  *   portal"). So renderiza no estado nao-premium.
+ * @param onSelectTier toque num chip de degrau (2.316.0) — so existe com `state.tiers`. O [PaywallHost]
+ *   liga em `PaywallHostAction.SelectTier`; `null` desenha os chips desligados.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +93,7 @@ fun PaywallScreen(
     snackbarHostState: SnackbarHostState? = null,
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
+    onSelectTier: ((String) -> Unit)? = null,
     beforePlansContent: (@Composable () -> Unit)? = null,
     afterPlansContent: (@Composable () -> Unit)? = null,
 ) {
@@ -128,6 +132,7 @@ fun PaywallScreen(
             headerIcon = headerIcon,
             beforePlansContent = beforePlansContent,
             afterPlansContent = afterPlansContent,
+            onSelectTier = onSelectTier,
         )
     }
 }
@@ -158,6 +163,9 @@ fun PaywallScreen(
  * que se perde nessa cópia é o disclosure legal que a Apple e o Google exigem.
  *
  * @param headerIcon Icone premium opcional do topo; `null` usa o default ([Icons.Filled.WorkspacePremium]).
+ * @param onSelectTier toque num chip de degrau (2.316.0). Com degraus (`state.tiers`), os chips vem acima
+ *   dos planos; para quem ja assina ([PaywallState.canChangePlan]) a tela mostra a assinatura ativa E a
+ *   secao "Trocar de plano" (chips, planos com "Plano atual" no ativo e o aviso de como a troca vale).
  */
 @Composable
 fun PaywallContent(
@@ -166,6 +174,7 @@ fun PaywallContent(
     texts: PaywallTexts = rememberPaywallTexts(),
     modifier: Modifier = Modifier,
     headerIcon: ImageVector? = null,
+    onSelectTier: ((String) -> Unit)? = null,
     beforePlansContent: (@Composable () -> Unit)? = null,
     afterPlansContent: (@Composable () -> Unit)? = null,
 ) {
@@ -201,8 +210,12 @@ fun PaywallContent(
                         isPurchasing = state.isPurchasing,
                         onManage = { onAction(PaywallAction.ManageSubscription) },
                     )
+                    if (state.canChangePlan) {
+                        ChangePlanSection(state = state, onAction = onAction, texts = texts, onSelectTier = onSelectTier)
+                    }
                 } else {
                     beforePlansContent?.invoke()
+                    TierSelector(state = state, texts = texts, onSelectTier = onSelectTier)
                     PlansSection(state = state, onAction = onAction, texts = texts)
                     afterPlansContent?.invoke()
                     LegalDisclosureSection(texts = texts, onAction = onAction)
@@ -272,11 +285,85 @@ private fun PaywallHeader(texts: PaywallTexts, headerIcon: ImageVector?) {
     }
 }
 
+/**
+ * Para quem ja assina, com degraus (2.316.0): "Trocar de plano", os chips, os planos (o ativo com
+ * "Plano atual", os outros com "Trocar para este plano") e como a troca vale nas lojas.
+ */
+@Composable
+private fun ChangePlanSection(
+    state: PaywallState,
+    onAction: (PaywallAction) -> Unit,
+    texts: PaywallTexts,
+    onSelectTier: ((String) -> Unit)?,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag(PaywallTestTags.TROCA_DE_PLANO),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = texts.changePlanTitle,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TierSelector(state = state, texts = texts, onSelectTier = onSelectTier)
+        PlansSection(state = state, onAction = onAction, texts = texts, changing = true)
+        Text(
+            text = texts.tierChangeNotice,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().testTag(PaywallTestTags.AVISO_DE_TROCA),
+        )
+        LegalDisclosureSection(texts = texts, onAction = onAction)
+    }
+}
+
+/**
+ * Chips de degrau (2.316.0) — so com 2+ degraus a venda. `ChoiceChipGroup` quebra linha quando a largura
+ * acaba (nenhum degrau some), e cada chip tem id `paywall-degrau-<id>`.
+ */
+@Composable
+private fun TierSelector(
+    state: PaywallState,
+    texts: PaywallTexts,
+    onSelectTier: ((String) -> Unit)?,
+) {
+    if (state.tiers.size < 2) return
+    val selected = state.tiers.firstOrNull { it.id == state.selectedTierId }
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = texts.chooseTierLabel,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        ChoiceChipGroup(
+            options = state.tiers.map(texts::tierLabel),
+            selectedIndex = state.tiers.indexOf(selected),
+            onOptionSelected = { index -> state.tiers.getOrNull(index)?.let { onSelectTier?.invoke(it.id) } },
+            enabled = onSelectTier != null && !state.isPurchasing,
+            testTag = PaywallTestTags.SELETOR_DE_DEGRAU,
+            optionTestKeys = state.tiers.map { it.id },
+        )
+        selected?.description?.let { description ->
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
 @Composable
 private fun PlansSection(
     state: PaywallState,
     onAction: (PaywallAction) -> Unit,
     texts: PaywallTexts,
+    changing: Boolean = false,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -320,6 +407,7 @@ private fun PlansSection(
                         isPurchasing = state.isPurchasing,
                         isThisPurchasing = state.isPurchasing && state.purchasingPlanId == plan.id,
                         texts = texts,
+                        changing = changing,
                         onSelect = { onAction(PaywallAction.SelectPlan(plan.id)) },
                     )
                 }
@@ -340,9 +428,17 @@ private fun PlanCard(
     isPurchasing: Boolean,
     isThisPurchasing: Boolean,
     texts: PaywallTexts,
+    changing: Boolean,
     onSelect: () -> Unit,
 ) {
     val highlighted = plan.isRecommended || selected
+    // O plano ativo não se compra de novo: card sem clique, botão desligado com "Plano atual".
+    val canBuy = !isPurchasing && !plan.isCurrent
+    val ctaText = when {
+        plan.isCurrent -> texts.currentPlanLabel
+        changing -> texts.ctaChangePlan
+        else -> texts.ctaLabel(plan)
+    }
     val border = if (highlighted) {
         BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
     } else {
@@ -354,7 +450,7 @@ private fun PlanCard(
             .fillMaxWidth()
             // Ancoragem para automação de UI (Maestro/Appium/Compose test). Ver `PaywallTestTags`.
             .testTag(PaywallTestTags.plano(plan))
-            .clickable(enabled = !isPurchasing) { onSelect() },
+            .clickable(enabled = canBuy) { onSelect() },
         shape = RoundedCornerShape(20.dp),
         border = border,
         // Fundo branco/surface SEMPRE — sem area preenchida de primaria.
@@ -457,9 +553,9 @@ private fun PlanCard(
             // (acento), preservando "primaria so como acento" no resto do card.
             if (highlighted) {
                 AppButton(
-                    text = texts.ctaLabel(plan),
+                    text = ctaText,
                     onClick = onSelect,
-                    enabled = !isPurchasing,
+                    enabled = canBuy,
                     isLoading = isThisPurchasing,
                     primaryColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -470,7 +566,7 @@ private fun PlanCard(
             } else {
                 OutlinedButton(
                     onClick = onSelect,
-                    enabled = !isPurchasing,
+                    enabled = canBuy,
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     modifier = Modifier
@@ -486,9 +582,13 @@ private fun PlanCard(
                         )
                     } else {
                         Text(
-                            text = texts.ctaLabel(plan),
+                            text = ctaText,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (canBuy) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
                         )
                     }
                 }

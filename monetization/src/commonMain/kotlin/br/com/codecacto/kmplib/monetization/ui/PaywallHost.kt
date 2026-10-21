@@ -99,6 +99,7 @@ fun PaywallHost(
             headerIcon = headerIcon,
             beforePlansContent = beforePlansContent,
             afterPlansContent = afterPlansContent,
+            onSelectTier = { viewModel.dispatch(PaywallHostAction.SelectTier(it)) },
         )
     }
 }

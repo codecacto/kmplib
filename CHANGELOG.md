@@ -5,6 +5,71 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.316.0 — **Paywall com DEGRAUS (`PaywallTier`, troca de plano pela loja) e `DomainResult.Quota` inteiro**
+
+Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`) — o `ProvedorDaFaixa`, que recortava a offering de 9
+pacotes por faixa porque o `PaywallViewModel` não conhecia degrau (GAP-PT-M09), e o 402 de cota cujo `degrauSugerido`/
+`faleConosco` o cliente descartava. Aditivo: **sem piso, sem aviso** — app sem `PaywallConfig.tiers` não muda nada.
+
+### `PaywallTier` — o paywall da lib vende uma escada (`kmplib-monetization`, `ui.screens.paywall`)
+- `PaywallConfig(…, tiers = PaywallTierConfig(tiers, currentTierId, initialTier, changeModes))` (último parâmetro,
+  default `null`). `PaywallTier(id, name, order, highlights, description)` — `order` maior = superior (régua de
+  `plan_tiers.ordem`).
+- **Convenção do provisionador** (`degraus:` no `monetizacao.yaml`): package `<degrau>_<ciclo>` e produto
+  `premium_<degrau>_<ciclo>_<app>` (no Play, `:<plano base>` cortado). `PaywallTierKeys.fromPackageId`/
+  `fromProductId`/`of(pkg)`/`of(plan)` → `PaywallTierRef(tierId, PaywallTierCycle)`; id INTEIRO, nunca prefixo solto
+  (`v3` não casa `v30_mensal`).
+- Mapeadores por degrau: `List<PurchasePackage>.toPaywallTierPlansFromStore(tiers, …)` e
+  `List<Plan>.toPaywallTierPlans(packages, tiers, …)` → `List<PaywallTierPlans(tier, plans)>`: degraus pela `order`,
+  ciclos Mensal → Semestral → Anual e **selo de destaque derivado DENTRO de cada degrau**; benefícios do degrau
+  vencem os gerais; `PaywallPlan.tierId`.
+- `PaywallViewModel`: chips de degrau (`PaywallState.tiers: List<PaywallTierOption>`, `selectedTierId`,
+  `currentTierId`), abre no degrau de `PaywallInitialTier` (`NEXT_ABOVE_CURRENT` default / `CURRENT` / `LOWEST`)
+  a partir do **degrau atual vindo de fora** (`currentTierId: suspend () -> String?`, relido no `ON_RESUME`; falha
+  ou `null` = o do produto ativo na loja); `PaywallHostAction.SelectTier(id)` (escolha sobrevive à releitura);
+  degrau declarado sem pacote some e alerta `PaywallSemPlano`; releitura que falha mantém a vitrine.
+- **Troca de plano para quem já assina** (`PaywallState.canChangePlan`): a tela mostra a assinatura ativa E a seção
+  "Trocar de plano" (chips, card do produto ativo com "Plano atual" desligado — `PaywallPlan.isCurrent` —, CTA
+  "Trocar para este plano", aviso de como vale, bloco legal). O toque é `EntitlementProvider.changeSubscription
+  (packageId, SubscriptionChange(oldProductId, replacementMode))`:
+  - **Google Play:** RevenueCat `purchase(packageToPurchase, oldProductId, replacementMode = GoogleReplacementMode)`
+    (Play Billing `SubscriptionUpdateParams`). `PaywallTierChangeModes` default = recomendação do Google: subir
+    `CHARGE_PRORATED_PRICE` (cai sozinho para `WITH_TIME_PRORATION` quando o preço por mês não sobe —
+    `resolveUpgradeMode`), descer e trocar o ciclo `DEFERRED`, produto fora da escada `WITH_TIME_PRORATION`.
+  - **App Store:** compra no mesmo grupo de assinatura (o provisionador já cria assim, `groupLevel` por degrau); a
+    Apple decide quando vale. A frase da tela (`PaywallTexts.tierChangeNotice`) é verdadeira nas duas lojas.
+  - Troca que só vale na renovação avisa (`PaywallMessages.tierChangeScheduled`); assinatura feita na loja da OUTRA
+    plataforma não troca (`tierChangeOtherStore`, nada é comprado — evita a 2ª assinatura); premium promocional
+    (loja `UNKNOWN`) compra normal; trial nunca aparece na troca.
+- Camada de compra: `SubscriptionChange`, `StoreReplacementMode` (nomes do Play), `SubscriptionChangeDirection`,
+  `PurchaseRepository.changeSubscription` (default = `purchasePackage`), `EntitlementProvider.changeSubscription`
+  (idem; `PurchaseManagerEntitlementProvider` vai à loja, stub = `Indisponivel`), `SubscriptionInfo.store:
+  PurchaseStore?` (loja da assinatura ativa, do `EntitlementInfo.store`), `normalizeStoreProductId`,
+  `platformPurchaseStore()`. Regras puras `initialPaywallTier`, `decidePaywallTierChange`.
+- `PaywallScreen`/`PaywallContent(…, onSelectTier)` (o `PaywallHost` liga sozinho); ids `paywall-degrau-<id>`
+  (`PaywallTestTags.degrau`, `SELETOR_DE_DEGRAU`), `paywall-troca-de-plano`, `paywall-aviso-troca`. Textos novos nos
+  4 idiomas (`chooseTierLabel`, `currentTierTemplate`, `changePlanTitle`, `ctaChangePlan`, `currentPlanLabel`,
+  `tierChangeNotice`).
+- `kmplib-testing`: `FakePurchaseRepository.planosPorDegrau(degraus, app)` (a escada do provisionador) e
+  `changeSubscription` (só troca a partir do produto ATIVO; `trocasDePlano`).
+- **Migração (RondAki):** apaga `ProvedorDaFaixa`, `FaixaDoPlano` e a chave `premium-<degrau>`; um `PaywallViewModel`
+  com `tiers = PaywallTierConfig(FaixaDeVigias.entries.map { PaywallTier(it.id, rótulo, it.vigias) }, currentTierId =
+  { plano.degrau })`.
+
+### `DomainResult.Quota` inteiro (`kmplib-core`, `sync.rest`)
+- `Quota(quota, serverCode, serverMessage, message, details, detailsJson)` — os campos novos têm default, então
+  `Quota(quota)` e `r.quota` seguem iguais. O 402 de cota guarda o código, a frase e o `details` todo (os três
+  formatos: envelope do admin-api, `ErrorResponse` da backlib, payload na raiz).
+- Leitura pronta: `recurso`, `limite`, `uso` (aceita `feature`/`recurso` e `contagem`/`uso`), `upgradeUrl`,
+  `degrauSugerido`, `degrauSugeridoNome`, `faleConosco`, `userMessage`; genéricas `detail`, `detailString`,
+  `detailLong`, `detailBoolean`, `detailList`, `detailObject`, `decodeDetail<T>` (nunca lançam).
+- `parseQuotaExceeded` aceita `recurso`/`uso` no lugar de `feature`/`contagem`.
+- `kmplib-sync`: a linha recusada por cota no `OfflineFirstRestRepository` leva a frase do servidor quando veio.
+
+Testes: `PaywallTierTest` 11 + `PaywallViewModelTierTest` 16 + `DomainApiClientQuotaDetailsTest` 5 +
+`FakePurchaseRepositoryTierTest` 3; core 576, monetization 427, sync 287, ui 1136 verdes; `compileKotlinIosArm64`
+core/ui/monetization/sync/auth/chat/testing executado (sem SKIPPED).
+
 ## 2.315.0 — **`HoldToConfirmButton` (ação crítica por pressionar e segurar) e `pdf.report` genérico (`ReportSummary`)**
 
 Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`) — o botão de pânico (`BotaoDePanico` +
