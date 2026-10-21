@@ -5,6 +5,23 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.317.0 — **Paywall abre no degrau por id (`PaywallTierConfig.initialTierId`) e `SelectTier` antes da carga não se perde**
+
+Origem: app do **RondAki** — o paywall aberto a partir de um 402 de cota quer abrir já no `degrauSugerido` do
+servidor, e o `PaywallInitialTier` (2.316.0) só oferecia próximo/atual/mais baixo. Aditivo: **sem piso, sem aviso** —
+o `PaywallHost` só despacha `SelectTier` pelos chips, que só existem depois da carga.
+
+### `kmplib-monetization` (`ui.screens.paywall`)
+- `PaywallTierConfig(…, initialTierId: String? = null)` (último parâmetro): o degrau em que a tela abre, por id
+  (sem diferenciar caixa, espaços aparados). Vence `initialTier`; id desconhecido ou sem pacote na loja cai na regra
+  de `initialTier`. A escolha da pessoa nos chips continua vencendo. Uso típico:
+  `initialTierId = quota.degrauSugerido`.
+- `initialPaywallTier(…, preferredTierId: String? = null)` — a regra pura, com o id preferido.
+- `PaywallHostAction.SelectTier` recebido **antes** de a vitrine carregar era descartado; agora fica guardado e é
+  aplicado quando os degraus chegam (conta como escolha da pessoa: sobrevive à releitura do `ON_RESUME`). Id que
+  não existe na vitrine é descartado e vale a regra.
+- Testes: `PaywallTierTest` +1, `PaywallViewModelTierTest` +6.
+
 ## 2.316.0 — **Paywall com DEGRAUS (`PaywallTier`, troca de plano pela loja) e `DomainResult.Quota` inteiro**
 
 Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`) — o `ProvedorDaFaixa`, que recortava a offering de 9

@@ -205,12 +205,17 @@ class PaywallTierChangeModes(
  *   degrau do produto ativo na loja; sem nenhum dos dois, não há degrau atual.
  * @param initialTier qual degrau a tela abre selecionado. A escolha da pessoa vale até sair da tela.
  * @param changeModes os modos do Play na troca de plano.
+ * @param initialTierId (2.317.0) **o degrau em que a tela abre, por id** — tipicamente o
+ *   `DomainResult.Quota.degrauSugerido` do 402 que levou a pessoa ao paywall. Vence [initialTier];
+ *   id que não está à venda (desconhecido, sem pacote na loja) cai na regra de [initialTier]. A escolha
+ *   da pessoa nos chips continua vencendo os dois.
  */
 class PaywallTierConfig(
     val tiers: List<PaywallTier>,
     val currentTierId: suspend () -> String? = { null },
     val initialTier: PaywallInitialTier = PaywallInitialTier.NEXT_ABOVE_CURRENT,
     val changeModes: PaywallTierChangeModes = PaywallTierChangeModes(),
+    val initialTierId: String? = null,
 )
 
 /**
@@ -229,15 +234,22 @@ data class PaywallTierOption(
  * O degrau que a tela abre selecionado, entre os [available] (ordem crescente). Puro, para teste.
  * Degrau atual que não está à venda conta pela `order`: quem está num degrau que saiu da vitrine abre
  * no primeiro acima dele.
+ *
+ * @param preferredTierId (2.317.0) degrau pedido por id ([PaywallTierConfig.initialTierId]): vence a
+ *   [rule] quando está entre os [available] (sem diferenciar caixa); senão, vale a [rule].
  */
 fun initialPaywallTier(
     available: List<PaywallTier>,
     currentTierId: String?,
     rule: PaywallInitialTier,
     allTiers: List<PaywallTier> = available,
+    preferredTierId: String? = null,
 ): String? {
     val ordered = available.sortedBy { it.order }
     if (ordered.isEmpty()) return null
+    preferredTierId?.trim()?.takeIf { it.isNotEmpty() }?.let { id ->
+        ordered.firstOrNull { it.id.equals(id, ignoreCase = true) }?.let { return it.id }
+    }
     val current = currentTierId?.let { id -> allTiers.firstOrNull { it.id.equals(id.trim(), ignoreCase = true) } }
     return when (rule) {
         PaywallInitialTier.LOWEST -> ordered.first().id

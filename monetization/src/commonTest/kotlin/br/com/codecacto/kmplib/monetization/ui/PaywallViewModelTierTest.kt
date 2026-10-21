@@ -18,6 +18,7 @@ import br.com.codecacto.kmplib.monetization.purchase.TrialEligibility
 import br.com.codecacto.kmplib.observability.CrashLevel
 import br.com.codecacto.kmplib.observability.CrashReporter
 import br.com.codecacto.kmplib.observability.CrashReporterConfig
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,9 +80,15 @@ private class TierStore(
     var changed: Pair<String, SubscriptionChange>? = null
     var changeResult: PurchaseOutcome = PurchaseOutcome.Ativado
 
+    /** Segura a leitura da offering até ser completado — simula a vitrine ainda carregando. */
+    var gate: CompletableDeferred<Unit>? = null
+
     override suspend fun refresh() = Unit
     override suspend fun offerings(): List<PurchasePackage> = offerings.pacotes
-    override suspend fun loadOfferings(): OfferingsOutcome = offerings
+    override suspend fun loadOfferings(): OfferingsOutcome {
+        gate?.await()
+        return offerings
+    }
     override suspend fun subscriptionInfo(): SubscriptionInfo? = subscription
     override suspend fun purchasePackage(packageId: String): PurchaseOutcome {
         purchased = packageId
@@ -137,12 +144,18 @@ class PaywallViewModelTierTest {
         currentTier: suspend () -> String? = { null },
         platform: PurchaseStore = PurchaseStore.PLAY_STORE,
         initial: PaywallInitialTier = PaywallInitialTier.NEXT_ABOVE_CURRENT,
+        initialTierId: String? = null,
     ) = PaywallViewModel(
         entitlementProvider = store,
         config = PaywallConfig(
             termsUrl = "https://exemplo.test/termos",
             privacyUrl = "https://exemplo.test/privacidade",
-            tiers = PaywallTierConfig(tiers = DEGRAUS.reversed(), currentTierId = currentTier, initialTier = initial),
+            tiers = PaywallTierConfig(
+                tiers = DEGRAUS.reversed(),
+                currentTierId = currentTier,
+                initialTier = initial,
+                initialTierId = initialTierId,
+            ),
         ),
         paymentAlerts = PaymentAlertReporter(alerts, projeto = "teste", umaVezPorSessao = false),
         loadMessages = { PaywallMessages() },
@@ -202,6 +215,67 @@ class PaywallViewModelTierTest {
 
         vm.onAction(PaywallHostAction.SelectTier("inexistente"))
         assertEquals("v25", vm.p.selectedTierId)
+    }
+
+    @Test
+    fun `degrau inicial por id abre no degrau sugerido pelo servidor`() {
+        val vm = vm(TierStore(), currentTier = { "v3" }, initialTierId = " V25 ")
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v25", vm.p.selectedTierId, "o degrau sugerido vence o proximo acima do atual")
+        assertEquals(listOf("v25_mensal", "v25_semestral", "v25_anual"), vm.p.plans.map { it.id })
+        assertEquals("v3", vm.p.currentTierId)
+    }
+
+    @Test
+    fun `degrau inicial por id desconhecido cai na regra`() {
+        val vm = vm(TierStore(), currentTier = { "v3" }, initialTierId = "v99")
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v10", vm.p.selectedTierId)
+    }
+
+    @Test
+    fun `degrau inicial por id sem pacote na loja cai na regra`() {
+        val semV25 = ESCADA.filterNot { it.packageId.startsWith("v25_") }
+        val vm = vm(TierStore(offerings = OfferingsOutcome.Disponivel(semV25)), initialTierId = "v25")
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v3", vm.p.selectedTierId)
+    }
+
+    @Test
+    fun `escolha da pessoa vence o degrau inicial por id na releitura`() {
+        val vm = vm(TierStore(), initialTierId = "v25")
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.SelectTier("v3"))
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v3", vm.p.selectedTierId)
+    }
+
+    @Test
+    fun `SelectTier antes da carga e aplicado quando os degraus chegam`() {
+        val store = TierStore().apply { gate = CompletableDeferred() }
+        val vm = vm(store, initialTierId = "v10")
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.SelectTier("V25"))
+        assertTrue(vm.p.tiers.isEmpty(), "a vitrine ainda nao chegou")
+
+        store.gate!!.complete(Unit)
+        assertEquals("v25", vm.p.selectedTierId, "a escolha feita antes da carga vence o degrau por id")
+        assertEquals(listOf("v25_mensal", "v25_semestral", "v25_anual"), vm.p.plans.map { it.id })
+
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v25", vm.p.selectedTierId, "conta como escolha da pessoa: sobrevive a releitura")
+    }
+
+    @Test
+    fun `SelectTier antes da carga com degrau inexistente e descartado`() {
+        val store = TierStore().apply { gate = CompletableDeferred() }
+        val vm = vm(store)
+        vm.onAction(PaywallHostAction.SelectTier("v99"))
+        vm.onAction(PaywallHostAction.Load)
+        store.gate!!.complete(Unit)
+        assertEquals("v3", vm.p.selectedTierId)
+        vm.onAction(PaywallHostAction.Load)
+        assertEquals("v3", vm.p.selectedTierId)
     }
 
     @Test

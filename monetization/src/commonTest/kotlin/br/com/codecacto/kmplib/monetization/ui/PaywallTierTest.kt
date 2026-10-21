@@ -131,6 +131,18 @@ class PaywallTierTest {
     }
 
     @Test
+    fun `degrau inicial por id vence a regra e cai nela quando nao esta a venda`() {
+        val disponiveis = listOf(V3, V10, V25)
+        val regra = PaywallInitialTier.NEXT_ABOVE_CURRENT
+        assertEquals("v25", initialPaywallTier(disponiveis, "v3", regra, preferredTierId = "v25"))
+        assertEquals("v25", initialPaywallTier(disponiveis, null, PaywallInitialTier.LOWEST, preferredTierId = " V25 "))
+        assertEquals("v10", initialPaywallTier(disponiveis, "v3", regra, preferredTierId = "v99"))
+        assertEquals("v10", initialPaywallTier(disponiveis, "v3", regra, preferredTierId = "  "))
+        assertEquals("v3", initialPaywallTier(listOf(V3, V10), null, regra, preferredTierId = "v25"))
+        assertNull(initialPaywallTier(emptyList(), null, regra, preferredTierId = "v3"))
+    }
+
+    @Test
     fun `troca sobe desce ou muda o ciclo pela ordem dos degraus`() {
         val modos = PaywallTierChangeModes()
         val v3m = tierPkg("v3", "mensal", 1, 30_000_000)

@@ -122,6 +122,12 @@ class PaywallViewModel(
     /** A pessoa trocou de degrau nos chips: a releitura não a devolve ao degrau inicial. */
     private var tierPickedByUser: Boolean = false
 
+    /**
+     * `SelectTier` que chegou antes de a vitrine carregar (2.317.0): guardado e aplicado quando os
+     * degraus chegam. Antes era descartado e a tela abria no degrau da regra.
+     */
+    private var pendingTierId: String? = null
+
     private suspend fun messages(): PaywallMessages =
         cachedMessages ?: loadMessages().also { cachedMessages = it }
 
@@ -137,6 +143,11 @@ class PaywallViewModel(
 
     private fun selectTier(tierId: String) {
         if (currentState.paywall.isPurchasing) return
+        if (tierPlans.isEmpty()) {
+            // Vitrine ainda não chegou: guarda a escolha para quando os degraus vierem.
+            pendingTierId = tierId.trim().takeIf { it.isNotEmpty() }
+            return
+        }
         val key = tierPlans.keys.firstOrNull { it.equals(tierId, ignoreCase = true) } ?: return
         val plans = tierPlans.getValue(key)
         tierPickedByUser = true
@@ -304,8 +315,18 @@ class PaywallViewModel(
             }
         }
         val visible = tierConfig.tiers.filter { t -> tierPlans.containsKey(t.id) }.sortedBy { it.order }
-        val previous = currentState.paywall.selectedTierId?.takeIf { tierPickedByUser && tierPlans.containsKey(it) }
-        val selected = previous ?: initialPaywallTier(visible, currentTierId, tierConfig.initialTier, tierConfig.tiers)
+        val pending = pendingTierId?.let { id -> tierPlans.keys.firstOrNull { it.equals(id, ignoreCase = true) } }
+        if (tierPlans.isNotEmpty()) pendingTierId = null
+        if (pending != null) tierPickedByUser = true
+        val previous = pending
+            ?: currentState.paywall.selectedTierId?.takeIf { tierPickedByUser && tierPlans.containsKey(it) }
+        val selected = previous ?: initialPaywallTier(
+            available = visible,
+            currentTierId = currentTierId,
+            rule = tierConfig.initialTier,
+            allTiers = tierConfig.tiers,
+            preferredTierId = tierConfig.initialTierId,
+        )
         val shown = selected?.let { tierPlans[it] }.orEmpty()
         val options = visible.map { t ->
             PaywallTierOption(id = t.id, name = t.name, description = t.description, isCurrent = t.id == currentTierId)
