@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 internal actual fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
+    circles: List<ResolvedCircle>,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
@@ -22,6 +23,7 @@ internal actual fun PlatformNativeMap(
     MapKitMap(
         markers = markers,
         polylines = polylines,
+        circles = circles,
         controller = controller,
         clustering = clustering,
         showUserLocation = showUserLocation,

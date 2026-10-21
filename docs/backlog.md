@@ -14,6 +14,15 @@
       oferecer; com o parâmetro obrigatório, o botão "Ver relatório completo" aparece sem destino.
       `null` = esconde o botão. Aditivo.
 
+### Registrado em 20/out/2026 — entregue na 2.312.0 (RondAki: app do vigia, Onda 3)
+- [x] **Upload por PUT único pré-assinado** na `DirectUploadOutbox` (`RestSinglePutUploadBackend`, `DirectUploadSession.singlePut`, cabeçalhos assinados, `computeSha256`).
+- [x] **SHA-256 de arquivo em streaming** (`core.crypto`: `Sha256Hasher`, `sha256OfFile`/`sha256HexOfFile`).
+- [x] **Localização precisa** (`AppPermission.PRECISE_LOCATION`, `LocationAccuracy`, `PermissionManager.locationAccuracy()`).
+- [x] **Círculos no `NativeMap`** (`MapCircle`, `NativeMap(circles = …)`).
+- [x] **Relógio monotônico** (`core.time.MonotonicClock`, `MonotonicTimeSource`).
+- [ ] **(P2) Prova em aparelho + R2 real** — PUT único com `x-amz-checksum-sha256` contra o R2 do RondAki (Android em WorkManager com o app fechado; iOS sessão de fundo com o app suspenso); temporária de precisão total no iOS 14+ com a chave no `Info.plist`; círculo atualizando ao vivo no MapKit.
+- [ ] **(P3) `location-session` aceitar só precisão total no iOS** — hoje o `startPatrol` do iOS confere a autorização, não a `accuracyAuthorization`; o app pede `PRECISE_LOCATION` antes.
+
 ### Registrado em 20/out/2026 — entregue/aberto na 2.308.0 (RondAki: ronda em campo)
 - [x] **`kmplib-location-session`** (opt-in) — sessão de localização contínua (FGS `location` + Fused; CLBackgroundActivitySession/CLServiceSession).
 - [x] **`kmplib-alarm`** (opt-in) — `setAlarmClock`/`setExactAndAllowWhileIdle`/`setWindow`; AlarmKit por ponte Swift; Time Sensitive.

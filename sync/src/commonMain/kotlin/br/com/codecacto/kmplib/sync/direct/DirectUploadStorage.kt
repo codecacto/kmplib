@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.sync.direct
 
+import br.com.codecacto.kmplib.core.crypto.sha256HexOfFile
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.serialization.json.Json
 
@@ -40,6 +41,12 @@ interface DirectUploadStorage {
 
     /** Pastas de envio sem `job.json` legível — resíduo de processo morto no meio do `enqueue`. */
     suspend fun orphanIds(): List<String>
+
+    /**
+     * SHA-256 (hex minúsculo) do arquivo do envio [jobId], em blocos (2.312.0); `null` se não leu.
+     * O default lê [mediaPath] pelo `sha256HexOfFile` do core.
+     */
+    suspend fun mediaSha256(jobId: String): String? = sha256HexOfFile(mediaPath(jobId))
 }
 
 /**
@@ -106,6 +113,9 @@ internal class FileDirectUploadStorage(
 
     override suspend fun delete(jobId: String): Boolean =
         isValidDirectUploadId(jobId) && files.deleteRecursively(dir(jobId))
+
+    override suspend fun mediaSha256(jobId: String): String? =
+        if (isValidDirectUploadId(jobId)) files.sha256Hex(mediaPath(jobId)) else null
 
     override suspend fun orphanIds(): List<String> =
         files.list(root).filter(::isValidDirectUploadId).filter { id ->

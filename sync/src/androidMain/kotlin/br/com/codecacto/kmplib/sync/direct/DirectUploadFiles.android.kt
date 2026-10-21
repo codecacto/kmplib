@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.sync.direct
 
 import android.net.ConnectivityManager
+import br.com.codecacto.kmplib.core.crypto.sha256HexOfFile
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.sync.SyncDatabaseHolder
 import java.io.File
@@ -24,6 +25,9 @@ internal actual fun platformIsActiveNetworkMetered(): Boolean? {
 
 /** `java.io` puro: roda no aparelho e na JVM dos testes. */
 internal object JavaDirectUploadFiles : DirectUploadFiles {
+    /** Em blocos, pelo core (`MessageDigest` / CommonCrypto), com o arquivo aberto uma vez só. */
+    override suspend fun sha256Hex(path: String): String? = sha256HexOfFile(path)
+
     private const val TAG = "DirectUploadFiles"
     private const val BUFFER = 64 * 1024
 

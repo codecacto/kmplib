@@ -11,6 +11,7 @@ import platform.Foundation.NSError
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.setHTTPMethod
+import platform.Foundation.setValue
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorCancelled
@@ -96,7 +97,7 @@ class BackgroundSessionDirectUploadTransport private constructor(
         val chave = request.key
         tirar(tardios, chave)?.let {
             apagarTrecho(request)
-            return it
+            return conferirEtag(request, it)
         }
         val adiado = CompletableDeferred<DirectUploadPartResult>()
         // Registra quem espera ANTES de olhar as tarefas: a conclusão que chegar no meio cai no adiado.
@@ -104,11 +105,17 @@ class BackgroundSessionDirectUploadTransport private constructor(
         tirar(tardios, chave)?.let {
             tirar(esperando, chave)
             apagarTrecho(request)
-            return it
+            return conferirEtag(request, it)
         }
         val emVoo = tarefas().firstOrNull { it.taskDescription == chave && it.state < TASK_STATE_CANCELING }
         if (emVoo == null) {
-            if (!IosDirectUploadFiles.writeRange(request.filePath, request.offset, request.length, request.partFilePath)) {
+            // PUT único (o trecho é o arquivo inteiro): envia direto do arquivo da fila, sem duplicar
+            // 100 MB no disco num `part-1`.
+            val arquivoInteiro = request.coversWholeFile(IosDirectUploadFiles.size(request.filePath))
+            val origem = if (arquivoInteiro) request.filePath else request.partFilePath
+            if (!arquivoInteiro &&
+                !IosDirectUploadFiles.writeRange(request.filePath, request.offset, request.length, request.partFilePath)
+            ) {
                 tirar(esperando, chave)
                 return DirectUploadPartResult.SourceUnreadable
             }
@@ -118,11 +125,15 @@ class BackgroundSessionDirectUploadTransport private constructor(
                 return DirectUploadPartResult.Expired
             }
             val req = NSMutableURLRequest(uRL = url).apply {
-                setHTTPMethod("PUT")
+                setHTTPMethod(request.method.uppercase())
                 setAllowsCellularAccess(!request.wifiOnly)
                 setAllowsExpensiveNetworkAccess(!request.wifiOnly)
+                // Só os cabeçalhos assinados. `Content-Length` é do sistema (tamanho do arquivo, já
+                // conferido contra o assinado) — a Apple reserva esse cabeçalho no `NSURLRequest`.
+                request.contentType?.let { setValue(it, forHTTPHeaderField = "Content-Type") }
+                request.headers.forEach { (k, v) -> setValue(v, forHTTPHeaderField = k) }
             }
-            val tarefa = session.uploadTaskWithRequest(req, fromFile = NSURL.fileURLWithPath(request.partFilePath))
+            val tarefa = session.uploadTaskWithRequest(req, fromFile = NSURL.fileURLWithPath(origem))
             tarefa.taskDescription = chave
             tarefa.resume()
         }
@@ -130,8 +141,16 @@ class BackgroundSessionDirectUploadTransport private constructor(
         // — é o ponto. Quem cancela de propósito é o cancelJob (descartar, sair da conta).
         val resultado = adiado.await()
         apagarTrecho(request)
-        return resultado
+        return conferirEtag(request, resultado)
     }
+
+    /** Multipart sem `ETag` num 2xx é falha retentável (o `complete` precisa dela); PUT único, não. */
+    private fun conferirEtag(request: DirectUploadPartRequest, resultado: DirectUploadPartResult): DirectUploadPartResult =
+        if (request.requireEtag && resultado is DirectUploadPartResult.Uploaded && resultado.etag == DIRECT_UPLOAD_NO_ETAG) {
+            DirectUploadPartResult.Failed(MISSING_ETAG_STATUS)
+        } else {
+            resultado
+        }
 
     override suspend fun cancelJob(jobId: String) {
         val prefixo = "$jobId."
@@ -162,7 +181,13 @@ class BackgroundSessionDirectUploadTransport private constructor(
                 if (resposta == null) {
                     DirectUploadPartResult.Offline
                 } else {
-                    classifyDirectUploadPartResponse(resposta.statusCode.toInt(), resposta.valueForHTTPHeaderField("ETag"))
+                    classifyDirectUploadPartResponse(
+                        resposta.statusCode.toInt(),
+                        resposta.valueForHTTPHeaderField("ETag"),
+                        // Quem decide se a falta de ETag é falha é o pedido (multipart × PUT único),
+                        // e ele pode não existir mais aqui (processo reaberto): ver [conferirEtag].
+                        requireEtag = false,
+                    )
                 }
             }
         }

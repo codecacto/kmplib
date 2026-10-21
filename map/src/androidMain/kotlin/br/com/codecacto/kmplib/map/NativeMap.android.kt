@@ -45,6 +45,7 @@ import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.clustering.ClusterManager
 import com.google.maps.android.clustering.view.DefaultClusterRenderer
 import com.google.maps.android.compose.CameraPositionState
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
@@ -73,6 +74,7 @@ import com.google.maps.android.compose.Marker as ComposeMarker
 internal actual fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
+    circles: List<ResolvedCircle>,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
@@ -127,6 +129,21 @@ internal actual fun PlatformNativeMap(
         onMapClick = { latLng -> onMapClick?.invoke(latLng.toCommon()) },
         onMapLongClick = { latLng -> onMapLongClick?.invoke(latLng.toCommon()) },
     ) {
+        // Círculos por baixo de rotas e pinos (zIndex menor). O `Circle` do maps-compose atualiza
+        // centro/raio/cor no lugar quando o estado muda — é o raio "ao vivo".
+        circles.forEach { ring ->
+            key(ring.id) {
+                Circle(
+                    center = ring.center.toGms(),
+                    radius = ring.radiusMeters,
+                    fillColor = ring.fillColor,
+                    strokeColor = ring.strokeColor,
+                    strokeWidth = ring.strokeWidthDp * density,
+                    zIndex = -1f,
+                )
+            }
+        }
+
         polylines.forEach { line ->
             key(line.id) {
                 Polyline(

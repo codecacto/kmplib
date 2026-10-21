@@ -31,6 +31,9 @@ enum class PermissionStatus {
  * - [CAMERA]: Android `CAMERA`; iOS `AVCaptureDevice` (Info.plist `NSCameraUsageDescription`).
  * - [LOCATION]: Android `ACCESS_COARSE_LOCATION`; iOS `CLLocationManager` "when in use"
  *   (Info.plist `NSLocationWhenInUseUsageDescription`).
+ * - [PRECISE_LOCATION] (2.312.0): Android `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` no MESMO
+ *   pedido (o diálogo do Android 12+ com "Precisa"/"Aproximada"); iOS "when in use" com precisão
+ *   total — se a pessoa deixou "Localização precisa" desligada, `requestTemporaryFullAccuracyAuthorization`.
  *
  * **Bluetooth NÃO entra aqui, de propósito:** no iOS pedir a permissão é criar um `CBCentralManager`, e
  * a App Store recusa (ITMS-90683) todo app cujo binário referencie o CoreBluetooth sem
@@ -55,7 +58,65 @@ enum class AppPermission {
      * `NSLocationWhenInUseUsageDescription` no `Info.plist` (iOS). Sem a declaração, o sistema
      * **nega sem mostrar diálogo** e o botão vira um controle mudo.
      */
-    LOCATION
+    LOCATION,
+
+    /**
+     * Localização **precisa durante o uso** (2.312.0) — para quem guia ou confere presença no lugar
+     * (ronda: "chegou ao ponto, a ≤ 30 m"). A aproximada do Android é de ~3 km: não serve para isso.
+     *
+     * - **Android:** pede `ACCESS_FINE_LOCATION` **junto** com `ACCESS_COARSE_LOCATION`, como manda a
+     *   documentação do Android 12+ (pedir só a FINE é ignorado pelo sistema). O diálogo mostra
+     *   "Precisa" e "Aproximada"; [PermissionStatus.GRANTED] só com a precisa. Quem escolheu a
+     *   aproximada fica [PermissionStatus.DENIED] (pedir de novo mostra o diálogo de troca para a
+     *   precisa) ou [PermissionStatus.PERMANENTLY_DENIED] (só as Configurações). Declare as DUAS no
+     *   manifesto do app.
+     * - **iOS:** autorização "when in use" **com** `accuracyAuthorization == fullAccuracy`. Se a pessoa
+     *   desligou "Localização precisa" (iOS 14+), o pedido chama
+     *   `requestTemporaryFullAccuracyAuthorization(withPurposeKey:)` com
+     *   [LocationAccuracySettings.temporaryFullAccuracyPurposeKey] — o `Info.plist` precisa de
+     *   `NSLocationTemporaryUsageDescriptionDictionary` com essa chave (sem ela, o sistema nega calado).
+     *   Recusada a temporária = [PermissionStatus.DENIED] (pode pedir de novo em outra sessão).
+     *
+     * O nível atual (nenhuma/aproximada/precisa) sai de [PermissionManager.locationAccuracy].
+     */
+    PRECISE_LOCATION,
+}
+
+/** Precisão da localização que o app pode ler agora (2.312.0). */
+enum class LocationAccuracy {
+    /** Sem permissão de localização. */
+    NONE,
+
+    /** Só a aproximada (Android COARSE, ~3 km; iOS "Localização precisa" desligada, ~1–3 km). */
+    APPROXIMATE,
+
+    /** A precisa (Android FINE; iOS `fullAccuracy`, inclusive a temporária desta sessão). */
+    PRECISE,
+}
+
+/**
+ * Configuração do pedido de precisão no iOS (2.312.0). Defina **uma vez**, na inicialização, se a
+ * chave do `Info.plist` não for a default.
+ */
+object LocationAccuracySettings {
+    /**
+     * Chave de `NSLocationTemporaryUsageDescriptionDictionary` usada por
+     * `requestTemporaryFullAccuracyAuthorization(withPurposeKey:)` no [AppPermission.PRECISE_LOCATION].
+     */
+    var temporaryFullAccuracyPurposeKey: String = DEFAULT_TEMPORARY_FULL_ACCURACY_PURPOSE_KEY
+
+    /** Default da chave de propósito: `"PreciseLocation"`. */
+    const val DEFAULT_TEMPORARY_FULL_ACCURACY_PURPOSE_KEY: String = "PreciseLocation"
+}
+
+/**
+ * Precisão a partir do status das duas permissões — pura, usada pelo default de
+ * [PermissionManager.locationAccuracy].
+ */
+fun locationAccuracyOf(location: PermissionStatus, preciseLocation: PermissionStatus): LocationAccuracy = when {
+    preciseLocation == PermissionStatus.GRANTED -> LocationAccuracy.PRECISE
+    location == PermissionStatus.GRANTED -> LocationAccuracy.APPROXIMATE
+    else -> LocationAccuracy.NONE
 }
 
 /**
@@ -114,6 +175,16 @@ interface PermissionManager {
      * (fakes de teste). As implementações da lib sobrescrevem onde a plataforma exige.
      */
     suspend fun currentStatus(permission: AppPermission): PermissionStatus = checkPermission(permission)
+
+    /**
+     * Precisão da localização que o app tem agora (2.312.0), sem pedir nada: [LocationAccuracy.PRECISE]
+     * só com [AppPermission.PRECISE_LOCATION] concedida. Para mostrar "Ative a localização precisa"
+     * antes de iniciar uma ronda.
+     */
+    fun locationAccuracy(): LocationAccuracy = locationAccuracyOf(
+        location = checkPermission(AppPermission.LOCATION),
+        preciseLocation = checkPermission(AppPermission.PRECISE_LOCATION),
+    )
 }
 
 /**

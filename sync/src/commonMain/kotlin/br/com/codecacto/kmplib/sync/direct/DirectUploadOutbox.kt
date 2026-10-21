@@ -192,6 +192,16 @@ class DirectUploadOutbox(
                     DirectUploadEnqueueResult.Rejected(sourceOrStorage(request))
                 }
             }
+            // O resumo é do arquivo JÁ na fila: são estes os bytes que sobem (2.312.0).
+            val resumo = if (request.computeSha256) {
+                storage.mediaSha256(id) ?: run {
+                    AppLogger.w(TAG, "SHA-256 do arquivo da fila não pôde ser calculado")
+                    storage.delete(id)
+                    return DirectUploadEnqueueResult.Rejected(DirectUploadRejectReason.STORAGE_FAILED)
+                }
+            } else {
+                null
+            }
             val novo = DirectUploadJob(
                 id = id,
                 accountId = conta,
@@ -203,6 +213,7 @@ class DirectUploadOutbox(
                 fileName = request.fileName.ifBlank { "media" },
                 metadata = request.metadata,
                 wifiOnly = request.wifiOnly,
+                sha256 = resumo,
                 createdAtMillis = nowMillis(),
             )
             // Estado DEPOIS do arquivo: pasta sem job.json é órfã (a varredura recolhe); job.json sem
@@ -454,15 +465,29 @@ class DirectUploadOutbox(
                 val pedir = faltam.filter { directUploadUsableUrl(sessao, it, nowMillis()) == null }.take(PRESIGN_BATCH)
                 when (val r = runCatchingNonCancel { backend.presignParts(job, sessao, pedir) }) {
                     is DomainResult.Success -> {
-                        val novas = sessao.copy(partUrls = sessao.partUrls + r.data.urls, urlsExpireAtMillis = r.data.expiresAtMillis)
+                        val novas = sessao.copy(
+                            partUrls = sessao.partUrls + r.data.urls,
+                            urlsExpireAtMillis = r.data.expiresAtMillis,
+                            signedHeaders = r.data.signedHeaders ?: sessao.signedHeaders,
+                            alreadyReceived = sessao.alreadyReceived || r.data.alreadyReceived,
+                        )
+                        if (novas.mode == DirectUploadMode.SINGLE_PUT) {
+                            directUploadSessionProblem(novas, job.sizeBytes)?.let { problema ->
+                                AppLogger.e(TAG, "bilhete novo incompatível com o arquivo: $problema")
+                                return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
+                            }
+                        }
                         job = persist(job.copy(session = novas)) ?: return Outcome.Gone(partes)
+                        if (novas.alreadyReceived) break
                         url = directUploadUsableUrl(novas, parte, nowMillis())
                             ?: return recuar(job, DirectUploadFailure(MISSING_URL_CODE, message = MISSING_URL_MESSAGE), partes)
                     }
                     else -> return erroDoServidor(job, r, partes)
                 }
             }
-            val faixa = directUploadPartRange(parte, sessao.partSizeBytes, job.sizeBytes)
+            // A sessão DEPOIS de uma eventual reassinatura: no PUT único o bilhete novo traz cabeçalhos novos.
+            val vigente = job.session ?: return Outcome.Gone(partes)
+            val faixa = directUploadPartRange(parte, vigente.partSizeBytes, job.sizeBytes)
                 ?: return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
             val pedido = DirectUploadPartRequest(
                 jobId = job.id,
@@ -473,6 +498,10 @@ class DirectUploadOutbox(
                 length = faixa.last - faixa.first + 1,
                 partFilePath = storage.partPath(job.id, parte),
                 wifiOnly = job.wifiOnly,
+                method = vigente.method,
+                contentType = directUploadContentType(vigente.signedHeaders),
+                headers = directUploadExtraHeaders(vigente.signedHeaders),
+                requireEtag = vigente.mode == DirectUploadMode.MULTIPART,
             )
             val resultado = try {
                 transport.upload(pedido)
@@ -527,6 +556,15 @@ class DirectUploadOutbox(
             is DomainResult.Success -> {
                 concluir(job, r.data)
                 Outcome.Done(partes)
+            }
+            is DomainResult.Error -> if (r.code == NOT_RECEIVED_CODE) {
+                // O servidor não achou o arquivo no storage (PUT perdido no caminho): sobe de novo.
+                AppLogger.w(TAG, "servidor não recebeu o arquivo do envio ${job.id}; reenviando")
+                val volta = persist(job.copy(completedParts = emptyMap(), status = DirectUploadStatus.UPLOADING))
+                    ?: return Outcome.Gone(partes)
+                recuar(volta, DirectUploadFailure(r.code, r.serverCode, NOT_RECEIVED_MESSAGE), partes)
+            } else {
+                erroDoServidor(job, r, partes)
             }
             else -> erroDoServidor(job, r, partes)
         }
@@ -600,6 +638,13 @@ class DirectUploadOutbox(
         /** Sentinela: acabaram as tentativas da [UploadRetryPolicy]. */
         const val RETRY_EXHAUSTED_CODE: Int = -13
 
+        /**
+         * Sentinela que o [DirectUploadBackend.complete] devolve quando o servidor diz que o arquivo
+         * **ainda não chegou** ao storage (RondAki: 409 `MIDIA_NAO_ENVIADA`): a fila esquece as partes
+         * dadas como aceitas e envia de novo, com recuo (2.312.0).
+         */
+        const val NOT_RECEIVED_CODE: Int = -14
+
         private const val MISSING_FILE_MESSAGE = "O arquivo não está mais no aparelho."
         private const val INVALID_SESSION_MESSAGE = "O servidor abriu um envio que não corresponde ao arquivo."
         private const val MISSING_URL_MESSAGE = "O servidor não liberou o envio desta parte."
@@ -608,6 +653,7 @@ class DirectUploadOutbox(
         private const val STORAGE_MESSAGE = "O armazenamento recusou uma parte do arquivo."
         private const val QUOTA_MESSAGE = "Limite do plano atingido."
         private const val RETRY_EXHAUSTED_MESSAGE = "Não foi possível enviar o arquivo."
+        private const val NOT_RECEIVED_MESSAGE = "O servidor ainda não recebeu o arquivo; reenviando."
 
         private val MISSING_FILE = DirectUploadFailure(MISSING_FILE_CODE, message = MISSING_FILE_MESSAGE)
     }

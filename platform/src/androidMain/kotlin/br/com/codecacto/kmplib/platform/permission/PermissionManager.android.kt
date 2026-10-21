@@ -92,6 +92,8 @@ class AndroidPermissionManager : PermissionManager {
         // COARSE, e não FINE: quem ordena por distância não precisa da precisa, e o Android mostra
         // ao usuário qual das duas foi pedida. Ver o KDoc de `AppPermission.LOCATION`.
         AppPermission.LOCATION -> Manifest.permission.ACCESS_COARSE_LOCATION
+        // A precisa é a FINE — mas pedida JUNTO com a COARSE (ver [permissionsToRequest]).
+        AppPermission.PRECISE_LOCATION -> Manifest.permission.ACCESS_FINE_LOCATION
         AppPermission.NOTIFICATIONS ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                 Manifest.permission.POST_NOTIFICATIONS
@@ -165,12 +167,16 @@ class AndroidPermissionManager : PermissionManager {
         // "já pedida" — e o app mostra o estado de negada, não a tela de contexto de novo.
         activity.applicationContext?.let { PermissionMemory.marcarPedida(it, permission) }
 
+        if (permission == AppPermission.PRECISE_LOCATION) return requestPreciseLocation(activity, manifest)
+
         return callbackFlow {
             // `ActivityResultRegistry` é a via recomendada pelo AndroidX — `requestPermissions` +
             // `onRequestPermissionsResult` está depreciado na `Activity`, e exigia que **cada app**
             // sobrescrevesse o método para repassar o resultado. Era metade do furo desta API: quem
             // não sabia do repasse via o diálogo abrir e a resposta nunca chegar.
-            val chave = "kmplib_permission_${'$'}{permission.name}_${'$'}{PermissionHostHolder.nextRequestCode()}"
+            // Chave ÚNICA por pedido (até a 2.310.0 o `${'$'}` escapado gerava o mesmo texto literal em
+            // todo pedido, e dois pedidos simultâneos disputavam o mesmo registro do registry).
+            val chave = "kmplib_permission_${permission.name}_${PermissionHostHolder.nextRequestCode()}"
             val launcher = activity.activityResultRegistry.register(
                 chave,
                 ActivityResultContracts.RequestPermission(),
@@ -192,6 +198,49 @@ class AndroidPermissionManager : PermissionManager {
             awaitClose { launcher.unregister() }
         }
     }
+}
+
+/**
+ * O que pedir para [permission]: a precisa vai com a aproximada no mesmo pedido — a documentação do
+ * Android 12+ manda assim, e o sistema ignora o pedido só da FINE de app com `targetSdk` 31+. Com as
+ * duas, o diálogo oferece "Precisa" e "Aproximada"; quem já tem a aproximada vê o diálogo de troca.
+ */
+internal fun permissionsToRequest(permission: AppPermission, manifest: String): Array<String> =
+    if (permission == AppPermission.PRECISE_LOCATION) {
+        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+    } else {
+        arrayOf(manifest)
+    }
+
+/**
+ * Status do pedido da precisa a partir do resultado do `RequestMultiplePermissions`: só a FINE
+ * concede; FINE negada com a explicação ainda permitida = [PermissionStatus.DENIED] (inclusive quando
+ * a pessoa escolheu "Aproximada"); sem explicação = definitiva.
+ */
+internal fun preciseLocationResultStatus(fineGranted: Boolean, canShowRationale: Boolean): PermissionStatus = when {
+    fineGranted -> PermissionStatus.GRANTED
+    canShowRationale -> PermissionStatus.DENIED
+    else -> PermissionStatus.PERMANENTLY_DENIED
+}
+
+private fun requestPreciseLocation(activity: FragmentActivity, fine: String): Flow<PermissionStatus> = callbackFlow {
+    val chave = "kmplib_permission_PRECISE_LOCATION_${PermissionHostHolder.nextRequestCode()}"
+    val launcher = activity.activityResultRegistry.register(
+        chave,
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { resultado ->
+        val fineConcedida = resultado[fine] == true ||
+            ContextCompat.checkSelfPermission(activity, fine) == PackageManager.PERMISSION_GRANTED
+        trySend(
+            preciseLocationResultStatus(
+                fineGranted = fineConcedida,
+                canShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(activity, fine),
+            ),
+        )
+        close()
+    }
+    launcher.launch(permissionsToRequest(AppPermission.PRECISE_LOCATION, fine))
+    awaitClose { launcher.unregister() }
 }
 
 /**

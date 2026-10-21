@@ -13,7 +13,11 @@ sealed class PatrolStartResult {
     /** A sessão está ativa (ou já estava). No iOS, com autorização ainda por decidir, o pedido sai e os fixes começam quando a pessoa permitir. */
     data object Started : PatrolStartResult()
 
-    /** Falta permissão de localização: FINE no Android; negada/restrita no iOS. Peça e tente de novo. */
+    /**
+     * Falta permissão de localização: FINE no Android; negada/restrita no iOS. Peça
+     * `AppPermission.PRECISE_LOCATION` (kmplib-platform ≥ 2.312.0 — FINE+COARSE juntas no Android,
+     * precisão total no iOS) e tente de novo.
+     */
     data object PermissionRequired : PatrolStartResult()
 
     /** Localização desligada no aparelho. */

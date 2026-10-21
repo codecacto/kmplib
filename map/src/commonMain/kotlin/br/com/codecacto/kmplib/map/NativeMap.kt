@@ -32,6 +32,35 @@ internal data class ResolvedPolyline(
     val widthDp: Float,
 )
 
+/** Círculo com as cores já resolvidas (tema aplicado) e o raio validado. */
+@Immutable
+internal data class ResolvedCircle(
+    val id: String,
+    val center: LatLng,
+    val radiusMeters: Double,
+    val fillColor: Color,
+    val strokeColor: Color,
+    val strokeWidthDp: Float,
+)
+
+/** Opacidade do preenchimento default de um [MapCircle] sem [MapCircle.fillColor]. */
+internal const val DEFAULT_CIRCLE_FILL_ALPHA: Float = 0.15f
+
+/** Aparência final de um círculo — pura e testada. `null` = centro ou raio inválidos (não desenha). */
+internal fun resolveCircle(circle: MapCircle, defaultColor: Color): ResolvedCircle? {
+    if (!circle.center.isValidCoordinate()) return null
+    val r = circle.radiusMeters
+    if (r.isNaN() || r.isInfinite() || r <= 0.0) return null
+    return ResolvedCircle(
+        id = circle.id,
+        center = circle.center,
+        radiusMeters = r,
+        fillColor = circle.fillColor ?: defaultColor.copy(alpha = DEFAULT_CIRCLE_FILL_ALPHA),
+        strokeColor = circle.strokeColor ?: defaultColor.copy(alpha = 1f),
+        strokeWidthDp = circle.strokeWidth.value.coerceAtLeast(0f),
+    )
+}
+
 /** Aparência final de um pino — pura e testada. */
 internal fun resolveMarker(item: MapItem, defaultColor: Color): ResolvedMarker {
     val color = (item.style?.color ?: defaultColor).copy(alpha = 1f)
@@ -90,6 +119,8 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *   nenhum separa), abre o mais grave via [onItemClick]. Para listar todos, passe [onClusterClick].
  * - **Rota**: [polylines] desenhadas por baixo dos pinos; numere as paradas com
  *   `MapMarkerStyle(glyph = "1")`, `"2"`…
+ * - **Círculos** ([circles], 2.312.0): raio REAL em metros (Google Maps `Circle` / MapKit `MKCircle`),
+ *   por baixo das rotas e dos pinos; mudar raio, centro ou cor de um [MapCircle] atualiza só ele.
  * - **Câmera**: [fitOnFirstLoad] enquadra pinos + rotas na primeira vez que houver dados; depois,
  *   quem manda é o [controller] (`fitTo`, `moveTo`) — recarregar a lista não arranca a câmera de
  *   onde o usuário a deixou.
@@ -98,6 +129,7 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *   `location`). No iOS o `Info.plist` precisa de `NSLocationWhenInUseUsageDescription`.
  *
  * @param items pinos. Mudar a lista redesenha só o que mudou (chave = [MapItem.id]).
+ * @param circles círculos de raio em metros (chave = [MapCircle.id]); entram no enquadramento inicial.
  */
 @Composable
 fun NativeMap(
@@ -108,6 +140,7 @@ fun NativeMap(
     clustering: Boolean = true,
     showUserLocation: Boolean = false,
     fitOnFirstLoad: Boolean = true,
+    circles: List<MapCircle> = emptyList(),
     onItemClick: (MapItem) -> Unit = {},
     onClusterClick: ((List<MapItem>) -> Unit)? = null,
     onMapClick: ((LatLng) -> Unit)? = null,
@@ -119,10 +152,12 @@ fun NativeMap(
         polylines.map { ResolvedPolyline(it.id, it.points, (it.color ?: primary).copy(alpha = 1f), it.width.value) }
     }
 
+    val rings = remember(circles, primary) { circles.mapNotNull { resolveCircle(it, primary) } }
+
     var fitted by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(items, polylines, fitOnFirstLoad) {
+    LaunchedEffect(items, polylines, circles, fitOnFirstLoad) {
         if (fitOnFirstLoad && !fitted) {
-            val points = items.map { it.position } + polylines.flatMap { it.points }
+            val points = items.map { it.position } + polylines.flatMap { it.points } + circles.flatMap { it.extremePoints() }
             if (points.isNotEmpty()) {
                 controller.fitTo(points, animate = false)
                 fitted = true
@@ -150,6 +185,7 @@ fun NativeMap(
     PlatformNativeMap(
         markers = markers,
         polylines = lines,
+        circles = rings,
         controller = controller,
         clustering = clustering,
         showUserLocation = showUserLocation,
@@ -167,6 +203,7 @@ fun NativeMap(
 internal expect fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
+    circles: List<ResolvedCircle>,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,

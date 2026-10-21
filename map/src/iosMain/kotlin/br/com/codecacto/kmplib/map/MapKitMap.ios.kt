@@ -19,6 +19,8 @@ import platform.CoreLocation.CLLocationCoordinate2D
 import platform.CoreLocation.CLLocationCoordinate2DMake
 import platform.MapKit.MKAnnotationProtocol
 import platform.MapKit.MKAnnotationView
+import platform.MapKit.MKCircle
+import platform.MapKit.MKCircleRenderer
 import platform.MapKit.MKClusterAnnotation
 import platform.MapKit.MKCoordinateRegionMake
 import platform.MapKit.MKCoordinateSpanMake
@@ -37,6 +39,7 @@ import platform.MapKit.MKPolyline
 import platform.MapKit.MKPolylineRenderer
 import platform.MapKit.MKUserLocation
 import platform.MapKit.addOverlay
+import platform.MapKit.insertOverlay
 import platform.MapKit.removeOverlay
 import platform.UIKit.UIColor
 import platform.UIKit.accessibilityLabel
@@ -76,6 +79,7 @@ internal fun MapKitMap(
     onMapLongClick: ((LatLng) -> Unit)?,
     onLoaded: () -> Unit,
     modifier: Modifier,
+    circles: List<ResolvedCircle> = emptyList(),
 ) {
     val host = remember { MapKitHost(controller) }
     host.callbacks = MapKitCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onLoaded)
@@ -91,6 +95,7 @@ internal fun MapKitMap(
         update = {
             host.setClustering(clustering)
             host.mapView.showsUserLocation = showUserLocation
+            host.updateCircles(circles)
             host.updatePolylines(polylines)
             host.updateMarkers(markers)
         },
@@ -131,6 +136,7 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
 
     private val annotations = mutableMapOf<String, ItemAnnotation>()
     private val overlays = mutableMapOf<String, Pair<MKPolyline, ResolvedPolyline>>()
+    private val circleOverlays = mutableMapOf<String, Pair<MKCircle, ResolvedCircle>>()
     private var clustering = true
     private var loadedNotified = false
     private val gestures = MapKitGestureTarget(this)
@@ -217,6 +223,32 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
             polyline.setTitle(id)
             overlays[id] = polyline to line
             mapView.addOverlay(polyline)
+        }
+    }
+
+    /**
+     * `MKCircle` é imutável: círculo que mudou (raio, centro, cor) sai e entra de novo. Entra no
+     * índice 0 — por baixo das rotas, como no Android (`zIndex` −1).
+     */
+    fun updateCircles(rings: List<ResolvedCircle>) {
+        val incoming = rings.associateBy { it.id }
+        val iterator = circleOverlays.entries.iterator()
+        while (iterator.hasNext()) {
+            val (id, pair) = iterator.next()
+            if (incoming[id] != pair.second) {
+                mapView.removeOverlay(pair.first)
+                iterator.remove()
+            }
+        }
+        for ((id, ring) in incoming) {
+            if (id in circleOverlays) continue
+            val circle = MKCircle.circleWithCenterCoordinate(
+                CLLocationCoordinate2DMake(ring.center.latitude, ring.center.longitude),
+                radius = ring.radiusMeters,
+            )
+            circle.setTitle(id)
+            circleOverlays[id] = circle to ring
+            mapView.insertOverlay(circle, atIndex = 0uL)
         }
     }
 
@@ -336,6 +368,15 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     }
 
     override fun mapView(mapView: MKMapView, rendererForOverlay: MKOverlayProtocol): MKOverlayRenderer {
+        (rendererForOverlay as? MKCircle)?.let { circle ->
+            val ring = circleOverlays.values.firstOrNull { it.first === circle }?.second
+                ?: return MKOverlayRenderer(overlay = rendererForOverlay)
+            return MKCircleRenderer(circle = circle).apply {
+                fillColor = ring.fillColor.toUIColor()
+                strokeColor = ring.strokeColor.toUIColor()
+                lineWidth = ring.strokeWidthDp.toDouble()
+            }
+        }
         val polyline = rendererForOverlay as? MKPolyline
         val style = polyline?.title?.let { overlays[it]?.second }
         if (polyline == null || style == null) return MKOverlayRenderer(overlay = rendererForOverlay)

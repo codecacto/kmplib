@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.sync.direct
 
+import br.com.codecacto.kmplib.core.crypto.SHA256_FILE_BUFFER_BYTES
+import br.com.codecacto.kmplib.core.crypto.Sha256Hasher
+import br.com.codecacto.kmplib.core.crypto.toLowerHex
+
 /**
  * O pouco de sistema de arquivos que a fila de envio direto precisa — e que o `BlobStore` (chave →
  * bytes, sem caminho) não dá: **mover** o arquivo preparado para dentro da fila, ler um **trecho**
@@ -39,6 +43,25 @@ internal interface DirectUploadFiles {
 
     /** Copia o trecho [offset]..[offset]+[length] de [source] para o arquivo [dest]. */
     fun writeRange(source: String, offset: Long, length: Long, dest: String): Boolean
+
+    /**
+     * SHA-256 (hex minúsculo) do arquivo, lido em blocos; `null` se não leu inteiro. O default lê por
+     * [readRange] (serve ao dublê de teste); as implementações reais usam o `sha256HexOfFile` do core.
+     */
+    suspend fun sha256Hex(path: String): String? {
+        val total = size(path)
+        if (total < 0L) return null
+        return Sha256Hasher().use { h ->
+            var pos = 0L
+            while (pos < total) {
+                val n = minOf(SHA256_FILE_BUFFER_BYTES.toLong(), total - pos)
+                val bytes = readRange(path, pos, n) ?: return null
+                h.update(bytes)
+                pos += n
+            }
+            h.digest().toLowerHex()
+        }
+    }
 }
 
 /** A implementação da plataforma (`java.io` no Android, `NSFileManager`/`NSFileHandle` no iOS). */

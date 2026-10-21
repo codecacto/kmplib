@@ -5,6 +5,77 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.312.0 — **Upload por PUT único pré-assinado na `DirectUploadOutbox`, SHA-256 de arquivo em streaming, localização PRECISA, círculos no `NativeMap` e relógio monotônico**
+
+Origem: app do vigia do **RondAki** (`8-Sistemas-Portal-App/RondAki`, Onda 3 — §11.0 e §11.4 de
+`docs/arquitetura/api.md`). Cinco lacunas, todas aditivas. **Sem piso e sem aviso**: nada que deixe de funcionar em
+quem está na 2.311.0 ou antes (o conserto da chave do registry, abaixo, é defeito latente sem caso relatado).
+
+### `sync.direct` — modo **PUT único** pré-assinado (`DirectUploadMode.SINGLE_PUT`)
+- **`RestSinglePutUploadBackend(api, declarePath, completePath, declareBody, completeBody, ticketParser, notReceivedServerCodes)`**
+  = declarar (`POST`, idempotente pelo id) → `PUT` do arquivo inteiro na URL do bilhete com os **cabeçalhos assinados**
+  (`content-type`, `x-amz-checksum-sha256`…) → `concluir`. `upload: null` = 503 `STORAGE_UNAVAILABLE` retentável (a fila
+  guarda o arquivo e repete); estado `CONFERIDA` = nada a enviar (vai direto ao `concluir`); bilhete vencido (403) =
+  declara de novo e repete o PUT com os cabeçalhos NOVOS; `concluir` com `MIDIA_NAO_ENVIADA`/`UPLOAD_NOT_RECEIVED` =
+  **`DirectUploadOutbox.NOT_RECEIVED_CODE`** → a fila esquece o envio e sobe de novo, com recuo. Sem `abort` (no-op).
+- **`DirectUploadSession.singlePut(remoteId, sizeBytes, url, method, signedHeaders, expiresAtMillis, alreadyReceived)`**;
+  a sessão ganhou `mode`, `method`, `signedHeaders`, `alreadyReceived` (defaults = o multipart de sempre — estado gravado
+  pela 2.311.0 continua legível, teste). `directUploadSessionProblem` recusa PUT único com tamanho ≠ arquivo,
+  `content-length` assinado ≠ arquivo, sem URL ou método ≠ `PUT` — antes de subir 100 MB para levar 403.
+- **`DirectUploadRequest(computeSha256 = true)`** → a fila calcula o SHA-256 do arquivo **já na área da fila** (os bytes
+  que sobem) e guarda em **`DirectUploadJob.sha256`**; o `defaultSinglePutDeclareBody` o manda. `DirectUploadStorage.mediaSha256`.
+- `DirectUploadPartUrls(…, signedHeaders, alreadyReceived)`; `DirectUploadPartRequest(…, method, contentType, headers,
+  requireEtag)` + `coversWholeFile`; `classifyDirectUploadPartResponse(status, etag, requireEtag)` (`DIRECT_UPLOAD_NO_ETAG`);
+  `parseDirectUploadPutTicket` (`estado`/`status`, `expiraEm`/`expiresAt` em ms ou ISO), `DirectUploadPutTicket`/`DirectUploadPutTarget`;
+  `directUploadExtraHeaders`/`directUploadContentType`.
+- **`KtorDirectUploadPartTransport` (Android) passa a ENVIAR EM STREAMING** (`OutgoingContent.WriteChannelContent`, blocos de
+  `DIRECT_UPLOAD_STREAM_CHUNK_BYTES` = 512 KiB, `Content-Length` exato) — antes lia a parte inteira para um `ByteArray`.
+  Vale também para o multipart. **iOS:** a sessão de fundo do `URLSession` envia o PUT único **direto do arquivo da fila**
+  (sem copiar 100 MB para `part-1`) e aplica método + cabeçalhos assinados (`Content-Length` fica com o sistema — cabeçalho
+  reservado pela Apple; o valor já foi conferido). A exigência de ETag é decidida pelo pedido, inclusive no resultado que
+  chega com o processo reaberto.
+- Corrigido de passagem: depois de reassinar, a parte saía com o método/cabeçalhos da sessão ANTERIOR (o multipart não
+  usava cabeçalhos, por isso nunca apareceu).
+
+### `core.crypto` — SHA-256 em streaming, API geral (fora do PKCE)
+- **`Sha256Hasher`** (`update(bytes, offset, length)`, `digest()` — volta ao estado inicial —, `close()`, `AutoCloseable`):
+  `MessageDigest` no Android, CommonCrypto `CC_SHA256_Init/Update/Final` no iOS (contexto em `nativeHeap`, liberado no `close`).
+- **`suspend fun sha256OfFile(path, bufferSize = 256 KiB): ByteArray?`** / **`sha256HexOfFile`** — lê em blocos fora da main
+  (`Dispatchers.IO` / `Default`), cancelável entre blocos; `null` se não leu o arquivo inteiro.
+- `sha256(bytes)`, `sha256Hex(bytes|text)`, `isSha256Hex`, `ByteArray.toLowerHex()`, `SHA256_DIGEST_BYTES`. Vetores do FIPS 180-4.
+
+### `core.time` — relógio monotônico
+- **`MonotonicClock.elapsedNanos()` / `elapsedMillis()`** (`fun interface MonotonicTimeSource` para dublê;
+  `MonotonicTimeSource.millisSince(start): Long?` — `null` = a fonte voltou, o aparelho reiniciou). Android
+  `SystemClock.elapsedRealtimeNanos()`, iOS `clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)` — os dois contam o sono e zeram no
+  boot (a âncora de hora do servidor do RondAki §11.0). Não é o `TimeSource.Monotonic` (no Android para no deep sleep).
+
+### `platform.permission` — localização PRECISA
+- **`AppPermission.PRECISE_LOCATION`**: Android pede `ACCESS_FINE_LOCATION` **junto** com `ACCESS_COARSE_LOCATION`
+  (`RequestMultiplePermissions`, o diálogo "Precisa/Aproximada" do Android 12+); `GRANTED` só com a FINE; escolheu a
+  aproximada = `DENIED` (pedir de novo mostra a troca). iOS: "when in use" + `accuracyAuthorization == fullAccuracy`;
+  reduzida → `requestTemporaryFullAccuracyAuthorization(withPurposeKey: LocationAccuracySettings.temporaryFullAccuracyPurposeKey)`
+  (default `"PreciseLocation"`; o app declara `NSLocationTemporaryUsageDescriptionDictionary`).
+- **`LocationAccuracy`** (`NONE`/`APPROXIMATE`/`PRECISE`) + **`PermissionManager.locationAccuracy()`** (default no
+  interface — dublês não mudam) + `locationAccuracyOf(location, preciseLocation)`.
+- ⚠️ Enum ganhou valor: `when` exaustivo sobre `AppPermission` no app precisa do ramo novo (varredura de 20/out: nenhum
+  app do portfólio faz `when` sobre o enum da lib).
+- Corrigido: a chave do `ActivityResultRegistry` no pedido de permissão era o MESMO texto literal em todo pedido
+  (`${'$'}` escapado) — dois pedidos simultâneos disputavam o registro. Agora é única por pedido.
+- `location-session`: KDoc do `PatrolStartResult.PermissionRequired` aponta para o `PRECISE_LOCATION`.
+
+### `map` — círculos no `NativeMap`
+- **`MapCircle(id, center, radiusMeters, fillColor, strokeColor, strokeWidth)`** + `NativeMap(…, circles = …)` (depois de
+  `fitOnFirstLoad`): raio REAL em metros — `Circle` do maps-compose no Android, `MKCircle` + `MKCircleRenderer` no iOS —,
+  por baixo de rotas e pinos; mudar raio/centro/cor de um id redesenha só ele (raio "ao vivo" da precisão do GPS).
+  Defaults do tema (preenchimento a 15%, contorno 2 dp); raio ≤ 0/NaN/infinito não desenha. `MapCircle.extremePoints()`
+  entra no enquadramento inicial.
+
+### Testes e compilação
+`Sha256Test` 7 + `Sha256FileTest` 2 + `MonotonicClockTest` 2; `DirectUploadSinglePutTest` 21 (+ `DirectUploadOutboxTest` 24 e
+`DirectUploadPlanTest` 13 inalterados, verdes); `LocationAccuracyTest` 3 + `PreciseLocationAndroidTest` 2; `MapCircleTest` 5
+(+ map 46 verdes). `compileKotlinIosArm64` de core/sync/platform/map executado (sem SKIPPED).
+
 ## 2.311.0 — **Seletor de VÁRIOS arquivos (`rememberMultiFilePicker`/`PickedFile`), abrir arquivo no visualizador do sistema (`FileOpener`) e upload com teto de tempo próprio**
 
 Origem: anexos do cadastro do cliente do **LocAki** (`LocAki/docs/tarefas/2026-10-20-anexos-do-cliente.md`, T4) —

@@ -70,6 +70,47 @@ data class MapPolyline(
 )
 
 /**
+ * Círculo de **raio real em metros** no mapa (2.312.0) — o raio de um ponto de ronda, a área de
+ * cobertura, a precisão de uma leitura. Acompanha o zoom (é geográfico, não um desenho em dp).
+ * Mudar [center]/[radiusMeters]/cores redesenha só aquele círculo (chave = [id]) — serve para o raio
+ * "ao vivo" que segue a precisão do GPS.
+ *
+ * @param radiusMeters raio em metros, > 0 (círculo com raio inválido não é desenhado).
+ * @param fillColor preenchimento; `null` = cor primária do tema a 15%.
+ * @param strokeColor contorno; `null` = cor primária do tema.
+ * @param strokeWidth espessura do contorno (`0.dp` = sem contorno).
+ */
+@Immutable
+data class MapCircle(
+    val id: String,
+    val center: LatLng,
+    val radiusMeters: Double,
+    val fillColor: Color? = null,
+    val strokeColor: Color? = null,
+    val strokeWidth: Dp = 2.dp,
+)
+
+/** Metros por grau de latitude (esfera do WGS-84 média). */
+private const val METERS_PER_DEGREE_LAT = 111_320.0
+
+/**
+ * Os pontos extremos (norte, sul, leste, oeste) do círculo — para enquadrar a câmera nele. Vazio se
+ * o centro ou o raio forem inválidos.
+ */
+fun MapCircle.extremePoints(): List<LatLng> {
+    if (!center.isValidCoordinate() || !(radiusMeters > 0.0) || radiusMeters.isInfinite()) return emptyList()
+    val dLat = radiusMeters / METERS_PER_DEGREE_LAT
+    val cosLat = kotlin.math.cos(center.latitude * kotlin.math.PI / 180.0).coerceAtLeast(1e-6)
+    val dLng = (radiusMeters / (METERS_PER_DEGREE_LAT * cosLat)).coerceAtMost(180.0)
+    return listOf(
+        LatLng((center.latitude + dLat).coerceAtMost(90.0), center.longitude),
+        LatLng((center.latitude - dLat).coerceAtLeast(-90.0), center.longitude),
+        LatLng(center.latitude, (center.longitude + dLng).coerceAtMost(180.0)),
+        LatLng(center.latitude, (center.longitude - dLng).coerceAtLeast(-180.0)),
+    )
+}
+
+/**
  * Retângulo geográfico (sudoeste → nordeste). Não trata o antimeridiano (±180°) — irrelevante para
  * os produtos da fábrica, que operam dentro de um país.
  */

@@ -33,6 +33,7 @@ fun directUploadPartRange(partNumber: Int, partSizeBytes: Long, fileSize: Long):
  */
 fun directUploadSessionProblem(session: DirectUploadSession, fileSize: Long): String? = when {
     session.uploadId.isBlank() -> "uploadId em branco"
+    session.mode == DirectUploadMode.SINGLE_PUT -> singlePutProblem(session, fileSize)
     session.partSizeBytes <= 0L -> "partSizeBytes inválido"
     session.partCount < 1 || session.partCount > DIRECT_UPLOAD_MAX_PARTS -> "partCount fora de 1..$DIRECT_UPLOAD_MAX_PARTS"
     fileSize <= 0L -> "arquivo vazio"
@@ -41,15 +42,53 @@ fun directUploadSessionProblem(session: DirectUploadSession, fileSize: Long): St
     else -> null
 }
 
-/** Partes que ainda faltam, em ordem crescente. */
+/**
+ * O PUT único: uma parte do tamanho exato do arquivo, método conhecido, URL presente (salvo
+ * [DirectUploadSession.alreadyReceived]) e, se o servidor assinou o `content-length`, igual ao arquivo —
+ * outro valor seria um 403 do storage depois de subir 100 MB.
+ */
+private fun singlePutProblem(session: DirectUploadSession, fileSize: Long): String? {
+    val declarado = session.signedHeaders.entries
+        .firstOrNull { it.key.equals("content-length", ignoreCase = true) }?.value?.trim()
+    return when {
+        fileSize <= 0L -> "arquivo vazio"
+        session.partCount != 1 -> "PUT único com partCount diferente de 1"
+        session.partSizeBytes != fileSize -> "PUT único com tamanho diferente do arquivo"
+        session.method.uppercase() !in DIRECT_UPLOAD_SINGLE_METHODS -> "método de envio não suportado"
+        !session.alreadyReceived && session.partUrls[1].isNullOrBlank() -> "bilhete sem URL"
+        declarado != null && declarado.toLongOrNull() != fileSize -> "content-length assinado diferente do arquivo"
+        else -> null
+    }
+}
+
+/** Métodos aceitos num bilhete de PUT único (`POST` de formulário não é este fluxo). */
+val DIRECT_UPLOAD_SINGLE_METHODS: Set<String> = setOf("PUT")
+
+/**
+ * Cabeçalhos assinados que o transporte manda como cabeçalho comum — tira `content-length` (o
+ * transporte escreve pelo tamanho do corpo, que [directUploadSessionProblem] já conferiu), `host` e
+ * `content-type` (vai no tipo do corpo; ver [directUploadContentType]).
+ */
+fun directUploadExtraHeaders(signed: Map<String, String>): Map<String, String> =
+    signed.filterKeys { k -> k.isNotBlank() && k.lowercase() !in DIRECT_UPLOAD_TRANSPORT_HEADERS }
+
+/** O `content-type` assinado (sem diferença de caixa no nome), ou `null`. */
+fun directUploadContentType(signed: Map<String, String>): String? =
+    signed.entries.firstOrNull { it.key.equals("content-type", ignoreCase = true) }?.value?.trim()?.takeIf { it.isNotEmpty() }
+
+private val DIRECT_UPLOAD_TRANSPORT_HEADERS = setOf("content-length", "content-type", "host")
+
+/** Partes que ainda faltam, em ordem crescente (nenhuma quando o servidor já tem o arquivo). */
 fun directUploadMissingParts(job: DirectUploadJob): List<Int> {
     val session = job.session ?: return emptyList()
+    if (session.alreadyReceived) return emptyList()
     return (1..session.partCount).filter { it !in job.completedParts }
 }
 
 /** Bytes já aceitos pelo storage (soma do tamanho real de cada parte concluída). */
 fun directUploadedBytes(job: DirectUploadJob): Long {
     val session = job.session ?: return 0L
+    if (session.alreadyReceived) return job.sizeBytes
     return job.completedParts.keys.sumOf { n ->
         directUploadPartRange(n, session.partSizeBytes, job.sizeBytes)?.let { it.last - it.first + 1 } ?: 0L
     }

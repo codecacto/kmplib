@@ -2,6 +2,7 @@
 
 package br.com.codecacto.kmplib.sync.direct
 
+import br.com.codecacto.kmplib.core.crypto.sha256HexOfFile
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -41,6 +42,9 @@ internal actual fun platformIsActiveNetworkMetered(): Boolean? = null
  * captura — derrubariam o app no meio do envio.
  */
 internal object IosDirectUploadFiles : DirectUploadFiles {
+    /** Em blocos, pelo core (`MessageDigest` / CommonCrypto), com o arquivo aberto uma vez só. */
+    override suspend fun sha256Hex(path: String): String? = sha256HexOfFile(path)
+
     private const val TAG = "DirectUploadFiles"
     private const val BUFFER: Long = 256L * 1024
     private val fm get() = NSFileManager.defaultManager

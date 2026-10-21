@@ -34,8 +34,26 @@ enum class DirectUploadStatus {
 }
 
 /**
- * A sessão multipart aberta no servidor (o `VideoUploadDto` do contrato): o id do envio no storage,
- * o tamanho de cada parte e as URLs pré-assinadas que ainda valem.
+ * Como o arquivo vai ao storage (2.312.0).
+ *
+ * - [MULTIPART]: várias partes, cada uma por `PUT` na sua URL pré-assinada, fechadas com as ETags no
+ *   `complete` (contrato `VideoUploadDto`, [RestDirectUploadBackend]). Retoma parte a parte.
+ * - [SINGLE_PUT]: **um** `PUT` do arquivo inteiro numa URL pré-assinada, com os **cabeçalhos
+ *   assinados** que o servidor devolveu (`content-type`, `x-amz-checksum-sha256`…), e depois o
+ *   `concluir` no nosso servidor ([RestSinglePutUploadBackend]). Para foto e vídeo curto (até ~100 MB):
+ *   a retomada é repetir o `PUT`, que é idempotente na mesma chave.
+ */
+@Serializable
+enum class DirectUploadMode {
+    MULTIPART,
+    SINGLE_PUT,
+}
+
+/**
+ * A sessão aberta no servidor: no [DirectUploadMode.MULTIPART] (o `VideoUploadDto` do contrato), o id
+ * do envio no storage, o tamanho de cada parte e as URLs pré-assinadas que ainda valem; no
+ * [DirectUploadMode.SINGLE_PUT], uma "parte" só (o arquivo inteiro), a URL do bilhete e os
+ * [signedHeaders] — monte com [DirectUploadSession.singlePut].
  *
  * @param uploadId id do envio multipart (vai nos caminhos `…/uploads/{uploadId}/parts|complete|abort`).
  * @param remoteId id do recurso criado no servidor (o `videoId`), quando o contrato devolve.
@@ -44,6 +62,13 @@ enum class DirectUploadStatus {
  * @param partUrls URLs pré-assinadas de escrita, por número de parte (1-based). São credencial de
  *   curta duração: ficam no armazenamento privado do app e **nunca** saem em log nem em `toString`.
  * @param urlsExpireAtMillis quando as [partUrls] vencem (`null` = o servidor não disse).
+ * @param mode multipart (default, o contrato de sempre) ou PUT único.
+ * @param method método HTTP do envio ao storage (`PUT`; o do bilhete no PUT único).
+ * @param signedHeaders cabeçalhos que a assinatura cobre e que vão **exatamente** assim no envio
+ *   (`content-type`, `x-amz-checksum-sha256`…). `content-length` é conferido contra o arquivo e
+ *   escrito pelo transporte. Não saem em `toString` (podem carregar token de sessão do storage).
+ * @param alreadyReceived o servidor já tem o arquivo (repetição depois do fim): nada a enviar, só o
+ *   `complete`.
  */
 @Serializable
 data class DirectUploadSession(
@@ -53,10 +78,44 @@ data class DirectUploadSession(
     val partCount: Int,
     val partUrls: Map<Int, String> = emptyMap(),
     val urlsExpireAtMillis: Long? = null,
+    val mode: DirectUploadMode = DirectUploadMode.MULTIPART,
+    val method: String = "PUT",
+    val signedHeaders: Map<String, String> = emptyMap(),
+    val alreadyReceived: Boolean = false,
 ) {
     override fun toString(): String =
-        "DirectUploadSession(remoteId=${remoteId != null}, partSizeBytes=$partSizeBytes, partCount=$partCount, " +
-            "partUrls=${partUrls.size}, urlsExpireAtMillis=$urlsExpireAtMillis)"
+        "DirectUploadSession(mode=$mode, remoteId=${remoteId != null}, partSizeBytes=$partSizeBytes, partCount=$partCount, " +
+            "partUrls=${partUrls.size}, signedHeaders=${signedHeaders.keys.sorted()}, " +
+            "urlsExpireAtMillis=$urlsExpireAtMillis, alreadyReceived=$alreadyReceived)"
+
+    companion object {
+        /**
+         * Sessão de **PUT único** para um arquivo de [sizeBytes] bytes: uma parte, do tamanho do arquivo,
+         * na [url] do bilhete. [url] em branco só com [alreadyReceived] (nada a enviar).
+         *
+         * @param remoteId o id do recurso no servidor (a mídia) — vai no caminho do `complete`.
+         */
+        fun singlePut(
+            remoteId: String,
+            sizeBytes: Long,
+            url: String?,
+            method: String = "PUT",
+            signedHeaders: Map<String, String> = emptyMap(),
+            expiresAtMillis: Long? = null,
+            alreadyReceived: Boolean = false,
+        ): DirectUploadSession = DirectUploadSession(
+            uploadId = remoteId,
+            remoteId = remoteId,
+            partSizeBytes = sizeBytes,
+            partCount = 1,
+            partUrls = url?.takeIf { it.isNotBlank() }?.let { mapOf(1 to it) } ?: emptyMap(),
+            urlsExpireAtMillis = expiresAtMillis,
+            mode = DirectUploadMode.SINGLE_PUT,
+            method = method.ifBlank { "PUT" }.uppercase(),
+            signedHeaders = signedHeaders,
+            alreadyReceived = alreadyReceived,
+        )
+    }
 }
 
 /** Por que um envio parou ([DirectUploadStatus.FAILED]) ou a última falha retentável. */
@@ -87,6 +146,9 @@ data class DirectUploadFailure(
  * @param metadata campos extras do app, enviados ao servidor pelo backend (sem dado sensível: ficam
  *   no disco junto do envio).
  * @param wifiOnly só envia em rede não tarifada ("só no Wi-Fi").
+ * @param sha256 SHA-256 (hex minúsculo) do arquivo NA FILA, quando pedido em
+ *   [DirectUploadRequest.computeSha256] — calculado depois de o arquivo entrar na fila, então é o
+ *   resumo dos bytes que de fato sobem. O backend o manda na declaração (o servidor confere no fim).
  * @param completedParts ETag de cada parte já aceita pelo storage — é o que faz a **retomada**: após
  *   o processo morrer, só sobe o que falta.
  * @param attempts falhas retentáveis seguidas (zera a cada avanço).
@@ -104,6 +166,7 @@ data class DirectUploadJob(
     val fileName: String,
     val metadata: Map<String, String> = emptyMap(),
     val wifiOnly: Boolean = false,
+    val sha256: String? = null,
     val createdAtMillis: Long,
     val status: DirectUploadStatus = DirectUploadStatus.QUEUED,
     val session: DirectUploadSession? = null,
@@ -141,9 +204,17 @@ data class DirectUploadRequest(
      * `false` = copia e deixa o original com quem chamou.
      */
     val moveSource: Boolean = true,
+    /**
+     * `true` = a fila calcula o SHA-256 do arquivo (em blocos, sem carregá-lo inteiro) depois de
+     * trazê-lo para a área dela e o guarda em [DirectUploadJob.sha256] (2.312.0). Para o contrato que
+     * declara o hash antes do envio e o servidor confere no fim (PUT único com
+     * `x-amz-checksum-sha256`, RondAki §11.4).
+     */
+    val computeSha256: Boolean = false,
 ) {
     override fun toString(): String =
-        "DirectUploadRequest(kind=$kind, contentType=$contentType, wifiOnly=$wifiOnly, moveSource=$moveSource)"
+        "DirectUploadRequest(kind=$kind, contentType=$contentType, wifiOnly=$wifiOnly, moveSource=$moveSource, " +
+            "computeSha256=$computeSha256)"
 }
 
 /** Desfecho de [DirectUploadOutbox.enqueue]. */
@@ -209,9 +280,21 @@ sealed interface DirectUploadEvent {
     data class Failed(override val jobId: String, val failure: DirectUploadFailure) : DirectUploadEvent
 }
 
-/** URLs pré-assinadas devolvidas por [DirectUploadBackend.presignParts]. */
-data class DirectUploadPartUrls(val urls: Map<Int, String>, val expiresAtMillis: Long?) {
-    override fun toString(): String = "DirectUploadPartUrls(parts=${urls.keys.sorted()}, expiresAtMillis=$expiresAtMillis)"
+/**
+ * URLs pré-assinadas devolvidas por [DirectUploadBackend.presignParts].
+ *
+ * @param signedHeaders no PUT único, os cabeçalhos do bilhete novo (`null` = mantém os da sessão).
+ * @param alreadyReceived o servidor respondeu que já tem o arquivo: nada mais a enviar.
+ */
+data class DirectUploadPartUrls(
+    val urls: Map<Int, String>,
+    val expiresAtMillis: Long?,
+    val signedHeaders: Map<String, String>? = null,
+    val alreadyReceived: Boolean = false,
+) {
+    override fun toString(): String =
+        "DirectUploadPartUrls(parts=${urls.keys.sorted()}, expiresAtMillis=$expiresAtMillis, " +
+            "signedHeaders=${signedHeaders?.keys?.sorted()}, alreadyReceived=$alreadyReceived)"
 }
 
 /** Parte aceita pelo storage, como vai no `complete` (`{partNumber, etag}`). */

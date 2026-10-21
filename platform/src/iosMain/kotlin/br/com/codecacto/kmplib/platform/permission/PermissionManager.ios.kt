@@ -19,6 +19,7 @@ import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.authorizationStatusForMediaType
 import platform.AVFoundation.requestAccessForMediaType
+import platform.CoreLocation.CLAccuracyAuthorization
 import platform.CoreLocation.CLAuthorizationStatus
 import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
@@ -74,6 +75,8 @@ private class PedidoDeLocalizacao(
  * - [AppPermission.NOTIFICATIONS] → `UNUserNotificationCenter`.
  * - [AppPermission.LOCATION] → `CLLocationManager` "when in use" (Info.plist
  *   `NSLocationWhenInUseUsageDescription`).
+ * - [AppPermission.PRECISE_LOCATION] → "when in use" + `accuracyAuthorization == fullAccuracy`; reduzida →
+ *   `requestTemporaryFullAccuracyAuthorization` (Info.plist `NSLocationTemporaryUsageDescriptionDictionary`).
  * - [AppPermission.PHONE_STATE] / [AppPermission.CALL_LOG] → sem equivalente no iOS → [PermissionStatus.GRANTED].
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -96,6 +99,11 @@ class IosPermissionManager : PermissionManager {
         AppPermission.NOTIFICATIONS -> PermissionStatus.NOT_REQUESTED
 
         AppPermission.LOCATION -> mapLocationStatus(CLLocationManager.authorizationStatus())
+
+        AppPermission.PRECISE_LOCATION -> {
+            val manager = CLLocationManager()
+            preciseStatus(mapLocationStatus(manager.authorizationStatus), isFullAccuracy(manager))
+        }
 
         AppPermission.PHONE_STATE, AppPermission.CALL_LOG -> PermissionStatus.GRANTED
     }
@@ -183,6 +191,8 @@ class IosPermissionManager : PermissionManager {
             }
         }
 
+        AppPermission.PRECISE_LOCATION -> requestPreciseLocation()
+
         AppPermission.NOTIFICATIONS -> callbackFlow {
             val center = UNUserNotificationCenter.currentNotificationCenter()
             center.getNotificationSettingsWithCompletionHandler { settings ->
@@ -210,6 +220,74 @@ class IosPermissionManager : PermissionManager {
                 }
             }
             awaitClose { }
+        }
+    }
+
+    /**
+     * Precisa = "when in use" (ou sempre) **e** `fullAccuracy`. Sem precisão total, ainda dá para
+     * pedir a temporária desta sessão — por isso [PermissionStatus.DENIED], não definitiva.
+     */
+    private fun preciseStatus(location: PermissionStatus, fullAccuracy: Boolean): PermissionStatus = when {
+        location != PermissionStatus.GRANTED -> location
+        fullAccuracy -> PermissionStatus.GRANTED
+        else -> PermissionStatus.DENIED
+    }
+
+    private fun isFullAccuracy(manager: CLLocationManager): Boolean =
+        manager.accuracyAuthorization == CLAccuracyAuthorization.CLAccuracyAuthorizationFullAccuracy
+
+    /**
+     * Autorização "when in use" e, se a pessoa deixou a "Localização precisa" desligada, a precisão
+     * total TEMPORÁRIA (`requestTemporaryFullAccuracyAuthorization(withPurposeKey:)`, iOS 14+) — o
+     * caminho que a Apple indica para quem precisa da precisa só durante uma tarefa. O par
+     * manager+delegate fica preso ao fluxo (ver [PedidoDeLocalizacao]).
+     */
+    private fun requestPreciseLocation(): Flow<PermissionStatus> = callbackFlow {
+        val manager = CLLocationManager()
+        var pedindoTemporaria = false
+
+        fun pedirTemporariaOuEncerrar() {
+            if (isFullAccuracy(manager)) {
+                trySend(PermissionStatus.GRANTED)
+                close()
+                return
+            }
+            if (pedindoTemporaria) return
+            pedindoTemporaria = true
+            manager.requestTemporaryFullAccuracyAuthorizationWithPurposeKey(
+                LocationAccuracySettings.temporaryFullAccuracyPurposeKey,
+            ) { _ ->
+                // Erro (chave ausente no Info.plist, recusa) = continua reduzida: lê o estado real.
+                trySend(preciseStatus(PermissionStatus.GRANTED, isFullAccuracy(manager)))
+                close()
+            }
+        }
+
+        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
+            override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
+                if (pedindoTemporaria) return
+                when (val status = mapLocationStatus(manager.authorizationStatus)) {
+                    PermissionStatus.NOT_REQUESTED -> return // chega uma vez ao instalar o delegate
+                    PermissionStatus.GRANTED -> pedirTemporariaOuEncerrar()
+                    else -> {
+                        trySend(status)
+                        close()
+                    }
+                }
+            }
+        }
+        val pedido = PedidoDeLocalizacao(manager, delegate)
+        manager.delegate = delegate
+        when (mapLocationStatus(manager.authorizationStatus)) {
+            PermissionStatus.NOT_REQUESTED -> manager.requestWhenInUseAuthorization()
+            PermissionStatus.GRANTED -> pedirTemporariaOuEncerrar()
+            else -> {
+                trySend(PermissionStatus.PERMANENTLY_DENIED)
+                close()
+            }
+        }
+        awaitClose {
+            pedido.manager.delegate = null
         }
     }
 
