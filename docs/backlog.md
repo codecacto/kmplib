@@ -14,6 +14,9 @@
       oferecer; com o parâmetro obrigatório, o botão "Ver relatório completo" aparece sem destino.
       `null` = esconde o botão. Aditivo.
 
+### Registrado em 20/out/2026 — entregue na 2.313.0 (RondAki)
+- [x] **Cabeçalho extra por requisição em todos os verbos do `DomainApiClient`** (`headers = emptyMap()`, `RESERVED_HEADERS` ignorados). O RondAki mandava `X-Monotonico-Ms` por `createClientPlugin` global filtrando caminho.
+
 ### Registrado em 20/out/2026 — entregue na 2.312.0 (RondAki: app do vigia, Onda 3)
 - [x] **Upload por PUT único pré-assinado** na `DirectUploadOutbox` (`RestSinglePutUploadBackend`, `DirectUploadSession.singlePut`, cabeçalhos assinados, `computeSha256`).
 - [x] **SHA-256 de arquivo em streaming** (`core.crypto`: `Sha256Hasher`, `sha256OfFile`/`sha256HexOfFile`).

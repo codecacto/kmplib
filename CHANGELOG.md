@@ -5,6 +5,33 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.313.0 — **Cabeçalhos extras por requisição em todos os verbos do `DomainApiClient`**
+
+Origem: app do vigia do **RondAki** (`8-Sistemas-Portal-App/RondAki`), que precisava mandar `X-Monotonico-Ms` no
+`POST /sessoes` e no heartbeat e, como só o `getJson` aceitava cabeçalho extra, contornou com um `createClientPlugin`
+global filtrando por caminho. Aditivo: **sem piso e sem aviso**.
+
+- **`headers: Map<String, String> = emptyMap()`** como ÚLTIMO parâmetro, opcional, em `postJson`, `putJson`,
+  `patchJson`, `delete`, `deleteJson` (as duas), `getBytes` (as duas), `postJsonForBytes`, `postMultipartParts(path,
+  parts, formFields, …)` (com e sem `timeoutMillis`) e `putMultipartParts(path, parts, formFields, …)` — `getJson` e
+  `getJsonWithEtag` já tinham. Chamada por posição continua idêntica. As variantes curtas de multipart (sem
+  `formFields`) não ganharam o parâmetro, porque `(path, parts, headers)` colidiria com `(path, parts, formFields)`:
+  passe `emptyMap()` em `formFields`.
+- **Regra dos reservados — `DomainApiClient.RESERVED_HEADERS`**: `Authorization`, `Proxy-Authorization`,
+  `Content-Type`, `Content-Length`, `Content-Encoding`, `Transfer-Encoding`, `If-None-Match`, `Accept-Encoding`,
+  `Host`, `Connection`, `Keep-Alive`, `TE`, `Trailer`, `Upgrade`, `Expect` (sem caixa) são **ignorados** — a
+  chamada segue sem eles e o log avisa o NOME (nunca o valor). Nome fora do `token` da RFC 9110 ou valor com
+  CR/LF/NUL também é ignorado (antes viraria falha de transporte com "sem conexão"). `Accept-Language`/`X-Time-Zone`
+  passam (o `DeviceLocaleHeaders` só põe quando a chamada não trouxe). O extra substitui (não duplica) um cabeçalho
+  de mesmo nome vindo do `DefaultRequest`.
+- **Mudança de comportamento no `getJson`/`getJsonWithEtag`**: passam pela mesma regra — um `Authorization` em
+  `headers` era anexado como SEGUNDO valor ao lado do Bearer; agora é ignorado.
+- Os extras são triados uma vez por chamada e **repetidos no retry do 401** com o mesmo valor. Cabeçalho cujo valor
+  precisa ser o do INSTANTE do envio (relógio monotônico) fica, no retry, defasado pelo tempo do refresh — quem
+  precisa de precisão de envio continua com plugin no `onRequest`.
+- Testes: `DomainApiClientHeadersTest` (7 — os 14 verbos, posição, `Authorization` no retry, `Content-Type`/
+  `If-None-Match`, malformado, triagem pura, lista).
+
 ## 2.312.0 — **Upload por PUT único pré-assinado na `DirectUploadOutbox`, SHA-256 de arquivo em streaming, localização PRECISA, círculos no `NativeMap` e relógio monotônico**
 
 Origem: app do vigia do **RondAki** (`8-Sistemas-Portal-App/RondAki`, Onda 3 — §11.0 e §11.4 de

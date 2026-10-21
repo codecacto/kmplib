@@ -127,17 +127,18 @@ class DomainApiClient(
      *   query entra no log de acesso de todo intermediário, no histórico do navegador e no
      *   `Referer`. E não é `Authorization`: não há sessão nem portador de identidade, então usar
      *   aquele header faria clientes e proxies tratarem-no como credencial de sessão.
+     *   Desde a 2.313.0 passa pela mesma regra dos demais verbos: cabeçalho de [RESERVED_HEADERS]
+     *   (entre eles `Authorization`) ou malformado é **ignorado**, com aviso no log.
      */
     suspend fun getJson(
         path: String,
         headers: Map<String, String> = emptyMap(),
-    ): DomainResult<String> =
-        execute(path) { token ->
-            httpClient.get(url(path)) {
-                bearer(token)
-                headers.forEach { (nome, valor) -> header(nome, valor) }
-            }
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
+            httpClient.get(url(path)) { bearer(token); extras(this) }
         }.texto()
+    }
 
     /**
      * `GET` **condicional** por ETag (2.272.0) — RFC 9110 §8.8.3 / §13.1.2 / §15.4.5.
@@ -164,7 +165,7 @@ class DomainApiClient(
      * sem cache HTTP escondido no cliente.
      *
      * @param headers cabeçalhos extras, como no [getJson]. Um `If-None-Match` passado aqui é ignorado
-     *   — quem decide a condição é [etag].
+     *   (é reservado — [RESERVED_HEADERS]) — quem decide a condição é [etag].
      */
     suspend fun getJsonWithEtag(
         path: String,
@@ -172,12 +173,11 @@ class DomainApiClient(
         headers: Map<String, String> = emptyMap(),
     ): DomainResult<EtagResult<String>> {
         val condicao = etag?.trim()?.takeIf { it.isNotEmpty() }
+        val extras = extraHeaders(headers)
         return execute(path, notModifiedIsSuccess = condicao != null) { token ->
             httpClient.get(url(path)) {
                 bearer(token)
-                headers.forEach { (nome, valor) ->
-                    if (!nome.equals(HttpHeaders.IfNoneMatch, ignoreCase = true)) header(nome, valor)
-                }
+                extras(this)
                 condicao?.let { header(HttpHeaders.IfNoneMatch, it) }
             }
         }.corpo { response ->
@@ -191,29 +191,72 @@ class DomainApiClient(
         }
     }
 
-    suspend fun postJson(path: String, body: String): DomainResult<String> =
-        execute(path) { token ->
+    /**
+     * `POST` com corpo JSON.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
+    suspend fun postJson(
+        path: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.post(url(path)) {
-                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
+    }
 
-    suspend fun putJson(path: String, body: String): DomainResult<String> =
-        execute(path) { token ->
+    /**
+     * `PUT` com corpo JSON.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
+    suspend fun putJson(
+        path: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.put(url(path)) {
-                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
+    }
 
-    suspend fun patchJson(path: String, body: String): DomainResult<String> =
-        execute(path) { token ->
+    /**
+     * `PATCH` com corpo JSON.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
+    suspend fun patchJson(
+        path: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.patch(url(path)) {
-                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
+    }
 
-    suspend fun delete(path: String): DomainResult<Unit> =
-        execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.map { }
+    /**
+     * `DELETE` que descarta o corpo (204).
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
+    suspend fun delete(
+        path: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<Unit> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this) } }.map { }
+    }
 
     /**
      * `DELETE` que **devolve o corpo** — para a API que responde com o estado depois de apagar.
@@ -223,9 +266,16 @@ class DomainApiClient(
      * de uma segunda chamada para se atualizar — nem do intervalo em que o item sumiu da tela e os
      * contadores ainda não sabem disso. Sem esta variante, quem precisa do corpo escreve o `execute`
      * à mão no projeto e perde o tratamento de token, quota e erro que mora aqui.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
      */
-    suspend fun deleteJson(path: String): DomainResult<String> =
-        execute(path) { token -> httpClient.delete(url(path)) { bearer(token) } }.texto()
+    suspend fun deleteJson(
+        path: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this) } }.texto()
+    }
 
     /**
      * `DELETE` que **leva corpo** — para a rota que identifica o que apagar por um valor que não
@@ -242,13 +292,21 @@ class DomainApiClient(
      *
      * `DELETE` com corpo é permitido pela RFC 9110 §9.3.5 (sem semântica definida, e é por isso que
      * ela mora numa variante explícita, não no [delete] de sempre).
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
      */
-    suspend fun deleteJson(path: String, body: String): DomainResult<String> =
-        execute(path) { token ->
+    suspend fun deleteJson(
+        path: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.delete(url(path)) {
-                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
+    }
 
     // ---- Binário (anexos) ------------------------------------------------
 
@@ -313,18 +371,24 @@ class DomainApiClient(
      *
      * @param formFields `nome → valor`, na ordem do mapa. Nome em branco é ignorado. ⚠️ Os valores
      *   viajam no CORPO (não vão para o log de requisição), mas não coloque segredo aqui.
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS]. As variantes
+     *   curtas de multipart (sem `formFields`) não o têm: passe `emptyMap()` em `formFields` e use esta.
      */
     suspend fun postMultipartParts(
         path: String,
         parts: List<MultipartPart>,
         formFields: Map<String, String>,
-    ): DomainResult<String> =
-        execute(path) { token ->
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.post(url(path)) {
                 bearer(token)
+                extras(this)
                 setBody(multipartBody(parts, formFields))
             }
         }.texto()
+    }
 
     /**
      * [postMultipartParts] com **teto de tempo próprio** para a transferência (2.311.0) — o upload de
@@ -334,32 +398,47 @@ class DomainApiClient(
      * silêncio do socket desta chamada só; o resto do app continua com os tetos do
      * `createHttpClient`. Sem o plugin `HttpTimeout` no cliente, o parâmetro é ignorado (não há teto
      * para estender).
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
      */
     suspend fun postMultipartParts(
         path: String,
         parts: List<MultipartPart>,
         formFields: Map<String, String>,
         timeoutMillis: Long,
-    ): DomainResult<String> =
-        execute(path) { token ->
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.post(url(path)) {
                 bearer(token)
+                extras(this)
                 transferTimeout(timeoutMillis)
                 setBody(multipartBody(parts, formFields))
             }
         }.texto()
+    }
 
     /**
      * [getBytes] com teto de tempo próprio para o download (2.311.0) — o par de leitura do
      * [postMultipartParts] com `timeoutMillis`.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
      */
-    suspend fun getBytes(path: String, timeoutMillis: Long): DomainResult<ByteArray> =
-        execute(path) { token ->
+    suspend fun getBytes(
+        path: String,
+        timeoutMillis: Long,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<ByteArray> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.get(url(path)) {
                 bearer(token)
+                extras(this)
                 transferTimeout(timeoutMillis)
             }
         }.bytes()
+    }
 
     private fun HttpRequestBuilder.transferTimeout(timeoutMillis: Long) {
         if (timeoutMillis <= 0L || httpClient.pluginOrNull(HttpTimeout) == null) return
@@ -369,18 +448,26 @@ class DomainApiClient(
         }
     }
 
-    /** Versão PUT do [postMultipartParts] com campos de texto (2.216.0). */
+    /**
+     * Versão PUT do [postMultipartParts] com campos de texto (2.216.0).
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
     suspend fun putMultipartParts(
         path: String,
         parts: List<MultipartPart>,
         formFields: Map<String, String>,
-    ): DomainResult<String> =
-        execute(path) { token ->
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.put(url(path)) {
                 bearer(token)
+                extras(this)
                 setBody(multipartBody(parts, formFields))
             }
         }.texto()
+    }
 
     /** [postMultipart] de parte única com campos de texto junto (2.216.0). */
     suspend fun postMultipart(
@@ -417,9 +504,18 @@ class DomainApiClient(
         },
     )
 
-    /** Stream autenticado dos bytes de um binário — ex.: `GET /v1/anexos/{id}/bytes`. */
-    suspend fun getBytes(path: String): DomainResult<ByteArray> =
-        execute(path) { token -> httpClient.get(url(path)) { bearer(token) } }.bytes()
+    /**
+     * Stream autenticado dos bytes de um binário — ex.: `GET /v1/anexos/{id}/bytes`.
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     */
+    suspend fun getBytes(
+        path: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<ByteArray> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token -> httpClient.get(url(path)) { bearer(token); extras(this) } }.bytes()
+    }
 
     /**
      * `POST` com corpo JSON cuja resposta é BINÁRIA (2.222.0) — ex.: `POST /v1/etiquetas/pdf` com
@@ -431,18 +527,45 @@ class DomainApiClient(
      * tratamento das demais chamadas: Bearer, refresh + 1 retry no 401, 402 vira [DomainResult.Quota],
      * envelope de erro da backlib em [DomainResult.Error], e o corpo lido sob a mesma proteção de
      * [getBytes] (conexão caída no meio do download vira erro, não corrotina morta).
+     *
+     * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
      */
-    suspend fun postJsonForBytes(path: String, body: String): DomainResult<ByteArray> =
-        execute(path) { token ->
+    suspend fun postJsonForBytes(
+        path: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<ByteArray> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
             httpClient.post(url(path)) {
-                bearer(token); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
             }
         }.bytes()
+    }
 
     // ---- Núcleo ----------------------------------------------------------
 
     private fun HttpRequestBuilder.bearer(token: String?) {
         token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+    }
+
+    /**
+     * Separa os cabeçalhos extras aceitos UMA vez por chamada (o retry do 401 reaproveita o resultado
+     * e não repete o aviso) e devolve quem os aplica no request. Os ignorados vão ao log só pelo
+     * NOME — valor de cabeçalho pode ser credencial.
+     */
+    private fun extraHeaders(headers: Map<String, String>): (HttpRequestBuilder) -> Unit {
+        if (headers.isEmpty()) return {}
+        val triagem = screenExtraHeaders(headers)
+        if (triagem.ignored.isNotEmpty()) {
+            AppLogger.w(
+                TAG,
+                "Cabeçalhos extras ignorados (reservados pela lib ou malformados): " +
+                    triagem.ignored.joinToString(),
+            )
+        }
+        val aceitos = triagem.accepted
+        return { builder -> aceitos.forEach { (nome, valor) -> builder.headers[nome] = valor } }
     }
 
     /**
@@ -595,8 +718,78 @@ class DomainApiClient(
 
     companion object {
         private const val TAG = "DomainApi"
+
+        /**
+         * Cabeçalhos que **não** se passam em `headers` (2.313.0), em minúsculas. Um nome desta lista
+         * (comparação sem caixa) é **ignorado** — a chamada segue sem ele, e o log avisa o nome (nunca
+         * o valor). Ignorar, e não falhar a chamada, é a mesma regra que o [getJsonWithEtag] já usava
+         * para o `If-None-Match`: o pedido do app não pode deixar de acontecer por um cabeçalho que a
+         * lib de qualquer forma decide.
+         *
+         * - **Credencial que a lib gerencia:** `Authorization` (o Bearer do [DomainTokenProvider],
+         *   renovado no 401 — um valor fixo do app sobreviveria ao refresh e repetiria o 401) e
+         *   `Proxy-Authorization`.
+         * - **Corpo e enquadramento**, decididos pelo verbo: `Content-Type`, `Content-Length`,
+         *   `Content-Encoding`, `Transfer-Encoding`.
+         * - **Condição de cache**: `If-None-Match` (é o parâmetro `etag` do [getJsonWithEtag]).
+         * - **Negociação do cliente**: `Accept-Encoding` (o gzip do `createHttpClient`).
+         * - **Conexão** (RFC 9110 §7.6.1 e §7.2): `Host`, `Connection`, `Keep-Alive`, `TE`, `Trailer`,
+         *   `Upgrade`, `Expect`.
+         *
+         * `Accept-Language` e `X-Time-Zone` **não** são reservados: o `DeviceLocaleHeaders` só os põe
+         * quando a chamada não trouxe o seu. Nome fora do `token` da RFC 9110 §5.6.2 ou valor com
+         * CR/LF/NUL também é ignorado (iria virar falha de transporte, com "sem conexão" na tela).
+         */
+        val RESERVED_HEADERS: Set<String> = setOf(
+            "authorization",
+            "proxy-authorization",
+            "content-type",
+            "content-length",
+            "content-encoding",
+            "transfer-encoding",
+            "if-none-match",
+            "accept-encoding",
+            "host",
+            "connection",
+            "keep-alive",
+            "te",
+            "trailer",
+            "upgrade",
+            "expect",
+        )
     }
 }
+
+/** Resultado da triagem dos cabeçalhos extras de uma chamada do [DomainApiClient]. */
+internal data class ExtraHeadersScreening(
+    val accepted: List<Pair<String, String>>,
+    /** Só os NOMES (seguros para log) — reservados ou malformados. */
+    val ignored: List<String>,
+)
+
+/** Triagem pura de [DomainApiClient.RESERVED_HEADERS] + forma (RFC 9110 §5.1, §5.5, §5.6.2). */
+internal fun screenExtraHeaders(headers: Map<String, String>): ExtraHeadersScreening {
+    val aceitos = mutableListOf<Pair<String, String>>()
+    val ignorados = mutableListOf<String>()
+    headers.forEach { (nomeBruto, valorBruto) ->
+        val nome = nomeBruto.trim()
+        val valor = valorBruto.trim()
+        when {
+            nome.isEmpty() -> ignorados += "(vazio)"
+            !isHttpToken(nome) -> ignorados += nome.filter { isTokenChar(it) }.ifEmpty { "(inválido)" }
+            nome.lowercase() in DomainApiClient.RESERVED_HEADERS -> ignorados += nome
+            valor.any { it == '\r' || it == '\n' || it == '\u0000' } -> ignorados += nome
+            else -> aceitos += nome to valor
+        }
+    }
+    return ExtraHeadersScreening(aceitos, ignorados)
+}
+
+private fun isHttpToken(nome: String): Boolean = nome.all { isTokenChar(it) }
+
+/** `tchar` da RFC 9110 §5.6.2. */
+private fun isTokenChar(c: Char): Boolean =
+    c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || c in "!#$%&'*+-.^_`|~"
 
 /**
  * Resultado de um `GET` condicional por ETag ([DomainApiClient.getJsonWithEtag]).
