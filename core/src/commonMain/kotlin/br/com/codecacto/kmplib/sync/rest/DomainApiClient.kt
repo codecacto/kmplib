@@ -9,6 +9,9 @@ import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockReason
 import br.com.codecacto.kmplib.monetization.entitlement.QuotaExceeded
 import br.com.codecacto.kmplib.monetization.entitlement.parseQuotaExceeded
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.pluginOrNull
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.forms.MultiPartFormDataContent
@@ -323,6 +326,49 @@ class DomainApiClient(
             }
         }.texto()
 
+    /**
+     * [postMultipartParts] com **teto de tempo próprio** para a transferência (2.311.0) — o upload de
+     * um documento de 20 MB no 4G não cabe nos 30 s de `requestTimeoutMillis` que servem a um GET de
+     * JSON, e baixar o teto do cliente inteiro para caber o upload deixaria toda tela esperando
+     * minutos por um servidor parado. [timeoutMillis] vale para a requisição inteira **e** para o
+     * silêncio do socket desta chamada só; o resto do app continua com os tetos do
+     * `createHttpClient`. Sem o plugin `HttpTimeout` no cliente, o parâmetro é ignorado (não há teto
+     * para estender).
+     */
+    suspend fun postMultipartParts(
+        path: String,
+        parts: List<MultipartPart>,
+        formFields: Map<String, String>,
+        timeoutMillis: Long,
+    ): DomainResult<String> =
+        execute(path) { token ->
+            httpClient.post(url(path)) {
+                bearer(token)
+                transferTimeout(timeoutMillis)
+                setBody(multipartBody(parts, formFields))
+            }
+        }.texto()
+
+    /**
+     * [getBytes] com teto de tempo próprio para o download (2.311.0) — o par de leitura do
+     * [postMultipartParts] com `timeoutMillis`.
+     */
+    suspend fun getBytes(path: String, timeoutMillis: Long): DomainResult<ByteArray> =
+        execute(path) { token ->
+            httpClient.get(url(path)) {
+                bearer(token)
+                transferTimeout(timeoutMillis)
+            }
+        }.bytes()
+
+    private fun HttpRequestBuilder.transferTimeout(timeoutMillis: Long) {
+        if (timeoutMillis <= 0L || httpClient.pluginOrNull(HttpTimeout) == null) return
+        timeout {
+            requestTimeoutMillis = timeoutMillis
+            socketTimeoutMillis = timeoutMillis
+        }
+    }
+
     /** Versão PUT do [postMultipartParts] com campos de texto (2.216.0). */
     suspend fun putMultipartParts(
         path: String,
@@ -363,7 +409,7 @@ class DomainApiClient(
                         append(HttpHeaders.ContentType, part.mimeType)
                         append(
                             HttpHeaders.ContentDisposition,
-                            "filename=\"${part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } }}\"",
+                            "filename=\"${multipartFileNameValue(part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } })}\"",
                         )
                     },
                 )
@@ -827,3 +873,13 @@ fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching 
 }.getOrNull()
 
 private val errorEnvelopeJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+/**
+ * Nome de arquivo pronto para o `filename="…"` de uma parte multipart (2.311.0). Faz o que o
+ * navegador faz (HTML, "multipart/form-data encoding algorithm"): `"` vira `%22` e quebra de linha
+ * vira `%0D`/`%0A` — sem isso, um nome com aspas (`Contrato "assinado".pdf`) fechava o valor no meio
+ * e o servidor lia outro nome, ou recusava a parte. Acento e espaço passam como estão (UTF-8), como
+ * no navegador.
+ */
+internal fun multipartFileNameValue(fileName: String): String =
+    fileName.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A")

@@ -40,7 +40,7 @@ actual fun rememberFilePicker(
     }
 }
 
-private fun readFileFromUri(context: Context, uri: Uri, maxBytes: Long): FilePickResult {
+internal fun readFileFromUri(context: Context, uri: Uri, maxBytes: Long): FilePickResult {
     val contentResolver = context.contentResolver
     val fileName = getFileName(context, uri) ?: "arquivo"
     return try {
@@ -73,10 +73,10 @@ private fun readFileFromUri(context: Context, uri: Uri, maxBytes: Long): FilePic
     } catch (e: OutOfMemoryError) {
         // Última linha: `catch (Exception)` NÃO pega OutOfMemoryError, e era por isso que um arquivo
         // grande derrubava o app em vez de virar desfecho tratável.
-        AppLogger.e(TAG, "memória insuficiente ao ler $fileName", e)
+        AppLogger.e(TAG, "memória insuficiente ao ler o arquivo escolhido", e)
         FilePickResult.Failed(fileName, FilePickFailure.OutOfMemory)
     } catch (e: Exception) {
-        AppLogger.w(TAG, "não foi possível ler $fileName: ${e.message}")
+        AppLogger.w(TAG, "não foi possível ler o arquivo escolhido: ${e::class.simpleName}")
         FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
     }
 }
@@ -93,7 +93,7 @@ private fun readBounded(stream: InputStream, maxBytes: Long): BoundedByteAccumul
 }
 
 /** `-1` quando o provedor não informa o tamanho (acontece, e é o caso que exige leitura com teto). */
-private fun queryDeclaredSize(context: Context, uri: Uri): Long {
+internal fun queryDeclaredSize(context: Context, uri: Uri): Long {
     if (uri.scheme != "content") return -1L
     return try {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
@@ -108,7 +108,7 @@ private fun queryDeclaredSize(context: Context, uri: Uri): Long {
     }
 }
 
-private fun getFileName(context: Context, uri: Uri): String? {
+internal fun getFileName(context: Context, uri: Uri): String? {
     if (uri.scheme == "content") {
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {

@@ -5,6 +5,51 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.311.0 — **Seletor de VÁRIOS arquivos (`rememberMultiFilePicker`/`PickedFile`), abrir arquivo no visualizador do sistema (`FileOpener`) e upload com teto de tempo próprio**
+
+Origem: anexos do cadastro do cliente do **LocAki** (`LocAki/docs/tarefas/2026-10-20-anexos-do-cliente.md`, T4) —
+"qualquer tipo de arquivo, vários por cliente" (CNH, foto do documento, PDF). A lib só tinha seletor de UM arquivo e
+nenhum jeito de abrir um arquivo baixado com o app do sistema.
+
+### `platform` — `rememberMultiFilePicker(mimeTypes = listOf("*/*"), onResult: (List<PickedFile>) -> Unit)`
+- **Android:** `ActivityResultContracts.OpenMultipleDocuments`; nome/tipo/tamanho consultados ao provedor fora da main
+  thread. **iOS:** `UIDocumentPickerViewController(forOpeningContentTypes: [UTTypeItem])` com
+  `allowsMultipleSelection = true`, apresentado do controlador no TOPO.
+- Lista vazia = o usuário fechou o seletor (não é erro).
+- **`PickedFile(name, mimeType, sizeBytes, reader)`** é REFERÊNCIA, não bytes: `read(maxBytes)` lê um por vez, com o
+  mesmo teto e o mesmo `FilePickResult` do `rememberFilePicker` (nunca `Cancelled`, nunca lança); `exceeds(maxBytes)`
+  recusa antes de ler; `extension`. Ler 30 arquivos de uma seleção para memória de uma vez era OOM garantido.
+  `toString` sem o nome (dado pessoal). Construtor público para dublê em teste.
+- iOS: leitura com escopo de segurança + **`NSFileCoordinator`** (arquivo do iCloud ainda não baixado é baixado na
+  leitura) e MIME pelo **`UTType.preferredMIMEType`** (a tabela de 11 extensões chamava o resto de octet-stream).
+
+### `platform` — `getFileOpener().open(bytes, fileName, mimeType): FileOpenResult`
+- **Android:** grava em `cache/shared_files` (pasta já exposta pelo FileProvider da lib e varrida por
+  `clearKmpLibTemporaryFiles`) e dispara `ACTION_VIEW` + `FLAG_GRANT_READ_URI_PERMISSION`. **iOS:** **Quick Look**
+  (`QLPreviewController`), com o compartilhar/salvar do sistema; o temporário sai no `previewControllerDidDismiss`.
+- `FileOpenResult.Opened` / `NoAppAvailable` (nenhum visualizador — ofereça `ShareHandler.shareFile`) / `Failed`.
+- App infantil: passa pelo portão de pais (`FileOpener.withParentalGate()`, como o compartilhar).
+
+### `core` (`DomainApiClient`) — teto de tempo por chamada e nome de arquivo escapado
+- **`postMultipartParts(path, parts, formFields, timeoutMillis)`** e **`getBytes(path, timeoutMillis)`**: teto de
+  requisição e de socket só desta chamada (`HttpTimeout`), para o upload/download de um documento de 20 MB no 4G não
+  bater nos 30 s que servem a JSON. Sem o plugin no cliente, ignorado.
+- O `filename="…"` das partes multipart escapa `"` → `%22` e CR/LF → `%0D`/`%0A`, como o navegador (um nome com aspas
+  fechava o valor no meio). Acento e espaço passam como estão.
+
+### Correções (piso)
+- **iOS `rememberFilePicker`:** apresentava do `keyWindow.rootViewController` — com uma sheet aberta por cima o toque
+  morria ("already presenting"); agora do controlador no topo, e sem janela entrega `Failed`. O delegate entrega ao
+  callback ATUAL (`rememberUpdatedState`), não ao da 1ª composição. Logs de leitura sem o nome do arquivo (Android e iOS).
+- **Android `getShareHandler()`** (e o `getFileOpener()` novo) caem no `Context` do core quando o `initKmpLibPlatform`
+  não foi chamado — app de módulos granulares que só chama `initKmpLibCore` (o LocAki) tinha todo compartilhamento
+  LANÇANDO `IllegalStateException`.
+
+### Testes e compilação
+`PickedFileTest` (6) + `DomainApiClientUploadTimeoutTest` (4); `:kmplib-platform` e `:kmplib-core`
+`testDebugUnitTest` inteiros verdes; `compileKotlinIosArm64` de platform/core sem SKIPPED; LocAki (fonte)
+`:composeApp:compileDebugKotlinAndroid` e `compileKotlinIosArm64` verdes.
+
 ## 2.310.0 — **Modo automação cala o comunicado em modal, e a marca do runner passa a valer no Android com só o `initKmpLibCore`**
 
 Origem: piloto da suíte Maestro mais rápida do **LocAki** (T7 de `LocAki/docs/tarefas/2026-10-20-suite-maestro-mais-rapida.md`).

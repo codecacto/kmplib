@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.platform.audience.withParentalGate
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import br.com.codecacto.kmplib.core.util.AppLogger
 import java.io.File
 import java.io.FileOutputStream
@@ -183,8 +184,10 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
 }
 
 actual fun getShareHandler(): ShareHandler {
-    val context = ShareHandlerHolder.getContext()
-        ?: throw IllegalStateException("ShareHandlerHolder não foi inicializado. Chame ShareHandlerHolder.init(context) no Application.onCreate()")
+    // 2.311.0: app de módulos granulares que só chama `initKmpLibCore` (o LocAki) não preenchia o
+    // holder e todo compartilhamento LANÇAVA; o `Context` da aplicação vindo do core serve igual.
+    val context = ShareHandlerHolder.getContext() ?: AndroidAppContext.get()
+        ?: throw IllegalStateException("kmplib sem Context: chame initKmpLibCore(context) ou initKmpLibPlatform(context) no Application.onCreate()")
     // Portão de pais em app infantil (2.259.0) — fora dele, chamada direta.
     return AndroidShareHandler(context).withParentalGate()
 }

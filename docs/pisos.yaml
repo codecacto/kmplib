@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.311.0
+    motivo: "iOS: seletor de arquivo não abria com uma sheet por cima (apresentava do rootViewController); Android: compartilhar lançava em app que só chama initKmpLibCore"
+    simbolos: [rememberFilePicker, getShareHandler]
+
   - versao: 2.305.1
     motivo: "identidade da loja: reset que falhava na sessão StoreSubject.Anonymous não era tentado de novo (paciente seguia vendo o premium do assinante anterior); reconcileIdentity + premiumForSubject"
     simbolos: [bindStoreSubject, StoreSubject]

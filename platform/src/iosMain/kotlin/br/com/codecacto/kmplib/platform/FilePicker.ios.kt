@@ -1,22 +1,15 @@
 package br.com.codecacto.kmplib.platform
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import br.com.codecacto.kmplib.core.util.AppLogger
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.refTo
-import platform.Foundation.NSData
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSFileSize
-import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
-import platform.Foundation.dataWithContentsOfURL
-import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UniformTypeIdentifiers.UTTypeItem
 import platform.darwin.NSObject
-import platform.posix.memcpy
 
 @Composable
 actual fun rememberFilePicker(
@@ -25,7 +18,10 @@ actual fun rememberFilePicker(
     onResult: (FilePickResult) -> Unit
 ): () -> Unit {
     val limite = resolveMaxFileBytes(maxBytes)
-    val delegate = remember { DocumentPickerDelegate(limite, onResult) }
+    // O delegate vive entre recomposições (o UIKit o guarda FRACO: sem o `remember` ele morre antes
+    // de o usuário escolher), mas entrega ao callback ATUAL — não ao da primeira composição.
+    val entregar by rememberUpdatedState(onResult)
+    val delegate = remember(limite) { DocumentPickerDelegate(limite) { entregar(it) } }
 
     return {
         val documentPicker = UIDocumentPickerViewController(
@@ -34,8 +30,15 @@ actual fun rememberFilePicker(
         documentPicker.delegate = delegate
         documentPicker.allowsMultipleSelection = false
 
-        val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
-        rootViewController?.presentViewController(documentPicker, animated = true, completion = null)
+        // Do controlador no TOPO (2.311.0): do `rootViewController`, com uma sheet aberta por cima,
+        // o UIKit só logava "already presenting" e o toque morria.
+        val presenter = topViewController()
+        if (presenter == null) {
+            AppLogger.w(TAG, "nenhuma janela ativa para apresentar o seletor de arquivo")
+            entregar(FilePickResult.Failed(null, FilePickFailure.Unreadable))
+        } else {
+            presenter.presentViewController(documentPicker, animated = true, completion = null)
+        }
     }
 }
 
@@ -50,79 +53,13 @@ private class DocumentPickerDelegate(
     ) {
         val url = didPickDocumentsAtURLs.firstOrNull() as? NSURL
         onResult(
-            if (url == null) FilePickResult.Cancelled else readFileFromUrl(url)
+            if (url == null) FilePickResult.Cancelled else readPickedFile(url, maxBytes)
         )
     }
 
     override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
         onResult(FilePickResult.Cancelled)
     }
-
-    @OptIn(ExperimentalForeignApi::class)
-    private fun readFileFromUrl(url: NSURL): FilePickResult {
-        val fileName = url.lastPathComponent ?: "arquivo"
-        var securityScoped = false
-        return try {
-            securityScoped = url.startAccessingSecurityScopedResource()
-
-            // Teto ANTES de materializar: no iOS o tamanho de um arquivo local é sempre conhecido,
-            // então nem se chega a criar o NSData de um arquivo grande demais.
-            val declarado = declaredSize(url)
-            if (exceedsFilePickLimit(declarado, maxBytes)) {
-                return FilePickResult.TooLarge(fileName, declarado, maxBytes)
-            }
-
-            val data = NSData.dataWithContentsOfURL(url)
-                ?: return FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
-
-            // Segunda barreira: provedor que não informou tamanho (declarado == -1).
-            val tamanho = data.length.toLong()
-            if (exceedsFilePickLimit(tamanho, maxBytes)) {
-                return FilePickResult.TooLarge(fileName, tamanho, maxBytes)
-            }
-
-            val byteArray = ByteArray(tamanho.toInt())
-            if (tamanho > 0) memcpy(byteArray.refTo(0), data.bytes, data.length)
-            FilePickResult.Picked(
-                FileData(
-                    name = fileName,
-                    mimeType = guessMimeType(fileName),
-                    data = byteArray,
-                    size = byteArray.size.toLong()
-                )
-            )
-        } catch (e: Exception) {
-            AppLogger.w(TAG, "não foi possível ler $fileName: ${e.message}")
-            FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
-        } finally {
-            if (securityScoped) url.stopAccessingSecurityScopedResource()
-        }
-    }
-
-    /** `-1` quando o sistema não informa o tamanho. */
-    @OptIn(ExperimentalForeignApi::class)
-    private fun declaredSize(url: NSURL): Long {
-        val path = url.path ?: return -1L
-        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, null) ?: return -1L
-        return (attrs[NSFileSize] as? NSNumber)?.longValue ?: -1L
-    }
-
-    private fun guessMimeType(fileName: String): String {
-        return when (fileName.substringAfterLast('.', "").lowercase()) {
-            "pdf" -> "application/pdf"
-            "doc" -> "application/msword"
-            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "gif" -> "image/gif"
-            "txt" -> "text/plain"
-            "json" -> "application/json"
-            "mp4" -> "video/mp4"
-            "mov" -> "video/quicktime"
-            else -> "application/octet-stream"
-        }
-    }
-
 }
 
 // Constante de ARQUIVO, e não `companion object` dentro da classe: o Kotlin/Native recusa campos em

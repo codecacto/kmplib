@@ -1,6 +1,8 @@
 package br.com.codecacto.kmplib.platform.audience
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.FileOpenResult
+import br.com.codecacto.kmplib.platform.FileOpener
 import br.com.codecacto.kmplib.platform.ShareHandler
 import br.com.codecacto.kmplib.platform.UrlLauncher
 
@@ -65,3 +67,25 @@ fun UrlLauncher.withParentalGate(): UrlLauncher =
 /** Embrulha um [ShareHandler] próprio do app no [ParentalGate]. Idempotente. */
 fun ShareHandler.withParentalGate(): ShareHandler =
     if (this is ParentalGatedShareHandler) this else ParentalGatedShareHandler(this)
+
+/**
+ * [FileOpener] que passa a abertura pelo [ParentalGate] (2.311.0): abrir o arquivo leva a outro app
+ * (Android) ou a uma folha com "compartilhar" (iOS) — em app infantil, só depois do adulto. No modo
+ * infantil devolve [FileOpenResult.Opened] na hora e abre depois do portão (falha vira log).
+ */
+internal class ParentalGatedFileOpener(private val delegate: FileOpener) : FileOpener {
+    override fun open(fileBytes: ByteArray, fileName: String, mimeType: String): FileOpenResult {
+        if (!ParentalGate.isRequired) return delegate.open(fileBytes, fileName, mimeType)
+        ParentalGate.guard {
+            val resultado = delegate.open(fileBytes, fileName, mimeType)
+            if (resultado != FileOpenResult.Opened) {
+                AppLogger.w("FileOpener", "Abertura depois do portão de pais não aconteceu: $resultado")
+            }
+        }
+        return FileOpenResult.Opened
+    }
+}
+
+/** Embrulha um [FileOpener] no [ParentalGate]. Idempotente. */
+fun FileOpener.withParentalGate(): FileOpener =
+    if (this is ParentalGatedFileOpener) this else ParentalGatedFileOpener(this)
