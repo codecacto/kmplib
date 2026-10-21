@@ -31,9 +31,11 @@ class ApplePushNotificationService(
     listener: PushNotificationListener = NoOpPushNotificationListener,
 ) : PushNotificationService {
 
-    init {
-        ApplePushBridge.setListener(listener)
-    }
+    // 2.314.0: registra no hub (vários serviços convivem; antes o último sobrescrevia o anterior)
+    // e recebe o toque que abriu o app antes de este serviço existir.
+    private val registration = ApplePushBridge.addListener(listener)
+
+    override fun release() = registration.remove()
 
     override suspend fun getToken(): String? = ApplePushBridge.currentToken()
 

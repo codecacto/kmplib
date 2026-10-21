@@ -14,6 +14,11 @@
       oferecer; com o parâmetro obrigatório, o botão "Ver relatório completo" aparece sem destino.
       `null` = esconde o botão. Aditivo.
 
+### Registrado em 21/out/2026 — entregue na 2.314.0 (RondAki)
+- [x] **Push com vários ouvintes + toque a frio guardado** (`PushEvents`/`PushListenerHub`, `PushListenerRegistration`, `release()`, `attachKmpNotifier()`). O RondAki mantinha um ouvinte único global (`CaixaDePush` + `ServicoDePush`) porque o `ApplePushBridge` guardava um listener só e perdia o toque sem listener.
+- [x] **`AdaptiveDestination.badge`** (`NavBadge.Count`/`Dot`, M3 `Badge`, descrição acessível com o número, `nav-badge-<id>`) nos três modos do `AdaptiveScaffold`.
+- [ ] **(P2) Prova em aparelho** — toque a frio no iOS (app morto) e no Android com `attachKmpNotifier()` no `Application.onCreate`; TalkBack/VoiceOver lendo "Alertas, 3 notificações".
+
 ### Registrado em 20/out/2026 — entregue na 2.313.0 (RondAki)
 - [x] **Cabeçalho extra por requisição em todos os verbos do `DomainApiClient`** (`headers = emptyMap()`, `RESERVED_HEADERS` ignorados). O RondAki mandava `X-Monotonico-Ms` por `createClientPlugin` global filtrando caminho.
 

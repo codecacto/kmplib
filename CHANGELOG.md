@@ -5,6 +5,46 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.314.0 — **Push com vários ouvintes e toque a frio guardado; selo na navegação adaptativa**
+
+Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`), que mantinha um ouvinte de push único e global
+(`CaixaDePush`) só para contornar as duas lacunas abaixo. **Piso** (push): `docs/pisos.yaml`. Sem aviso — nada
+deixa de funcionar para quem já tem um serviço só, criado no launch.
+
+### Push (`kmplib-push`)
+- **`PushEvents`** (hub do processo) / **`PushListenerHub`**: `addListener(listener, receivePendingTap = true):
+  PushListenerRegistration` (`remove()`/`close()`, idempotente, `isActive`), `removeListener(listener)`,
+  `pendingTap: StateFlow<Map<String, String>?>`, `consumePendingTap()`, `clearPendingTap()`, `listenerCount`.
+  - **Vários ouvintes**: ninguém sobrescreve ninguém. O MESMO ouvinte registrado duas vezes recebe cada evento uma
+    vez; sai com o último handle. `NoOpPushNotificationListener` não é registrado.
+  - **Toque sem ouvinte fica PENDENTE** (só o último) e vai ao primeiro `addListener` com `receivePendingTap = true`,
+    ou a quem chamar `consumePendingTap()` — **uma vez só**. Foreground sem ouvinte não é guardado. No logout,
+    `clearPendingTap()`.
+- **iOS — corrigido**: `ApplePushBridge` guardava UM listener (o último serviço criado roubava o push do anterior) e
+  perdia o toque que chegava antes de existir serviço (app aberto a frio). Agora alimenta `PushEvents`;
+  `ApplePushBridge.addListener(...)`/`consumePendingTap()` novos. **O Swift não muda** (`onApnsToken`,
+  `onRemoteNotification`, `currentToken`, `onApnsRegistrationFailed` iguais).
+- **Android**: `KmpPushNotificationService` passa por um repasse ÚNICO do KMPNotifier ao hub (**`attachKmpNotifier()`**,
+  idempotente) — antes cada instância somava um `NotifierManager.Listener` que nunca saía (o KMPNotifier não remove).
+  Para guardar o toque a frio quando o serviço nasce depois da Activity, chame `attachKmpNotifier()` logo depois do
+  `NotifierManager.initialize(...)` no `Application.onCreate`.
+- **`PushNotificationService.release()`** (default vazio): tira o ouvinte do serviço do hub. Implementado no
+  `ApplePushNotificationService` e no `KmpPushNotificationService`.
+- Comportamento novo para quem criava DOIS serviços com ouvintes diferentes: os dois recebem (antes, no iOS, só o
+  último; no Android já eram os dois).
+
+### Navegação adaptativa (`kmplib-ui`)
+- **`AdaptiveDestination(…, badge: NavBadge? = null)`** — `NavBadge.Count(count, max = 99, contentDescription)` /
+  `NavBadge.Dot(contentDescription)`, desenhado com o `Badge`/`BadgedBox` do Material 3 sobre o ícone na barra
+  inferior, no rail e no rail largo. `count <= 0` some; acima de `max`, "99+" (`navBadgeLabel`).
+- Acessibilidade: o item é lido "Alertas, 3 notificações" (contentDescription no nó do item; o selo é mudo),
+  `AdaptiveNavBadgeTexts`/`rememberAdaptiveNavBadgeTexts()` nos 4 idiomas; `contentDescription` do selo sobrescreve
+  ("3 alertas abertos"). Id do selo `nav-badge-<id>` (`BottomNavTestTags.badge`).
+- `AdaptiveScaffold(…, badgeTexts = rememberAdaptiveNavBadgeTexts())`. Aditivo; chamadas existentes compilam iguais.
+
+Testes: `PushListenerHubTest` 9, `AdaptiveNavBadgeTest` 6; `kmplib-push` e `kmplib-ui` `testDebugUnitTest` verdes;
+`compileKotlinIosArm64` de push e ui executado (sem SKIPPED).
+
 ## 2.313.0 — **Cabeçalhos extras por requisição em todos os verbos do `DomainApiClient`**
 
 Origem: app do vigia do **RondAki** (`8-Sistemas-Portal-App/RondAki`), que precisava mandar `X-Monotonico-Ms` no

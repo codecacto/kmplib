@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import br.com.codecacto.kmplib.ui.tour.tourTarget
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,12 +59,18 @@ import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
  * Automação: o item (barra ou rail) leva o id `nav-item-<id>` ([BottomNavTestTags.item]) — no Maestro,
  * `tapOn: { id: "nav-item-<id>" }`. Tocar pelo rótulo casa com qualquer texto igual na tela ("Jogos"
  * da aba e o "Jogos" de um contador no conteúdo) e o toque cai no conteúdo. (2.245.0)
+ *
+ * Selo (2.314.0): `badge = NavBadge.Count(3)` ou `NavBadge.Dot()` — `Badge` do Material 3 sobre o
+ * ícone na barra, no rail e no rail largo; o leitor de tela lê "Alertas, 3 notificações"
+ * ([AdaptiveNavBadgeTexts]); o selo tem o id `nav-badge-<id>`.
  */
 data class AdaptiveDestination(
     val id: String,
     val label: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
+    /** Selo de contador/ponto sobre o ícone, nos três modos (2.314.0). `null` = sem selo. */
+    val badge: NavBadge? = null,
 )
 
 /**
@@ -95,6 +103,7 @@ fun AdaptiveScaffold(
     modifier: Modifier = Modifier,
     topBar: @Composable () -> Unit = {},
     windowSizeClass: WindowSizeClass = LocalWindowSizeClass.current,
+    badgeTexts: AdaptiveNavBadgeTexts = rememberAdaptiveNavBadgeTexts(),
     content: @Composable (PaddingValues) -> Unit,
 ) {
     if (!windowSizeClass.temNavegacaoLateral) {
@@ -102,7 +111,7 @@ fun AdaptiveScaffold(
             modifier = modifier,
             topBar = topBar,
             bottomBar = {
-                AdaptiveBottomBar(destinations, selectedId, onSelect)
+                AdaptiveBottomBar(destinations, selectedId, onSelect, badgeTexts)
             },
             content = content,
         )
@@ -119,6 +128,7 @@ fun AdaptiveScaffold(
             selectedId = selectedId,
             onSelect = onSelect,
             largo = windowSizeClass == WindowSizeClass.EXPANDIDA,
+            badgeTexts = badgeTexts,
         )
         Scaffold(
             // O rail já descontou a borda inicial (barra de navegação de 3 botões em paisagem,
@@ -138,6 +148,7 @@ private fun AdaptiveBottomBar(
     destinations: List<AdaptiveDestination>,
     selectedId: String?,
     onSelect: (String) -> Unit,
+    badgeTexts: AdaptiveNavBadgeTexts,
 ) {
     Row(
         modifier = Modifier
@@ -160,18 +171,21 @@ private fun AdaptiveBottomBar(
                         role = Role.Tab,
                         onClick = { onSelect(destino.id) },
                     )
+                    .descricaoDoSelo(destino, badgeTexts)
                     .testTag(BottomNavTestTags.item(destino.id))
                     .tourTarget(BottomNavTestTags.item(destino.id))
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Icon(
-                    imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
-                    contentDescription = null,
-                    tint = corDoItem(ativo),
-                    modifier = Modifier.size(24.dp),
-                )
+                AdaptiveBadgedIcon(destino.id, destino.badge) {
+                    Icon(
+                        imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
+                        contentDescription = null,
+                        tint = corDoItem(ativo),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
                 Text(
                     text = destino.label,
                     style = MaterialTheme.typography.labelSmall,
@@ -198,6 +212,7 @@ private fun AdaptiveRail(
     selectedId: String?,
     onSelect: (String) -> Unit,
     largo: Boolean,
+    badgeTexts: AdaptiveNavBadgeTexts,
 ) {
     Column(
         modifier = Modifier
@@ -237,18 +252,21 @@ private fun AdaptiveRail(
                             role = Role.Tab,
                             onClick = { onSelect(destino.id) },
                         )
+                        .descricaoDoSelo(destino, badgeTexts)
                         .testTag(BottomNavTestTags.item(destino.id))
                         .tourTarget(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
-                        contentDescription = null,
-                        tint = corDoItem(ativo),
-                        modifier = Modifier.size(22.dp),
-                    )
+                    AdaptiveBadgedIcon(destino.id, destino.badge) {
+                        Icon(
+                            imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
+                            contentDescription = null,
+                            tint = corDoItem(ativo),
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                     Text(
                         text = destino.label,
                         style = MaterialTheme.typography.labelLarge,
@@ -267,18 +285,21 @@ private fun AdaptiveRail(
                             role = Role.Tab,
                             onClick = { onSelect(destino.id) },
                         )
+                        .descricaoDoSelo(destino, badgeTexts)
                         .testTag(BottomNavTestTags.item(destino.id))
                         .tourTarget(BottomNavTestTags.item(destino.id))
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(
-                        imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
-                        contentDescription = null,
-                        tint = corDoItem(ativo),
-                        modifier = Modifier.size(24.dp),
-                    )
+                    AdaptiveBadgedIcon(destino.id, destino.badge) {
+                        Icon(
+                            imageVector = if (ativo) destino.selectedIcon else destino.unselectedIcon,
+                            contentDescription = null,
+                            tint = corDoItem(ativo),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                     Text(
                         text = destino.label,
                         style = MaterialTheme.typography.labelSmall,
@@ -292,6 +313,12 @@ private fun AdaptiveRail(
         }
         Spacer(Modifier.height(8.dp))
     }
+}
+
+/** "Alertas, 3 notificações" no nó do item (o selo em si é mudo). Sem selo, nada muda. */
+private fun Modifier.descricaoDoSelo(destino: AdaptiveDestination, texts: AdaptiveNavBadgeTexts): Modifier {
+    val descricao = texts.describe(destino.label, destino.badge) ?: return this
+    return semantics { contentDescription = descricao }
 }
 
 @Composable

@@ -58,16 +58,29 @@ import kotlin.native.ObjCName
  * `[String: String]`; as chaves `title`/`body`/`aps.alert.title`/`aps.alert.body` são reconhecidas
  * por [PushPayload]. O cold-start-tap cai no MESMO `didReceive response` (chamado após o launch),
  * então os 3 casos preservam o deep link sem código extra.
+ *
+ * ### Vários ouvintes e toque a frio (2.314.0)
+ * Cada `createPushNotificationService(listener)` registra o seu ouvinte em [PushEvents] (nenhum
+ * sobrescreve o outro; `release()` tira). O toque que chega antes de qualquer ouvinte fica pendente
+ * e vai ao primeiro que registrar — o app não precisa mais criar o serviço no `didFinishLaunching`
+ * só para não perder o deep link. O Swift não muda.
  */
 @ObjCName("ApplePushBridge")
 object ApplePushBridge {
-    private var listener: PushNotificationListener = NoOpPushNotificationListener
     private var cachedToken: String? = null
 
-    /** Registrado pela lib ([ApplePushNotificationService]) — não exposto ao Swift. */
-    internal fun setListener(listener: PushNotificationListener) {
-        this.listener = listener
-    }
+    /**
+     * Registra mais um ouvinte (2.314.0) — vários convivem; antes o último serviço criado
+     * sobrescrevia o anterior. O toque que abriu o app antes de existir ouvinte fica pendente e é
+     * entregue ao primeiro que registrar com `receivePendingTap = true`. Mesmo hub de [PushEvents].
+     */
+    fun addListener(
+        listener: PushNotificationListener,
+        receivePendingTap: Boolean = true,
+    ): PushListenerRegistration = PushEvents.addListener(listener, receivePendingTap)
+
+    /** Retira o toque pendente (entregue uma vez só); `null` se não havia. Ver [PushEvents]. */
+    fun consumePendingTap(): Map<String, String>? = PushEvents.consumePendingTap()
 
     /** Limpa o token em cache (usado por `deleteToken()`). */
     internal fun clearToken() {
@@ -80,7 +93,7 @@ object ApplePushBridge {
     /** `didRegisterForRemoteNotificationsWithDeviceToken` → token hex. */
     fun onApnsToken(hexToken: String) {
         cachedToken = hexToken
-        listener.onNewToken(hexToken)
+        PushEvents.hub.onNewToken(hexToken)
     }
 
     /** `didFailToRegisterForRemoteNotificationsWithError`. */
@@ -90,10 +103,11 @@ object ApplePushBridge {
 
     /**
      * Notificação remota recebida. `wasTapped = false` (foreground) →
-     * [PushNotificationListener.onPushNotificationWithPayloadData]; `wasTapped = true`
-     * (background/cold-start tap) → [PushNotificationListener.onNotificationClicked] (deep link).
+     * [PushNotificationListener.onPushNotificationWithPayloadData] de todos os ouvintes;
+     * `wasTapped = true` (background/cold-start tap) → [PushNotificationListener.onNotificationClicked]
+     * — e, sem ouvinte ainda, o toque fica pendente em [PushEvents] (2.314.0).
      */
     fun onRemoteNotification(userInfo: Map<String, String>, wasTapped: Boolean) {
-        PushEventRouter.dispatch(listener, userInfo, wasTapped)
+        PushEventRouter.dispatch(PushEvents.hub, userInfo, wasTapped)
     }
 }

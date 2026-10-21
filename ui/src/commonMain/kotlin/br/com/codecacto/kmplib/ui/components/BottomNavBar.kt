@@ -125,6 +125,11 @@ object BottomNavTestTags {
 
     /** Id padrão do item cuja rota é [route]. */
     fun item(route: String): String = ITEM_PREFIX + route
+
+    const val BADGE_PREFIX: String = "nav-badge-"
+
+    /** Id do selo (contador/ponto) do destino [route] no `AdaptiveScaffold` (2.314.0). */
+    fun badge(route: String): String = BADGE_PREFIX + route
 }
 
 /** Tokens e defaults da [AppBottomNavBar]. */

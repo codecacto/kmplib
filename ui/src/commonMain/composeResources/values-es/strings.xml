@@ -621,4 +621,8 @@
     <string name="kmplib_tour_progress">%1$d de %2$d</string>
     <string name="kmplib_tour_restart">Repetir el recorrido</string>
     <string name="kmplib_tour_pane">Recorrido guiado</string>
+    <string name="kmplib_nav_badge_count_one">%1$s, 1 notificación</string>
+    <string name="kmplib_nav_badge_count_other">%1$s, %2$d notificaciones</string>
+    <string name="kmplib_nav_badge_count_overflow">%1$s, más de %2$d notificaciones</string>
+    <string name="kmplib_nav_badge_dot">%1$s, hay novedades</string>
 </resources>
