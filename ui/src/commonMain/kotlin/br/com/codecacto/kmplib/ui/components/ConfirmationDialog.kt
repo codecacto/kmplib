@@ -41,6 +41,8 @@ import androidx.compose.ui.window.DialogProperties
  * @param icon Ícone opcional no topo do dialog
  * @param dismissOnBackPress Permite fechar com botão voltar
  * @param dismissOnClickOutside Permite fechar clicando fora
+ * @param primaryContentColor Texto do botão de confirmar (2.315.0; default branco, como sempre foi).
+ *   Com [primaryColor] clara (âmbar, amarelo), passe a cor escolhida por contraste.
  */
 @Composable
 fun ConfirmationDialog(
@@ -56,7 +58,8 @@ fun ConfirmationDialog(
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     icon: (@Composable () -> Unit)? = null,
     dismissOnBackPress: Boolean = true,
-    dismissOnClickOutside: Boolean = true
+    dismissOnClickOutside: Boolean = true,
+    primaryContentColor: Color = Color.White,
 ) {
     if (show) {
         Dialog(
@@ -127,6 +130,7 @@ fun ConfirmationDialog(
                         onDismiss = onDismiss,
                         isLoading = isLoading,
                         primaryColor = primaryColor,
+                        primaryContentColor = primaryContentColor,
                     )
                 }
             }
@@ -150,6 +154,7 @@ private fun BotoesDeConfirmacao(
     onDismiss: () -> Unit,
     isLoading: Boolean,
     primaryColor: Color,
+    primaryContentColor: Color = Color.White,
 ) {
     val medidor = rememberTextMeasurer()
     val densidade = LocalDensity.current
@@ -175,13 +180,13 @@ private fun BotoesDeConfirmacao(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = primaryColor,
-                    contentColor = Color.White,
+                    contentColor = primaryContentColor,
                 ),
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = Color.White,
+                        color = primaryContentColor,
                         strokeWidth = 2.dp,
                     )
                 } else {

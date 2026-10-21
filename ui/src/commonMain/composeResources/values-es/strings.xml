@@ -625,4 +625,11 @@
     <string name="kmplib_nav_badge_count_other">%1$s, %2$d notificaciones</string>
     <string name="kmplib_nav_badge_count_overflow">%1$s, más de %2$d notificaciones</string>
     <string name="kmplib_nav_badge_dot">%1$s, hay novedades</string>
+    <!-- HoldToConfirmButton (2.315.0) -->
+    <string name="kmplib_hold_to_confirm_hint">Mantén presionado</string>
+    <string name="kmplib_hold_to_confirm_holding">Sigue presionando…</string>
+    <string name="kmplib_hold_to_confirm_a11y_hint">Toca dos veces y mantén presionado para confirmar</string>
+    <string name="kmplib_hold_to_confirm_a11y_action">Confirmar sin mantener presionado</string>
+    <string name="kmplib_hold_to_confirm_hold_action">Confirmar</string>
+    <string name="kmplib_hold_to_confirm_dialog_message">Confirma para ejecutar esta acción ahora.</string>
 </resources>

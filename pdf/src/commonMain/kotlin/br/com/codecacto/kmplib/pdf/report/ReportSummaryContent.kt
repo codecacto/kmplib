@@ -3,7 +3,10 @@ package br.com.codecacto.kmplib.pdf.report
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -12,6 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingFlat
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.Button
@@ -31,6 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -106,19 +116,10 @@ fun rememberReportSummaryTexts(): ReportSummaryTexts {
 }
 
 /**
- * **A tela de Relatórios do app**, padrão da fábrica: o resultado do período em destaque, os
- * [DreSummary.highlights], o demonstrativo, as notas e os dois botões — **Exportar PDF** e **Ver
- * relatório completo**.
- *
- * Não rola nem puxa para atualizar sozinha: o app a põe dentro do `RefreshableBox` + `verticalScroll`
- * dele, abaixo do seletor de período que já tem (cada produto escolhe mês, dia ou intervalo).
- *
- * @param onOpenFullReport abre o [FullReportOnWebDialog]. `null` esconde o **Ver relatório completo**
- *   (2.309.0) — para app SEM portal web (offline, com o financeiro só no aparelho), onde o botão não
- *   teria destino. Passe `null` explicitamente: o parâmetro não tem default de propósito, para app com
- *   portal não esquecer o botão.
- * @param onExportPdf `null` esconde o botão (PDF indisponível naquele app).
- * @param exporting troca o ícone do botão por um progresso e o desabilita.
+ * **A tela de Relatórios do app — DRE** (2.306.0). Desde 2.315.0 é o resumo genérico
+ * ([ReportSummaryContent] com [ReportSummary]) do [DreSummary.toReportSummary]: o resultado em
+ * destaque, os [DreSummary.highlights], o demonstrativo (id `relatorio-dre`), a abertura por eixo, as
+ * notas e os dois botões. Mesma assinatura de antes.
  */
 @Composable
 fun ReportSummaryContent(
@@ -129,10 +130,55 @@ fun ReportSummaryContent(
     exporting: Boolean = false,
     texts: ReportSummaryTexts = rememberReportSummaryTexts(),
 ) {
+    val generic = remember(summary, texts.dreTitle) { summary.toReportSummary(texts.dreTitle) }
+    ReportSummaryContent(
+        summary = generic,
+        onOpenFullReport = onOpenFullReport,
+        onExportPdf = onExportPdf,
+        modifier = modifier,
+        exporting = exporting,
+        texts = texts,
+    )
+}
+
+/**
+ * **A tela de Relatórios do app, de qualquer relatório** (2.315.0), padrão da fábrica: o número
+ * principal ([ReportSummary.hero]) ou o cabeçalho com título e período, até 4 destaques com variação,
+ * as listas curtas, as notas e os dois botões — **Exportar PDF** e **Ver relatório completo**.
+ *
+ * Não rola nem puxa para atualizar sozinha: o app a põe dentro do `RefreshableBox` + `verticalScroll`
+ * dele, abaixo do seletor de período que já tem (cada produto escolhe mês, dia ou intervalo).
+ *
+ * @param onOpenFullReport abre o [FullReportOnWebDialog]. `null` esconde o **Ver relatório completo**
+ *   — para app SEM portal web. Sem default de propósito, para app com portal não esquecer o botão.
+ * @param onExportPdf `null` esconde o botão (PDF indisponível naquele app). O PDF:
+ *   [exportReportSummaryPdf].
+ * @param exporting troca o ícone do botão por um progresso e o desabilita.
+ */
+@Composable
+fun ReportSummaryContent(
+    summary: ReportSummary,
+    onOpenFullReport: (() -> Unit)?,
+    onExportPdf: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    exporting: Boolean = false,
+    texts: ReportSummaryTexts = rememberReportSummaryTexts(),
+) {
     Column(modifier.fillMaxWidth().testTag("relatorio-resumo"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ResultHero(summary)
-        if (summary.highlights.isNotEmpty()) HighlightsGrid(summary.highlights)
-        DreStatementCard(summary, title = texts.dreTitle)
+        val hero = summary.hero
+        if (hero != null) HeroCard(hero, summary.periodLabel) else ReportHeader(summary.title, summary.periodLabel)
+        val highlights = summary.visibleHighlights
+        if (highlights.isNotEmpty()) HighlightsGrid(highlights)
+        summary.sections.forEachIndexed { index, section ->
+            if (section.isVisible) ListSectionCard(section, section.testTag ?: reportSectionTestTag(index))
+        }
+        if (summary.notes.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().testTag("relatorio-notas"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                summary.notes.forEach {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         ReportSummaryActions(
             onOpenFullReport = onOpenFullReport,
             onExportPdf = onExportPdf,
@@ -142,31 +188,33 @@ fun ReportSummaryContent(
     }
 }
 
+/** Id da seção sem `testTag` próprio. */
+internal fun reportSectionTestTag(index: Int): String = "relatorio-secao-$index"
+
 @Composable
-private fun ResultHero(summary: DreSummary) {
-    val cor = if (summary.result.negative) MaterialTheme.colorScheme.error else AppColors.current.success
+private fun ReportHeader(title: String, period: String) {
+    Column(
+        Modifier.fillMaxWidth().testTag("relatorio-cabecalho").semantics(mergeDescendants = true) { heading() },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(period, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun HeroCard(hero: ReportHighlight, period: String) {
+    val cor = if (hero.tone == ReportTone.NEUTRAL) MaterialTheme.colorScheme.primary else toneColor(hero.tone)
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("relatorio-resultado"),
+        modifier = Modifier.fillMaxWidth().testTag("relatorio-resultado").semantics(mergeDescendants = true) {},
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cor.copy(alpha = 0.10f)),
     ) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                summary.result.label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                summary.result.value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = cor,
-            )
-            Text(
-                summary.periodLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(hero.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(hero.value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = cor)
+            hero.change?.let { ChangeRow(it) }
+            Text(period, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -175,9 +223,9 @@ private fun ResultHero(summary: DreSummary) {
 private fun HighlightsGrid(highlights: List<ReportHighlight>) {
     // Dois por linha: em 360 dp, três cartões cortam "R$ 12.345,67".
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        highlights.chunked(2).forEach { par ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                par.forEach { HighlightCard(it, Modifier.weight(1f)) }
+        highlights.chunked(2).forEachIndexed { row, par ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                par.forEachIndexed { col, h -> HighlightCard(h, row * 2 + col, Modifier.weight(1f).fillMaxHeight()) }
                 if (par.size == 1) Spacer(Modifier.weight(1f))
             }
         }
@@ -185,10 +233,10 @@ private fun HighlightsGrid(highlights: List<ReportHighlight>) {
 }
 
 @Composable
-private fun HighlightCard(h: ReportHighlight, modifier: Modifier) {
+private fun HighlightCard(h: ReportHighlight, index: Int, modifier: Modifier) {
     val cor = toneColor(h.tone)
     Card(
-        modifier = modifier,
+        modifier = modifier.testTag("relatorio-destaque-$index").semantics(mergeDescendants = true) {},
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -202,7 +250,29 @@ private fun HighlightCard(h: ReportHighlight, modifier: Modifier) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(h.value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = cor)
+            h.change?.let { ChangeRow(it) }
         }
+    }
+}
+
+/** Seta + texto da variação. A seta é decorativa; o leitor lê o texto (ou o `contentDescription`). */
+@Composable
+private fun ChangeRow(change: ReportChange) {
+    val cor = if (change.tone == ReportTone.NEUTRAL) MaterialTheme.colorScheme.onSurfaceVariant else toneColor(change.tone)
+    val icon = when (change.trend) {
+        ReportTrend.UP -> Icons.AutoMirrored.Outlined.TrendingUp
+        ReportTrend.DOWN -> Icons.AutoMirrored.Outlined.TrendingDown
+        ReportTrend.FLAT -> Icons.AutoMirrored.Outlined.TrendingFlat
+    }
+    Row(
+        // Sem merge próprio: o cartão em volta já junta tudo num foco só. Com `contentDescription`, a
+        // frase do leitor substitui o texto curto ("+12%") dentro desse foco.
+        change.contentDescription?.let { cd -> Modifier.clearAndSetSemantics { contentDescription = cd } } ?: Modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = cor, modifier = Modifier.size(16.dp))
+        Text(change.text, style = MaterialTheme.typography.labelSmall, color = cor, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -215,74 +285,70 @@ private fun toneColor(tone: ReportTone): Color = when (tone) {
 }
 
 @Composable
-private fun DreStatementCard(summary: DreSummary, title: String) {
+private fun ListSectionCard(section: ReportListSection, tag: String) {
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("relatorio-dre"),
+        modifier = Modifier.fillMaxWidth().testTag(tag),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            summary.lines.forEach { line ->
-                if (line.kind == DreLineKind.SUBTOTAL || line.kind == DreLineKind.TOTAL) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-                StatementRow(line)
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            section.title?.let {
                 Text(
-                    summary.result.label,
+                    it,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f).padding(end = 12.dp),
-                )
-                Text(
-                    summary.result.value,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (summary.result.negative) MaterialTheme.colorScheme.error else AppColors.current.success,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
                 )
             }
-            if (summary.breakdown.isNotEmpty()) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                summary.breakdownTitle?.let {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (section.items.isEmpty() && section.total == null) {
+                section.emptyText?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                summary.breakdown.forEach { StatementRow(it) }
             }
-            summary.notes.forEach {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            section.items.forEach { item ->
+                if (item.style == ReportLineStyle.SUBTOTAL) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                ListRow(item)
+            }
+            section.total?.let { total ->
+                if (section.items.isNotEmpty()) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        total.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    )
+                    Text(total.value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = toneColor(total.tone))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun StatementRow(line: DreSummaryLine) {
-    val recuada = line.kind == DreLineKind.DEDUCTION || line.kind == DreLineKind.ITEM
-    val peso = when (line.kind) {
-        DreLineKind.REVENUE -> FontWeight.Bold
-        DreLineKind.SUBTOTAL, DreLineKind.TOTAL -> FontWeight.SemiBold
+private fun ListRow(item: ReportListItem) {
+    val recuada = item.style == ReportLineStyle.INDENTED || item.style == ReportLineStyle.MUTED_INDENTED
+    val muted = item.style == ReportLineStyle.MUTED_INDENTED
+    val peso = when (item.style) {
+        ReportLineStyle.STRONG -> FontWeight.Bold
+        ReportLineStyle.SUBTOTAL -> FontWeight.SemiBold
         else -> FontWeight.Normal
     }
-    val corDoRotulo =
-        if (line.kind == DreLineKind.DEDUCTION) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val corDoRotulo = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     val corDoValor = when {
-        line.negative -> MaterialTheme.colorScheme.error
-        line.kind == DreLineKind.DEDUCTION -> MaterialTheme.colorScheme.onSurfaceVariant
+        item.tone != ReportTone.NEUTRAL -> toneColor(item.tone)
+        muted -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurface
     }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            line.label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = peso,
-            color = corDoRotulo,
-            modifier = Modifier.weight(1f).padding(start = if (recuada) 12.dp else 0.dp, end = 12.dp),
-        )
-        Text(line.value, style = MaterialTheme.typography.bodyMedium, fontWeight = peso, color = corDoValor)
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(start = if (recuada) 12.dp else 0.dp, end = 12.dp)) {
+            Text(item.label, style = MaterialTheme.typography.bodyMedium, fontWeight = peso, color = corDoRotulo)
+            item.supporting?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text(item.value, style = MaterialTheme.typography.bodyMedium, fontWeight = peso, color = corDoValor)
     }
 }
 

@@ -14,6 +14,11 @@
       oferecer; com o parâmetro obrigatório, o botão "Ver relatório completo" aparece sem destino.
       `null` = esconde o botão. Aditivo.
 
+### Registrado em 21/out/2026 — entregue na 2.315.0 (RondAki)
+- [x] **`HoldToConfirmButton`** — ação crítica por pressionar e segurar (progresso, háptico por degrau e de conclusão, cancelamento ao soltar, ação acessível alternativa com confirmação, variantes de cor). O RondAki tinha `BotaoDePanico` + `ConfirmacaoPorSegurar` próprios. (Não confundir com o G6 "segurar para desbloquear", que segue fora da lib.)
+- [x] **`pdf.report` genérico** — `ReportSummary` (título, período, hero, até 4 destaques com `ReportChange`, seções de lista curta, notas), `ReportSummaryContent(ReportSummary)`, `ReportSummaryPdf`/`exportReportSummaryPdf`; o DRE virou caso (`DreSummary.toReportSummary`). O RondAki forçava as rondas no formato de DRE.
+- [ ] **(P2) Prova em aparelho** — TalkBack/VoiceOver no `HoldToConfirmButton` (toque duplo sustentado, ação "Confirmar sem segurar"), háptico por degrau no iPhone; PDF genérico renderizado no iOS.
+
 ### Registrado em 21/out/2026 — entregue na 2.314.0 (RondAki)
 - [x] **Push com vários ouvintes + toque a frio guardado** (`PushEvents`/`PushListenerHub`, `PushListenerRegistration`, `release()`, `attachKmpNotifier()`). O RondAki mantinha um ouvinte único global (`CaixaDePush` + `ServicoDePush`) porque o `ApplePushBridge` guardava um listener só e perdia o toque sem listener.
 - [x] **`AdaptiveDestination.badge`** (`NavBadge.Count`/`Dot`, M3 `Badge`, descrição acessível com o número, `nav-badge-<id>`) nos três modos do `AdaptiveScaffold`.

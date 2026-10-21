@@ -5,6 +5,51 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.315.0 — **`HoldToConfirmButton` (ação crítica por pressionar e segurar) e `pdf.report` genérico (`ReportSummary`)**
+
+Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`) — o botão de pânico (`BotaoDePanico` +
+`ConfirmacaoPorSegurar`) e a tela de Relatórios, que encaixava as rondas no `DreSummary` (linhas de "rondas" como se
+fossem receita e dedução). Aditivo: **sem piso, sem aviso**.
+
+### `HoldToConfirmButton` (`kmplib-ui`, `ui.components`)
+- `HoldToConfirmButton(text, onConfirm, modifier, enabled, holdDurationMillis = 2000, variant = DANGER, colors, icon,
+  supportingText, hapticSteps = 4, stepHaptic = Tick, confirmHaptic = Confirm, hapticUsage = TOUCH, haptics,
+  accessibleConfirmation = true, shape, texts, testTag = "segurar-confirmar")`.
+  - Faixa de progresso que enche da borda inicial (RTL), tempo monotônico medido a cada quadro (`withFrameMillis`);
+    soltar, arrastar para fora ou a rolagem do pai levar o gesto **cancela** e a faixa volta (sem animação com
+    "reduzir movimento"). `onConfirm` uma vez por gesto.
+  - Háptico por degrau pelo `Haptics` da lib (25/50/75 %) e háptico de conclusão; `null` desliga cada um.
+  - **Acessibilidade:** lido "rótulo. Toque duas vezes e segure para confirmar"; toque duplo sustentado funciona; a
+    ação de toque longo do serviço confirma direto; o **toque duplo simples** (ação "Confirmar sem segurar") abre um
+    `ConfirmationDialog` — a alternativa para quem não consegue segurar. Estado "Continue segurando…".
+  - `HoldToConfirmVariant` `DANGER`/`WARNING`/`PRIMARY`, `HoldToConfirmColors`, `HoldToConfirmDefaults`
+    (`colors(variant)`, faixas 300–10 000 ms e 0–20 degraus), `HoldToConfirmTexts`/`rememberHoldToConfirmTexts()`
+    (4 idiomas), `HoldToConfirmTestTags.BUTTON`.
+  - Regra pura `HoldToConfirmGesture(durationMillis, hapticSteps).advance(elapsed, lastStep, pressed)` →
+    `HoldToConfirmStep.Holding/Confirmed/Cancelled`.
+- `ConfirmationDialog(…, primaryContentColor = Color.White)` — texto do botão de confirmar configurável (o branco fixo
+  ficava ilegível sobre âmbar). Default igual ao de antes.
+
+### `pdf.report` genérico (`kmplib-pdf`)
+- **`ReportSummary(title, periodLabel, hero, highlights, sections, notes)`** — até `MAX_HIGHLIGHTS` (4) destaques
+  (`visibleHighlights`; excedentes não são desenhados nem vão ao PDF), `ReportListSection(title, items, total,
+  emptyText, testTag)`, `ReportListItem(label, value, supporting, style, tone)`, `ReportLineStyle`
+  (`NORMAL`/`STRONG`/`INDENTED`/`MUTED_INDENTED`/`SUBTOTAL`).
+- **`ReportHighlight.change: ReportChange?`** (novo parâmetro com default) — `ReportChange(text, trend, tone,
+  contentDescription)`, `ReportTrend` `UP`/`DOWN`/`FLAT`: seta + texto sob o valor, cor pelo tom (subir nem sempre é bom).
+- **`ReportSummaryContent(summary: ReportSummary, onOpenFullReport, onExportPdf, …)`** — sobrecarga nova; hero ou
+  cabeçalho (título + período, `heading`), destaques 2×2, uma cartão por seção (`relatorio-secao-<i>` ou o `testTag`),
+  notas e os mesmos botões.
+- **`ReportSummaryPdf.build/fileName`** + **`exportReportSummaryPdf(...)`**.
+- **O DRE virou um caso:** `DreSummary.toReportSummary(title)`; a `ReportSummaryContent(DreSummary, …)` e o
+  `DreSummaryPdf.build` passam pelo genérico. **API do DRE inalterada** (mesmas assinaturas, `relatorio-resultado`,
+  `relatorio-dre`). Diferenças visíveis: no PDF a abertura por eixo (`breakdown`) sai em tabela (era bloco chave→valor);
+  na tela, abertura e notas saem em blocos próprios abaixo do demonstrativo; destaques acima de 4 deixam de aparecer.
+
+Testes: `HoldToConfirmGestureTest` (9), `ReportSummaryPdfTest` (9), `DreAsReportSummaryTest` (3); `DreSummaryPdfTest`
+ajustado. `:kmplib-ui:testDebugUnitTest` (1136) e `:kmplib-pdf:testDebugUnitTest` (153) verdes;
+`compileKotlinIosArm64` de ui/pdf executado (sem SKIPPED).
+
 ## 2.314.0 — **Push com vários ouvintes e toque a frio guardado; selo na navegação adaptativa**
 
 Origem: app do **RondAki** (`8-Sistemas-Portal-App/RondAki`), que mantinha um ouvinte de push único e global

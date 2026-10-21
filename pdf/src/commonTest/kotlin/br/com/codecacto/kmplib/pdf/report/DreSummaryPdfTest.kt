@@ -80,10 +80,11 @@ class DreSummaryPdfTest {
         )
         val doc = DreSummaryPdf.build(comArea, DocumentPdfCompany("X"), ReportSummaryTexts(), "agora")
         val i = doc.sections.indexOfFirst { it is DocumentSection.Total }
-        val info = doc.sections[i + 1] as DocumentSection.Info
-        assertEquals("Por área", info.title)
-        assertEquals(listOf("Resultado — Locações", "Compartilhadas"), info.rows.map { it.label })
-        assertTrue(summary.breakdown.isEmpty() && pdf.sections.none { it is DocumentSection.Info })
+        // 2.315.0: a abertura é uma seção do resumo genérico — tabela, como as demais.
+        val tabela = doc.sections[i + 1] as DocumentSection.Table
+        assertEquals("Por área", tabela.title)
+        assertEquals(listOf("Resultado — Locações", "Compartilhadas"), tabela.rows.map { it.cells[0] })
+        assertTrue(summary.breakdown.isEmpty() && pdf.sections.filterIsInstance<DocumentSection.Table>().size == 1)
     }
 
     @Test
