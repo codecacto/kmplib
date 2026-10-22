@@ -310,3 +310,43 @@ fun hourTicks(window: BusinessWindow, stepMin: Int = 60): List<Int> {
     }
     return ticks
 }
+
+/**
+ * Faixas LIVRES de uma coluna, no passo da grade — a regra pura por trás da pista "+ Agendar" do
+ * [AppTimeGridScheduler] (`freeSlotHint`, 2.318.0).
+ *
+ * Um passo `[s, s + stepMin)` é livre quando:
+ * 1. cabe inteiro na [window] (o passo começa no primeiro múltiplo de `stepMin` da janela);
+ * 2. cabe inteiro numa faixa de [availableRanges] — `null`/vazio = a janela toda conta como
+ *    disponível (mesma leitura do `offHoursRanges`: sem informação, não se assume fechado);
+ * 3. não encosta em nenhuma faixa de [occupied] (evento + buffer, bloqueio). Faixa de duração zero
+ *    ocupa o minuto em que começa — o evento malformado continua desenhado (altura mínima) e a pista
+ *    não pode nascer debaixo dele.
+ *
+ * Passo parcial (sobra no fim da janela, ou expediente que fecha fora do múltiplo) NÃO vira pista:
+ * a pista promete o passo inteiro, e oferecer "Agendar" em 15 minutos de uma grade de 30 seria
+ * convidar para um horário que o serviço não comporta.
+ */
+fun freeSlotRanges(
+    window: BusinessWindow,
+    stepMin: Int,
+    availableRanges: List<WorkRange>?,
+    occupied: List<MinuteRange>,
+): List<MinuteRange> {
+    if (stepMin <= 0 || window.endMin <= window.startMin) return emptyList()
+    val available = availableRanges?.filter { it.endMin > it.startMin }
+        ?.takeIf { it.isNotEmpty() }
+        ?.map { MinuteRange(it.startMin, it.endMin) }
+        ?: listOf(MinuteRange(window.startMin, window.endMin))
+    val busy = occupied.map { if (it.endMin > it.startMin) it else MinuteRange(it.startMin, it.startMin + 1) }
+
+    val out = ArrayList<MinuteRange>()
+    var s = ceilToStep(window.startMin, stepMin)
+    while (s + stepMin <= window.endMin) {
+        val slot = MinuteRange(s, s + stepMin)
+        val inside = available.any { slot.startMin >= it.startMin && slot.endMin <= it.endMin }
+        if (inside && busy.none { rangesOverlap(slot, it) }) out.add(slot)
+        s += stepMin
+    }
+    return out
+}

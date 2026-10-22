@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,12 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -93,6 +98,36 @@ data class AppTimeGridTexts(
      * Sem ele, a faixa seria um retângulo colorido e mudo — a distinção existiria só para quem enxerga.
      */
     val layer: String = "Destinação",
+)
+
+/**
+ * Pista visível do horário LIVRE da grade ("+ Agendar") — 2.318.0.
+ *
+ * O toque em área livre (`onSlotClick`) sempre existiu, mas era invisível: a grade vazia não diz que
+ * dá para tocar nela, e quem não sabe procura um botão que não existe. Com esta pista, cada passo
+ * livre (`slotStepMin`) dentro do expediente da coluna desenha, discretamente, o ícone e o rótulo —
+ * na cor primária com baixa ênfase, NUNCA por cima de evento, buffer, bloqueio ou fora-de-expediente
+ * (regra pura em [freeSlotRanges]).
+ *
+ * Só aparece com `onSlotClick` definido (a pista promete um toque que funciona). O toque na pista
+ * chama o MESMO `onSlotClick(columnId, minutoDoInícioDoPasso)`. Para o leitor de tela, cada pista é
+ * um botão "<rótulo>, 09:00–09:30, <coluna>".
+ *
+ * @param label Texto da pista (ex.: "Agendar") — o app passa do PRÓPRIO string resource, no idioma
+ *   da tela.
+ * @param icon Ícone à esquerda do texto; `null` = só o texto. Default `Icons.Filled.Add`.
+ * @param isAvailable Filtro do app por passo: `(columnId, startMin) -> Boolean`. É onde entra a regra
+ *   que só o app conhece — "este usuário pode agendar para ESTE profissional", "não oferecer horário
+ *   que já passou", "a destinação desta faixa aceita agendamento" (`layerAtMinute`). `null` = todo
+ *   passo livre recebe a pista.
+ * @param testTagPrefix Prefixo do `testTag` de cada pista: `<prefixo>-<columnId>-<HHmm>`
+ *   (ex.: `agenda-livre-medico42-0930`), para o flow Maestro tocar num horário por id.
+ */
+data class FreeSlotHint(
+    val label: String,
+    val icon: ImageVector? = Icons.Filled.Add,
+    val isAvailable: ((columnId: String, startMin: Int) -> Boolean)? = null,
+    val testTagPrefix: String = "agenda-livre",
 )
 
 /** Cores default de evento derivadas do tema (o app sobrepõe por status). */
@@ -179,6 +214,9 @@ private val GRID_BOTTOM_GUTTER = 24.dp
  *   `kind` e usa tom neutro + textura lisa — o que faz **todas** as destinações saírem indistinguíveis
  *   e o aviso de [indistinguishableLayerKinds] aparecer no log, em vez de a grade parecer decorada.
  *   **Exiba a legenda na tela** com [ScheduleLegend]: fundo texturizado sem legenda é enfeite.
+ * @param freeSlotHint Pista visível ("+ Agendar") em cada passo LIVRE e clicável — ver [FreeSlotHint].
+ *   `null` (default) = comportamento de sempre (área livre clicável, mas sem desenho). Só desenha com
+ *   [onSlotClick] presente.
  */
 @Composable
 fun AppTimeGridScheduler(
@@ -211,6 +249,7 @@ fun AppTimeGridScheduler(
     columnEmptyLabel: String? = null,
     layers: List<ScheduleLayer> = emptyList(),
     layerLegend: ScheduleLayerLegend? = null,
+    freeSlotHint: FreeSlotHint? = null,
 ) {
     val isCompact = LocalIsCompact.current
     val fallbackColors = defaultEventColors()
@@ -449,6 +488,8 @@ fun AppTimeGridScheduler(
                             selectedEventId = selectedEventId,
                             texts = texts,
                             emptyLabel = columnEmptyLabel,
+                            freeSlotHint = freeSlotHint,
+                            businessRanges = businessRanges,
                         )
                     }
                 }
@@ -570,6 +611,8 @@ private fun ResourceColumn(
     selectedEventId: String?,
     texts: AppTimeGridTexts,
     emptyLabel: String? = null,
+    freeSlotHint: FreeSlotHint? = null,
+    businessRanges: List<WorkRange> = emptyList(),
 ) {
     val localDensity = LocalDensity.current
     val guideColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -670,6 +713,44 @@ private fun ResourceColumn(
             )
         }
 
+        // Pista do horário LIVRE ("+ Agendar"). Depois de destinação/sombra/bloqueio e ANTES dos eventos:
+        // a regra pura já exclui tudo o que está ocupado, e os eventos seguem por cima de qualquer jeito.
+        if (freeSlotHint != null && onSlotClick != null) {
+            val freeSlots = remember(window, slotStepMin, column.availableRanges, businessRanges, events, blocks) {
+                freeSlotRanges(
+                    window = window,
+                    stepMin = slotStepMin,
+                    // Disponibilidade da coluna; sem ela, o expediente do dia (a janela derivada tem
+                    // folga além do expediente — oferecer "Agendar" nessa folga seria mentir).
+                    availableRanges = column.availableRanges.takeIf { it.isNotEmpty() } ?: businessRanges,
+                    occupied = events.map { e ->
+                        val r = toMinuteRange(e.start, e.end)
+                        MinuteRange(r.startMin, r.endMin + e.bufferMin.coerceAtLeast(0))
+                    } + blocks.map { toMinuteRange(it.start, it.end) },
+                )
+            }
+            // O aviso de coluna vazia mora no topo da coluna: a pista não nasce por baixo dele.
+            val reservedTop = if (events.isEmpty() && emptyLabel != null) 32f else 0f
+            freeSlots.forEach { slot ->
+                if (freeSlotHint.isAvailable?.invoke(column.id, slot.startMin) == false) return@forEach
+                val top = (slot.startMin - window.startMin) * unitPerMinute
+                if (top < reservedTop) return@forEach
+                FreeSlotHintCell(
+                    hint = freeSlotHint,
+                    top = top.dp,
+                    height = ((slot.endMin - slot.startMin) * unitPerMinute).dp,
+                    contentDescription = listOfNotNull(
+                        freeSlotHint.label,
+                        "${formatTimeOfDay(slot.startMin)}–${formatTimeOfDay(slot.endMin)}",
+                        column.label.takeIf { !isSingle && it.isNotBlank() },
+                    ).joinToString(", "),
+                    testTag = "${freeSlotHint.testTagPrefix}-${column.id}-" +
+                        formatTimeOfDay(slot.startMin).replace(":", ""),
+                    onClick = { onSlotClick(column.id, slot.startMin) },
+                )
+            }
+        }
+
         // Linha do "agora".
         if (nowMin != null) {
             Box(
@@ -739,6 +820,65 @@ private fun ResourceColumn(
                     .padding(top = 12.dp, start = 6.dp, end = 6.dp)
                     .fillMaxWidth(),
             )
+        }
+    }
+}
+
+/**
+ * Uma pista "+ Agendar" num passo livre. Discreta de propósito (primária com alfa baixo, sem fundo):
+ * é convite, não conteúdo — a grade cheia de pistas não pode competir com os agendamentos. Abaixo de
+ * ~20dp de altura o texto não cabe e fica só o ícone; abaixo de ~12dp nem o ícone (o toque na coluna
+ * continua valendo, como sempre).
+ */
+@Composable
+private fun FreeSlotHintCell(
+    hint: FreeSlotHint,
+    top: Dp,
+    height: Dp,
+    contentDescription: String,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    if (height < 12.dp) return
+    val tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    Box(
+        modifier = Modifier
+            .offset(y = top)
+            .fillMaxWidth()
+            .height(height)
+            .padding(horizontal = 2.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .testTag(testTag)
+            // `clickable` ANTES do semantics: o `clearAndSetSemantics` apagaria o papel de botão.
+            .clickable(onClick = onClick)
+            .clearAndSetSemantics {
+                this.contentDescription = contentDescription
+                this.role = Role.Button
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (hint.icon != null) {
+                Icon(
+                    imageVector = hint.icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.width(14.dp).height(14.dp),
+                )
+            }
+            if (height >= 20.dp || hint.icon == null) {
+                Text(
+                    text = hint.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

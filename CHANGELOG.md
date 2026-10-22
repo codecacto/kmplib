@@ -5,6 +5,36 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.318.0 — **Pista "+ Agendar" no horário livre do `AppTimeGridScheduler` (`FreeSlotHint`) + fuso `America/Cuiaba` nos exemplos**
+
+Origem: app do **Vitalis** (fundador, 22/out/2026) — o horário livre da agenda sempre foi tocável (`onSlotClick`),
+mas nada na grade dizia isso, e quem não sabe procura um botão que não existe. Aditivo: **sem piso, sem aviso**.
+
+### `kmplib-ui` (`ui.calendar`)
+- `AppTimeGridScheduler(…, freeSlotHint: FreeSlotHint? = null)` (último parâmetro). Com ele **e** com `onSlotClick`,
+  cada passo LIVRE da grade (`slotStepMin`) dentro do expediente da coluna (`availableRanges`; sem ele, o
+  `businessRanges` do dia — nunca a folga que a janela derivada acrescenta) desenha uma pista discreta: ícone +
+  rótulo na cor primária com alfa baixo, sem fundo. Nunca por cima de evento (nem do buffer), bloqueio ou
+  fora-de-expediente; não nasce debaixo do `columnEmptyLabel`. Abaixo de ~20 dp de altura fica só o ícone; abaixo
+  de ~12 dp, nada (o toque na coluna continua). `null` = comportamento idêntico ao de antes.
+- `FreeSlotHint(label, icon = Icons.Filled.Add, isAvailable: ((columnId, startMin) -> Boolean)? = null,
+  testTagPrefix = "agenda-livre")` — o `label` vem do string resource do APP; `isAvailable` é onde o app põe a
+  regra que só ele conhece (pode agendar para este profissional? o horário já passou?). O toque chama o MESMO
+  `onSlotClick(columnId, início do passo)`. Acessível: cada pista é um botão "Agendar, 09:00–09:30, <coluna>";
+  `testTag` `<prefixo>-<columnId>-<HHmm>` para o Maestro.
+- `freeSlotRanges(window, stepMin, availableRanges, occupied): List<MinuteRange>` — a regra pura (passo inteiro
+  dentro da janela e do expediente, sem tocar ocupação; faixa de duração zero ocupa o minuto em que começa;
+  passo parcial não vira pista). Testes: `FreeSlotRangesTest` (7).
+
+### Fuso padrão da fábrica = `America/Cuiaba` (constituição, 22/out/2026)
+- Varredura da lib: **nenhum código de produção usava `America/Sao_Paulo` como default ou fallback** — todo default
+  de fuso da kmplib é o fuso do APARELHO (`TimeZone.currentSystemDefault()`), que é o certo no mobile (o relógio é
+  o do aparelho; impor Cuiabá a quem está em outro fuso erraria a hora). Nada muda de comportamento.
+- O exemplo da mensagem de erro do `IcsCalendar` (fuso não-IANA) passou a citar `America/Cuiaba`.
+- Mantidos de propósito: o exemplo do KDoc do `MoonCalculator` (ilustra a virada de data num fuso específico,
+  com valores conferidos pelo teste) e os fusos `America/Sao_Paulo` dos TESTES — são entradas explícitas, não
+  defaults, e o golden do `.ics` é byte a byte o da weblib.
+
 ## 2.317.0 — **Paywall abre no degrau por id (`PaywallTierConfig.initialTierId`) e `SelectTier` antes da carga não se perde**
 
 Origem: app do **RondAki** — o paywall aberto a partir de um 402 de cota quer abrir já no `degrauSugerido` do

@@ -387,7 +387,7 @@ object IcsCalendar {
         require(
             id.isNotBlank() && id != "Z" && id[0] != '+' && id[0] != '-' &&
                 id.none { it == ':' || it == ';' || it == ',' || it == '"' || it.isWhitespace() },
-        ) { "IcsCalendar: \"timeZone\" deve ser um fuso IANA (ex.: \"America/Sao_Paulo\"), não \"$id\"." }
+        ) { "IcsCalendar: \"timeZone\" deve ser um fuso IANA (ex.: \"America/Cuiaba\"), não \"$id\"." }
         return id
     }
 
