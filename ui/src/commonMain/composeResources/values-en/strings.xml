@@ -141,7 +141,8 @@
     <!-- Desenvolvido por / Contato (central/developer, central/contact) -->
     <string name="kmplib_dev_title">Developed by</string>
     <string name="kmplib_dev_subtitle">Meet the people behind the app</string>
-    <string name="kmplib_dev_slogan">Apps that make your day easier.</string>
+    <string name="kmplib_dev_slogan">The software that powers your business.</string>
+    <string name="kmplib_dev_tagline">Custom systems, apps and websites for businesses.</string>
     <string name="kmplib_dev_contact_section">Talk to us</string>
     <string name="kmplib_dev_whatsapp">Chat on WhatsApp</string>
     <string name="kmplib_dev_email">Send email</string>
@@ -150,8 +151,8 @@
     <string name="kmplib_dev_email_subject">Contact from the app</string>
     <string name="kmplib_dev_whatsapp_message_from_app">Hi! I came from the %1$s app and would like to talk to you.</string>
     <string name="kmplib_dev_email_subject_from_app">Contact from the %1$s app</string>
-    <string name="kmplib_dev_apps_section">Our apps</string>
-    <string name="kmplib_dev_apps_empty">New apps coming soon.</string>
+    <string name="kmplib_dev_apps_section">Our projects</string>
+    <string name="kmplib_dev_apps_empty">New projects coming soon.</string>
     <string name="kmplib_contact_title">Get in touch</string>
     <string name="kmplib_contact_subtitle">Send your message and we will get back to you soon.</string>
     <string name="kmplib_contact_name_label">Name</string>

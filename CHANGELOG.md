@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.323.0 — **Tela "Desenvolvido por" refeita:** barra de topo padrão, slogan novo, só site + WhatsApp, grade "Nossos projetos"
+
+Origem: pedido do fundador (22/out/2026) — a `DeveloperScreen` tinha um cabeçalho colorido gigante, e-mail e
+formulário de contato. Aditivo para quem compila: **sem piso, sem aviso** (o WhatsApp errado da reserva só
+aparecia offline, e o do servidor já foi corrigido para todos).
+
+### `kmplib-central` — `developer`
+- **`DeveloperScreen` redesenhada:** `AppTopBar` padrão (voltar = `topbar-voltar`), coluna central de até 560 dp
+  como a `AboutScreen`; marca com logo, **slogan** ("O software que vira o motor da sua empresa.") e a linha do
+  site; **duas ações** — **Visitar o site** e **Conversar no WhatsApp** (mensagem dizendo de qual app a pessoa
+  veio); grade de **2 colunas "Nossos projetos"** na ordem do servidor (fixados primeiro, resto sorteado a cada
+  visita — curado no Nexus → Vitrine); esqueleto de carregamento no lugar do spinner.
+- **`DeveloperTestTags`** novo (`desenvolvedor-tela`, `-btn-site`, `-btn-whatsapp`, `-projeto`) para Maestro.
+- **E-mail e formulário "Entrar em contato" saem da tela.** `defaultName`/`defaultEmail`/`defaultWhatsapp`/
+  `phoneFormat` continuam na assinatura, **sem efeito** — não quebra quem passa.
+- **Reserva de contato corrigida:** WhatsApp com DDI+DDD (`5565998030240` — sem o 55 abria Singapura),
+  `contato@codecacto.com.br`, `https://codecacto.com.br`; site em branco vindo do servidor cai na reserva.
+
+### `kmplib-ui` — recursos
+- `kmplib_dev_slogan`, `kmplib_dev_tagline` (novo texto), `kmplib_dev_site`, `kmplib_dev_apps_section`,
+  `kmplib_dev_apps_empty` nos 4 idiomas.
+
 ## 2.322.0 — **Tablet de verdade:** trilho desenhável no `AdaptiveScaffold`, `SupportingPaneScaffold`, colunas agrupadas no `AppTimeGridScheduler`, lista fixa e recolhível no `ListDetailScaffold`, segunda faixa no `ReferenceBandChart`
 
 Origem: **Vitalis** — layout próprio de tablet do app do médico e da secretária (protótipo aprovado pelo fundador em

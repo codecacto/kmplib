@@ -68,7 +68,7 @@ object DeveloperInfoService {
             DeveloperContact(
                 whatsapp = info.contact.whatsapp?.takeIf { it.isNotBlank() } ?: fallback.whatsapp,
                 email = info.contact.email?.takeIf { it.isNotBlank() } ?: fallback.email,
-                site = info.contact.site.orEmpty(),
+                site = info.contact.site?.takeIf { it.isNotBlank() } ?: fallback.site,
             )
         )
     }

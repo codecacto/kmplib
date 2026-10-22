@@ -1,41 +1,36 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
-import br.com.codecacto.kmplib.mask.PhoneInputFormat
-import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,81 +42,88 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.developer.DeveloperApp
 import br.com.codecacto.kmplib.developer.DeveloperContact
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.developer.resolveStoreUrl
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.codecacto_logo
-import br.com.codecacto.kmplib.platform.audience.ParentalGate
+import br.com.codecacto.kmplib.mask.PhoneInputFormat
 import br.com.codecacto.kmplib.platform.getUrlLauncher
-import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
+import br.com.codecacto.kmplib.ui.components.AppTopBar
+import br.com.codecacto.kmplib.ui.components.NavigationType
+import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
-import androidx.compose.ui.platform.testTag
-import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
 
 private val WhatsAppGreen = Color(0xFF25D366)
+private val CONTENT_MAX_WIDTH = 560.dp
 
 /**
- * Tela "Desenvolvido por" reutilizável.
+ * Ids da [DeveloperScreen] para os flows Maestro (vocabulário `tela-elemento-acao`). Estáveis.
+ * O voltar é o `topbar-voltar` da `AppTopBar`.
+ */
+object DeveloperTestTags {
+    const val TELA: String = "desenvolvedor-tela"
+    const val BTN_SITE: String = "desenvolvedor-btn-site"
+    const val BTN_WHATSAPP: String = "desenvolvedor-btn-whatsapp"
+    const val PROJETO: String = "desenvolvedor-projeto"
+
+    val all: List<String> = listOf(TELA, BTN_SITE, BTN_WHATSAPP, PROJETO)
+}
+
+/**
+ * Tela **"Desenvolvido por"** — padrão de todo app da fábrica, aberta pela tela Sobre
+ * (`AboutScreen`). Mesmo desenho da Sobre: barra de topo padrão, coluna central de no máximo 560dp.
  *
- * Mostra a identidade do desenvolvedor (CodeCacto), botões de contato
- * (WhatsApp, e-mail e, opcionalmente, site) e uma grade vertical com os apps
- * publicados. Contato e apps são carregados do backend central **apps-api** via
- * [DeveloperInfoService] (`GET /public/developer`, com fallback offline — nunca quebra a tela).
+ * Mostra a marca CodeCacto (logo, slogan e a linha do site), **duas ações** — **Visitar o site** e
+ * **Conversar no WhatsApp** (mensagem já dizendo de qual app a pessoa veio) — e a grade **Nossos
+ * projetos**. Desde a 2.323.0 não há mais e-mail nem formulário "Entrar em contato" aqui: o contato
+ * da empresa é o WhatsApp e o site.
  *
- * Requer `DeveloperInfoService.initialize(DeveloperConfig(httpClient = ...))` no bootstrap do app
- * (mesmo ponto do `FeedbackService`). Sem inicializar, a tela renderiza com o fallback padrão.
+ * Contato e projetos vêm do apps-api ([DeveloperInfoService], `GET /public/developer`, com reserva
+ * offline — nunca quebra a tela). A ordem dos projetos é a do servidor: fixados primeiro e o resto
+ * sorteado a cada visita, curado no Nexus → Vitrine.
+ *
+ * App infantil: site, WhatsApp e loja saem pelo `getUrlLauncher()`, que já passa pelo portão de pais.
  *
  * ```kotlin
- * DeveloperScreen(
- *     onBack = { navController.popBackStack() },
- *     primaryColor = Color(0xFF6D28D9)
- * )
+ * composable<Route.Developer> {
+ *     DeveloperScreen(onBack = { navController.popBackStack() })
+ * }
  * ```
  *
- * **App infantil (2.259.0):** todos os botões e cards saem pelo `getUrlLauncher()`, que já passa
- * pelo portão de pais, e o "Entrar em contato" (formulário que pede nome e e-mail) também.
- *
- * @param onBack Callback para voltar à tela anterior
- * @param primaryColor Cor primária (header e botão principal)
- * @param backgroundColor Cor de fundo do conteúdo
- * @param cardColor Cor de fundo dos cards de app
- * @param texts Textos customizáveis (suporta i18n)
- * @param defaultName Nome pré-preenchido no formulário de contato (ex.: usuário logado)
- * @param defaultEmail E-mail pré-preenchido no formulário de contato (ex.: usuário logado)
- * @param defaultWhatsapp WhatsApp pré-preenchido em dígitos (ex.: telefone do perfil)
- * @param bottomBar Rodapé fixo, opcional — o lugar do banner de house ad. Vai direto para o
- *   `bottomBar` do `Scaffold` interno, e o conteúdo já desconta a altura dele (o último card de app
- *   termina COLADO ao topo do rodapé, nunca por baixo). Vazio por default: quem não passa nada
- *   continua exatamente como antes. O mesmo rodapé segue para a [ContactScreen] aberta pelo botão
- *   "Entrar em contato" — ela SUBSTITUI esta tela, e sem repassar o banner sumiria ali.
- *
- *   ```kotlin
- *   DeveloperScreen(
- *       onBack = { navController.popBackStack() },
- *       bottomBar = { ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.STANDARD) },
- *   )
- *   ```
+ * @param onBack voltar (seta da `AppTopBar`, id `topbar-voltar`).
+ * @param primaryColor cor do botão "Visitar o site".
+ * @param backgroundColor fundo da tela.
+ * @param cardColor fundo dos cartões de projeto.
+ * @param texts textos; default no idioma do aparelho ([rememberDeveloperTexts]).
+ * @param defaultName sem efeito desde a 2.323.0 (era o formulário de contato, que saiu da tela).
+ * @param defaultEmail sem efeito desde a 2.323.0.
+ * @param defaultWhatsapp sem efeito desde a 2.323.0.
+ * @param bottomBar rodapé fixo, opcional (banner de house ad). O último cartão termina colado ao
+ *   topo dele, nunca por baixo.
+ * @param phoneFormat sem efeito desde a 2.323.0.
  */
 @Composable
 fun DeveloperScreen(
     onBack: () -> Unit,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     backgroundColor: Color = MaterialTheme.colorScheme.background,
-    cardColor: Color = MaterialTheme.colorScheme.surface,
+    cardColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     texts: DeveloperTexts? = null,
     defaultName: String? = null,
     defaultEmail: String? = null,
     defaultWhatsapp: String? = null,
     bottomBar: @Composable () -> Unit = {},
-    /** Formato do WhatsApp do formulário de contato (2.219.0) — ver `ContactScreen`. */
     phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
 ) {
     @Suppress("NAME_SHADOWING")
@@ -129,7 +131,6 @@ fun DeveloperScreen(
     var contact by remember { mutableStateOf(DeveloperContact()) }
     var apps by remember { mutableStateOf<List<DeveloperApp>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var showContact by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         contact = DeveloperInfoService.fetchContact().getOrDefault(DeveloperContact())
@@ -137,286 +138,229 @@ fun DeveloperScreen(
         isLoading = false
     }
 
-    // "Entrar em contato" abre o formulário (ContactScreen) sem exigir navegação do app.
-    if (showContact) {
-        ContactScreen(
-            onBack = { showContact = false },
-            primaryColor = primaryColor,
-            backgroundColor = backgroundColor,
-            texts = texts.contact,
-            defaultName = defaultName,
-            defaultEmail = defaultEmail,
-            defaultWhatsapp = defaultWhatsapp,
-            bottomBar = bottomBar,
-            phoneFormat = phoneFormat,
-        )
-        return
-    }
-
-    Scaffold(bottomBar = bottomBar) { paddingValues ->
-        Column(
+    Scaffold(
+        modifier = Modifier.testTag(DeveloperTestTags.TELA),
+        topBar = {
+            AppTopBar(
+                title = texts.title,
+                navigationType = NavigationType.BACK,
+                onNavigationClick = onBack,
+            )
+        },
+        bottomBar = bottomBar,
+        containerColor = backgroundColor,
+    ) { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                // A folga do rodapé entra AQUI, no contêiner, e não como padding interno da rolagem:
-                // assim a área rolável termina no topo do banner em vez de passar por baixo dele.
-                .padding(bottom = espacoAcimaDoRodape(paddingValues))
-                .background(backgroundColor)
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            // Header — vai até o topo (atrás da status bar); o inset entra como padding interno,
-            // uma única vez (antes havia padding duplo: paddingValues no Column + top fixo de 48dp).
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(primaryColor)
-                    .padding(horizontal = 16.dp)
-                    .padding(top = paddingValues.calculateTopPadding() + 12.dp, bottom = 24.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag(TopBarTestTags.VOLTAR)) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = texts.backContentDescription,
-                            tint = Color.White
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = texts.title,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = texts.subtitle,
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .widthIn(max = CONTENT_MAX_WIDTH)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                // Branding
-                Spacer(modifier = Modifier.height(8.dp))
-                Image(
-                    painter = painterResource(Res.drawable.codecacto_logo),
-                    contentDescription = texts.brandName,
-                    modifier = Modifier.size(96.dp)
-                )
-                Text(
-                    text = texts.brandName,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = texts.brandSlogan,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Marca(texts)
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Contato
-                SectionTitle(texts.contactSectionTitle)
-
-                // Ação primária: abre o formulário "Entrar em contato" (mesmo lead do site).
-                Button(
-                    // Formulário de contato pede nome e e-mail: em app infantil, só depois do portão de pais.
-                    onClick = { ParentalGate.guard { showContact = true } },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AcaoPrincipal(
+                        texto = texts.siteButton,
+                        icone = Icons.Default.Language,
+                        cor = primaryColor,
+                        testTag = DeveloperTestTags.BTN_SITE,
+                        onClick = { getUrlLauncher().openUrl(contact.site.ifBlank { DeveloperContact().site }) },
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    AcaoPrincipal(
+                        texto = texts.whatsappButton,
+                        icone = Icons.AutoMirrored.Filled.Chat,
+                        cor = WhatsAppGreen,
+                        testTag = DeveloperTestTags.BTN_WHATSAPP,
+                        onClick = { getUrlLauncher().openWhatsApp(contact.whatsapp, texts.whatsappMessage) },
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = texts.contactButton,
-                        fontSize = 16.sp,
+                        text = texts.appsSectionTitle,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                }
-
-                Button(
-                    onClick = {
-                        getUrlLauncher().openWhatsApp(contact.whatsapp, texts.whatsappMessage)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = texts.whatsappButton,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        getUrlLauncher().openEmail(contact.email, texts.emailSubject)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = texts.emailButton, fontSize = 16.sp)
-                }
-
-                if (contact.site.isNotBlank()) {
-                    OutlinedButton(
-                        onClick = { getUrlLauncher().openUrl(contact.site) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = texts.siteButton, fontSize = 16.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Apps
-                SectionTitle(texts.appsSectionTitle)
-
-                when {
-                    isLoading -> {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        CircularProgressIndicator(color = primaryColor)
-                    }
-                    apps.isEmpty() -> {
-                        Text(
+                    when {
+                        isLoading -> GradeCarregando(cardColor)
+                        apps.isEmpty() -> Text(
                             text = texts.appsEmpty,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    }
-                    else -> {
-                        apps.forEach { app ->
-                            AppCard(app = app, cardColor = cardColor)
-                        }
+                        else -> GradeDeProjetos(apps, cardColor)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
+private fun Marca(texts: DeveloperTexts) {
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        fontSize = 16.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface
-    )
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.codecacto_logo),
+            // O nome logo abaixo é o que o leitor de tela anuncia.
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = texts.brandName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = texts.brandSlogan,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        if (texts.brandTagline.isNotBlank()) {
+            Text(
+                text = texts.brandTagline,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
 }
 
 @Composable
-private fun AppCard(app: DeveloperApp, cardColor: Color) {
-    Card(
+private fun AcaoPrincipal(
+    texto: String,
+    icone: ImageVector,
+    cor: Color,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                val url = app.resolveStoreUrl()
-                if (url.isNotBlank()) {
-                    getUrlLauncher().openUrl(url)
-                }
-            },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .height(52.dp)
+            .testTag(testTag),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = cor, contentColor = Color.White),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Icon(imageVector = icone, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text = texto, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Duas colunas, cartões da mesma linha com a mesma altura. */
+@Composable
+private fun GradeDeProjetos(apps: List<DeveloperApp>, cardColor: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        apps.chunked(2).forEach { linha ->
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                linha.forEach { app ->
+                    CartaoDeProjeto(app, cardColor, Modifier.weight(1f).fillMaxHeight())
+                }
+                if (linha.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartaoDeProjeto(app: DeveloperApp, cardColor: Color, modifier: Modifier) {
+    val forma = RoundedCornerShape(20.dp)
+    Surface(
+        shape = forma,
+        color = cardColor,
+        modifier = modifier
+            .clip(forma)
+            .clickable(role = Role.Button) {
+                val url = app.resolveStoreUrl()
+                if (url.isNotBlank()) getUrlLauncher().openUrl(url)
+            }
+            .testTag(DeveloperTestTags.PROJETO),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 if (app.logoUrl.isNotBlank()) {
                     AsyncImage(
                         model = app.logoUrl,
-                        contentDescription = app.name,
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Apps,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = app.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (app.description.isNotBlank()) {
                 Text(
-                    text = app.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = app.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                if (app.description.isNotBlank()) {
-                    Text(
-                        text = app.description,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+            }
+        }
+    }
+}
+
+/** Esqueleto com a moldura e a altura aproximada dos cartões — a tela não pula quando eles chegam. */
+@Composable
+private fun GradeCarregando(cardColor: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(cardColor),
                     )
                 }
             }

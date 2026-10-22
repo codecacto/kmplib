@@ -9,6 +9,7 @@ import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_subtitle
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_slogan
+import br.com.codecacto.kmplib.generated.resources.kmplib_dev_tagline
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_contact_section
 import br.com.codecacto.kmplib.generated.resources.kmplib_contact_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_whatsapp
@@ -31,20 +32,26 @@ import br.com.codecacto.kmplib.ui.locale.kmpStringResource
  */
 data class DeveloperTexts(
     val title: String = "Desenvolvido por",
+    /** Sem uso na tela desde a 2.323.0 (a barra de topo é a padrão, só com o título). */
     val subtitle: String = "Conheça quem faz o app",
     val brandName: String = "CodeCacto",
-    val brandSlogan: String = "Apps que facilitam o seu dia a dia.",
+    val brandSlogan: String = "O software que vira o motor da sua empresa.",
+    val brandTagline: String = "Sistemas sob medida, aplicativos e sites para empresas.",
+    /** Sem uso na tela desde a 2.323.0. */
     val contactSectionTitle: String = "Fale com a gente",
+    /** Sem uso na tela desde a 2.323.0 (o formulário de contato saiu dela). */
     val contactButton: String = "Entrar em contato",
     val whatsappButton: String = "Conversar no WhatsApp",
+    /** Sem uso na tela desde a 2.323.0 (o e-mail saiu dela). */
     val emailButton: String = "Enviar e-mail",
-    val siteButton: String = "Visitar site",
+    val siteButton: String = "Visitar o site",
     val whatsappMessage: String = "Olá! Vim pelo app e gostaria de falar com vocês.",
+    /** Sem uso na tela desde a 2.323.0. */
     val emailSubject: String = "Contato via app",
-    val appsSectionTitle: String = "Nossos apps",
-    val appsEmpty: String = "Em breve novos apps por aqui.",
+    val appsSectionTitle: String = "Nossos projetos",
+    val appsEmpty: String = "Em breve, novos projetos por aqui.",
     val backContentDescription: String = "Voltar",
-    /** Textos do formulário "Entrar em contato" ([ContactScreen]). */
+    /** Textos do formulário [ContactScreen] — sem uso nesta tela desde a 2.323.0. */
     val contact: ContactTexts = ContactTexts(),
 )
 
@@ -65,6 +72,7 @@ fun rememberDeveloperTexts(
         title = kmpStringResource(Res.string.kmplib_dev_title),
         subtitle = kmpStringResource(Res.string.kmplib_dev_subtitle),
         brandSlogan = kmpStringResource(Res.string.kmplib_dev_slogan),
+        brandTagline = kmpStringResource(Res.string.kmplib_dev_tagline),
         contactSectionTitle = kmpStringResource(Res.string.kmplib_dev_contact_section),
         contactButton = kmpStringResource(Res.string.kmplib_contact_title),
         whatsappButton = kmpStringResource(Res.string.kmplib_dev_whatsapp),

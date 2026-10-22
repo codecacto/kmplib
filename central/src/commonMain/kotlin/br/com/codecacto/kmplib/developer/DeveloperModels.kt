@@ -50,13 +50,14 @@ fun DeveloperApp.resolveStoreUrl(): String {
  * Informações de contato do desenvolvedor (CodeCacto).
  *
  * A partir da kmplib 2.36.0 vem do bloco `contact` de `GET /public/developer` (apps-api).
- * Os valores padrão funcionam como fallback caso o endpoint não responda.
+ * Os valores padrão funcionam como fallback caso o endpoint não responda. O WhatsApp vai com o DDI
+ * (55): o link é montado com os dígitos crus, e sem ele o número cai em outro país.
  */
 @Serializable
 data class DeveloperContact(
-    val whatsapp: String = "55998030240",
-    val email: String = "raphael.am.dev@gmail.com",
-    val site: String = "",
+    val whatsapp: String = "5565998030240",
+    val email: String = "contato@codecacto.com.br",
+    val site: String = "https://codecacto.com.br",
 )
 
 // --- DTOs de fio do endpoint público GET /public/developer (apps-api) ---

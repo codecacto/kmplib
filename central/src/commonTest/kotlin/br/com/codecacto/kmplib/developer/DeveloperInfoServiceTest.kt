@@ -84,17 +84,24 @@ class DeveloperInfoServiceTest {
     fun `contato ausente cai no fallback`() = runTest {
         init(body = """{ "apps": [] }""")
         val contact = DeveloperInfoService.fetchContact().getOrThrow()
-        assertEquals("55998030240", contact.whatsapp)
-        assertEquals("raphael.am.dev@gmail.com", contact.email)
-        assertEquals("", contact.site)
+        assertEquals("5565998030240", contact.whatsapp)
+        assertEquals("contato@codecacto.com.br", contact.email)
+        assertEquals("https://codecacto.com.br", contact.site)
     }
 
     @Test
     fun `campos de contato em branco caem no fallback`() = runTest {
-        init(body = """{ "contact": { "whatsapp": "", "email": "" }, "apps": [] }""")
+        init(body = """{ "contact": { "whatsapp": "", "email": "", "site": "" }, "apps": [] }""")
         val contact = DeveloperInfoService.fetchContact().getOrThrow()
-        assertEquals("55998030240", contact.whatsapp)
-        assertEquals("raphael.am.dev@gmail.com", contact.email)
+        assertEquals("5565998030240", contact.whatsapp)
+        assertEquals("contato@codecacto.com.br", contact.email)
+        assertEquals("https://codecacto.com.br", contact.site)
+    }
+
+    @Test
+    fun `whatsapp de reserva tem DDI e DDD`() {
+        // Sem o 55 o link do WhatsApp abre outro país; sem o 65, um número que não existe.
+        assertTrue(DeveloperContact().whatsapp.startsWith("5565"))
     }
 
     @Test
@@ -106,7 +113,7 @@ class DeveloperInfoServiceTest {
         )
         val contact = DeveloperInfoService.fetchContact().getOrThrow()
         val apps = DeveloperInfoService.fetchApps().getOrThrow()
-        assertEquals("55998030240", contact.whatsapp)
+        assertEquals("5565998030240", contact.whatsapp)
         assertTrue(apps.isEmpty())
     }
 
@@ -114,7 +121,7 @@ class DeveloperInfoServiceTest {
     fun `corpo invalido nao lanca e usa fallback`() = runTest {
         init(body = "nao e json")
         val contact = DeveloperInfoService.fetchContact().getOrThrow()
-        assertEquals("55998030240", contact.whatsapp)
+        assertEquals("5565998030240", contact.whatsapp)
         assertTrue(DeveloperInfoService.fetchApps().getOrThrow().isEmpty())
     }
 }
