@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.sync.direct
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.header
 import io.ktor.client.request.request
@@ -198,9 +199,17 @@ class KtorDirectUploadPartTransport internal constructor(
 /** Bloco de leitura do corpo enviado pelo [KtorDirectUploadPartTransport]: 512 KiB. */
 const val DIRECT_UPLOAD_STREAM_CHUNK_BYTES: Int = 512 * 1024
 
-/** Cliente sem plugin de app: sem Bearer, sem log de corpo, sem gzip; timeout de socket de 60 s. */
-fun defaultStorageHttpClient(): HttpClient = HttpClient {
+/**
+ * Cliente sem plugin de app: sem Bearer, sem log de corpo, sem gzip; timeout de socket de 60 s; e **sem
+ * seguir redirecionamento** (2.321.0): a URL pré-assinada é o destino exato — um 3xx do caminho levaria o
+ * arquivo (e os cabeçalhos assinados) a outro host. O 3xx volta como falha, nunca é seguido.
+ */
+fun defaultStorageHttpClient(): HttpClient = HttpClient { storageHttpClientConfig() }
+
+/** A configuração do [defaultStorageHttpClient] (separada para o teste aplicá-la a um motor falso). */
+internal fun HttpClientConfig<*>.storageHttpClientConfig() {
     expectSuccess = false
+    followRedirects = false
     install(HttpTimeout) {
         connectTimeoutMillis = 30_000
         socketTimeoutMillis = 60_000

@@ -697,7 +697,17 @@ class DomainApiClient(
                     status == 401 -> currentTexts().sessionExpired
                     else -> currentTexts().serverError(status)
                 }
-                val detalhes = envelope?.details.orEmpty()
+                // 2.321.0: o `Retry-After` (segundos, RFC 9110 §10.2.3) do 429/503 chega em
+                // `details.retryAfterSeconds` — a backlib escreve o recuo SÓ no cabeçalho, e o erro não
+                // carrega cabeçalhos. O valor do corpo, quando vier, vence.
+                val recuo = response.headers[HttpHeaders.RetryAfter]?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
+                val detalhes = envelope?.details.orEmpty().let { d ->
+                    if (recuo != null && (status == 429 || status == 503) && !d.containsKey(DomainResult.RETRY_AFTER_DETAIL)) {
+                        d + (DomainResult.RETRY_AFTER_DETAIL to recuo.toString())
+                    } else {
+                        d
+                    }
+                }
                 DomainResult.Error(
                     code = status,
                     message = mensagemLocal,
@@ -1068,6 +1078,14 @@ sealed class DomainResult<out T> {
         val hasFieldErrors: Boolean get() = details.isNotEmpty()
 
         /**
+         * Quantos segundos esperar antes de repetir (2.321.0): `details.retryAfterSeconds` do corpo ou, no
+         * 429/503, o cabeçalho `Retry-After` em segundos. `null` = o servidor não disse.
+         */
+        val retryAfterSeconds: Long?
+            get() = (details[RETRY_AFTER_DETAIL] ?: (detail(RETRY_AFTER_DETAIL) as? JsonPrimitive)?.contentOrNull)
+                ?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
+
+        /**
          * `true` no 402 de **conta bloqueada por assinatura** (2.300.0) — `TRIAL_EXPIRED` ou
          * `SUBSCRIPTION_REQUIRED`. Não é erro da tela: o `SubscriptionBlockGate` já a cobriu (com o
          * detector ligado no `HttpClient`); o ViewModel não mostra banner por ele.
@@ -1109,6 +1127,9 @@ sealed class DomainResult<out T> {
     companion object {
         /** Código sentinela de "sem conexão / falha de transporte" (não é um status HTTP). */
         const val OFFLINE_CODE: Int = -1
+
+        /** Chave de `details` com o recuo em segundos ([Error.retryAfterSeconds]). */
+        const val RETRY_AFTER_DETAIL: String = "retryAfterSeconds"
     }
 }
 

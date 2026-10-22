@@ -254,4 +254,46 @@ class InspectionMediaQueueTest {
         assertEquals("t", v.taskId)
         assertFalse("-15.6" in v.toString(), "GPS fora do log")
     }
+
+    // ── Revisão de segurança (2.321.0): só https ────────────────────────────────────────────────
+
+    @Test
+    fun `alvo assinado so https e http de loopback so em depuracao`() {
+        assertTrue(isAllowedSignedUploadUrl("https://r2.example.com/b/k?sig=x", allowLoopbackHttp = false))
+        assertFalse(isAllowedSignedUploadUrl("http://r2.example.com/b/k", allowLoopbackHttp = true))
+        assertFalse(isAllowedSignedUploadUrl("http://localhost:8080/o/k", allowLoopbackHttp = false))
+        assertTrue(isAllowedSignedUploadUrl("http://localhost:8080/o/k", allowLoopbackHttp = true))
+        assertTrue(isAllowedSignedUploadUrl("http://127.0.0.1:8080/o/k", allowLoopbackHttp = true))
+        assertTrue(isAllowedSignedUploadUrl("http://10.0.2.2:8080/o/k", allowLoopbackHttp = true))
+        assertFalse(isAllowedSignedUploadUrl("ftp://r2.example.com/k", allowLoopbackHttp = true))
+        assertFalse(isAllowedSignedUploadUrl("nao e url", allowLoopbackHttp = true))
+        assertFalse(isAllowedSignedUploadUrl("localhost/o/k", allowLoopbackHttp = true), "sem esquema não vira http://localhost")
+    }
+
+    @Test
+    fun `intencao com alvo http e recusada e o envio para sem PUT`() = runTest {
+        val m = montar()
+        val inseguro = InspectionFixtures.mediaIntentSingle("m1", sha, bytes.size.toLong()).replace("https://r2.example.com", "http://r2.example.com")
+        m.server.on("POST", "/inspections/$id/media", Reply(body = inseguro))
+        m.queue.enqueue(id, captured(), InspectionMediaTarget.Item(InspectionFixtures.ITEM_PISO))
+        m.queue.outbox.drainNow()
+        assertTrue(m.transport.requests.isEmpty(), "nada saiu para o alvo inseguro")
+        val q = m.queue.observe(id).first().single()
+        assertTrue(q.isFailed)
+        assertEquals(UPLOAD_URL_INSECURE, q.failure?.serverCode)
+    }
+
+    @Test
+    fun `multipart com uma parte http e recusado inteiro`() {
+        val dto = InspectionJson.decodeFromString(
+            MediaIntentDto.serializer(),
+            """{"media":{"id":"mv","inspectionId":"$id","kind":"VIDEO","source":"CAMERA","sha256":"${"a".repeat(64)}","status":"QUEUED"},
+               "upload":{"mode":"MULTIPART","partSizeBytes":60,"partCount":2,"parts":[
+                 {"partNumber":1,"sizeBytes":60,"url":"https://r2/p1","expiresAt":"2099-01-01T00:00:00Z"},
+                 {"partNumber":2,"sizeBytes":40,"url":"http://r2/p2","expiresAt":"2099-01-01T00:00:00Z"}]}}""",
+        )
+        val r = sessionOf(job(), dto)
+        assertIs<DomainResult.Error>(r)
+        assertEquals(UPLOAD_URL_INSECURE, r.serverCode)
+    }
 }

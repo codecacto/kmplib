@@ -5532,7 +5532,7 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
 - [x] **(P1) Domínio + cliente HTTP do motor** — ENTREGUE na 2.320.0: contrato v1 espelhado (enum tolerante),
   `InspectionApi` (prefixo por produto), `InspectionError` tipado, `InspectionSession` (patch otimista durável),
   `InspectionMediaQueue` (DirectUploadOutbox: SINGLE/MULTIPART → complete), mapeadores por tela.
-- [ ] **(P1) `SignaturePort`** (OTP + traço) — escrito e testado; entra depois do security-review.
+- [x] **(P1) `SignaturePort`** (OTP + traço) — ENTREGUE na 2.321.0, com os ajustes do security-review (tentativas `null` preservadas, assinado só com a resposta desta parte, `Retry-After`, 404 local, só `https` no alvo, sem redirecionamento no storage).
 - [ ] **(P2) Lacunas do contrato do motor** (pedir à backlib): (a) o modelo não diz se o item pergunta "Funciona?"
   (`TemplateItemDto` sem o sinal; o mapeador infere pela resposta); (b) não há rota para REORDENAR os cômodos DA
   VISTORIA (só do modelo) — o `RoomListEvent.Move` não tem para onde ir; (c) o traço da assinatura aceita 300 KB, mas o

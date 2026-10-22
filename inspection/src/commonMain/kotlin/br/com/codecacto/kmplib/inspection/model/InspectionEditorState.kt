@@ -215,6 +215,11 @@ data class SignatureState(
     /** Mostrar as recusas de formulário (depois de tentar assinar). */
     val showValidation: Boolean = false,
     val status: SignatureStatus = SignatureStatus.PENDING,
+    /**
+     * Recusa sem contagem de tentativas (código já usado, laudo mudou, formato inválido) ou outra falha —
+     * a frase do servidor, mostrada no campo do código (2.321.0). `null` = sem erro.
+     */
+    val errorMessage: String? = null,
 ) {
     /** Nome e papel do signatário são dado pessoal: fora do log. */
     override fun toString(): String =

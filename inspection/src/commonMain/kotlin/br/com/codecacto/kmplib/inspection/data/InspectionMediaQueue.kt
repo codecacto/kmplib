@@ -5,6 +5,7 @@ package br.com.codecacto.kmplib.inspection.data
 import br.com.codecacto.kmplib.core.crypto.sha256Hex
 import br.com.codecacto.kmplib.core.storage.BlobStore
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.core.util.BuildInfo
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import br.com.codecacto.kmplib.inspection.capture.CapturedMedia
 import br.com.codecacto.kmplib.inspection.model.InspectionMediaKind
@@ -42,6 +43,7 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
+import io.ktor.http.Url
 import io.ktor.http.content.ByteArrayContent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -164,8 +166,10 @@ class InspectionMediaQueue(
     retry: UploadRetryPolicy = UploadRetryPolicy(),
     storageHttp: HttpClient = defaultStorageHttpClient(),
     nowMillis: () -> Long = ::currentTimeMillis,
+    /** Aceita alvo `http://` de loopback (servidor local de desenvolvimento). Default: só em build de depuração. */
+    allowLoopbackHttp: Boolean = BuildInfo.isDebug,
 ) {
-    private val backend = InspectionUploadBackend(api, blobs, storageHttp)
+    private val backend = InspectionUploadBackend(api, blobs, storageHttp, allowLoopbackHttp)
 
     /** A fila por baixo (estado, eventos, agendamento). */
     val outbox: DirectUploadOutbox = DirectUploadOutbox(
@@ -377,12 +381,13 @@ internal class InspectionUploadBackend(
     private val api: InspectionApi,
     private val blobs: BlobStore,
     private val storageHttp: HttpClient,
+    private val allowLoopbackHttp: Boolean = false,
 ) : DirectUploadBackend {
 
     override suspend fun start(job: DirectUploadJob): DomainResult<DirectUploadSession> {
         val (inspectionId, intent) = context(job) ?: return invalidJob()
         return when (val r = api.mediaIntent(inspectionId, intent)) {
-            is InspectionResult.Ok -> sessionOf(job, r.value)
+            is InspectionResult.Ok -> sessionOf(job, r.value, allowLoopbackHttp)
             is InspectionResult.Failed -> r.error.toDomain()
         }
     }
@@ -398,6 +403,7 @@ internal class InspectionUploadBackend(
                     when {
                         up == null -> DomainResult.Success(DirectUploadPartUrls(emptyMap(), null, alreadyReceived = true))
                         single == null -> DomainResult.Error(503, "Armazenamento indisponível agora.", serverCode = STORAGE_UNAVAILABLE)
+                        !isAllowedSignedUploadUrl(single.url, allowLoopbackHttp) -> insecureTarget()
                         else -> DomainResult.Success(
                             DirectUploadPartUrls(mapOf(1 to single.url), parseIsoInstantMillis(single.expiresAt), signedHeaders = single.headers),
                         )
@@ -408,7 +414,7 @@ internal class InspectionUploadBackend(
         }
         val mediaId = session.remoteId ?: session.uploadId
         return when (val r = api.mediaParts(mediaId, partNumbers)) {
-            is InspectionResult.Ok -> DomainResult.Success(
+            is InspectionResult.Ok -> if (r.value.parts.any { !isAllowedSignedUploadUrl(it.url, allowLoopbackHttp) }) insecureTarget() else DomainResult.Success(
                 DirectUploadPartUrls(
                     urls = r.value.parts.associate { it.partNumber to it.url },
                     expiresAtMillis = r.value.parts.mapNotNull { parseIsoInstantMillis(it.expiresAt) }.minOrNull(),
@@ -448,7 +454,7 @@ internal class InspectionUploadBackend(
     private suspend fun uploadThumb(job: DirectUploadJob, thumbBlob: String): DomainResult.Error? {
         val (inspectionId, intent) = context(job) ?: return null
         val alvo = when (val r = api.mediaIntent(inspectionId, intent)) {
-            is InspectionResult.Ok -> r.value.upload?.thumb ?: return null
+            is InspectionResult.Ok -> r.value.upload?.thumb?.takeIf { isAllowedSignedUploadUrl(it.url, allowLoopbackHttp) } ?: return null
             is InspectionResult.Failed -> return if (r.error.isRetryable) {
                 DomainResult.Error(if (r.error is InspectionError.Offline) DomainResult.OFFLINE_CODE else r.error.httpStatus, r.error.userMessage)
             } else {
@@ -499,8 +505,32 @@ internal class InspectionUploadBackend(
     }
 }
 
+/**
+ * O alvo assinado pode receber o arquivo? Só `https` (2.321.0): a URL vem do servidor, mas um `http://` nela
+ * mandaria a prova e os cabeçalhos assinados em claro. `http://` de loopback (`localhost`, `127.x`, `::1` e
+ * `10.0.2.2` — o loopback do computador visto do emulador Android) só com [allowLoopbackHttp] (depuração).
+ */
+fun isAllowedSignedUploadUrl(url: String, allowLoopbackHttp: Boolean): Boolean {
+    // Esquema EXPLÍCITO: o `Url` do Ktor completa texto sem esquema como `http://localhost/…`.
+    val t = url.trim()
+    if (!t.startsWith("https://", ignoreCase = true) && !t.startsWith("http://", ignoreCase = true)) return false
+    val u = runCatching { Url(t) }.getOrNull() ?: return false
+    if (u.host.isBlank()) return false
+    return when (u.protocol.name.lowercase()) {
+        "https" -> true
+        "http" -> allowLoopbackHttp && (u.host == "localhost" || u.host.startsWith("127.") || u.host == "::1" || u.host == "[::1]" || u.host == "10.0.2.2")
+        else -> false
+    }
+}
+
+/** Sentinela/código de alvo recusado por não ser `https`: terminal (o servidor está mal configurado). */
+const val UPLOAD_URL_INSECURE: String = "UPLOAD_URL_INSECURE"
+
+internal fun insecureTarget(): DomainResult.Error =
+    DomainResult.Error(InspectionError.INVALID_RESPONSE, "O servidor devolveu um endereço de envio inseguro.", serverCode = UPLOAD_URL_INSECURE)
+
 /** Resposta da intenção → sessão da fila. Função pura (testada). */
-internal fun sessionOf(job: DirectUploadJob, dto: MediaIntentDto): DomainResult<DirectUploadSession> {
+internal fun sessionOf(job: DirectUploadJob, dto: MediaIntentDto, allowLoopbackHttp: Boolean = false): DomainResult<DirectUploadSession> {
     val up = dto.upload
     val id = dto.media.id
     if (up == null || dto.media.status == MediaStatus.CONFIRMED) {
@@ -509,6 +539,7 @@ internal fun sessionOf(job: DirectUploadJob, dto: MediaIntentDto): DomainResult<
     return when (up.mode) {
         UploadModes.SINGLE -> {
             val s = up.single ?: return DomainResult.Error(503, "Armazenamento indisponível agora.", serverCode = InspectionUploadBackend.STORAGE_UNAVAILABLE)
+            if (!isAllowedSignedUploadUrl(s.url, allowLoopbackHttp)) return insecureTarget()
             DomainResult.Success(
                 DirectUploadSession.singlePut(
                     remoteId = id, sizeBytes = job.sizeBytes, url = s.url, method = s.method,
@@ -518,6 +549,7 @@ internal fun sessionOf(job: DirectUploadJob, dto: MediaIntentDto): DomainResult<
         }
         UploadModes.MULTIPART -> {
             val parts = up.parts.orEmpty()
+            if (parts.any { !isAllowedSignedUploadUrl(it.url, allowLoopbackHttp) }) return insecureTarget()
             val partSize = up.partSizeBytes ?: return DomainResult.Error(InspectionError.INVALID_RESPONSE, InspectionError.INVALID_RESPONSE_MESSAGE)
             val count = up.partCount ?: return DomainResult.Error(InspectionError.INVALID_RESPONSE, InspectionError.INVALID_RESPONSE_MESSAGE)
             DomainResult.Success(

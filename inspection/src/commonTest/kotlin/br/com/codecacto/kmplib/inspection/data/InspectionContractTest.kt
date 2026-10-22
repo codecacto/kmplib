@@ -134,6 +134,8 @@ class InspectionContractTest {
         val rl = erro(429, """{"message":"Aguarde","code":"OTP_RESEND_TOO_SOON","details":{"blockedUntil":"2026-10-22T12:01:00Z"}}""").toInspectionError()
         assertIs<InspectionError.RateLimited>(rl)
         assertEquals("2026-10-22T12:01:00Z", rl.blockedUntil)
+        val comRecuo = DomainResult.Error(429, "x", "OTP_TOO_MANY", details = mapOf(DomainResult.RETRY_AFTER_DETAIL to "90")).toInspectionError()
+        assertEquals(90L, assertIs<InspectionError.RateLimited>(comRecuo).retryAfterSeconds)
         assertTrue(rl.isRetryable)
         assertTrue(erro(503, null).toInspectionError().let { it is InspectionError.Unavailable && it.isRetryable })
         val off = DomainResult.Error(DomainResult.OFFLINE_CODE, "Sem conexão").toInspectionError()

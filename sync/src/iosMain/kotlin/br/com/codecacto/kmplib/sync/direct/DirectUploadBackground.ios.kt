@@ -15,6 +15,7 @@ import platform.Foundation.setValue
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorCancelled
+import platform.Foundation.NSURLRequest
 import platform.Foundation.NSURLErrorDomain
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSURLSessionConfiguration
@@ -29,6 +30,8 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.resume
 import kotlin.native.ObjCName
+
+private const val TAG_REDIRECT = "DirectUploadIos"
 
 actual fun createPlatformDirectUploadTransport(outboxName: String): DirectUploadPartTransport =
     BackgroundSessionDirectUploadTransport.forOutbox(outboxName)
@@ -205,6 +208,24 @@ class BackgroundSessionDirectUploadTransport private constructor(
     private inner class Delegate : NSObject(), NSURLSessionTaskDelegateProtocol {
         override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: NSError?) {
             entregar(task, didCompleteWithError)
+        }
+
+        /**
+         * Nunca segue redirecionamento (2.321.0): a URL pré-assinada é o destino exato, e um 3xx levaria o
+         * arquivo e os cabeçalhos assinados a outro host. Devolver `nil` entrega o 3xx como resposta (vira
+         * falha da parte). ⚠️ A Apple documenta que, em sessão de **segundo plano**, o sistema segue o
+         * redirecionamento sozinho e NÃO chama este método — ele vale quando o sistema o chama; a defesa que
+         * não depende dele é a recusa de URL de alvo que não seja `https` em quem monta a sessão.
+         */
+        override fun URLSession(
+            session: NSURLSession,
+            task: NSURLSessionTask,
+            willPerformHTTPRedirection: NSHTTPURLResponse,
+            newRequest: NSURLRequest,
+            completionHandler: (NSURLRequest?) -> Unit,
+        ) {
+            AppLogger.w(TAG_REDIRECT, "storage respondeu ${willPerformHTTPRedirection.statusCode}; redirecionamento recusado")
+            completionHandler(null)
         }
 
         override fun URLSessionDidFinishEventsForBackgroundURLSession(session: NSURLSession) {

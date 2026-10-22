@@ -133,11 +133,15 @@ sealed interface InspectionError {
         override val httpStatus: Int get() = 422
     }
 
-    /** 429: devagar. [blockedUntil] (ISO-8601) quando o servidor disse. */
+    /**
+     * 429: devagar. [retryAfterSeconds] = o `Retry-After` do servidor (2.321.0; é por onde a backlib manda o
+     * recuo); [blockedUntil] (ISO-8601) quando o servidor disse.
+     */
     data class RateLimited(
         override val serverCode: String?,
         override val userMessage: String,
         val blockedUntil: String? = null,
+        val retryAfterSeconds: Long? = null,
     ) : InspectionError {
         override val httpStatus: Int get() = 429
         override val isRetryable: Boolean get() = true
@@ -235,7 +239,7 @@ fun DomainResult.Error.toInspectionError(): InspectionError {
             InspectionError.Incomplete(parseFinishIssues(detailsJson), frase)
         code == 422 -> InspectionError.Rejected(serverCode, frase, detailsJson.withTextDetails(details))
         code == 400 || code == 413 -> InspectionError.Validation(code, serverCode, frase, details)
-        code == 429 -> InspectionError.RateLimited(serverCode, frase, detailsJson.text("blockedUntil") ?: details["blockedUntil"])
+        code == 429 -> InspectionError.RateLimited(serverCode, frase, detailsJson.text("blockedUntil") ?: details["blockedUntil"], retryAfterSeconds)
         code == 503 -> InspectionError.Unavailable(serverCode, frase)
         code == InspectionError.INVALID_RESPONSE -> InspectionError.InvalidResponse(frase)
         else -> InspectionError.Server(code, serverCode, frase)

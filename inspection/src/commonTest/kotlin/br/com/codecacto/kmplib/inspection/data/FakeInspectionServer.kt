@@ -18,7 +18,7 @@ import kotlinx.io.IOException
 data class Received(val method: HttpMethod, val path: String, val query: String, val body: String, val headers: Headers)
 
 /** Resposta programada; `offline = true` derruba o transporte. */
-data class Reply(val status: Int = 200, val body: String = "{}", val offline: Boolean = false)
+data class Reply(val status: Int = 200, val body: String = "{}", val offline: Boolean = false, val headers: Map<String, String> = emptyMap())
 
 /**
  * Servidor falso do motor: responde por `MÉTODO caminho` (sem a base), grava cada pedido. Rota sem resposta
@@ -53,7 +53,8 @@ class FakeInspectionServer(private val basePath: String = "/mv/v1/inspection") {
         received += Received(req.method, caminho, req.url.encodedQuery, req.body.toByteArray().decodeToString(), req.headers)
         val r = next("${req.method.value} $caminho") ?: Reply(404, """{"message":"não achei","code":"NOT_FOUND"}""")
         if (r.offline) throw IOException("rede caiu")
-        respond(r.body, HttpStatusCode.fromValue(r.status), headersOf(HttpHeaders.ContentType, "application/json"))
+        val h = (mapOf(HttpHeaders.ContentType to "application/json") + r.headers).map { (k, v) -> k to listOf(v) }
+        respond(r.body, HttpStatusCode.fromValue(r.status), headersOf(*h.toTypedArray()))
     }
 
     fun client(): DomainApiClient {

@@ -159,6 +159,7 @@ fun InspectionSignatureScreen(
                 val erroCodigo = when {
                     state.codeExpired -> st.codeExpired
                     state.attemptsLeft != null -> plural(state.attemptsLeft, st.codeWrongOne, st.codeWrongOther)
+                    state.errorMessage != null -> state.errorMessage
                     else -> null
                 }
                 DigitBoxField(

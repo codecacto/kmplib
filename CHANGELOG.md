@@ -5,6 +5,41 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.321.0 — **`kmplib-inspection`: o `SignaturePort` (código + traço da assinatura)**, depois do security-review, + endurecimentos do envio direto ao storage
+
+Origem: **Minha Vistoria** T3. Security-review aprovado com os ajustes abaixo, todos com teste. Aditivo: **sem piso, sem
+aviso** — os endurecimentos não mudam nada para quem usa R2/S3 corretamente configurado (nenhum devolve 3xx nem URL `http`).
+
+### `kmplib-inspection`
+- **`SignaturePort` / `RestSignaturePort(api, inspectionId)`** (`signature/`): `sendCode(signerId, channel)` →
+  `POST …/signatures/otp`; `sign(SignatureRequest(signerId, code, accepted, strokePng, location))` → `POST …/signatures`.
+  Validação de FORMA antes da rede (aceite marcado, código de 6 dígitos, traço PNG ≤ 190 KB — o corpo da rota é 256 KB
+  e o base64 cresce 4/3); parte em branco = 404 `SIGNER_NOT_FOUND` (como o servidor). DTOs `OtpSendInput`, `OtpSentDto`,
+  `SignInput` — código, traço e destino fora do `toString`.
+- **`SignatureFailure`** (`toSignatureFailure()`): `InvalidCode(attemptsLeft, message)` — `attemptsLeft` `null` quando o
+  servidor não conta (código já usado, laudo mudou, formato inválido), e aí a tela mostra a FRASE, nunca "0 tentativas";
+  `ResendTooSoon(blockedUntil, retryAfterSeconds)` e `TooManyCodes(retryAfterSeconds)` levam o `Retry-After` do
+  servidor para a contagem de reenvio; `Expired`, `Locked`, `CodeRequired`, `Exhausted`, `CannotSend`, `AlreadySigned`,
+  `NotSignable`, `Offline`, `Other`.
+- **`SignatureStateMapping`**: `initial`, `codeSent`, `submitting`, **`signed(state, dto, expectedSignerId)`** (só vira
+  ASSINADO se a resposta é desta parte e traz `signedAt` e `signedHash`; senão é resposta ilegível) e `failed`.
+- `SignatureState.errorMessage` (aditivo) — a tela de assinatura mostra no campo do código.
+- `InspectionError.RateLimited.retryAfterSeconds` (aditivo).
+- **Fila de mídia:** alvo assinado que não seja `https` é RECUSADO (`UPLOAD_URL_INSECURE`, terminal; nada é enviado);
+  `http` de loopback (`localhost`, `127.x`, `::1`, `10.0.2.2`) só em depuração (`allowLoopbackHttp = BuildInfo.isDebug`).
+  `isAllowedSignedUploadUrl`.
+
+### `kmplib-sync`
+- **`defaultStorageHttpClient()` não segue redirecionamento** (`followRedirects = false`): um 3xx do storage volta como
+  falha da parte, nunca leva o arquivo e os cabeçalhos assinados a outro host.
+- iOS: o delegate da sessão de fundo recusa o redirecionamento (`willPerformHTTPRedirection` → `nil`). ⚠️ A Apple
+  documenta que sessão de SEGUNDO PLANO segue o redirecionamento sozinha sem chamar o delegate — a defesa que vale nos dois
+  casos é a recusa de alvo não-`https` acima.
+
+### `kmplib-core`
+- `DomainApiClient`: o cabeçalho `Retry-After` (segundos) do 429/503 chega em `details.retryAfterSeconds` (o corpo vence) —
+  a backlib escreve o recuo só no cabeçalho. `DomainResult.Error.retryAfterSeconds`, `DomainResult.RETRY_AFTER_DETAIL`.
+
 ## 2.320.0 — **`kmplib-inspection`: o DOMÍNIO do motor de vistoria** — contrato espelhado, cliente HTTP, `InspectionSession`, fila durável de mídia e os mapeadores domínio → tela
 
 Origem: **Minha Vistoria** T3 (a camada que fala com o `backlib-inspection` ≥ 0.203.0). Aditivo: **sem piso, sem
@@ -42,7 +77,7 @@ aviso**. Módulo OPT-IN (fora do umbrella).
   na MESMA regra do `finish` do servidor (`localIssues`). `InspectionPhotoSources` = imagem local (BlobStore) ou do
   servidor (URL curta, baixada sem Bearer).
 - **Textos:** 7 frases novas de pendência na revisão (`issue*`, 4 idiomas).
-- **Fica para a versão seguinte:** o `SignaturePort` (OTP + traço), escrito e testado, aguardando o security-review.
+- **Fica para a versão seguinte:** o `SignaturePort` (OTP + traço), escrito e testado, aguardando o security-review (entrou na 2.321.0).
 
 ### `kmplib-core`
 - **`BlobStore.localFilePath(id)`** (aditivo, default `null`): caminho do arquivo para quem envia a partir de arquivo
