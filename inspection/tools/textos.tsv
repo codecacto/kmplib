@@ -144,6 +144,13 @@ finish	Finalizar	Finish	Finalizar	Finalizar
 finishTitle	Finalizar a vistoria?	Finish the inspection?	¿Finalizar la inspección?	Finalizar a vistoria?
 finishMessage	O laudo será gerado para assinatura. Depois de assinar, o laudo não pode ser editado — só com uma nova versão.	The report will be generated for signing. Once signed, it cannot be edited — only replaced by a new version.	El informe se generará para la firma. Una vez firmado, no se puede editar; solo con una nueva versión.	O relatório será gerado para assinatura. Depois de assinado, não pode ser editado — só com uma nova versão.
 finishFailed	Não foi possível finalizar. Tente de novo.	Could not finish. Try again.	No se pudo finalizar. Inténtelo de nuevo.	Não foi possível finalizar. Tente novamente.
+issueMinPhotosOne	%1$s · falta 1 foto	%1$s · 1 photo missing	%1$s · falta 1 foto	%1$s · falta 1 fotografia
+issueMinPhotosOther	%1$s · faltam %2$s fotos	%1$s · %2$s photos missing	%1$s · faltan %2$s fotos	%1$s · faltam %2$s fotografias
+issueRequiredFields	%1$s · campos obrigatórios em branco	%1$s · required fields blank	%1$s · campos obligatorios en blanco	%1$s · campos obrigatórios em branco
+issueResultRequired	%1$s · sem resultado	%1$s · no result	%1$s · sin resultado	%1$s · sem resultado
+issueMediaTask	%1$s · falta: %2$s	%1$s · missing: %2$s	%1$s · falta: %2$s	%1$s · falta: %2$s
+issueReading	%1$s · falta a leitura: %2$s	%1$s · reading missing: %2$s	%1$s · falta la lectura: %2$s	%1$s · falta a leitura: %2$s
+issueHeader	Dados da vistoria · %1$s	Inspection details · %1$s	Datos de la inspección · %1$s	Dados da vistoria · %1$s
 #report Report
 generatingReport	Gerando o laudo…	Generating the report…	Generando el informe…	A gerar o relatório…
 pendingMedia	Faltam %1$s mídias · %2$s de %3$s enviadas	%1$s media left · %2$s of %3$s uploaded	Faltan %1$s archivos · %2$s de %3$s enviados	Faltam %1$s ficheiros · %2$s de %3$s enviados

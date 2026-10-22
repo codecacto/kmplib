@@ -779,6 +779,13 @@
     <string name="kmplib_insp_finish_title">¿Finalizar la inspección?</string>
     <string name="kmplib_insp_finish_message">El informe se generará para la firma. Una vez firmado, no se puede editar; solo con una nueva versión.</string>
     <string name="kmplib_insp_finish_failed">No se pudo finalizar. Inténtelo de nuevo.</string>
+    <string name="kmplib_insp_issue_min_photos_one">%1$s · falta 1 foto</string>
+    <string name="kmplib_insp_issue_min_photos_other">%1$s · faltan %2$s fotos</string>
+    <string name="kmplib_insp_issue_required_fields">%1$s · campos obligatorios en blanco</string>
+    <string name="kmplib_insp_issue_result_required">%1$s · sin resultado</string>
+    <string name="kmplib_insp_issue_media_task">%1$s · falta: %2$s</string>
+    <string name="kmplib_insp_issue_reading">%1$s · falta la lectura: %2$s</string>
+    <string name="kmplib_insp_issue_header">Datos de la inspección · %1$s</string>
     <string name="kmplib_insp_generating_report">Generando el informe…</string>
     <string name="kmplib_insp_pending_media">Faltan %1$s archivos · %2$s de %3$s enviados</string>
     <string name="kmplib_insp_page_of">página %1$s de %2$s</string>

@@ -789,6 +789,13 @@
     <string name="kmplib_insp_finish_title">Finalizar a vistoria?</string>
     <string name="kmplib_insp_finish_message">O laudo será gerado para assinatura. Depois de assinar, o laudo não pode ser editado — só com uma nova versão.</string>
     <string name="kmplib_insp_finish_failed">Não foi possível finalizar. Tente de novo.</string>
+    <string name="kmplib_insp_issue_min_photos_one">%1$s · falta 1 foto</string>
+    <string name="kmplib_insp_issue_min_photos_other">%1$s · faltam %2$s fotos</string>
+    <string name="kmplib_insp_issue_required_fields">%1$s · campos obrigatórios em branco</string>
+    <string name="kmplib_insp_issue_result_required">%1$s · sem resultado</string>
+    <string name="kmplib_insp_issue_media_task">%1$s · falta: %2$s</string>
+    <string name="kmplib_insp_issue_reading">%1$s · falta a leitura: %2$s</string>
+    <string name="kmplib_insp_issue_header">Dados da vistoria · %1$s</string>
     <string name="kmplib_insp_generating_report">Gerando o laudo…</string>
     <string name="kmplib_insp_pending_media">Faltam %1$s mídias · %2$s de %3$s enviadas</string>
     <string name="kmplib_insp_page_of">página %1$s de %2$s</string>

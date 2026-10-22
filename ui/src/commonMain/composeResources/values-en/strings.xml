@@ -779,6 +779,13 @@
     <string name="kmplib_insp_finish_title">Finish the inspection?</string>
     <string name="kmplib_insp_finish_message">The report will be generated for signing. Once signed, it cannot be edited — only replaced by a new version.</string>
     <string name="kmplib_insp_finish_failed">Could not finish. Try again.</string>
+    <string name="kmplib_insp_issue_min_photos_one">%1$s · 1 photo missing</string>
+    <string name="kmplib_insp_issue_min_photos_other">%1$s · %2$s photos missing</string>
+    <string name="kmplib_insp_issue_required_fields">%1$s · required fields blank</string>
+    <string name="kmplib_insp_issue_result_required">%1$s · no result</string>
+    <string name="kmplib_insp_issue_media_task">%1$s · missing: %2$s</string>
+    <string name="kmplib_insp_issue_reading">%1$s · reading missing: %2$s</string>
+    <string name="kmplib_insp_issue_header">Inspection details · %1$s</string>
     <string name="kmplib_insp_generating_report">Generating the report…</string>
     <string name="kmplib_insp_pending_media">%1$s media left · %2$s of %3$s uploaded</string>
     <string name="kmplib_insp_page_of">page %1$s of %2$s</string>

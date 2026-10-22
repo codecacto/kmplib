@@ -154,6 +154,11 @@ internal class FileBlobStore(
         }
     }
 
+    override suspend fun localFilePath(id: String): String? = withContext(io) {
+        adoptLegacyOnce()
+        existingFileOf(id)?.absolutePath
+    }
+
     override suspend fun exists(id: String): Boolean = withContext(io) {
         adoptLegacyOnce()
         existingFileOf(id) != null

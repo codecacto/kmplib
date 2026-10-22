@@ -779,6 +779,13 @@
     <string name="kmplib_insp_finish_title">Finalizar a vistoria?</string>
     <string name="kmplib_insp_finish_message">O relatório será gerado para assinatura. Depois de assinado, não pode ser editado — só com uma nova versão.</string>
     <string name="kmplib_insp_finish_failed">Não foi possível finalizar. Tente novamente.</string>
+    <string name="kmplib_insp_issue_min_photos_one">%1$s · falta 1 fotografia</string>
+    <string name="kmplib_insp_issue_min_photos_other">%1$s · faltam %2$s fotografias</string>
+    <string name="kmplib_insp_issue_required_fields">%1$s · campos obrigatórios em branco</string>
+    <string name="kmplib_insp_issue_result_required">%1$s · sem resultado</string>
+    <string name="kmplib_insp_issue_media_task">%1$s · falta: %2$s</string>
+    <string name="kmplib_insp_issue_reading">%1$s · falta a leitura: %2$s</string>
+    <string name="kmplib_insp_issue_header">Dados da vistoria · %1$s</string>
     <string name="kmplib_insp_generating_report">A gerar o relatório…</string>
     <string name="kmplib_insp_pending_media">Faltam %1$s ficheiros · %2$s de %3$s enviados</string>
     <string name="kmplib_insp_page_of">página %1$s de %2$s</string>

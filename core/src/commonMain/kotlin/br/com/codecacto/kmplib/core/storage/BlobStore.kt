@@ -74,6 +74,17 @@ interface BlobStore {
 
     /** Espaço total ocupado — para a tela de diagnóstico ("12 MB aguardando envio"). */
     suspend fun totalBytes(): Long = ids().sumOf { sizeOf(it) }
+
+    /**
+     * Caminho ABSOLUTO do arquivo de [id], **só para leitura** por quem envia a partir de arquivo
+     * (2.320.0) — ex.: a `DirectUploadOutbox`, que copia o arquivo para a área dela em streaming, sem
+     * carregar o binário inteiro na memória (vídeo). Não é convite para escrever por fora: grave
+     * sempre por [write], que é atômico.
+     *
+     * `null` quando o [id] é inválido, não existe, ou o armazenamento não é de arquivo (o
+     * [InMemoryBlobStore] e qualquer implementação que não sobrescreva).
+     */
+    suspend fun localFilePath(id: String): String? = null
 }
 
 /**

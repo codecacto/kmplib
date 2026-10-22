@@ -121,6 +121,11 @@ internal class IosBlobStore(
         return out
     }
 
+    override suspend fun localFilePath(id: String): String? {
+        val path = pathOf(id) ?: return null
+        return path.takeIf { fileManager.fileExistsAtPath(it) }
+    }
+
     override suspend fun exists(id: String): Boolean {
         val path = pathOf(id) ?: return false
         return fileManager.fileExistsAtPath(path)

@@ -5,6 +5,49 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.320.0 — **`kmplib-inspection`: o DOMÍNIO do motor de vistoria** — contrato espelhado, cliente HTTP, `InspectionSession`, fila durável de mídia e os mapeadores domínio → tela
+
+Origem: **Minha Vistoria** T3 (a camada que fala com o `backlib-inspection` ≥ 0.203.0). Aditivo: **sem piso, sem
+aviso**. Módulo OPT-IN (fora do umbrella).
+
+### `kmplib-inspection`
+- **Contrato v1 espelhado (`data/`):** todos os DTOs das rotas do DONO (`InspectionDto`, `ItemDto`, `ItemPatch`,
+  `MediaIntentInput`/`MediaIntentDto`, `ComparisonDto`, `ReportVersionDto`, `FinishIssueDto`…) com
+  kotlinx.serialization e o `InspectionJson` (ignora campo desconhecido, não escreve `null`). **Leitor tolerante de
+  valor:** todo enum tem `UNKNOWN` (`TolerantEnumSerializer`) — status novo do servidor não derruba a tela. `Functioning`
+  e `Divergence` do fio chamam-se `ItemFunctioning`/`ItemDivergence` (os do kit continuam sendo os de tela).
+  `toString` redigido em todo DTO com GPS, endereço, contato, observação ou URL assinada.
+- **`InspectionApi`** sobre o `DomainApiClient` (Bearer, refresh, 402 → cota, log de requisição), com
+  `InspectionApiConfig(basePath = "/<produto>/v1/inspection", deviceModel)` — o motor é montado no módulo de cada
+  produto no apps-api; `X-Device-Model` vai para a trilha. Objetos, modelos, blocos, vistorias, mídia, comparação,
+  convite, partes, laudo, links e contestação. Ids escapados no caminho.
+- **Erro tipado:** `InspectionResult` (`Ok`/`Failed`) + `InspectionError` — `Offline`, `QuotaExceeded(quota)` (402),
+  `PaymentRequired`, **`Incomplete(issues)`** (422 `INSPECTION_INCOMPLETE` com `details.issues`), `Conflict` (409;
+  `isNotEditable`, `mediaId`), `Gone` (410), `NotFound`, `Validation` (`fieldError`), `Rejected` (outro 422),
+  `RateLimited`, `Unauthorized` (`reauthRequired`), `Unavailable` (503), `Server`, `InvalidResponse`; `isRetryable`.
+- **`InspectionSession`** (o repositório de uma vistoria aberta): carga, mudança de item OTIMISTA e **durável**
+  (`InspectionPatchStore`/`BlobInspectionPatchStore` — sobrevive ao processo morto; mudanças do mesmo item se juntam:
+  `mergeItemPatches`), envio em lotes de 500, recusa definitiva descarta e recarrega, 409 mantém; `finish()` (sem rede
+  não finaliza; 422 → pendências em `state.issues`), `reopen`, cômodos, cabeçalho, voz; mídia confirmada entra no
+  estado sem recarregar (`withMedia`).
+- **`InspectionMediaQueue`** sobre a `DirectUploadOutbox` (kmplib-sync): intenção → `PUT` direto na URL assinada
+  (SINGLE, com TODOS os cabeçalhos assinados — `If-None-Match: *` no R2) ou MULTIPART (reassinatura por
+  `/media/{id}/parts`) → `complete` com conferência do hash. O SHA-256 é o da CAPTURA (`InspectionCaptureWriter`) e a
+  cópia na fila é conferida contra ele (`HASH_MISMATCH` não entra). 412/409 "objeto já existe" no PUT único conta como
+  enviado (o `complete` decide); `MEDIA_NOT_UPLOADED`/`MEDIA_HASH_MISMATCH` reenviam com recuo; capa de vídeo antes do
+  `complete`; só-Wi-Fi por envio; só a mesma conta envia; Android WorkManager / iOS sessão de fundo.
+- **Mapeadores (`mapping/`):** `InspectionMappers` (cômodos, itens, folha do item, saída lado a lado, revisão,
+  laudo + prova, fila, voz) e `InspectionTemplateMapping` (lista/editor de modelo; pergunta → FormSchema v1 **igual ao
+  da weblib**: escolha = `singleChoice`/`chips`, ids-padrão `material`/`color`/`brand`/`quantity`). Pendências locais
+  na MESMA regra do `finish` do servidor (`localIssues`). `InspectionPhotoSources` = imagem local (BlobStore) ou do
+  servidor (URL curta, baixada sem Bearer).
+- **Textos:** 7 frases novas de pendência na revisão (`issue*`, 4 idiomas).
+- **Fica para a versão seguinte:** o `SignaturePort` (OTP + traço), escrito e testado, aguardando o security-review.
+
+### `kmplib-core`
+- **`BlobStore.localFilePath(id)`** (aditivo, default `null`): caminho do arquivo para quem envia a partir de arquivo
+  (a fila copia em streaming, sem carregar o vídeo na memória). Android e iOS implementam.
+
 ## 2.319.0 — **`kmplib-inspection`: a UI do Laudo Kit (motor de vistoria), temável** + `AppTabRow`, `ProgressRing(completeFill)`, `ReorderableList(header, footer)` e a `GuidedCamera` em peças
 
 Origem: **Minha Vistoria** (T3, protótipo aprovado em 22/out/2026 — `MinhaVistoria/docs/design/laudo-kit.md`) e

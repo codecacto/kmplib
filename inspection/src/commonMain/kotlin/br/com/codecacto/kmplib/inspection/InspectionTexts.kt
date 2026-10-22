@@ -142,6 +142,13 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_insp_finish
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_finish_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_finish_message
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_finish_failed
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_min_photos_one
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_min_photos_other
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_required_fields
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_result_required
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_media_task
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_reading
+import br.com.codecacto.kmplib.generated.resources.kmplib_insp_issue_header
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_generating_report
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_pending_media
 import br.com.codecacto.kmplib.generated.resources.kmplib_insp_page_of
@@ -454,6 +461,13 @@ data class InspectionReviewTexts(
     val finishTitle: String = "Finalizar a vistoria?",
     val finishMessage: String = "O laudo será gerado para assinatura. Depois de assinar, o laudo não pode ser editado — só com uma nova versão.",
     val finishFailed: String = "Não foi possível finalizar. Tente de novo.",
+    val issueMinPhotosOne: String = "%1\$s · falta 1 foto",
+    val issueMinPhotosOther: String = "%1\$s · faltam %2\$s fotos",
+    val issueRequiredFields: String = "%1\$s · campos obrigatórios em branco",
+    val issueResultRequired: String = "%1\$s · sem resultado",
+    val issueMediaTask: String = "%1\$s · falta: %2\$s",
+    val issueReading: String = "%1\$s · falta a leitura: %2\$s",
+    val issueHeader: String = "Dados da vistoria · %1\$s",
 )
 
 /** Textos do kit — report. */
@@ -778,6 +792,13 @@ private fun rememberInspectionReviewTexts(): InspectionReviewTexts = InspectionR
         finishTitle = kmpStringResource(Res.string.kmplib_insp_finish_title),
         finishMessage = kmpStringResource(Res.string.kmplib_insp_finish_message),
         finishFailed = kmpStringResource(Res.string.kmplib_insp_finish_failed),
+        issueMinPhotosOne = kmpStringResource(Res.string.kmplib_insp_issue_min_photos_one),
+        issueMinPhotosOther = kmpStringResource(Res.string.kmplib_insp_issue_min_photos_other),
+        issueRequiredFields = kmpStringResource(Res.string.kmplib_insp_issue_required_fields),
+        issueResultRequired = kmpStringResource(Res.string.kmplib_insp_issue_result_required),
+        issueMediaTask = kmpStringResource(Res.string.kmplib_insp_issue_media_task),
+        issueReading = kmpStringResource(Res.string.kmplib_insp_issue_reading),
+        issueHeader = kmpStringResource(Res.string.kmplib_insp_issue_header),
 )
 
 @Composable
