@@ -1,0 +1,262 @@
+#values Values
+conditionNew	Novo	New	Nuevo	Novo
+conditionGood	Bom	Good	Bueno	Bom
+conditionRegular	Regular	Fair	Regular	Razoável
+conditionBad	Ruim	Poor	Malo	Mau
+conditionNotApplicable	N/A	N/A	N/A	N/A
+resultConforming	Conforme	Matches	Conforme	Conforme
+resultReservation	Ressalva	With remarks	Con salvedad	Ressalva
+resultNonConforming	Não conforme	Does not match	No conforme	Não conforme
+functioningYes	Sim	Yes	Sí	Sim
+functioningNo	Não	No	No	Não
+functioningNotTested	Não testado	Not tested	No probado	Não testado
+functioningWorks	Funciona	Works	Funciona	Funciona
+functioningBroken	Não funciona	Does not work	No funciona	Não funciona
+divergenceWear	Desgaste natural	Natural wear	Desgaste natural	Desgaste natural
+divergenceDamage	Dano	Damage	Daño	Dano
+divergenceMissing	Falta	Missing	Falta	Em falta
+divergenceCleaning	Limpeza	Cleaning	Limpieza	Limpeza
+mediaQueued	Na fila	Queued	En cola	Na fila
+mediaUploading	Enviando	Uploading	Enviando	A enviar
+mediaConfirmed	Confirmada	Confirmed	Confirmada	Confirmada
+mediaFailed	Falhou	Failed	Falló	Falhou
+signaturePending	Pendente	Pending	Pendiente	Pendente
+signatureAwaitingCode	Aguardando código	Awaiting code	Esperando código	A aguardar código
+signatureSigned	Assinou	Signed	Firmó	Assinou
+verificationAuthentic	Autêntico	Authentic	Auténtico	Autêntico
+verificationNewer	Há uma versão mais recente	A newer version exists	Hay una versión más reciente	Existe uma versão mais recente
+verificationMismatch	Não confere	Does not match	No coincide	Não confere
+verificationUnavailable	Link indisponível	Link unavailable	Enlace no disponible	Ligação indisponível
+guidedTask	Tarefa	Task	Tarea	Tarefa
+exitInReview	Saída em revisão	Move-out under review	Salida en revisión	Saída em revisão
+#common Common
+back	Voltar	Back	Volver	Voltar
+close	Fechar	Close	Cerrar	Fechar
+save	Salvar	Save	Guardar	Guardar
+cancel	Cancelar	Cancel	Cancelar	Cancelar
+retry	Tentar de novo	Try again	Intentar de nuevo	Tentar novamente
+moreOptions	Mais opções	More options	Más opciones	Mais opções
+copy	Copiar	Copy	Copiar	Copiar
+copied	Copiado	Copied	Copiado	Copiado
+#rooms Rooms
+roomsTitle	Cômodos	Rooms	Ambientes	Divisões
+review	Revisão	Review	Revisión	Revisão
+roomsReady	%1$s de %2$s prontos	%1$s of %2$s ready	%1$s de %2$s listos	%1$s de %2$s prontas
+roomReady	Pronto	Done	Listo	Pronta
+roomNotStarted	Não iniciado	Not started	Sin iniciar	Não iniciada
+roomToReviewOne	%1$s item a revisar	%1$s item to review	%1$s ítem por revisar	%1$s item por rever
+roomToReviewOther	%1$s itens a revisar	%1$s items to review	%1$s ítems por revisar	%1$s itens por rever
+roomProgressDescription	%1$s de %2$s itens feitos	%1$s of %2$s items done	%1$s de %2$s ítems hechos	%1$s de %2$s itens feitos
+addRoom	Adicionar cômodo	Add room	Agregar ambiente	Adicionar divisão
+addRoomShort	cômodo	room	ambiente	divisão
+duplicate	Duplicar	Duplicate	Duplicar	Duplicar
+rename	Renomear	Rename	Renombrar	Mudar o nome
+remove	Remover	Remove	Eliminar	Remover
+renameRoomTitle	Renomear cômodo	Rename room	Renombrar ambiente	Mudar o nome da divisão
+roomNameLabel	Nome do cômodo	Room name	Nombre del ambiente	Nome da divisão
+removeRoomTitle	Remover cômodo?	Remove room?	¿Eliminar ambiente?	Remover divisão?
+removeRoomWithMedia	%1$s e as fotos dele saem desta vistoria.	%1$s and its photos will be removed from this inspection.	%1$s y sus fotos salen de esta inspección.	%1$s e as respetivas fotografias saem desta vistoria.
+removeRoomNoMedia	%1$s sai desta vistoria.	%1$s will be removed from this inspection.	%1$s sale de esta inspección.	%1$s sai desta vistoria.
+emptyRooms	Adicione o primeiro cômodo	Add the first room	Agregue el primer ambiente	Adicione a primeira divisão
+reorderHint	Segure e arraste para reordenar	Hold and drag to reorder	Mantenga presionado y arrastre para reordenar	Mantenha premido e arraste para reordenar
+#items Items
+roomPhotos	Fotos do cômodo (%1$s)	Room photos (%1$s)	Fotos del ambiente (%1$s)	Fotografias da divisão (%1$s)
+recordVideo	Gravar vídeo	Record video	Grabar video	Gravar vídeo
+recordVoice	Gravar nota de voz	Record voice note	Grabar nota de voz	Gravar nota de voz
+filterAll	Todos · %1$s	All · %1$s	Todos · %1$s	Todos · %1$s
+filterProblem	Com problema · %1$s	With issues · %1$s	Con problema · %1$s	Com problema · %1$s
+filterNoPhoto	Sem foto · %1$s	No photo · %1$s	Sin foto · %1$s	Sem fotografia · %1$s
+filterChanged	Só o que mudou · %1$s	Changed only · %1$s	Solo lo que cambió · %1$s	Só o que mudou · %1$s
+filterPending	Pendentes · %1$s	Pending · %1$s	Pendientes · %1$s	Pendentes · %1$s
+itemsWithProblemOne	%1$s item com problema	%1$s item with issues	%1$s ítem con problema	%1$s item com problema
+itemsWithProblemOther	%1$s itens com problema	%1$s items with issues	%1$s ítems con problema	%1$s itens com problema
+photoCountOne	%1$s foto	%1$s photo	%1$s foto	%1$s fotografia
+photoCountOther	%1$s fotos	%1$s photos	%1$s fotos	%1$s fotografias
+voiceNote	Nota de voz	Voice note	Nota de voz	Nota de voz
+noPhoto	Sem foto	No photo	Sin foto	Sem fotografia
+requiredMissingOne	Obrigatório · falta %1$s foto	Required · %1$s photo missing	Obligatorio · falta %1$s foto	Obrigatório · falta %1$s fotografia
+requiredMissingOther	Obrigatório · faltam %1$s fotos	Required · %1$s photos missing	Obligatorio · faltan %1$s fotos	Obrigatório · faltam %1$s fotografias
+guidedTaskMetaOne	Tarefa guiada · %1$s foto obrigatória	Guided task · %1$s required photo	Tarea guiada · %1$s foto obligatoria	Tarefa guiada · %1$s fotografia obrigatória
+guidedTaskMetaOther	Tarefa guiada · %1$s fotos obrigatórias	Guided task · %1$s required photos	Tarea guiada · %1$s fotos obligatorias	Tarefa guiada · %1$s fotografias obrigatórias
+roomDone	Cômodo pronto	Room done	Ambiente listo	Divisão pronta
+emptyFilter	Nenhum item neste filtro	No items in this filter	Ningún ítem en este filtro	Nenhum item neste filtro
+markAllConforming	Marcar todos como Conforme	Mark all as Matches	Marcar todos como Conforme	Marcar todos como Conforme
+markAllConformingTitle	Marcar %1$s itens como Conforme?	Mark %1$s items as Matches?	¿Marcar %1$s ítems como Conforme?	Marcar %1$s itens como Conforme?
+markAllConformingMessage	Os itens já avaliados não mudam.	Items already assessed stay as they are.	Los ítems ya evaluados no cambian.	Os itens já avaliados não mudam.
+markAction	Marcar	Mark	Marcar	Marcar
+#item ItemSheet
+itemPosition	%1$s · item %2$s de %3$s	%1$s · item %2$s of %3$s	%1$s · ítem %2$s de %3$s	%1$s · item %2$s de %3$s
+conditionLabel	Estado	Condition	Estado	Estado
+functioningLabel	Funciona?	Does it work?	¿Funciona?	Funciona?
+noteLabel	Observação	Note	Observación	Observação
+photo	Foto	Photo	Foto	Fotografia
+video	Vídeo	Video	Video	Vídeo
+voice	Voz	Voice	Voz	Voz
+attachFromGallery	Anexar da galeria	Attach from gallery	Adjuntar de la galería	Anexar da galeria
+attachmentBadge	Anexo	Attachment	Adjunto	Anexo
+addPhoto	Adicionar foto	Add photo	Agregar foto	Adicionar fotografia
+discardTitle	Descartar alterações?	Discard changes?	¿Descartar cambios?	Descartar alterações?
+discardMessage	As mudanças deste item não foram salvas.	The changes to this item were not saved.	Los cambios de este ítem no se guardaron.	As alterações deste item não foram guardadas.
+discardConfirm	Descartar	Discard	Descartar	Descartar
+keepEditing	Continuar editando	Keep editing	Seguir editando	Continuar a editar
+saveFailed	Não foi possível salvar. Tente de novo.	Could not save. Try again.	No se pudo guardar. Inténtelo de nuevo.	Não foi possível guardar. Tente novamente.
+guidedMinimumOne	Tire %1$s foto para salvar.	Take %1$s photo to save.	Tome %1$s foto para guardar.	Tire %1$s fotografia para guardar.
+guidedMinimumOther	Tire %1$s fotos para salvar.	Take %1$s photos to save.	Tome %1$s fotos para guardar.	Tire %1$s fotografias para guardar.
+mediaDescription	Foto %1$s, %2$s	Photo %1$s, %2$s	Foto %1$s, %2$s	Fotografia %1$s, %2$s
+videoDescription	Vídeo %1$s, %2$s	Video %1$s, %2$s	Video %1$s, %2$s	Vídeo %1$s, %2$s
+removeMediaTitle	Remover esta mídia?	Remove this media?	¿Eliminar este archivo?	Remover este ficheiro?
+moreMedia	+%1$s	+%1$s	+%1$s	+%1$s
+#exit Exit
+tabEntry	Entrada	Move-in	Entrada	Entrada
+tabExit	Saída	Move-out	Salida	Saída
+tabSideBySide	Lado a lado	Side by side	Lado a lado	Lado a lado
+resultLabel	Resultado	Result	Resultado	Resultado
+divergenceLabel	Divergência	Discrepancy	Divergencia	Divergência
+requiredSuffix	obrigatória	required	obligatoria	obrigatória
+divergenceRequired	Escolha a divergência.	Choose the discrepancy.	Elija la divergencia.	Escolha a divergência.
+exitPhoto	Foto de saída	Move-out photo	Foto de salida	Fotografia de saída
+noEntryPhoto	Sem foto na entrada	No move-in photo	Sin foto en la entrada	Sem fotografia na entrada
+noExitPhoto	Sem foto na saída	No move-out photo	Sin foto en la salida	Sem fotografia na saída
+#camera Camera
+alignWithEntry	Alinhe com a foto da entrada	Line up with the move-in photo	Alinee con la foto de entrada	Alinhe com a fotografia da entrada
+overlayOpacity	Transparência da foto da entrada	Move-in photo transparency	Transparencia de la foto de entrada	Transparência da fotografia da entrada
+minimumProgress	Mínimo: %1$s fotos · %2$s de %1$s	Minimum: %1$s photos · %2$s of %1$s	Mínimo: %1$s fotos · %2$s de %1$s	Mínimo: %1$s fotografias · %2$s de %1$s
+minimumDone	Mínimo cumprido · %1$s de %2$s	Minimum met · %1$s of %2$s	Mínimo cumplido · %1$s de %2$s	Mínimo cumprido · %1$s de %2$s
+done	OK	Done	OK	OK
+lastPhoto	Última foto	Last photo	Última foto	Última fotografia
+noLocation	Sem localização	No location	Sin ubicación	Sem localização
+timeNotConfirmed	hora não confirmada	time not confirmed	hora no confirmada	hora não confirmada
+lowStorage	Pouco espaço no aparelho	Low storage on this device	Poco espacio en el dispositivo	Pouco espaço no dispositivo
+freeSpace	Liberar espaço	Free up space	Liberar espacio	Libertar espaço
+captureSaveFailed	Não foi possível guardar a foto. Tente de novo.	Could not store the photo. Try again.	No se pudo guardar la foto. Inténtelo de nuevo.	Não foi possível guardar a fotografia. Tente novamente.
+zoomLabel	Aproximação %1$s	Zoom %1$s	Zoom %1$s	Zoom %1$s
+#review Review
+reviewSummary	%1$s cômodos · %2$s itens · %3$s fotos · %4$s vídeos	%1$s rooms · %2$s items · %3$s photos · %4$s videos	%1$s ambientes · %2$s ítems · %3$s fotos · %4$s videos	%1$s divisões · %2$s itens · %3$s fotografias · %4$s vídeos
+pendencies	Pendências (%1$s)	Pending items (%1$s)	Pendientes (%1$s)	Pendências (%1$s)
+goToItem	Ir ao item	Go to item	Ir al ítem	Ir ao item
+summaryByCondition	Resumo por estado	Summary by condition	Resumen por estado	Resumo por estado
+problemItems	Itens com problema (%1$s)	Items with issues (%1$s)	Ítems con problema (%1$s)	Itens com problema (%1$s)
+divergences	Divergências (%1$s)	Discrepancies (%1$s)	Divergencias (%1$s)	Divergências (%1$s)
+resolveToFinishOne	Resolva a pendência para finalizar.	Resolve the pending item to finish.	Resuelva el pendiente para finalizar.	Resolva a pendência para finalizar.
+resolveToFinishOther	Resolva as %1$s pendências para finalizar.	Resolve the %1$s pending items to finish.	Resuelva los %1$s pendientes para finalizar.	Resolva as %1$s pendências para finalizar.
+allReady	Tudo pronto para finalizar.	All set to finish.	Todo listo para finalizar.	Tudo pronto para finalizar.
+finish	Finalizar	Finish	Finalizar	Finalizar
+finishTitle	Finalizar a vistoria?	Finish the inspection?	¿Finalizar la inspección?	Finalizar a vistoria?
+finishMessage	O laudo será gerado para assinatura. Depois de assinar, o laudo não pode ser editado — só com uma nova versão.	The report will be generated for signing. Once signed, it cannot be edited — only replaced by a new version.	El informe se generará para la firma. Una vez firmado, no se puede editar; solo con una nueva versión.	O relatório será gerado para assinatura. Depois de assinado, não pode ser editado — só com uma nova versão.
+finishFailed	Não foi possível finalizar. Tente de novo.	Could not finish. Try again.	No se pudo finalizar. Inténtelo de nuevo.	Não foi possível finalizar. Tente novamente.
+#report Report
+generatingReport	Gerando o laudo…	Generating the report…	Generando el informe…	A gerar o relatório…
+pendingMedia	Faltam %1$s mídias · %2$s de %3$s enviadas	%1$s media left · %2$s of %3$s uploaded	Faltan %1$s archivos · %2$s de %3$s enviados	Faltam %1$s ficheiros · %2$s de %3$s enviados
+pageOf	página %1$s de %2$s	page %1$s of %2$s	página %1$s de %2$s	página %1$s de %2$s
+signedBy	Assinado por %1$s	Signed by %1$s	Firmado por %1$s	Assinado por %1$s
+awaitingSignatures	Aguardando assinaturas	Awaiting signatures	Esperando firmas	A aguardar assinaturas
+hashShort	hash %1$s	hash %1$s	hash %1$s	hash %1$s
+sharePdf	Compartilhar PDF	Share PDF	Compartir PDF	Partilhar PDF
+copyVerifyLink	Copiar link de verificação	Copy verification link	Copiar enlace de verificación	Copiar ligação de verificação
+versions	Versões	Versions	Versiones	Versões
+newVersion	Criar nova versão (correção)	Create new version (correction)	Crear nueva versión (corrección)	Criar nova versão (correção)
+reportError	Não foi possível gerar o laudo.	Could not generate the report.	No se pudo generar el informe.	Não foi possível gerar o relatório.
+currentVersion	Atual	Current	Actual	Atual
+hashLabel	Hash do documento	Document hash	Hash del documento	Hash do documento
+copyHash	Copiar hash	Copy hash	Copiar hash	Copiar hash
+qrDescription	QR de verificação do laudo	Report verification QR code	QR de verificación del informe	QR de verificação do relatório
+#queue Queue
+queueProgress	%1$s de %2$s fotos enviadas	%1$s of %2$s photos uploaded	%1$s de %2$s fotos enviadas	%1$s de %2$s fotografias enviadas
+queueWaitingWifiOne	%1$s vídeo aguardando Wi-Fi	%1$s video waiting for Wi-Fi	%1$s video esperando Wi-Fi	%1$s vídeo a aguardar Wi-Fi
+queueWaitingWifiOther	%1$s vídeos aguardando Wi-Fi	%1$s videos waiting for Wi-Fi	%1$s videos esperando Wi-Fi	%1$s vídeos a aguardar Wi-Fi
+sendWithMobileData	Enviar agora com dados móveis	Send now on mobile data	Enviar ahora con datos móviles	Enviar agora com dados móveis
+mobileDataTitle	Enviar com dados móveis?	Use mobile data?	¿Enviar con datos móviles?	Enviar com dados móveis?
+mobileDataMessage	Vídeos gastam bastante do seu plano de dados.	Videos use a lot of your data plan.	Los videos consumen bastante de su plan de datos.	Os vídeos gastam bastante do seu plano de dados.
+send	Enviar	Send	Enviar	Enviar
+queueOffline	Aguardando conexão	Waiting for connection	Esperando conexión	A aguardar ligação
+queueFailed	%1$s com falha	%1$s failed	%1$s con error	%1$s com falha
+queueDone	Todas as mídias enviadas	All media uploaded	Todos los archivos enviados	Todos os ficheiros enviados
+openQueue	Ver fila de envio	View upload queue	Ver cola de envío	Ver fila de envio
+queueTitle	Envio de mídias	Media upload	Envío de archivos	Envio de ficheiros
+queueEmpty	Nada na fila	Nothing in the queue	Nada en la cola	Nada na fila
+confirmedSection	Confirmadas (%1$s)	Confirmed (%1$s)	Confirmadas (%1$s)	Confirmadas (%1$s)
+storageTitle	Espaço no aparelho	Device storage	Espacio en el dispositivo	Espaço no dispositivo
+storageReclaimable	%1$s já confirmados no servidor podem sair deste aparelho.	%1$s already confirmed on the server can leave this device.	%1$s ya confirmados en el servidor pueden salir de este dispositivo.	%1$s já confirmados no servidor podem sair deste dispositivo.
+storageNothing	Nada para liberar agora.	Nothing to free up now.	Nada para liberar ahora.	Nada para libertar agora.
+#template Template
+templatesTitle	Modelos de vistoria	Inspection templates	Plantillas de inspección	Modelos de vistoria
+myTemplates	Meus modelos · %1$s	My templates · %1$s	Mis plantillas · %1$s	Os meus modelos · %1$s
+readyTemplates	Modelos prontos · %1$s	Ready-made · %1$s	Plantillas listas · %1$s	Modelos prontos · %1$s
+templateSummary	%1$s cômodos · %2$s itens	%1$s rooms · %2$s items	%1$s ambientes · %2$s ítems	%1$s divisões · %2$s itens
+templateUsage	Usado em %1$s vistorias · editado %2$s	Used in %1$s inspections · edited %2$s	Usada en %1$s inspecciones · editada %2$s	Usado em %1$s vistorias · editado %2$s
+startFromReady	Começar de um modelo pronto	Start from a ready-made template	Empezar con una plantilla lista	Começar a partir de um modelo pronto
+copyAndEdit	Copiar e editar	Copy and edit	Copiar y editar	Copiar e editar
+newBlankTemplate	Novo modelo em branco	New blank template	Nueva plantilla en blanco	Novo modelo em branco
+editorSubtitle	%1$s · %2$s itens	%1$s · %2$s items	%1$s · %2$s ítems	%1$s · %2$s itens
+preview	Prévia	Preview	Vista previa	Pré-visualização
+addItem	Adicionar item	Add item	Agregar ítem	Adicionar item
+changesNote	Mudanças valem para vistorias novas. As já feitas não mudam.	Changes apply to new inspections. Finished ones do not change.	Los cambios valen para inspecciones nuevas. Las ya hechas no cambian.	As alterações valem para vistorias novas. As já feitas não mudam.
+requiredTag	Obrigatório	Required	Obligatorio	Obrigatório
+editItemTitle	Editar item	Edit item	Editar ítem	Editar item
+newItemTitle	Novo item	New item	Nuevo ítem	Novo item
+itemNameLabel	Nome do item	Item name	Nombre del ítem	Nome do item
+minPhotosLabel	Mínimo de fotos	Minimum photos	Mínimo de fotos	Mínimo de fotografias
+defaultConditionLabel	Estado padrão	Default condition	Estado predeterminado	Estado predefinido
+itemQuestions	Perguntas do item	Item questions	Preguntas del ítem	Perguntas do item
+ownQuestion	Pergunta própria	Custom question	Pregunta propia	Pergunta própria
+questionMaterial	Material	Material	Material	Material
+questionColor	Cor	Color	Color	Cor
+questionBrand	Marca	Brand	Marca	Marca
+questionQuantity	Quantidade	Quantity	Cantidad	Quantidade
+questionNameLabel	Nome da pergunta	Question name	Nombre de la pregunta	Nome da pergunta
+questionTypeLabel	Tipo	Type	Tipo	Tipo
+typeText	Texto	Text	Texto	Texto
+typeChoice	Escolha	Choice	Opción	Escolha
+typeNumber	Número	Number	Número	Número
+typeYesNo	Sim/Não	Yes/No	Sí/No	Sim/Não
+typeDate	Data	Date	Fecha	Data
+questionRequired	Obrigatória	Required	Obligatoria	Obrigatória
+choiceOptionsLabel	Opções (uma por linha)	Options (one per line)	Opciones (una por línea)	Opções (uma por linha)
+addQuestion	Adicionar pergunta	Add question	Agregar pregunta	Adicionar pergunta
+nameRequired	Informe o nome.	Enter the name.	Ingrese el nombre.	Indique o nome.
+choiceOptionsRequired	Informe ao menos duas opções.	Enter at least two options.	Ingrese al menos dos opciones.	Indique pelo menos duas opções.
+templateConflict	Este modelo foi alterado em outro aparelho. Recarregue para continuar.	This template was changed on another device. Reload to continue.	Esta plantilla se modificó en otro dispositivo. Recargue para continuar.	Este modelo foi alterado noutro dispositivo. Recarregue para continuar.
+reload	Recarregar	Reload	Recargar	Recarregar
+goToFirstError	Ir ao primeiro	Go to first	Ir al primero	Ir ao primeiro
+leaveEditorTitle	Sair sem salvar?	Leave without saving?	¿Salir sin guardar?	Sair sem guardar?
+leaveEditorMessage	As mudanças deste modelo serão perdidas.	The changes to this template will be lost.	Los cambios de esta plantilla se perderán.	As alterações deste modelo serão perdidas.
+leave	Sair	Leave	Salir	Sair
+emptyRoomItems	Adicione o primeiro item	Add the first item	Agregue el primer ítem	Adicione o primeiro item
+readOnlyTemplate	Modelo pronto: copie para editar.	Ready-made template: copy it to edit.	Plantilla lista: cópiela para editar.	Modelo pronto: copie para editar.
+#voice Voice
+voiceTitle	Falar os itens	Speak the items	Dictar los ítems	Ditar os itens
+holdToTalk	Segure para falar	Hold to talk	Mantenga presionado para hablar	Mantenha premido para falar
+listening	Ouvindo…	Listening…	Escuchando…	A ouvir…
+structuring	Organizando o que você disse…	Organizing what you said…	Organizando lo que dijo…	A organizar o que disse…
+proposalsTitle	Confira antes de aplicar	Check before applying	Revise antes de aplicar	Confira antes de aplicar
+notFound	Não encontrei este item	Could not find this item	No encontré este ítem	Não encontrei este item
+apply	Aplicar (%1$s)	Apply (%1$s)	Aplicar (%1$s)	Aplicar (%1$s)
+voiceOffline	Sem conexão: a fala ficou guardada para revisar depois.	No connection: the recording was kept to review later.	Sin conexión: lo dictado quedó guardado para revisar después.	Sem ligação: o que disse ficou guardado para rever depois.
+voiceFailed	Não consegui organizar a fala. Ela virou observação do cômodo.	Could not organize the speech. It became a note on the room.	No pude organizar lo dictado. Quedó como observación del ambiente.	Não consegui organizar o que disse. Ficou como observação da divisão.
+micPermission	Permita o microfone para falar os itens.	Allow the microphone to speak the items.	Permita el micrófono para dictar los ítems.	Permita o microfone para ditar os itens.
+allowMic	Permitir microfone	Allow microphone	Permitir micrófono	Permitir microfone
+transcriptLabel	O que você disse	What you said	Lo que dijo	O que disse
+#signature Signature
+signTitle	Assinar	Sign	Firmar	Assinar
+signatureLabel	Assinatura	Signature	Firma	Assinatura
+undo	Desfazer	Undo	Deshacer	Anular
+clear	Limpar	Clear	Borrar	Limpar
+codeSentSms	Código enviado por SMS	Code sent by SMS	Código enviado por SMS	Código enviado por SMS
+codeSentEmail	Código enviado por e-mail	Code sent by email	Código enviado por correo	Código enviado por e-mail
+codeSentWhatsapp	Código enviado por WhatsApp	Code sent by WhatsApp	Código enviado por WhatsApp	Código enviado por WhatsApp
+codeWrongOne	Código incorreto, resta %1$s tentativa.	Wrong code, %1$s attempt left.	Código incorrecto, queda %1$s intento.	Código incorreto, resta %1$s tentativa.
+codeWrongOther	Código incorreto, restam %1$s tentativas.	Wrong code, %1$s attempts left.	Código incorrecto, quedan %1$s intentos.	Código incorreto, restam %1$s tentativas.
+codeExpired	O código expirou. Peça outro.	The code expired. Request a new one.	El código venció. Pida otro.	O código expirou. Peça outro.
+resendIn	Reenviar em %1$s	Resend in %1$s	Reenviar en %1$s	Reenviar em %1$s
+resend	Reenviar código	Resend code	Reenviar código	Reenviar código
+signOffline	Sem conexão: a assinatura fica aguardando o código.	No connection: the signature waits for the code.	Sin conexión: la firma queda esperando el código.	Sem ligação: a assinatura fica a aguardar o código.
+signAgreeRequired	Marque a concordância para assinar.	Tick the agreement to sign.	Marque la conformidad para firmar.	Assinale a concordância para assinar.
+signStrokeRequired	Faça a assinatura no quadro.	Sign in the box.	Firme en el recuadro.	Assine no quadro.
+codeLabel	Código	Code	Código	Código
+signedDone	Assinado	Signed	Firmado	Assinado
+signatureLinkTitle	Enviar para assinar	Send for signature	Enviar para firmar	Enviar para assinar
+creatingLink	Criando o link…	Creating the link…	Creando el enlace…	A criar a ligação…
+linkError	Não foi possível criar o link.	Could not create the link.	No se pudo crear el enlace.	Não foi possível criar a ligação.
+shareLink	Compartilhar link	Share link	Compartir enlace	Partilhar ligação
+copyLink	Copiar link	Copy link	Copiar enlace	Copiar ligação
+linkShared	Link enviado	Link sent	Enlace enviado	Ligação enviada

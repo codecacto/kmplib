@@ -5502,3 +5502,15 @@ backlib é descartado. O Vitalis devolve 402 `SUBSCRIPTION_REQUIRED` `{details.s
 assinatura vencida) e o app hoje decide pelo STATUS (`core/network/VitalisApi.kt`, único 402 daquele backend)
 e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo "não é cota", preencher
 `serverCode`/`serverMessage`/`details`/`detailsJson` com o mesmo `envelopeDeErro` dos outros status.
+
+## Laudo Kit — `kmplib-inspection` (Minha Vistoria / Meus Aluguéis, 22/out/2026)
+- [x] **LK-M01…M16 (UI)** — ENTREGUE na 2.319.0: tema temável (marca/neutros do host, semáforo fixo, fontes injetadas),
+  ícones Material Symbols oficiais, átomos, cômodos, itens, folha do item, faixa de mídia, câmera de vistoria com
+  gravação-antes-de-devolver (hash/GPS/modelo), saída lado a lado, revisão, laudo + prova, fila de envio, editor de
+  modelo (pergunta própria → FormSchema v1), voz → item, assinar no aparelho. Dirigida por estado de tela + eventos.
+  Evoluções aditivas: `AppTabRow`, `ProgressRing(completeFill)`, `ReorderableList(header, footer)`,
+  `GuidedCameraController`/`GuidedCameraViewport`.
+- [ ] **(P1) Domínio + cliente HTTP do motor** (espelho do contrato do `backlib-inspection`, `InspectionSession`,
+  fixtures compartilhadas) + mapeadores domínio → `*State` por tela. Depende do `backlib-inspection` publicado.
+- [ ] **(P2) Zoom no `GuidedCameraController`** (o "1×" do topo da câmera do kit).
+- [ ] **(P3) LK-M17** — `PhotoMarkupEditor` (v2) e integridade do app (v3).

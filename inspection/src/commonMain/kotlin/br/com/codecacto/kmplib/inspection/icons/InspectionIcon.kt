@@ -1,0 +1,68 @@
+// GERADO por inspection/tools/gerar_icones.py — não editar à mão.
+package br.com.codecacto.kmplib.inspection.icons
+
+/**
+ * O subconjunto do **Material Symbols Outlined** que o Laudo Kit usa (§1.2 da especificação), com as
+ * duas variações de preenchimento. O nome do símbolo ([symbol]) é o mesmo da fonte, para casar com a
+ * weblib (`InspectionIcon name="check_circle"`). Embutido como vetor: o kit não depende de fonte
+ * remota nem de `material-icons-extended` (que é o Material Icons antigo, de traço diferente).
+ */
+enum class InspectionIcon(val symbol: String, internal val outlined: String, internal val filled: String) {
+    Add("add", InspectionIconPaths.ADD_OUTLINED, InspectionIconPaths.ADD_FILLED),
+    ArrowBack("arrow_back", InspectionIconPaths.ARROW_BACK_OUTLINED, InspectionIconPaths.ARROW_BACK_FILLED),
+    ArrowForward("arrow_forward", InspectionIconPaths.ARROW_FORWARD_OUTLINED, InspectionIconPaths.ARROW_FORWARD_FILLED),
+    BrokenImage("broken_image", InspectionIconPaths.BROKEN_IMAGE_OUTLINED, InspectionIconPaths.BROKEN_IMAGE_FILLED),
+    Cameraswitch("cameraswitch", InspectionIconPaths.CAMERASWITCH_OUTLINED, InspectionIconPaths.CAMERASWITCH_FILLED),
+    Cancel("cancel", InspectionIconPaths.CANCEL_OUTLINED, InspectionIconPaths.CANCEL_FILLED),
+    Check("check", InspectionIconPaths.CHECK_OUTLINED, InspectionIconPaths.CHECK_FILLED),
+    CheckCircle("check_circle", InspectionIconPaths.CHECK_CIRCLE_OUTLINED, InspectionIconPaths.CHECK_CIRCLE_FILLED),
+    ChevronLeft("chevron_left", InspectionIconPaths.CHEVRON_LEFT_OUTLINED, InspectionIconPaths.CHEVRON_LEFT_FILLED),
+    ChevronRight("chevron_right", InspectionIconPaths.CHEVRON_RIGHT_OUTLINED, InspectionIconPaths.CHEVRON_RIGHT_FILLED),
+    CleaningServices("cleaning_services", InspectionIconPaths.CLEANING_SERVICES_OUTLINED, InspectionIconPaths.CLEANING_SERVICES_FILLED),
+    Close("close", InspectionIconPaths.CLOSE_OUTLINED, InspectionIconPaths.CLOSE_FILLED),
+    CloudDone("cloud_done", InspectionIconPaths.CLOUD_DONE_OUTLINED, InspectionIconPaths.CLOUD_DONE_FILLED),
+    ContentCopy("content_copy", InspectionIconPaths.CONTENT_COPY_OUTLINED, InspectionIconPaths.CONTENT_COPY_FILLED),
+    Delete("delete", InspectionIconPaths.DELETE_OUTLINED, InspectionIconPaths.DELETE_FILLED),
+    DoNotDisturbOn("do_not_disturb_on", InspectionIconPaths.DO_NOT_DISTURB_ON_OUTLINED, InspectionIconPaths.DO_NOT_DISTURB_ON_FILLED),
+    DragIndicator("drag_indicator", InspectionIconPaths.DRAG_INDICATOR_OUTLINED, InspectionIconPaths.DRAG_INDICATOR_FILLED),
+    Draw("draw", InspectionIconPaths.DRAW_OUTLINED, InspectionIconPaths.DRAW_FILLED),
+    Edit("edit", InspectionIconPaths.EDIT_OUTLINED, InspectionIconPaths.EDIT_FILLED),
+    EditNote("edit_note", InspectionIconPaths.EDIT_NOTE_OUTLINED, InspectionIconPaths.EDIT_NOTE_FILLED),
+    Error("error", InspectionIconPaths.ERROR_OUTLINED, InspectionIconPaths.ERROR_FILLED),
+    ExpandMore("expand_more", InspectionIconPaths.EXPAND_MORE_OUTLINED, InspectionIconPaths.EXPAND_MORE_FILLED),
+    FactCheck("fact_check", InspectionIconPaths.FACT_CHECK_OUTLINED, InspectionIconPaths.FACT_CHECK_FILLED),
+    FlashAuto("flash_auto", InspectionIconPaths.FLASH_AUTO_OUTLINED, InspectionIconPaths.FLASH_AUTO_FILLED),
+    FlashOff("flash_off", InspectionIconPaths.FLASH_OFF_OUTLINED, InspectionIconPaths.FLASH_OFF_FILLED),
+    FlashOn("flash_on", InspectionIconPaths.FLASH_ON_OUTLINED, InspectionIconPaths.FLASH_ON_FILLED),
+    GppBad("gpp_bad", InspectionIconPaths.GPP_BAD_OUTLINED, InspectionIconPaths.GPP_BAD_FILLED),
+    Help("help", InspectionIconPaths.HELP_OUTLINED, InspectionIconPaths.HELP_FILLED),
+    HideImage("hide_image", InspectionIconPaths.HIDE_IMAGE_OUTLINED, InspectionIconPaths.HIDE_IMAGE_FILLED),
+    HourglassBottom("hourglass_bottom", InspectionIconPaths.HOURGLASS_BOTTOM_OUTLINED, InspectionIconPaths.HOURGLASS_BOTTOM_FILLED),
+    Layers("layers", InspectionIconPaths.LAYERS_OUTLINED, InspectionIconPaths.LAYERS_FILLED),
+    LibraryAdd("library_add", InspectionIconPaths.LIBRARY_ADD_OUTLINED, InspectionIconPaths.LIBRARY_ADD_FILLED),
+    Link("link", InspectionIconPaths.LINK_OUTLINED, InspectionIconPaths.LINK_FILLED),
+    LinkOff("link_off", InspectionIconPaths.LINK_OFF_OUTLINED, InspectionIconPaths.LINK_OFF_FILLED),
+    Mic("mic", InspectionIconPaths.MIC_OUTLINED, InspectionIconPaths.MIC_FILLED),
+    MoreVert("more_vert", InspectionIconPaths.MORE_VERT_OUTLINED, InspectionIconPaths.MORE_VERT_FILLED),
+    NewReleases("new_releases", InspectionIconPaths.NEW_RELEASES_OUTLINED, InspectionIconPaths.NEW_RELEASES_FILLED),
+    Opacity("opacity", InspectionIconPaths.OPACITY_OUTLINED, InspectionIconPaths.OPACITY_FILLED),
+    PhotoCamera("photo_camera", InspectionIconPaths.PHOTO_CAMERA_OUTLINED, InspectionIconPaths.PHOTO_CAMERA_FILLED),
+    PhotoLibrary("photo_library", InspectionIconPaths.PHOTO_LIBRARY_OUTLINED, InspectionIconPaths.PHOTO_LIBRARY_FILLED),
+    PlayCircle("play_circle", InspectionIconPaths.PLAY_CIRCLE_OUTLINED, InspectionIconPaths.PLAY_CIRCLE_FILLED),
+    Refresh("refresh", InspectionIconPaths.REFRESH_OUTLINED, InspectionIconPaths.REFRESH_FILLED),
+    Schedule("schedule", InspectionIconPaths.SCHEDULE_OUTLINED, InspectionIconPaths.SCHEDULE_FILLED),
+    SearchOff("search_off", InspectionIconPaths.SEARCH_OFF_OUTLINED, InspectionIconPaths.SEARCH_OFF_FILLED),
+    Share("share", InspectionIconPaths.SHARE_OUTLINED, InspectionIconPaths.SHARE_FILLED),
+    Sms("sms", InspectionIconPaths.SMS_OUTLINED, InspectionIconPaths.SMS_FILLED),
+    Stop("stop", InspectionIconPaths.STOP_OUTLINED, InspectionIconPaths.STOP_FILLED),
+    TaskAlt("task_alt", InspectionIconPaths.TASK_ALT_OUTLINED, InspectionIconPaths.TASK_ALT_FILLED),
+    Timer("timer", InspectionIconPaths.TIMER_OUTLINED, InspectionIconPaths.TIMER_FILLED),
+    Undo("undo", InspectionIconPaths.UNDO_OUTLINED, InspectionIconPaths.UNDO_FILLED),
+    Update("update", InspectionIconPaths.UPDATE_OUTLINED, InspectionIconPaths.UPDATE_FILLED),
+    Upload("upload", InspectionIconPaths.UPLOAD_OUTLINED, InspectionIconPaths.UPLOAD_FILLED),
+    Verified("verified", InspectionIconPaths.VERIFIED_OUTLINED, InspectionIconPaths.VERIFIED_FILLED),
+    Videocam("videocam", InspectionIconPaths.VIDEOCAM_OUTLINED, InspectionIconPaths.VIDEOCAM_FILLED),
+    Warning("warning", InspectionIconPaths.WARNING_OUTLINED, InspectionIconPaths.WARNING_FILLED),
+    WifiOff("wifi_off", InspectionIconPaths.WIFI_OFF_OUTLINED, InspectionIconPaths.WIFI_OFF_FILLED),
+    ;
+}

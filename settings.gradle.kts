@@ -120,6 +120,12 @@ project(":kmplib-video").projectDir = file("video")
 include(":kmplib-chat")
 project(":kmplib-chat").projectDir = file("chat")
 
+// `kmplib-inspection` (2.318.0) — a UI do Laudo Kit (motor de vistoria: cômodos, itens, folha do item,
+// saída lado a lado, câmera com sobreposição, revisão, laudo, editor de modelo, assinatura no aparelho).
+// Fora do umbrella: traz câmera, PDF e QR — só app de vistoria declara.
+include(":kmplib-inspection")
+project(":kmplib-inspection").projectDir = file("inspection")
+
 // `kmplib-video-download` (2.212.0) — o DOWNLOAD saiu do player porque traz um foreground service
 // `dataSync` no manifesto, e a Play barra o bundle de quem herda o serviço sem usá-lo. Opt-in: só
 // o app que baixa declara; o umbrella `:kmplib` NÃO o inclui.

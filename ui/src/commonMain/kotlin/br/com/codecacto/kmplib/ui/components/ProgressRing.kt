@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import br.com.codecacto.kmplib.ui.theme.ColorContrast
 import kotlin.math.floor
 import androidx.compose.animation.core.Animatable as FloatAnimatable
 
@@ -103,6 +104,10 @@ import androidx.compose.animation.core.Animatable as FloatAnimatable
  *   `false` em lista: numa `LazyColumn`, o item recomposto ao voltar rolando anima de novo, e a
  *   tela inteira "respira" a cada rolagem.
  * @param contentDescription o que o leitor de tela lê. `null` = só o percentual da semântica.
+ * @param completeFill `true` = em 100% o anel vira um **disco cheio** na cor do 100% (o "concluído"
+ *   do Laudo Kit: cômodo pronto = disco na marca com ✓ claro). O miolo default troca a cor do ✓ pela
+ *   de maior contraste sobre o disco ([ProgressRingScope.isFilled]). Default `false` — nada muda para
+ *   quem já usa. Desde 2.318.0.
  * @param content o miolo do anel. Default: [ProgressRingLabel] (o número, e o ✓ em 100%). Passe
  *   `{}` para um anel vazio.
  */
@@ -120,6 +125,7 @@ fun ProgressRing(
     animated: Boolean = true,
     animateOnAppear: Boolean = false,
     contentDescription: String? = null,
+    completeFill: Boolean = false,
     content: @Composable ProgressRingScope.() -> Unit = { ProgressRingLabel() },
 ) {
     val indeterminado = progress == null
@@ -168,6 +174,7 @@ fun ProgressRing(
         isIndeterminate = indeterminado,
         size = size,
         contentColor = corDoTraco,
+        isFilled = completeFill && concluido,
     )
 
     Box(
@@ -208,7 +215,10 @@ fun ProgressRing(
             } else {
                 progressRingSweep(fracaoDesenhada)
             }
-            if (varredura > 0f) {
+            if (completeFill && concluido) {
+                // Disco cheio: o raio inclui o traço inteiro, sem anel de trilha à mostra.
+                drawCircle(brush = pincel, radius = this.size.minDimension / 2f)
+            } else if (varredura > 0f) {
                 drawArc(
                     brush = pincel,
                     startAngle = START_ANGLE,
@@ -242,6 +252,11 @@ class ProgressRingScope internal constructor(
     val size: Dp,
     /** A cor do traço em vigor — o miolo default a usa no ✓. */
     val contentColor: Color,
+    /**
+     * `true` quando o anel virou disco cheio (`completeFill` em 100%): o que vai no miolo precisa de
+     * cor de contraste sobre [contentColor], não da própria [contentColor]. Desde 2.318.0.
+     */
+    val isFilled: Boolean = false,
 )
 
 /**
@@ -259,7 +274,7 @@ fun ProgressRingScope.ProgressRingLabel() {
         Icon(
             imageVector = Icons.Filled.Check,
             contentDescription = null,
-            tint = contentColor,
+            tint = if (isFilled) ColorContrast.pickOnColor(contentColor) else contentColor,
             modifier = Modifier.size(size * ProgressRingDefaults.CheckRatio),
         )
         return

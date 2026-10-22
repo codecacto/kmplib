@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -176,6 +177,9 @@ interface ReorderableListItemScope {
  * @param enabled `false` desliga arrasto e ações (ex.: enquanto salva).
  * @param dragOnLongPress `true` (default) = segurar o item em qualquer ponto começa o arrasto;
  *   `false` = só pela alça (use quando o item tem long-press próprio).
+ * @param header itens FIXOS antes da lista (não reordenáveis), na mesma rolagem. Desde 2.318.0.
+ * @param footer itens FIXOS depois da lista — o botão "+ Adicionar" que rola junto com ela, em vez
+ *   de ficar preso fora da lista. Desde 2.318.0.
  * @param itemContent o item; `isDragging` para elevar/realçar o que está sendo arrastado.
  */
 @Composable
@@ -191,6 +195,8 @@ fun <T> ReorderableList(
     enabled: Boolean = true,
     dragOnLongPress: Boolean = true,
     texts: ReorderableListTexts = rememberReorderableListTexts(),
+    header: (LazyListScope.() -> Unit)? = null,
+    footer: (LazyListScope.() -> Unit)? = null,
     itemContent: @Composable ReorderableListItemScope.(item: T, index: Int, isDragging: Boolean) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -219,6 +225,7 @@ fun <T> ReorderableList(
         contentPadding = contentPadding,
         verticalArrangement = verticalArrangement,
     ) {
+        header?.invoke(this)
         itemsIndexed(items, key = { _, item -> key(item) }) { index, item ->
             ReorderableItem(reorderState, key = key(item), enabled = enabled) { isDragging ->
                 val itemScope = this
@@ -282,6 +289,7 @@ fun <T> ReorderableList(
                 }
             }
         }
+        footer?.invoke(this)
     }
 }
 

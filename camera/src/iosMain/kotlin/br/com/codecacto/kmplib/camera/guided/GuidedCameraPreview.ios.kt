@@ -88,7 +88,7 @@ internal actual fun GuidedCameraPreview(
     val currentOnStatus by rememberUpdatedState(onStatus)
     val currentMaxDimension by rememberUpdatedState(maxDimension)
     val currentJpegQuality by rememberUpdatedState(jpegQuality)
-    val controller = remember { GuidedCameraController(lens) { status -> currentOnStatus(status) } }
+    val controller = remember { GuidedCameraSessionIos(lens) { status -> currentOnStatus(status) } }
 
     LaunchedEffect(controller, flashMode) { controller.setFlashMode(flashMode) }
 
@@ -142,7 +142,7 @@ internal class GuidedPreviewUIView(session: AVCaptureSession) :
     }
 }
 
-private class GuidedCameraController(
+private class GuidedCameraSessionIos(
     private val requestedLens: CameraLens,
     private val onStatus: (GuidedCameraStatus) -> Unit,
 ) {

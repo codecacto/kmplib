@@ -5,6 +5,47 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.319.0 — **`kmplib-inspection`: a UI do Laudo Kit (motor de vistoria), temável** + `AppTabRow`, `ProgressRing(completeFill)`, `ReorderableList(header, footer)` e a `GuidedCamera` em peças
+
+Origem: **Minha Vistoria** (T3, protótipo aprovado em 22/out/2026 — `MinhaVistoria/docs/design/laudo-kit.md`) e
+**Meus Aluguéis** (mesmo kit, outra marca). Aditivo: **sem piso, sem aviso**. Módulo NOVO e OPT-IN (fora do umbrella).
+
+### `kmplib-inspection` (novo artefato)
+- **Tema (LK-M01):** `InspectionTheme(fonts = InspectionFonts(mono, serif, sans))` lê marca (`primary`/`onPrimary`, marca
+  por tema via `darkBrand`) e neutros do `AppTheme` do produto (D1); semáforo FIXO `InspectionTones` (GOOD/WARN/BAD/
+  NEUTRAL, claro e escuro, AA conferido); `brandSoft` 9 %/18 %; `InspectionTheme.tokens`. O kit não embute fonte.
+- **Ícones (LK-M02):** `InspectionIcon` — 56 símbolos do Material Symbols Outlined, gerados dos SVG OFICIAIS (FILL 0/1;
+  `tools/gerar_icones.py`), sem fonte remota.
+- **Átomos (M03):** `InspectionStateChip` (+ contador), `InspectionChoiceTiles` e os quatro conjuntos (Estado 5×64,
+  Funciona? 3×48, Resultado 3×52, Divergência 2×48), `ProofText`, `HashField`, `PhotoStampStrip`.
+- **Telas (M05, M07–M16):** `InspectionRoomList`, `InspectionItemList`, `InspectionItemSheet` (tela cheia; cartão
+  largo em EXPANDIDA; tarefa guiada; prévia), `InspectionMediaStrip`, `InspectionCamera` + `InspectionCaptureWriter`
+  (grava ANTES de devolver: `BlobStore` + SHA-256 + hora + modelo + GPS com teto), `ExitComparePane`,
+  `InspectionReview`, `InspectionReportViewer` + `ProofCard` + `ReportVersionsSheet`, `MediaQueueBanner`/
+  `MediaUploadProgressBlock`/`MediaQueueScreen`/`StorageReclaimCard`, `InspectionTemplateList`/
+  `InspectionTemplateEditor`/`EditItemDialog` (pergunta própria em 2º passo → tipo FormSchema v1), `VoiceItemCapture`,
+  `InspectionSignatureScreen` (aceite + traço sob `SecureContent` + código de 6) e `SignatureLinkDialog`.
+- **Fronteira:** cada tela recebe um `*State` e emite `*Event` (`model/`); regras puras em `InspectionRules`. O domínio
+  e o cliente HTTP (espelho do `backlib-inspection`) entram na próxima rodada, com um mapeador por tela.
+- **Textos:** `rememberInspectionTexts()` — 249 frases em 13 grupos, pt-BR/en/es/pt-PT (`kmplib_insp_*` no kmplib-ui;
+  fonte `inspection/tools/textos.tsv` → `gerar_textos.py`). Ids de teste `vistoria-<tela>-<elemento>`.
+- Fica de fora (backlog): zoom "1×" da câmera (o motor não expõe zoom), LK-M17 (v2/v3).
+
+### `kmplib-ui`
+- **`AppTabRow`** (novo): abas de largura igual com indicador de 2 dp na aba inteira (M3 `SecondaryTabRow`), ids por aba.
+- **`ProgressRing(…, completeFill = false)`**: `true` = disco cheio em 100% (`ProgressRingScope.isFilled`; ✓ default em cor
+  de contraste). Default idêntico ao de antes.
+- **`ReorderableList(…, header = null, footer = null)`**: itens fixos antes/depois na mesma rolagem.
+
+### `kmplib-camera`
+- A `GuidedCamera` virou composição de peças públicas — **`rememberGuidedCameraController`**, **`GuidedCameraViewport`**
+  (preview + guia + estados com saída + `previewOverlay`), **`GuidedShutterButton`** e **`GuidedCameraCountdown`** — para
+  quem precisa de outro cromo. Comportamento da `GuidedCamera` inalterado (lente, flash e temporizador sobrevivem à
+  rotação; o temporizador do app volta a valer se o app o trocar).
+
+Testes: `kmplib-inspection` 37 (tema/contraste, regras, estados, formatos, ícones, gravador de captura, regras do
+editor) + `AppTabRowTest` 2.
+
 ## 2.318.0 — **Pista "+ Agendar" no horário livre do `AppTimeGridScheduler` (`FreeSlotHint`) + fuso `America/Cuiaba` nos exemplos**
 
 Origem: app do **Vitalis** (fundador, 22/out/2026) — o horário livre da agenda sempre foi tocável (`onSlotClick`),

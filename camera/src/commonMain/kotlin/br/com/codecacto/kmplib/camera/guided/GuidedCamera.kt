@@ -39,6 +39,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -64,10 +66,13 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import br.com.codecacto.kmplib.platform.permission.AppPermission
+import br.com.codecacto.kmplib.platform.permission.PermissionState
+import br.com.codecacto.kmplib.platform.permission.PermissionStatus
 import br.com.codecacto.kmplib.platform.permission.rememberPermissionState
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.PICKED_IMAGE_JPEG_QUALITY
@@ -160,86 +165,14 @@ fun GuidedCamera(
     allowTimerToggle: Boolean = false,
     overlayContent: @Composable BoxScope.() -> Unit = {},
 ) {
-    val permission = rememberPermissionState(AppPermission.CAMERA)
-    // Voltando das Configurações com a câmera liberada, a tela sai da mensagem sozinha.
-    LifecycleResumeEffect(permission) {
-        permission.refresh()
-        onPauseOrDispose { }
-    }
-
-    val currentOnCaptured by rememberUpdatedState(onCaptured)
-    val currentOnError by rememberUpdatedState(onError)
-
-    // Ordinal (Int) e não o enum: `rememberSaveable` de Int vale igual nas duas plataformas.
-    var lensOrdinal by rememberSaveable { mutableIntStateOf(initialLens.ordinal) }
-    var flashOrdinal by rememberSaveable { mutableIntStateOf(CameraFlashMode.OFF.ordinal) }
-    val lens = CameraLens.entries[lensOrdinal]
-    val flashMode = CameraFlashMode.entries[flashOrdinal]
-
-    // O temporizador escolhido no botão sobrevive à rotação; o do app vale enquanto ninguém mexe.
-    var timerSeconds by rememberSaveable(captureTimerSeconds) {
-        mutableIntStateOf(coerceCaptureTimerSeconds(captureTimerSeconds))
-    }
-    // Número da contagem na tela; `null` = sem contagem. Não sobrevive à rotação (a sessão recomeça).
-    var countdown by remember { mutableStateOf<Int?>(null) }
-
-    var cameraStatus by remember { mutableStateOf<GuidedCameraStatus?>(null) }
-    // "Tentar novamente" precisa RECRIAR a sessão: o token entra como `key` do preview.
-    var retryToken by remember { mutableIntStateOf(0) }
-    var capturing by remember { mutableStateOf(false) }
-    var captureFailedShown by remember { mutableStateOf(false) }
-    val handle = remember { GuidedCaptureHandle() }
-
-    val state = guidedCameraStateOf(permission.status, cameraStatus, allowLensSwitch)
-    val error = guidedCameraErrorOf(permission.status, state)
-    LaunchedEffect(error) { error?.let { currentOnError(it) } }
-    LaunchedEffect(captureFailedShown) {
-        if (captureFailedShown) {
-            delay(CAPTURE_FAILED_MESSAGE_MILLIS)
-            captureFailedShown = false
-        }
-    }
-
-    val activeLens = (cameraStatus as? GuidedCameraStatus.Ready)?.activeLens ?: lens
-
-    fun capturarAgora() {
-        if (capturing || state !is GuidedCameraState.Live) return
-        capturing = true
-        handle.trigger { resultado ->
-            capturing = false
-            when (resultado) {
-                is GuidedCaptureResult.Success -> currentOnCaptured(resultado.image)
-                is GuidedCaptureResult.Failure -> {
-                    captureFailedShown = true
-                    currentOnError(GuidedCameraError.CAPTURE_FAILED)
-                }
-            }
-        }
-    }
-
-    fun disparar() {
-        when {
-            countdown != null -> countdown = null // tocar de novo durante a contagem cancela
-            capturing || state !is GuidedCameraState.Live -> Unit
-            timerSeconds > 0 -> countdown = timerSeconds
-            else -> capturarAgora()
-        }
-    }
-
-    // A câmera saiu do ar no meio da contagem: nada de foto atrasada quando ela voltar.
-    val aoVivo = state is GuidedCameraState.Live
-    LaunchedEffect(aoVivo) { if (!aoVivo) countdown = null }
-
-    // Contagem: um passo por segundo; depois do 1, a foto.
-    LaunchedEffect(countdown) {
-        val atual = countdown ?: return@LaunchedEffect
-        delay(1_000L)
-        if (countdown == atual) {
-            val proximo = nextCountdown(atual)
-            countdown = proximo
-            if (proximo == null) capturarAgora()
-        }
-    }
+    val controller = rememberGuidedCameraController(
+        onCaptured = onCaptured,
+        initialLens = initialLens,
+        allowLensSwitch = allowLensSwitch,
+        captureTimerSeconds = captureTimerSeconds,
+        onError = onError,
+    )
+    val state = controller.state
 
     Box(
         modifier = modifier
@@ -247,58 +180,14 @@ fun GuidedCamera(
             .background(CameraChrome.background)
             .testTag(GuidedCameraTestTags.ROOT),
     ) {
-        if (permission.isGranted) {
-            BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val ratio = guidedPreviewAspectRatio(maxWidth.value, maxHeight.value)
-                Box(Modifier.aspectRatio(ratio).testTag(GuidedCameraTestTags.PREVIEW)) {
-                    key(retryToken, lens) {
-                        GuidedCameraPreview(
-                            modifier = Modifier.fillMaxSize(),
-                            lens = lens,
-                            flashMode = flashMode,
-                            maxDimension = maxDimension,
-                            jpegQuality = jpegQuality,
-                            handle = handle,
-                            onStatus = { cameraStatus = it },
-                        )
-                    }
-                    if (guide != null && state is GuidedCameraState.Live) {
-                        GuideOverlay(guide)
-                    }
-                }
-            }
-        }
-
-        when (state) {
-            is GuidedCameraState.Live -> Unit
-            GuidedCameraState.Starting -> CameraMessage(Icons.Outlined.PhotoCamera, null, texts.starting)
-            GuidedCameraState.PermissionRequired -> CameraMessage(
-                icon = Icons.Outlined.PhotoCamera,
-                title = texts.permissionTitle,
-                message = texts.permissionMessage,
-                actionLabel = texts.permissionAllow,
-                onAction = permission::request,
-            )
-            GuidedCameraState.PermissionPermanentlyDenied -> CameraMessage(
-                icon = Icons.Outlined.NoPhotography,
-                title = texts.permissionTitle,
-                message = texts.permissionDeniedMessage,
-                actionLabel = texts.openSettings,
-                onAction = permission::openAppSettings,
-            )
-            GuidedCameraState.CameraUnavailable ->
-                CameraMessage(Icons.Outlined.NoPhotography, null, texts.cameraUnavailable)
-            is GuidedCameraState.InitializationFailed -> CameraMessage(
-                icon = Icons.Outlined.NoPhotography,
-                title = null,
-                message = texts.initializationFailed,
-                actionLabel = texts.retry,
-                onAction = {
-                    cameraStatus = null
-                    retryToken++
-                },
-            )
-        }
+        GuidedCameraViewport(
+            controller = controller,
+            modifier = Modifier.fillMaxSize(),
+            guide = guide,
+            maxDimension = maxDimension,
+            jpegQuality = jpegQuality,
+            texts = texts,
+        )
 
         // Barra de cima: fechar à esquerda, flash à direita.
         Row(
@@ -324,22 +213,22 @@ fun GuidedCamera(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (allowTimerToggle && live != null) {
                     TimerButton(
-                        seconds = timerSeconds,
-                        description = texts.timerLabel(timerSeconds),
-                        enabled = countdown == null && !capturing,
-                        onClick = { timerSeconds = nextCaptureTimer(timerSeconds) },
+                        seconds = controller.timerSeconds,
+                        description = texts.timerLabel(controller.timerSeconds),
+                        enabled = controller.countdown == null && !controller.isCapturing,
+                        onClick = controller::cycleTimer,
                     )
                 }
                 if (allowFlash && live?.flashAvailable == true) {
                     ChromeIconButton(
-                        icon = when (flashMode) {
+                        icon = when (controller.flashMode) {
                             CameraFlashMode.OFF -> Icons.Filled.FlashOff
                             CameraFlashMode.AUTO -> Icons.Filled.FlashAuto
                             CameraFlashMode.ON -> Icons.Filled.FlashOn
                         },
-                        description = texts.flashLabel(flashMode),
+                        description = texts.flashLabel(controller.flashMode),
                         testTag = GuidedCameraTestTags.FLASH,
-                        onClick = { flashOrdinal = flashMode.next().ordinal },
+                        onClick = controller::cycleFlash,
                     )
                 }
             }
@@ -356,7 +245,7 @@ fun GuidedCamera(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val live = state as? GuidedCameraState.Live
-            val aviso = if (captureFailedShown) texts.captureFailed else hint
+            val aviso = if (controller.captureFailed) texts.captureFailed else hint
             if (live != null && aviso != null) {
                 Text(
                     text = aviso,
@@ -378,22 +267,14 @@ fun GuidedCamera(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Spacer(Modifier.size(CHROME_BUTTON_SIZE))
-                    ShutterButton(
-                        capturing = capturing,
-                        description = if (countdown != null) texts.cancelTimer else texts.capture,
-                        capturingDescription = texts.capturing,
-                        onClick = ::disparar,
-                    )
+                    GuidedShutterButton(controller = controller, texts = texts)
                     if (live.canSwitchLens) {
                         ChromeIconButton(
                             icon = Icons.Filled.Cameraswitch,
-                            description = texts.switchLensLabel(activeLens),
+                            description = texts.switchLensLabel(controller.activeLens),
                             testTag = GuidedCameraTestTags.SWITCH_LENS,
-                            enabled = !capturing && countdown == null,
-                            onClick = {
-                                cameraStatus = null
-                                lensOrdinal = activeLens.toggled().ordinal
-                            },
+                            enabled = !controller.isCapturing && controller.countdown == null,
+                            onClick = controller::switchLens,
                         )
                     } else {
                         Spacer(Modifier.size(CHROME_BUTTON_SIZE))
@@ -402,27 +283,325 @@ fun GuidedCamera(
             }
         }
 
-        val contagem = countdown
-        if (contagem != null) {
-            Text(
-                text = contagem.toString(),
-                color = CameraChrome.content,
-                fontSize = 96.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(CameraChrome.scrim, CircleShape)
-                    .padding(horizontal = 36.dp, vertical = 8.dp)
-                    .semantics {
-                        contentDescription = texts.countdown(contagem)
-                        liveRegion = LiveRegionMode.Assertive
-                    }
-                    .testTag(GuidedCameraTestTags.COUNTDOWN),
-            )
-        }
+        GuidedCameraCountdown(controller = controller, texts = texts, modifier = Modifier.align(Alignment.Center))
 
         overlayContent()
     }
+}
+
+/**
+ * **O motor da câmera guiada, sem o cromo** (2.318.0) — permissão, sessão, lente, flash,
+ * temporizador e disparo, num estado que o app (ou outro componente da lib) desenha do seu jeito.
+ *
+ * A [GuidedCamera] é este controlador + [GuidedCameraViewport] + o cromo padrão (fechar e flash no
+ * topo, disparo embaixo). Quem precisa de OUTRO cromo — o `InspectionCamera` do Laudo Kit, com
+ * régua de transparência, contador de mínimo, fila de captura e miniaturas — compõe as mesmas peças
+ * em vez de sobrepor um segundo cromo ao primeiro pelo `overlayContent` (dois botões de fechar, dois
+ * disparos). Mesmas regras: tocar no disparo durante a contagem cancela; a câmera saindo do ar cancela
+ * a contagem; uma foto por vez.
+ *
+ * ```kotlin
+ * val camera = rememberGuidedCameraController(onCaptured = { foto -> … })
+ * Column {
+ *     MeuTopo(flash = camera.flashMode, onFlash = camera::cycleFlash)
+ *     GuidedCameraViewport(camera, Modifier.weight(1f), guide = CameraGuide.painter(ref, alpha = .45f))
+ *     MeuDisparo(onClick = camera::shutter, ocupado = camera.isCapturing)
+ * }
+ * ```
+ */
+@Stable
+class GuidedCameraController internal constructor(
+    initialLens: CameraLens,
+    initialTimerSeconds: Int,
+    private val allowLensSwitch: Boolean,
+    initialFlash: CameraFlashMode = CameraFlashMode.OFF,
+) {
+    internal var lensState by mutableStateOf(initialLens)
+    internal var cameraStatus by mutableStateOf<GuidedCameraStatus?>(null)
+    internal var retryToken by mutableIntStateOf(0)
+    internal val handle = GuidedCaptureHandle()
+    internal var permission: PermissionState? = null
+    internal val permissionStatus: PermissionStatus
+        get() = permission?.status ?: PermissionStatus.NOT_REQUESTED
+    internal var onCapturedResult: (PickedImage) -> Unit = {}
+    internal var onErrorResult: (GuidedCameraError) -> Unit = {}
+    internal fun requestPermission() { permission?.request() }
+    internal fun openSettings() { permission?.openAppSettings() }
+
+    /** O estado da câmera (ao vivo, pedindo permissão, sem câmera, falhou…). */
+    val state: GuidedCameraState
+        get() = guidedCameraStateOf(permissionStatus, cameraStatus, allowLensSwitch)
+
+    /** Modo de flash em uso. */
+    var flashMode: CameraFlashMode by mutableStateOf(initialFlash)
+        private set
+
+    /** Temporizador escolhido, em segundos (0 = dispara na hora). */
+    var timerSeconds: Int by mutableIntStateOf(coerceCaptureTimerSeconds(initialTimerSeconds))
+        private set
+
+    /** Número da contagem regressiva na tela; `null` = sem contagem. */
+    var countdown: Int? by mutableStateOf(null)
+        internal set
+
+    /** `true` enquanto a foto está saindo. */
+    var isCapturing: Boolean by mutableStateOf(false)
+        private set
+
+    /** `true` por alguns segundos depois de um disparo que falhou (para o aviso na tela). */
+    var captureFailed: Boolean by mutableStateOf(false)
+        internal set
+
+    /** A câmera de fato aberta (a pedida, ou a outra se o aparelho não tiver a pedida). */
+    val activeLens: CameraLens
+        get() = (cameraStatus as? GuidedCameraStatus.Ready)?.activeLens ?: lensState
+
+    /** Próximo modo de flash (desligado → automático → ligado). */
+    fun cycleFlash() {
+        flashMode = flashMode.next()
+    }
+
+    /** Próximo temporizador (desligado → 5 s → 10 s). Ignorado durante a contagem. */
+    fun cycleTimer() {
+        if (countdown != null || isCapturing) return
+        timerSeconds = nextCaptureTimer(timerSeconds)
+    }
+
+    /** Fixa o temporizador (0..[MAX_CAPTURE_TIMER_SECONDS]). Ignorado durante a contagem. */
+    fun setTimer(seconds: Int) {
+        if (countdown != null || isCapturing) return
+        timerSeconds = coerceCaptureTimerSeconds(seconds)
+    }
+
+    /** Troca frontal ↔ traseira. Ignorado durante disparo ou contagem. */
+    fun switchLens() {
+        if (isCapturing || countdown != null) return
+        cameraStatus = null
+        lensState = activeLens.toggled()
+    }
+
+    /** "Tentar novamente" depois de a sessão não subir. */
+    fun retry() {
+        cameraStatus = null
+        retryToken++
+    }
+
+    /**
+     * O botão de disparo: com temporizador, abre a contagem; tocado durante a contagem, cancela;
+     * sem temporizador, tira a foto. Fora do ar ou já disparando, nada.
+     */
+    fun shutter() {
+        when {
+            countdown != null -> countdown = null
+            isCapturing || state !is GuidedCameraState.Live -> Unit
+            timerSeconds > 0 -> countdown = timerSeconds
+            else -> captureNow()
+        }
+    }
+
+    internal fun captureNow() {
+        if (isCapturing || state !is GuidedCameraState.Live) return
+        isCapturing = true
+        handle.trigger { resultado ->
+            isCapturing = false
+            when (resultado) {
+                is GuidedCaptureResult.Success -> onCapturedResult(resultado.image)
+                is GuidedCaptureResult.Failure -> {
+                    captureFailed = true
+                    onErrorResult(GuidedCameraError.CAPTURE_FAILED)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Cria o [GuidedCameraController] e liga a permissão de câmera, a contagem regressiva e o relato de
+ * erros. Ver [GuidedCamera] para o significado de cada parâmetro. Desde 2.318.0.
+ */
+@Composable
+fun rememberGuidedCameraController(
+    onCaptured: (PickedImage) -> Unit,
+    initialLens: CameraLens = CameraLens.BACK,
+    allowLensSwitch: Boolean = true,
+    captureTimerSeconds: Int = 0,
+    onError: (GuidedCameraError) -> Unit = {},
+): GuidedCameraController {
+    val permission = rememberPermissionState(AppPermission.CAMERA)
+    // Voltando das Configurações com a câmera liberada, a tela sai da mensagem sozinha.
+    LifecycleResumeEffect(permission) {
+        permission.refresh()
+        onPauseOrDispose { }
+    }
+    // Lente, flash e temporizador sobrevivem à rotação (ordinal/Int: `rememberSaveable` igual nas
+    // duas plataformas).
+    var lensOrdinal by rememberSaveable { mutableIntStateOf(initialLens.ordinal) }
+    var flashOrdinal by rememberSaveable { mutableIntStateOf(CameraFlashMode.OFF.ordinal) }
+    var timerSaved by rememberSaveable { mutableIntStateOf(coerceCaptureTimerSeconds(captureTimerSeconds)) }
+    // O temporizador do APP vale até alguém mexer no botão; se o app trocar o valor, ele volta a valer.
+    var timerDoApp by rememberSaveable { mutableIntStateOf(captureTimerSeconds) }
+    val controller = remember(allowLensSwitch, permission) {
+        GuidedCameraController(
+            initialLens = CameraLens.entries[lensOrdinal],
+            initialTimerSeconds = timerSaved,
+            allowLensSwitch = allowLensSwitch,
+            initialFlash = CameraFlashMode.entries[flashOrdinal],
+        ).also { it.permission = permission }
+    }
+    LaunchedEffect(controller.lensState) { lensOrdinal = controller.lensState.ordinal }
+    LaunchedEffect(controller.flashMode) { flashOrdinal = controller.flashMode.ordinal }
+    LaunchedEffect(controller.timerSeconds) { timerSaved = controller.timerSeconds }
+    LaunchedEffect(captureTimerSeconds) {
+        if (timerDoApp != captureTimerSeconds) {
+            timerDoApp = captureTimerSeconds
+            controller.setTimer(captureTimerSeconds)
+        }
+    }
+
+    val currentOnCaptured by rememberUpdatedState(onCaptured)
+    val currentOnError by rememberUpdatedState(onError)
+    SideEffect {
+        controller.onCapturedResult = { currentOnCaptured(it) }
+        controller.onErrorResult = { currentOnError(it) }
+    }
+
+    val error = guidedCameraErrorOf(permission.status, controller.state)
+    LaunchedEffect(error) { error?.let { currentOnError(it) } }
+    LaunchedEffect(controller.captureFailed) {
+        if (controller.captureFailed) {
+            delay(CAPTURE_FAILED_MESSAGE_MILLIS)
+            controller.captureFailed = false
+        }
+    }
+    // A câmera saiu do ar no meio da contagem: nada de foto atrasada quando ela voltar.
+    val aoVivo = controller.state is GuidedCameraState.Live
+    LaunchedEffect(aoVivo) { if (!aoVivo) controller.countdown = null }
+    // Contagem: um passo por segundo; depois do 1, a foto.
+    LaunchedEffect(controller.countdown) {
+        val atual = controller.countdown ?: return@LaunchedEffect
+        delay(1_000L)
+        if (controller.countdown == atual) {
+            val proximo = nextCountdown(atual)
+            controller.countdown = proximo
+            if (proximo == null) controller.captureNow()
+        }
+    }
+    return controller
+}
+
+/**
+ * **O preview da câmera guiada, sem cromo** (2.318.0): a sessão desenhada inteira na proporção da
+ * foto (o preview É a foto), o [guide] por cima e, fora do ar, a mensagem com saída (permitir,
+ * abrir Configurações, tentar de novo). Preto atrás, em qualquer tema.
+ *
+ * @param previewOverlay desenhado DENTRO da caixa do preview (mesma moldura da foto), por cima do
+ *   guia — rótulos e pílulas que precisam ficar sobre a imagem, não sobre as faixas pretas.
+ */
+@Composable
+fun GuidedCameraViewport(
+    controller: GuidedCameraController,
+    modifier: Modifier = Modifier,
+    guide: CameraGuide? = null,
+    maxDimension: Int = PICKED_IMAGE_MAX_DIMENSION,
+    jpegQuality: Int = PICKED_IMAGE_JPEG_QUALITY,
+    texts: GuidedCameraTexts = rememberGuidedCameraTexts(),
+    previewOverlay: @Composable BoxScope.() -> Unit = {},
+) {
+    val state = controller.state
+    Box(modifier.background(CameraChrome.background)) {
+        if (controller.permissionStatus == PermissionStatus.GRANTED) {
+            BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                val ratio = guidedPreviewAspectRatio(maxWidth.value, maxHeight.value)
+                Box(Modifier.aspectRatio(ratio).testTag(GuidedCameraTestTags.PREVIEW)) {
+                    key(controller.retryToken, controller.lensState) {
+                        GuidedCameraPreview(
+                            modifier = Modifier.fillMaxSize(),
+                            lens = controller.lensState,
+                            flashMode = controller.flashMode,
+                            maxDimension = maxDimension,
+                            jpegQuality = jpegQuality,
+                            handle = controller.handle,
+                            onStatus = { controller.cameraStatus = it },
+                        )
+                    }
+                    if (state is GuidedCameraState.Live) {
+                        if (guide != null) GuideOverlay(guide)
+                        previewOverlay()
+                    }
+                }
+            }
+        }
+
+        when (state) {
+            is GuidedCameraState.Live -> Unit
+            GuidedCameraState.Starting -> CameraMessage(Icons.Outlined.PhotoCamera, null, texts.starting)
+            GuidedCameraState.PermissionRequired -> CameraMessage(
+                icon = Icons.Outlined.PhotoCamera,
+                title = texts.permissionTitle,
+                message = texts.permissionMessage,
+                actionLabel = texts.permissionAllow,
+                onAction = { controller.requestPermission() },
+            )
+            GuidedCameraState.PermissionPermanentlyDenied -> CameraMessage(
+                icon = Icons.Outlined.NoPhotography,
+                title = texts.permissionTitle,
+                message = texts.permissionDeniedMessage,
+                actionLabel = texts.openSettings,
+                onAction = { controller.openSettings() },
+            )
+            GuidedCameraState.CameraUnavailable ->
+                CameraMessage(Icons.Outlined.NoPhotography, null, texts.cameraUnavailable)
+            is GuidedCameraState.InitializationFailed -> CameraMessage(
+                icon = Icons.Outlined.NoPhotography,
+                title = null,
+                message = texts.initializationFailed,
+                actionLabel = texts.retry,
+                onAction = controller::retry,
+            )
+        }
+    }
+}
+
+/** O disparo padrão da lib (76 dp, anel branco), ligado ao [controller]. Desde 2.318.0. */
+@Composable
+fun GuidedShutterButton(
+    controller: GuidedCameraController,
+    modifier: Modifier = Modifier,
+    texts: GuidedCameraTexts = rememberGuidedCameraTexts(),
+    size: Dp = SHUTTER_SIZE,
+) {
+    ShutterButton(
+        capturing = controller.isCapturing,
+        description = if (controller.countdown != null) texts.cancelTimer else texts.capture,
+        capturingDescription = texts.capturing,
+        onClick = controller::shutter,
+        modifier = modifier,
+        size = size,
+    )
+}
+
+/** A contagem regressiva grande (anunciada ao leitor de tela); some sem contagem. Desde 2.318.0. */
+@Composable
+fun GuidedCameraCountdown(
+    controller: GuidedCameraController,
+    modifier: Modifier = Modifier,
+    texts: GuidedCameraTexts = rememberGuidedCameraTexts(),
+) {
+    val contagem = controller.countdown ?: return
+    Text(
+        text = contagem.toString(),
+        color = CameraChrome.content,
+        fontSize = 96.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier
+            .background(CameraChrome.scrim, CircleShape)
+            .padding(horizontal = 36.dp, vertical = 8.dp)
+            .semantics {
+                contentDescription = texts.countdown(contagem)
+                liveRegion = LiveRegionMode.Assertive
+            }
+            .testTag(GuidedCameraTestTags.COUNTDOWN),
+    )
 }
 
 /** O botão de temporizador: ícone riscado desligado, o número ("5s"/"10s") ligado. */
@@ -488,10 +667,12 @@ private fun ShutterButton(
     description: String,
     capturingDescription: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = SHUTTER_SIZE,
 ) {
     Box(
-        modifier = Modifier
-            .size(SHUTTER_SIZE)
+        modifier = modifier
+            .size(size)
             .clip(CircleShape)
             .border(4.dp, CameraChrome.content, CircleShape)
             .clickable(enabled = !capturing, role = Role.Button, onClick = onClick)
@@ -501,7 +682,7 @@ private fun ShutterButton(
     ) {
         Box(
             Modifier
-                .size(SHUTTER_SIZE - 16.dp)
+                .size(size - 16.dp)
                 .clip(CircleShape)
                 .background(if (capturing) CameraChrome.content.copy(alpha = 0.5f) else CameraChrome.content),
         )
