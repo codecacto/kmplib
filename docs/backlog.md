@@ -3,6 +3,25 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 22/out/2026 — tablet do Vitalis (ux-designer; origem `8-Sistemas-Portal-App/Vitalis/docs/design/tablet.md` §8)
+> Layout próprio de tablet pedido pelo fundador ("não o celular esticado"). Nenhum item trava o app: cada um tem
+> interino de projeto descrito na spec. Servem a qualquer app da fábrica com protótipo próprio de tablet.
+- [ ] **(P1) GAP-VIT-T01 — `AdaptiveScaffold` com trilho desenhável pelo projeto.** Trilho com rótulo também em
+      EXPANDIDA (hoje vira rail largo), slots `railHeader` (marca + ação principal) e `railFooter` (Configurações/conta),
+      e desenho do item injetável (forma, cores, indicador) — mantendo insets, ordem de foco, `badge` e ids
+      `nav-item-<id>`. Sem isso, projeto com protótipo reescreve a navegação inteira e perde o que a lib já resolve.
+- [ ] **(P1) GAP-VIT-T02 — `SupportingPaneScaffold`** (o *supporting pane* do Material 3 adaptativo, que não existe no
+      KMP): conteúdo principal + painel de apoio lado a lado em EXPANDIDA; sobreposto com véu em MÉDIA (entra pela
+      direita, fecha por véu/gesto/"×"); recolhível num trilho fino de ícones; aberto/fechado e aba preservados na
+      rotação; foco e semântica de painel. Caso: consulta do Vitalis (editor + histórico/exames/pré-consulta/arquivos).
+- [ ] **(P1) GAP-VIT-T03 — `AppTimeGridScheduler` com colunas AGRUPADAS** (grupo = dia, sub-coluna = recurso):
+      cabeçalho de dois níveis, linha do "agora" só no grupo de hoje, `freeSlotHint` por sub-coluna. Semana de clínica
+      com N profissionais (Vitalis; serve a Meu Barbeiro e afins).
+- [ ] **(P2) GAP-VIT-T04 — `ListDetailScaffold` com lista em dp fixos** (`larguraDaLista`, além de `fracaoDaLista`) e
+      **lista recolhível** em EXPANDIDA. Fração faz a lista variar entre tablets de 1024 e 1366.
+- [ ] **(P2) GAP-VIT-T05 — `ReferenceBandChart` com segunda faixa** (faixa do laboratório + faixa própria do
+      profissional), legenda e leitura em texto das duas. Conferir na implementação: se já desenha duas, o gap cai.
+
 ### Registrado em 20/out/2026 — origem: redesign do **Todos a Bordo** (`5-Apps-Online-Freemium-Cota/Todos a Bordo/docs/design/redesign-2026-10.md` §9)
 - [x] **ENTREGUE na 2.309.0** (`AppColorPalette(lightBrand/darkBrand = AppBrandColors(primary, onPrimary, secondary, onSecondary, tertiary, onTertiary))`, `forTheme`, `brandContrastWarnings`). **(P2) GAP-TB-M-04 — `primary` por tema na `AppColorPalette`** (ex.: `primaryDark: Color? = null`,
       ou `brandLight`/`brandDark`). Marca amarela (`#FFC83D`) é ilegível como `primary` no tema claro
