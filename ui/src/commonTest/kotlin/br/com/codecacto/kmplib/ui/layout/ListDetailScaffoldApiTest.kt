@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.ui.layout
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.ui.theme.WindowSizeClass
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -30,6 +31,15 @@ class ListDetailScaffoldApiTest {
         assertTrue(!WindowSizeClass.COMPACTA.temDoisPaineis)
         assertTrue(!WindowSizeClass.MEDIA.temDoisPaineis)
         assertFalse(!WindowSizeClass.EXPANDIDA.temDoisPaineis)
+    }
+
+    @Test
+    fun lista_so_recolhe_em_dois_paineis_e_com_selecao() {
+        // GAP-VIT-T04 (2.322.0): sem seleção a lista é o único caminho para escolher — não recolhe.
+        assertTrue(isListCollapsed(WindowSizeClass.EXPANDIDA, temSelecao = true, listaRecolhida = true))
+        assertFalse(isListCollapsed(WindowSizeClass.EXPANDIDA, temSelecao = false, listaRecolhida = true))
+        assertFalse(isListCollapsed(WindowSizeClass.MEDIA, temSelecao = true, listaRecolhida = true))
+        assertFalse(isListCollapsed(WindowSizeClass.EXPANDIDA, temSelecao = true, listaRecolhida = false))
     }
 
     @Test
@@ -64,5 +74,19 @@ private fun chamadaNova(temSelecao: Boolean) {
         lista = { require(emPainelUnico || !emPainelUnico) },
         detalhe = { require(emPainelUnico || !emPainelUnico) },
         vazio = { require(!emPainelUnico) },
+    )
+}
+
+/** Compila = largura fixa, lista recolhível e o escopo com `alternarLista`. Nunca é executada. */
+@Suppress("unused")
+@Composable
+private fun chamadaComListaFixaERecolhivel(recolhida: Boolean, onChange: (Boolean) -> Unit) {
+    ListDetailScaffold(
+        temSelecao = true,
+        lista = { if (podeRecolherLista) alternarLista() },
+        detalhe = { if (listaRecolhida) Unit },
+        larguraDaLista = 360.dp,
+        listaRecolhida = recolhida,
+        onListaRecolhidaChange = onChange,
     )
 }

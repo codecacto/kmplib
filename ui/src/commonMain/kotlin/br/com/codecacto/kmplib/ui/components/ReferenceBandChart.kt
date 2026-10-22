@@ -49,7 +49,11 @@ import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.core.locale.RegionalFormat
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_from
+import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_named_from
+import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_named_range
+import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_named_up_to
 import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_range
+import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_secondary
 import br.com.codecacto.kmplib.generated.resources.kmplib_chart_band_up_to
 import br.com.codecacto.kmplib.generated.resources.kmplib_chart_empty
 import br.com.codecacto.kmplib.generated.resources.kmplib_chart_next
@@ -97,6 +101,11 @@ data class ReferencePoint(
     val value: Double,
     val date: LocalDate? = null,
     val status: ReferenceStatus? = null,
+    /**
+     * Status em relação à SEGUNDA faixa (2.322.0), quando o servidor decide. `null` = derivado da
+     * `secondaryBand` do [ReferenceBandChart].
+     */
+    val secondaryStatus: ReferenceStatus? = null,
 )
 
 /** Onde um valor cai em relação à faixa. */
@@ -152,7 +161,67 @@ data class ReferenceBandChartTexts(
     val next: String,
     val previous: String,
     val empty: String,
+    /** "Faixa do laboratório: 30 a 100" — faixa com `label` (2.322.0). */
+    val namedBandRange: (name: String, min: String, max: String) -> String =
+        { n, a, b -> "$n: $a a $b" },
+    /** "Seu padrão: a partir de 40". */
+    val namedBandFrom: (name: String, min: String) -> String = { n, a -> "$n: a partir de $a" },
+    /** "Seu padrão: até 200". */
+    val namedBandUpTo: (name: String, max: String) -> String = { n, b -> "$n: até $b" },
+    /** Nome da segunda faixa quando ela não tem `label`. */
+    val secondaryBandName: String = "Segunda faixa",
 )
+
+/**
+ * Texto da faixa para a legenda/leitura: com `label`, "<label>: 70 a 99"; sem, o texto padrão
+ * ("Faixa de referência: 70 a 99") — ou, na segunda faixa sem nome, [ReferenceBandChartTexts.secondaryBandName].
+ * Pura, testável.
+ */
+fun referenceBandText(
+    band: ReferenceBand,
+    texts: ReferenceBandChartTexts,
+    valueFormatter: (Double) -> String,
+    fallbackName: String? = null,
+): String {
+    val nome = band.label ?: fallbackName
+    val min = band.min?.let(valueFormatter)
+    val max = band.max?.let(valueFormatter)
+    return if (nome != null) {
+        when {
+            min != null && max != null -> texts.namedBandRange(nome, min, max)
+            min != null -> texts.namedBandFrom(nome, min)
+            else -> texts.namedBandUpTo(nome, max!!)
+        }
+    } else {
+        when {
+            min != null && max != null -> texts.bandRange(min, max)
+            min != null -> texts.bandFrom(min)
+            else -> texts.bandUpTo(max!!)
+        }
+    }
+}
+
+/**
+ * Status de um ponto com DUAS faixas, para a leitura em texto: o status principal (do servidor ou da
+ * faixa principal) e, quando há segunda faixa, "<nome da 2ª>: <posição>" — "Abaixo do seu padrão ·
+ * Faixa do laboratório: Na faixa". `null` se não há nada a dizer. Pura, testável.
+ */
+fun referencePointStatusText(
+    primary: ReferenceStatus?,
+    value: Double,
+    secondaryBand: ReferenceBand?,
+    secondaryStatus: ReferenceStatus?,
+    texts: ReferenceBandChartTexts,
+): String? {
+    val segundo = secondaryStatus?.label ?: when (classifyAgainstBand(value, secondaryBand)) {
+        BandPosition.BELOW -> texts.below
+        BandPosition.WITHIN -> texts.within
+        BandPosition.ABOVE -> texts.above
+        null -> null
+    }
+    val segundoComNome = segundo?.let { "${secondaryBand?.label ?: texts.secondaryBandName}: $it" }
+    return listOfNotNull(primary?.label, segundoComNome).joinToString(" · ").ifEmpty { null }
+}
 
 @Composable
 fun rememberReferenceBandChartTexts(): ReferenceBandChartTexts {
@@ -168,7 +237,14 @@ fun rememberReferenceBandChartTexts(): ReferenceBandChartTexts {
     val next = kmpStringResource(Res.string.kmplib_chart_next)
     val previous = kmpStringResource(Res.string.kmplib_chart_previous)
     val empty = kmpStringResource(Res.string.kmplib_chart_empty)
-    return remember(range, from, upTo, below, within, above, summary, point, pointNoStatus, next, previous, empty) {
+    val namedRange = kmpStringResource(Res.string.kmplib_chart_band_named_range)
+    val namedFrom = kmpStringResource(Res.string.kmplib_chart_band_named_from)
+    val namedUpTo = kmpStringResource(Res.string.kmplib_chart_band_named_up_to)
+    val secondaryName = kmpStringResource(Res.string.kmplib_chart_band_secondary)
+    return remember(
+        range, from, upTo, below, within, above, summary, point, pointNoStatus, next, previous, empty,
+        namedRange, namedFrom, namedUpTo, secondaryName,
+    ) {
         ReferenceBandChartTexts(
             bandRange = { a, b -> formatCompareTemplate(range, a, b) },
             bandFrom = { a -> formatCompareTemplate(from, a) },
@@ -183,6 +259,10 @@ fun rememberReferenceBandChartTexts(): ReferenceBandChartTexts {
             next = next,
             previous = previous,
             empty = empty,
+            namedBandRange = { n, a, b -> formatCompareTemplate(namedRange, n, a, b) },
+            namedBandFrom = { n, a -> formatCompareTemplate(namedFrom, n, a) },
+            namedBandUpTo = { n, b -> formatCompareTemplate(namedUpTo, n, b) },
+            secondaryBandName = secondaryName,
         )
     }
 }
@@ -224,6 +304,10 @@ object ReferenceBandChartTestTags {
  * @param chartHeight altura do gráfico (no compacto, ~85%).
  * @param maxXLabels máximo de rótulos de data no eixo X.
  * @param showLegend mostra a legenda em texto (faixa + status presentes).
+ * @param secondaryBand SEGUNDA faixa (2.322.0, GAP-VIT-T05) — ex.: `band` = o padrão do profissional
+ *   (classifica os pontos, cor de destaque, por cima) e `secondaryBand` = a faixa do laboratório
+ *   (neutra, atrás). A escala inclui as duas; a legenda e a leitura dizem as duas EM TEXTO
+ *   ("24 ng/mL, Abaixo da faixa · Faixa do laboratório: Na faixa"). Dê `label` às duas faixas.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -237,6 +321,7 @@ fun ReferenceBandChart(
     maxXLabels: Int = 4,
     showLegend: Boolean = true,
     texts: ReferenceBandChartTexts = rememberReferenceBandChartTexts(),
+    secondaryBand: ReferenceBand? = null,
 ) {
     if (points.isEmpty()) {
         Box(modifier.fillMaxWidth().height(chartHeight), contentAlignment = Alignment.Center) {
@@ -258,24 +343,28 @@ fun ReferenceBandChart(
     val pointColors = derived.map { st -> st?.let { toneColors.getValue(it.tone) } ?: lineColor }
 
     val xFractions = remember(points) { referenceChartXFractions(points) }
-    val (minValue, maxValue) = lineChartValueBounds(points.map { it.value }, band)
+    val (minValue, maxValue) = lineChartValueBounds(points.map { it.value }, band, secondaryBand)
     var selected by remember(points) { mutableStateOf(points.lastIndex) }
     val sel = selected.coerceIn(0, points.lastIndex)
 
     val readout: (Int) -> String = { i ->
-        texts.point(points[i].label, valueFormatter(points[i].value), derived[i]?.label)
-    }
-    val bandText = band?.let {
-        when {
-            it.min != null && it.max != null -> texts.bandRange(valueFormatter(it.min), valueFormatter(it.max))
-            it.min != null -> texts.bandFrom(valueFormatter(it.min))
-            else -> texts.bandUpTo(valueFormatter(it.max!!))
+        val status = if (secondaryBand == null) {
+            derived[i]?.label
+        } else {
+            referencePointStatusText(derived[i], points[i].value, secondaryBand, points[i].secondaryStatus, texts)
         }
+        texts.point(points[i].label, valueFormatter(points[i].value), status)
+    }
+    val bandText = band?.let { referenceBandText(it, texts, valueFormatter) }
+    val secondaryBandText = secondaryBand?.let {
+        referenceBandText(it, texts, valueFormatter, fallbackName = texts.secondaryBandName)
     }
 
     val compact = LocalIsCompact.current
     val areaHeight = if (compact) chartHeight * 0.85f else chartHeight
     val bandColor = band?.color ?: AppColors.current.success
+    // Segunda faixa: neutra por default (é a referência "de fora" — o laboratório), desenhada ATRÁS.
+    val secondaryBandColor = secondaryBand?.color ?: MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     val surface = MaterialTheme.colorScheme.surface
@@ -299,8 +388,11 @@ fun ReferenceBandChart(
                     .fillMaxHeight()
                     .testTag(ReferenceBandChartTestTags.CHART)
                     .semantics {
-                        contentDescription = listOfNotNull(texts.summary(points.size, readout(points.lastIndex)), bandText)
-                            .joinToString(" ")
+                        contentDescription = listOfNotNull(
+                            texts.summary(points.size, readout(points.lastIndex)),
+                            bandText,
+                            secondaryBandText,
+                        ).joinToString(" ")
                         stateDescription = readout(sel)
                         customActions = listOf(
                             CustomAccessibilityAction(texts.next) {
@@ -326,6 +418,15 @@ fun ReferenceBandChart(
                 val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
                 listOf(0f, 0.5f, 1f).forEach { f ->
                     drawLine(gridColor, Offset(0f, h * f), Offset(w, h * f), strokeWidth = 1f, pathEffect = dash)
+                }
+                if (secondaryBand != null) {
+                    val (topF, bottomF) = referenceBandFractions(secondaryBand, minValue, maxValue)
+                    val top = h * topF
+                    val bottom = h * bottomF
+                    drawRect(secondaryBandColor.copy(alpha = 0.10f), Offset(0f, top), Size(w, (bottom - top).coerceAtLeast(1f)))
+                    listOfNotNull(secondaryBand.max?.let { top }, secondaryBand.min?.let { bottom }).forEach { y ->
+                        drawLine(secondaryBandColor.copy(alpha = 0.55f), Offset(0f, y), Offset(w, y), strokeWidth = 1f, pathEffect = dash)
+                    }
                 }
                 if (band != null) {
                     val (topF, bottomF) = referenceBandFractions(band, minValue, maxValue)
@@ -379,7 +480,7 @@ fun ReferenceBandChart(
 
         if (showLegend) {
             val statuses = derived.filterNotNull().distinct()
-            if (bandText != null || statuses.isNotEmpty()) {
+            if (bandText != null || secondaryBandText != null || statuses.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -389,6 +490,14 @@ fun ReferenceBandChart(
                     if (bandText != null) {
                         LegendEntry(bandText) {
                             Box(Modifier.size(width = 14.dp, height = 10.dp).background(bandColor.copy(alpha = 0.3f), RoundedCornerShape(2.dp)))
+                        }
+                    }
+                    if (secondaryBandText != null) {
+                        LegendEntry(secondaryBandText) {
+                            Box(
+                                Modifier.size(width = 14.dp, height = 10.dp)
+                                    .background(secondaryBandColor.copy(alpha = 0.22f), RoundedCornerShape(2.dp)),
+                            )
                         }
                     }
                     statuses.forEach { st ->

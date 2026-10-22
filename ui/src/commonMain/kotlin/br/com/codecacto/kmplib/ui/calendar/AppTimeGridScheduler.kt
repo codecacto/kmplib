@@ -45,8 +45,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -217,6 +219,19 @@ private val GRID_BOTTOM_GUTTER = 24.dp
  * @param freeSlotHint Pista visível ("+ Agendar") em cada passo LIVRE e clicável — ver [FreeSlotHint].
  *   `null` (default) = comportamento de sempre (área livre clicável, mas sem desenho). Só desenha com
  *   [onSlotClick] presente.
+ * @param columnGroups COLUNAS AGRUPADAS (2.322.0, GAP-VIT-T03): grupo = dia, sub-coluna = recurso
+ *   (a semana da clínica com N profissionais). Quando não vazio, VENCE [resources]: o cabeçalho vira de
+ *   dois níveis (grupo em cima, sub-colunas embaixo — rótulo curto à vista, nome completo no leitor de
+ *   tela via `ScheduleResource.accessibilityLabel`), os grupos se separam com divisória forte, o grupo
+ *   [ScheduleColumnGroup.isCurrent] tem cabeçalho e fundo realçados e é o ÚNICO com a linha do
+ *   "agora" ([nowColumnId] é ignorado). Sem [getColumnId], os eventos se distribuem por
+ *   `start.date` + `resourceId` ([distributeGroupedEvents]). [freeSlotHint], [onSlotClick] e
+ *   [columnEmptyLabel] valem por sub-coluna — o `columnId` que chega é o id da sub-coluna (com
+ *   [scheduleDayGroups], desfaça com [parseGroupedColumnId]). No celular (compacto) aparece UM grupo
+ *   por vez, com chips para trocar ([selectedGroupId]/[onGroupSelected]).
+ * @param onGroupHeaderClick toque no cabeçalho de um grupo (ex.: abrir o Dia daquele dia).
+ * @param selectedGroupId (compacto, agrupado) grupo visível; `null` = estado interno (o de hoje, ou o 1º).
+ * @param onGroupSelected (compacto, agrupado) troca de grupo pelos chips.
  */
 @Composable
 fun AppTimeGridScheduler(
@@ -250,22 +265,35 @@ fun AppTimeGridScheduler(
     layers: List<ScheduleLayer> = emptyList(),
     layerLegend: ScheduleLayerLegend? = null,
     freeSlotHint: FreeSlotHint? = null,
+    columnGroups: List<ScheduleColumnGroup> = emptyList(),
+    onGroupHeaderClick: ((groupId: String) -> Unit)? = null,
+    selectedGroupId: String? = null,
+    onGroupSelected: ((groupId: String) -> Unit)? = null,
 ) {
     val isCompact = LocalIsCompact.current
+    val grouped = columnGroups.isNotEmpty()
     val fallbackColors = defaultEventColors()
     val resolveColors: (ScheduleEvent) -> ScheduleEventColors = eventColors ?: { fallbackColors }
-    val baseColumns = if (resources.isNotEmpty()) resources else listOf(SINGLE_COLUMN)
+    val baseColumns = when {
+        grouped -> columnGroups.flatMap { it.columns }.ifEmpty { listOf(SINGLE_COLUMN) }
+        resources.isNotEmpty() -> resources
+        else -> listOf(SINGLE_COLUMN)
+    }
     val isSingle = baseColumns.size == 1 && baseColumns[0].id == SINGLE_COLUMN.id
 
     // Distribui os eventos e SEPARA os órfãos contra TODAS as colunas de recurso (não o subconjunto
     // compacto — um evento de profissional oculto no modo compacto NÃO é órfão, só está fora de vista).
-    val distribution = distributeEvents(
-        events = events,
-        columnIds = baseColumns.map { it.id },
-        isSingle = isSingle,
-        singleColumnId = SINGLE_COLUMN.id,
-        getColumnId = getColumnId,
-    )
+    val distribution = if (grouped && getColumnId == null) {
+        distributeGroupedEvents(events, columnGroups)
+    } else {
+        distributeEvents(
+            events = events,
+            columnIds = baseColumns.map { it.id },
+            isSingle = isSingle,
+            singleColumnId = SINGLE_COLUMN.id,
+            getColumnId = getColumnId,
+        )
+    }
     val orphanEvents = distribution.orphans
 
     // Política de órfãos (fora da composição): notifica o consumidor e, se ninguém tratar, avisa em
@@ -293,6 +321,14 @@ fun AppTimeGridScheduler(
         null
     }
     val allColumns = if (orphanColumn != null) baseColumns + orphanColumn else baseColumns
+    // Agrupado: a coluna dos órfãos vira um grupo próprio, à direita, para o cabeçalho de dois níveis.
+    val allGroups: List<ScheduleColumnGroup> = if (!grouped) {
+        emptyList()
+    } else if (orphanColumn != null) {
+        columnGroups + ScheduleColumnGroup(id = ORPHAN_COLUMN_ID, label = orphanColumnLabel, columns = listOf(orphanColumn))
+    } else {
+        columnGroups
+    }
 
     val effectiveWindow = remember(window, businessRanges, events, blocks) {
         window ?: computeTimeWindow(
@@ -306,21 +342,56 @@ fun AppTimeGridScheduler(
     val ticks = remember(effectiveWindow) { hourTicks(effectiveWindow, 60) }
 
     // Recurso visível no modo compacto (1 coluna por vez).
-    val compactMultiResource = isCompact && !isSingle && allColumns.size > 1
+    val compactMultiResource = isCompact && !isSingle && !grouped && allColumns.size > 1
     var internalSelected by rememberSaveable { mutableStateOf(allColumns.first().id) }
     val activeResourceId = selectedResourceId ?: internalSelected
-    val columns: List<ScheduleResource> = if (compactMultiResource) {
-        listOf(allColumns.firstOrNull { it.id == activeResourceId } ?: allColumns.first())
+
+    // Agrupado no celular: um grupo (dia) por vez, com as sub-colunas dele lado a lado.
+    val compactGrouped = isCompact && grouped && allGroups.size > 1
+    var internalGroup by rememberSaveable {
+        mutableStateOf((allGroups.firstOrNull { it.isCurrent } ?: allGroups.firstOrNull())?.id.orEmpty())
+    }
+    val activeGroupId = selectedGroupId ?: internalGroup
+    val visibleGroups: List<ScheduleColumnGroup> = if (compactGrouped) {
+        listOf(allGroups.firstOrNull { it.id == activeGroupId } ?: allGroups.first())
     } else {
-        allColumns
+        allGroups
+    }
+
+    val columns: List<ScheduleResource> = when {
+        grouped -> visibleGroups.flatMap { it.columns }
+        compactMultiResource -> listOf(allColumns.firstOrNull { it.id == activeResourceId } ?: allColumns.first())
+        else -> allColumns
+    }
+    val groupStarts = remember(visibleGroups) { groupStartColumnIds(visibleGroups) }
+    val currentGroupColumns = remember(visibleGroups) {
+        visibleGroups.filter { it.isCurrent }.flatMap { g -> g.columns.map { it.id } }.toSet()
+    }
+    // Nome lido pelo leitor de tela em cada coluna: o completo da sub-coluna + o do grupo.
+    val columnA11yLabels: Map<String, String> = remember(visibleGroups, columns) {
+        if (grouped) {
+            buildMap {
+                visibleGroups.forEach { g ->
+                    g.columns.forEach { c ->
+                        put(c.id, listOf(c.accessibilityLabel ?: c.label, g.accessibilityLabel ?: g.label).joinToString(", "))
+                    }
+                }
+            }
+        } else {
+            columns.associate { it.id to (it.accessibilityLabel ?: it.label) }
+        }
     }
 
     val nowMin = now?.let { minutesOfDay(it) }
         ?.takeIf { it in effectiveWindow.startMin..effectiveWindow.endMin }
 
     // Colunas que recebem a linha do "agora" (regra recurso×dia, pura/testável).
-    val nowLineColumns = remember(columns, nowColumnId, nowMin) {
-        nowLineColumnIds(columns.map { it.id }, nowColumnId, nowMin != null).toSet()
+    val nowLineColumns = remember(columns, nowColumnId, nowMin, visibleGroups) {
+        if (grouped) {
+            groupedNowLineColumnIds(visibleGroups, nowMin != null).toSet()
+        } else {
+            nowLineColumnIds(columns.map { it.id }, nowColumnId, nowMin != null).toSet()
+        }
     }
 
     // Eventos por coluna = distribuição (recursos) + eventos órfãos na coluna de fallback (se pedida).
@@ -401,6 +472,15 @@ fun AppTimeGridScheduler(
                         },
                     )
                 }
+                if (compactGrouped) {
+                    ResourceChips(
+                        resources = allGroups.map { ScheduleResource(id = it.id, label = it.label) },
+                        selectedId = activeGroupId,
+                        onSelect = { id ->
+                            if (onGroupSelected != null) onGroupSelected(id) else internalGroup = id
+                        },
+                    )
+                }
 
                 // Cabeçalho (fixo verticalmente; rola junto na horizontal).
                 Row(
@@ -419,8 +499,18 @@ fun AppTimeGridScheduler(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    columns.forEach { col ->
-                        ColumnHeader(col = col, isSingle = isSingle, width = columnWidth)
+                    if (grouped) {
+                        visibleGroups.forEach { g ->
+                            GroupHeader(
+                                group = g,
+                                columnWidth = columnWidth,
+                                onClick = onGroupHeaderClick?.let { handler -> { handler(g.id) } },
+                            )
+                        }
+                    } else {
+                        columns.forEach { col ->
+                            ColumnHeader(col = col, isSingle = isSingle, width = columnWidth)
+                        }
                     }
                 }
 
@@ -490,6 +580,13 @@ fun AppTimeGridScheduler(
                             emptyLabel = columnEmptyLabel,
                             freeSlotHint = freeSlotHint,
                             businessRanges = businessRanges,
+                            a11yColumnLabel = columnA11yLabels[col.id] ?: col.label,
+                            divider = when {
+                                !grouped -> ColumnDivider.NONE
+                                col.id in groupStarts -> ColumnDivider.GROUP
+                                else -> ColumnDivider.SUB
+                            },
+                            highlighted = col.id in currentGroupColumns,
                         )
                     }
                 }
@@ -501,6 +598,75 @@ fun AppTimeGridScheduler(
                     modifier = Modifier.fillMaxSize().padding(vertical = 32.dp),
                     contentAlignment = Alignment.TopCenter,
                 ) { emptyState() }
+            }
+        }
+    }
+}
+
+/** Divisória à esquerda de uma coluna na grade agrupada. */
+private enum class ColumnDivider { NONE, GROUP, SUB }
+
+/**
+ * Cabeçalho de DOIS níveis de um grupo: o grupo (dia) em cima — realçado quando é hoje — e as
+ * sub-colunas (recursos) embaixo, cada uma com a largura da sua coluna. O leitor de tela lê o grupo
+ * como título e cada sub-coluna pelo nome completo.
+ */
+@Composable
+private fun GroupHeader(group: ScheduleColumnGroup, columnWidth: Dp, onClick: (() -> Unit)?) {
+    val current = group.isCurrent
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .width(columnWidth * group.columns.size.coerceAtLeast(1))
+            .background(if (current) accent.copy(alpha = 0.10f) else Color.Transparent),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .clearAndSetSemantics {
+                    contentDescription = group.accessibilityLabel ?: group.label
+                    heading()
+                    if (onClick != null) role = Role.Button
+                }
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = group.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (current) accent else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (current) FontWeight.SemiBold else null,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (group.subtitle != null) {
+                    Text(
+                        text = group.subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        if (group.columns.size > 1) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                group.columns.forEach { c ->
+                    Text(
+                        text = c.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .width(columnWidth)
+                            .clearAndSetSemantics { contentDescription = c.accessibilityLabel ?: c.label },
+                    )
+                }
             }
         }
     }
@@ -613,6 +779,9 @@ private fun ResourceColumn(
     emptyLabel: String? = null,
     freeSlotHint: FreeSlotHint? = null,
     businessRanges: List<WorkRange> = emptyList(),
+    a11yColumnLabel: String = column.label,
+    divider: ColumnDivider = ColumnDivider.NONE,
+    highlighted: Boolean = false,
 ) {
     val localDensity = LocalDensity.current
     val guideColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -634,6 +803,8 @@ private fun ResourceColumn(
             .width(width)
             .height(totalHeight)
             .background(MaterialTheme.colorScheme.surface)
+            // Grupo de HOJE: tinta leve da primária por cima da superfície (o cabeçalho também realça).
+            .then(if (highlighted) Modifier.background(nowColor.copy(alpha = 0.05f)) else Modifier)
             .then(
                 if (onSlotClick != null) {
                     Modifier.pointerInput(window, unitPerMinute, slotStepMin) {
@@ -742,7 +913,7 @@ private fun ResourceColumn(
                     contentDescription = listOfNotNull(
                         freeSlotHint.label,
                         "${formatTimeOfDay(slot.startMin)}–${formatTimeOfDay(slot.endMin)}",
-                        column.label.takeIf { !isSingle && it.isNotBlank() },
+                        a11yColumnLabel.takeIf { !isSingle && it.isNotBlank() },
                     ).joinToString(", "),
                     testTag = "${freeSlotHint.testTagPrefix}-${column.id}-" +
                         formatTimeOfDay(slot.startMin).replace(":", ""),
@@ -799,9 +970,21 @@ private fun ResourceColumn(
                 xOffset = laneWidth * lo.laneIndex + 2.dp,
                 width = laneWidth - 4.dp,
                 borderColor = if (selected) nowColor else borderColor,
-                columnLabel = if (isSingle) null else column.label,
+                columnLabel = if (isSingle) null else a11yColumnLabel,
                 onClick = onEventClick,
                 renderEvent = renderEvent,
+            )
+        }
+
+        // Divisória à esquerda: forte entre grupos (dias), discreta entre sub-colunas (recursos).
+        if (divider != ColumnDivider.NONE) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(1.dp)
+                    .background(
+                        if (divider == ColumnDivider.GROUP) borderColor else guideColor,
+                    ),
             )
         }
 

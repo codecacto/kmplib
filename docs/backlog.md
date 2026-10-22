@@ -6,21 +6,24 @@
 ### Registrado em 22/out/2026 — tablet do Vitalis (ux-designer; origem `8-Sistemas-Portal-App/Vitalis/docs/design/tablet.md` §8)
 > Layout próprio de tablet pedido pelo fundador ("não o celular esticado"). Nenhum item trava o app: cada um tem
 > interino de projeto descrito na spec. Servem a qualquer app da fábrica com protótipo próprio de tablet.
-- [ ] **(P1) GAP-VIT-T01 — `AdaptiveScaffold` com trilho desenhável pelo projeto.** Trilho com rótulo também em
+- [x] **ENTREGUE na 2.322.0** (`railHeader`/`railFooter`, `AdaptiveRailStyle(expandedLayout = LABELED, …, item = AdaptiveRailItemStyle)`, `railItem`). **(P1) GAP-VIT-T01 — `AdaptiveScaffold` com trilho desenhável pelo projeto.** Trilho com rótulo também em
       EXPANDIDA (hoje vira rail largo), slots `railHeader` (marca + ação principal) e `railFooter` (Configurações/conta),
       e desenho do item injetável (forma, cores, indicador) — mantendo insets, ordem de foco, `badge` e ids
       `nav-item-<id>`. Sem isso, projeto com protótipo reescreve a navegação inteira e perde o que a lib já resolve.
-- [ ] **(P1) GAP-VIT-T02 — `SupportingPaneScaffold`** (o *supporting pane* do Material 3 adaptativo, que não existe no
+- [x] **ENTREGUE na 2.322.0** (`SupportingPaneScaffold`, `rememberSupportingPaneState(persistKey)`, `SupportingPaneTab`). **(P1) GAP-VIT-T02 — `SupportingPaneScaffold`** (o *supporting pane* do Material 3 adaptativo, que não existe no
       KMP): conteúdo principal + painel de apoio lado a lado em EXPANDIDA; sobreposto com véu em MÉDIA (entra pela
       direita, fecha por véu/gesto/"×"); recolhível num trilho fino de ícones; aberto/fechado e aba preservados na
       rotação; foco e semântica de painel. Caso: consulta do Vitalis (editor + histórico/exames/pré-consulta/arquivos).
-- [ ] **(P1) GAP-VIT-T03 — `AppTimeGridScheduler` com colunas AGRUPADAS** (grupo = dia, sub-coluna = recurso):
+- [x] **ENTREGUE na 2.322.0** (`columnGroups = scheduleDayGroups(…)`, `ScheduleColumnGroup`, `parseGroupedColumnId`). **(P1) GAP-VIT-T03 — `AppTimeGridScheduler` com colunas AGRUPADAS** (grupo = dia, sub-coluna = recurso):
       cabeçalho de dois níveis, linha do "agora" só no grupo de hoje, `freeSlotHint` por sub-coluna. Semana de clínica
       com N profissionais (Vitalis; serve a Meu Barbeiro e afins).
-- [ ] **(P2) GAP-VIT-T04 — `ListDetailScaffold` com lista em dp fixos** (`larguraDaLista`, além de `fracaoDaLista`) e
+- [x] **ENTREGUE na 2.322.0** (`larguraDaLista`, `listaRecolhida` + `onListaRecolhidaChange`). **(P2) GAP-VIT-T04 — `ListDetailScaffold` com lista em dp fixos** (`larguraDaLista`, além de `fracaoDaLista`) e
       **lista recolhível** em EXPANDIDA. Fração faz a lista variar entre tablets de 1024 e 1366.
-- [ ] **(P2) GAP-VIT-T05 — `ReferenceBandChart` com segunda faixa** (faixa do laboratório + faixa própria do
+- [x] **ENTREGUE na 2.322.0** (a lib desenhava UMA faixa: `secondaryBand` + `ReferenceBand.label` + `ReferencePoint.secondaryStatus`). **(P2) GAP-VIT-T05 — `ReferenceBandChart` com segunda faixa** (faixa do laboratório + faixa própria do
       profissional), legenda e leitura em texto das duas. Conferir na implementação: se já desenha duas, o gap cai.
+- [ ] **(P2) Prova em aparelho (tablet do Vitalis)** — trilho LABELED na paisagem do iPad/Galaxy Tab; painel de apoio
+      sobreposto no retrato (gesto de arrastar, voltar do sistema, TalkBack/VoiceOver anunciando o painel); semana
+      agrupada com 5 dias × 2 médicos sem rolagem lateral em 1194 dp; leitura em texto das duas faixas no leitor de tela.
 
 ### Registrado em 20/out/2026 — origem: redesign do **Todos a Bordo** (`5-Apps-Online-Freemium-Cota/Todos a Bordo/docs/design/redesign-2026-10.md` §9)
 - [x] **ENTREGUE na 2.309.0** (`AppColorPalette(lightBrand/darkBrand = AppBrandColors(primary, onPrimary, secondary, onSecondary, tertiary, onTertiary))`, `forTheme`, `brandContrastWarnings`). **(P2) GAP-TB-M-04 — `primary` por tema na `AppColorPalette`** (ex.: `primaryDark: Color? = null`,
@@ -5532,7 +5535,7 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
 - [x] **(P1) Domínio + cliente HTTP do motor** — ENTREGUE na 2.320.0: contrato v1 espelhado (enum tolerante),
   `InspectionApi` (prefixo por produto), `InspectionError` tipado, `InspectionSession` (patch otimista durável),
   `InspectionMediaQueue` (DirectUploadOutbox: SINGLE/MULTIPART → complete), mapeadores por tela.
-- [x] **(P1) `SignaturePort`** (OTP + traço) — ENTREGUE na 2.321.0, com os ajustes do security-review (tentativas `null` preservadas, assinado só com a resposta desta parte, `Retry-After`, 404 local, só `https` no alvo, sem redirecionamento no storage).
+- [x] **(P1) `SignaturePort`** (OTP + traço) — ENTREGUE na 2.322.0, com os ajustes do security-review (tentativas `null` preservadas, assinado só com a resposta desta parte, `Retry-After`, 404 local, só `https` no alvo, sem redirecionamento no storage).
 - [ ] **(P2) Lacunas do contrato do motor** (pedir à backlib): (a) o modelo não diz se o item pergunta "Funciona?"
   (`TemplateItemDto` sem o sinal; o mapeador infere pela resposta); (b) não há rota para REORDENAR os cômodos DA
   VISTORIA (só do modelo) — o `RoomListEvent.Move` não tem para onde ir; (c) o traço da assinatura aceita 300 KB, mas o

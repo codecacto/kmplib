@@ -513,6 +513,15 @@
     <string name="kmplib_chart_point">%1$s: %2$s, %3$s</string>
     <string name="kmplib_chart_point_no_status">%1$s: %2$s</string>
     <string name="kmplib_chart_empty">Sem dados para exibir.</string>
+    <string name="kmplib_chart_band_named_range">%1$s: %2$s a %3$s</string>
+    <string name="kmplib_chart_band_named_from">%1$s: a partir de %2$s</string>
+    <string name="kmplib_chart_band_named_up_to">%1$s: até %2$s</string>
+    <string name="kmplib_chart_band_secondary">Segunda faixa</string>
+    <string name="kmplib_supporting_pane_title">Painel de apoio</string>
+    <string name="kmplib_supporting_pane_collapse">Recolher painel</string>
+    <string name="kmplib_supporting_pane_expand">Abrir painel</string>
+    <string name="kmplib_supporting_pane_close">Fechar painel</string>
+    <string name="kmplib_list_detail_show_list">Mostrar lista</string>
     <string name="kmplib_chart_next">Próxima medição</string>
     <string name="kmplib_chart_previous">Medição anterior</string>
 

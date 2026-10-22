@@ -5,6 +5,52 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.322.0 — **Tablet de verdade:** trilho desenhável no `AdaptiveScaffold`, `SupportingPaneScaffold`, colunas agrupadas no `AppTimeGridScheduler`, lista fixa e recolhível no `ListDetailScaffold`, segunda faixa no `ReferenceBandChart`
+
+Origem: **Vitalis** — layout próprio de tablet do app do médico e da secretária (protótipo aprovado pelo fundador em
+22/out/2026, `Vitalis/docs/design/tablet.md` §8, GAP-VIT-T01..T05). Serve a todo app com protótipo de tablet.
+Aditivo: **sem piso, sem aviso**.
+
+### `kmplib-ui` — `layout`
+- **`AdaptiveScaffold` com trilho desenhável (T01):** `railHeader`/`railFooter` (topo e rodapé FIXOS do trilho —
+  marca + ação principal; Configurações/conta), `railStyle = AdaptiveRailStyle(expandedLayout = LABELED, width,
+  containerColor, dividerColor, itemSpacing, verticalPadding, item = AdaptiveRailItemStyle(…))` — `LABELED` mantém o
+  trilho de 88 dp **com rótulo embaixo também na EXPANDIDA**; `AdaptiveRailItemStyle` = anatomia do
+  `NavigationRailItem` do M3 (indicador 56×32 atrás do ícone, cores por papel, peso do rótulo ativo) — e
+  `railItem = { … }` para desenho livre (`AdaptiveRailItemScope`: `destination`, `selected`, `layout`, `NavIcon(tint)`
+  com o selo). Toque, `nav-item-<id>`, tour, selo acessível, insets e ordem de foco continuam da lib.
+  `adaptiveRailLayoutFor` (pura). Default idêntico ao de antes.
+- **`SupportingPaneScaffold` (T02, novo):** principal + painel de apoio — **ao lado** na EXPANDIDA (380 dp),
+  **recolhível** num trilho fino (48 dp) com os ícones das abas (tocar reabre naquela aba); **por cima com véu** na
+  MÉDIA (400 dp, entra pela direita — espelhado em RTL; fecha pelo véu, "×", voltar do sistema ou arrastando para a
+  borda) e na COMPACTA (largura toda). `SupportingPaneState` (`rememberSupportingPaneState(initiallyOpen,
+  initialTabId, persistKey)` — `rememberSaveable`; com `persistKey` o aberto/recolhido e a aba ficam no aparelho),
+  `SupportingPaneTab` (com selo), escopo `SupportingPaneScope` (`mode`, `selectedTabId`, `showPane`, `hidePane`),
+  cabeçalho padrão (abas M3 `PrimaryScrollableTabRow` + recolher/fechar) ou `header` próprio. Painel com
+  `paneTitle` + grupo de travessia; sobreposto é modal (principal fora da árvore de acessibilidade, foco no "×");
+  trocar de classe fecha o sobreposto. Puras: `supportingPaneModeFor`, `resolveSupportingPaneTab`,
+  `shouldDismissSupportingPane`. Ids `painel-apoio-*`. Textos em 4 idiomas.
+- **`ListDetailScaffold` (T04):** `larguraDaLista` (dp fixos, vence `fracaoDaLista`) e lista **recolhível** na
+  EXPANDIDA (`listaRecolhida` + `onListaRecolhidaChange`; a lib desenha a faixa "Mostrar lista"; o escopo ganhou
+  `listaRecolhida`, `podeRecolherLista`, `alternarLista()` com default — chamadas antigas compilam igual). Sem item
+  escolhido a lista não recolhe (`isListCollapsed`, pura). Ids `lista-detalhe-*`.
+
+### `kmplib-ui` — `calendar`
+- **`AppTimeGridScheduler(columnGroups = …)` (T03):** colunas AGRUPADAS (grupo = dia, sub-coluna = recurso) com
+  cabeçalho de dois níveis (rótulo curto à vista, nome completo no leitor de tela), divisória forte entre grupos,
+  grupo de hoje realçado e **único com a linha do "agora"**, `onGroupHeaderClick`, um grupo por vez no celular
+  (`selectedGroupId`/`onGroupSelected`). `freeSlotHint`, `onSlotClick` e `columnEmptyLabel` valem por sub-coluna.
+  Modelo `ScheduleColumnGroup`, `ScheduleResource.accessibilityLabel`; puras `scheduleDayGroups`,
+  `groupedColumnId`/`parseGroupedColumnId` (`GroupedColumnKey`), `distributeGroupedEvents` (órfão = profissional
+  removido, como no modo recurso), `groupedNowLineColumnIds`, `groupStartColumnIds`. Sem `columnGroups`, nada muda.
+
+### `kmplib-ui` — `components`
+- **`ReferenceBandChart(…, secondaryBand = ReferenceBand(…, label = "Faixa do laboratório"))` (T05):** a lib desenhava
+  UMA faixa; agora desenha a segunda atrás (neutra por default), a escala inclui as duas, e a legenda e a leitura
+  dizem as duas EM TEXTO ("Abaixo do seu padrão · Faixa do laboratório: Na faixa"). `ReferenceBand.label`,
+  `ReferencePoint.secondaryStatus` (do servidor), puras `referenceBandText`/`referencePointStatusText`; textos
+  `namedBand*`/`secondaryBandName` em 4 idiomas.
+
 ## 2.321.0 — **`kmplib-inspection`: o `SignaturePort` (código + traço da assinatura)**, depois do security-review, + endurecimentos do envio direto ao storage
 
 Origem: **Minha Vistoria** T3. Security-review aprovado com os ajustes abaixo, todos com teste. Aditivo: **sem piso, sem

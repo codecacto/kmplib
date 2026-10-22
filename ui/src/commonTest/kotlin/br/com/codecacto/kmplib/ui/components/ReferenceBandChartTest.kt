@@ -78,3 +78,54 @@ class ReferenceBandChartTest {
         assertNull(nearestReferencePoint(emptyList(), 0.5f))
     }
 }
+
+/** Segunda faixa no `ReferenceBandChart` (2.322.0, GAP-VIT-T05) — a parte pura. */
+class ReferenceBandChartSecondaryBandTest {
+
+    private val texts = ReferenceBandChartTexts(
+        bandRange = { a, b -> "Faixa de referência: $a a $b" },
+        bandFrom = { a -> "Faixa de referência: a partir de $a" },
+        bandUpTo = { b -> "Faixa de referência: até $b" },
+        below = "Abaixo da faixa",
+        within = "Na faixa",
+        above = "Acima da faixa",
+        summary = { n, l -> "$n medições. Última: $l" },
+        point = { l, v, s -> listOfNotNull("$l: $v", s).joinToString(", ") },
+        next = "Próxima",
+        previous = "Anterior",
+        empty = "Sem dados",
+    )
+    private val fmt: (Double) -> String = { it.toInt().toString() }
+
+    @Test
+    fun escalaIncluiAsDuasFaixas() {
+        assertEquals(30.0 to 100.0, lineChartValueBounds(listOf(50.0), ReferenceBand(40.0, 80.0), ReferenceBand(30.0, 100.0)))
+        assertEquals(lineChartValueBounds(listOf(50.0), ReferenceBand(40.0, 80.0)), lineChartValueBounds(listOf(50.0), ReferenceBand(40.0, 80.0), null))
+    }
+
+    @Test
+    fun textoDaFaixaUsaONomeQuandoHa() {
+        assertEquals("Faixa de referência: 40 a 80", referenceBandText(ReferenceBand(40.0, 80.0), texts, fmt))
+        assertEquals("Seu padrão: 40 a 80", referenceBandText(ReferenceBand(40.0, 80.0, label = "Seu padrão"), texts, fmt))
+        assertEquals("Lab: a partir de 30", referenceBandText(ReferenceBand(min = 30.0, label = "Lab"), texts, fmt))
+        assertEquals("Segunda faixa: até 100", referenceBandText(ReferenceBand(max = 100.0), texts, fmt, fallbackName = "Segunda faixa"))
+    }
+
+    @Test
+    fun leituraDizAsDuasFaixasEmTexto() {
+        val lab = ReferenceBand(30.0, 100.0, label = "Faixa do laboratório")
+        val principal = ReferenceStatus("Abaixo do seu padrão", StatusTone.WARNING)
+        assertEquals(
+            "Abaixo do seu padrão · Faixa do laboratório: Na faixa",
+            referencePointStatusText(principal, 24.0 + 10.0, lab, null, texts),
+        )
+        // Status vindo do servidor para a 2ª faixa vence o derivado.
+        assertEquals(
+            "Faixa do laboratório: normal",
+            referencePointStatusText(null, 34.0, lab, ReferenceStatus("normal", StatusTone.SUCCESS), texts),
+        )
+        // Sem segunda faixa, só o principal; sem nada, null.
+        assertEquals("Abaixo do seu padrão", referencePointStatusText(principal, 34.0, null, null, texts))
+        assertNull(referencePointStatusText(null, 34.0, null, null, texts))
+    }
+}

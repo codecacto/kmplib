@@ -350,3 +350,94 @@ fun freeSlotRanges(
     }
     return out
 }
+
+/* ─────────────────────────── colunas AGRUPADAS (2.322.0, GAP-VIT-T03) ─────────────────────────── */
+
+/** Separador do id composto de sub-coluna (`<grupo>::<recurso>`). */
+const val GROUPED_COLUMN_SEPARATOR: String = "::"
+
+/** Id da sub-coluna [resourceId] dentro do grupo [groupId]: `"2026-10-12::rafael"`. Pura. */
+fun groupedColumnId(groupId: String, resourceId: String): String = "$groupId$GROUPED_COLUMN_SEPARATOR$resourceId"
+
+/**
+ * Desfaz o [groupedColumnId] — é o que o app faz no `onSlotClick`/`FreeSlotHint.isAvailable` para
+ * saber o dia e o profissional do toque. `null` se o id não é composto. Pura.
+ */
+fun parseGroupedColumnId(columnId: String): GroupedColumnKey? {
+    val i = columnId.indexOf(GROUPED_COLUMN_SEPARATOR)
+    if (i <= 0 || i + GROUPED_COLUMN_SEPARATOR.length >= columnId.length) return null
+    return GroupedColumnKey(columnId.substring(0, i), columnId.substring(i + GROUPED_COLUMN_SEPARATOR.length))
+}
+
+/**
+ * Monta a semana agrupada: um grupo por dia de [days] (id = data ISO, [ScheduleColumnGroup.date]
+ * preenchida, [ScheduleColumnGroup.isCurrent] = dia == [today]) com uma sub-coluna por recurso de
+ * [resources] (id = [groupedColumnId], `label` = [shortLabel] — iniciais —, `accessibilityLabel` = o
+ * `label` completo do recurso; `availableRanges`/`subtitle` copiados, ou por dia via [availability]).
+ * Pura.
+ */
+fun scheduleDayGroups(
+    days: List<kotlinx.datetime.LocalDate>,
+    resources: List<ScheduleResource>,
+    today: kotlinx.datetime.LocalDate?,
+    dayLabel: (kotlinx.datetime.LocalDate) -> String,
+    shortLabel: (ScheduleResource) -> String = { it.label },
+    dayAccessibilityLabel: ((kotlinx.datetime.LocalDate) -> String)? = null,
+    availability: ((kotlinx.datetime.LocalDate, ScheduleResource) -> List<WorkRange>)? = null,
+): List<ScheduleColumnGroup> = days.map { day ->
+    val gid = day.toString()
+    ScheduleColumnGroup(
+        id = gid,
+        label = dayLabel(day),
+        date = day,
+        isCurrent = today != null && day == today,
+        accessibilityLabel = dayAccessibilityLabel?.invoke(day),
+        columns = resources.map { r ->
+            r.copy(
+                id = groupedColumnId(gid, r.id),
+                label = shortLabel(r),
+                accessibilityLabel = r.accessibilityLabel ?: r.label,
+                availableRanges = availability?.invoke(day, r) ?: r.availableRanges,
+            )
+        },
+    )
+}
+
+/**
+ * Distribui eventos numa grade AGRUPADA sem `getColumnId`: o grupo é o de [ScheduleColumnGroup.date]
+ * igual à data do `start`, a sub-coluna é a de id [groupedColumnId]`(grupo, resourceId)`.
+ *
+ * - Dia fora da grade, ou grupo sem `date`: fora da janela → silêncio.
+ * - `resourceId` nulo: não atribuído → silêncio.
+ * - Dia na grade mas recurso SEM sub-coluna: **órfão** (profissional removido) — o mesmo contrato de
+ *   [distributeEvents], para o compromisso não sumir calado.
+ *
+ * Pura, testável.
+ */
+fun distributeGroupedEvents(
+    events: List<ScheduleEvent>,
+    groups: List<ScheduleColumnGroup>,
+): EventDistribution {
+    val byColumn = LinkedHashMap<String, MutableList<ScheduleEvent>>()
+    for (g in groups) for (c in g.columns) byColumn[c.id] = ArrayList()
+    val groupByDate = groups.filter { it.date != null }.associateBy { it.date!! }
+    val orphans = ArrayList<ScheduleEvent>()
+    for (e in events) {
+        val g = groupByDate[e.start.date] ?: continue
+        val rid = e.resourceId ?: continue
+        val col = byColumn[groupedColumnId(g.id, rid)]
+        if (col != null) col.add(e) else orphans.add(e)
+    }
+    return EventDistribution(byColumn, orphans)
+}
+
+/**
+ * Sub-colunas que recebem a linha do "agora" numa grade agrupada: todas as dos grupos
+ * [ScheduleColumnGroup.isCurrent] (hoje), e nenhuma outra. Sem "agora", nenhuma. Pura.
+ */
+fun groupedNowLineColumnIds(groups: List<ScheduleColumnGroup>, hasNow: Boolean): List<String> =
+    if (!hasNow) emptyList() else groups.filter { it.isCurrent }.flatMap { g -> g.columns.map { it.id } }
+
+/** Ids das sub-colunas que ABREM um grupo (recebem a divisória forte). Pura. */
+fun groupStartColumnIds(groups: List<ScheduleColumnGroup>): Set<String> =
+    groups.mapNotNull { it.columns.firstOrNull()?.id }.toSet()

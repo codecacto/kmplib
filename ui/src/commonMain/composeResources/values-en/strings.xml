@@ -503,6 +503,15 @@
     <string name="kmplib_chart_point">%1$s: %2$s, %3$s</string>
     <string name="kmplib_chart_point_no_status">%1$s: %2$s</string>
     <string name="kmplib_chart_empty">No data to show.</string>
+    <string name="kmplib_chart_band_named_range">%1$s: %2$s to %3$s</string>
+    <string name="kmplib_chart_band_named_from">%1$s: from %2$s</string>
+    <string name="kmplib_chart_band_named_up_to">%1$s: up to %2$s</string>
+    <string name="kmplib_chart_band_secondary">Second range</string>
+    <string name="kmplib_supporting_pane_title">Supporting panel</string>
+    <string name="kmplib_supporting_pane_collapse">Collapse panel</string>
+    <string name="kmplib_supporting_pane_expand">Open panel</string>
+    <string name="kmplib_supporting_pane_close">Close panel</string>
+    <string name="kmplib_list_detail_show_list">Show list</string>
     <string name="kmplib_chart_next">Next measurement</string>
     <string name="kmplib_chart_previous">Previous measurement</string>
 

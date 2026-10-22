@@ -41,6 +41,11 @@ data class ScheduleResource(
      * intervalos). Fora delas a coluna é sombreada (fora-de-expediente). Vazio ⇒ sem sombreado.
      */
     val availableRanges: List<WorkRange> = emptyList(),
+    /**
+     * Nome completo para o leitor de tela quando o [label] é curto — numa semana agrupada a
+     * sub-coluna mostra "RC" e o TalkBack lê "Dr. Rafael Costa" (2.322.0). `null` = o [label].
+     */
+    val accessibilityLabel: String? = null,
 )
 
 /**
@@ -204,3 +209,35 @@ data class TimeSlot(
     /** Motivo da indisponibilidade (ex.: "passou", "ocupado") — a11y/tooltip. */
     val reason: String? = null,
 )
+
+/**
+ * Um GRUPO de colunas da grade (2.322.0, GAP-VIT-T03) — tipicamente um **dia**, com uma sub-coluna por
+ * **recurso** (a semana da clínica com N profissionais). O [AppTimeGridScheduler] desenha o cabeçalho
+ * em dois níveis (o grupo em cima, as sub-colunas embaixo), separa os grupos com uma divisória mais
+ * forte e põe a linha do "agora" SÓ nos grupos [isCurrent].
+ *
+ * Monte com [scheduleDayGroups] (dia × recurso, ids prontos) ou à mão.
+ *
+ * @param id chave estável do grupo (ex.: a data ISO "2026-10-12").
+ * @param label o que aparece no cabeçalho ("SEG 12").
+ * @param columns as sub-colunas. Os ids precisam ser ÚNICOS na grade inteira — com
+ *   [scheduleDayGroups] eles saem de [groupedColumnId].
+ * @param date o dia do grupo. Com ele, a grade distribui os eventos sozinha (dia do `start` +
+ *   `resourceId`, ver [distributeGroupedEvents]); sem ele, passe `getColumnId`.
+ * @param isCurrent o grupo de HOJE: cabeçalho realçado, fundo levemente tingido e a linha do "agora".
+ * @param subtitle linha secundária do cabeçalho do grupo, opcional.
+ * @param accessibilityLabel nome completo para o leitor de tela ("Segunda-feira, 12 de outubro, hoje");
+ *   `null` = [label].
+ */
+data class ScheduleColumnGroup(
+    val id: String,
+    val label: String,
+    val columns: List<ScheduleResource>,
+    val date: kotlinx.datetime.LocalDate? = null,
+    val isCurrent: Boolean = false,
+    val subtitle: String? = null,
+    val accessibilityLabel: String? = null,
+)
+
+/** As duas partes de um id de sub-coluna agrupada (ver [groupedColumnId]). */
+data class GroupedColumnKey(val groupId: String, val resourceId: String)

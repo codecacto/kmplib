@@ -77,11 +77,15 @@ data class LineSeries(
  * @param min limite inferior (inclusivo), ou `null` (aberta embaixo).
  * @param max limite superior (inclusivo), ou `null` (aberta em cima).
  * @param color cor da banda. `null` = o "sucesso" do tema (`AppColors.success`), a 14% de opacidade.
+ * @param label nome da faixa na legenda e na leitura ("Faixa do laboratório", "Seu padrão") —
+ *   2.322.0, indispensável quando o [ReferenceBandChart] desenha DUAS faixas. `null` = o texto padrão
+ *   ("Faixa de referência").
  */
 data class ReferenceBand(
     val min: Double? = null,
     val max: Double? = null,
     val color: Color? = null,
+    val label: String? = null,
 ) {
     init {
         require(min != null || max != null) { "ReferenceBand precisa de min, de max ou dos dois" }
@@ -94,6 +98,14 @@ data class ReferenceBand(
  */
 internal fun lineChartValueBounds(values: List<Double>, band: ReferenceBand?): Pair<Double, Double> =
     lineChartValueBounds(values + listOfNotNull(band?.min, band?.max))
+
+/** Limites da escala Y com DUAS faixas (2.322.0): a escala inclui os limites das duas. Pura. */
+internal fun lineChartValueBounds(
+    values: List<Double>,
+    band: ReferenceBand?,
+    secondaryBand: ReferenceBand?,
+): Pair<Double, Double> =
+    lineChartValueBounds(values + listOfNotNull(band?.min, band?.max, secondaryBand?.min, secondaryBand?.max))
 
 /**
  * Faixa vertical (topo, base) da [band] em frações de 0..1 onde **0 = topo** do gráfico — o que o
