@@ -158,6 +158,25 @@ object PurchaseManager {
     }
 
     /**
+     * Instala [repository] como a loja do processo, sem SDK nativo (2.325.0). É a costura pública do
+     * `kmplib-testing` (`PurchaseTestHooks.instalar`) — mesmo efeito do [initializeWith] interno.
+     * Exige `@OptIn(KmpLibStoreDoubleApi::class)`: não é API de app (ver [KmpLibStoreDoubleApi]).
+     */
+    @KmpLibStoreDoubleApi
+    fun installStoreDouble(repository: PurchaseRepository) {
+        initializeWith(repository)
+    }
+
+    /**
+     * Devolve o `PurchaseManager` ao estado zerado (2.325.0) — par do [installStoreDouble], usado
+     * pelo `PurchaseTestHooks.limpar`. Mesmo efeito do [reset] interno.
+     */
+    @KmpLibStoreDoubleApi
+    fun clearStoreDouble() {
+        reset()
+    }
+
+    /**
      * Troca o repositório corrente. O que sai é **desligado** — no adaptador da RevenueCat, o listener
      * de `CustomerInfo` deixa de publicar e devolve o delegate anterior —, para não vazar estado entre
      * repositórios.

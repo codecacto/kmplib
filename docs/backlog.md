@@ -893,6 +893,17 @@
 - [ ] **Aberto** — os ~40 apps universais (iPhone+iPad) que já compartilham algo só recebem o
       conserto do iPad ao bumpar; entram quando forem tocados (baseline).
 
+### ATENDIDO na 2.325.0 (23/out/2026) — friend modules saíram do `:kmplib-testing`
+
+- [x] **GAP-LIB-M-03 — `compileIosMainKotlinMetadata` sem amizade quebrava o publish com alvos Apple.** A causa de
+  fundo do GAP-LIB-M-02 (abaixo) era usar `-Xfriend-paths`/`-friend-modules` (flags não estáveis, uma por tipo de
+  tarefa). Correção definitiva: a costura virou API marcada do dono — `PurchaseManager.installStoreDouble`/
+  `clearStoreDouble` com `@KmpLibStoreDoubleApi` (`@RequiresOptIn` ERROR) — e o bloco de amizade saiu do build.
+- [ ] **(P3) Consolidar `PurchaseTestHooks` em `commonMain`.** As cópias de `androidMain` e `iosMain` são idênticas e
+  não precisam mais de amizade por plataforma. Mover para `commonMain` exige apagar as duas cópias (passo do
+  fundador: `git -C /srv/CodeCacto/Lib/kmplib rm library-testing/src/iosMain/kotlin/br/com/codecacto/kmplib/testing/PurchaseTestHooks.kt`
+  + `git mv` da de `androidMain` para `commonMain`). Mesmo FQN — nenhum consumidor muda.
+
 ### ATENDIDO na 2.193.0 (10/set/2026) — `:kmplib-testing` não compilava para iOS em árvore limpa
 
 - [x] **GAP-LIB-M-02 — `-friend-modules` do Kotlin/Native não achava o klib amigo.**

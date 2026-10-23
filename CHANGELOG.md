@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.325.0 — **`kmplib-testing` publica com os alvos Apple:** a costura da loja de teste vira API marcada (`@KmpLibStoreDoubleApi`), sem *friend modules*
+
+Defeito de BUILD da lib, não de app: `./gradlew :kmplib-testing:publishToMavenLocal -Pkmplib.forceAppleTargets=true`
+(e a publicação do Mac) quebrava em `compileIosMainKotlinMetadata` com *"Cannot access 'fun initializeWith…': it is
+internal in PurchaseManager"*. O `PurchaseTestHooks` alcançava o `internal` do `kmplib-monetization` por
+`-Xfriend-paths`/`-friend-modules` — flags NÃO estáveis do compilador, passadas à mão só nas compilações
+Android e `compileKotlinIos*`; a compilação de metadata do `iosMain` compartilhado nunca recebeu a amizade.
+Nada muda para quem consome — **sem piso, sem aviso**.
+
+### `kmplib-monetization`
+- **`@KmpLibStoreDoubleApi`** (`monetization.purchase`) — `@RequiresOptIn` nível **ERROR**, a forma recomendada
+  pelo Kotlin para API que atravessa módulo sem virar contrato de app (mesmo padrão de `KmpLibCoreInternalApi` e
+  `AutomationModeApi`).
+- **`PurchaseManager.installStoreDouble(repository)`** e **`PurchaseManager.clearStoreDouble()`**, marcadas com ela:
+  a costura explícita do dono. `initializeWith`/`reset` continuam `internal`, sem mudança. **Não é API de app** —
+  app instala o dublê pelo `kmplib-testing` (`PurchaseTestHooks`), travado pela variante pelo plugin `store-double`.
+
+### `kmplib-testing`
+- `PurchaseTestHooks.instalar`/`limpar` (Android e iOS, mesma assinatura) chamam a costura marcada com
+  `@OptIn(KmpLibStoreDoubleApi::class)`.
+- O bloco de *friend modules* saiu do `library-testing/build.gradle.kts` (nenhuma flag de compilador fica).
+
 ## 2.324.0 — **`kmplib-inspection` espelha a backlib 0.204.0:** "Funciona?" vindo do modelo, reordenar cômodos da vistoria, marca do emissor na verificação
 
 Origem: Minha Vistoria (troca da regra por nome do item pelo sinal do servidor). Aditivo: defaults nulos, nada

@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.testing
 
+import br.com.codecacto.kmplib.monetization.purchase.KmpLibStoreDoubleApi
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseManager
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseRepository
 import br.com.codecacto.kmplib.platform.automation.AutomationMode
@@ -44,10 +45,12 @@ import br.com.codecacto.kmplib.platform.automation.AutomationSignal
  * unzip -p app-release.aab "base/dex/classes.dex" | strings | grep -c PurchaseTestHooks  # 0
  * ```
  *
- * A visibilidade do `PurchaseManager.initializeWith` **não foi afrouxada** para isto funcionar: ele
- * segue `internal` na kmplib, e este módulo o alcança por *friend modules* (`-Xfriend-paths`, o
- * mecanismo oficial do compilador Kotlin — ver o `build.gradle.kts` daqui). A API publicada da
- * kmplib é idêntica à de antes.
+ * O gancho chama a costura pública **marcada** do `kmplib-monetization`
+ * (`PurchaseManager.installStoreDouble`/`clearStoreDouble`, 2.325.0), que exige
+ * `@OptIn(KmpLibStoreDoubleApi::class)` em nível ERROR — a forma recomendada pelo Kotlin para API
+ * que atravessa módulo sem virar contrato de app. Até a 2.324.0 isto era feito por *friend modules*
+ * (`-Xfriend-paths`/`-friend-modules`, flags não estáveis do compilador), e a compilação de metadata
+ * do `iosMain` ficava sem a amizade: o `publishToMavenLocal` com os alvos Apple quebrava.
  *
  * ## Android e iOS (iOS desde 14/08/2026)
  *
@@ -56,10 +59,9 @@ import br.com.codecacto.kmplib.platform.automation.AutomationSignal
  * gancho no alvo Apple, `LojaDeDemonstracao.kt` não resolvia `PurchaseTestHooks`.
  *
  * O arquivo é o MESMO nos dois source sets, de propósito — e não `expect/actual`, porque não há nada
- * de específico de plataforma aqui: o corpo chama o `internal` da `:kmplib`, e o que muda por
- * plataforma é só a AMIZADE do compilador (ver `-Xfriend-paths`/`-Xfriend-modules` no
- * `build.gradle.kts`). Subir para `commonMain` obrigaria a compilação de METADATA a ter amizade
- * também, o que ampliaria a superfície do ajuste sem ganho.
+ * de específico de plataforma aqui: desde a 2.325.0 o corpo só chama API pública marcada, e o lugar natural é `commonMain` —
+ * consolidar as duas cópias lá é a limpeza seguinte (pendente: apagar as cópias é passo do
+ * fundador).
  */
 object PurchaseTestHooks {
 
@@ -77,10 +79,10 @@ object PurchaseTestHooks {
      * e a lib cala os pedidos automáticos (avaliação por contagem, atualização opcional) que abririam
      * por cima da tela no meio da suíte. O [limpar] NÃO desliga — o processo continua sendo de teste.
      */
-    @OptIn(AutomationModeApi::class)
+    @OptIn(AutomationModeApi::class, KmpLibStoreDoubleApi::class)
     fun instalar(repository: PurchaseRepository) {
         AutomationMode.activate(AutomationSignal.STORE_DOUBLE)
-        PurchaseManager.initializeWith(repository)
+        PurchaseManager.installStoreDouble(repository)
     }
 
     /**
@@ -91,7 +93,8 @@ object PurchaseTestHooks {
      * faz o teste seguinte abrir com assinatura ativa — e aí o vermelho aparece no teste errado,
      * numa ordem que muda a cada execução.
      */
+    @OptIn(KmpLibStoreDoubleApi::class)
     fun limpar() {
-        PurchaseManager.reset()
+        PurchaseManager.clearStoreDouble()
     }
 }
