@@ -5,6 +5,23 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.324.0 — **`kmplib-inspection` espelha a backlib 0.204.0:** "Funciona?" vindo do modelo, reordenar cômodos da vistoria, marca do emissor na verificação
+
+Origem: Minha Vistoria (troca da regra por nome do item pelo sinal do servidor). Aditivo: defaults nulos, nada
+quebra quem consome 2.323.0 — **sem piso, sem aviso**.
+
+### `kmplib-inspection`
+- **`asksFunctioning: Boolean? = null`** em `TemplateItemDto`, `TemplateItemInput`, `BlockItemDto` e **`ItemDto`**
+  (snapshot do modelo quando a vistoria nasceu). **O app lê `ItemDto.asksFunctioning`**; `null` = servidor não definiu.
+- `InspectionMappers.itemSheetState(asksFunctioning = …)`: o default agora é `it.asksFunctioning ?: (regra antiga)`
+  — o app que não passa a própria regra já usa o sinal do servidor. `InspectionTemplateMapping.templateItem` preenche
+  `TemplateItem.asksFunctioning` do modelo; `itemInput` grava o chip "Funciona?" do editor (só envia quando liga ou
+  quando o item já tinha valor — servidor sem a migração da 0.204.0 recusa a coluna com 503).
+- **`InspectionApi.reorderGroups(id, ids)`** (`PUT /inspections/{id}/groups-order`; todos os ids, uma vez cada; só
+  rascunho) e **`InspectionSession.reorderGroups(ids)`** (troca a vistoria da sessão).
+- **`VerifyDto` / `VerifySignerDto`** (verificação pública do laudo) com **`issuerName`** e **`issuerColorHex`**.
+- `monthlyUsage` da 0.204.0 é da rota `/v1/subscription` de cada produto — nada na lib.
+
 ## 2.323.0 — **Tela "Desenvolvido por" refeita:** barra de topo padrão, slogan novo, só site + WhatsApp, grade "Nossos projetos"
 
 Origem: pedido do fundador (22/out/2026) — a `DeveloperScreen` tinha um cabeçalho colorido gigante, e-mail e

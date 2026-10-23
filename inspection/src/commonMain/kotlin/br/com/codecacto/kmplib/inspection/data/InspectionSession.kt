@@ -250,6 +250,10 @@ class InspectionSession(
     suspend fun deleteGroup(groupId: String): InspectionResult<InspectionDto> =
         replace { api.deleteGroup(inspectionId, groupId) }
 
+    /** Reordena os cômodos (todos os ids, uma vez cada; só em rascunho). */
+    suspend fun reorderGroups(ids: List<String>): InspectionResult<InspectionDto> =
+        replace { api.reorderGroups(inspectionId, ids) }
+
     /** Remove uma mídia confirmada (rascunho). A da fila sai por [InspectionMediaQueue.discard]. */
     suspend fun deleteMedia(mediaId: String): InspectionResult<Unit> {
         val r = api.deleteMedia(mediaId)

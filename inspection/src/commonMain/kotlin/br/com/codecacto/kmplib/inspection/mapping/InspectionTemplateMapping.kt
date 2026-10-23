@@ -92,8 +92,7 @@ object InspectionTemplateMapping {
     }
 
     /**
-     * Item do modelo para o kit. `asksFunctioning` = `false`: o contrato v1 não tem esse sinal no modelo
-     * (lacuna registrada no backlog da backlib).
+     * Item do modelo para o kit. `asksFunctioning` vem do modelo (backlib 0.204.0); ausente = `false`.
      */
     fun templateItem(dto: TemplateItemDto): TemplateItem = TemplateItem(
         id = dto.id,
@@ -101,6 +100,7 @@ object InspectionTemplateMapping {
         required = dto.required,
         minPhotos = dto.minPhotos,
         defaultCondition = dto.defaultState.toCondition() ?: br.com.codecacto.kmplib.inspection.model.ItemCondition.GOOD,
+        asksFunctioning = dto.asksFunctioning == true,
         questions = questionsOf(dto.fieldSchema),
     )
 
@@ -204,6 +204,8 @@ object InspectionTemplateMapping {
             defaultState = draft.defaultCondition.toItemState(),
             referenceValue = base?.referenceValue,
             mediaTasks = base?.mediaTasks.orEmpty(),
+            // Só manda quando liga ou quando o item já tinha valor: servidor sem a migração 0.204.0 recusa a gravação.
+            asksFunctioning = if (draft.asksFunctioning || base?.asksFunctioning != null) draft.asksFunctioning else null,
         )
     }
 

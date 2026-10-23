@@ -202,6 +202,10 @@ class InspectionApi(
     suspend fun deleteGroup(id: String, groupId: String): InspectionResult<InspectionDto> =
         deleteFor("/inspections/${seg(id)}/groups/${seg(groupId)}", InspectionDto.serializer())
 
+    /** Reordena os cômodos da vistoria (backlib 0.204.0): TODOS os ids, uma vez cada; só em rascunho. */
+    suspend fun reorderGroups(id: String, ids: List<String>): InspectionResult<InspectionDto> =
+        put("/inspections/${seg(id)}/groups-order", OrderInput.serializer(), OrderInput(ids), InspectionDto.serializer())
+
     /** Lote de itens (≤ [MAX_ITEMS_PER_PATCH]). Devolve a vistoria inteira já com o lote aplicado. */
     suspend fun patchItems(id: String, items: List<ItemPatch>): InspectionResult<InspectionDto> {
         require(items.size <= MAX_ITEMS_PER_PATCH) { "no máximo $MAX_ITEMS_PER_PATCH itens por lote" }

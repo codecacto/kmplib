@@ -308,16 +308,16 @@ object InspectionMappers {
     /**
      * A folha do item.
      *
-     * @param asksFunctioning o item pergunta "Funciona?". O contrato v1 do motor NÃO tem esse sinal no modelo
-     *   (lacuna registrada); o default é "já tem resposta de funcionamento (aqui ou na entrada)" — o produto
-     *   que sabe pelo modelo passa a própria regra.
+     * @param asksFunctioning o item pergunta "Funciona?". O app deve ler [ItemDto.asksFunctioning] (backlib
+     *   0.204.0, snapshot do modelo); o default já faz isso e, quando o servidor não definiu (`null`), cai na
+     *   regra antiga "já tem resposta de funcionamento (aqui ou na entrada)".
      */
     fun itemSheetState(
         state: InspectionSessionState,
         itemId: String,
         photos: InspectionPhotoResolver,
         stamp: (Instant) -> String? = { null },
-        asksFunctioning: (ItemDto) -> Boolean = { it.functioning != null || it.entry?.functioning != null },
+        asksFunctioning: (ItemDto) -> Boolean = { it.asksFunctioning ?: (it.functioning != null || it.entry?.functioning != null) },
     ): ItemSheetState? {
         val insp = state.inspection ?: return null
         val g = insp.groups.firstOrNull { gr -> gr.items.any { it.id == itemId } } ?: return null

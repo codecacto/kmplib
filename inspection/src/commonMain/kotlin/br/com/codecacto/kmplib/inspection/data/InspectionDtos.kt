@@ -105,6 +105,11 @@ data class TemplateItemDto(
     val defaultState: ItemState = ItemState.GOOD,
     val referenceValue: String? = null,
     val mediaTasks: List<MediaTaskDto> = emptyList(),
+    /**
+     * Pergunta "Funciona?" (backlib 0.204.0): `true` = pergunta Sim/Não/Não testado; `false` = não pergunta;
+     * `null` = o servidor não definiu (cliente antigo/modelo anterior) — o app cai na regra de antes.
+     */
+    val asksFunctioning: Boolean? = null,
 )
 
 /**
@@ -149,6 +154,11 @@ data class TemplateItemInput(
     val defaultState: ItemState = ItemState.GOOD,
     val referenceValue: String? = null,
     val mediaTasks: List<MediaTaskDto> = emptyList(),
+    /**
+     * Pergunta "Funciona?" (backlib 0.204.0): `true` = pergunta Sim/Não/Não testado; `false` = não pergunta;
+     * `null` = o servidor não definiu (cliente antigo/modelo anterior) — o app cai na regra de antes.
+     */
+    val asksFunctioning: Boolean? = null,
 )
 
 @Serializable
@@ -163,6 +173,11 @@ data class BlockItemDto(
     val defaultState: ItemState = ItemState.GOOD,
     val referenceValue: String? = null,
     val mediaTasks: List<MediaTaskDto> = emptyList(),
+    /**
+     * Pergunta "Funciona?" (backlib 0.204.0): `true` = pergunta Sim/Não/Não testado; `false` = não pergunta;
+     * `null` = o servidor não definiu (cliente antigo/modelo anterior) — o app cai na regra de antes.
+     */
+    val asksFunctioning: Boolean? = null,
 )
 
 @Serializable
@@ -306,6 +321,11 @@ data class ItemDto(
     val media: List<MediaDto> = emptyList(),
     /** Na SAÍDA: o item correspondente da ENTRADA (lado a lado, sobreposição de ângulo). */
     val entry: EntryItemDto? = null,
+    /**
+     * Pergunta "Funciona?" (backlib 0.204.0, do snapshot do modelo da vistoria): `true` = pergunta Sim/Não/Não testado; `false` = não pergunta;
+     * `null` = o servidor não definiu (cliente antigo/modelo anterior) — o app cai na regra de antes.
+     */
+    val asksFunctioning: Boolean? = null,
 ) {
     override fun toString(): String = "ItemDto(id=$id, state=$state, result=$result, media=${media.size})"
 }
@@ -758,3 +778,41 @@ data class EventDto(
 ) {
     override fun toString(): String = "EventDto(id=$id, type=$type, actorKind=$actorKind)"
 }
+
+/** Assinante na verificação pública do laudo (`GET /verify/{code}`). */
+@Serializable
+data class VerifySignerDto(
+    val role: SignerRole,
+    val name: String,
+    val method: SignatureMethod,
+    val otpChannel: OtpChannelKind,
+    val signedAt: String,
+)
+
+/**
+ * Resposta da verificação pública do laudo (backlib; campos da vistoria em si são ignorados). A marca do emissor
+ * (0.204.0) é [issuerName]/[issuerColorHex] — ausentes = sem marca própria (mostrar o produto).
+ */
+@Serializable
+data class VerifyDto(
+    val authentic: Boolean,
+    val code: String,
+    val kind: ReportKind,
+    val version: Int,
+    val latestVersion: Int,
+    val superseded: Boolean,
+    val locked: Boolean,
+    val pdfSha256: String,
+    val contentSha256: String,
+    val generatedAt: String,
+    val bilateralBasis: BilateralBasis? = null,
+    val tenantSigned: Boolean? = null,
+    val signers: List<VerifySignerDto> = emptyList(),
+    val matches: Boolean? = null,
+    val pdfUrl: String? = null,
+    val pdfUrlExpiresAt: String? = null,
+    /** Nome de exibição de quem emitiu o laudo (0.204.0). */
+    val issuerName: String? = null,
+    /** Cor da marca do emissor, `#RRGGBB` (0.204.0). */
+    val issuerColorHex: String? = null,
+)
