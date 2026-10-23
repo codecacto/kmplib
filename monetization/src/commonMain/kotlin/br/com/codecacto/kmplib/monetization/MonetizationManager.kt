@@ -189,6 +189,18 @@ object MonetizationManager {
         awaitPremiumStatus(timeout).isPremium
 
     /**
+     * "Pagante?" para relato — o `presencePayingProvider` do `CentralServicesConfig` (2.326.0): espera
+     * a loja até [timeout] e devolve [PremiumStatus.payingOrNull] — `true`/`false` só com resposta da
+     * loja, `null` em app que não vende, falha ou teto. Nunca use para liberar recurso.
+     *
+     * ```kotlin
+     * CentralServicesConfig(…, presencePayingProvider = { MonetizationManager.awaitPayingOrNull() })
+     * ```
+     */
+    suspend fun awaitPayingOrNull(timeout: Duration = PremiumStatus.DEFAULT_TIMEOUT): Boolean? =
+        awaitPremiumStatus(timeout).payingOrNull
+
+    /**
      * **App que não monetiza** (a `casca-mobile` em `MonetizationMode.NONE`): declara que não há loja
      * a esperar, e [premiumStatus] resolve na hora como `Free(NOT_SOLD)` (2.249.0). Sem isto, quem
      * lesse [awaitPremiumResolved] num app sem monetização esperaria o teto inteiro.

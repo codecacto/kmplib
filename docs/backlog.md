@@ -893,6 +893,15 @@
 - [ ] **Aberto** — os ~40 apps universais (iPhone+iPad) que já compartilham algo só recebem o
       conserto do iPad ao bumpar; entram quando forem tocados (baseline).
 
+### ATENDIDO na 2.326.0 (23/out/2026) — sinal de presença diário (`AppPresence`)
+
+- [x] **Nexus T8d — usuários ativos por cidade.** `AppPresence` no `kmplib-central`: 1 POST por dia local por
+  instalação em `/public/presence` (apps-api), no primeiro plano, sem identificador nem localização; ligado por
+  default no `CentralServicesConfig` (`enablePresence`), "pagante" por `presencePayingProvider`
+  (`MonetizationManager.awaitPayingOrNull()`). Casca-mobile liga com o pagante cablado.
+- [ ] **Aberto** — apps recebem no bump de baseline (quem já chama `CentralServices.initialize` passa a enviar;
+  o "pagante" só vai preenchido onde o app passar o provedor). Validação em aparelho (Android/iOS) é do Mac.
+
 ### ATENDIDO na 2.325.0 (23/out/2026) — friend modules saíram do `:kmplib-testing`
 
 - [x] **GAP-LIB-M-03 — `compileIosMainKotlinMetadata` sem amizade quebrava o publish com alvos Apple.** A causa de

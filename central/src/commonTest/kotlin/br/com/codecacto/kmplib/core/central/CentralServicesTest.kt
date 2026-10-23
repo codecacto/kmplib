@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.announcement.AnnouncementService
 import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.feedback.FeedbackService
+import br.com.codecacto.kmplib.presence.AppPresence
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -24,12 +25,16 @@ class CentralServicesTest {
     fun reset() {
         CentralServices.resetForTesting()
         AnnouncementService.resetForTesting()
+        AppPresence.resetForTesting()
+        CentralServices.listenToForegroundForPresence = false
     }
 
     @AfterTest
     fun cleanup() {
         CentralServices.resetForTesting()
         AnnouncementService.resetForTesting()
+        AppPresence.resetForTesting()
+        CentralServices.listenToForegroundForPresence = true
     }
 
     @Test

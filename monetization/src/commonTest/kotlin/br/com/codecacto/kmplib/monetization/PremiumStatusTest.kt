@@ -52,6 +52,24 @@ class PremiumStatusTest {
     // ------------------------------------------------------------------ regra pura
 
     @Test
+    fun `pagante para relato so afirma com resposta da loja`() {
+        assertEquals(true, PremiumStatus.Premium.payingOrNull)
+        assertEquals(false, PremiumStatus.Free(FreeReason.STORE).payingOrNull)
+        assertEquals(null, PremiumStatus.Free(FreeReason.NOT_SOLD).payingOrNull)
+        assertEquals(null, PremiumStatus.Free(FreeReason.STORE_FAILURE).payingOrNull)
+        assertEquals(null, PremiumStatus.Free(FreeReason.TIMEOUT).payingOrNull)
+        assertEquals(null, PremiumStatus.Unknown.payingOrNull)
+    }
+
+    @Test
+    fun `awaitPayingOrNull e null em app que nao vende e no teto`() = runBlocking {
+        MonetizationManager.declareNotMonetized()
+        assertEquals(null, MonetizationManager.awaitPayingOrNull(1.seconds))
+        MonetizationManager.reset()
+        assertEquals(null, MonetizationManager.awaitPayingOrNull(50.milliseconds))
+    }
+
+    @Test
     fun `marcador de partida nao resolve`() {
         assertEquals(
             PremiumStatus.Unknown,

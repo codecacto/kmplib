@@ -183,6 +183,8 @@ androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecy
 # Ciclo de vida DENTRO da composição (LifecycleEventEffect/LifecycleResumeEffect) — multiplataforma.
 # É o que o AppLockGate usa para saber que o app foi para segundo plano; sem ele o gate teria de
 # reimplementar observação de ciclo de vida em expect/actual.
+# Google (só Android): ProcessLifecycleOwner — sem par multiplataforma.
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version = "2.9.4" }
 androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "androidxBrowser" }

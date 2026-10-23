@@ -8,6 +8,8 @@ import br.com.codecacto.kmplib.developer.DeveloperConfig
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.feedback.FeedbackConfig
 import br.com.codecacto.kmplib.feedback.FeedbackService
+import br.com.codecacto.kmplib.presence.AppPresence
+import br.com.codecacto.kmplib.presence.AppPresenceConfig
 import io.ktor.client.HttpClient
 import kotlin.concurrent.Volatile
 
@@ -20,7 +22,10 @@ import kotlin.concurrent.Volatile
  * - [ContactService] — "Entrar em contato" (`POST /contact/v1`), MESMO lead do site;
  * - [DeveloperInfoService] — grade "Desenvolvido por CodeCacto" (`GET /public/developer`);
  * - [AnnouncementService] — avisos do app do Nexus (`GET /public/announcements`, 2.295.0), que o
- *   `RemoteAnnouncementHost` mostra.
+ *   `RemoteAnnouncementHost` mostra;
+ * - [AppPresence] — sinal de presença diário (`POST /public/presence`, 2.326.0): no máximo uma vez por
+ *   dia por instalação, ao vir para o primeiro plano, SEM identificador nem localização — o servidor
+ *   conta usuários ativos por cidade estimada pelo IP. Desligue com `enablePresence = false`.
  *
  * Nenhum dado de domínio trafega aqui — apps offline-first (arquétipo A) guardam local e usam o
  * central só nestes toques; apps com backend próprio também reusam esta amarração para os 3 públicos.
@@ -107,7 +112,22 @@ object CentralServices {
                 ),
             )
         }
+
+        if (config.enablePresence) {
+            AppPresence.initialize(
+                AppPresenceConfig(
+                    projectSlug = config.projectSlug,
+                    httpClient = config.httpClient,
+                    appsApiBaseUrl = config.appsApiBaseUrl,
+                    payingProvider = config.presencePayingProvider,
+                ),
+                listenToForeground = listenToForegroundForPresence,
+            )
+        }
     }
+
+    /** Apenas para testes — `false` não registra o observador de primeiro plano da plataforma. */
+    internal var listenToForegroundForPresence: Boolean = true
 
     /**
      * Propaga a identidade do usuário para os serviços que a usam como fallback de e-mail/uid
@@ -139,6 +159,10 @@ object CentralServices {
  * @property enableDeveloper liga o [DeveloperInfoService] (default `true`).
  * @property enableAnnouncements liga o [AnnouncementService] (default `true`; 2.295.0). Só faz
  *   requisição quando uma tela usa o `RemoteAnnouncementHost`/`rememberRemoteAnnouncements`.
+ * @property enablePresence liga o [AppPresence] (default `true`; 2.326.0) — 1 POST por dia por
+ *   instalação, sem dado pessoal nem identificador (vale também em app infantil).
+ * @property presencePayingProvider "é pagante?" para o sinal de presença — `null` (default) manda
+ *   `"pagante": null`. App que vende pela loja: `{ MonetizationManager.awaitPayingOrNull() }`.
  */
 data class CentralServicesConfig(
     val projectSlug: String,
@@ -152,6 +176,8 @@ data class CentralServicesConfig(
     val enableContact: Boolean = true,
     val enableDeveloper: Boolean = true,
     val enableAnnouncements: Boolean = true,
+    val enablePresence: Boolean = true,
+    val presencePayingProvider: (suspend () -> Boolean?)? = null,
 ) {
     companion object {
         const val DEFAULT_APPS_API_BASE_URL: String = "https://apps-api.codecacto.com.br"

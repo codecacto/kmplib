@@ -5,6 +5,29 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.326.0 — **Sinal de presença diário (`AppPresence`, `kmplib-central`):** usuários ativos por cidade no Nexus, sem identificador nem localização
+
+Aditivo (Nexus T8d, "Mapa de clientes" → camada Usuários). **Sem piso, sem aviso.**
+
+### `kmplib-central`
+- **`AppPresence`** (`br.com.codecacto.kmplib.presence`) — `POST {appsApi}/public/presence` com
+  `{"project","platform","pagante"}` **no máximo 1× por dia de calendário local por instalação**, disparado
+  quando o app vem para o primeiro plano (`ProcessLifecycleOwner` `ON_START` no Android;
+  `UIApplicationDidBecomeActiveNotification` + estado ativo no registro, no iOS). A data do último envio aceito
+  fica nas `AppPreferences` (`kmplib.presence.lastSentDay`); falha (rede, 429, 5xx) **não grava** e não repete
+  sozinha — a próxima abertura tenta. Build de teste (`AutomationMode`) não conta (`sendInAutomation`).
+  Nenhum id de aparelho/conta nem localização: o servidor estima a cidade pelo IP e o descarta.
+- **`AppPresenceClient`** (`sendIfDue(): AppPresenceResult` — `SENT`/`ALREADY_SENT_TODAY`/`FAILED`/`IN_FLIGHT`/
+  `SKIPPED_AUTOMATION`), **`AppPresenceConfig`** (`payingProvider: (suspend () -> Boolean?)?`, `payingTimeout` 5 s).
+- **`CentralServicesConfig.enablePresence = true`** (default — desligue com `false`) e
+  **`presencePayingProvider`**. Quem já chama `CentralServices.initialize` passa a enviar o sinal ao subir.
+- Android: dependência `androidx.lifecycle:lifecycle-process` 2.9.4 declarada (já resolvia transitivamente).
+
+### `kmplib-monetization`
+- **`PremiumStatus.payingOrNull`** e **`MonetizationManager.awaitPayingOrNull(timeout)`** — "pagante?" para RELATO:
+  `true`/`false` só com resposta da loja; `null` em app que não vende, falha ou teto. Nunca para liberar recurso.
+  Uso: `CentralServicesConfig(…, presencePayingProvider = { MonetizationManager.awaitPayingOrNull() })`.
+
 ## 2.325.0 — **`kmplib-testing` publica com os alvos Apple:** a costura da loja de teste vira API marcada (`@KmpLibStoreDoubleApi`), sem *friend modules*
 
 Defeito de BUILD da lib, não de app: `./gradlew :kmplib-testing:publishToMavenLocal -Pkmplib.forceAppleTargets=true`

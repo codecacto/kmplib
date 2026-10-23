@@ -40,6 +40,19 @@ sealed interface PremiumStatus {
     /** `true` só em [Premium]. [Unknown] responde `false` (fail-closed), mas não decida por ele. */
     val isPremium: Boolean
 
+    /**
+     * "Pagante?" para RELATO (o sinal de presença, 2.326.0) — **nunca para liberar recurso**:
+     * `true` em [Premium], `false` quando a LOJA confirmou que não há assinatura
+     * ([FreeReason.STORE]), `null` quando não se sabe ([Unknown], falha, timeout) ou o app não vende
+     * ([FreeReason.NOT_SOLD]). Diferente de [isPremium], não transforma "não sei" em "não".
+     */
+    val payingOrNull: Boolean?
+        get() = when (this) {
+            Premium -> true
+            is Free -> if (reason == FreeReason.STORE) false else null
+            Unknown -> null
+        }
+
     /** A loja ainda não respondeu. **Não bloqueie nem libere** — mostre carregando, ou espere. */
     data object Unknown : PremiumStatus {
         override val isResolved: Boolean get() = false

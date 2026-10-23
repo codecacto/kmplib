@@ -15,6 +15,12 @@ kotlin {
             api(libs.kotlinx.serialization.json)
         }
 
+        androidMain.dependencies {
+            // ProcessLifecycleOwner: o primeiro plano do PROCESSO, para o sinal de presença (2.326.0).
+            // Versão = a que já resolvia transitivamente no releaseRuntimeClasspath.
+            implementation(libs.androidx.lifecycle.process)
+        }
+
         commonTest.dependencies {
             implementation(libs.ktor.client.mock)
             implementation(libs.ktor.client.content.negotiation)
