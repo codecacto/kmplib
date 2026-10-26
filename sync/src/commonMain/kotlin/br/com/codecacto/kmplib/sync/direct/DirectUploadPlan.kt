@@ -78,6 +78,32 @@ fun directUploadContentType(signed: Map<String, String>): String? =
 
 private val DIRECT_UPLOAD_TRANSPORT_HEADERS = setOf("content-length", "content-type", "host")
 
+/**
+ * Os cabeçalhos assinados que valem para a parte [partNumber] (2.327.0): os da sessão
+ * ([DirectUploadSession.signedHeaders]) mais os da parte ([DirectUploadSession.partHeaders]); no mesmo
+ * nome (sem diferença de caixa) o da PARTE vence — é o caso do `x-amz-checksum-sha256`, que é de cada
+ * parte e não do arquivo. Nome em branco é descartado.
+ */
+fun directUploadSignedHeadersForPart(session: DirectUploadSession, partNumber: Int): Map<String, String> {
+    val daParte = session.partHeaders[partNumber].orEmpty().filterKeys { it.isNotBlank() }
+    if (daParte.isEmpty()) return session.signedHeaders
+    val nomesDaParte = daParte.keys.map { it.lowercase() }.toSet()
+    return session.signedHeaders.filterKeys { it.lowercase() !in nomesDaParte } + daParte
+}
+
+/**
+ * Junta à [session] as URLs reassinadas [fresh] (2.327.0, antes inline na fila): URLs novas por cima
+ * das velhas, cabeçalhos de parte das partes reassinadas TROCADOS pelos que vieram (parte reassinada
+ * sem cabeçalho fica sem cabeçalho próprio — o antigo pertencia à assinatura antiga).
+ */
+fun directUploadMergePresigned(session: DirectUploadSession, fresh: DirectUploadPartUrls): DirectUploadSession = session.copy(
+    partUrls = session.partUrls + fresh.urls,
+    urlsExpireAtMillis = fresh.expiresAtMillis,
+    signedHeaders = fresh.signedHeaders ?: session.signedHeaders,
+    alreadyReceived = session.alreadyReceived || fresh.alreadyReceived,
+    partHeaders = (session.partHeaders - fresh.urls.keys) + fresh.partHeaders.filterKeys { it in fresh.urls },
+)
+
 /** Partes que ainda faltam, em ordem crescente (nenhuma quando o servidor já tem o arquivo). */
 fun directUploadMissingParts(job: DirectUploadJob): List<Int> {
     val session = job.session ?: return emptyList()

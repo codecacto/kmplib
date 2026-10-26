@@ -47,6 +47,15 @@ interface DirectUploadStorage {
      * O default lê [mediaPath] pelo `sha256HexOfFile` do core.
      */
     suspend fun mediaSha256(jobId: String): String? = sha256HexOfFile(mediaPath(jobId))
+
+    /**
+     * O estado da fila gravado (2.327.0 — a pausa da pessoa), ou `null` se nunca foi gravado. O default
+     * não persiste nada: um storage próprio que não implemente isto tem a pausa só no processo.
+     */
+    suspend fun loadQueueState(): DirectUploadQueueState? = null
+
+    /** Grava o estado da fila por inteiro; `false` se não gravou (o default não persiste). */
+    suspend fun saveQueueState(state: DirectUploadQueueState): Boolean = false
 }
 
 /**
@@ -117,6 +126,19 @@ internal class FileDirectUploadStorage(
     override suspend fun mediaSha256(jobId: String): String? =
         if (isValidDirectUploadId(jobId)) files.sha256Hex(mediaPath(jobId)) else null
 
+    // O arquivo começa com "." — fora da régua de id de envio, então nem `loadAll` nem `orphanIds` o veem.
+    override suspend fun loadQueueState(): DirectUploadQueueState? {
+        val texto = files.readText(joinPath(root, QUEUE_FILE)) ?: return null
+        return runCatching { json.decodeFromString(DirectUploadQueueState.serializer(), texto) }
+            .onFailure { AppLogger.w(TAG, "estado da fila ilegível; ignorado") }
+            .getOrNull()
+    }
+
+    override suspend fun saveQueueState(state: DirectUploadQueueState): Boolean {
+        if (!files.mkdirs(root)) return false
+        return files.writeTextAtomic(joinPath(root, QUEUE_FILE), json.encodeToString(DirectUploadQueueState.serializer(), state))
+    }
+
     override suspend fun orphanIds(): List<String> =
         files.list(root).filter(::isValidDirectUploadId).filter { id ->
             val texto = files.readText(jobFile(id))
@@ -127,6 +149,7 @@ internal class FileDirectUploadStorage(
         const val TAG = "DirectUploadStorage"
         const val JOB_FILE = "job.json"
         const val MEDIA_FILE = "media"
+        const val QUEUE_FILE = ".queue.json"
     }
 }
 

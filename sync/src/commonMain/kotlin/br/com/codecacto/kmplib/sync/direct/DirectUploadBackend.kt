@@ -48,11 +48,15 @@ interface DirectUploadBackend {
  * multipart da fábrica (App do Personal §4.13 — `VideoUploadDto`):
  *
  * ```
- * POST <start>                         → 201 {uploadId, videoId, partSizeBytes, partCount, parts:[{partNumber,url}], expiresAt}
- * POST …/uploads/{uploadId}/parts      {partNumbers}            → 200 {parts:[{partNumber,url}], expiresAt}
+ * POST <start>                         → 201 {uploadId, videoId, partSizeBytes, partCount, parts:[{partNumber,url,headers?}], expiresAt}
+ * POST …/uploads/{uploadId}/parts      {partNumbers}            → 200 {parts:[{partNumber,url,headers?}], expiresAt}
  * POST …/uploads/{uploadId}/complete   {parts:[{partNumber,etag}]} → 200 <recurso>
  * POST …/uploads/{uploadId}/abort      → 204
  * ```
+ *
+ * `headers` (opcional, 2.327.0) = os cabeçalhos que a assinatura daquela parte cobre
+ * (`{"x-amz-checksum-sha256": "…"}`); vão exatamente assim no `PUT` da parte
+ * ([DirectUploadSession.partHeaders]).
  *
  * ```kotlin
  * val backend = RestDirectUploadBackend(
@@ -148,6 +152,7 @@ fun parseDirectUploadSession(obj: JsonObject, remoteIdField: String = "videoId")
     val partSize = obj.prim("partSizeBytes")?.longOrNull ?: return null
     val partCount = obj.prim("partCount")?.intOrNull ?: return null
     val urls = parsePartUrlList(obj["parts"])
+    val headers = parsePartHeaderList(obj["parts"]).filterKeys { it in urls }
     return DirectUploadSession(
         uploadId = uploadId,
         remoteId = obj.texto(remoteIdField),
@@ -155,13 +160,19 @@ fun parseDirectUploadSession(obj: JsonObject, remoteIdField: String = "videoId")
         partCount = partCount,
         partUrls = urls,
         urlsExpireAtMillis = parseIsoInstantMillis(obj.texto("expiresAt")),
+        partHeaders = headers,
     )
 }
 
 /** Lê o `VideoPartsDto` (`parts`, `expiresAt`). `null` se não houver lista. */
 fun parseDirectUploadPartUrls(obj: JsonObject): DirectUploadPartUrls? {
     if (obj["parts"] !is JsonArray) return null
-    return DirectUploadPartUrls(parsePartUrlList(obj["parts"]), parseIsoInstantMillis(obj.texto("expiresAt")))
+    val urls = parsePartUrlList(obj["parts"])
+    return DirectUploadPartUrls(
+        urls = urls,
+        expiresAtMillis = parseIsoInstantMillis(obj.texto("expiresAt")),
+        partHeaders = parsePartHeaderList(obj["parts"]).filterKeys { it in urls },
+    )
 }
 
 /** ISO-8601 (`2026-10-10T12:00:00Z`) → ms; `null` se ausente/ilegível. */
@@ -176,6 +187,26 @@ private fun parsePartUrlList(element: JsonElement?): Map<Int, String> {
             val n = o.prim("partNumber")?.intOrNull ?: return@forEach
             val url = o.texto("url") ?: return@forEach
             if (n >= 1) put(n, url)
+        }
+    }
+}
+
+/**
+ * `parts[].headers` → cabeçalhos por parte. Só pares texto→texto com nome não vazio; `headers` ausente,
+ * nulo, vazio ou que não é objeto = a parte não tem cabeçalho próprio.
+ */
+private fun parsePartHeaderList(element: JsonElement?): Map<Int, Map<String, String>> {
+    val lista = (element as? JsonArray) ?: return emptyMap()
+    return buildMap {
+        lista.forEach { item ->
+            val o = item as? JsonObject ?: return@forEach
+            val n = o.prim("partNumber")?.intOrNull ?: return@forEach
+            val h = o["headers"] as? JsonObject ?: return@forEach
+            val pares = h.entries.mapNotNull { (k, v) ->
+                val p = v as? JsonPrimitive ?: return@mapNotNull null
+                if (!p.isString || k.isBlank()) null else k to p.content
+            }.toMap()
+            if (n >= 1 && pares.isNotEmpty()) put(n, pares)
         }
     }
 }

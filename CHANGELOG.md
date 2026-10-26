@@ -5,6 +5,50 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.327.0 — **Upload em paralelo numa fila só, pausa que sobrevive ao app, fotos ORIGINAIS e salvar na galeria sem recomprimir, indicador próprio no `RefreshableBox`** (Lumio)
+
+Aditivo (pendências P-APP-01/02/04 do app do Lumio). **Sem piso, sem aviso**: nada muda para quem não usa os
+parâmetros novos (default `DirectUploadConcurrency.Sequential` = o comportamento da 2.326.0).
+
+### `kmplib-sync` — `sync.direct`
+- **`DirectUploadConcurrency(files, partsPerFile)`** (1..8 cada) em **`DirectUploadOutbox(concurrency = …)`**:
+  `files` arquivos sobem juntos (mais antigo primeiro; terminou um, entra o próximo) e cada arquivo multipart
+  sobe `partsPerFile` partes em **janela deslizante**, cada uma na sua URL pré-assinada. A ETag de cada parte é
+  gravada por **transformação do estado atual** (`persistUpdate`) — duas partes que terminam juntas não apagam a
+  ETag uma da outra, e nenhuma gravação velha desfaz uma pausa. Falha numa parte encerra a rodada (as em voo
+  terminam): URL vencida reassina **só** as vencidas; terminal/retentável/404/sem rede seguem a régua de antes.
+- **Cabeçalho assinado POR PARTE**: `parts:[{partNumber, url, headers}]` no `start` e no `presign`
+  (`DirectUploadSession.partHeaders`, `DirectUploadPartUrls.partHeaders`); `directUploadSignedHeadersForPart`
+  junta os da sessão com os da parte (o da parte vence, sem diferença de caixa); `directUploadMergePresigned`
+  troca os das partes reassinadas. Valores nunca em `toString`.
+- **Pausa da pessoa, gravada no disco**: `pauseAll()`/`resumeAll()`/`isPaused` (estado da fila em
+  `<raiz>/.queue.json`, `DirectUploadQueueState`, `DirectUploadStorage.loadQueueState/saveQueueState` com
+  default que não persiste) e `pauseJob(id)`/`resumeJob(id)` (`DirectUploadJob.pausedByUser`). Matar o app não
+  despausa; pausar cancela as partes em voo (iOS) e o agendamento; enfileirar pausado guarda sem agendar.
+  `DirectUploadDrainSummary.queuePaused`/`pausedByUser` **não** contam em `needsRetry` (WorkManager não gira).
+- `retry`/`setWifiOnly` também gravam por transformação.
+
+### `kmplib-platform` — `platform.photos` (novo pacote)
+- **`rememberOriginalPhotoPicker(maxItems) { r: OriginalPhotoPickResult -> }`** → `OriginalPhoto(path, fileName,
+  mimeType, sizeBytes)` copiada byte a byte: Android Photo Picker (`PickMultipleVisualMedia`, sem permissão; o
+  sistema remove só o GPS do EXIF), iOS `PHPickerViewController` com `preferredAssetRepresentationMode = .current`
+  + `loadFileRepresentation` no tipo registrado (HEIC fica HEIC). `failedCount` para as que não copiaram.
+  Pasta `ORIGINAL_PHOTO_TEMP_DIRECTORY`, varrida pelo `clearKmpLibTemporaryFiles`.
+- **`getGallerySaver().save(path, fileName, mimeType, album): GallerySaveResult`** (`Saved`/`PermissionDenied`/
+  `UnsupportedType`/`Failed`): Android 10+ `MediaStore` com `IS_PENDING` (sem permissão), ≤ 9 pasta pública +
+  `MediaScanner` (o APP declara `WRITE_EXTERNAL_STORAGE maxSdkVersion=28`); iOS `PHAssetCreationRequest.addResource(
+  .photo|.video, fileURL:)` com `originalFilename` e acesso `addOnly`. Imagem e vídeo.
+- Puras: `imageExtensionForMimeType`, `imageMimeTypeForFileName`, `originalPhotoFileName`, `galleryMediaKindOf`,
+  `sanitizeGalleryAlbum`.
+
+### `kmplib-ui`
+- **`RefreshableBox(…, indicator: (BoxScope.(RefreshIndicatorState) -> Unit)?)`**: indicador próprio no lugar do
+  círculo do Material (`RefreshIndicatorState.phase` = `RefreshIndicatorPhase.Idle/Pulling/ReadyToRelease/
+  Refreshing`, `distanceFraction`); gesto e limiar do `PullToRefreshBox` oficial. `refreshIndicatorPhase` puro.
+
+### Testes
+`DirectUploadParallelTest` (12), `OriginalPhotosTest` (8), `RefreshIndicatorPhaseTest` (2).
+
 ## 2.326.0 — **Sinal de presença diário (`AppPresence`, `kmplib-central`):** usuários ativos por cidade no Nexus, sem identificador nem localização
 
 Aditivo (Nexus T8d, "Mapa de clientes" → camada Usuários). **Sem piso, sem aviso.**

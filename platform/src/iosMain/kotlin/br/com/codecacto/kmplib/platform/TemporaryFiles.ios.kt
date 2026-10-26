@@ -3,6 +3,7 @@
 package br.com.codecacto.kmplib.platform
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.photos.ORIGINAL_PHOTO_TEMP_DIRECTORY
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
@@ -26,7 +27,8 @@ internal actual fun clearPlatformTemporaryFiles(olderThanMillis: Long): Int {
     val preparados = purgeTemporaryDirectory(VIDEO_PREPARED_TEMP_DIRECTORY, olderThanMillis)
     val voz = purgeTemporaryDirectory(AUDIO_CAPTURE_TEMP_DIRECTORY, olderThanMillis)
     val vozBaixada = purgeTemporaryDirectory(AUDIO_PLAYBACK_TEMP_DIRECTORY, olderThanMillis)
-    return compartilhados + gravados + preparados + voz + vozBaixada
+    val originais = purgeTemporaryDirectory(ORIGINAL_PHOTO_TEMP_DIRECTORY, olderThanMillis)
+    return compartilhados + gravados + preparados + voz + vozBaixada + originais
 }
 
 /** Apaga de `NSTemporaryDirectory()/[name]` o que tem idade ≥ [olderThanMillis]. Nunca lança. */

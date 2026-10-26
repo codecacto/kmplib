@@ -10,6 +10,10 @@ import br.com.codecacto.kmplib.sync.rest.UploadRetryPolicy
 import br.com.codecacto.kmplib.sync.rest.classifyRestFailure
 import br.com.codecacto.kmplib.sync.rest.uploadRetryDelayMillis
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +25,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -72,6 +78,19 @@ import kotlinx.coroutines.sync.withLock
  * iOS: encaminhe `application(_:handleEventsForBackgroundURLSession:completionHandler:)` para
  * `DirectUploadBackgroundEvents.handle(identifier, completionHandler)` (ver o KDoc dele).
  *
+ * ### Envio em paralelo (2.327.0)
+ * [concurrency] decide quantos ARQUIVOS sobem juntos e quantas PARTES de um mesmo arquivo multipart
+ * sobem juntas (`DirectUploadConcurrency(files = 3, partsPerFile = 2)`). Cada parte vai na sua URL
+ * pré-assinada, com os cabeçalhos dela ([DirectUploadSession.partHeaders]); a ETag de cada uma é gravada
+ * assim que ela é aceita, então matar o app no meio continua retomando só o que falta. Uma fila só com
+ * `files > 1` substitui o truque de abrir N filas e repartir os arquivos.
+ *
+ * ### Pausa da pessoa (2.327.0)
+ * [pauseAll]/[resumeAll] (a fila inteira) e [pauseJob]/[resumeJob] (um envio) são **gravados no
+ * disco**: reabrir o app — ou o WorkManager acordar a fila — não despausa nada. Pausar para as partes
+ * em voo (no iOS, cancela as tarefas da sessão de fundo; a parte interrompida sobe de novo na volta) e
+ * o agendador não reagenda envio pausado. Não confundir com [resume], que é a ABERTURA do app.
+ *
  * @param name nome da fila (trabalho do WorkManager, sessão de fundo do iOS, pasta). Duas filas no
  *   mesmo app = dois nomes.
  * @param backend as conversas com o servidor (ver [RestDirectUploadBackend]).
@@ -81,6 +100,7 @@ import kotlinx.coroutines.sync.withLock
  * @param scheduler quem acorda a fila (default: o da plataforma).
  * @param retry recuo entre falhas retentáveis (esgotado, o envio vira [DirectUploadStatus.FAILED]).
  * @param isMetered rede tarifada agora? (`null` = não sei; o transporte do iOS aplica o "só Wi-Fi" sozinho).
+ * @param concurrency quantos arquivos e quantas partes por arquivo sobem juntos (default: um e uma).
  * @param onCompleted chamado após cada envio aceito, com o corpo do `complete` — onde o app grava o
  *   recurso no próprio cache. Exceção aqui não desfaz nada (é registrada).
  */
@@ -95,6 +115,7 @@ class DirectUploadOutbox(
     private val isMetered: () -> Boolean? = ::platformIsActiveNetworkMetered,
     private val nowMillis: () -> Long = ::currentTimeMillis,
     private val idFactory: () -> String = { newUuidV7() },
+    val concurrency: DirectUploadConcurrency = DirectUploadConcurrency.Sequential,
     private val onCompleted: (suspend (job: DirectUploadJob, responseBody: String) -> Unit)? = null,
 ) {
     init {
@@ -114,7 +135,15 @@ class DirectUploadOutbox(
     /** > 0 enquanto alguém segura a fila ([withDrainPaused]) — a drenagem em curso para no próximo passo. */
     private val holds = MutableStateFlow(0)
 
-    private val _events = MutableSharedFlow<DirectUploadEvent>(extraBufferCapacity = 32)
+    private val _events = MutableSharedFlow<DirectUploadEvent>(extraBufferCapacity = 64)
+
+    private val _queuePaused = MutableStateFlow(false)
+
+    /**
+     * `true` = a fila inteira está pausada pela pessoa ([pauseAll]). Lido do disco na primeira carga
+     * ([resume]/qualquer ação); antes disso é `false`.
+     */
+    val isPaused: StateFlow<Boolean> = _queuePaused.asStateFlow()
 
     /** Concluídos e recusados, para a tela reagir (a lista em si é [jobs]). */
     val events: SharedFlow<DirectUploadEvent> = _events.asSharedFlow()
@@ -142,6 +171,7 @@ class DirectUploadOutbox(
         stateMutex.withLock {
             if (loaded) return
             val lidos = storage.loadAll().associateBy { it.id }
+            _queuePaused.value = storage.loadQueueState()?.pausedByUser == true
             publish(lidos)
             loaded = true
         }
@@ -153,15 +183,22 @@ class DirectUploadOutbox(
     }
 
     /**
-     * Grava [job] (cache + disco) **se ele ainda está na fila**. Descartado/purgado no meio de uma
-     * parte em voo, a drenagem não o ressuscita. Devolve o estado efetivo, ou `null` se saiu.
+     * Aplica [transform] ao estado ATUAL do envio [jobId] e grava (cache + disco) **se ele ainda está na
+     * fila** — descartado/purgado no meio de uma parte em voo, a drenagem não o ressuscita. Devolve o
+     * estado efetivo, ou `null` se saiu.
+     *
+     * Sempre por transformação, nunca gravando um `job.copy` montado antes (2.327.0): com partes em
+     * paralelo, duas ETags chegam juntas, e a pessoa pode pausar no meio — gravar uma cópia velha
+     * apagaria a ETag da outra parte ou despausaria o envio.
      */
-    private suspend fun persist(job: DirectUploadJob): DirectUploadJob? = stateMutex.withLock {
-        if (job.id !in cache.value) return@withLock null
-        if (!storage.save(job)) AppLogger.w(TAG, "estado do envio ${job.id} não gravou (disco?)")
-        publish(cache.value + (job.id to job))
-        job
-    }
+    private suspend fun persistUpdate(jobId: String, transform: (DirectUploadJob) -> DirectUploadJob): DirectUploadJob? =
+        stateMutex.withLock {
+            val atual = cache.value[jobId] ?: return@withLock null
+            val novo = transform(atual)
+            if (!storage.save(novo)) AppLogger.w(TAG, "estado do envio $jobId não gravou (disco?)")
+            publish(cache.value + (jobId to novo))
+            novo
+        }
 
     private fun current(jobId: String): DirectUploadJob? = cache.value[jobId]
 
@@ -226,7 +263,8 @@ class DirectUploadOutbox(
             publish(cache.value + (id to novo))
             novo
         }
-        scheduler.schedule(this, needOf(listOf(job)), urgent = true)
+        // Fila pausada pela pessoa: o envio fica guardado e sobe no resumeAll.
+        if (!_queuePaused.value) scheduler.schedule(this, needOf(listOf(job)), urgent = true)
         return DirectUploadEnqueueResult.Queued(job)
     }
 
@@ -239,15 +277,20 @@ class DirectUploadOutbox(
     /** "Tentar de novo" num envio [DirectUploadStatus.FAILED]: volta à fila, sem recuo. */
     suspend fun retry(jobId: String): Boolean {
         ensureLoaded()
-        val job = current(jobId)?.takeIf { it.status == DirectUploadStatus.FAILED } ?: return false
-        val volta = job.copy(
-            status = if (job.session == null) DirectUploadStatus.QUEUED else DirectUploadStatus.UPLOADING,
-            attempts = 0,
-            nextAttemptAtMillis = 0L,
-            failure = null,
-        )
-        persist(volta) ?: return false
-        scheduler.schedule(this, needOf(listOf(volta)), urgent = true)
+        current(jobId)?.takeIf { it.status == DirectUploadStatus.FAILED } ?: return false
+        val volta = persistUpdate(jobId) { job ->
+            if (job.status != DirectUploadStatus.FAILED) {
+                job
+            } else {
+                job.copy(
+                    status = if (job.session == null) DirectUploadStatus.QUEUED else DirectUploadStatus.UPLOADING,
+                    attempts = 0,
+                    nextAttemptAtMillis = 0L,
+                    failure = null,
+                )
+            }
+        } ?: return false
+        scheduleIfActive(volta)
         return true
     }
 
@@ -256,10 +299,63 @@ class DirectUploadOutbox(
         ensureLoaded()
         val job = current(jobId) ?: return false
         if (job.wifiOnly == wifiOnly) return true
-        val novo = persist(job.copy(wifiOnly = wifiOnly)) ?: return false
+        val novo = persistUpdate(jobId) { it.copy(wifiOnly = wifiOnly) } ?: return false
         if (wifiOnly) transport.cancelJob(jobId) // parte em voo no 4G para; volta no Wi-Fi
-        scheduler.schedule(this, needOf(listOf(novo)), urgent = true)
+        scheduleIfActive(novo)
         return true
+    }
+
+    /**
+     * Pausa o envio [jobId] **até [resumeJob]** (2.327.0): a parte em voo para, nada mais dele sobe, e a
+     * pausa fica gravada — matar o app não a desfaz. O progresso (ETags) fica. `false` se não existe.
+     */
+    suspend fun pauseJob(jobId: String): Boolean {
+        ensureLoaded()
+        persistUpdate(jobId) { it.copy(pausedByUser = true) } ?: return false
+        transport.cancelJob(jobId)
+        return true
+    }
+
+    /** Solta o envio pausado por [pauseJob] e pede a drenagem. `false` se não existe. */
+    suspend fun resumeJob(jobId: String): Boolean {
+        ensureLoaded()
+        val novo = persistUpdate(jobId) { it.copy(pausedByUser = false) } ?: return false
+        scheduleIfActive(novo)
+        return true
+    }
+
+    /**
+     * Pausa a FILA inteira (2.327.0): as partes em voo param, nada sobe — nem o que for enfileirado
+     * depois — até [resumeAll]. Gravado no disco: reabrir o app continua pausado. Devolve `false` se o
+     * estado não gravou (a pausa vale neste processo, mas não sobreviveria a matar o app).
+     */
+    suspend fun pauseAll(): Boolean {
+        ensureLoaded()
+        val gravou = stateMutex.withLock {
+            _queuePaused.value = true
+            storage.saveQueueState(DirectUploadQueueState(pausedByUser = true))
+        }
+        if (!gravou) AppLogger.w(TAG, "pausa da fila não gravou; vale só até o app fechar")
+        cache.value.keys.forEach { transport.cancelJob(it) }
+        scheduler.cancel(this)
+        return gravou
+    }
+
+    /** Solta a fila pausada por [pauseAll] e pede a drenagem. Devolve `false` se o estado não gravou. */
+    suspend fun resumeAll(): Boolean {
+        ensureLoaded()
+        val gravou = stateMutex.withLock {
+            _queuePaused.value = false
+            storage.saveQueueState(DirectUploadQueueState(pausedByUser = false))
+        }
+        if (!gravou) AppLogger.w(TAG, "retomada da fila não gravou; reabrir o app pode voltar pausado")
+        scheduleCurrent(urgent = true)
+        return gravou
+    }
+
+    private fun scheduleIfActive(job: DirectUploadJob) {
+        if (_queuePaused.value || job.pausedByUser || job.status == DirectUploadStatus.FAILED) return
+        scheduler.schedule(this, needOf(listOf(job)), urgent = true)
     }
 
     /**
@@ -361,7 +457,10 @@ class DirectUploadOutbox(
 
     private fun scheduleCurrent(urgent: Boolean) {
         val conta = accountId() ?: return
-        val ativos = cache.value.values.filter { it.accountId == conta && it.status != DirectUploadStatus.FAILED }
+        if (_queuePaused.value) return
+        val ativos = cache.value.values.filter {
+            it.accountId == conta && it.status != DirectUploadStatus.FAILED && !it.pausedByUser
+        }
         if (ativos.isEmpty()) return
         if (ativos.any { !it.wifiOnly }) scheduler.schedule(this, DirectUploadNetworkNeed.ANY, urgent)
         if (ativos.any { it.wifiOnly }) scheduler.schedule(this, DirectUploadNetworkNeed.UNMETERED, urgent)
@@ -373,42 +472,90 @@ class DirectUploadOutbox(
     // -- Drenagem -----------------------------------------------------------------
 
     /**
-     * Envia o que é da conta logada e está na vez — um envio por vez, mais antigo primeiro, parte a
-     * parte. É o que o agendador chama; serve também a teste e a um "enviar agora" manual.
+     * Envia o que é da conta logada e está na vez — mais antigo primeiro, até [DirectUploadConcurrency.files]
+     * envios ao mesmo tempo (quando um termina, o próximo entra), cada um com até
+     * [DirectUploadConcurrency.partsPerFile] partes em voo. É o que o agendador chama; serve também a
+     * teste e a um "enviar agora" manual. Fila pausada pela pessoa devolve `queuePaused` sem tocar em nada.
      */
     suspend fun drainNow(): DirectUploadDrainSummary = drainMutex.withLock {
         ensureLoaded()
         // Ninguém logado: nada a fazer (não é pausa — o login chama requestDrain/resume).
         val conta = accountId()?.takeIf { it.isNotBlank() } ?: return@withLock DirectUploadDrainSummary()
+        if (_queuePaused.value) return@withLock DirectUploadDrainSummary(queuePaused = true)
+        val resumoLock = Mutex()
         var resumo = DirectUploadDrainSummary()
+        var interrompida = false
         val vistos = mutableSetOf<String>()
-        while (true) {
-            if (holds.value > 0) return@withLock resumo.copy(paused = true)
-            val agora = nowMillis()
-            val job = directUploadDrainOrder(cache.value.values)
-                .firstOrNull { it.id !in vistos && it.accountId == conta && it.status != DirectUploadStatus.FAILED }
-                ?: break
-            vistos += job.id
-            if (job.nextAttemptAtMillis > agora) {
-                resumo = resumo.adiado(job.nextAttemptAtMillis)
-                continue
-            }
-            if (job.wifiOnly && isMetered() == true) {
-                resumo = resumo.copy(waitingUnmetered = resumo.waitingUnmetered + 1)
-                continue
-            }
-            val desfecho = processar(job, conta)
-            resumo = resumo.copy(partsUploaded = resumo.partsUploaded + desfecho.parts)
-            when (desfecho) {
-                is Outcome.Done -> resumo = resumo.copy(completed = resumo.completed + 1)
-                is Outcome.Failed -> resumo = resumo.copy(failed = resumo.failed + 1)
-                is Outcome.Deferred -> resumo = resumo.adiado(desfecho.until)
-                is Outcome.Gone -> Unit
-                is Outcome.Paused -> return@withLock resumo.copy(paused = true)
+
+        suspend fun somar(f: (DirectUploadDrainSummary) -> DirectUploadDrainSummary) = resumoLock.withLock { resumo = f(resumo) }
+
+        /** O próximo envio da vez (marca os que pulou no resumo), ou `null` se não há mais. */
+        suspend fun proximo(): DirectUploadJob? {
+            while (true) {
+                val agora = nowMillis()
+                val job = directUploadDrainOrder(cache.value.values)
+                    .firstOrNull { it.id !in vistos && it.accountId == conta && it.status != DirectUploadStatus.FAILED }
+                    ?: return null
+                vistos += job.id
+                when {
+                    job.pausedByUser -> somar { it.copy(pausedByUser = it.pausedByUser + 1) }
+                    job.nextAttemptAtMillis > agora -> somar { it.adiado(job.nextAttemptAtMillis) }
+                    job.wifiOnly && isMetered() == true -> somar { it.copy(waitingUnmetered = it.waitingUnmetered + 1) }
+                    else -> return job
+                }
             }
         }
-        resumo
+
+        coroutineScope {
+            val vagas = Semaphore(concurrency.files)
+            val terminou = Channel<Unit>(Channel.CONFLATED)
+            var emCurso = 0
+            while (true) {
+                vagas.acquire()
+                val parar = resumoLock.withLock { interrompida } || holds.value > 0 || _queuePaused.value || accountId() != conta
+                val job = if (parar) null else proximo()
+                if (job == null) {
+                    vagas.release()
+                    val ativos = resumoLock.withLock { emCurso }
+                    if (parar || ativos == 0) break
+                    // Um envio em curso pode liberar a vez para outro que chegou na fila no meio.
+                    terminou.receive()
+                    continue
+                }
+                resumoLock.withLock { emCurso++ }
+                launch {
+                    try {
+                        val bruto = processar(job, conta)
+                        val desfecho = if (bruto is Outcome.Paused && pausadoPelaPessoa(job.id)) Outcome.UserPaused(bruto.parts) else bruto
+                        resumoLock.withLock {
+                            resumo = resumo.copy(partsUploaded = resumo.partsUploaded + desfecho.parts)
+                            when (desfecho) {
+                                is Outcome.Done -> resumo = resumo.copy(completed = resumo.completed + 1)
+                                is Outcome.Failed -> resumo = resumo.copy(failed = resumo.failed + 1)
+                                is Outcome.Deferred -> resumo = resumo.adiado(desfecho.until)
+                                is Outcome.Gone -> Unit
+                                is Outcome.UserPaused -> resumo = resumo.copy(pausedByUser = resumo.pausedByUser + 1)
+                                // Sem rede / fila segurada / conta trocada: não começa mais ninguém nesta passada.
+                                is Outcome.Paused -> interrompida = true
+                            }
+                        }
+                    } finally {
+                        resumoLock.withLock { emCurso-- }
+                        vagas.release()
+                        terminou.trySend(Unit)
+                    }
+                }
+            }
+        }
+        val final = resumoLock.withLock { resumo }
+        when {
+            _queuePaused.value -> final.copy(queuePaused = true)
+            interrompida || holds.value > 0 || accountId() != conta -> final.copy(paused = true)
+            else -> final
+        }
     }
+
+    private fun pausadoPelaPessoa(jobId: String): Boolean = _queuePaused.value || current(jobId)?.pausedByUser == true
 
     private fun DirectUploadDrainSummary.adiado(until: Long): DirectUploadDrainSummary =
         copy(deferred = deferred + 1, nextAttemptAtMillis = minOf(nextAttemptAtMillis ?: until, until))
@@ -420,21 +567,40 @@ class DirectUploadOutbox(
         data class Failed(override val parts: Int) : Outcome
         data class Deferred(override val parts: Int, val until: Long) : Outcome
         data class Paused(override val parts: Int) : Outcome
+        data class UserPaused(override val parts: Int) : Outcome
         data class Gone(override val parts: Int) : Outcome
+    }
+
+    /** O que aconteceu numa rodada de partes em paralelo de um envio. */
+    private class Rodada {
+        var enviadas = 0
+        var sumiu = false
+        var sessaoInvalida = false
+        var interrompida = false
+        var cancelamento: CancellationException? = null
+        val resultados = mutableListOf<Pair<Int, DirectUploadPartResult>>()
+
+        val algoDeuErrado: Boolean get() = sumiu || sessaoInvalida || interrompida || cancelamento != null || resultados.isNotEmpty()
     }
 
     /** Leva um envio o mais longe que der nesta passada. */
     private suspend fun processar(inicial: DirectUploadJob, conta: String): Outcome {
+        val id = inicial.id
         var job = inicial
         var partes = 0
 
-        fun parou(): Boolean = holds.value > 0 || accountId() != conta
+        /** Motivo de parar agora, ou `null` para seguir. Pausa da pessoa ≠ pausa do sistema (esta reagenda). */
+        fun parada(): Outcome? = when {
+            holds.value > 0 || accountId() != conta -> Outcome.Paused(partes)
+            pausadoPelaPessoa(id) -> Outcome.UserPaused(partes)
+            else -> null
+        }
 
-        if (!storage.hasMedia(job.id, job.sizeBytes)) return falhar(job, MISSING_FILE, partes)
+        if (!storage.hasMedia(id, job.sizeBytes)) return falhar(job, MISSING_FILE, partes)
 
         // 1. Sessão.
         if (job.session == null) {
-            if (parou()) return Outcome.Paused(partes)
+            parada()?.let { return it }
             when (val r = runCatchingNonCancel { backend.start(job) }) {
                 is DomainResult.Success -> {
                     val sessao = r.data
@@ -444,113 +610,90 @@ class DirectUploadOutbox(
                         runCatchingNonCancel { backend.abort(job, sessao) }
                         return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
                     }
-                    job = persist(
-                        job.copy(session = sessao, status = DirectUploadStatus.UPLOADING, completedParts = emptyMap(), attempts = 0, failure = null),
-                    ) ?: return Outcome.Gone(partes)
+                    job = persistUpdate(id) {
+                        it.copy(session = sessao, status = DirectUploadStatus.UPLOADING, completedParts = emptyMap(), attempts = 0, failure = null)
+                    } ?: return Outcome.Gone(partes)
                 }
                 else -> return erroDoServidor(job, r, partes)
             }
         }
 
-        // 2. Partes.
-        var reassinouPorVencimento = false
+        // 2. Partes — em rodadas: cada rodada sobe, em janela de `partsPerFile`, as partes que têm URL
+        // válida; o que der errado numa parte encerra a rodada (as que já estão em voo terminam) e é
+        // decidido aqui, com o envio inteiro à vista.
+        // Partes cuja URL o storage já recusou nesta passada: recusar de novo DEPOIS de reassinar = recuo
+        // (a assinatura do servidor está errada, não vencida — repetir só gira em falso).
+        val vencidas = mutableSetOf<Int>()
         while (true) {
             val faltam = directUploadMissingParts(job)
             if (faltam.isEmpty()) break
-            if (parou()) return Outcome.Paused(partes)
+            parada()?.let { return it }
             val sessao = job.session ?: return Outcome.Gone(partes)
-            val parte = faltam.first()
-            var url = directUploadUsableUrl(sessao, parte, nowMillis())
-            if (url == null) {
+            val janela = faltam.take(concurrency.partsPerFile)
+            if (janela.any { directUploadUsableUrl(sessao, it, nowMillis()) == null }) {
                 val pedir = faltam.filter { directUploadUsableUrl(sessao, it, nowMillis()) == null }.take(PRESIGN_BATCH)
                 when (val r = runCatchingNonCancel { backend.presignParts(job, sessao, pedir) }) {
                     is DomainResult.Success -> {
-                        val novas = sessao.copy(
-                            partUrls = sessao.partUrls + r.data.urls,
-                            urlsExpireAtMillis = r.data.expiresAtMillis,
-                            signedHeaders = r.data.signedHeaders ?: sessao.signedHeaders,
-                            alreadyReceived = sessao.alreadyReceived || r.data.alreadyReceived,
-                        )
+                        val novas = directUploadMergePresigned(sessao, r.data)
                         if (novas.mode == DirectUploadMode.SINGLE_PUT) {
                             directUploadSessionProblem(novas, job.sizeBytes)?.let { problema ->
                                 AppLogger.e(TAG, "bilhete novo incompatível com o arquivo: $problema")
                                 return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
                             }
                         }
-                        job = persist(job.copy(session = novas)) ?: return Outcome.Gone(partes)
+                        job = persistUpdate(id) { it.copy(session = novas) } ?: return Outcome.Gone(partes)
                         if (novas.alreadyReceived) break
-                        url = directUploadUsableUrl(novas, parte, nowMillis())
+                        directUploadUsableUrl(novas, faltam.first(), nowMillis())
                             ?: return recuar(job, DirectUploadFailure(MISSING_URL_CODE, message = MISSING_URL_MESSAGE), partes)
                     }
                     else -> return erroDoServidor(job, r, partes)
                 }
             }
-            // A sessão DEPOIS de uma eventual reassinatura: no PUT único o bilhete novo traz cabeçalhos novos.
-            val vigente = job.session ?: return Outcome.Gone(partes)
-            val faixa = directUploadPartRange(parte, vigente.partSizeBytes, job.sizeBytes)
-                ?: return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
-            val pedido = DirectUploadPartRequest(
-                jobId = job.id,
-                partNumber = parte,
-                url = url,
-                filePath = storage.mediaPath(job.id),
-                offset = faixa.first,
-                length = faixa.last - faixa.first + 1,
-                partFilePath = storage.partPath(job.id, parte),
-                wifiOnly = job.wifiOnly,
-                method = vigente.method,
-                contentType = directUploadContentType(vigente.signedHeaders),
-                headers = directUploadExtraHeaders(vigente.signedHeaders),
-                requireEtag = vigente.mode == DirectUploadMode.MULTIPART,
-            )
-            val resultado = try {
-                transport.upload(pedido)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "transporte lançou na parte $parte: ${e::class.simpleName}")
-                DirectUploadPartResult.Offline
+
+            val rodada = enviarPartes(id, faltam) { parada() != null }
+            partes += rodada.enviadas
+            job = current(id) ?: return Outcome.Gone(partes)
+            if (rodada.sumiu) return Outcome.Gone(partes)
+            if (rodada.sessaoInvalida) {
+                return falhar(job, DirectUploadFailure(INVALID_SESSION_CODE, message = INVALID_SESSION_MESSAGE), partes)
             }
-            val atual = current(job.id) ?: return Outcome.Gone(partes)
-            job = atual
-            when (resultado) {
-                is DirectUploadPartResult.Uploaded -> {
-                    job = persist(job.copy(completedParts = job.completedParts + (parte to resultado.etag), attempts = 0, failure = null))
-                        ?: return Outcome.Gone(partes + 1)
-                    partes++
-                    reassinouPorVencimento = false
-                }
-                DirectUploadPartResult.Expired -> {
-                    if (reassinouPorVencimento) {
-                        return recuar(job, DirectUploadFailure(403, message = EXPIRED_MESSAGE), partes)
-                    }
-                    reassinouPorVencimento = true
-                    val s = job.session ?: return Outcome.Gone(partes)
-                    job = persist(job.copy(session = s.copy(partUrls = s.partUrls - parte))) ?: return Outcome.Gone(partes)
-                }
-                DirectUploadPartResult.UploadGone -> {
-                    // O storage esqueceu o envio (abortado/expirado no servidor): recomeça do zero, com recuo
-                    // para não girar em falso se o servidor insistir.
-                    job = persist(job.copy(session = null, completedParts = emptyMap(), status = DirectUploadStatus.QUEUED))
-                        ?: return Outcome.Gone(partes)
-                    return recuar(job, DirectUploadFailure(404, message = GONE_MESSAGE), partes)
-                }
-                DirectUploadPartResult.Offline, DirectUploadPartResult.Cancelled -> return Outcome.Paused(partes)
-                DirectUploadPartResult.SourceUnreadable -> return falhar(job, MISSING_FILE, partes)
-                is DirectUploadPartResult.Failed ->
-                    return if (isRetryableDirectUploadPartStatus(resultado.code)) {
-                        recuar(job, DirectUploadFailure(resultado.code, message = STORAGE_MESSAGE), partes)
-                    } else {
-                        falhar(job, DirectUploadFailure(resultado.code, message = STORAGE_MESSAGE), partes)
-                    }
+            val resultados = rodada.resultados.map { it.second }
+            if (DirectUploadPartResult.SourceUnreadable in resultados) return falhar(job, MISSING_FILE, partes)
+            resultados.filterIsInstance<DirectUploadPartResult.Failed>()
+                .firstOrNull { !isRetryableDirectUploadPartStatus(it.code) }
+                ?.let { return falhar(job, DirectUploadFailure(it.code, message = STORAGE_MESSAGE), partes) }
+            if (DirectUploadPartResult.UploadGone in resultados) {
+                // O storage esqueceu o envio (abortado/expirado no servidor): recomeça do zero, com recuo
+                // para não girar em falso se o servidor insistir.
+                job = persistUpdate(id) { it.copy(session = null, completedParts = emptyMap(), status = DirectUploadStatus.QUEUED) }
+                    ?: return Outcome.Gone(partes)
+                return recuar(job, DirectUploadFailure(404, message = GONE_MESSAGE), partes)
             }
+            resultados.filterIsInstance<DirectUploadPartResult.Failed>().firstOrNull()
+                ?.let { return recuar(job, DirectUploadFailure(it.code, message = STORAGE_MESSAGE), partes) }
+            val venceram = rodada.resultados.filter { it.second == DirectUploadPartResult.Expired }.map { it.first }
+            if (venceram.isNotEmpty()) {
+                if (venceram.any { it in vencidas }) {
+                    return recuar(job, DirectUploadFailure(403, message = EXPIRED_MESSAGE), partes)
+                }
+                vencidas += venceram
+                job = persistUpdate(id) { atual ->
+                    val s = atual.session ?: return@persistUpdate atual
+                    atual.copy(session = s.copy(partUrls = s.partUrls - venceram.toSet()))
+                } ?: return Outcome.Gone(partes)
+                continue
+            }
+            if (resultados.any { it == DirectUploadPartResult.Offline || it == DirectUploadPartResult.Cancelled }) {
+                return parada() ?: Outcome.Paused(partes)
+            }
+            // Rodada interrompida (pausa, URL que venceu pelo relógio) ou completa: o topo do laço decide.
         }
 
         // 3. Fechar.
-        if (parou()) return Outcome.Paused(partes)
+        parada()?.let { return it }
         val sessao = job.session ?: return Outcome.Gone(partes)
         if (job.status != DirectUploadStatus.COMPLETING) {
-            job = persist(job.copy(status = DirectUploadStatus.COMPLETING)) ?: return Outcome.Gone(partes)
+            job = persistUpdate(id) { it.copy(status = DirectUploadStatus.COMPLETING) } ?: return Outcome.Gone(partes)
         }
         return when (val r = runCatchingNonCancel { backend.complete(job, sessao, directUploadCompletedParts(job)) }) {
             is DomainResult.Success -> {
@@ -559,8 +702,8 @@ class DirectUploadOutbox(
             }
             is DomainResult.Error -> if (r.code == NOT_RECEIVED_CODE) {
                 // O servidor não achou o arquivo no storage (PUT perdido no caminho): sobe de novo.
-                AppLogger.w(TAG, "servidor não recebeu o arquivo do envio ${job.id}; reenviando")
-                val volta = persist(job.copy(completedParts = emptyMap(), status = DirectUploadStatus.UPLOADING))
+                AppLogger.w(TAG, "servidor não recebeu o arquivo do envio $id; reenviando")
+                val volta = persistUpdate(id) { it.copy(completedParts = emptyMap(), status = DirectUploadStatus.UPLOADING) }
                     ?: return Outcome.Gone(partes)
                 recuar(volta, DirectUploadFailure(r.code, r.serverCode, NOT_RECEIVED_MESSAGE), partes)
             } else {
@@ -568,6 +711,99 @@ class DirectUploadOutbox(
             }
             else -> erroDoServidor(job, r, partes)
         }
+    }
+
+    /**
+     * Sobe [partes] (em ordem) com até [DirectUploadConcurrency.partsPerFile] em voo: terminou uma, entra a
+     * próxima. Cada parte usa a URL e os cabeçalhos da sessão VIGENTE no momento em que sai; a ETag aceita
+     * é gravada na hora. Para de lançar partes novas no primeiro problema (ou quando [deveParar]); as que
+     * já estão em voo terminam e entram no resultado.
+     */
+    private suspend fun enviarPartes(jobId: String, partes: List<Int>, deveParar: () -> Boolean): Rodada = coroutineScope {
+        val rodada = Rodada()
+        val lock = Mutex()
+        val vagas = Semaphore(concurrency.partsPerFile)
+        for (parte in partes) {
+            vagas.acquire()
+            val pedido: DirectUploadPartRequest? = lock.withLock {
+                when {
+                    rodada.algoDeuErrado -> null
+                    deveParar() -> null.also { rodada.interrompida = true }
+                    else -> {
+                        val job = current(jobId)
+                        val sessao = job?.session
+                        if (job == null || sessao == null) {
+                            rodada.sumiu = true
+                            null
+                        } else {
+                            // URL que venceu pelo relógio no meio da rodada: encerra; o laço de cima reassina.
+                            val url = directUploadUsableUrl(sessao, parte, nowMillis())
+                            if (url == null) {
+                                rodada.interrompida = true
+                                null
+                            } else {
+                                montarPedido(job, sessao, parte, url).also { if (it == null) rodada.sessaoInvalida = true }
+                            }
+                        }
+                    }
+                }
+            }
+            if (pedido == null) {
+                vagas.release()
+                break
+            }
+            launch {
+                try {
+                    val resultado = try {
+                        enviarUmaParte(pedido)
+                    } catch (e: CancellationException) {
+                        // O transporte foi cancelado (o sistema parou o trabalho): a passada inteira para, como
+                        // se fosse sequencial — a exceção é relançada para quem chamou a drenagem.
+                        withContext(NonCancellable) { lock.withLock { rodada.cancelamento = e } }
+                        throw e
+                    }
+                    if (resultado is DirectUploadPartResult.Uploaded) {
+                        val gravado = persistUpdate(jobId) {
+                            it.copy(completedParts = it.completedParts + (parte to resultado.etag), attempts = 0, failure = null)
+                        }
+                        lock.withLock { if (gravado == null) rodada.sumiu = true else rodada.enviadas++ }
+                    } else {
+                        lock.withLock { rodada.resultados += parte to resultado }
+                    }
+                } finally {
+                    vagas.release()
+                }
+            }
+        }
+        rodada
+    }.also { r -> r.cancelamento?.let { throw it } }
+
+    private fun montarPedido(job: DirectUploadJob, sessao: DirectUploadSession, parte: Int, url: String): DirectUploadPartRequest? {
+        val faixa = directUploadPartRange(parte, sessao.partSizeBytes, job.sizeBytes) ?: return null
+        val assinados = directUploadSignedHeadersForPart(sessao, parte)
+        return DirectUploadPartRequest(
+            jobId = job.id,
+            partNumber = parte,
+            url = url,
+            filePath = storage.mediaPath(job.id),
+            offset = faixa.first,
+            length = faixa.last - faixa.first + 1,
+            partFilePath = storage.partPath(job.id, parte),
+            wifiOnly = job.wifiOnly,
+            method = sessao.method,
+            contentType = directUploadContentType(assinados),
+            headers = directUploadExtraHeaders(assinados),
+            requireEtag = sessao.mode == DirectUploadMode.MULTIPART,
+        )
+    }
+
+    private suspend fun enviarUmaParte(pedido: DirectUploadPartRequest): DirectUploadPartResult = try {
+        transport.upload(pedido)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        AppLogger.w(TAG, "transporte lançou na parte ${pedido.partNumber}: ${e::class.simpleName}")
+        DirectUploadPartResult.Offline
     }
 
     private suspend fun concluir(job: DirectUploadJob, corpo: String) {
@@ -601,12 +837,12 @@ class DirectUploadOutbox(
             return falhar(job, falha.copy(code = RETRY_EXHAUSTED_CODE, message = falha.message ?: RETRY_EXHAUSTED_MESSAGE), partes)
         }
         val ate = nowMillis() + uploadRetryDelayMillis(tentativas, retry)
-        persist(job.copy(attempts = tentativas, nextAttemptAtMillis = ate, failure = falha)) ?: return Outcome.Gone(partes)
+        persistUpdate(job.id) { it.copy(attempts = tentativas, nextAttemptAtMillis = ate, failure = falha) } ?: return Outcome.Gone(partes)
         return Outcome.Deferred(partes, ate)
     }
 
     private suspend fun falhar(job: DirectUploadJob, falha: DirectUploadFailure, partes: Int): Outcome {
-        persist(job.copy(status = DirectUploadStatus.FAILED, failure = falha)) ?: return Outcome.Gone(partes)
+        persistUpdate(job.id) { it.copy(status = DirectUploadStatus.FAILED, failure = falha) } ?: return Outcome.Gone(partes)
         _events.tryEmit(DirectUploadEvent.Failed(job.id, falha))
         return Outcome.Failed(partes)
     }

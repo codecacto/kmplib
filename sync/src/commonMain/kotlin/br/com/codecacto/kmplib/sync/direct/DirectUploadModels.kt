@@ -69,6 +69,10 @@ enum class DirectUploadMode {
  *   escrito pelo transporte. Não saem em `toString` (podem carregar token de sessão do storage).
  * @param alreadyReceived o servidor já tem o arquivo (repetição depois do fim): nada a enviar, só o
  *   `complete`.
+ * @param partHeaders cabeçalhos assinados **de cada parte** (2.327.0), por número de parte — o
+ *   contrato que assina por parte (`parts:[{partNumber, url, headers}]`, ex.: `x-amz-checksum-sha256`
+ *   da parte). Somam-se aos [signedHeaders] da sessão, e o da parte vence o de mesmo nome (sem
+ *   diferença de caixa). Mesmo sigilo dos [signedHeaders]: nunca em `toString`.
  */
 @Serializable
 data class DirectUploadSession(
@@ -82,10 +86,11 @@ data class DirectUploadSession(
     val method: String = "PUT",
     val signedHeaders: Map<String, String> = emptyMap(),
     val alreadyReceived: Boolean = false,
+    val partHeaders: Map<Int, Map<String, String>> = emptyMap(),
 ) {
     override fun toString(): String =
         "DirectUploadSession(mode=$mode, remoteId=${remoteId != null}, partSizeBytes=$partSizeBytes, partCount=$partCount, " +
-            "partUrls=${partUrls.size}, signedHeaders=${signedHeaders.keys.sorted()}, " +
+            "partUrls=${partUrls.size}, signedHeaders=${signedHeaders.keys.sorted()}, partHeaders=${partHeaders.size}, " +
             "urlsExpireAtMillis=$urlsExpireAtMillis, alreadyReceived=$alreadyReceived)"
 
     companion object {
@@ -153,6 +158,8 @@ data class DirectUploadFailure(
  *   o processo morrer, só sobe o que falta.
  * @param attempts falhas retentáveis seguidas (zera a cada avanço).
  * @param nextAttemptAtMillis antes disso, o envio espera (recuo exponencial).
+ * @param pausedByUser a pessoa pausou ESTE envio ([DirectUploadOutbox.pauseJob], 2.327.0). Gravado com o
+ *   resto do estado: matar o app não o despausa. Só volta com [DirectUploadOutbox.resumeJob].
  */
 @Serializable
 data class DirectUploadJob(
@@ -174,6 +181,7 @@ data class DirectUploadJob(
     val attempts: Int = 0,
     val nextAttemptAtMillis: Long = 0L,
     val failure: DirectUploadFailure? = null,
+    val pausedByUser: Boolean = false,
 ) {
     /** Bytes já aceitos pelo storage (soma das partes concluídas). */
     val uploadedBytes: Long get() = directUploadedBytes(this)
@@ -184,7 +192,8 @@ data class DirectUploadJob(
     /** Sem caminho, sem URL e sem metadado do app (pode ser dado pessoal). */
     override fun toString(): String =
         "DirectUploadJob(id=$id, kind=$kind, status=$status, sizeBytes=$sizeBytes, wifiOnly=$wifiOnly, " +
-            "parts=${completedParts.size}/${session?.partCount ?: 0}, attempts=$attempts, failure=${failure?.code})"
+            "parts=${completedParts.size}/${session?.partCount ?: 0}, attempts=$attempts, failure=${failure?.code}, " +
+            "pausedByUser=$pausedByUser)"
 }
 
 /** O que enfileirar — entrada de [DirectUploadOutbox.enqueue]. */
@@ -252,6 +261,10 @@ enum class DirectUploadRejectReason {
  *   agendamento de rede não tarifada, não uma nova tentativa nesta rede.
  * @param paused a passada parou: sem rede, conta trocada ou cancelada. Será retomada.
  * @param nextAttemptAtMillis o envio adiado mais próximo, para reagendar.
+ * @param pausedByUser envios pausados pela pessoa ([DirectUploadOutbox.pauseJob]) que a passada pulou
+ *   (2.327.0). **Não** pedem nova tentativa: quem os solta é o `resumeJob`.
+ * @param queuePaused a fila inteira está pausada pela pessoa ([DirectUploadOutbox.pauseAll]) — nada
+ *   subiu, e o agendador **não** reagenda (só o `resumeAll` solta).
  */
 data class DirectUploadDrainSummary(
     val completed: Int = 0,
@@ -261,8 +274,10 @@ data class DirectUploadDrainSummary(
     val waitingUnmetered: Int = 0,
     val paused: Boolean = false,
     val nextAttemptAtMillis: Long? = null,
+    val pausedByUser: Int = 0,
+    val queuePaused: Boolean = false,
 ) {
-    /** `true` se ficou algo que o agendador precisa tentar de novo depois. */
+    /** `true` se ficou algo que o agendador precisa tentar de novo depois (pausa da pessoa não conta). */
     val needsRetry: Boolean get() = paused || deferred > 0
 }
 
@@ -285,17 +300,61 @@ sealed interface DirectUploadEvent {
  *
  * @param signedHeaders no PUT único, os cabeçalhos do bilhete novo (`null` = mantém os da sessão).
  * @param alreadyReceived o servidor respondeu que já tem o arquivo: nada mais a enviar.
+ * @param partHeaders cabeçalhos assinados de cada parte reassinada (2.327.0). Substituem, para as partes
+ *   de [urls], os que a sessão tinha (parte reassinada sem cabeçalho volta a não ter cabeçalho próprio).
  */
 data class DirectUploadPartUrls(
     val urls: Map<Int, String>,
     val expiresAtMillis: Long?,
     val signedHeaders: Map<String, String>? = null,
     val alreadyReceived: Boolean = false,
+    val partHeaders: Map<Int, Map<String, String>> = emptyMap(),
 ) {
     override fun toString(): String =
         "DirectUploadPartUrls(parts=${urls.keys.sorted()}, expiresAtMillis=$expiresAtMillis, " +
-            "signedHeaders=${signedHeaders?.keys?.sorted()}, alreadyReceived=$alreadyReceived)"
+            "signedHeaders=${signedHeaders?.keys?.sorted()}, partHeaders=${partHeaders.size}, alreadyReceived=$alreadyReceived)"
 }
+
+/**
+ * Quanto a [DirectUploadOutbox] envia ao mesmo tempo (2.327.0).
+ *
+ * - [files]: quantos ARQUIVOS sobem juntos (o mais antigo começa primeiro; quando um termina, o próximo
+ *   da fila entra no lugar). `1` = um por vez, o comportamento de sempre.
+ * - [partsPerFile]: quantas PARTES do mesmo arquivo multipart sobem juntas, cada uma na sua URL
+ *   pré-assinada (janela deslizante: terminou uma, entra a próxima). O PUT único tem uma parte só.
+ *
+ * O teto de conexões simultâneas é `files × partsPerFile`. No 4G, mais que ~6 deixa de ganhar e passa
+ * a disputar banda (cada parte demora mais e corre mais risco de cair no meio); os limites
+ * ([MAX_FILES], [MAX_PARTS_PER_FILE]) existem para que um número de configuração não vire 64 conexões.
+ * A ordem das partes no storage não importa: o `complete` leva a lista ordenada por número.
+ */
+data class DirectUploadConcurrency(
+    val files: Int = 1,
+    val partsPerFile: Int = 1,
+) {
+    init {
+        require(files in 1..MAX_FILES) { "files fora de 1..$MAX_FILES" }
+        require(partsPerFile in 1..MAX_PARTS_PER_FILE) { "partsPerFile fora de 1..$MAX_PARTS_PER_FILE" }
+    }
+
+    /** Teto de partes em voo na fila inteira. */
+    val maxInFlightParts: Int get() = files * partsPerFile
+
+    companion object {
+        const val MAX_FILES: Int = 8
+        const val MAX_PARTS_PER_FILE: Int = 8
+
+        /** Um arquivo, uma parte por vez — o default (e o comportamento até a 2.326.0). */
+        val Sequential: DirectUploadConcurrency = DirectUploadConcurrency()
+    }
+}
+
+/**
+ * Estado da FILA (não de um envio) que sobrevive ao processo (2.327.0): hoje, a pausa da pessoa
+ * ([DirectUploadOutbox.pauseAll]). Gravado pelo [DirectUploadStorage.saveQueueState].
+ */
+@Serializable
+data class DirectUploadQueueState(val pausedByUser: Boolean = false)
 
 /** Parte aceita pelo storage, como vai no `complete` (`{partNumber, etag}`). */
 @Serializable

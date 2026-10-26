@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.platform
 
 import android.content.Context
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.platform.photos.ORIGINAL_PHOTO_TEMP_DIRECTORY
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -29,7 +30,8 @@ fun clearKmpLibTemporaryFiles(context: Context, olderThanMillis: Long = DEFAULT_
     val preparados = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, VIDEO_PREPARED_TEMP_DIRECTORY), olderThanMillis)
     val voz = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, AUDIO_CAPTURE_TEMP_DIRECTORY), olderThanMillis)
     val vozBaixada = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, AUDIO_PLAYBACK_TEMP_DIRECTORY), olderThanMillis)
-    return compartilhados + pdf + impressao + gravados + preparados + voz + vozBaixada
+    val originais = KmpLibTempFiles.purge(KmpLibTempFiles.directory(context, ORIGINAL_PHOTO_TEMP_DIRECTORY), olderThanMillis)
+    return compartilhados + pdf + impressao + gravados + preparados + voz + vozBaixada + originais
 }
 
 /**

@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 25/out/2026 — App do **Lumio** (marketplace de fotos de eventos; `Lumio/docs/perguntas-ao-fundador.md` §App)
+- [x] **P-APP-01 — upload paralelo — ENTREGUE na 2.327.0**: `DirectUploadConcurrency(files, partsPerFile)` numa fila só
+      (janela deslizante de partes, ETag por transformação), cabeçalho assinado por parte (`parts[].headers` →
+      `partHeaders`), pausa da pessoa gravada (`pauseAll`/`resumeAll`, `pauseJob`/`resumeJob`). Fica: medir o ganho em
+      aparelho contra R2; pausa no Android não corta a parte em voo (o transporte Ktor não tem cancelamento por envio).
+- [x] **P-APP-02 — fotos ORIGINAIS e salvar na galeria — ENTREGUE na 2.327.0** (`platform.photos`:
+      `rememberOriginalPhotoPicker`, `getGallerySaver`). Fica: prova em aparelho (HEIC/EXIF, Android 9); o GPS do EXIF sai
+      no Photo Picker do Android por política do sistema.
+- [x] **P-APP-04 — indicador próprio do puxar-para-atualizar — ENTREGUE na 2.327.0** (`RefreshableBox(indicator = …)`).
+- [ ] **(P2) Lumio P-ARQ-02 — cliente SSE na kmplib** (conversa em tempo real; hoje o app faz polling). Aberto.
+
 ### Registrado em 22/out/2026 — tablet do Vitalis (ux-designer; origem `8-Sistemas-Portal-App/Vitalis/docs/design/tablet.md` §8)
 > Layout próprio de tablet pedido pelo fundador ("não o celular esticado"). Nenhum item trava o app: cada um tem
 > interino de projeto descrito na spec. Servem a qualquer app da fábrica com protótipo próprio de tablet.
