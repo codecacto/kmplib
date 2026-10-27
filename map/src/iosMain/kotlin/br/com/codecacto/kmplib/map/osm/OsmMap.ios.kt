@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION") // map.osm obsoleto desde a 2.330.0 (só Google Maps na fábrica)
 @file:OptIn(
     kotlinx.cinterop.ExperimentalForeignApi::class,
     androidx.compose.ui.ExperimentalComposeUiApi::class,

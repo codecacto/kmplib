@@ -5,6 +5,21 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.330.0 — **`map.osm` obsoleto: mapa na fábrica = Google Maps** (decisão do fundador, 27/out/2026)
+
+*"A gente só usa Google Maps, nenhum outro; o padrão da fábrica é o Google Maps."* O mapa da fábrica é o **nativo do
+módulo `kmplib-map`** — `MarkersMap` (N pins), `SinglePinMap`, `PickerMap`, `NativeMap` (carteira, agrupamento, rota) e
+`MapView` —, sobre o **SDK oficial do Google Maps** no Android.
+
+- **`@Deprecated(level = WARNING)` em todo o público de `br.com.codecacto.kmplib.map.osm`**, com a decisão na mensagem e
+  `ReplaceWith` para o par nativo: `OsmMap` → `MarkersMap`, `OsmSinglePinMap` → `SinglePinMap` (o nativo não tem
+  `scrollEnabled`), `OsmPickerMap` → `PickerMap`, `OsmLatLng` → `LatLng`, `OsmMarker` → `MapPin`, `OsmDefaults` →
+  `MapDefaults`.
+- **Nada muda para quem usa:** sem mudança de assinatura nem de comportamento (WebView + Leaflet seguem como na
+  2.329.0). Só aviso de compilação. **Remoção na próxima major** (`docs/backlog.md`).
+- Aditivo/obsolescência — **sem piso** em `docs/pisos.yaml` e sem aviso no Nexus. Único consumidor: CidadeConectada
+  (migração em andamento no próprio projeto).
+
 ## 2.329.0 — **Repetições da lib resolvidas sem quebrar ninguém: máscaras de documento no campo com estado, dinheiro em `Double` depreciado (com 2 defeitos corrigidos), `AppTimePicker` vira fachada traduzida, e as peças antigas conferidas** (decisão do fundador, 27/out/2026 — `docs/47` §5)
 
 Regra da rodada: **nada quebra para quem já consome.** Nenhuma assinatura pública mudou; `@Deprecated` só com nível

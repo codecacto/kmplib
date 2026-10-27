@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // o próprio pacote obsoleto usa os seus tipos (2.330.0)
+
 package br.com.codecacto.kmplib.map.osm
 
 import androidx.compose.runtime.Composable
@@ -7,7 +9,26 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
+ * Mensagem comum do `@Deprecated` do pacote `map.osm` (2.330.0).
+ *
+ * Decisão do fundador, 27/out/2026: **"a gente só usa Google Maps, nenhum outro; o padrão da fábrica é
+ * o Google Maps"**. O mapa da fábrica é o nativo deste mesmo módulo (`NativeMap`, `MarkersMap`,
+ * `SinglePinMap`, `PickerMap`, `MapView`). O pacote `map.osm` continua compilando e funcionando
+ * igual até a próxima major, quando sai (`docs/backlog.md`).
+ */
+internal const val OSM_DEPRECATION_MESSAGE =
+    "Obsoleto (2.330.0): mapa na fábrica = Google Maps, nenhum outro (fundador, 27/out/2026). " +
+        "Use o mapa nativo do módulo map (MarkersMap/SinglePinMap/PickerMap/NativeMap). " +
+        "O map.osm (WebView + Leaflet + tiles do OpenStreetMap) sai na próxima major."
+
+/**
  * Mapa OpenStreetMap multiplataforma (Compose MP) — **sem chave de API**.
+ *
+ * ## ⚠️ OBSOLETO desde a 2.330.0 — mapa na fábrica = Google Maps
+ * Decisão do fundador (27/out/2026): *"a gente só usa Google Maps, nenhum outro"*. Use
+ * [br.com.codecacto.kmplib.map.MarkersMap] (N pins), [br.com.codecacto.kmplib.map.SinglePinMap],
+ * [br.com.codecacto.kmplib.map.PickerMap] ou [br.com.codecacto.kmplib.map.NativeMap] (carteira,
+ * agrupamento, rota). Este pacote segue funcionando, sem mudança de comportamento, até a próxima major.
  *
  * ## Por que existe (e por que não é o [br.com.codecacto.kmplib.map.MapView])
  * A lib já tem um [br.com.codecacto.kmplib.map.MapView] baseado em **Google Maps**
@@ -51,6 +72,18 @@ import androidx.compose.ui.unit.dp
  * @param height altura do mapa (o WebView precisa de altura definida).
  * @param onMarkerClick chamado com o [OsmMarker.id] do pin tocado.
  */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE,
+    replaceWith = ReplaceWith(
+        "MarkersMap(pins = markers.map { MapPin(it.id, LatLng(it.position.latitude, it.position.longitude), it.title) }, " +
+            "modifier = modifier, center = LatLng(center.latitude, center.longitude), zoom = zoom, height = height, " +
+            "onMarkerClick = onMarkerClick)",
+        "br.com.codecacto.kmplib.map.MarkersMap",
+        "br.com.codecacto.kmplib.map.MapPin",
+        "br.com.codecacto.kmplib.map.LatLng",
+    ),
+    level = DeprecationLevel.WARNING,
+)
 @Composable
 fun OsmMap(
     markers: List<OsmMarker>,
@@ -84,6 +117,16 @@ fun OsmMap(
  * @param zoom zoom inicial (default ~15 = rua, igual ao web).
  * @param scrollEnabled habilita arrastar/zoom por gesto (default `false`, como no web).
  */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE + " O SinglePinMap nativo não tem scrollEnabled.",
+    replaceWith = ReplaceWith(
+        "SinglePinMap(point = LatLng(point.latitude, point.longitude), modifier = modifier, " +
+            "label = label.orEmpty(), zoom = zoom, height = height)",
+        "br.com.codecacto.kmplib.map.SinglePinMap",
+        "br.com.codecacto.kmplib.map.LatLng",
+    ),
+    level = DeprecationLevel.WARNING,
+)
 @Composable
 fun OsmSinglePinMap(
     point: OsmLatLng,
@@ -117,6 +160,17 @@ fun OsmSinglePinMap(
  * @param zoomWithValue zoom usado quando há [value] selecionado.
  * @param zoomEmpty zoom usado quando ainda não há seleção.
  */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE,
+    replaceWith = ReplaceWith(
+        "PickerMap(value = value?.let { LatLng(it.latitude, it.longitude) }, " +
+            "onPick = { onPick(OsmLatLng(it.latitude, it.longitude)) }, modifier = modifier, height = height, " +
+            "zoomWithValue = zoomWithValue, zoomEmpty = zoomEmpty)",
+        "br.com.codecacto.kmplib.map.PickerMap",
+        "br.com.codecacto.kmplib.map.LatLng",
+    ),
+    level = DeprecationLevel.WARNING,
+)
 @Composable
 fun OsmPickerMap(
     value: OsmLatLng?,
@@ -156,6 +210,11 @@ internal expect fun OsmMapWebView(
 )
 
 /** Coordenada geográfica simples (latitude/longitude) usada pelos mapas OSM. */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE,
+    replaceWith = ReplaceWith("LatLng", "br.com.codecacto.kmplib.map.LatLng"),
+    level = DeprecationLevel.WARNING,
+)
 @Immutable
 data class OsmLatLng(
     val latitude: Double,
@@ -169,6 +228,11 @@ data class OsmLatLng(
  * @param position coordenada do pin.
  * @param title texto opcional exibido no popup ao tocar o pin.
  */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE,
+    replaceWith = ReplaceWith("MapPin", "br.com.codecacto.kmplib.map.MapPin"),
+    level = DeprecationLevel.WARNING,
+)
 @Immutable
 data class OsmMarker(
     val id: String,
@@ -189,6 +253,11 @@ internal data class OsmMapSpec(
 )
 
 /** Defaults de centro/zoom — alinhados ao web (`MapInner.tsx`). */
+@Deprecated(
+    message = OSM_DEPRECATION_MESSAGE,
+    replaceWith = ReplaceWith("MapDefaults", "br.com.codecacto.kmplib.map.MapDefaults"),
+    level = DeprecationLevel.WARNING,
+)
 object OsmDefaults {
     /** Centro padrão Brasil/São Paulo (igual ao `DEFAULT_CENTER` da web). */
     val BRAZIL_CENTER = OsmLatLng(-23.55052, -46.633308)

@@ -20,10 +20,15 @@
       igual (rasterizar antes/depois), e o servidor não tem como (sem Robolectric, sem aparelho). Caminho: um gerador por
       vez, quando o app dele for tocado, com a prova feita no Mac na esteira de publicação; ou montar Robolectric com
       gráficos nativos no `kmplib-pdf` (confirmar antes se ele desenha `PdfDocument`).
-- [ ] **(decisão do produto) `map/osm` e a política de tiles do OSM.** Parte técnica cumprida na 2.329.0 (host único,
-      User-Agent do app, sem recarregar a cada recomposição). Distribuir app sobre `tile.openstreetmap.org` exige permissão
-      prévia do OWG da OSMF — ou provedor contratado, ou `NativeMap` + chave do Google Maps (consumidor único:
-      CidadeConectada, sem chave versionada hoje).
+- [x] **`map/osm` e a política de tiles do OSM — DECIDIDO (fundador, 27/out/2026): só Google Maps na fábrica.** Na
+      2.330.0 o pacote `map.osm` inteiro ficou `@Deprecated(WARNING)` com `ReplaceWith` para o mapa nativo do módulo.
+- [ ] **(PRÓXIMA MAJOR) Remover `map.osm`** (`OsmMap`/`OsmSinglePinMap`/`OsmPickerMap`/`OsmLatLng`/`OsmMarker`/
+      `OsmDefaults`, `OsmLeafletHtml`, as `actual` WebView/WKWebView e os testes `OsmLeafletHtmlTest`/`OsmTileUsageTest`).
+      Pré-condição: nenhum consumidor (`grep -rn "map.osm" --include=*.kt` nos apps; hoje só CidadeConectada, migrando).
+- [ ] **(decisão a levar ao fundador) iOS do mapa nativo = MapKit por padrão.** `MapView`/`NativeMap` no iOS usam MapKit
+      (2.220.0) e só viram Google Maps (`GMSMapView`) com a ponte Swift `IosMapBridge` registrada pelo app. Com "só Google
+      Maps", decidir se o iOS passa a exigir o Google Maps SDK (ponte na casca, ou SDK no klib) ou se MapKit no iOS fica
+      como exceção registrada. Sem mudança até a decisão.
 
 ### Registrado em 27/out/2026 — auditoria do offline (estudo `docs/analises/2026-10-27-offline-first-sincronizacao-e-midia.md`; origem Raiz)
 - [x] **Rede tarifada × não tarifada — ENTREGUE na 2.328.0** (`NetworkType`, `ConnectivityObserver.networkType`).

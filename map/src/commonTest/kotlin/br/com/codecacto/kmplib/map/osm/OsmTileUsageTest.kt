@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // map.osm obsoleto desde a 2.330.0 (só Google Maps na fábrica); segue testado até sair
+
 package br.com.codecacto.kmplib.map.osm
 
 import kotlin.test.Test

@@ -17,8 +17,8 @@ import androidx.compose.ui.unit.dp
  *  - [SinglePinMap] — 1 pin só-leitura (espelha `SinglePinMap`).
  *  - [PickerMap] — toque no mapa escolhe a coordenada (espelha `PickerMap`).
  *
- * Substituem o caminho legado em WebView (`map.osm.OsmMap`), que fica reservado para apps que
- * precisem explicitamente de OpenStreetMap sem chave.
+ * Substituem o caminho legado em WebView (`map.osm.OsmMap`), **obsoleto desde a 2.330.0**: mapa na
+ * fábrica = Google Maps, nenhum outro (fundador, 27/out/2026). O `map.osm` sai na próxima major.
  */
 object MapDefaults {
     /** Centro padrão Brasil/São Paulo (igual ao `DEFAULT_CENTER` da web). */
