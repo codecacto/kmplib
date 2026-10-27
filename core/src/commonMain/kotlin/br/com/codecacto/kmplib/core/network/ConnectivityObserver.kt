@@ -50,9 +50,19 @@ import kotlin.time.Duration.Companion.seconds
  * ConnectivityGate(observer = koinInject()) { AppNavHost() }
  * ```
  *
+ * ## Tipo de rede: tarifada × não tarifada (2.328.0)
+ *
+ * [networkType] diz, além de online/offline, se a rede é **não tarifada** (Wi-Fi) ou **tarifada**
+ * (dados móveis, hotspot, Wi-Fi limitado, Modo Dados Reduzidos do iOS) — ver [NetworkType]. É o que a
+ * política de sincronização (`SyncNetworkPolicy`, `kmplib-sync`) consulta para segurar mídia até o
+ * Wi-Fi. [isOnline] continua igual e é sempre `networkType.value.isConnected` (o mesmo amortecimento
+ * da queda vale para os dois). Não crie um segundo monitor de rede no app: é o mesmo callback nativo.
+ *
  * Todas as operações são **best-effort**: nada aqui lança nem derruba o app.
  */
-class ConnectivityObserver(
+class ConnectivityObserver internal constructor(
+    /** A fonte nativa (injetável só no teste). */
+    private val monitor: NetworkTypeSource,
     /**
      * Quanto tempo a rede precisa ficar fora até o app AVISAR que está fora (2.209.0).
      *
@@ -77,35 +87,61 @@ class ConnectivityObserver(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
 
-    private val monitor = PlatformConnectivityMonitor()
+    /**
+     * @param quedaConfirmadaApos ver o parâmetro de mesmo nome (default [QUEDA_CONFIRMADA_APOS]).
+     * @param scope escopo do amortecimento (injetável para o teste em tempo virtual).
+     */
+    constructor(
+        quedaConfirmadaApos: Duration = QUEDA_CONFIRMADA_APOS,
+        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    ) : this(PlatformConnectivityMonitor(), quedaConfirmadaApos, scope)
 
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
-    /** O que o sistema operacional está dizendo AGORA — antes do amortecimento de [isOnline]. */
-    private val estadoDoSistema = MutableStateFlow(true)
+    private val _networkType = MutableStateFlow(NetworkType.METERED)
+
+    /**
+     * **Tipo da rede padrão** (2.328.0): [NetworkType.NONE], [NetworkType.UNMETERED] ou
+     * [NetworkType.METERED], com o mesmo amortecimento da queda de [isOnline].
+     *
+     * Antes do primeiro [start] (ou com a plataforma sem resposta) vale [NetworkType.METERED] — o
+     * otimismo de [isOnline] (`true`) sem supor Wi-Fi: o que espera a rede não tarifada continua
+     * esperando até o sistema confirmar. Só é atualizado enquanto o observer estiver ativo
+     * ([isObserving]) — quem lê precisa ter chamado [start].
+     */
+    val networkType: StateFlow<NetworkType> = _networkType.asStateFlow()
+
+    /** O que o sistema operacional está dizendo AGORA — antes do amortecimento. */
+    private val estadoDoSistema = MutableStateFlow(NetworkType.METERED)
     private var amortecedor: Job? = null
+
+    private fun publicar(tipo: NetworkType) {
+        _networkType.value = tipo
+        _isOnline.value = tipo.isConnected
+    }
 
     private val activation = ActivationRefCounter(
         onActivate = {
             // Semeia o valor corrente antes de assinar, para não exibir "offline" por um frame.
-            monitor.currentStatus()?.let {
-                _isOnline.value = it
+            monitor.currentType()?.let {
+                publicar(it)
                 estadoDoSistema.value = it
             }
             // `collectLatest`: o valor novo CANCELA a espera do anterior, que é exatamente o que
             // faz a queda momentânea nunca chegar ao `isOnline` — a volta chega antes do prazo.
+            // Troca entre tarifada e não tarifada é imediata (só a QUEDA é amortecida).
             amortecedor = scope.launch {
-                estadoDoSistema.collectLatest { online ->
-                    if (online) {
-                        _isOnline.value = true
+                estadoDoSistema.collectLatest { tipo ->
+                    if (tipo.isConnected) {
+                        publicar(tipo)
                     } else {
                         delay(quedaConfirmadaApos)
-                        _isOnline.value = false
+                        publicar(NetworkType.NONE)
                     }
                 }
             }
-            monitor.start { online -> estadoDoSistema.value = online }
+            monitor.start { tipo -> estadoDoSistema.value = tipo }
         },
         onDeactivate = {
             amortecedor?.cancel()
@@ -148,8 +184,8 @@ class ConnectivityObserver(
     fun refresh() {
         // Direto, **sem** o atraso da queda: quem toca em "Tentar novamente" está olhando a tela de
         // offline e espera uma resposta agora — amortecer aqui seria o botão não fazer nada.
-        monitor.currentStatus()?.let {
-            _isOnline.value = it
+        monitor.currentType()?.let {
+            publicar(it)
             estadoDoSistema.value = it
         }
     }

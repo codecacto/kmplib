@@ -4,12 +4,15 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import br.com.codecacto.kmplib.sync.SyncOpType
 import br.com.codecacto.kmplib.sync.SyncStore
+import br.com.codecacto.kmplib.sync.db.Synced_entity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -221,6 +224,15 @@ open class OfflineFirstRestRepository<T : Any>(
      */
     val ids: RestIdResolver = RestIdResolver(store)
 
+    /**
+     * **Um envio por vez, por repositório** (2.328.0 — auditoria de ordem). A escrita direta do modo
+     * local-first e a drenagem da outbox disputavam a mesma linha: duas versões do mesmo registro em
+     * voo chegam ao servidor em qualquer ordem, e a antiga podia sobrescrever a nova. Com o envio
+     * serializado (e sempre do estado CORRENTE da linha, relido sob a trava), a ordem de chegada é a
+     * ordem de gravação. Gravar no espelho NÃO espera a trava — o toque da pessoa salva na hora.
+     */
+    private val sendLock = Mutex()
+
     private val collection: String = "/" + collectionPath.trim('/')
     protected fun itemPath(id: String): String = "$collection/$id"
 
@@ -406,22 +418,22 @@ open class OfflineFirstRestRepository<T : Any>(
 
     private suspend fun createLocalFirst(model: T): DomainResult<T> {
         val local = descriptor.withLocalId(model, clientIdFactory())
-        val localId = descriptor.idOf(local)
         mirror.putDirty(local, SyncOpType.CREATE) // grava ANTES da rede: o toque já está salvo.
-        return when (val r = api.postJson(collection, descriptor.encodeBody(local))) {
-            is DomainResult.Success -> {
-                val saved = decodeOrNull(r.data)
-                if (saved == null) {
-                    // O servidor aceitou, mas a resposta é ilegível: retentar duplicaria o registro.
-                    mirror.markFailed(localId, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
-                    DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
-                } else {
-                    mirror.markSynced(localId, saved)
-                    DomainResult.Success(saved)
-                }
-            }
-            is DomainResult.Quota -> { mirror.markFailed(localId, 402, quotaMessage(r)); r }
-            is DomainResult.Error -> resolveWriteFailure(localId, local, r)
+        return writeThrough(descriptor.idOf(local), local)
+    }
+
+    /**
+     * Envia AGORA a linha recém-gravada (modo local-first), pela MESMA rotina da drenagem e sob a
+     * mesma trava ([sendLock]): o que sobe é o estado corrente da linha. Falha retentável ou pai ainda
+     * não criado ⇒ a escrita fica na outbox e a chamada devolve `Success` com o modelo local;
+     * recusa terminal/402 ⇒ a linha vira `Failed` e a chamada devolve o erro.
+     */
+    private suspend fun writeThrough(handle: String, local: T): DomainResult<T> {
+        val desfecho = sendLock.withLock { sendRow(handle, SendContext(accountNow(), emptyMap())) }
+        return when (desfecho) {
+            is SendOutcome.Sent -> DomainResult.Success(desfecho.model ?: local)
+            is SendOutcome.Refused -> desfecho.result
+            else -> DomainResult.Success(mirror.rowFor(handle)?.let { mirror.decode(it.payload_json) } ?: local)
         }
     }
 
@@ -454,7 +466,7 @@ open class OfflineFirstRestRepository<T : Any>(
         return if (canonico == handle) model else descriptor.withId(model, canonico)
     }
 
-    private suspend fun updateOnlineFirst(model: T): DomainResult<T> =
+    private suspend fun updateOnlineFirst(model: T): DomainResult<T> = sendLock.withLock {
         when (val r = api.putJson(itemPath(descriptor.idOf(model)), descriptor.encodeBody(model))) {
             is DomainResult.Success -> {
                 val saved = decodeOrNull(r.data) ?: model
@@ -469,18 +481,11 @@ open class OfflineFirstRestRepository<T : Any>(
                 r
             }
         }
+    }
 
     private suspend fun updateLocalFirst(model: T): DomainResult<T> {
-        val id = descriptor.idOf(model)
         mirror.putDirty(model, SyncOpType.UPDATE) // grava ANTES da rede.
-        return when (val r = api.putJson(itemPath(id), descriptor.encodeBody(model))) {
-            is DomainResult.Success -> {
-                val saved = decodeOrNull(r.data) ?: model
-                mirror.confirm(saved); DomainResult.Success(saved)
-            }
-            is DomainResult.Quota -> { mirror.markFailed(id, 402, quotaMessage(r)); r }
-            is DomainResult.Error -> resolveWriteFailure(id, model, r)
-        }
+        return writeThrough(descriptor.idOf(model), model)
     }
 
     /**
@@ -493,14 +498,16 @@ open class OfflineFirstRestRepository<T : Any>(
      * imediata**, sem tocar a rede — o servidor não conhece o id `local-…` e só devolveria um 404
      * previsível (que a máquina de estados leria como recusa terminal).
      */
-    suspend fun delete(handle: String): DomainResult<Unit> {
+    suspend fun delete(handle: String): DomainResult<Unit> = sendLock.withLock {
+        // Sob a trava (2.328.0): um POST da criação em voo termina ANTES de decidir se a linha é só
+        // local — senão o registro criado no servidor reaparecia no aparelho depois de excluído.
         if (mirror.isLocalOnly(handle)) {
             mirror.removeHard(handle)
-            return DomainResult.Success(Unit)
+            return@withLock DomainResult.Success(Unit)
         }
         val id = canonicalId(handle)
         if (writeMode == RestWriteMode.LocalFirst) mirror.tombstone(id)
-        return when (val r = api.delete(itemPath(id))) {
+        when (val r = api.delete(itemPath(id))) {
             is DomainResult.Success -> { mirror.removeHard(id); DomainResult.Success(Unit) }
             is DomainResult.Quota -> {
                 if (writeMode == RestWriteMode.LocalFirst) mirror.markFailed(id, 402, quotaMessage(r))
@@ -521,20 +528,6 @@ open class OfflineFirstRestRepository<T : Any>(
             }
         }
     }
-
-    /**
-     * Política única de falha de escrita do caminho **local-first**: retentável ⇒ a linha fica na
-     * outbox e a chamada devolve `Success` (a escrita **foi** aceita, o estado é [RestRowState.Pending]);
-     * terminal ⇒ a linha vira [RestRowState.Failed] com o erro preservado e a chamada devolve `Error`.
-     */
-    private fun resolveWriteFailure(localId: String, local: T, error: DomainResult.Error): DomainResult<T> =
-        when (classifyRestFailure(error.code)) {
-            RestFailureClass.Offline -> DomainResult.Success(local)
-            RestFailureClass.Retryable -> { mirror.bumpAttempt(localId, error.message); DomainResult.Success(local) }
-            RestFailureClass.Terminal, RestFailureClass.Quota -> {
-                mirror.markFailed(localId, error.code, error.message); error
-            }
-        }
 
     /** A frase da linha recusada: a do servidor quando veio (2.316.0), senão a genérica com o recurso. */
     private fun quotaMessage(quota: DomainResult.Quota): String =
@@ -635,11 +628,39 @@ open class OfflineFirstRestRepository<T : Any>(
      * janela, troque de conta por [RestCrudSyncEngine.setAccountScope], que espera o ciclo terminar.
      */
     override suspend fun drainOutbox(parentRemap: Map<String, String>): Map<String, String> {
-        val titular = accountNow()
+        val ctx = SendContext(accountNow(), parentRemap)
+        var fila = mirror.drainableRows().map { it.local_id }
+        // Linha segurada por apontar para um pai ainda não criado ganha outra volta se, nesta mesma
+        // drenagem, algum pai foi criado — é o que resolve pai e filho da MESMA entidade num ciclo só,
+        // qualquer que seja a ordem em que estavam na outbox.
+        while (fila.isNotEmpty()) {
+            val seguradas = mutableListOf<String>()
+            val criadosAntes = ctx.added.size
+            for (localId in fila) {
+                if (!aindaTitular(ctx.titular)) return abortarPush(ctx.added)
+                when (sendLock.withLock { sendRow(localId, ctx) }) {
+                    SendOutcome.OwnerChanged -> return abortarPush(ctx.added)
+                    SendOutcome.Offline -> return ctx.added // sem rede: o resto também não vai
+                    SendOutcome.Held -> seguradas += localId
+                    else -> Unit
+                }
+            }
+            fila = if (ctx.added.size > criadosAntes) seguradas else emptyList()
+        }
+        return ctx.added
+    }
+
+    /** Estado de um envio (drenagem ou escrita direta): titular, remap do ciclo e pais pendentes. */
+    private inner class SendContext(val titular: String, val parentRemap: Map<String, String>) {
         val added = mutableMapOf<String, String>()
-        // Cache do ciclo: um id resolvido uma vez não volta ao banco (nem repete o "não migrou").
-        val cache = HashMap<String, String?>()
+
+        /** Cache do ciclo: um id resolvido uma vez não volta ao banco (nem repete o "não migrou"). */
+        private val cache = HashMap<String, String?>()
         var temRemap = parentRemap.isNotEmpty() || store.countIdRemap() > 0L
+
+        /** Ids de linhas (de qualquer entidade) ainda pendentes de CRIAÇÃO no servidor. */
+        val pendentes: MutableSet<String> = store.pendingCreateIds().toMutableSet()
+
         fun resolveRef(id: String): String? =
             added[id] ?: parentRemap[id] ?: cache.getOrPut(id) { store.resolveServerId(id) }
 
@@ -649,86 +670,153 @@ open class OfflineFirstRestRepository<T : Any>(
             return if (temRemap) RestPayloadRemap.applyToBody(bruto, json, ::resolveRef) else bruto
         }
 
-        for (rowItem in mirror.drainableRows()) {
-            if (!aindaTitular(titular)) return abortarPush(added)
-            val decoded = mirror.decode(rowItem.payload_json)
-            if (decoded == null) {
-                // Payload ilegível (schema mudou sob a linha): não há o que enviar — para e mostra.
-                mirror.markFailed(rowItem.local_id, INVALID_PAYLOAD_CODE, INVALID_PAYLOAD_MESSAGE)
-                continue
+        /**
+         * O payload aponta para um registro que **ainda não existe no servidor**? (2.328.0)
+         * Enviar agora subiria a FK com o id local → `FOREIGN KEY`/UUID → recusa **terminal** e o
+         * filho perdido. A linha é **segurada** (fica pendente, sem contar tentativa) e sobe quando o
+         * pai for aceito. Só segura o que é dela: as demais linhas seguem.
+         */
+        fun aguardaPai(row: Synced_entity): Boolean {
+            if (pendentes.isEmpty()) return false
+            val proprios = setOfNotNull(row.local_id, row.client_id, row.server_id)
+            return RestPayloadRemap.candidateIds(row.payload_json, json).any { id ->
+                id !in proprios && id in pendentes && resolveRef(id) == null
             }
-            // O hook do app enxerga o remap do ciclo **e** os mapeamentos duráveis dos ids que este
-            // payload realmente referencia (mapa materializado — nada de `Map` mentiroso/preguiçoso).
-            val remapDaLinha =
-                if (temRemap) parentRemap + RestPayloadRemap.resolveFor(rowItem.payload_json, json, ::resolveRef)
-                else parentRemap
-            val model = descriptor.remapRefs(decoded, remapDaLinha)
-            // A operação enviada sai do ESTADO da linha, não só do que foi gravado em `pending_op`:
-            // sem `server_id` a linha nunca existiu no servidor, logo é sempre um POST (e um delete
-            // sobre ela se resolve local). Isto também **cura** linhas gravadas por versões
-            // anteriores, que trocavam o CREATE pendente por UPDATE e ficavam presas em 404.
-            val op = resolveOutboxOp(
-                requested = rowItem.pending_op?.let { SyncOpType.fromWire(it) } ?: SyncOpType.UPDATE,
-                knownLocally = true,
-                hasServerId = rowItem.server_id != null,
-            )
-            if (op == null) {
-                mirror.removeHard(rowItem.local_id) // delete de algo que nunca subiu: nada a enviar
-                continue
+        }
+    }
+
+    /**
+     * **Envia UMA linha da outbox, a partir do estado CORRENTE dela** — rotina única da drenagem e da
+     * escrita direta local-first. Chamar SEMPRE sob [sendLock].
+     *
+     * A linha é relida aqui (não confia no snapshot de quem chamou): pode ter sido enviada, apagada ou
+     * reescrita enquanto esperava a trava. A confirmação passa por [RestEntityMirror.settleSent], que
+     * não deixa a resposta de um envio antigo apagar uma gravação mais nova (2.328.0).
+     */
+    private suspend fun sendRow(handle: String, ctx: SendContext): SendOutcome<T> {
+        val row = mirror.rowFor(handle) ?: return SendOutcome.Skipped
+        if (row.dirty == 0L || row.failed == 1L) return SendOutcome.Skipped
+        if (!aindaTitular(ctx.titular)) return SendOutcome.OwnerChanged
+        val decoded = mirror.decode(row.payload_json)
+        if (decoded == null) {
+            // Payload ilegível (schema mudou sob a linha): não há o que enviar — para e mostra.
+            mirror.markFailed(row.local_id, INVALID_PAYLOAD_CODE, INVALID_PAYLOAD_MESSAGE)
+            return SendOutcome.Refused(DomainResult.Error(INVALID_PAYLOAD_CODE, INVALID_PAYLOAD_MESSAGE))
+        }
+        // A operação enviada sai do ESTADO da linha, não só do que foi gravado em `pending_op`:
+        // sem `server_id` a linha nunca existiu no servidor, logo é sempre um POST (e um delete
+        // sobre ela se resolve local). Isto também **cura** linhas gravadas por versões
+        // anteriores, que trocavam o CREATE pendente por UPDATE e ficavam presas em 404.
+        val op = resolveOutboxOp(
+            requested = row.pending_op?.let { SyncOpType.fromWire(it) } ?: SyncOpType.UPDATE,
+            knownLocally = true,
+            hasServerId = row.server_id != null,
+        )
+        if (op == null) {
+            mirror.removeHard(row.local_id) // delete de algo que nunca subiu: nada a enviar
+            return SendOutcome.Skipped
+        }
+        if (op != SyncOpType.DELETE && ctx.aguardaPai(row)) return SendOutcome.Held
+        // O hook do app enxerga o remap do ciclo **e** os mapeamentos duráveis dos ids que este
+        // payload realmente referencia (mapa materializado — nada de `Map` mentiroso/preguiçoso).
+        val remapDaLinha =
+            if (ctx.temRemap) ctx.parentRemap + RestPayloadRemap.resolveFor(row.payload_json, json, ctx::resolveRef)
+            else ctx.parentRemap
+        val model = descriptor.remapRefs(decoded, remapDaLinha)
+        val enviado = row.payload_json
+        return when (op) {
+            SyncOpType.CREATE -> {
+                val r = api.postJson(collection, ctx.bodyOf(model))
+                // A resposta chegou DEPOIS de um login/logout: escrever agora criaria o registro
+                // de quem saiu dentro do espelho de quem entrou. Fail-closed — ver [abortarPush].
+                if (!aindaTitular(ctx.titular)) return SendOutcome.OwnerChanged
+                when (r) {
+                    is DomainResult.Success -> {
+                        val saved = decodeOrNull(r.data)
+                        if (saved == null) {
+                            // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
+                            mirror.markFailed(row.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
+                            SendOutcome.Refused(DomainResult.Error(INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE))
+                        } else {
+                            val serverId = descriptor.idOf(saved)
+                            ctx.added[row.client_id] = serverId
+                            ctx.added[row.local_id] = serverId
+                            ctx.pendentes.remove(row.client_id)
+                            ctx.pendentes.remove(row.local_id)
+                            // settleSent grava o remap DURÁVEL: o filho que drenar num ciclo
+                            // futuro (ou noutra execução do app) ainda acha este id.
+                            mirror.settleSent(row.local_id, enviado, saved, descriptor::withId)
+                            if (row.client_id != serverId) ctx.temRemap = true
+                            SendOutcome.Sent(saved)
+                        }
+                    }
+                    is DomainResult.Error -> failure(row, enviado, r)
+                    is DomainResult.Quota -> refuse(row, enviado, 402, quotaMessage(r), r)
+                }
             }
-            when (op) {
-                SyncOpType.CREATE -> {
-                    val r = api.postJson(collection, bodyOf(model))
-                    // A resposta chegou DEPOIS de um login/logout: escrever agora criaria o registro
-                    // de quem saiu dentro do espelho de quem entrou. Fail-closed — ver [abortarPush].
-                    if (!aindaTitular(titular)) return abortarPush(added)
-                    when (r) {
-                        is DomainResult.Success -> {
-                            val saved = decodeOrNull(r.data)
-                            if (saved == null) {
-                                // Aceito, resposta ilegível: retentar duplicaria o registro no servidor.
-                                mirror.markFailed(rowItem.local_id, INVALID_RESPONSE_CODE, INVALID_RESPONSE_MESSAGE)
-                            } else {
-                                val serverId = descriptor.idOf(saved)
-                                added[rowItem.client_id] = serverId
-                                added[rowItem.local_id] = serverId
-                                // markSynced grava o remap DURÁVEL: o filho que drenar num ciclo
-                                // futuro (ou noutra execução do app) ainda acha este id.
-                                mirror.markSynced(rowItem.local_id, saved)
-                                if (rowItem.client_id != serverId) temRemap = true
-                            }
-                        }
-                        is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
-                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
+            // A URL usa o id do SERVIDOR da linha (a chave que ele conhece), não o id que por
+            // acaso está dentro do payload — que pode ser um handle antigo.
+            SyncOpType.UPDATE -> {
+                val r = api.putJson(itemPath(row.server_id ?: descriptor.idOf(model)), ctx.bodyOf(model))
+                if (!aindaTitular(ctx.titular)) return SendOutcome.OwnerChanged
+                when (r) {
+                    is DomainResult.Success -> {
+                        val saved = decodeOrNull(r.data) ?: model
+                        mirror.settleSent(row.local_id, enviado, saved, descriptor::withId)
+                        SendOutcome.Sent(saved)
                     }
+                    is DomainResult.Error -> failure(row, enviado, r)
+                    is DomainResult.Quota -> refuse(row, enviado, 402, quotaMessage(r), r)
                 }
-                // A URL usa o id do SERVIDOR da linha (a chave que ele conhece), não o id que por
-                // acaso está dentro do payload — que pode ser um handle antigo.
-                SyncOpType.UPDATE -> {
-                    val r = api.putJson(itemPath(rowItem.server_id ?: descriptor.idOf(model)), bodyOf(model))
-                    if (!aindaTitular(titular)) return abortarPush(added)
-                    when (r) {
-                        is DomainResult.Success -> mirror.confirm(decodeOrNull(r.data) ?: model)
-                        is DomainResult.Error -> if (!applyDrainFailure(rowItem.local_id, r)) return added
-                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
+            }
+            SyncOpType.DELETE -> {
+                val r = api.delete(itemPath(row.server_id ?: descriptor.idOf(model)))
+                if (!aindaTitular(ctx.titular)) return SendOutcome.OwnerChanged
+                when {
+                    r is DomainResult.Success || (r is DomainResult.Error && r.code == 404) -> {
+                        // 404: já não existe lá. Só sai do aparelho se continua excluída aqui.
+                        if (mirror.rowFor(row.local_id)?.deleted != 0L) mirror.removeHard(row.local_id)
+                        SendOutcome.Sent(null)
                     }
-                }
-                SyncOpType.DELETE -> {
-                    val r = api.delete(itemPath(rowItem.server_id ?: descriptor.idOf(model)))
-                    if (!aindaTitular(titular)) return abortarPush(added)
-                    when (r) {
-                        is DomainResult.Success -> mirror.removeHard(rowItem.local_id)
-                        is DomainResult.Error -> when {
-                            r.code == 404 -> mirror.removeHard(rowItem.local_id) // já não existe lá
-                            else -> if (!applyDrainFailure(rowItem.local_id, r)) return added
-                        }
-                        is DomainResult.Quota -> mirror.markFailed(rowItem.local_id, 402, quotaMessage(r))
-                    }
+                    r is DomainResult.Error -> failure(row, enviado, r)
+                    r is DomainResult.Quota -> refuse(row, enviado, 402, quotaMessage(r), r)
+                    else -> SendOutcome.Skipped
                 }
             }
         }
-        return added
     }
+
+    /** A linha ainda tem o payload que foi enviado (ninguém gravou por cima durante o envio)? */
+    private fun aindaIgual(row: Synced_entity, enviado: String): Boolean =
+        mirror.rowFor(row.local_id)?.payload_json == enviado
+
+    /** Falha de envio: rede → pausa; retentável → conta tentativa; terminal → recusa. */
+    private fun failure(row: Synced_entity, enviado: String, error: DomainResult.Error): SendOutcome<T> =
+        when (classifyRestFailure(error.code)) {
+            RestFailureClass.Offline -> SendOutcome.Offline
+            RestFailureClass.Retryable -> { mirror.bumpAttempt(row.local_id, error.message); SendOutcome.Retryable }
+            RestFailureClass.Terminal, RestFailureClass.Quota -> refuse(row, enviado, error.code, error.message, error)
+        }
+
+    /**
+     * Recusa terminal/402. Se a pessoa gravou de novo durante o envio, a recusa era da versão ANTIGA:
+     * a nova substitui a intenção (como qualquer escrita nova limpa a falha) e vai no próximo envio —
+     * marcar a versão nova como recusada esconderia uma escrita que o servidor nunca viu.
+     */
+    private fun refuse(
+        row: Synced_entity,
+        enviado: String,
+        code: Int,
+        message: String?,
+        result: DomainResult<Nothing>,
+    ): SendOutcome<T> =
+        if (aindaIgual(row, enviado)) {
+            mirror.markFailed(row.local_id, code, message)
+            SendOutcome.Refused(result)
+        } else {
+            mirror.bumpAttempt(row.local_id, message)
+            SendOutcome.Retryable
+        }
 
     /**
      * Interrompe o push porque o espelho **mudou de dono** no meio dele.
@@ -747,19 +835,6 @@ open class OfflineFirstRestRepository<T : Any>(
         AppLogger.w(TAG, "Push de '${descriptor.name}' interrompido: o titular do espelho mudou.")
         return added
     }
-
-    /**
-     * Aplica ao espelho a falha de uma linha durante o push.
-     * @return `false` quando o ciclo deve **pausar** (sem rede) — a outbox fica intacta.
-     */
-    private fun applyDrainFailure(localId: String, error: DomainResult.Error): Boolean =
-        when (classifyRestFailure(error.code)) {
-            RestFailureClass.Offline -> false
-            RestFailureClass.Retryable -> { mirror.bumpAttempt(localId, error.message); true }
-            RestFailureClass.Terminal, RestFailureClass.Quota -> {
-                mirror.markFailed(localId, error.code, error.message); true
-            }
-        }
 
     protected fun decodeOrNull(body: String): T? =
         runCatching { descriptor.decodeModel(body) }.getOrNull()
@@ -817,3 +892,27 @@ fun newRestClientId(): String =
     "local-${currentTimeMillis()}-${restClientIdCounter++}-${Random.nextInt(0, 0xFFFF).toString(16)}"
 
 private var restClientIdCounter: Long = 0L
+
+/** Desfecho do envio de UMA linha da outbox (2.328.0). */
+private sealed class SendOutcome<out M> {
+    /** Aceito. [model] = a versão do servidor (`null` numa exclusão). */
+    data class Sent<M>(val model: M?) : SendOutcome<M>()
+
+    /** Nada a enviar (já enviada, limpa, recusada ou resolvida local). */
+    data object Skipped : SendOutcome<Nothing>()
+
+    /** Segurada: aponta para um pai ainda não criado no servidor. */
+    data object Held : SendOutcome<Nothing>()
+
+    /** Sem rede: a drenagem para (o resto também não iria). */
+    data object Offline : SendOutcome<Nothing>()
+
+    /** Falha retentável (5xx/408/429/401): fica na outbox, com a tentativa contada. */
+    data object Retryable : SendOutcome<Nothing>()
+
+    /** O titular do espelho mudou durante o envio: nada é escrito. */
+    data object OwnerChanged : SendOutcome<Nothing>()
+
+    /** Recusa terminal ou 402 da versão enviada (a linha virou `Failed`). */
+    data class Refused(val result: DomainResult<Nothing>) : SendOutcome<Nothing>()
+}

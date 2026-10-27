@@ -3,6 +3,19 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 27/out/2026 — auditoria do offline (estudo `docs/analises/2026-10-27-offline-first-sincronizacao-e-midia.md`; origem Raiz)
+- [x] **Rede tarifada × não tarifada — ENTREGUE na 2.328.0** (`NetworkType`, `ConnectivityObserver.networkType`).
+- [x] **Política de rede de sync — ENTREGUE na 2.328.0** (`SyncNetworkPolicy`).
+- [x] **Agendador de sync em 2º plano — ENTREGUE na 2.328.0** (`BackgroundSyncScheduler`, `BackgroundSyncWork`,
+      `registerBackgroundSyncTask`). Fica: prova em aparelho (WorkManager com app morto; `BGProcessingTask` no iOS real).
+- [x] **Lacuna 4 do estudo §11 — `RestUploadOutbox` "só no Wi-Fi" — ENTREGUE na 2.328.0** (`wifiOnly`, `setWifiOnly`).
+- [x] **Espaço livre antes de gravar mídia — ENTREGUE na 2.328.0** (`availableStorageBytes`).
+- [x] **Auditoria de ORDEM da fila de dados — CORRIGIDA na 2.328.0 (piso)**: filho antes do pai, confirmação antiga
+      apagando edição nova (`OfflineFirstRestRepository`, `DefaultSyncEngine`), PUT de substituição fora de ordem
+      (`RestUploadOutbox`).
+- [ ] **(P2) `RestCrudSyncEngine` ciente da `SyncNetworkPolicy`** (hoje o auto-sync ao reconectar ignora "Só quando eu
+      mandar"; o app controla não chamando `start()`). Só promover se um 2º app pedir.
+
 ### Registrado em 25/out/2026 — App do **Lumio** (marketplace de fotos de eventos; `Lumio/docs/perguntas-ao-fundador.md` §App)
 - [x] **P-APP-01 — upload paralelo — ENTREGUE na 2.327.0**: `DirectUploadConcurrency(files, partsPerFile)` numa fila só
       (janela deslizante de partes, ETag por transformação), cabeçalho assinado por parte (`parts[].headers` →

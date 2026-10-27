@@ -156,7 +156,7 @@ class DefaultSyncEngine(
         val ops = dirtyRows.mapNotNull { row -> row.toSyncOp() }
         return try {
             val resp = port.push(SyncPushRequest(ops))
-            applyPushResults(resp)
+            applyPushResults(resp, enviadas = dirtyRows.associateBy { it.client_id })
         } catch (e: Throwable) {
             _state.value = SyncState.Error(e.message ?: "Falha ao enviar alterações")
             refreshQueue()
@@ -210,17 +210,44 @@ class DefaultSyncEngine(
         return null
     }
 
-    private fun applyPushResults(resp: SyncPushResponse): SyncResultSummary {
+    /**
+     * Aplica o veredito do servidor a cada linha enviada.
+     *
+     * ### Escrita feita DURANTE o push não se perde (2.328.0 — auditoria de ordem)
+     * O [enqueue] não espera o push (o toque salva na hora). Até a 2.327.0, a confirmação de uma
+     * versão antiga marcava LIMPA a linha que já tinha a versão nova: a edição nova nunca subia, e o
+     * pull seguinte a trocava pela antiga do servidor — perda silenciosa. Agora o veredito vale só
+     * para a versão que foi enviada ([enviadas]); se a linha mudou desde então, ela **continua suja**
+     * (com o `server_id` e a base que o servidor acabou de dar, quando aceitou) e sobe no próximo push.
+     */
+    private fun applyPushResults(resp: SyncPushResponse, enviadas: Map<String, Synced_entity>): SyncResultSummary {
         var pushed = 0
         var conflicts = 0
         var rejected = 0
         store.transaction {
             for (result in resp.results) {
                 val row = findRowByClientId(result.clientId) ?: continue
+                val enviada = enviadas[result.clientId]
+                val mudouDuranteOEnvio = enviada != null &&
+                    (row.payload_json != enviada.payload_json || row.deleted != enviada.deleted)
                 when (result.status) {
                     SyncOpStatus.APPLIED -> {
                         pushed++
-                        if (row.deleted.toDbBoolean()) {
+                        if (mudouDuranteOEnvio) {
+                            // Aceitou a versão ANTERIOR: guarda o que o servidor deu e mantém a nova na fila.
+                            store.upsert(
+                                row.copy(
+                                    server_id = result.serverId ?: row.server_id,
+                                    base_updated_at = result.serverUpdatedAt ?: row.base_updated_at,
+                                    dirty = true.toDbLong(),
+                                    pending_op = when {
+                                        row.deleted.toDbBoolean() -> SyncOpType.DELETE.wire
+                                        (result.serverId ?: row.server_id) == null -> row.pending_op
+                                        else -> SyncOpType.UPDATE.wire
+                                    },
+                                ),
+                            )
+                        } else if (row.deleted.toDbBoolean()) {
                             // tombstone confirmado → remove de vez
                             store.deleteHard(row.entity, row.local_id)
                         } else {
@@ -235,12 +262,19 @@ class DefaultSyncEngine(
                     }
                     SyncOpStatus.CONFLICT -> {
                         conflicts++
-                        // Servidor venceu: aplica o payload canônico e marca limpo.
-                        applyServerCanonical(row, result.serverId, result.serverUpdatedAt, result.payload)
+                        // Servidor venceu a versão ENVIADA: aplica o canônico e marca limpo. Se a pessoa
+                        // gravou de novo durante o envio, a versão nova fica suja (com a base antiga) e
+                        // é o servidor quem a julga no próximo push — nada some sem passar por ele.
+                        if (!mudouDuranteOEnvio) {
+                            applyServerCanonical(row, result.serverId, result.serverUpdatedAt, result.payload)
+                        }
                     }
                     SyncOpStatus.REJECTED -> {
                         rejected++
-                        store.setError(row.entity, row.local_id, result.reason ?: "Rejeitado pelo servidor")
+                        // A recusa era da versão enviada; a nova (se houver) ainda não foi julgada.
+                        if (!mudouDuranteOEnvio) {
+                            store.setError(row.entity, row.local_id, result.reason ?: "Rejeitado pelo servidor")
+                        }
                     }
                 }
             }

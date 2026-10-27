@@ -5,6 +5,68 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.328.0 — **Ordem da fila de dados corrigida (perda silenciosa), rede tarifada × não tarifada, política de rede de sync, sincronização em 2º plano, "só no Wi-Fi" na `RestUploadOutbox`, espaço livre em disco** (auditoria do offline, 27/out/2026)
+
+### ⚠️ Correção — ordem da fila de dados (`kmplib-sync`) — **PISO**
+Auditoria de ordem pedida depois do defeito achado na fila do Raiz. A kmplib tinha **três** defeitos da mesma
+família — todos perda silenciosa de dado do usuário:
+
+1. **Filho antes do pai (`OfflineFirstRestRepository` + `RestCrudSyncEngine`).** Quando o pai falhava de forma
+   retentável (5xx/408/429) — ou o participante filho drenava antes do pai —, o filho gravado depois subia mesmo
+   assim com a FK do id local → `FOREIGN KEY`/422 → **recusa terminal** (`Failed`) e o registro ficava preso fora do
+   servidor. Agora a linha cujo payload aponta para um registro **ainda não criado** no servidor (`SyncStore.
+   pendingCreateIds()`, qualquer entidade) é **segurada** — continua pendente, sem contar tentativa — e sobe quando
+   o pai for aceito; dentro da mesma drenagem, as seguradas ganham outra volta se algum pai foi criado. Só segura o
+   que é dela: as demais linhas seguem.
+2. **Edição antiga sobrescrevendo a nova (`OfflineFirstRestRepository`).** A confirmação de um envio gravava a
+   resposta do servidor e marcava a linha LIMPA mesmo que a pessoa tivesse gravado de novo durante o voo: a edição
+   nova **sumia do aparelho e nunca subia**. E no modo `LocalFirst` a escrita direta e a drenagem podiam enviar duas
+   versões do mesmo registro ao mesmo tempo (a antiga chegando depois da nova). Agora: um envio por vez por
+   repositório (trava interna), sempre do estado **corrente** da linha; a confirmação passa por
+   `RestEntityMirror.settleSent(handle, sentPayload, serverModel, newerWithServerId)` — linha mudou ⇒ continua suja,
+   já com o id do servidor (`PUT` no próximo envio, sem duplicar); recusa da versão antiga não marca a nova como
+   recusada; linha apagada durante o voo (limpeza de conta) não é ressuscitada; `delete` espera o `POST` de criação
+   em voo antes de decidir que a linha é só local.
+3. **Mesma coisa no `DefaultSyncEngine` (`/pull`+`/push`).** `APPLIED` marcava limpa a linha que já tinha a versão
+   nova (o pull seguinte a trocava pela antiga do servidor). Agora o veredito vale só para a versão enviada; a nova
+   fica suja com o `server_id`/base que o servidor deu.
+
+Não há mudança de API para quem consome; não há migração de schema. Testes que reproduzem os três defeitos
+(falham na 2.327.0): `RestOutboxOrderTest` (7), `DefaultSyncEngineOrderTest`. A `RestUploadOutbox` não tinha o
+defeito de pai/filho (já esperava o dono — `UploadTarget.WaitingOwner`), mas tinha um de ordem: um `PUT` de
+substituição mais novo (avatar, capa) passava na frente do mais antigo que estava no recuo, e o antigo depois
+sobrescrevia a escolha nova — agora o mais novo espera o antigo do mesmo alvo.
+
+### `kmplib-core` — rede tarifada × não tarifada (aditivo)
+- **`NetworkType`** (`NONE`/`UNMETERED`/`METERED`, `isConnected`, `isUnmetered`) e
+  **`ConnectivityObserver.networkType: StateFlow<NetworkType>`** — o MESMO callback nativo do `isOnline` (que segue
+  igual). Android: capacidades da rede padrão (`NET_CAPABILITY_NOT_METERED`, ou `TEMPORARILY_NOT_METERED` no 11+ —
+  o critério do `isActiveNetworkMetered`). iOS: `nw_path_is_expensive` **ou** `nw_path_is_constrained` (Modo Dados
+  Reduzidos) = tarifada. Antes do primeiro dado, `METERED` (nunca supõe Wi-Fi). Troca tarifada↔não tarifada é
+  imediata; só a queda é amortecida.
+- **`availableStorageBytes(): Long?`** (`core.storage`) — espaço livre para gravar mídia (Android
+  `StatFs(noBackupFilesDir).availableBytes`; iOS `NSURLVolumeAvailableCapacityForImportantUsageKey`, cai para
+  `NSFileSystemFreeSize`); `null` = não sei (não bloqueie a captura).
+
+### `kmplib-sync` — política e 2º plano (aditivo)
+- **`SyncNetworkPolicy`** (`AUTOMATIC_MEDIA_ON_UNMETERED` default / `AUTOMATIC_ANY_NETWORK` / `MANUAL_ONLY`;
+  `wire`/`fromWire`, `isAutomatic`, `allowsAutomaticData(network)`, `mediaOnlyOnUnmetered`,
+  `allowsAutomaticMedia(network)`). Regra da fábrica (estudo §7.1): texto sobe em qualquer rede nos dois modos
+  automáticos; a política segura só mídia.
+- **`BackgroundSyncScheduler`** (`createBackgroundSyncScheduler(BackgroundSyncConfig)`: `apply(policy)`,
+  `requestSoon(policy)`, `cancel()`) + **`BackgroundSyncWork.register { … BackgroundSyncResult }`**. Android
+  WorkManager: periódico 15 min + "logo" one-shot, `NetworkType.CONNECTED`, nada em manual
+  (`WorkManagerBackgroundSyncScheduler`, `BackgroundSyncWorker`). iOS `BGProcessingTask`:
+  **`registerBackgroundSyncTask(id)`** no `didFinishLaunching` (id em `BGTaskSchedulerPermittedIdentifiers`,
+  `processing` em `UIBackgroundModes`), reagenda a si mesma enquanto a política gravada for automática
+  (`BgTaskBackgroundSyncScheduler`). ⚠️ App reaberto SÓ em 2º plano não cria tela: Koin, banco e o
+  `BackgroundSyncWork.register` precisam subir no `Application.onCreate`/`didFinishLaunching`.
+- **`RestUploadOutbox` com "só no Wi-Fi"** (lacuna 4 do estudo §11): `enqueue(…, wifiOnly)`/`enqueueParts(…, wifiOnly)`,
+  `setWifiOnly(uploadId, wifiOnly)`, `PendingUpload.wifiOnly` (linha antiga = `false`),
+  `UploadDrainSummary.waitingUnmetered`, construtor `isMetered: () -> Boolean?` (default: observador
+  compartilhado do módulo; **rede desconhecida segura**). O `RestCrudSyncEngine` passou a disparar um ciclo na
+  transição tarifada → não tarifada.
+
 ## 2.327.0 — **Upload em paralelo numa fila só, pausa que sobrevive ao app, fotos ORIGINAIS e salvar na galeria sem recomprimir, indicador próprio no `RefreshableBox`** (Lumio)
 
 Aditivo (pendências P-APP-01/02/04 do app do Lumio). **Sem piso, sem aviso**: nada muda para quem não usa os

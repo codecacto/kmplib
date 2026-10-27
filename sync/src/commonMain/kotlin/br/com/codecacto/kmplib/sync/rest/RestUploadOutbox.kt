@@ -90,6 +90,11 @@ const val DEFAULT_UPLOAD_ENTITY: String = "kmplib_upload"
  * @param json Json do payload (o mesmo tolerante do espelho).
  * @param nowMillis relógio (injetável para teste).
  * @param idFactory gerador do id do upload.
+ * @param isMetered (2.328.0) a rede é tarifada AGORA? `true`/`false`, ou `null` = não sei. Decide o
+ *   "só no Wi-Fi" ([PendingUpload.wifiOnly]): o envio só sai com resposta `false` — **não saber
+ *   segura** (diferente da `DirectUploadOutbox`, cujo transporte do iOS aplica a restrição sozinho;
+ *   aqui não há quem aplique depois). O default lê o `ConnectivityObserver` compartilhado do módulo
+ *   ([NetworkType][br.com.codecacto.kmplib.core.network.NetworkType]); passe o do app se ele já tem um.
  * @param onUploaded chamado após cada envio aceito, com o corpo bruto da resposta — é onde o app
  *   decodifica a foto criada e a grava no seu próprio espelho. Exceção aqui **não** desfaz o upload
  *   (que o servidor já aceitou): é registrada em log.
@@ -103,6 +108,7 @@ class RestUploadOutbox(
     private val json: Json = restMirrorJson,
     private val nowMillis: () -> Long = ::currentTimeMillis,
     private val idFactory: () -> String = ::newRestClientId,
+    private val isMetered: () -> Boolean? = ::sharedActiveNetworkIsMetered,
     private val onUploaded: (suspend (upload: PendingUpload, responseBody: String) -> Unit)? = null,
 ) : RestCrudSyncParticipant {
 
@@ -188,6 +194,8 @@ class RestUploadOutbox(
      * @param formFields campos de texto enviados no MESMO multipart do arquivo (2.216.0), gravados
      *   na outbox junto do resto — ver [PendingUpload.formFields]. Entra por último na assinatura
      *   para não deslocar nenhuma chamada posicional existente.
+     * @param wifiOnly (2.328.0) "só no Wi-Fi": o arquivo espera rede não tarifada (passe
+     *   `policy.mediaOnlyOnUnmetered` da `SyncNetworkPolicy`). Troca depois por [setWifiOnly].
      */
     suspend fun enqueue(
         bytes: ByteArray,
@@ -201,6 +209,7 @@ class RestUploadOutbox(
         method: UploadMethod = UploadMethod.POST,
         id: String = idFactory(),
         formFields: Map<String, String> = emptyMap(),
+        wifiOnly: Boolean = false,
     ): UploadEnqueueResult = enqueueParts(
         parts = listOf(UploadContent(bytes, fileName, mimeType, fieldName)),
         path = path,
@@ -210,6 +219,7 @@ class RestUploadOutbox(
         method = method,
         id = id,
         formFields = formFields,
+        wifiOnly = wifiOnly,
     )
 
     /**
@@ -217,6 +227,7 @@ class RestUploadOutbox(
      * `full` + `thumb`). Ou todas as partes são gravadas, ou nada entra na fila.
      *
      * @param formFields ver [enqueue].
+     * @param wifiOnly ver [enqueue].
      */
     suspend fun enqueueParts(
         parts: List<UploadContent>,
@@ -227,6 +238,7 @@ class RestUploadOutbox(
         method: UploadMethod = UploadMethod.POST,
         id: String = idFactory(),
         formFields: Map<String, String> = emptyMap(),
+        wifiOnly: Boolean = false,
     ): UploadEnqueueResult = writeMutex.withLock {
         val invalido = validate(parts, path, ownerHandle, id, formFields)
         if (invalido != null) return@withLock invalido
@@ -264,6 +276,7 @@ class RestUploadOutbox(
             nextAttemptAtMillis = 0L,
             method = method,
             formFields = formFields,
+            wifiOnly = wifiOnly,
         )
         // Grava a linha DEPOIS dos bytes: uma linha sem arquivo seria uma promessa que o disco não
         // pode cumprir. O contrário (arquivo sem linha) é apenas um órfão, que a varredura recolhe.
@@ -313,6 +326,17 @@ class RestUploadOutbox(
         mirror.clearFailure(uploadId)
         mirror.decode(linha.payload_json)?.let { mirror.patch(it.copy(nextAttemptAtMillis = 0L)) }
         return true
+    }
+
+    /**
+     * Liga/desliga o "só no Wi-Fi" de um upload que ainda está na fila (2.328.0) — a pessoa trocou a
+     * política, ou tocou em "enviar agora pelos dados". `false` se o upload não está na fila.
+     */
+    suspend fun setWifiOnly(uploadId: String, wifiOnly: Boolean): Boolean = writeMutex.withLock {
+        val linha = mirror.rowFor(uploadId) ?: return@withLock false
+        val upload = mirror.decode(linha.payload_json) ?: return@withLock false
+        if (upload.wifiOnly != wifiOnly) mirror.patch(upload.copy(wifiOnly = wifiOnly))
+        true
     }
 
     /** Retry explícito de **todos** os recusados. Devolve quantos voltaram à fila. */
@@ -445,6 +469,15 @@ class RestUploadOutbox(
         var aguardando = 0
         var adiados = 0
         var recusados = 0
+        var aguardandoWifi = 0
+
+        // Alvos de PUT (substituição: avatar, capa) com um envio MAIS ANTIGO ainda pendente nesta
+        // passada. O mais novo espera o antigo (2.328.0): se o novo subisse antes, o antigo — ao
+        // sair do recuo — sobrescreveria no servidor a escolha mais recente da pessoa.
+        val putsPendentes = HashSet<String>()
+        fun segurarPut(upload: PendingUpload) {
+            if (upload.method == UploadMethod.PUT) putsPendentes += putKey(upload)
+        }
 
         val fila = mirror.drainableRows()
             .mapNotNull { linha -> mirror.decode(linha.payload_json)?.let { linha to it } }
@@ -455,14 +488,26 @@ class RestUploadOutbox(
             // é de quem entrou — enviar agora colocaria a foto na conta errada.
             if (store.accountScope.value != titular) {
                 AppLogger.w(TAG, "Fila de upload interrompida: o titular do espelho mudou.")
-                return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true)
+                return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true, waitingUnmetered = aguardandoWifi)
             }
-            if (upload.nextAttemptAtMillis > agora) {
+            if (upload.method == UploadMethod.PUT && putKey(upload) in putsPendentes) {
                 adiados++
                 continue
             }
+            if (upload.nextAttemptAtMillis > agora) {
+                adiados++
+                segurarPut(upload)
+                continue
+            }
+            if (upload.wifiOnly && isMetered() != false) {
+                // "Só no Wi-Fi" em rede tarifada (ou desconhecida): espera — não é falha, não conta
+                // tentativa. Quem acorda é a volta do Wi-Fi (o RestCrudSyncEngine reage a ela).
+                aguardandoWifi++
+                segurarPut(upload)
+                continue
+            }
             when (val alvo = resolveTarget(upload, parentRemap)) {
-                is UploadTarget.WaitingOwner -> aguardando++
+                is UploadTarget.WaitingOwner -> { aguardando++; segurarPut(upload) }
                 is UploadTarget.MissingOwner -> {
                     mirror.markFailed(upload.id, MISSING_OWNER_CODE, MISSING_OWNER_MESSAGE)
                     recusados++
@@ -480,7 +525,7 @@ class RestUploadOutbox(
                     }
                     if (store.accountScope.value != titular) {
                         AppLogger.w(TAG, "Resposta de upload descartada: o titular do espelho mudou.")
-                        return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true)
+                        return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true, waitingUnmetered = aguardandoWifi)
                     }
                     when (resposta) {
                         is DomainResult.Success -> {
@@ -494,11 +539,11 @@ class RestUploadOutbox(
                         is DomainResult.Error -> when (classifyRestFailure(resposta.code)) {
                             RestFailureClass.Offline -> {
                                 // Sem rede: o resto da fila também não vai. Preserva tudo e para.
-                                return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true)
+                                return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = true, waitingUnmetered = aguardandoWifi)
                             }
                             RestFailureClass.Retryable -> {
                                 val virouRecusa = agendarNovaTentativa(linha.attempts.toInt(), upload, resposta)
-                                if (virouRecusa) recusados++
+                                if (virouRecusa) recusados++ else segurarPut(upload)
                             }
                             RestFailureClass.Terminal, RestFailureClass.Quota -> {
                                 mirror.markFailed(upload.id, resposta.code, resposta.userMessage)
@@ -509,7 +554,7 @@ class RestUploadOutbox(
                 }
             }
         }
-        return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = false)
+        return UploadDrainSummary(enviados, aguardando, adiados, recusados, paused = false, waitingUnmetered = aguardandoWifi)
     }
 
     /**
@@ -531,6 +576,12 @@ class RestUploadOutbox(
         val proxima = nowMillis() + uploadRetryDelayMillis(tentativas, retry)
         mirror.patch(upload.copy(nextAttemptAtMillis = proxima))
         return false
+    }
+
+    /** Chave do alvo de um PUT: o mesmo endpoint do mesmo dono (handle traduzido para o id canônico). */
+    private fun putKey(upload: PendingUpload): String {
+        val dono = if (upload.hasOwner) store.resolveServerId(upload.ownerHandle) ?: upload.ownerHandle else upload.ownerHandle
+        return "${upload.ownerEntity}|$dono|${upload.path}"
     }
 
     /**
@@ -677,6 +728,7 @@ class UploadContent(
  * @param deferred adiados pelo recuo (falharam antes e ainda não é hora).
  * @param rejected recusados, agora visíveis na UI com o binário preservado.
  * @param paused a fila parou no meio (sem rede, ou troca de conta) e será retomada.
+ * @param waitingUnmetered (2.328.0) "só no Wi-Fi" esperando rede não tarifada — **não é falha**.
  */
 data class UploadDrainSummary(
     val uploaded: Int = 0,
@@ -684,7 +736,8 @@ data class UploadDrainSummary(
     val deferred: Int = 0,
     val rejected: Int = 0,
     val paused: Boolean = false,
+    val waitingUnmetered: Int = 0,
 ) {
     /** `true` se nada ficou para trás nesta passada. */
-    val isDrained: Boolean get() = !paused && waitingOwner == 0 && deferred == 0
+    val isDrained: Boolean get() = !paused && waitingOwner == 0 && deferred == 0 && waitingUnmetered == 0
 }

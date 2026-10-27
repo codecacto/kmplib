@@ -33,6 +33,8 @@ import kotlinx.serialization.Serializable
  *   ex.: `"regiao" to "antebraco"`. Ficam **na linha da outbox**, junto do resto do metadado: matar
  *   o processo entre o enfileirar e o envio não perde o dado que classifica a foto. Linha gravada
  *   antes da 2.216.0 não tem o campo e desserializa como vazio — o envio sai igual ao de antes.
+ * @param wifiOnly "só no Wi-Fi" (2.328.0): só sobe em rede **não tarifada** — o mesmo nome e o mesmo
+ *   papel do `DirectUploadRequest.wifiOnly`. Linha antiga desserializa como `false`.
  */
 @Serializable
 data class PendingUpload(
@@ -46,6 +48,7 @@ data class PendingUpload(
     val nextAttemptAtMillis: Long = 0L,
     val method: UploadMethod = UploadMethod.POST,
     val formFields: Map<String, String> = emptyMap(),
+    val wifiOnly: Boolean = false,
 ) {
     /** Nome do primeiro arquivo — o que a UI exibe quando não há [label]. */
     val fileName: String get() = parts.firstOrNull()?.fileName.orEmpty()

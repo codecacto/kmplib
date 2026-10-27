@@ -236,6 +236,17 @@ interface SyncStore {
     /** Quantos mapeamentos duráveis existem na conta corrente (guarda barata: `0` ⇒ nada a remapear). */
     fun countIdRemap(): Long = 0L
 
+    /**
+     * Ids (`local_id` e `client_id`) das linhas **ainda pendentes de criação** na conta corrente —
+     * sujas, sem `server_id`, não excluídas (inclusive as recusadas) — de TODAS as entidades
+     * (2.328.0). É o que o push REST-CRUD consulta para **segurar o filho** cujo payload aponta para um
+     * pai que ainda não existe no servidor: enviar antes seria `FOREIGN KEY` → recusa terminal.
+     */
+    fun pendingCreateIds(): Set<String> =
+        getAllDirty()
+            .filter { it.server_id == null && it.deleted == 0L }
+            .flatMapTo(HashSet()) { listOf(it.local_id, it.client_id) }
+
     /** Esquece um mapeamento (o registro deixou de existir dos dois lados). */
     fun forgetServerId(clientId: String) = Unit
 

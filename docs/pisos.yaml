@@ -46,6 +46,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.328.0
+    motivo: "fila de dados perdia registro: filho subia antes do pai (recusa terminal) e a confirmação de um envio antigo apagava a edição nova"
+    simbolos: [OfflineFirstRestRepository, RestCrudSyncEngine, DefaultSyncEngine]
+
   - versao: 2.314.0
     motivo: "push: no iOS o último serviço criado roubava o push do anterior, e o toque que abriu o app a frio se perdia quando o serviço nascia depois do launch"
     simbolos: [createPushNotificationService, ApplePushNotificationService, KmpPushNotificationService]

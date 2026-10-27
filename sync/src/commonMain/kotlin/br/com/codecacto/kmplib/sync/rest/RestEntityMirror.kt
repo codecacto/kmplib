@@ -336,6 +336,49 @@ class RestEntityMirror<T : Any>(
     }
 
     /**
+     * **Confirma um envio que pode ter sido ULTRAPASSADO** (2.328.0 — auditoria de ordem do offline).
+     *
+     * Entre o envio de [sentPayload] e a resposta, a pessoa pode ter gravado de novo a mesma linha.
+     * Até a 2.327.0 a confirmação gravava a resposta do servidor por cima e marcava a linha limpa: a
+     * edição nova **sumia do aparelho e nunca subia** (perda silenciosa). Agora:
+     * - a linha ainda é a enviada (ou já não tem intenção local) → fica LIMPA com a versão do servidor;
+     * - a linha mudou → **continua suja** com o payload novo, já migrada para o id do servidor
+     *   ([newerWithServerId] reescreve o id dentro do modelo) e com `pending_op` `UPDATE`/`DELETE` —
+     *   a escrita nova sobe no próximo envio, depois da antiga, na ordem certa;
+     * - a linha sumiu (limpeza de conta durante o envio) → nada é escrito: não se ressuscita registro.
+     *
+     * @return `true` se a linha ficou limpa.
+     */
+    fun settleSent(
+        handle: String,
+        sentPayload: String,
+        serverModel: T,
+        newerWithServerId: (T, String) -> T,
+    ): Boolean {
+        val atual = rowFor(handle) ?: return false
+        if ((atual.payload_json == sentPayload && atual.deleted == 0L) || atual.dirty == 0L) {
+            writeClean(serverModel, idOf(serverModel), updatedAt = null, handle = handle)
+            return true
+        }
+        val serverId = idOf(serverModel)
+        val novo = decode(atual.payload_json)?.let { newerWithServerId(it, serverId) }
+        store.transaction {
+            if (atual.local_id != serverId) store.deleteHard(name, atual.local_id)
+            store.upsert(
+                atual.copy(
+                    local_id = serverId,
+                    server_id = serverId,
+                    payload_json = novo?.let { json.encodeToString(serializer, it) } ?: atual.payload_json,
+                    dirty = 1L,
+                    pending_op = if (atual.deleted == 1L) SyncOpType.DELETE.wire else SyncOpType.UPDATE.wire,
+                ),
+            )
+            if (atual.client_id != serverId) store.rememberServerId(name, atual.client_id, serverId)
+        }
+        return false
+    }
+
+    /**
      * Atualiza o payload de um registro **preservando** seu estado de sync (dirty/pending_op/server_id).
      * Usado para ajustes locais que não devem virar nova operação de outbox nem apagar uma pendente
      * (ex.: contagem denormalizada de filhos após upload/remoção online).

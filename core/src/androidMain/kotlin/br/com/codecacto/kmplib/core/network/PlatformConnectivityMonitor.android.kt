@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import android.os.Build
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.context.AndroidAppContext
 
@@ -18,7 +18,7 @@ private const val TAG = "ConnectivityObserver"
  * contagem do [ConnectivityObserver] fosse burlada. Isso elimina o vazamento de callback (e o
  * `TooManyRequestsException` do `registerNetworkCallback` ao estourar o limite do sistema).
  */
-internal actual class PlatformConnectivityMonitor {
+internal actual class PlatformConnectivityMonitor : NetworkTypeSource {
 
     private var callback: ConnectivityManager.NetworkCallback? = null
 
@@ -27,7 +27,7 @@ internal actual class PlatformConnectivityMonitor {
         return context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
     }
 
-    actual fun start(onStatusChange: (Boolean) -> Unit) {
+    actual override fun start(onChange: (NetworkType) -> Unit) {
         if (callback != null) return // já registrado: nunca registra um segundo callback
         val connectivityManager = connectivityManager() ?: return
 
@@ -48,17 +48,18 @@ internal actual class PlatformConnectivityMonitor {
             override fun onAvailable(network: Network) {
                 // A rede padrão acabou de mudar para esta. As capacidades dela chegam logo em seguida
                 // por `onCapabilitiesChanged`; até lá, a releitura responde pela rede ativa.
-                onStatusChange(currentStatus() ?: true)
+                onChange(currentType() ?: NetworkType.METERED)
             }
 
             override fun onLost(network: Network) {
-                onStatusChange(currentStatus() ?: false)
+                onChange(currentType() ?: NetworkType.NONE)
             }
 
             override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
                 // Aqui `network` É a rede padrão (callback padrão), então as capacidades recebidas
-                // são o estado real dela — inclusive a perda de INTERNET sem perder a rede.
-                onStatusChange(networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET))
+                // são o estado real dela — inclusive a perda de INTERNET sem perder a rede e a troca
+                // de tarifada para não tarifada (2.328.0) sem trocar de rede.
+                onChange(typeOf(networkCapabilities))
             }
         }
 
@@ -71,7 +72,7 @@ internal actual class PlatformConnectivityMonitor {
         }
     }
 
-    actual fun stop() {
+    actual override fun stop() {
         val networkCallback = callback ?: return // idempotente
         callback = null
         val connectivityManager = connectivityManager() ?: return
@@ -82,15 +83,26 @@ internal actual class PlatformConnectivityMonitor {
         }
     }
 
-    actual fun currentStatus(): Boolean? {
+    actual override fun currentType(): NetworkType? {
         val connectivityManager = connectivityManager() ?: return null
         return try {
             val activeNetwork = connectivityManager.activeNetwork
             val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
-            capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+            if (capabilities == null) NetworkType.NONE else typeOf(capabilities)
         } catch (t: Throwable) {
             AppLogger.w(TAG, "Falha ao consultar o ConnectivityManager", t)
             null
         }
     }
+
+    /**
+     * `NOT_METERED`, ou `TEMPORARILY_NOT_METERED` no Android 11+ — o mesmo critério do
+     * `ConnectivityManager.isActiveNetworkMetered` (2.328.0).
+     */
+    private fun typeOf(caps: NetworkCapabilities): NetworkType = classifyNetworkCapabilities(
+        hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+        notMetered = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
+        temporarilyNotMetered = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED),
+    )
 }

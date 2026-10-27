@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.sync.rest
 
 import br.com.codecacto.kmplib.core.network.ConnectivityObserver
+import br.com.codecacto.kmplib.core.network.NetworkType
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.sync.LegacyRowsPolicy
 import br.com.codecacto.kmplib.sync.SyncState
@@ -52,7 +53,8 @@ interface RestCrudSyncParticipant {
  * registro se perdia. Continue passando pais antes de filhos: é o que faz o caso comum resolver num
  * ciclo só.
  *
- * Dispara automaticamente ao (re)conectar ([ConnectivityObserver]) e sob demanda ([syncNow], p/
+ * Dispara automaticamente ao (re)conectar ([ConnectivityObserver]), ao passar de rede tarifada para
+ * não tarifada (2.328.0 — libera o "só no Wi-Fi" da fila de upload) e sob demanda ([syncNow], p/
  * pull-to-refresh). **Best-effort:** falha de rede pausa sem quebrar a UI (a outbox é preservada e
  * retentada no próximo online). Serializado por mutex (nunca há dois ciclos concorrentes).
  *
@@ -103,6 +105,18 @@ class RestCrudSyncEngine(
         connectivity.isOnline
             .drop(1) // ignora o valor inicial já tratado acima
             .onEach { online -> if (online) syncNow() else _state.value = SyncState.Offline }
+            .launchIn(scope)
+        // Tarifada → não tarifada (4G → Wi-Fi) sem cair (2.328.0): o `isOnline` não muda, mas o que
+        // espera o Wi-Fi ("só no Wi-Fi" da fila de upload) pode sair agora. Só nessa transição — a
+        // volta de "sem rede" já dispara acima.
+        var anterior = connectivity.networkType.value
+        connectivity.networkType
+            .drop(1)
+            .onEach { tipo ->
+                val deTarifadaParaWifi = anterior == NetworkType.METERED && tipo == NetworkType.UNMETERED
+                anterior = tipo
+                if (deTarifadaParaWifi) syncNow()
+            }
             .launchIn(scope)
     }
 

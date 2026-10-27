@@ -227,6 +227,27 @@ internal object RestPayloadRemap {
      * é o que se entrega a [RestCrudEntity.remapRefs] no lugar do antigo remap "só do ciclo".
      * Vazio quando nada no payload migrou.
      */
+    /**
+     * Os textos do payload que **podem ser id** (string não vazia de até [MAX_ID_LENGTH]) — é por eles
+     * que o push descobre se a linha aponta para um pai ainda não criado (2.328.0).
+     */
+    fun candidateIds(payloadJson: String, json: Json): Set<String> {
+        val raiz = runCatching { json.parseToJsonElement(payloadJson) }.getOrNull() ?: return emptySet()
+        val out = HashSet<String>()
+        fun walk(element: JsonElement) {
+            when (element) {
+                is JsonObject -> element.values.forEach { walk(it) }
+                is JsonArray -> element.forEach { walk(it) }
+                is JsonPrimitive -> {
+                    val texto = element.takeIf { it.isString }?.content ?: return
+                    if (texto.isNotBlank() && texto.length <= MAX_ID_LENGTH) out += texto
+                }
+            }
+        }
+        walk(raiz)
+        return out
+    }
+
     fun resolveFor(payloadJson: String, json: Json, resolve: (String) -> String?): Map<String, String> {
         if (payloadJson.isBlank()) return emptyMap()
         val raiz = runCatching { json.parseToJsonElement(payloadJson) }.getOrNull() ?: return emptyMap()
