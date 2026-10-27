@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.android.gms.maps.CameraUpdate
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.JointType
@@ -78,6 +79,7 @@ internal actual fun PlatformNativeMap(
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
+    interactive: Boolean,
     defaultColor: Color,
     onMarkerClick: (MapItem) -> Unit,
     onClusterClick: (List<MapItem>) -> Unit,
@@ -95,10 +97,11 @@ internal actual fun PlatformNativeMap(
 
     // Os comandos do controller só são aplicados com o mapa medido e carregado: `newLatLngBounds`
     // antes do layout lança "Map size can't be 0".
-    DisposableEffect(controller, cameraState, loaded) {
+    DisposableEffect(controller, cameraState, loaded, interactive) {
         if (!loaded) return@DisposableEffect onDispose { }
         val sink = MapCameraSink { command ->
-            scope.launch { cameraState.apply(command, density) }
+            // Modo lite (só leitura) não anima câmera — e a animação não terminaria.
+            scope.launch { cameraState.apply(if (interactive) command else command.withoutAnimation(), density) }
         }
         controller.attach(sink)
         onDispose { controller.detach(sink) }
@@ -116,14 +119,21 @@ internal actual fun PlatformNativeMap(
     val markerClick by rememberUpdatedState(onMarkerClick)
     val clusterClick by rememberUpdatedState(onClusterClick)
 
-    GoogleMap(
+    // Só leitura = modo lite: imagem do mapa (respeita cantos arredondados) e, por isso, sem
+    // agrupamento — o `ClusterManager` refaz os grupos quando a câmera para, e o lite não move câmera.
+    val clustered = clustering && interactive
+    key(interactive) { GoogleMap(
         modifier = modifier,
         cameraPositionState = cameraState,
-        properties = MapProperties(isMyLocationEnabled = myLocation),
-        uiSettings = MapUiSettings(
-            myLocationButtonEnabled = myLocation,
-            zoomControlsEnabled = false,
-            mapToolbarEnabled = false,
+        googleMapOptionsFactory = { GoogleMapOptions().liteMode(!interactive) },
+        properties = MapProperties(isMyLocationEnabled = myLocation && interactive),
+        uiSettings = mapUiSettingsFor(
+            interactive,
+            whenInteractive = MapUiSettings(
+                myLocationButtonEnabled = myLocation,
+                zoomControlsEnabled = false,
+                mapToolbarEnabled = false,
+            ),
         ),
         onMapLoaded = { loaded = true },
         onMapClick = { latLng -> onMapClick?.invoke(latLng.toCommon()) },
@@ -158,7 +168,7 @@ internal actual fun PlatformNativeMap(
             }
         }
 
-        if (clustering) {
+        if (clustered) {
             val clusterItems = remember(markers) { markers.map { MapClusterItem(it) } }
             val clusterManager = rememberClusterManager<MapClusterItem>()
             MapEffect(clusterManager, density, defaultColor) { map ->
@@ -200,7 +210,7 @@ internal actual fun PlatformNativeMap(
                 }
             }
         }
-    }
+    } }
 }
 
 /** Item do `ClusterManager`. `data class`: o cache de marcadores da lib compara por igualdade. */
@@ -398,3 +408,9 @@ private fun GmsLatLng.toCommon(): LatLng = LatLng(latitude, longitude)
 private fun CameraPosition.toGmsCamera(): GmsCameraPosition = GmsCameraPosition.fromLatLngZoom(target.toGms(), zoom)
 private fun GmsCameraPosition.toCommonCamera(): CameraPosition = CameraPosition(target.toCommon(), zoom)
 
+
+/** O mesmo comando, sem animação (mapa só leitura). */
+internal fun MapCameraCommand.withoutAnimation(): MapCameraCommand = when (this) {
+    is MapCameraCommand.Move -> copy(animate = false)
+    is MapCameraCommand.Fit -> copy(animate = false)
+}

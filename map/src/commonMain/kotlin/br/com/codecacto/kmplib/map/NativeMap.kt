@@ -107,8 +107,11 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  * - **Android:** Google Maps SDK via `maps-compose`; agrupamento pelo `ClusterManager` oficial do
  *   `maps-compose-utils` (android-maps-utils). Exige a chave `com.google.android.geo.API_KEY` no
  *   manifesto do app.
- * - **iOS:** **MapKit** (`MKMapView`), o SDK oficial da Apple — sem chave, sem pacote SPM, sem ponte
- *   Swift; agrupamento pelo `clusteringIdentifier` nativo (iOS 11+).
+ * - **iOS:** **Google Maps pela ponte** (2.331.0) — `IosMapBridge.register(factory:)` no `AppDelegate`
+ *   (a `casca-mobile` nasce assim); a lib agrupa (mesma régua de 100 pt do Android), desenha os ícones
+ *   e enquadra, e a `GMSMapView` do Swift só desenha. Sem a ponte, **fallback MapKit** (`MKMapView`,
+ *   agrupamento pelo `clusteringIdentifier`) com aviso no log uma vez por processo — app ainda não
+ *   migrado, troca quando for tocado.
  *
  * Comportamento:
  * - **Pino**: cor e texto curto por item ([MapMarkerStyle]); toque → [onItemClick] (o balão com
@@ -130,6 +133,11 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *
  * @param items pinos. Mudar a lista redesenha só o que mudou (chave = [MapItem.id]).
  * @param circles círculos de raio em metros (chave = [MapCircle.id]); entram no enquadramento inicial.
+ * @param interactive `false` = mapa **só leitura** (2.331.0): sem arrastar, pinçar, girar nem inclinar,
+ *   e câmera sem animação. No Android vira o **modo lite** do Google Maps (respeita cantos
+ *   arredondados) e, por isso, **sem agrupamento** — todos os pinos desenhados, o mais grave por cima;
+ *   no iOS os gestos saem da `GMSMapView` (ponte) ou do MapKit (fallback). Toque no pino continua
+ *   chegando ao [onItemClick].
  */
 @Composable
 fun NativeMap(
@@ -141,6 +149,7 @@ fun NativeMap(
     showUserLocation: Boolean = false,
     fitOnFirstLoad: Boolean = true,
     circles: List<MapCircle> = emptyList(),
+    interactive: Boolean = true,
     onItemClick: (MapItem) -> Unit = {},
     onClusterClick: ((List<MapItem>) -> Unit)? = null,
     onMapClick: ((LatLng) -> Unit)? = null,
@@ -189,6 +198,7 @@ fun NativeMap(
         controller = controller,
         clustering = clustering,
         showUserLocation = showUserLocation,
+        interactive = interactive,
         defaultColor = primary,
         onMarkerClick = { itemClick(it) },
         onClusterClick = handleCluster,
@@ -198,7 +208,7 @@ fun NativeMap(
     )
 }
 
-/** Implementação nativa: `maps-compose` no Android, MapKit no iOS. */
+/** Implementação nativa: `maps-compose` no Android; no iOS, Google pela ponte (MapKit de fallback). */
 @Composable
 internal expect fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
@@ -207,6 +217,7 @@ internal expect fun PlatformNativeMap(
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
+    interactive: Boolean,
     defaultColor: Color,
     onMarkerClick: (MapItem) -> Unit,
     onClusterClick: (List<MapItem>) -> Unit,

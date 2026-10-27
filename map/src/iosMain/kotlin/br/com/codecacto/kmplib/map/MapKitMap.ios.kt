@@ -58,8 +58,9 @@ import kotlin.math.pow
 
 /**
  * **MapKit** no Compose (2.220.0 — GAP-ER-01): o `MKMapView` oficial da Apple, sem chave, sem
- * pacote SPM e sem ponte Swift. É o motor do [NativeMap] no iOS e, desde a mesma versão, também do
- * [MapView] quando o app não registrou [IosMapBridge.factory] (antes: um texto "Mapa indisponível").
+ * pacote SPM e sem ponte Swift. Desde a 2.331.0 é só o **fallback** do iOS — o padrão da fábrica é o
+ * Google Maps pela ponte [IosMapBridge]: entra no [NativeMap] e no [MapView] quando o app não registrou
+ * a ponte (app ainda não migrado), com um aviso no log uma vez por processo.
  *
  * Tudo que é decisão (cor, contador, enquadramento, zoom ↔ extensão) vem das funções puras do
  * `commonMain`; aqui só se traduz para MapKit.
@@ -80,6 +81,7 @@ internal fun MapKitMap(
     onLoaded: () -> Unit,
     modifier: Modifier,
     circles: List<ResolvedCircle> = emptyList(),
+    interactive: Boolean = true,
 ) {
     val host = remember { MapKitHost(controller) }
     host.callbacks = MapKitCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onLoaded)
@@ -94,6 +96,11 @@ internal fun MapKitMap(
         modifier = modifier,
         update = {
             host.setClustering(clustering)
+            // Mapa "só leitura" (2.331.0): sem arrastar, pinçar, girar nem inclinar.
+            host.mapView.scrollEnabled = interactive
+            host.mapView.zoomEnabled = interactive
+            host.mapView.rotateEnabled = interactive
+            host.mapView.pitchEnabled = interactive
             host.mapView.showsUserLocation = showUserLocation
             host.updateCircles(circles)
             host.updatePolylines(polylines)

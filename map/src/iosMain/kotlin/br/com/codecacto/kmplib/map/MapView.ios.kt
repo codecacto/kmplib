@@ -18,14 +18,18 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.UIKitView
+import br.com.codecacto.kmplib.core.util.AppLogger
 
 /**
  * Implementação iOS do [MapView].
  *
- * - **Padrão (2.220.0): MapKit** ([MapKitMap]) — o SDK oficial da Apple, sem chave e sem ponte
- *   Swift. Até a 2.219.0, sem ponte registrada este mapa mostrava só o texto "Mapa indisponível".
- * - **Com [IosMapBridge.factory] registrada**: a `GMSMapView` do app (Google Maps via Swift), como
- *   antes — quem já tinha a ponte continua exatamente igual.
+ * **Mapa na fábrica = Google Maps, nenhum outro** (fundador, 27/out/2026). No iOS:
+ * - **Padrão: Google Maps pela ponte** — com [IosMapBridge.factory] registrada, a `GMSMapView` do app
+ *   (`MapBridge.swift`, SPM `googlemaps/ios-maps-sdk`). A `casca-mobile` nasce com a ponte registrada
+ *   no `AppDelegate` (2.331.0).
+ * - **Fallback: MapKit** ([MapKitMap]) — só para app ainda não migrado (sem ponte); troca quando o app
+ *   for tocado. Continua funcionando, e registra um aviso no log **uma vez por processo**
+ *   ([IosMapFallbackNotice]). Até a 2.219.0, sem ponte este mapa mostrava só "Mapa indisponível".
  *
  * Os marcadores são declarados como filhos `@Composable` ([MapMarker]) e reconciliados
  * imperativamente no mapa nativo (add/remove via [DisposableEffect]) — mesmo modelo do Android.
@@ -44,11 +48,13 @@ actual fun MapView(
     onMapLoaded: () -> Unit,
     onMapClick: ((LatLng) -> Unit)?,
     onMapLongClick: ((LatLng) -> Unit)?,
+    interactive: Boolean,
     content: @Composable MapScope.() -> Unit,
 ) {
     val factory = IosMapBridge.factory
     if (factory == null) {
-        MapKitMapView(modifier, cameraPosition, onMapLoaded, onMapClick, onMapLongClick, content)
+        if (IosMapFallbackNotice.claim()) AppLogger.w(IosMapFallbackNotice.TAG, IosMapFallbackNotice.MESSAGE)
+        MapKitMapView(modifier, cameraPosition, onMapLoaded, onMapClick, onMapLongClick, interactive, content)
         return
     }
 
@@ -64,6 +70,8 @@ actual fun MapView(
     LaunchedEffect(cameraPosition) {
         nativeMap.setCamera(cameraPosition.target.latitude, cameraPosition.target.longitude, cameraPosition.zoom)
     }
+    // Mapa "só leitura" (2.331.0): o `setInteractive` do contrato existia e a lib nunca chamava.
+    LaunchedEffect(interactive) { nativeMap.setInteractive(interactive) }
     LaunchedEffect(onMapClick) {
         val cb = onMapClick
         if (cb != null) {
@@ -127,6 +135,7 @@ private fun MapKitMapView(
     onMapLoaded: () -> Unit,
     onMapClick: ((LatLng) -> Unit)?,
     onMapLongClick: ((LatLng) -> Unit)?,
+    interactive: Boolean,
     content: @Composable MapScope.() -> Unit,
 ) {
     val scope = remember { MapScope(mutableStateListOf(), mutableMapOf()) }
@@ -158,6 +167,7 @@ private fun MapKitMapView(
             onMapLongClick = onMapLongClick,
             onLoaded = onMapLoaded,
             modifier = Modifier.fillMaxSize(),
+            interactive = interactive,
         )
         scope.content()
     }

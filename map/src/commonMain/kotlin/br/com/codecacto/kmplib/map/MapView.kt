@@ -65,8 +65,10 @@ expect class MapScope
  * Mapa Google Maps multiplataforma (Compose).
  *
  * - **Android:** `com.google.maps.android:maps-compose` (`GoogleMap`).
- * - **iOS:** **MapKit** (`MKMapView`) desde a 2.220.0 — ou a `GMSMapView` do app, se ele
- *   registrar [br.com.codecacto.kmplib.map.IosMapBridge] (caminho antigo, mantido).
+ * - **iOS:** **Google Maps pela ponte** — a `GMSMapView` do app, registrada em
+ *   `IosMapBridge.factory` (padrão da fábrica: mapa = Google Maps, nenhum outro; a `casca-mobile`
+ *   nasce com a ponte). Sem ponte, cai no **MapKit** (`MKMapView`) como fallback de app ainda não
+ *   migrado — funciona e avisa no log uma vez por processo; troca quando o app for tocado.
  *
  * Para mapa de carteira (muitos pinos coloridos, agrupamento, rota, posição do usuário, enquadrar
  * pontos), use [NativeMap] — este aqui é o mapa simples de pinos declarados como filhos.
@@ -78,6 +80,11 @@ expect class MapScope
  * @param onMapLoaded chamado quando o mapa termina de carregar.
  * @param onMapLongClick chamado em toque longo no mapa (útil para arrastar/
  *   posicionar um pin de cadastro). Recebe a [LatLng] tocada.
+ * @param interactive `false` = mapa **só leitura** (2.331.0): sem arrastar, pinçar, girar nem inclinar
+ *   — o mapa da ficha, do cartão na lista. No Android vira o **modo lite** do Google Maps (imagem do
+ *   mapa, que respeita o recorte de cantos arredondados que a `SurfaceView` do mapa vivo ignora, e não
+ *   anima câmera); no iOS chama `setInteractive(false)` na ponte (ou desliga os gestos do MapKit). Toque
+ *   no pino continua chegando ao `onClick`.
  * @param content marcadores e demais elementos declarados no [MapScope].
  */
 @Composable
@@ -87,6 +94,7 @@ expect fun MapView(
     onMapLoaded: () -> Unit = {},
     onMapClick: ((LatLng) -> Unit)? = null,
     onMapLongClick: ((LatLng) -> Unit)? = null,
+    interactive: Boolean = true,
     content: @Composable MapScope.() -> Unit = {}
 )
 

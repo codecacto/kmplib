@@ -25,10 +25,16 @@
 - [ ] **(PRÓXIMA MAJOR) Remover `map.osm`** (`OsmMap`/`OsmSinglePinMap`/`OsmPickerMap`/`OsmLatLng`/`OsmMarker`/
       `OsmDefaults`, `OsmLeafletHtml`, as `actual` WebView/WKWebView e os testes `OsmLeafletHtmlTest`/`OsmTileUsageTest`).
       Pré-condição: nenhum consumidor (`grep -rn "map.osm" --include=*.kt` nos apps; hoje só CidadeConectada, migrando).
-- [ ] **(decisão a levar ao fundador) iOS do mapa nativo = MapKit por padrão.** `MapView`/`NativeMap` no iOS usam MapKit
-      (2.220.0) e só viram Google Maps (`GMSMapView`) com a ponte Swift `IosMapBridge` registrada pelo app. Com "só Google
-      Maps", decidir se o iOS passa a exigir o Google Maps SDK (ponte na casca, ou SDK no klib) ou se MapKit no iOS fica
-      como exceção registrada. Sem mudança até a decisão.
+- [x] **iOS do mapa nativo — DECIDIDO (27/out/2026): Google Maps pela ponte `IosMapBridge`; MapKit só como fallback de
+      app ainda não migrado.** 2.331.0: a `casca-mobile` nasce com `MapBridge.swift` + registro no `AppDelegate` + SPM
+      `googlemaps/ios-maps-sdk`; sem ponte, `MapView`/`NativeMap` caem no MapKit e logam um aviso uma vez por processo.
+      App existente troca quando for tocado (não é campanha).
+- [x] **`NativeMap` no iOS sobre Google Maps — ENTREGUE na 2.331.0** (contrato aditivo `IosNativeRichMap`,
+      `IosMapBridge.register(factory:)`; agrupamento/ícones/enquadramento na lib, Swift só desenha) + **mapa "só
+      leitura"** (`interactive = false` em `MapView`/`SinglePinMap`/`NativeMap`; Android modo lite).
+- [ ] **(validação no Mac) Ponte do Google na `casca-mobile`.** O `MapBridge.swift` foi conferido linha a linha contra o
+      contrato exportado, mas Swift e link só no Xcode: no próximo build iOS da casca (ou do 1º app que copiar a ponte),
+      conferir pino colorido, grupo, rota, círculo, enquadrar e `interactive = false`.
 
 ### Registrado em 27/out/2026 — auditoria do offline (estudo `docs/analises/2026-10-27-offline-first-sincronizacao-e-midia.md`; origem Raiz)
 - [x] **Rede tarifada × não tarifada — ENTREGUE na 2.328.0** (`NetworkType`, `ConnectivityObserver.networkType`).

@@ -5,6 +5,38 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.331.0 — **iOS = Google Maps pela ponte, inclusive o `NativeMap`; MapKit vira só fallback com aviso; mapa "só leitura"** (fundador, 27/out/2026: *"a gente só usa Google Maps, nenhum outro"*)
+
+### Google Maps no iPhone pela ponte (aditivo — nada quebra)
+- **Contrato novo `IosNativeRichMap : IosNativeMap`** (`setPins`, `setPolylines`, `setCircles`, `moveCamera(…, animated)`,
+  `setShowsUserLocation`, `setOnCameraIdle`, `setOnMapLongClick`) + dados `IosMapPinData` (ícone `UIImage` JÁ
+  desenhado + âncora + zIndex), `IosMapPolylineData`, `IosMapCircleData`, `IosMapCoordinate`. O `IosNativeMap` antigo
+  não mudou: os `MapBridge.swift` que existem seguem compilando.
+- **`IosMapBridge.register(factory:)`** liga o `MapView` **e** o `NativeMap`. O `IosMapBridge.factory` antigo continua
+  valendo, só para o `MapView`.
+- **`NativeMap` no iOS sobre o Google:** a lib agrupa (`planPins`, a régua de 100 pt do android-maps-utils, em grade —
+  sem O(n²) a cada parada da câmera), pinta o grupo na cor do membro mais grave, desenha os ícones (`MapPinIcons`:
+  gota 32 × 42 pt e círculo com contador, CoreGraphics + CoreText, o mesmo desenho do Android) e enquadra
+  (`cameraToFit`, Mercator, sem passar do `maxZoom`). O Swift só desenha. Testado em `commonTest`.
+- **MapKit = fallback** de app ainda não migrado (sem ponte, ou só com o `factory` antigo no caso do `NativeMap`):
+  funciona igual e registra **uma vez por processo** um `AppLogger.w` (tag `KmpLibMap`) dizendo que o padrão é Google e
+  como registrar a ponte (`IosMapFallbackNotice`). Troca quando o app for tocado.
+- A **`casca-mobile` nasce com a ponte** (mesma rodada): `MapBridge.swift` implementando o contrato inteiro,
+  `registrarMapaDoGoogle()` no `AppDelegate` (só com a chave presente — `GMSMapView` sem `provideAPIKey` derruba o
+  app), SPM `googlemaps/ios-maps-sdk`, `api`/`export(libs.kmplib.map)`.
+
+### Mapa "só leitura" — `interactive = false` (aditivo, default `true`)
+- Em **`MapView`**, **`SinglePinMap`** e **`NativeMap`**. Android: **modo lite** do Google Maps (`GoogleMapOptions.liteMode`
+  — imagem do mapa, que respeita o recorte de cantos arredondados que a `SurfaceView` do mapa vivo ignora), gestos e
+  controles desligados, câmera sem animação; no `NativeMap` lite **não agrupa** (o `ClusterManager` refaz grupos quando a
+  câmera para, e o lite não move câmera) — todos os pinos, o mais grave por cima. iOS: chama o `setInteractive(false)`
+  que o contrato já tinha e a lib nunca chamava (ponte) ou desliga os gestos do MapKit (fallback). Toque no pino
+  continua chegando.
+- Quem não passa `interactive` vê exatamente o mapa de antes (mesmos `MapUiSettings`).
+
+Sem piso, sem aviso no Nexus (aditivo + log). **Validação:** testes do `kmplib-map` verdes; `compileKotlinIosArm64`
+executado. O Swift da casca e o link são do Mac.
+
 ## 2.330.0 — **`map.osm` obsoleto: mapa na fábrica = Google Maps** (decisão do fundador, 27/out/2026)
 
 *"A gente só usa Google Maps, nenhum outro; o padrão da fábrica é o Google Maps."* O mapa da fábrica é o **nativo do

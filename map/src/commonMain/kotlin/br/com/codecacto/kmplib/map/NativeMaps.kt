@@ -69,7 +69,10 @@ fun MarkersMap(
     }
 }
 
-/** Mapa nativo só-leitura com 1 pin (ficha do cliente). */
+/**
+ * Mapa nativo com 1 pin (ficha do cliente). [interactive] `false` (2.331.0) = só leitura de verdade:
+ * sem gestos e, no Android, modo lite — o certo para mapa dentro de cartão com cantos arredondados.
+ */
 @Composable
 fun SinglePinMap(
     point: LatLng,
@@ -77,10 +80,12 @@ fun SinglePinMap(
     label: String = "",
     zoom: Float = MapDefaults.STREET_ZOOM,
     height: Dp = 220.dp,
+    interactive: Boolean = true,
 ) {
     MapView(
         modifier = modifier.fillMaxWidth().height(height),
         cameraPosition = CameraPosition(target = point, zoom = zoom),
+        interactive = interactive,
     ) {
         MapMarker(position = point, title = label)
     }

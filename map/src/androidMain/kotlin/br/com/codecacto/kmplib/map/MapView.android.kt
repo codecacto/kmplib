@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -9,10 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState as rememberGmsCameraPositionState
@@ -35,6 +38,7 @@ actual fun MapView(
     onMapLoaded: () -> Unit,
     onMapClick: ((LatLng) -> Unit)?,
     onMapLongClick: ((LatLng) -> Unit)?,
+    interactive: Boolean,
     content: @Composable MapScope.() -> Unit
 ) {
     val gmsCameraState = rememberGmsCameraPositionState {
@@ -59,23 +63,32 @@ actual fun MapView(
             }
             CameraSync.ANIMATE -> {
                 applied[0] = cameraPosition
-                gmsCameraState.animate(CameraUpdateFactory.newCameraPosition(cameraPosition.toGmsCamera()))
+                val update = CameraUpdateFactory.newCameraPosition(cameraPosition.toGmsCamera())
+                // Modo lite não anima câmera (e a animação não terminaria): só leitura vai direto.
+                if (interactive) gmsCameraState.animate(update) else gmsCameraState.move(update)
             }
         }
     }
 
-    GoogleMap(
-        modifier = modifier,
-        cameraPositionState = gmsCameraState,
-        properties = remember { MapProperties(mapType = MapType.NORMAL) },
-        onMapLoaded = {
-            loaded = true
-            onLoaded()
-        },
-        onMapClick = onMapClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
-        onMapLongClick = onMapLongClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
-        content = { scope.content() }
-    )
+    // `liteMode` só vale na criação do mapa: trocar `interactive` recria o mapa (key).
+    key(interactive) {
+        GoogleMap(
+            modifier = modifier,
+            cameraPositionState = gmsCameraState,
+            googleMapOptionsFactory = { GoogleMapOptions().liteMode(!interactive) },
+            properties = remember { MapProperties(mapType = MapType.NORMAL) },
+            uiSettings = mapUiSettingsFor(interactive),
+            onMapLoaded = {
+                loaded = true
+                onLoaded()
+            },
+            // O listener de toque fica sempre ligado: no modo lite, sem ele, tocar no mapa abre o app
+            // Google Maps.
+            onMapClick = onMapClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
+            onMapLongClick = onMapLongClick?.let { cb -> { latLng -> cb(latLng.toCommon()) } } ?: {},
+            content = { scope.content() }
+        )
+    }
 }
 
 @Composable
@@ -186,3 +199,25 @@ private fun MapMarkerStatus.markerHue(): Float = when (this) {
     MapMarkerStatus.EXPIRED -> BitmapDescriptorFactory.HUE_RED     // vencido
     MapMarkerStatus.INSTALLING -> BitmapDescriptorFactory.HUE_AZURE // instalando
 }
+
+/**
+ * Gestos e controles do mapa. Interativo: [whenInteractive] (o que cada mapa sempre usou — nada muda
+ * para quem não passa `interactive`). Só leitura (`interactive = false`, 2.331.0): nenhum gesto, sem
+ * botões de zoom, bússola nem a barra "abrir no Google Maps" — o mapa vira figura.
+ */
+internal fun mapUiSettingsFor(interactive: Boolean, whenInteractive: MapUiSettings = MapUiSettings()): MapUiSettings =
+    if (interactive) {
+        whenInteractive
+    } else {
+        MapUiSettings(
+            compassEnabled = false,
+            myLocationButtonEnabled = false,
+            mapToolbarEnabled = false,
+            rotationGesturesEnabled = false,
+            scrollGesturesEnabled = false,
+            scrollGesturesEnabledDuringRotateOrZoom = false,
+            tiltGesturesEnabled = false,
+            zoomControlsEnabled = false,
+            zoomGesturesEnabled = false,
+        )
+    }
