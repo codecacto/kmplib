@@ -21,6 +21,12 @@ import kotlin.math.roundToLong
  * )
  * ```
  */
+@Deprecated(
+    "Dinheiro em Double/BRL fixo. Use MoneyField(value: Money?, onValueChange, currency = \"BRL\") (kmplib-ui) ou, no " +
+        "campo com estado, MoneyInputTransformation() + MoneyOutputTransformation(\"BRL\") — valor exato em centavos " +
+        "(Long), a mesma exibição do formatador oficial (2.303.0). Esta continua funcionando; migre quando a tela for tocada.",
+    ReplaceWith("MoneyVisualTransformation(\"BRL\")", "br.com.codecacto.kmplib.mask.MoneyVisualTransformation"),
+)
 class CurrencyVisualTransformation(
     private val prefix: String = "R$ ",
     /**
@@ -98,6 +104,11 @@ fun filterCurrencyInput(input: String): String = input.filter { it.isDigit() }
  * Converte uma string de dígitos para Double (centavos).
  * Ex: "12345" -> 123.45
  */
+@Deprecated(
+    "Dinheiro em Double perde centavo (e mais de 18 algarismos viram 0.0). Use moneyFromInputDigits(digitos, \"BRL\") " +
+        "→ Money em centavos (Long). Este continua funcionando.",
+    ReplaceWith("moneyFromInputDigits(this, \"BRL\")", "br.com.codecacto.kmplib.mask.moneyFromInputDigits"),
+)
 fun String.currencyToDouble(): Double {
     val digits = this.filter { it.isDigit() }
     if (digits.isEmpty()) return 0.0
@@ -119,6 +130,15 @@ fun String.currencyToDouble(): Double {
  *
  * Dinheiro que já existe em centavos (`Long`) não deve passar por `Double` — use `Money` do core.
  */
+@Deprecated(
+    "Dinheiro em Double perde centavo. Guarde em unidades menores (Long) e use Money(centavos, \"BRL\").format() " +
+        "(core.currency, 2.303.0). Este continua funcionando (com o arredondamento corrigido na 2.218.2).",
+    ReplaceWith(
+        "Money((this * 100).roundToLong(), \"BRL\").format()",
+        "br.com.codecacto.kmplib.core.currency.Money",
+        "kotlin.math.roundToLong",
+    ),
+)
 fun Double.formatAsCurrency(prefix: String = "R$ "): String {
     val totalCents = if (isFinite()) (abs(this) * 100).roundToLong() else 0L
     val sign = if (this < 0 && totalCents != 0L) "-" else ""

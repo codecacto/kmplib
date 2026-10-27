@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.UIKitView
 import platform.CoreGraphics.CGRectMake
+import platform.Foundation.NSBundle
 import platform.Foundation.NSURL
 import platform.WebKit.WKScriptMessage
 import platform.WebKit.WKScriptMessageHandlerProtocol
@@ -62,19 +63,35 @@ internal actual fun OsmMapWebView(
 
     val html = remember(spec) { OsmLeafletHtml.build(spec, withWebkitShim = true) }
 
+    val loaded = remember { arrayOf<String?>(null) }
+
     UIKitView(
         modifier = modifier.fillMaxWidth().height(height),
         factory = {
             val controller = WKUserContentController()
             controller.addScriptMessageHandler(messageHandler, name = "kmpBridge")
-            val config = WKWebViewConfiguration().apply { userContentController = controller }
+            val config = WKWebViewConfiguration().apply {
+                userContentController = controller
+                // Política dos tiles do OSM: User-Agent que identifique o app (2.329.0).
+                // "Mobile/15E148" é o nome de aplicação PADRÃO do WKWebView (o Leaflet o usa para se
+                // saber em celular); o do app vem depois dele.
+                applicationNameForUserAgent = "Mobile/15E148 " + osmUserAgentSuffix(
+                    appId = NSBundle.mainBundle.bundleIdentifier,
+                    appVersion = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String,
+                )
+            }
             WKWebView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0), configuration = config).apply {
                 opaque = false
-                loadHTMLString(html, baseURL = NSURL(string = "https://tile.openstreetmap.org/"))
+                loadHTMLString(html, baseURL = NSURL(string = OsmLeafletHtml.BASE_URL))
+                loaded[0] = html
             }
         },
         update = { webView ->
-            webView.loadHTMLString(html, baseURL = NSURL(string = "https://tile.openstreetmap.org/"))
+            // Recarrega SÓ quando a spec mudou (até a 2.328.0, a cada recomposição).
+            if (loaded[0] != html) {
+                webView.loadHTMLString(html, baseURL = NSURL(string = OsmLeafletHtml.BASE_URL))
+                loaded[0] = html
+            }
         },
     )
 }

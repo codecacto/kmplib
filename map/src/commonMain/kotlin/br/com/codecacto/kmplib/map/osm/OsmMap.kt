@@ -26,6 +26,14 @@ import androidx.compose.ui.unit.dp
  * [br.com.codecacto.kmplib.platform.webview.WebViewHost] (expect/actual), reutilizável
  * por qualquer outra feature que precise embutir HTML.
  *
+ * ## ⚠️ Política de uso dos tiles do OSM (conferida em 27/out/2026)
+ * A política da OSMF trata **distribuir um app** que usa `tile.openstreetmap.org` como uso pesado,
+ * proibido **sem permissão prévia** do Operations Working Group — independente do volume. A lib
+ * cumpre a parte técnica (host único, User-Agent com o id do app, atribuição, cache do WebView,
+ * sem recarregar o mapa a cada recomposição — 2.329.0), mas a permissão (ou um provedor de tiles
+ * contratado, ou o mapa nativo [br.com.codecacto.kmplib.map.NativeMap] com chave do Google Maps)
+ * é decisão do produto. App NOVO usa o `NativeMap`.
+ *
  * ## Três modos (espelham os componentes da web)
  *  - [OsmMap] (este) — mapa genérico com **N pins**; clique no pin → [onMarkerClick]
  *    (espelha `ClientsMap`).

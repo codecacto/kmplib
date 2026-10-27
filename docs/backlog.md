@@ -3,6 +3,28 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 27/out/2026 — repetições da lib (`docs/47` §5; levantamento `docs/analises/2026-10-27-levantamento-kmplib.md`)
+> Decisão do fundador: ajustar tudo que não comprometa quem usa; app nenhum tocado agora.
+- [x] **Máscaras de documento no campo com estado — ENTREGUE na 2.329.0** (`Cpf/Cnpj/Date/Plate/Crefito` `Input`/
+      `OutputTransformation`; as `VisualTransformation` correspondentes `@Deprecated`). Fica: `PhoneVisualTransformation`/
+      `CepVisualTransformation` (~30 apps) ainda sem `@Deprecated` — decidir numa rodada própria.
+- [x] **Dinheiro em `Double` depreciado — 2.329.0** (+ `NaN`/"-R$ 0,00" corrigidos no `formatCurrencyBRL`, piso).
+- [x] **`AppTimePicker` fachada do `AppTimePickerDialog`, rótulos traduzidos — 2.329.0.**
+- [ ] **(DIREÇÃO, sem código agora) Um motor de sync de dados só.** O futuro **cliente kmplib do `backlib-sync`**
+      (promovido do `MotorDeSync` do Raiz quando aparecer o 2º app) **SUBSTITUI o `DefaultSyncEngine`** (`/pull`+`/push`,
+      hoje MeuFrete-legado-v1, Arroba Certa, MinhaBoleia) — não vira um terceiro motor. O `RestCrudSyncEngine` fica (é o
+      da maioria). Motivo: na 2.328.0 o mesmo defeito de ordem foi corrigido duas vezes, com teste duplicado; toda regra
+      nova (política de rede, pausa, titular da conta) é feita duas vezes. Ao promover: migração dos 3 consumidores do
+      `DefaultSyncEngine` documentada, e só então `@Deprecated` nele.
+- [ ] **(P2) Geradores de PDF legados sobre o `pdf.canvas`.** Não feito na 2.329.0: exige PROVAR que o PDF do Android sai
+      igual (rasterizar antes/depois), e o servidor não tem como (sem Robolectric, sem aparelho). Caminho: um gerador por
+      vez, quando o app dele for tocado, com a prova feita no Mac na esteira de publicação; ou montar Robolectric com
+      gráficos nativos no `kmplib-pdf` (confirmar antes se ele desenha `PdfDocument`).
+- [ ] **(decisão do produto) `map/osm` e a política de tiles do OSM.** Parte técnica cumprida na 2.329.0 (host único,
+      User-Agent do app, sem recarregar a cada recomposição). Distribuir app sobre `tile.openstreetmap.org` exige permissão
+      prévia do OWG da OSMF — ou provedor contratado, ou `NativeMap` + chave do Google Maps (consumidor único:
+      CidadeConectada, sem chave versionada hoje).
+
 ### Registrado em 27/out/2026 — auditoria do offline (estudo `docs/analises/2026-10-27-offline-first-sincronizacao-e-midia.md`; origem Raiz)
 - [x] **Rede tarifada × não tarifada — ENTREGUE na 2.328.0** (`NetworkType`, `ConnectivityObserver.networkType`).
 - [x] **Política de rede de sync — ENTREGUE na 2.328.0** (`SyncNetworkPolicy`).

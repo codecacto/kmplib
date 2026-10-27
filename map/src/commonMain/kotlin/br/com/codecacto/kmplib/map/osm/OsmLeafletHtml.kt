@@ -25,7 +25,14 @@ package br.com.codecacto.kmplib.map.osm
 internal object OsmLeafletHtml {
 
     private const val LEAFLET_VERSION = "1.9.4"
-    private const val TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    /**
+     * Host ÚNICO, como pede a política de uso dos tiles do OSM (os subdomínios `a.`/`b.`/`c.` foram
+     * aposentados; até a 2.328.0 o `{s}` espalhava as requisições por eles).
+     */
+    internal const val TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+    /** O `baseURL` do documento — mantido (sem ele o WebView não manda `Referer` aos tiles). */
+    internal const val BASE_URL = "https://tile.openstreetmap.org/"
     private const val TILE_ATTRIB =
         "&copy; <a href=\\\"https://www.openstreetmap.org/copyright\\\">OpenStreetMap</a> contributors"
 
@@ -190,4 +197,16 @@ internal object OsmLeafletHtml {
 internal sealed interface OsmBridgeMessage {
     data class MarkerClick(val id: String) : OsmBridgeMessage
     data class MapClick(val position: OsmLatLng) : OsmBridgeMessage
+}
+
+/**
+ * O pedaço que o WebView do mapa ACRESCENTA ao User-Agent (2.329.0): a política de uso dos tiles
+ * do OSM exige User-Agent que identifique o aplicativo — até a 2.328.0 ia o do navegador genérico.
+ * Ex.: `br.com.codecacto.cidade/1.4.0 kmplib-osm`. Sem id do app, só `kmplib-osm`.
+ */
+internal fun osmUserAgentSuffix(appId: String?, appVersion: String?): String {
+    val id = appId?.trim()?.filter { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }.orEmpty()
+    if (id.isEmpty()) return "kmplib-osm"
+    val versao = appVersion?.trim()?.filter { it.isLetterOrDigit() || it == '.' || it == '-' }.orEmpty()
+    return if (versao.isEmpty()) "$id kmplib-osm" else "$id/$versao kmplib-osm"
 }

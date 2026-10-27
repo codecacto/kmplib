@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package br.com.codecacto.kmplib.mask
 
 import androidx.compose.ui.text.AnnotatedString

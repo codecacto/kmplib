@@ -41,6 +41,7 @@ internal object OsPdfFormat {
     }
 
     /** Formata uma string decimal de dinheiro como BRL ("R$ 1.234,56"). */
+    @Suppress("DEPRECATION") // mesma saída de sempre; o texto do documento não muda
     fun money(raw: String): String = formatCurrencyBRL(parseMoney(raw))
 
     /** `true` se [raw] representa um valor diferente de zero (com tolerância de centavo). */

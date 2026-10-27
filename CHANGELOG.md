@@ -5,6 +5,84 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.329.0 — **Repetições da lib resolvidas sem quebrar ninguém: máscaras de documento no campo com estado, dinheiro em `Double` depreciado (com 2 defeitos corrigidos), `AppTimePicker` vira fachada traduzida, e as peças antigas conferidas** (decisão do fundador, 27/out/2026 — `docs/47` §5)
+
+Regra da rodada: **nada quebra para quem já consome.** Nenhuma assinatura pública mudou; `@Deprecated` só com nível
+WARNING e `ReplaceWith`; comportamento mudou só onde o atual era defeito.
+
+### `kmplib-mask` — CPF, CNPJ, data, placa e CREFITO no campo com estado (aditivo)
+- **`CpfInputTransformation`/`CpfOutputTransformation`**, **`CnpjInput…`/`CnpjOutput…`**,
+  **`DateInput…`/`DateOutput…`**, **`PlateInput…`/`PlateOutput…`**, **`CrefitoInput…`/`CrefitoOutput…`** — o mesmo
+  padrão do `PhoneInputTransformation`/`CepInputTransformation`: o estado guarda o valor CRU (o que vai ao servidor) e a
+  saída só desenha os separadores. É o caminho que **não perde algarismo no iOS** em digitação rápida. Exibição idêntica
+  à das `VisualTransformation` antigas (teste compara prefixo a prefixo). Diferenças deliberadas: o cursor **fica onde
+  estava** quando entra um caractere recusado, digitar com o campo **cheio** é recusado inteiro (não empurra o último
+  algarismo para fora), CNPJ e placa aceitam só A-Z/0-9 (letra acentuada não entra).
+- **`@Deprecated` (WARNING) nas `CpfVisualTransformation`, `CnpjVisualTransformation`, `DateVisualTransformation`,
+  `PlateVisualTransformation`, `CrefitoVisualTransformation`** → o par novo. Continuam funcionando; app migra quando a
+  tela for tocada. `PhoneVisualTransformation`/`CepVisualTransformation` **não** foram depreciadas nesta rodada.
+
+### Dinheiro em `Double` — depreciado, e 2 defeitos corrigidos — **PISO**
+- **Correção (`kmplib-core`):** `formatCurrencyBRL`/`formatCurrencyBR` (e os já depreciados `formatCurrencyUSD`/
+  `EUR`/`formatCurrency`) **derrubavam o app com `NaN`** — `roundToLong()` lança em `NaN` (média de lista vazia,
+  `0.0 / 0.0`) — e escreviam **"-R$ 0,00"** para valor negativo que arredonda a zero. Agora `NaN`/infinito desenham
+  zero e o sinal só aparece quando sobra centavo (a mesma regra do `formatAsCurrency` desde a 2.218.2).
+- **`@Deprecated` (WARNING):** `CurrencyVisualTransformation` → `MoneyVisualTransformation("BRL")` (ou `MoneyField`);
+  `Double.formatAsCurrency` e `formatCurrencyBR`/`formatCurrencyBRL` → `Money(centavos, "BRL").format()`;
+  `String.currencyToDouble` → `moneyFromInputDigits(…, "BRL")`. Os usos internos da lib (`defaultPriceFormatter`,
+  `OsPdfFormat.money`) seguem no caminho antigo de propósito — o texto do documento não muda.
+
+### `kmplib-ui` — `AppTimePicker` vira fachada do `AppTimePickerDialog`
+Mesma assinatura. O diálogo passa a ser o `TimePickerDialog` oficial (o mesmo do `AppTimePickerDialog`, com o modo
+teclado), e **os rótulos dos botões saem dos recursos da lib** — até a 2.328.0 eram `"OK"`/`"Cancelar"` fixos e app
+GLOBAL em aparelho em inglês mostrava "Cancelar". `confirmLabel`/`dismissLabel` passados pelo app continuam valendo;
+`title` vazio = título traduzido do Material. Contrato de callbacks preservado: confirmar chama só `onTimeSelected`;
+fechar chama só `onDismiss` (o novo diálogo avisa o fechamento também depois de confirmar — a fachada o silencia, senão
+o `onDismiss` default regravaria a hora de entrada por cima da escolhida). Interno: `TimePickerDialogCore` (título e
+modifier opcionais), compartilhado pelos dois.
+
+### Peças antigas de uso mínimo — conferidas (decisão: funciona, fica; errado, corrige sem mudar assinatura)
+- **`NetworkChecker` (iOS) — CORRIGIDO — PISO.** `IosNetworkChecker` fazia `SCNetworkReachabilityCreateWithName
+  ("www.google.com")` + `GetFlags` a cada chamada: resolução de DNS **síncrona na thread de quem chama** (o consumidor
+  chama de dentro do `viewModelScope`, que no iOS é a principal — Apple QA1693: com rede ruim a tela trava e o watchdog
+  pode matar o app), um objeto CF **vazado** por chamada, e API depreciada no iOS 17.4. Agora: um `NWPathMonitor` por
+  processo, numa fila própria; só a 1ª chamada espera o 1º empurrão (≤ 500 ms); sem resposta, `true` (não se inventa
+  "offline", mesma regra do `ConnectivityObserver`). Android estava certo e não mudou.
+- **`map/osm` — CORRIGIDO na parte técnica — PISO.** Host único `tile.openstreetmap.org` (os subdomínios `a/b/c` que o
+  `{s}` usava foram aposentados pela política de uso), **User-Agent com o id e a versão do app** (a política exige; ia
+  o do navegador genérico) e o documento **não é mais recarregado a cada recomposição** (o mapa voltava ao centro e
+  pedia os tiles de novo). ⚠️ Fica para o produto: a política da OSMF trata *distribuir app* sobre esses tiles como uso
+  pesado que exige permissão prévia do Operations Working Group — ou um provedor contratado, ou o `NativeMap` com chave
+  do Google Maps. Registrado no KDoc do `OsmMap`.
+- **`VideoPlayerInline`, ramo de arquivo (`VideoSource.File`) — CORRIGIDO — PISO.** Com `montarDeSaida = true` o vídeo
+  de arquivo **começava a tocar sozinho, com som**, ao abrir a tela (contra o contrato do próprio KDoc, "não é
+  autoplay"); no iOS o `onRelease` era vazio e **o áudio seguia tocando depois de sair da tela**; no Android nada
+  pausava no segundo plano e o `MediaController` (janela própria) não era escondido ao sair. Agora: só o toque na capa
+  autoriza começar sozinho (montado de saída mostra o 1º quadro parado), pausa no `ON_STOP`, para ao sair; no iOS o
+  `AVPlayer`/`AVPlayerViewController` ficam lembrados. O embed do YouTube não mudou.
+- **Extensão do questionário — funciona, fica.** Já `@Deprecated` desde a 2.268.0 (D11); a suíte está verde e o
+  AppDoPersonal **não a usa** (só cita num comentário). Nada mudou.
+
+### `kmplib-brdata` — régua COMUM do BR Code Pix (teste)
+`brdata/src/commonTest/fixtures/pix-brcode.fixtures.json` = cópia **idêntica** (byte a byte) do arquivo da weblib
+(`src/pix/__fixtures__/`, conferido contra o Manual de Padrões para Iniciação do Pix do BACEN), o mesmo que a backlib
+copia. Vira fonte do `commonTest` pela tarefa `generatePixBrCodeFixtures` (mesmo modelo das fixtures do FormSchema no
+`kmplib-ui`) e roda no Android e no iOS. `PixBrCodeFixturesTest` exige que `buildPixBrCode` reproduza **os 15
+payloads**, recuse **os 10 erros** com o motivo do contrato (`EmptyKey` ↔ `EMPTY_KEY`), normalize **as 11 entradas de
+valor** como as outras libs e bata o CRC-16/CCITT-FALSE com o check value e o exemplo do Manual. **Nenhuma
+divergência** — a implementação da kmplib já estava no padrão; nada mudou no código do Pix.
+
+### Fora desta rodada (com motivo)
+- **Geradores de PDF legados → motor `pdf.canvas`: nenhum reescrito.** A condição era provar que o PDF do Android sai
+  igual (rasterizar antes/depois). Neste servidor não há como: os testes JVM do Android rodam com o `android.jar`
+  esboçado (`isReturnDefaultValues = true`, sem Robolectric) — o `PdfDocument` não desenha nada —, não há aparelho e o
+  Mac não entra na fase de desenvolvimento. Sem a prova, o risco é mudar documento de cliente.
+- **Motores de sync:** só a direção — o futuro cliente do `backlib-sync` substitui o `DefaultSyncEngine` (backlog).
+
+Testes: `TextFieldStateDocumentMasksTest` (21), `AppTimePickerFacadeTest` (5) + `AppTimePickerFachadaTest` (2),
+`VideoPlayerInlineArquivoTest` (2), `OsmTileUsageTest` (2), `NetworkCheckerTest` (2), formatadores (`NaN`/sinal).
+`compileKotlinIosArm64` de core/mask/platform/ui/map/pdf executado (sem SKIPPED).
+
 ## 2.328.0 — **Ordem da fila de dados corrigida (perda silenciosa), rede tarifada × não tarifada, política de rede de sync, sincronização em 2º plano, "só no Wi-Fi" na `RestUploadOutbox`, espaço livre em disco** (auditoria do offline, 27/out/2026)
 
 ### ⚠️ Correção — ordem da fila de dados (`kmplib-sync`) — **PISO**

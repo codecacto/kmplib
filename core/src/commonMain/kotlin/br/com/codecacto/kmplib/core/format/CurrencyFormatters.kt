@@ -1,7 +1,5 @@
 package br.com.codecacto.kmplib.core.format
 
-import kotlin.math.abs
-import kotlin.math.roundToLong
 
 /**
  * Formatadores de moeda multi-locale.
@@ -21,16 +19,29 @@ import kotlin.math.roundToLong
  */
 
 private fun formatNumberParts(value: Double, thousandsSep: String, decimalSep: String): Pair<String, String> {
-    val cents = (abs(value) * 100).roundToLong()
+    val cents = doubleToAbsCents(value)
     val integer = cents / 100
     val centsPart = (cents % 100).toString().padStart(2, '0')
     val integerFormatted = integer.toString().reversed().chunked(3).joinToString(thousandsSep).reversed()
     return integerFormatted to centsPart
 }
 
+/** Sinal só quando o valor não arredonda para zero (`-0.001` não vira "-$0.00"). */
+private fun signOf(value: Double): String = if (value < 0 && doubleToAbsCents(value) != 0L) "-" else ""
+
 /**
- * "R$ 1.234,56" (pt-BR). Alias mais explicito sobre o ja-existente nesta lib.
+ * "R$ 1.234,56" (pt-BR). Alias de [formatCurrencyBRL] — mesma correção de `NaN`/sinal na 2.329.0.
  */
+@Deprecated(
+    "Dinheiro em Double perde centavo. Guarde em unidades menores (Long) e use Money(centavos, \"BRL\").format() " +
+        "(core.currency, 2.303.0) — ou MoneyField no campo. Este continua funcionando; migre quando a tela for tocada.",
+    ReplaceWith(
+        "Money((value * 100).roundToLong(), \"BRL\").format()",
+        "br.com.codecacto.kmplib.core.currency.Money",
+        "kotlin.math.roundToLong",
+    ),
+)
+@Suppress("DEPRECATION")
 fun formatCurrencyBR(value: Double): String = formatCurrencyBRL(value)
 
 /**
@@ -42,7 +53,7 @@ fun formatCurrencyBR(value: Double): String = formatCurrencyBRL(value)
 )
 fun formatCurrencyUSD(value: Double): String {
     val (integerPart, centsPart) = formatNumberParts(value, ",", ".")
-    val sign = if (value < 0) "-" else ""
+    val sign = signOf(value)
     return "$sign\$$integerPart.$centsPart"
 }
 
@@ -55,7 +66,7 @@ fun formatCurrencyUSD(value: Double): String {
 )
 fun formatCurrencyEUR(value: Double): String {
     val (integerPart, centsPart) = formatNumberParts(value, ".", ",")
-    val sign = if (value < 0) "-" else ""
+    val sign = signOf(value)
     return "$sign$integerPart,$centsPart €"
 }
 
@@ -75,6 +86,6 @@ fun formatCurrency(
     suffix: String = "",
 ): String {
     val (integerPart, centsPart) = formatNumberParts(value, thousandsSeparator, decimalSeparator)
-    val sign = if (value < 0) "-" else ""
+    val sign = signOf(value)
     return "$sign$prefix$integerPart$decimalSeparator$centsPart$suffix"
 }

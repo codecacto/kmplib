@@ -20,6 +20,13 @@ import androidx.compose.ui.text.input.VisualTransformation
  * )
  * ```
  */
+@Deprecated(
+    "Campo de value/onValueChange perde algarismo no iOS em digitação rápida (o valor dá a volta pelo " +
+        "ViewModel). Use o campo com estado: BasicTextField/OutlinedTextField(state = rememberTextOnlyTextFieldState(), " +
+        "inputTransformation = CnpjInputTransformation, outputTransformation = CnpjOutputTransformation) — 2.329.0. " +
+        "Esta máscara continua funcionando; migre quando a tela for tocada.",
+    ReplaceWith("CnpjOutputTransformation", "br.com.codecacto.kmplib.mask.CnpjOutputTransformation"),
+)
 class CnpjVisualTransformation : VisualTransformation {
 
     override fun filter(text: AnnotatedString): TransformedText {

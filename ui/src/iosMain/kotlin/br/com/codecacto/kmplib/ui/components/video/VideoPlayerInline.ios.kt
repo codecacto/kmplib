@@ -3,12 +3,15 @@
 package br.com.codecacto.kmplib.ui.components.video
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
@@ -43,12 +46,19 @@ actual fun VideoPlayerInline(
     var tocando by remember(source) {
         mutableStateOf(montarDeSaida && source != null && source !is VideoSource.External)
     }
+    // Só o TOQUE na capa autoriza começar sozinho. Montado de saída (`montarDeSaida`) o player
+    // aparece PARADO — o contrato do KDoc ("não é autoplay"). Até a 2.328.0 o ramo de arquivo
+    // começava a tocar com som ao abrir a tela.
+    var montadoPeloToque by remember(source) { mutableStateOf(false) }
 
     if (!tocando || source == null) {
         capa {
             when (source) {
                 null, is VideoSource.External -> onExternal()
-                else -> tocando = true
+                else -> {
+                    montadoPeloToque = true
+                    tocando = true
+                }
             }
         }
         return
@@ -84,19 +94,31 @@ actual fun VideoPlayerInline(
             },
         )
 
-        is VideoSource.File -> UIKitView(
-            modifier = modifier,
-            factory = {
-                val controller = AVPlayerViewController().apply {
-                    player = AVPlayer(uRL = NSURL(string = source.url))
+        is VideoSource.File -> {
+            // 2.329.0: o player e o controlador ficam LEMBRADOS (o controlador só local podia ser
+            // liberado com a view ainda na tela), começam sozinhos só depois do toque, pausam no
+            // segundo plano e PARAM ao sair — até a 2.328.0 o `onRelease` era vazio e o áudio
+            // seguia tocando por cima da tela seguinte.
+            val autoplay = montadoPeloToque
+            val player = remember(source) { AVPlayer(uRL = NSURL(string = source.url)) }
+            val controller = remember(source) {
+                AVPlayerViewController().apply {
                     // `showsPlaybackControls` fica no default (ligado): sem controles, um player
                     // embutido não tem como pausar.
-                    player?.play()
+                    this.player = player
                 }
-                controller.view
-            },
-            onRelease = { },
-        )
+            }
+            LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
+            DisposableEffect(player) { onDispose { player.pause() } }
+            UIKitView(
+                modifier = modifier,
+                factory = {
+                    if (autoplay) player.play()
+                    controller.view
+                },
+                onRelease = { player.pause() },
+            )
+        }
 
         is VideoSource.External -> onExternal()
     }

@@ -69,4 +69,11 @@ class CurrencyFormattersTest {
             formatCurrency(1234.56, thousandsSeparator = "'", decimalSeparator = ".", prefix = "CHF "),
         )
     }
+
+    @Test
+    fun formatadoresDoubleNaoDerrubamComNaNENaoPoemSinalNoZero() {
+        assertEquals("$0.00", formatCurrencyUSD(Double.NaN))
+        assertEquals("0,00 €", formatCurrencyEUR(-0.001))
+        assertEquals("$0.00", formatCurrencyUSD(-0.004))
+    }
 }

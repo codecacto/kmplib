@@ -1,0 +1,334 @@
+{
+  "$comment": "Régua COMUM do BR Code Pix estático entre weblib (/pix), kmplib (brdata/pix) e backlib (backlib-pix). Arquivo IDÊNTICO nas três libs: quem mudar, muda nas três. Gerado pela weblib 0.301.0 e conferido contra o Manual de Padrões para Iniciação do Pix (BACEN): EMV MPM, tags 00/01/26/52/53/54/58/59/60/62/63, CRC-16/CCITT-FALSE sobre o payload incluindo '6304'.",
+  "version": 1,
+  "conventions": {
+    "pointOfInitiation": "tag 01 = '11' (estático reutilizável) presente em todo payload",
+    "text": "nome (59, máx 25) e cidade (60, máx 15): acentos do português removidos, MAIÚSCULAS, ASCII imprimível, espaços colapsados, truncado DEPOIS de limpar e com trim depois do corte",
+    "txid": "62-05: alfanumérico 1..25; ausente = '***'",
+    "amount": "54: decimal com ponto e 2 casas, sem milhar; ausente = QR sem valor",
+    "description": "26-02 opcional: encolhe para a conta (26) caber em 99; sem espaço, some",
+    "key": "26-01 como veio (trim) — a normalização por tipo (CPF só dígitos, telefone E.164, e-mail minúsculo) é de quem chama; as fixtures já trazem a forma canônica"
+  },
+  "crc16": [
+    {
+      "input": "123456789",
+      "crc": "29B1",
+      "source": "check value publicado do CRC-16/CCITT-FALSE"
+    },
+    {
+      "input": "00020126580014br.gov.bcb.pix0136123e4567-e12b-12d1-a456-4266554400005204000053039865802BR5913Fulano de Tal6008BRASILIA62070503***6304",
+      "crc": "1D3D",
+      "source": "exemplo do Manual do BR Code (BACEN): chave aleatória, 'Fulano de Tal', 'BRASILIA', sem tag 01"
+    }
+  ],
+  "payloads": [
+    {
+      "id": "cpf-sem-valor",
+      "description": "Chave CPF (só dígitos), QR sem valor (tag 54 ausente), txid ausente = ***",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix0111123456789095204000053039865802BR5918ROSANGELA FERREIRA6008CAMPINAS62070503***63046AB8"
+    },
+    {
+      "id": "contrato-kmplib",
+      "description": "O payload já fixado igual na kmplib (BrCodeBuilderTest) — valor e txid",
+      "charge": {
+        "key": "12345678901",
+        "merchantName": "Rosângela Ferreira",
+        "merchantCity": "São Paulo",
+        "amount": "150.00",
+        "txid": "DIARIA01"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix0111123456789015204000053039865406150.005802BR5918ROSANGELA FERREIRA6009SAO PAULO62120508DIARIA0163047096"
+    },
+    {
+      "id": "cnpj-com-valor-txid",
+      "description": "Chave CNPJ, valor com milhar, txid alfanumérico",
+      "charge": {
+        "key": "11222333000181",
+        "merchantName": "Studio Bella Moda",
+        "merchantCity": "Cuiaba",
+        "amount": "1234.56",
+        "txid": "PEDIDO2026X"
+      },
+      "payload": "00020101021126360014br.gov.bcb.pix01141122233300018152040000530398654071234.565802BR5917STUDIO BELLA MODA6006CUIABA62150511PEDIDO2026X630409AB"
+    },
+    {
+      "id": "email-um-centavo",
+      "description": "Chave e-mail, menor valor possível",
+      "charge": {
+        "key": "pix@codecacto.com.br",
+        "merchantName": "CodeCacto",
+        "merchantCity": "Cuiaba",
+        "amount": "0.01"
+      },
+      "payload": "00020101021126420014br.gov.bcb.pix0120pix@codecacto.com.br52040000530398654040.015802BR5909CODECACTO6006CUIABA62070503***6304AEEB"
+    },
+    {
+      "id": "telefone-e164",
+      "description": "Chave telefone em E.164 (+55…), sem valor, txid",
+      "charge": {
+        "key": "+5565998030240",
+        "merchantName": "Mariana Costa",
+        "merchantCity": "Varzea Grande",
+        "txid": "ABC123"
+      },
+      "payload": "00020101021126360014br.gov.bcb.pix0114+55659980302405204000053039865802BR5913MARIANA COSTA6013VARZEA GRANDE62100506ABC1236304385D"
+    },
+    {
+      "id": "aleatoria-evp",
+      "description": "Chave aleatória (EVP, UUID minúsculo) — a do exemplo do Manual do BR Code",
+      "charge": {
+        "key": "123e4567-e12b-12d1-a456-426655440000",
+        "merchantName": "Fulano de Tal",
+        "merchantCity": "Brasilia"
+      },
+      "payload": "00020101021126580014br.gov.bcb.pix0136123e4567-e12b-12d1-a456-4266554400005204000053039865802BR5913FULANO DE TAL6008BRASILIA62070503***6304A5E2"
+    },
+    {
+      "id": "acentos",
+      "description": "Nome e cidade acentuados: sem acento, maiúsculos, ASCII",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "José Ângelo Conceição",
+        "merchantCity": "Cuiabá",
+        "amount": "89.90"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix011112345678909520400005303986540589.905802BR5921JOSE ANGELO CONCEICAO6006CUIABA62070503***63047F52"
+    },
+    {
+      "id": "nome-no-limite",
+      "description": "Nome com exatamente 25 caracteres e cidade com exatamente 15",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Ana Beatriz Carvalho Lima",
+        "merchantCity": "Rondonopolis MT"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix0111123456789095204000053039865802BR5925ANA BEATRIZ CARVALHO LIMA6015RONDONOPOLIS MT62070503***6304A735"
+    },
+    {
+      "id": "nome-acentuado-truncado",
+      "description": "Nome longo acentuado: limpa ANTES de truncar em 25",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Associação Beneficente São Jorge",
+        "merchantCity": "São José dos Campos"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix0111123456789095204000053039865802BR5925ASSOCIACAO BENEFICENTE SA6015SAO JOSE DOS CA62070503***6304E1AD"
+    },
+    {
+      "id": "nome-corte-no-espaco",
+      "description": "Truncar em 25 cai num espaço: o espaço final SAI (trim depois do corte)",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Maria Clara Souza Barros Lima",
+        "merchantCity": "Mirassol d'Oeste"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix0111123456789095204000053039865802BR5924MARIA CLARA SOUZA BARROS6015MIRASSOL D'OEST62070503***6304C3A0"
+    },
+    {
+      "id": "txid-no-limite",
+      "description": "txid com 25 caracteres alfanuméricos (o máximo)",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "10.00",
+        "txid": "A1B2C3D4E5F6G7H8I9J0K1L2M"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix011112345678909520400005303986540510.005802BR5918ROSANGELA FERREIRA6008CAMPINAS62290525A1B2C3D4E5F6G7H8I9J0K1L2M63049FCD"
+    },
+    {
+      "id": "descricao",
+      "description": "Descrição curta na conta (26-02)",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "45.00",
+        "description": "Diária de sábado"
+      },
+      "payload": "00020101021126530014br.gov.bcb.pix0111123456789090216DIARIA DE SABADO520400005303986540545.005802BR5918ROSANGELA FERREIRA6008CAMPINAS62070503***63041AAA"
+    },
+    {
+      "id": "descricao-encolhe",
+      "description": "Chave longa: a descrição ENCOLHE para a conta (tag 26) caber em 99",
+      "charge": {
+        "key": "pagamentos.recebimento.automatico@codecacto.com.br",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "description": "Mensalidade de outubro do plano completo"
+      },
+      "payload": "00020101021126980014br.gov.bcb.pix0150pagamentos.recebimento.automatico@codecacto.com.br0222MENSALIDADE DE OUTUBRO5204000053039865802BR5918ROSANGELA FERREIRA6008CAMPINAS62070503***63040689"
+    },
+    {
+      "id": "chave-77-sem-descricao",
+      "description": "Chave no teto de 77: não sobra espaço e a descrição some",
+      "charge": {
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@codecacto.br",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "description": "Qualquer coisa"
+      },
+      "payload": "00020101021126990014br.gov.bcb.pix0177aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@codecacto.br5204000053039865802BR5918ROSANGELA FERREIRA6008CAMPINAS62070503***63046667"
+    },
+    {
+      "id": "valor-maximo",
+      "description": "Maior valor aceito: 10 dígitos inteiros",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "9999999999.99"
+      },
+      "payload": "00020101021126330014br.gov.bcb.pix01111234567890952040000530398654139999999999.995802BR5918ROSANGELA FERREIRA6008CAMPINAS62070503***6304B0F4"
+    }
+  ],
+  "errors": [
+    {
+      "id": "chave-vazia",
+      "charge": {
+        "key": "   ",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas"
+      },
+      "error": "EMPTY_KEY"
+    },
+    {
+      "id": "chave-longa",
+      "charge": {
+        "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas"
+      },
+      "error": "KEY_TOO_LONG"
+    },
+    {
+      "id": "nome-some-na-limpeza",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "😀😀",
+        "merchantCity": "Campinas"
+      },
+      "error": "EMPTY_MERCHANT_NAME"
+    },
+    {
+      "id": "cidade-vazia",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Ana",
+        "merchantCity": "  "
+      },
+      "error": "EMPTY_MERCHANT_CITY"
+    },
+    {
+      "id": "valor-zero",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "0.00"
+      },
+      "error": "INVALID_AMOUNT"
+    },
+    {
+      "id": "valor-ambiguo",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "1.234"
+      },
+      "error": "INVALID_AMOUNT"
+    },
+    {
+      "id": "valor-tres-casas",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "10.555"
+      },
+      "error": "INVALID_AMOUNT"
+    },
+    {
+      "id": "valor-11-digitos",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "amount": "12345678901.00"
+      },
+      "error": "INVALID_AMOUNT"
+    },
+    {
+      "id": "txid-com-traco",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "txid": "PED-01"
+      },
+      "error": "INVALID_TXID"
+    },
+    {
+      "id": "txid-26",
+      "charge": {
+        "key": "12345678909",
+        "merchantName": "Rosangela Ferreira",
+        "merchantCity": "Campinas",
+        "txid": "AAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "error": "INVALID_TXID"
+    }
+  ],
+  "amountInputs": [
+    {
+      "input": "150",
+      "normalized": "150.00"
+    },
+    {
+      "input": "150,00",
+      "normalized": "150.00"
+    },
+    {
+      "input": "150.00",
+      "normalized": "150.00"
+    },
+    {
+      "input": "1.234,50",
+      "normalized": "1234.50"
+    },
+    {
+      "input": "1,234.50",
+      "normalized": "1234.50"
+    },
+    {
+      "input": "1.234.567",
+      "normalized": "1234567.00"
+    },
+    {
+      "input": "10,5",
+      "normalized": "10.50"
+    },
+    {
+      "input": "R$ 89,90",
+      "normalized": "89.90"
+    },
+    {
+      "input": "1.234",
+      "normalized": null
+    },
+    {
+      "input": "0,00",
+      "normalized": null
+    },
+    {
+      "input": "abc",
+      "normalized": null
+    }
+  ]
+}

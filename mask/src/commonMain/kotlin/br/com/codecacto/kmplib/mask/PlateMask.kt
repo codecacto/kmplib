@@ -102,6 +102,13 @@ fun formatPlateForDisplay(raw: String): String {
  * )
  * ```
  */
+@Deprecated(
+    "Campo de value/onValueChange perde algarismo no iOS em digitação rápida (o valor dá a volta pelo " +
+        "ViewModel). Use o campo com estado: BasicTextField/OutlinedTextField(state = rememberTextOnlyTextFieldState(), " +
+        "inputTransformation = PlateInputTransformation, outputTransformation = PlateOutputTransformation) — 2.329.0. " +
+        "Esta máscara continua funcionando; migre quando a tela for tocada.",
+    ReplaceWith("PlateOutputTransformation", "br.com.codecacto.kmplib.mask.PlateOutputTransformation"),
+)
 class PlateVisualTransformation : VisualTransformation {
 
     override fun filter(text: AnnotatedString): TransformedText {

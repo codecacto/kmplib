@@ -37,7 +37,10 @@
 # declara a kmplib por módulo; o AD_ID tem checagem própria no auditor), 2.258.0/2.257.0/2.256.0
 # (API nova), 2.251.0 (só teste E2E), 2.255.0 e 2.254.0 (rótulo cortado na `AppBottomNavBar` /
 # palavra partida no `CommunicationTile`: defeito VISUAL que depende do tamanho do rótulo na tela, e
-# o auditor não tem como medir — piso visual só entra com `condicao` que prove o problema). Tudo abaixo de 2.253.0 é coberto pelo piso `todos` dela.
+# o auditor não tem como medir — piso visual só entra com `condicao` que prove o problema), 2.329.0 no
+# `AppTimePicker` (rótulos traduzidos: só app GLOBAL em aparelho de outro idioma via "Cancelar", e o grep não
+# distingue app GLOBAL — o app BR só ganharia o diálogo novo; os pares `Input`/`Output` de máscara e os
+# `@Deprecated` do caminho Double são API nova/aviso de compilação). Tudo abaixo de 2.253.0 é coberto pelo piso `todos` dela.
 #
 # `bloqueia: false` → o piso vira AVISO no selo (aparece, não reprova). Usado nos de contraste
 # (fundador, 08/out/2026: os prints dos apps aprovados foram revisados pelo agente e não havia texto
@@ -46,6 +49,22 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.329.0
+    motivo: "formatador de moeda em Double derrubava o app com NaN (média de lista vazia) e escrevia \"-R$ 0,00\""
+    simbolos: [formatCurrencyBRL, formatCurrencyBR, formatCurrencyUSD, formatCurrencyEUR]
+
+  - versao: 2.329.0
+    motivo: "iOS: NetworkChecker resolvia DNS na thread principal (tela travada / app morto pelo watchdog com rede ruim) e vazava memória a cada chamada"
+    simbolos: [IosNetworkChecker]
+
+  - versao: 2.329.0
+    motivo: "vídeo de arquivo no VideoPlayerInline tocava sozinho com som ao abrir a tela e, no iOS, seguia tocando depois de sair dela"
+    simbolos: [VideoPlayerInline]
+
+  - versao: 2.329.0
+    motivo: "mapa OSM voltava ao centro e baixava os tiles de novo a cada recomposição; tiles pelos subdomínios aposentados e sem identificar o app"
+    simbolos: [OsmMap, OsmSinglePinMap, OsmPickerMap]
+
   - versao: 2.328.0
     motivo: "fila de dados perdia registro: filho subia antes do pai (recusa terminal) e a confirmação de um envio antigo apagava a edição nova"
     simbolos: [OfflineFirstRestRepository, RestCrudSyncEngine, DefaultSyncEngine]

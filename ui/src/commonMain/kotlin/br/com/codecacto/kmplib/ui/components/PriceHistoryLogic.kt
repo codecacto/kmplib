@@ -186,6 +186,7 @@ private val NICE_STEPS = doubleArrayOf(1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.
  * Formato de preço padrão (BRL): `R$ 1.234,56`. Troque pelo formatador da moeda do app quando
  * ele não vender em real.
  */
+@Suppress("DEPRECATION") // mesma saída de sempre; o texto do documento não muda
 fun defaultPriceFormatter(cents: Long): String = formatCurrencyBRL(cents / 100.0)
 
 /**

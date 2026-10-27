@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // o caminho Double ficou @Deprecated (2.329.0) e continua coberto
+
 package br.com.codecacto.kmplib.core.format
 
 import kotlin.test.Test
@@ -18,6 +20,34 @@ class BrazilianFormattersTest {
     fun formatCurrencyBRLRoundsCents() {
         assertEquals("R$ 10,01", formatCurrencyBRL(10.005))
         assertEquals("-R$ 10,01", formatCurrencyBRL(-10.005))
+    }
+
+    @Test
+    fun formatCurrencyBRLNaoDerrubaComNaNNemInfinito() {
+        // 2.329.0: roundToLong lança em NaN — média de lista vazia derrubava a tela.
+        assertEquals("R$ 0,00", formatCurrencyBRL(Double.NaN))
+        assertEquals("R$ 0,00", formatCurrencyBRL(0.0 / 0.0))
+        assertEquals("R$ 0,00", formatCurrencyBRL(Double.POSITIVE_INFINITY))
+        assertEquals("R$ 0,00", formatCurrencyBRL(Double.NEGATIVE_INFINITY))
+        assertEquals("R$ 0,00", formatCurrencyBR(Double.NaN))
+    }
+
+    @Test
+    fun formatCurrencyBRLSemSinalNoZeroArredondado() {
+        assertEquals("R$ 0,00", formatCurrencyBRL(-0.001))
+        assertEquals("R$ 0,00", formatCurrencyBRL(-0.0))
+        assertEquals("-R$ 0,01", formatCurrencyBRL(-0.005))
+        assertEquals("R$ 0,00", formatCurrencyBR(-0.004))
+    }
+
+    @Test
+    fun formatCurrencyBRLIgualAoMoneyNoTextoPtBr() {
+        // O ReplaceWith aponta para Money(centavos, "BRL"); a conta de centavos é a mesma.
+        for (v in listOf(0.0, 0.01, 19.99, 1234.56, 1_000_000.0, -987.65)) {
+            assertEquals(formatCurrencyBRL(v), br.com.codecacto.kmplib.core.money.Money.formatBRL(
+                br.com.codecacto.kmplib.core.money.Money.fromCents(kotlin.math.round(v * 100).toLong()),
+            ), "valor $v")
+        }
     }
 
     @Test

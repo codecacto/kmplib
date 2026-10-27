@@ -10,6 +10,13 @@ import androidx.compose.ui.text.input.VisualTransformation
  *
  * "123456F" -> "123456-F"
  */
+@Deprecated(
+    "Campo de value/onValueChange perde algarismo no iOS em digitação rápida (o valor dá a volta pelo " +
+        "ViewModel). Use o campo com estado: BasicTextField/OutlinedTextField(state = rememberTextOnlyTextFieldState(), " +
+        "inputTransformation = CrefitoInputTransformation, outputTransformation = CrefitoOutputTransformation) — 2.329.0. " +
+        "Esta máscara continua funcionando; migre quando a tela for tocada.",
+    ReplaceWith("CrefitoOutputTransformation", "br.com.codecacto.kmplib.mask.CrefitoOutputTransformation"),
+)
 class CrefitoVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val raw = text.text

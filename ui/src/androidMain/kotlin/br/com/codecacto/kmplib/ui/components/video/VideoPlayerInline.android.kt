@@ -22,6 +22,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 
 /**
  * Impl Android: `WebView` com o **IFrame Player API oficial** do YouTube, ou `VideoView` para
@@ -47,6 +49,10 @@ actual fun VideoPlayerInline(
     var tocando by remember(source) {
         mutableStateOf(montarDeSaida && source != null && source !is VideoSource.External)
     }
+    // Só o TOQUE na capa autoriza começar sozinho. Montado de saída (`montarDeSaida`) o player
+    // aparece PARADO — o contrato do KDoc ("não é autoplay"). Até a 2.328.0 o ramo de arquivo
+    // começava a tocar com som ao abrir a tela.
+    var montadoPeloToque by remember(source) { mutableStateOf(false) }
 
     // ── A TELA CHEIA É OUTRA TELA — e a 2.139.0 existe por causa disto ──────────────────────────
     //
@@ -87,7 +93,10 @@ actual fun VideoPlayerInline(
         capa {
             when (source) {
                 null, is VideoSource.External -> onExternal()
-                else -> tocando = true
+                else -> {
+                    montadoPeloToque = true
+                    tocando = true
+                }
             }
         }
         return
@@ -173,21 +182,38 @@ actual fun VideoPlayerInline(
             },
         )
 
-        is VideoSource.File -> AndroidView(
-            modifier = modifier,
-            factory = { ctx ->
-                VideoView(ctx).apply {
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
-                    setVideoURI(Uri.parse(source.url))
-                    setMediaController(MediaController(ctx).also { it.setAnchorView(this) })
-                    setOnPreparedListener { it.start() }
-                }
-            },
-            onRelease = { it.stopPlayback() },
-        )
+        is VideoSource.File -> {
+            // 2.329.0: começa sozinho só depois do toque; pausa no segundo plano (`ON_STOP`); e
+            // o `MediaController` (uma janela própria) é escondido ao sair — senão vaza a janela.
+            val autoplay = montadoPeloToque
+            var videoView by remember(source) { mutableStateOf<VideoView?>(null) }
+            LifecycleEventEffect(Lifecycle.Event.ON_STOP) { videoView?.pause() }
+            AndroidView(
+                modifier = modifier,
+                factory = { ctx ->
+                    VideoView(ctx).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        val controles = MediaController(ctx).also { it.setAnchorView(this) }
+                        setMediaController(controles)
+                        tag = controles
+                        setOnPreparedListener { mp ->
+                            // Parado: mostra o 1º quadro em vez de um retângulo preto.
+                            if (autoplay) mp.start() else seekTo(1)
+                        }
+                        setVideoURI(Uri.parse(source.url))
+                        videoView = this
+                    }
+                },
+                onRelease = { view ->
+                    (view.tag as? MediaController)?.hide()
+                    view.stopPlayback()
+                    videoView = null
+                },
+            )
+        }
 
         // Não chega aqui: `External` nunca liga `tocando` (ver acima). O ramo existe pela
         // exaustividade do `when`, que é o que garante fonte nova não passar em silêncio.

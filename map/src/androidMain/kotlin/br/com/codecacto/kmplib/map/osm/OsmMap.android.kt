@@ -53,25 +53,26 @@ internal actual fun OsmMapWebView(
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                addJavascriptInterface(bridge, "kmpBridge")
-                loadDataWithBaseURL(
-                    "https://tile.openstreetmap.org/",
-                    html,
-                    "text/html",
-                    "utf-8",
-                    null,
+                // Política dos tiles do OSM: User-Agent que identifique o app (2.329.0).
+                settings.userAgentString = settings.userAgentString + " " + osmUserAgentSuffix(
+                    appId = ctx.packageName,
+                    appVersion = runCatching {
+                        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+                    }.getOrNull(),
                 )
+                addJavascriptInterface(bridge, "kmpBridge")
+                loadDataWithBaseURL(OsmLeafletHtml.BASE_URL, html, "text/html", "utf-8", null)
+                tag = html
             }
         },
         update = { webView ->
-            // Recarrega quando a spec muda (novos pins / centro / modo).
-            webView.loadDataWithBaseURL(
-                "https://tile.openstreetmap.org/",
-                html,
-                "text/html",
-                "utf-8",
-                null,
-            )
+            // Recarrega SÓ quando a spec mudou (novos pins / centro / modo). Até a 2.328.0 toda
+            // recomposição recarregava o documento: o mapa voltava ao centro inicial e pedia os
+            // tiles de novo.
+            if (webView.tag != html) {
+                webView.loadDataWithBaseURL(OsmLeafletHtml.BASE_URL, html, "text/html", "utf-8", null)
+                webView.tag = html
+            }
         },
     )
 }

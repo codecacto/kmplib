@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // o caminho Double ficou @Deprecated (2.329.0) e continua coberto
+
 package br.com.codecacto.kmplib.mask
 
 import kotlin.test.Test

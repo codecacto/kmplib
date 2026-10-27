@@ -273,7 +273,7 @@ fun AppTimeField(
  * a alternância relógio ⇄ teclado do próprio Material (já traduzidos por ele). Para projeto com
  * PROTÓTIPO, que desenha o próprio campo (mesmo papel do [AppDatePickerDialog]).
  *
- * Diferença para o antigo [AppTimePicker] (que segue igual): trabalha em [LocalTime], respeita
+ * Diferença para o antigo [AppTimePicker] (desde 2.329.0 uma fachada deste mesmo modal): trabalha em [LocalTime], respeita
  * [minTime]/[maxTime] e oferece o modo teclado. Não expressa "24:00" — para fim de expediente use
  * `ui/calendar/AppDayTimePicker`.
  *
@@ -292,6 +292,35 @@ fun AppTimePickerDialog(
     texts: AppTimeFieldTexts = rememberAppTimeFieldTexts(),
     initialDisplayMode: TimePickerDisplayMode = TimePickerDisplayMode.Picker,
 ) {
+    TimePickerDialogCore(
+        selectedTime = selectedTime,
+        onTimeSelected = onTimeSelected,
+        onDismiss = onDismiss,
+        minTime = minTime,
+        maxTime = maxTime,
+        texts = texts,
+        initialDisplayMode = initialDisplayMode,
+    )
+}
+
+/**
+ * O modal de verdade — compartilhado pelo [AppTimePickerDialog] e pela fachada [AppTimePicker]
+ * (2.329.0). [title] `null` = o título traduzido do próprio Material; [pickerModifier] vai no
+ * relógio/teclado (era o `modifier` do `AppTimePicker` antigo).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TimePickerDialogCore(
+    selectedTime: LocalTime?,
+    onTimeSelected: (LocalTime) -> Unit,
+    onDismiss: () -> Unit,
+    minTime: LocalTime? = null,
+    maxTime: LocalTime? = null,
+    texts: AppTimeFieldTexts,
+    initialDisplayMode: TimePickerDisplayMode = TimePickerDisplayMode.Picker,
+    title: String? = null,
+    pickerModifier: Modifier = Modifier,
+) {
     val initial = remember { initialPickerTime(selectedTime, minTime, maxTime, nowLocalTime()) }
     val state = rememberTimePickerState(
         initialHour = initial.hour,
@@ -307,7 +336,17 @@ fun AppTimePickerDialog(
         onDismissRequest = onDismiss,
         // Outra janela: religa o `testTagsAsResourceId` da raiz (ver `DialogTestTags`).
         modifier = Modifier.exposeTestTagsAsResourceId().testTag(DialogTestTags.CONTAINER),
-        title = { TimePickerDialogDefaults.Title(displayMode = displayMode) },
+        title = {
+            if (title.isNullOrEmpty()) {
+                TimePickerDialogDefaults.Title(displayMode = displayMode)
+            } else {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.testTag(DialogTestTags.TITULO),
+                )
+            }
+        },
         modeToggleButton = {
             TimePickerDialogDefaults.DisplayModeToggle(
                 onDisplayModeChange = {
@@ -339,9 +378,9 @@ fun AppTimePickerDialog(
         },
     ) {
         if (displayMode == TimePickerDisplayMode.Picker) {
-            TimePicker(state = state)
+            TimePicker(state = state, modifier = pickerModifier)
         } else {
-            TimeInput(state = state)
+            TimeInput(state = state, modifier = pickerModifier)
         }
         if (limitMessage != null) {
             Text(
