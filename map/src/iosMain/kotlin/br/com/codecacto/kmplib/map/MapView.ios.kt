@@ -25,8 +25,8 @@ import br.com.codecacto.kmplib.core.util.AppLogger
  *
  * **Mapa na fábrica = Google Maps, nenhum outro** (fundador, 27/out/2026). No iOS:
  * - **Padrão: Google Maps pela ponte** — com [IosMapBridge.factory] registrada, a `GMSMapView` do app
- *   (`MapBridge.swift`, SPM `googlemaps/ios-maps-sdk`). A `casca-mobile` nasce com a ponte registrada
- *   no `AppDelegate` (2.331.0).
+ *   (`MapBridge.swift`, SPM `googlemaps/ios-maps-sdk`), registrada no `AppDelegate` do app COM mapa
+ *   (roteiro em `docs/MAP_SETUP.md` da `casca-mobile`, 2.331.0).
  * - **Fallback: MapKit** ([MapKitMap]) — só para app ainda não migrado (sem ponte); troca quando o app
  *   for tocado. Continua funcionando, e registra um aviso no log **uma vez por processo**
  *   ([IosMapFallbackNotice]). Até a 2.219.0, sem ponte este mapa mostrava só "Mapa indisponível".

@@ -108,7 +108,7 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *   `maps-compose-utils` (android-maps-utils). Exige a chave `com.google.android.geo.API_KEY` no
  *   manifesto do app.
  * - **iOS:** **Google Maps pela ponte** (2.331.0) — `IosMapBridge.register(factory:)` no `AppDelegate`
- *   (a `casca-mobile` nasce assim); a lib agrupa (mesma régua de 100 pt do Android), desenha os ícones
+ *   do app com mapa (roteiro e `MapBridge.swift` modelo na `casca-mobile`); a lib agrupa (mesma régua de 100 pt do Android), desenha os ícones
  *   e enquadra, e a `GMSMapView` do Swift só desenha. Sem a ponte, **fallback MapKit** (`MKMapView`,
  *   agrupamento pelo `clusteringIdentifier`) com aviso no log uma vez por processo — app ainda não
  *   migrado, troca quando for tocado.

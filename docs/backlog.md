@@ -26,14 +26,14 @@
       `OsmDefaults`, `OsmLeafletHtml`, as `actual` WebView/WKWebView e os testes `OsmLeafletHtmlTest`/`OsmTileUsageTest`).
       Pré-condição: nenhum consumidor (`grep -rn "map.osm" --include=*.kt` nos apps; hoje só CidadeConectada, migrando).
 - [x] **iOS do mapa nativo — DECIDIDO (27/out/2026): Google Maps pela ponte `IosMapBridge`; MapKit só como fallback de
-      app ainda não migrado.** 2.331.0: a `casca-mobile` nasce com `MapBridge.swift` + registro no `AppDelegate` + SPM
-      `googlemaps/ios-maps-sdk`; sem ponte, `MapView`/`NativeMap` caem no MapKit e logam um aviso uma vez por processo.
+      app ainda não migrado.** 2.331.0: a `casca-mobile` traz a ponte PRONTA PARA LIGAR (modelo `MapBridge.swift` fora do
+      target + roteiro de 5 passos no `MAP_SETUP.md`; app sem mapa não leva SDK do Google — fundador); sem ponte, `MapView`/`NativeMap` caem no MapKit e logam um aviso uma vez por processo.
       App existente troca quando for tocado (não é campanha).
 - [x] **`NativeMap` no iOS sobre Google Maps — ENTREGUE na 2.331.0** (contrato aditivo `IosNativeRichMap`,
       `IosMapBridge.register(factory:)`; agrupamento/ícones/enquadramento na lib, Swift só desenha) + **mapa "só
       leitura"** (`interactive = false` em `MapView`/`SinglePinMap`/`NativeMap`; Android modo lite).
-- [ ] **(validação no Mac) Ponte do Google na `casca-mobile`.** O `MapBridge.swift` foi conferido linha a linha contra o
-      contrato exportado, mas Swift e link só no Xcode: no próximo build iOS da casca (ou do 1º app que copiar a ponte),
+- [ ] **(validação no Mac) Ponte do Google — modelo `casca-mobile/iosApp/mapa-google/MapBridge.swift`.** Conferido linha
+      a linha contra o contrato exportado, mas Swift e link só no Xcode: no 1º app que seguir o roteiro do `MAP_SETUP.md`,
       conferir pino colorido, grupo, rota, círculo, enquadrar e `interactive = false`.
 
 ### Registrado em 27/out/2026 — auditoria do offline (estudo `docs/analises/2026-10-27-offline-first-sincronizacao-e-midia.md`; origem Raiz)

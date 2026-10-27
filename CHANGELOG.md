@@ -21,9 +21,11 @@
 - **MapKit = fallback** de app ainda não migrado (sem ponte, ou só com o `factory` antigo no caso do `NativeMap`):
   funciona igual e registra **uma vez por processo** um `AppLogger.w` (tag `KmpLibMap`) dizendo que o padrão é Google e
   como registrar a ponte (`IosMapFallbackNotice`). Troca quando o app for tocado.
-- A **`casca-mobile` nasce com a ponte** (mesma rodada): `MapBridge.swift` implementando o contrato inteiro,
-  `registrarMapaDoGoogle()` no `AppDelegate` (só com a chave presente — `GMSMapView` sem `provideAPIKey` derruba o
-  app), SPM `googlemaps/ios-maps-sdk`, `api`/`export(libs.kmplib.map)`.
+- **`casca-mobile`: ponte PRONTA PARA LIGAR, não ligada** (fundador, 27/out/2026: *"por que vou ter o SDK do Google em
+  aplicativo que não tem mapa?"*). Modelo `iosApp/mapa-google/MapBridge.swift` (fora do target) implementando o
+  contrato inteiro + roteiro "App com mapa — 5 passos, juntos" no `docs/MAP_SETUP.md` (chave, `api`/`export(libs.kmplib.map)`,
+  SPM `googlemaps/ios-maps-sdk`, a ponte, o registro no `AppDelegate` só com a chave presente — `GMSMapView` sem
+  `provideAPIKey` derruba o app). App sem mapa não leva SDK do Google.
 
 ### Mapa "só leitura" — `interactive = false` (aditivo, default `true`)
 - Em **`MapView`**, **`SinglePinMap`** e **`NativeMap`**. Android: **modo lite** do Google Maps (`GoogleMapOptions.liteMode`

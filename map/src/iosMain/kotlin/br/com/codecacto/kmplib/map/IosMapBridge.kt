@@ -143,8 +143,8 @@ interface IosNativeRichMap : IosNativeMap {
  * IosMapBridge.shared.register(factory: { GoogleMapController() })
  * ```
  *
- * ([register], 2.331.0, liga o [MapView] e o [NativeMap]; a `casca-mobile` já nasce assim, com o
- * `MapBridge.swift`.) O antigo `IosMapBridge.shared.factory = { … }` continua valendo, mas só para o
+ * ([register], 2.331.0, liga o [MapView] e o [NativeMap]; só em app COM mapa — o modelo
+ * `iosApp/mapa-google/MapBridge.swift` e o roteiro `docs/MAP_SETUP.md` estão na `casca-mobile`.) O antigo `IosMapBridge.shared.factory = { … }` continua valendo, mas só para o
  * [MapView].
  *
  * Sem ponte, os mapas caem no **MapKit** (fallback de app ainda não migrado; não quebra) e um aviso

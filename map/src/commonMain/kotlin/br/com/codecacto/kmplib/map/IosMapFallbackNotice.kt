@@ -5,8 +5,8 @@ package br.com.codecacto.kmplib.map
  * Google (2.331.0).
  *
  * Mapa na fábrica = **Google Maps, nenhum outro** (fundador, 27/out/2026). No iOS o Google entra pela
- * ponte Swift `IosMapBridge` (a `casca-mobile` nasce com ela: `MapBridge.swift` + registro no
- * `AppDelegate`). Sem a ponte, o `MapView` continua funcionando sobre o MapKit — é só o **fallback**
+ * ponte Swift `IosMapBridge` (app com mapa: `MapBridge.swift` + registro no `AppDelegate` — modelo e
+ * roteiro em `docs/MAP_SETUP.md` da `casca-mobile`, que não nasce com o SDK do Google). Sem a ponte, o `MapView` continua funcionando sobre o MapKit — é só o **fallback**
  * de app ainda não migrado, que troca quando o app for tocado — e registra este aviso **uma vez por
  * processo** no log, para o fallback não passar despercebido.
  *

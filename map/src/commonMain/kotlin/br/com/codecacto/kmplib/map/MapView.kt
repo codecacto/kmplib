@@ -66,8 +66,8 @@ expect class MapScope
  *
  * - **Android:** `com.google.maps.android:maps-compose` (`GoogleMap`).
  * - **iOS:** **Google Maps pela ponte** — a `GMSMapView` do app, registrada em
- *   `IosMapBridge.factory` (padrão da fábrica: mapa = Google Maps, nenhum outro; a `casca-mobile`
- *   nasce com a ponte). Sem ponte, cai no **MapKit** (`MKMapView`) como fallback de app ainda não
+ *   `IosMapBridge.factory` (padrão da fábrica: mapa = Google Maps, nenhum outro; roteiro do app com
+ *   mapa em `docs/MAP_SETUP.md` da `casca-mobile`). Sem ponte, cai no **MapKit** (`MKMapView`) como fallback de app ainda não
  *   migrado — funciona e avisa no log uma vez por processo; troca quando o app for tocado.
  *
  * Para mapa de carteira (muitos pinos coloridos, agrupamento, rota, posição do usuário, enquadrar
