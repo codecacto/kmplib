@@ -75,8 +75,18 @@ class PickedFile(
  * }
  * ```
  *
- * @param mimeTypes filtro de tipos (Android: MIME; iOS: hoje sempre "qualquer item"). Vazio ou
- *   `*` + `/` + `*` = qualquer arquivo.
+ * ## Escolher anexo em TELA? O padrão é o `rememberAttachmentPicker` (`kmplib-ui`, 2.332.0)
+ * Regra da fábrica (fundador, 27/out/2026): todo lugar do app em que o usuário escolhe um anexo abre
+ * do MESMO jeito — aceita foto → folha "Tirar foto · Galeria · Arquivo"; não aceita foto → este
+ * seletor direto. O `rememberAttachmentPicker` aplica a regra e usa este seletor por baixo; chame
+ * este aqui direto só para escolha que não é anexo de tela (importar backup, por exemplo).
+ *
+ * @param mimeTypes filtro de tipos. Android: MIME, como o sistema entende. iOS (desde 2.332.0): cada
+ *   MIME vira o `UTType` correspondente (`image/` + `*` → `UTTypeImage`, `application/pdf` →
+ *   `UTTypePDF`, …); tipo que o sistema não conhece é ignorado, e se nada sobrar abre qualquer item.
+ *   Vazio ou `*` + `/` + `*` = qualquer arquivo.
+ * @param allowMultiple `true` (default) = vários de uma vez; `false` (2.332.0) = um só — a lista
+ *   chega com no máximo um item (Android `OpenDocument`, iOS `allowsMultipleSelection = false`).
  * @param onResult a lista na ordem escolhida. **Lista vazia = o usuário fechou o seletor** — não é
  *   erro, não mostre mensagem.
  * @return a função que abre o seletor.
@@ -84,5 +94,6 @@ class PickedFile(
 @Composable
 expect fun rememberMultiFilePicker(
     mimeTypes: List<String> = listOf("*/*"),
+    allowMultiple: Boolean = true,
     onResult: (List<PickedFile>) -> Unit,
 ): () -> Unit

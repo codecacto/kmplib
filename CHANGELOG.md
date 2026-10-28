@@ -5,6 +5,46 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.332.0 — **Seletor de ANEXO único: `rememberAttachmentPicker` — aceita foto → folha "Tirar foto · Galeria · Arquivo"; não aceita foto → seletor de arquivos direto** (regra do fundador, 27/out/2026)
+
+Origem: no LocAki, "Anexos do cliente" usava `rememberMultiFilePicker` (só Arquivos) e "Fotos da entrega" usava
+`rememberImagePickerLauncher` (só Galeria/Câmera) — o cliente reclamou que cada lugar abria diferente. Agora a regra mora
+na lib: **todo lugar que escolhe anexo/foto abre do mesmo jeito.**
+
+### Novo (aditivo, `kmplib-ui`, pacote `ui.components`)
+- **`rememberAttachmentPicker(accept, onPicked, onError, allowMultiple = true, selectionLimit, maxDimension, jpegQuality,
+  maxImageFileBytes, texts): AttachmentPickerLauncher`**.
+- **`AttachmentAccept`** — `ImagesOnly`, `AnyFile`, `forMimeTypes(list)`. A forma (`AttachmentAcceptKind`
+  `IMAGES_ONLY`/`IMAGES_AND_FILES`/`FILES_ONLY`) é DERIVADA dos MIME, então não há como aceitar imagem sem a folha.
+- **Folha** (Compose, `AppModalBottomSheet`, igual nas duas plataformas): título "Adicionar foto"/"Adicionar anexo" +
+  Tirar foto · Galeria · Arquivo, nos 4 idiomas (`rememberAttachmentPickerTexts`), ids `anexo-folha`, `anexo-titulo`,
+  `anexo-opcao-camera|galeria|arquivo` (`AttachmentPickerTestTags`), linhas de 56 dp com papel de botão e título como heading.
+- **Resultado `PickedAttachment`**: `Photo(image: PickedImage, origin, fileName)` — câmera/galeria (e o "Arquivo" do modo
+  só-foto) com a MESMA codificação do `rememberImagePickerLauncher` (JPEG, em pé, sem EXIF/GPS, HEIC→JPEG, teto) e nome
+  `foto-AAAAMMDD-HHMMSS.jpg` (`photoAttachmentFileName`); `File(file: PickedFile)` — o arquivo como está.
+  `readForUpload(maxBytes): FilePickResult` envia os dois do mesmo jeito; `List<PickedAttachment>.photos()`.
+- **Modo só-foto, "Arquivo"**: seletor filtrado para imagem, leitura com teto (`ATTACHMENT_IMAGE_FILE_MAX_BYTES` = 40 MiB)
+  e recodificação; não-imagem → `AttachmentPickerError.IMAGE_UNREADABLE`, acima do teto → `FILE_TOO_LARGE`. Nunca silêncio.
+- `AttachmentPickerError` (`CAMERA_PERMISSION_DENIED`, `CAMERA_UNAVAILABLE`, `IMAGE_UNREADABLE`, `FILE_TOO_LARGE`,
+  `FILE_UNREADABLE`); desistir = silêncio; `onError` uma vez por escolha, o que deu certo é entregue.
+
+### `kmplib-platform`
+- `rememberMultiFilePicker(mimeTypes, allowMultiple = true, onResult)` — **parâmetro novo `allowMultiple`** (Android
+  `OpenDocument` quando `false`; iOS `allowsMultipleSelection`). Chamada com trailing lambda não muda.
+- **iOS: o filtro `mimeTypes` passou a valer** (`contentTypesForMimeTypes`: `image/*` → `UTTypeImage`, MIME exato por
+  `UTType.typeWithMIMEType`, desconhecido ignorado, nada reconhecido = qualquer item). Até a 2.331.0 o iOS abria sempre
+  qualquer item.
+
+### Correção (piso de aviso)
+- **iOS: a câmera do `rememberImagePickerLauncher` confere a permissão antes de abrir** — negada/restrita →
+  `CAMERA_PERMISSION_DENIED`; não perguntada → pede e abre se aceitar; sem câmera → `CAMERA_UNAVAILABLE`. Até a 2.331.0
+  o `UIImagePickerController` abria sem olhar a autorização e, negada, mostrava tela preta sem erro para o app.
+- Android: a câmera do seletor foi extraída para um lançador interno (o mesmo da folha) — sem mudança de comportamento.
+
+KDoc de `rememberImagePickerLauncher` e `rememberMultiFilePicker` aponta o `rememberAttachmentPicker` como o padrão para
+anexo/foto em tela. Sem aviso no Nexus (aditivo + correção sem perda). Requisitos do app: Android `CAMERA` no manifest;
+iOS `NSCameraUsageDescription`.
+
 ## 2.331.0 — **iOS = Google Maps pela ponte, inclusive o `NativeMap`; MapKit vira só fallback com aviso; mapa "só leitura"** (fundador, 27/out/2026: *"a gente só usa Google Maps, nenhum outro"*)
 
 ### Google Maps no iPhone pela ponte (aditivo — nada quebra)

@@ -216,6 +216,11 @@ enum class ImagePickerError {
 /**
  * Cria e lembra um seletor de foto que devolve os bytes **e a medida** ([PickedImage]).
  *
+ * > **Escolher foto/anexo numa TELA? O padrão é o [rememberAttachmentPicker] (2.332.0).** Regra da
+ * > fábrica (fundador, 27/out/2026): todo lugar que aceita foto abre a MESMA folha — Tirar foto ·
+ * > Galeria · Arquivo — e o que não aceita foto abre o seletor de arquivos direto. Este seletor
+ * > continua valendo (e é o motor da folha), mas sozinho ele não oferece "Arquivo".
+ *
  * ```kotlin
  * val seletor = rememberImagePickerLauncher(
  *     source = ImagePickerSource.GALLERY_ONLY,   // publicar foto: sem câmera

@@ -49,6 +49,11 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.332.0
+    motivo: "iOS: câmera negada abria tela preta sem erro no seletor de foto (agora confere a permissão e devolve CAMERA_PERMISSION_DENIED)"
+    simbolos: [rememberImagePickerLauncher]
+    bloqueia: false
+
   - versao: 2.329.0
     motivo: "formatador de moeda em Double derrubava o app com NaN (média de lista vazia) e escrevia \"-R$ 0,00\""
     simbolos: [formatCurrencyBRL, formatCurrencyBR, formatCurrencyUSD, formatCurrencyEUR]

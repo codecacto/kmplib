@@ -3,6 +3,16 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 27/out/2026 — seletor de anexo único (regra do fundador; origem LocAki)
+- [x] **`rememberAttachmentPicker` — ENTREGUE na 2.332.0** (aceita foto → folha Tirar foto · Galeria · Arquivo; só
+      documento → seletor direto; `PickedAttachment.Photo`/`File`, `readForUpload`). Junto: `rememberMultiFilePicker(allowMultiple)`,
+      filtro MIME no iOS e câmera do iOS conferindo a permissão. Fica: migrar os consumidores quando forem tocados (LocAki
+      primeiro: "Anexos do cliente" e "Fotos da entrega"); prova em aparelho (câmera negada no iOS, HEIC pelo "Arquivo").
+- [ ] **ABERTO (de passagem, 2.332.0):** o `rememberImagePickerLauncher` do iOS ainda apresenta do
+      `keyWindow.rootViewController` (obsoleto, e não abre nada se já houver algo por cima) — trocar por
+      `kmplibTopViewController()` como a câmera da folha de anexo já faz. A folha antiga de câmera/galeria (Android Compose,
+      iOS `UIAlertController`) tem textos fixos em pt-BR.
+
 ### Registrado em 27/out/2026 — repetições da lib (`docs/47` §5; levantamento `docs/analises/2026-10-27-levantamento-kmplib.md`)
 > Decisão do fundador: ajustar tudo que não comprometa quem usa; app nenhum tocado agora.
 - [x] **Máscaras de documento no campo com estado — ENTREGUE na 2.329.0** (`Cpf/Cnpj/Date/Plate/Crefito` `Input`/

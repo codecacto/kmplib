@@ -4,9 +4,7 @@ import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import androidx.compose.ui.platform.testTag
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -36,7 +34,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,14 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import br.com.codecacto.kmplib.core.util.AppLogger
-import br.com.codecacto.kmplib.platform.CAMERA_CAPTURE_FILE_PREFIX
-import br.com.codecacto.kmplib.platform.DEFAULT_CAMERA_CAPTURE_TTL_MILLIS
-import br.com.codecacto.kmplib.platform.cameraCaptureDirectory
-import br.com.codecacto.kmplib.platform.clearCameraCaptureFiles
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,11 +68,6 @@ actual fun rememberImagePickerLauncher(
     val currentMaxDimension by rememberUpdatedState(maxDimension)
     val currentJpegQuality by rememberUpdatedState(jpegQuality)
     var showChooser by remember { mutableStateOf(false) }
-
-    // Caminho do arquivo temporário da câmera. `rememberSaveable` porque o app de câmera costuma
-    // levar o sistema a destruir a nossa Activity: com `remember` o retorno chegava sem saber qual
-    // arquivo ler — a foto se perdia e o arquivo cru ficava no disco.
-    var cameraFilePath by rememberSaveable { mutableStateOf<String?>(null) }
 
     val escopo = rememberCoroutineScope()
     val currentOnImagePicked by rememberUpdatedState(onImagePicked)
@@ -112,62 +98,18 @@ actual fun rememberImagePickerLauncher(
         uri?.let { processar(it) }
     }
 
-    val takePicture = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        val arquivo = cameraFilePath?.let(::File)
-        cameraFilePath = null
-        if (arquivo == null) return@rememberLauncherForActivityResult
-        // O original da câmera tem EXIF completo (GPS, modelo, horário) e resolução cheia. O que o
-        // app recebe são os bytes RECODIFICADOS; o original não serve a mais ninguém e, até a
-        // 2.216.0, ficava para sempre em cache/photos. Cancelado também sai (arquivo vazio ou
-        // parcial) — e o apagar só acontece DEPOIS de a decodificação terminar.
-        if (success) {
-            processar(Uri.fromFile(arquivo)) { deleteCameraTempFile(arquivo) }
-        } else {
-            deleteCameraTempFile(arquivo)
-        }
-    }
-
     fun openGallery() {
         pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
-    fun launchCamera() {
-        try {
-            val photosDir = cameraCaptureDirectory(context)
-            photosDir.mkdirs()
-            // Originais de capturas anteriores que ficaram (processo morto no meio); a folga protege
-            // uma captura ainda aberta em outro seletor.
-            clearCameraCaptureFiles(context, DEFAULT_CAMERA_CAPTURE_TTL_MILLIS)
-            val photoFile = File(photosDir, "$CAMERA_CAPTURE_FILE_PREFIX${System.currentTimeMillis()}.jpg")
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            cameraFilePath = photoFile.absolutePath
-            takePicture.launch(uri)
-        } catch (e: Exception) {
-            // Ate 2.131.0 isto era so `printStackTrace()`: a camera nao abria e a tela nao dizia
-            // nada. Falha de camera vira AVISO no app, sempre.
-            AppLogger.w(TAG, "Câmera de foto indisponível: ${redactMediaUrlsIn(e.message)}")
-            onError(ImagePickerError.CAMERA_UNAVAILABLE)
-        }
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted: Boolean ->
-        if (granted) {
-            launchCamera()
-        } else {
-            // Negada pela pessoa — ou o app nao declarou `CAMERA` no manifest, e ai o sistema nega
-            // sem nem mostrar o dialogo. O `if` sem `else` que havia aqui transformava os dois
-            // casos em "o botao nao faz nada".
-            onError(ImagePickerError.CAMERA_PERMISSION_DENIED)
-        }
-    }
+    // A câmera (permissão, FileProvider, original apagado) mora no lançador interno (2.332.0) —
+    // o mesmo que a folha de anexo (`rememberAttachmentPicker`) usa para "Tirar foto".
+    val camera = rememberCameraPhotoLauncher(
+        onImagePicked = { currentOnImagePicked(it) },
+        onError = { currentOnError(it) },
+        maxDimension = maxDimension,
+        jpegQuality = jpegQuality,
+    )
 
     if (showChooser) {
         val sheetState = rememberModalBottomSheetState()
@@ -194,14 +136,7 @@ actual fun rememberImagePickerLauncher(
                 TextButton(
                     onClick = {
                         showChooser = false
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
-                            launchCamera()
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
+                        camera.launch()
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -245,7 +180,7 @@ actual fun rememberImagePickerLauncher(
         }
     }
 
-    return remember(source, pickMedia, takePicture) {
+    return remember(source, pickMedia, camera) {
         ImagePickerLauncher {
             when (source) {
                 // Sem folha de escolha: uma folha com uma opção só é um toque a mais para nada.
@@ -260,7 +195,7 @@ actual fun rememberImagePickerLauncher(
  * Decodifica, **gira pelo EXIF**, reduz e recodifica em JPEG — e mede o resultado. O trabalho mora
  * em [encodePickedImage] (2.278.0), o mesmo do seletor múltiplo e da câmera guiada.
  */
-private fun processImageUri(
+internal fun processImageUri(
     context: Context,
     uri: Uri,
     maxDimension: Int,
@@ -279,10 +214,3 @@ private fun processImageUri(
 }
 
 private const val TAG = "KmpLibImagePicker"
-
-private fun deleteCameraTempFile(file: File) {
-    if (file.exists() && !file.delete()) {
-        AppLogger.w(TAG, "Original temporário da câmera não pôde ser apagado.")
-    }
-}
-

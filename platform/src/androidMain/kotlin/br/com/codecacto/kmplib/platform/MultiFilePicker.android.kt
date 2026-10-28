@@ -20,6 +20,7 @@ private const val MULTI_TAG = "MultiFilePicker"
 @Composable
 actual fun rememberMultiFilePicker(
     mimeTypes: List<String>,
+    allowMultiple: Boolean,
     onResult: (List<PickedFile>) -> Unit,
 ): () -> Unit {
     val context = LocalContext.current.applicationContext
@@ -28,12 +29,10 @@ actual fun rememberMultiFilePicker(
     // primeira composição (que pode ter capturado um ViewModel/estado antigo).
     val entregar by rememberUpdatedState(onResult)
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri> ->
+    fun entregarUris(uris: List<Uri>) {
         if (uris.isEmpty()) {
             entregar(emptyList())
-            return@rememberLauncherForActivityResult
+            return
         }
         // Nome/tipo/tamanho são consultas ao provedor (pode ser a nuvem): fora da thread principal.
         scope.launch {
@@ -42,12 +41,21 @@ actual fun rememberMultiFilePicker(
         }
     }
 
+    val launcherVarios = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> -> entregarUris(uris) }
+
+    // Um só (2.332.0): `OpenDocument` é o mesmo seletor do sistema, sem a seleção múltipla.
+    val launcherUm = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? -> entregarUris(listOfNotNull(uri)) }
+
     return {
         val tipos = mimeTypes
             .filter { it.isNotBlank() }
             .ifEmpty { listOf("*/*") }
             .toTypedArray()
-        launcher.launch(tipos)
+        if (allowMultiple) launcherVarios.launch(tipos) else launcherUm.launch(tipos)
     }
 }
 

@@ -908,4 +908,10 @@
     <string name="kmplib_insp_copy_link">Copiar enlace</string>
     <string name="kmplib_insp_link_shared">Enlace enviado</string>
     <!-- kmplib-inspection: FIM -->
+    <!-- seletor de anexo (rememberAttachmentPicker, 2.332.0) -->
+    <string name="kmplib_attachment_title_photo">Agregar foto</string>
+    <string name="kmplib_attachment_title_attachment">Agregar adjunto</string>
+    <string name="kmplib_attachment_take_photo">Tomar foto</string>
+    <string name="kmplib_attachment_gallery">Galería</string>
+    <string name="kmplib_attachment_file">Archivo</string>
 </resources>

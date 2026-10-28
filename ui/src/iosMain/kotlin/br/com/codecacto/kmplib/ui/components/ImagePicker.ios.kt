@@ -6,6 +6,12 @@ import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
+import platform.AVFoundation.AVAuthorizationStatusAuthorized
+import platform.AVFoundation.AVAuthorizationStatusNotDetermined
+import platform.AVFoundation.AVCaptureDevice
+import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.authorizationStatusForMediaType
+import platform.AVFoundation.requestAccessForMediaType
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
@@ -86,7 +92,7 @@ actual fun rememberImagePickerLauncher(
 }
 
 /** Teto e qualidade pedidos pelo app (2.278.0), levados até a codificação. */
-private class Codificacao(val maxDimension: Int, val jpegQuality: Int)
+internal class Codificacao(val maxDimension: Int, val jpegQuality: Int)
 
 private fun escolherOrigemDaFoto(
     raiz: UIViewController,
@@ -166,7 +172,50 @@ private fun abrirGaleriaDeFotos(
     raiz.presentViewController(seletor, animated = true, completion = null)
 }
 
-private fun abrirCameraDeFoto(
+/**
+ * Abre a câmera **depois de conferir a permissão** (2.332.0). Até a 2.331.0 o `UIImagePickerController`
+ * era apresentado sem olhar a autorização: com a câmera negada, o sistema mostrava uma tela preta
+ * sem explicação, e o app não recebia erro nenhum. Agora: autorizada → abre; ainda não perguntada →
+ * pede (o diálogo usa o `NSCameraUsageDescription` do app) e abre se a pessoa aceitar; negada ou
+ * restrita → [ImagePickerError.CAMERA_PERMISSION_DENIED]; sem câmera → [ImagePickerError.CAMERA_UNAVAILABLE].
+ */
+internal fun abrirCameraDeFoto(
+    raiz: UIViewController,
+    codificacao: Codificacao,
+    onImagePicked: (PickedImage) -> Unit,
+    onError: (ImagePickerError) -> Unit,
+) {
+    val temCamera = UIImagePickerController.isSourceTypeAvailable(
+        UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera,
+    )
+    if (!temCamera) {
+        AppLogger.w(TAG, "Aparelho sem câmera disponível.")
+        onError(ImagePickerError.CAMERA_UNAVAILABLE)
+        return
+    }
+    when (AVCaptureDevice.authorizationStatusForMediaType(AVMediaTypeVideo)) {
+        AVAuthorizationStatusAuthorized ->
+            apresentarCameraDeFoto(raiz, codificacao, onImagePicked, onError)
+
+        AVAuthorizationStatusNotDetermined ->
+            AVCaptureDevice.requestAccessForMediaType(AVMediaTypeVideo) { concedida ->
+                naFilaPrincipal {
+                    if (concedida) {
+                        apresentarCameraDeFoto(raiz, codificacao, onImagePicked, onError)
+                    } else {
+                        onError(ImagePickerError.CAMERA_PERMISSION_DENIED)
+                    }
+                }
+            }
+
+        else -> {
+            AppLogger.w(TAG, "Câmera negada ou restrita nas Configurações.")
+            onError(ImagePickerError.CAMERA_PERMISSION_DENIED)
+        }
+    }
+}
+
+private fun apresentarCameraDeFoto(
     raiz: UIViewController,
     codificacao: Codificacao,
     onImagePicked: (PickedImage) -> Unit,
@@ -208,7 +257,7 @@ private fun abrirCameraDeFoto(
     raiz.presentViewController(camera, animated = true, completion = null)
 }
 
-private fun naFilaPrincipal(bloco: () -> Unit) {
+internal fun naFilaPrincipal(bloco: () -> Unit) {
     dispatch_async(dispatch_get_main_queue()) { bloco() }
 }
 

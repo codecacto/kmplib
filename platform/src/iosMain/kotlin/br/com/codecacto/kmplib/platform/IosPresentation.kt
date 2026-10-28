@@ -33,3 +33,11 @@ internal fun topViewController(): UIViewController? {
     }
     return top
 }
+
+/**
+ * O mesmo [topViewController], para os outros módulos da lib (2.332.0 — o `kmplib-ui` apresenta a
+ * câmera da folha de anexo daqui, em vez de do `rootViewController`, que não abre nada quando já há
+ * algo por cima). Não é contrato para app.
+ */
+@KmpLibPlatformInternalApi
+fun kmplibTopViewController(): UIViewController? = topViewController()
