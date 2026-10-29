@@ -26,6 +26,8 @@ class CentralServicesTest {
         CentralServices.resetForTesting()
         AnnouncementService.resetForTesting()
         AppPresence.resetForTesting()
+        br.com.codecacto.kmplib.modalevents.ModalEvents.resetForTesting()
+        br.com.codecacto.kmplib.feedback.AppReviewService.resetForTesting()
         CentralServices.listenToForegroundForPresence = false
     }
 
@@ -34,6 +36,8 @@ class CentralServicesTest {
         CentralServices.resetForTesting()
         AnnouncementService.resetForTesting()
         AppPresence.resetForTesting()
+        br.com.codecacto.kmplib.modalevents.ModalEvents.resetForTesting()
+        br.com.codecacto.kmplib.feedback.AppReviewService.resetForTesting()
         CentralServices.listenToForegroundForPresence = true
     }
 
@@ -68,6 +72,41 @@ class CentralServicesTest {
         assertNotNull(av)
         assertEquals("numeros-da-sorte", av.projectSlug)
         assertEquals("https://apps-api.example", av.appsApiBaseUrl)
+    }
+
+    @Test
+    fun initialize_ligaEstatisticaDosModaisERegraDaAvaliacao() {
+        CentralServices.initialize(
+            CentralServicesConfig(
+                projectSlug = "locaki",
+                httpClient = client(),
+                appVersion = "1.4.0",
+                appsApiBaseUrl = "https://apps-api.example",
+            ),
+        )
+        val me = br.com.codecacto.kmplib.modalevents.ModalEvents.client?.config
+        assertNotNull(me)
+        assertEquals("locaki", me.projectSlug)
+        assertEquals("1.4.0", me.appVersion)
+        assertEquals("https://apps-api.example", me.appsApiBaseUrl)
+        val rv = br.com.codecacto.kmplib.feedback.AppReviewService.config
+        assertNotNull(rv)
+        assertEquals("locaki", rv.projectSlug)
+        assertNotNull(br.com.codecacto.kmplib.feedback.AppReviewService.configSource())
+    }
+
+    @Test
+    fun initialize_podeDesligarEstatisticaEAvaliacao() {
+        CentralServices.initialize(
+            CentralServicesConfig(
+                projectSlug = "z",
+                httpClient = client(),
+                enableModalEvents = false,
+                enableReviewConfig = false,
+            ),
+        )
+        assertFalse(br.com.codecacto.kmplib.modalevents.ModalEvents.isInitialized)
+        assertFalse(br.com.codecacto.kmplib.feedback.AppReviewService.isInitialized)
     }
 
     @Test

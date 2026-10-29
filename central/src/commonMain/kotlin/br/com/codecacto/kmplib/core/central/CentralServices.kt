@@ -7,7 +7,11 @@ import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperConfig
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.feedback.FeedbackConfig
+import br.com.codecacto.kmplib.feedback.AppReviewService
+import br.com.codecacto.kmplib.feedback.AppReviewServiceConfig
 import br.com.codecacto.kmplib.feedback.FeedbackService
+import br.com.codecacto.kmplib.modalevents.ModalEvents
+import br.com.codecacto.kmplib.modalevents.ModalEventsConfig
 import br.com.codecacto.kmplib.presence.AppPresence
 import br.com.codecacto.kmplib.presence.AppPresenceConfig
 import io.ktor.client.HttpClient
@@ -26,6 +30,11 @@ import kotlin.concurrent.Volatile
  * - [AppPresence] — sinal de presença diário (`POST /public/presence`, 2.326.0): no máximo uma vez por
  *   dia por instalação, ao vir para o primeiro plano, SEM identificador nem localização — o servidor
  *   conta usuários ativos por cidade estimada pelo IP. Desligue com `enablePresence = false`.
+ * - [ModalEvents] — estatística dos modais (`POST /public/modal-events`, 2.335.0): exibição, clique e
+ *   fechamento do comunicado e do pedido de avaliação, em lote, com o identificador anônimo da
+ *   instalação. Desligue com `enableModalEvents = false`.
+ * - [AppReviewService] — a regra do pedido de avaliação do Nexus (`GET /public/review-config`,
+ *   2.335.0), usada pelo `rememberAppReviewPrompt`. Desligue com `enableReviewConfig = false`.
  *
  * Nenhum dado de domínio trafega aqui — apps offline-first (arquétipo A) guardam local e usam o
  * central só nestes toques; apps com backend próprio também reusam esta amarração para os 3 públicos.
@@ -124,6 +133,30 @@ object CentralServices {
                 listenToForeground = listenToForegroundForPresence,
             )
         }
+
+        initModalAndReview(config)
+    }
+
+    private fun initModalAndReview(config: CentralServicesConfig) {
+        if (config.enableModalEvents) {
+            ModalEvents.initialize(
+                ModalEventsConfig(
+                    projectSlug = config.projectSlug,
+                    httpClient = config.httpClient,
+                    appsApiBaseUrl = config.appsApiBaseUrl,
+                    appVersion = config.appVersion.ifBlank { null },
+                ),
+            )
+        }
+        if (config.enableReviewConfig) {
+            AppReviewService.initialize(
+                AppReviewServiceConfig(
+                    projectSlug = config.projectSlug,
+                    httpClient = config.httpClient,
+                    appsApiBaseUrl = config.appsApiBaseUrl,
+                ),
+            )
+        }
     }
 
     /** Apenas para testes — `false` não registra o observador de primeiro plano da plataforma. */
@@ -163,6 +196,10 @@ object CentralServices {
  *   instalação, sem dado pessoal nem identificador (vale também em app infantil).
  * @property presencePayingProvider "é pagante?" para o sinal de presença — `null` (default) manda
  *   `"pagante": null`. App que vende pela loja: `{ MonetizationManager.awaitPayingOrNull() }`.
+ * @property enableModalEvents liga o [ModalEvents] (default `true`; 2.335.0) — estatística do
+ *   comunicado e do pedido de avaliação; build de teste não envia, build de depuração vai `debug=true`.
+ * @property enableReviewConfig liga o [AppReviewService] (default `true`; 2.335.0) — a regra do pedido
+ *   de avaliação vem do Nexus.
  */
 data class CentralServicesConfig(
     val projectSlug: String,
@@ -178,6 +215,8 @@ data class CentralServicesConfig(
     val enableAnnouncements: Boolean = true,
     val enablePresence: Boolean = true,
     val presencePayingProvider: (suspend () -> Boolean?)? = null,
+    val enableModalEvents: Boolean = true,
+    val enableReviewConfig: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_APPS_API_BASE_URL: String = "https://apps-api.codecacto.com.br"

@@ -12,6 +12,7 @@ import br.com.codecacto.kmplib.core.locale.appLanguageTag
 import br.com.codecacto.kmplib.core.util.currentPlatform
 import br.com.codecacto.kmplib.ui.announcement.Announcement
 import br.com.codecacto.kmplib.ui.announcement.AnnouncementAction
+import br.com.codecacto.kmplib.ui.announcement.AnnouncementEventListener
 import br.com.codecacto.kmplib.ui.announcement.AnnouncementHost
 import br.com.codecacto.kmplib.ui.announcement.AnnouncementStore
 import br.com.codecacto.kmplib.ui.announcement.openAnnouncementAction
@@ -64,6 +65,10 @@ fun rememberRemoteAnnouncements(
  * @param dialogSuppressInAutomation `true` (default): em build de teste (`AutomationMode` — dublê da
  *   loja, Test Harness, marca do runner de QA) o modal fechável não abre (2.310.0); `false` para a
  *   suíte que testa o próprio comunicado.
+ * @param recordEvents `true` (default, 2.335.0): exibição, clique na ação e fechamento dos comunicados
+ *   VINDOS DO SERVIDOR vão para a estatística do Nexus (`ModalEvents`, que o `CentralServices`
+ *   inicializa; sem ele, nada sai). Os [local] nunca são enviados.
+ * @param onEvent ouvinte próprio do app (recebe também os eventos dos [local]).
  *
  * ```kotlin
  * RemoteAnnouncementHost(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -84,9 +89,15 @@ fun RemoteAnnouncementHost(
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
     dialogSuppressInAutomation: Boolean = true,
+    recordEvents: Boolean = true,
+    onEvent: AnnouncementEventListener? = null,
 ) {
     val remote = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
     val merged = remember(local, remote) { mergeAnnouncements(local, remote) }
+    val remoteIds = remember(remote) { remote.mapTo(HashSet()) { it.id } }
+    val listener = remember(remoteIds, recordEvents, onEvent) {
+        if (recordEvents) AnnouncementEventsReporter.Shared.listener(remoteIds, onEvent) else onEvent
+    }
     AnnouncementHost(
         announcements = merged,
         modifier = modifier,
@@ -97,5 +108,6 @@ fun RemoteAnnouncementHost(
         dialogReady = dialogReady,
         dialogSuppressed = dialogSuppressed,
         dialogSuppressInAutomation = dialogSuppressInAutomation,
+        onEvent = listener,
     )
 }

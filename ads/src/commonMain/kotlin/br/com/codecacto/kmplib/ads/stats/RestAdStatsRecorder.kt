@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.BuildInfo
+import br.com.codecacto.kmplib.platform.install.InstallId
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.post
@@ -43,11 +44,15 @@ import kotlinx.serialization.json.Json
  *
  * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
  * @param isDebugBuild lido a cada evento (no Android o contexto so existe depois do init da lib).
+ * @param installIdProvider (2.335.0) o identificador anonimo da instalacao ([InstallId.forTelemetry]) —
+ *   o servidor conta PESSOAS unicas por dia/app/anuncio. `null` (teste, preferencias indisponiveis)
+ *   omite o campo, como fazia o cliente antigo.
  */
 class RestAdStatsRecorder(
     private val httpClient: HttpClient,
     private val appsApiBaseUrl: String = DEFAULT_APPS_API_BASE_URL,
     private val isDebugBuild: () -> Boolean = { BuildInfo.isDebug },
+    private val installIdProvider: suspend () -> String? = { InstallId.forTelemetry() },
 ) : AdStatsRecorder {
     companion object {
         private const val TAG = "RestAdStatsRecorder"
@@ -59,6 +64,8 @@ class RestAdStatsRecorder(
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        // installId ausente sai do corpo (nao vira `"installId": null`).
+        explicitNulls = false
     }
 
     override suspend fun record(
@@ -76,6 +83,7 @@ class RestAdStatsRecorder(
             impressions = if (type == AdEventType.IMPRESSION) 1 else 0,
             clicks = if (type == AdEventType.CLICK) 1 else 0,
             debug = isDebugBuild(),
+            installId = runCatching { installIdProvider() }.getOrNull(),
         )
 
         val url = appsApiBaseUrl.trimEnd('/') + PATH
@@ -105,4 +113,5 @@ internal data class AdStatsRequest(
     val impressions: Int,
     val clicks: Int,
     val debug: Boolean = false,
+    val installId: String? = null,
 )

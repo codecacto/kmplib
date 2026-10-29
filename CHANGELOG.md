@@ -5,6 +5,55 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.335.0 — **Estatística dos modais (comunicado + avaliação), identificador anônimo da instalação e regra REMOTA do pedido de avaliação** (Nexus, 29/out/2026)
+
+Origem: o fundador — *"quero ter um pouco mais de controle sobre a visualização desses modais… assim como os anúncios… quero
+ver para quantas pessoas visualizaram, quantas clicaram e avaliar"*. Contrato único (kmplib · apps-api · Nexus):
+`docs/tarefas/2026-10-29-estatistica-dos-modais.md` §1, §2, §5 e §6. **Aditivo** — nenhuma assinatura existente mudou.
+
+### Novo
+- **`InstallId`** (`kmplib-platform`, `platform.install`): UUID **v4** aleatório (`Uuid.random`, fonte segura) gerado no 1º uso e
+  guardado nas `AppPreferences` (`kmplib.install_id`); sem ligação com conta, aparelho ou anúncio — não é PII. `get()`,
+  **`forTelemetry()`** (= `null` em `AutomationMode`), `useStorage(prefs)`; `newRandomUuidV4()`.
+- **`ModalEvents`** (`kmplib-central`, `modalevents`): `POST /public/modal-events` em LOTE curto (o 1º evento agenda o envio para
+  `flushDelay` = 3 s; 50 eventos disparam na hora; até 50 por POST), fire-and-forget, `installId` + `debug` (build de depuração →
+  o servidor descarta) + `appVersion` (default `BuildInfo.appVersionName`). No-op sem `initialize`; **teste (`AutomationMode`) não
+  registra**. `ModalEventsConfig`, `ModalEventsClient`, `ModalEventsRecorder` (injetável), `RestModalEventsRecorder`,
+  `ModalSurface`, `ModalEventType` (os 9 eventos do contrato), `ModalEventBatch`/`ModalEventPayload`. O
+  **`CentralServices.initialize` já liga** (`enableModalEvents`, default `true`).
+- **Comunicado instrumentado** (modal e cartão): `AnnouncementEvent` (`SHOWN`/`ACTION_CLICK`/`DISMISS_GOT_IT`/`DISMISS_CLOSE`) +
+  `AnnouncementEventListener` no parâmetro novo **`onEvent`** de `AnnouncementHost` (as duas) e `AnnouncementDialogHost` (as duas);
+  `AnnouncementDialogCard(onClose)` separa o X do "Entendi". O **`RemoteAnnouncementHost`** manda ao servidor
+  (`recordEvents = true`, `onEvent` do app repassado) por `AnnouncementEventsReporter`: `shown` UMA vez por comunicado por sessão
+  (rotação/navegação não repetem), `refId` = id do comunicado. **Decisão: só comunicado vindo do SERVIDOR é enviado** — o local
+  não existe em `nexus.announcements` (sem título nem CTR no painel) e o id dele é escolhido pelo app.
+- **`AppReviewDialog`** com callbacks separados e estatística (parâmetros novos no fim, os antigos iguais): `trigger`,
+  `recordEvents`, `onShown` (uma vez por exibição, salva na rotação), `onPositive`, `onNegative`, `onDismissedWithoutAnswer`;
+  eventos `shown`/`positive`/`negative`/`feedback_sent`/`dismissed`. `onDismiss` continua sendo chamado em todo fechamento.
+- **Regra remota da avaliação**: `ReviewPromptConfig` (`{enabled, triggerCount, remindAfterDays, maxPrompts}`, defaults
+  `{true, 3, 30, 3}`), `shouldPromptReview` (pura), `ReviewConfigSource`, `ReviewPromptOutcome`, `CachedReviewConfig`;
+  `AppReviewManager(…, configSource, clock, configMaxAgeMillis)` + `config`, `refreshConfig(force)` (cache de 1 h em memória e no
+  aparelho; sem rede: último cache, senão defaults), `onPromptShown()`, `onPromptOutcome(outcome)`, `promptCount()`.
+  `ReviewStore` ganhou métodos com default (`getPromptCount`, `getLastPromptAtMillis`, `recordPrompt`, `readCachedConfig`,
+  `writeCachedConfig`) — store próprio que não os implementa segue a regra antiga. `ReviewPreferences` ganhou as chaves
+  `prompt_count`, `last_prompt_at`, `config_json`, `config_fetched_at`.
+- **`AppReviewService`** + **`RestReviewConfigSource`** (`kmplib-central`, `feedback`): `GET /public/review-config?project=&platform=`;
+  `AppReviewService.manager()` = o manager do processo. `CentralServices` já liga (`enableReviewConfig`, default `true`).
+- **Uma linha no app**: `rememberAppReviewPrompt()` → `AppReviewPromptState` (`onCompletion(trigger)`, `open(trigger)` para o
+  "Avaliar o app" do menu) + **`AppReviewPromptHost(state, androidPackage, iosAppId)`**.
+- **House ads**: `RestAdStatsRecorder` manda `installId` (opcional, omitido quando `null`) — pessoas únicas por dia/app/anúncio;
+  parâmetro `installIdProvider`.
+
+### Compatibilidade
+- `AppReviewManager(triggerCount = 3)` + `markShown()` funcionam como antes (sem `configSource` a regra é a local, e o teto/lembrete
+  só contam com `onPromptShown`). O `AppReviewDialog` sem os parâmetros novos se comporta igual — e passa a mandar a estatística
+  quando o `ModalEvents` está inicializado (`recordEvents = false` desliga).
+
+### Testes
+- platform: `ReviewPromptRuleTest` (regra do contrato, lembrete, teto, cache, sem rede, forma antiga), `InstallIdTest`;
+  central: `ModalEventsTest` (lote, 50, automação, refId, trigger, corpo REST), `AppReviewServiceTest`,
+  `AnnouncementEventsReporterTest`, `CentralServicesTest`; ui: `AnnouncementEventTest`; ads: `RestAdStatsRecorderTest` (installId).
+
 ## 2.334.0 — **Tour: Pular/Próximo voltam a responder em todo Android, e tocar fora do balão PULA** (LocAki, 29/out/2026)
 
 Origem: o fundador, no LocAki — *"em alguns Androids, no tutorial do primeiro acesso, o Próximo e o Pular não dão certo;

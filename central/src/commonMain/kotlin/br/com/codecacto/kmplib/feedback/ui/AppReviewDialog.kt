@@ -37,6 +37,9 @@ import br.com.codecacto.kmplib.mask.filterPhoneInput
 import br.com.codecacto.kmplib.platform.audience.KmpLibAudience
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.validation.EmailValidator
+import br.com.codecacto.kmplib.modalevents.ModalEventType
+import br.com.codecacto.kmplib.modalevents.ModalEvents
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -105,6 +108,16 @@ private enum class ReviewStep {
  *   Maestro e escondia a tela). Passe `false` só quando o diálogo é aberto por GESTO da pessoa (item
  *   "Avaliar o app" do menu), que o flow aciona de propósito.
  *
+ * @param trigger (2.335.0) qual fluxo disparou o pedido (`"locacao_finalizada"`) — vai na estatística
+ *   do Nexus; `null` = não informado (ex.: o "Avaliar o app" do menu).
+ * @param recordEvents (2.335.0) manda a estatística (`ModalEvents`: `shown`, `positive`, `negative`,
+ *   `feedback_sent`, `dismissed`). Sem `ModalEvents` inicializado nada sai; build de teste nunca envia.
+ * @param onShown (2.335.0) o diálogo apareceu de fato (uma vez por exibição; rotação não repete).
+ * @param onPositive (2.335.0) tocou "Sim" (antes de abrir a loja).
+ * @param onNegative (2.335.0) tocou "Não" (antes do formulário).
+ * @param onDismissedWithoutAnswer (2.335.0) fechou na pergunta inicial, sem responder (voltar/toque
+ *   fora). [onDismiss] continua sendo chamado em TODO fechamento, como antes.
+ *
  * **App infantil (2.259.0):** com `KmpLibAudience` em `KIDS`, [show] `true` não desenha este diálogo
  * (ele coleta e-mail/WhatsApp): abre a página da loja direto, atrás do portão de pais, e chama
  * [onDismiss].
@@ -136,6 +149,12 @@ fun AppReviewDialog(
     yesText: String = "Sim",
     noText: String = "Não",
     suppressInAutomation: Boolean = true,
+    trigger: String? = null,
+    recordEvents: Boolean = true,
+    onShown: () -> Unit = {},
+    onPositive: () -> Unit = {},
+    onNegative: () -> Unit = {},
+    onDismissedWithoutAnswer: () -> Unit = {},
 ) {
     if (KmpLibAudience.isKids) {
         // App infantil (2.259.0): o formulário pede e-mail e WhatsApp — dado que não se coleta de
@@ -173,10 +192,30 @@ fun AppReviewDialog(
         }
     }
 
-    if (show && !(suppressInAutomation && AutomationMode.suppressesAutomaticPrompts)) {
+    val visible = show && !(suppressInAutomation && AutomationMode.suppressesAutomaticPrompts)
+    val record: (ModalEventType) -> Unit = { type ->
+        if (recordEvents) ModalEvents.record(type, trigger = trigger)
+    }
+    // Estatística: `shown` uma vez por exibição — salvo no estado da tela para a rotação não repetir.
+    var shownReported by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(visible) {
+        if (visible && !shownReported) {
+            shownReported = true
+            record(ModalEventType.REVIEW_SHOWN)
+            onShown()
+        } else if (!show) {
+            shownReported = false
+        }
+    }
+
+    if (visible) {
         Dialog(
             onDismissRequest = {
                 if (currentStep != ReviewStep.ThankYou) {
+                    if (currentStep == ReviewStep.Initial) {
+                        record(ModalEventType.REVIEW_DISMISSED)
+                        onDismissedWithoutAnswer()
+                    }
                     onDismiss()
                 }
             },
@@ -210,6 +249,8 @@ fun AppReviewDialog(
                             yesText = yesText,
                             noText = noText,
                             onYes = {
+                                record(ModalEventType.REVIEW_POSITIVE)
+                                onPositive()
                                 try {
                                     val urlLauncher = getUrlLauncher()
                                     urlLauncher.openStorePage(
@@ -220,6 +261,8 @@ fun AppReviewDialog(
                                 onDismiss()
                             },
                             onNo = {
+                                record(ModalEventType.REVIEW_NEGATIVE)
+                                onNegative()
                                 currentStep = ReviewStep.Feedback
                             }
                         )
@@ -243,6 +286,7 @@ fun AppReviewDialog(
                             onEmailChange = { feedbackEmail = it },
                             onWhatsappChange = { feedbackWhatsapp = filterPhoneInput(it) },
                             onSubmit = {
+                                record(ModalEventType.REVIEW_FEEDBACK_SENT)
                                 onFeedbackSubmit(feedbackText.trim())
 
                                 // Persistir no Firestore se habilitado

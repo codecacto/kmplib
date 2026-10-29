@@ -26,4 +26,26 @@ actual class ReviewPreferences {
         prefs.edit().putInt("completion_count", newCount).apply()
         return newCount
     }
+
+    actual fun getPromptCount(): Int = prefs.getInt("prompt_count", 0)
+
+    actual fun getLastPromptAt(): Long = prefs.getLong("last_prompt_at", 0L)
+
+    actual fun recordPrompt(atMillis: Long) {
+        prefs.edit()
+            .putInt("prompt_count", getPromptCount() + 1)
+            .putLong("last_prompt_at", atMillis)
+            .apply()
+    }
+
+    actual fun getConfigJson(): String? = prefs.getString("config_json", null)
+
+    actual fun getConfigFetchedAt(): Long = prefs.getLong("config_fetched_at", 0L)
+
+    actual fun setConfig(json: String, fetchedAtMillis: Long) {
+        prefs.edit()
+            .putString("config_json", json)
+            .putLong("config_fetched_at", fetchedAtMillis)
+            .apply()
+    }
 }

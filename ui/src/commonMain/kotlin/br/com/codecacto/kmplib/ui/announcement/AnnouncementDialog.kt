@@ -61,6 +61,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -294,6 +295,7 @@ private fun rememberDialogColors(kind: AnnouncementKind): AnnouncementDialogColo
  * @param dismissible se oferece X/"Entendi" ([isDialogDismissibleAt]).
  * @param onDismiss X e "Entendi".
  * @param onAction o botão de ação (o host abre a URL e fecha).
+ * @param onClose o X, quando precisa ser distinguido do "Entendi" (estatística, 2.335.0); `null` = [onDismiss].
  */
 @Composable
 fun AnnouncementDialogCard(
@@ -308,7 +310,9 @@ fun AnnouncementDialogCard(
     dismissible: Boolean = announcement.dismissible,
     now: Instant = Clock.System.now(),
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
+    onClose: (() -> Unit)? = null,
 ) {
+    val closeAction: () -> Unit = onClose ?: onDismiss
     val colors = rememberDialogColors(announcement.kind)
     val landscape = maxHeight < LANDSCAPE_MAX_HEIGHT && maxWidth > maxHeight
     val compact = maxWidth < COMPACT_MAX_WIDTH
@@ -343,7 +347,7 @@ fun AnnouncementDialogCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (image == null) DialogCounter(position, total, colors, texts, Modifier)
                         Spacer(Modifier.weight(1f))
-                        if (dismissible) DialogCloseButton(colors, texts, onDismiss, chip = false)
+                        if (dismissible) DialogCloseButton(colors, texts, closeAction, chip = false)
                     }
                     DialogBody(announcement, colors, texts, now, compact = true, Modifier.weight(1f, fill = false).padding(end = 12.dp))
                     DialogFooter(announcement, action, dismissible, colors, texts, onDismiss, onAction, row = true, Modifier.padding(end = 12.dp, top = 12.dp))
@@ -360,7 +364,7 @@ fun AnnouncementDialogCard(
                     }
                     DialogCounter(position, total, colors, texts, Modifier.align(Alignment.TopStart).padding(12.dp))
                     if (dismissible) {
-                        DialogCloseButton(colors, texts, onDismiss, chip = true, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                        DialogCloseButton(colors, texts, closeAction, chip = true, Modifier.align(Alignment.TopEnd).padding(8.dp))
                     }
                 }
                 val hPad = if (compact) 20.dp else 24.dp
@@ -689,10 +693,20 @@ private fun runDialogAction(
     action: AnnouncementAction,
     dismissible: Boolean,
     onAction: (AnnouncementAction) -> Unit,
-    onDismiss: () -> Unit,
+    onDismiss: (AnnouncementDismissReason) -> Unit,
 ) {
     onAction(action)
-    if (dismissible) onDismiss()
+    if (dismissible) onDismiss(AnnouncementDismissReason.AFTER_ACTION)
+}
+
+/** Por que o modal fechou — separa "Entendi", X/voltar/fora e o fechamento que segue a ação. */
+internal enum class AnnouncementDismissReason { GOT_IT, CLOSE, AFTER_ACTION }
+
+/** O evento de estatística de um fechamento (`null` = o que segue a ação, já contado como clique). */
+internal fun AnnouncementDismissReason.toEvent(): AnnouncementEvent? = when (this) {
+    AnnouncementDismissReason.GOT_IT -> AnnouncementEvent.DISMISS_GOT_IT
+    AnnouncementDismissReason.CLOSE -> AnnouncementEvent.DISMISS_CLOSE
+    AnnouncementDismissReason.AFTER_ACTION -> null
 }
 
 /**
@@ -725,7 +739,7 @@ fun AnnouncementDialog(
     AnnouncementDialogWindow(
         visibleState = visibleState,
         ui = AnnouncementDialogUiState(announcement, position, total, dismissible, now),
-        onDismiss = onDismiss,
+        onDismiss = { onDismiss() },
         onAction = onAction,
         texts = texts,
     )
@@ -735,14 +749,14 @@ fun AnnouncementDialog(
 private fun AnnouncementDialogWindow(
     visibleState: MutableTransitionState<Boolean>,
     ui: AnnouncementDialogUiState,
-    onDismiss: () -> Unit,
+    onDismiss: (AnnouncementDismissReason) -> Unit,
     onAction: (AnnouncementAction) -> Unit,
     texts: AnnouncementDialogTexts,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val dismissible = ui.dismissible
     AppBasicAlertDialog(
-        onDismissRequest = { if (dismissible) onDismiss() },
+        onDismissRequest = { if (dismissible) onDismiss(AnnouncementDismissReason.CLOSE) },
         properties = DialogProperties(
             dismissOnBackPress = dismissible,
             dismissOnClickOutside = dismissible,
@@ -774,7 +788,8 @@ private fun AnnouncementDialogWindow(
                     val announcement = shown.current ?: return@AnimatedContent
                     AnnouncementDialogCard(
                         announcement = announcement,
-                        onDismiss = onDismiss,
+                        onDismiss = { onDismiss(AnnouncementDismissReason.GOT_IT) },
+                        onClose = { onDismiss(AnnouncementDismissReason.CLOSE) },
                         onAction = { action -> runDialogAction(action, shown.dismissible, onAction, onDismiss) },
                         maxWidth = maxW,
                         maxHeight = maxH,
@@ -866,6 +881,10 @@ fun rememberAnnouncementDialogState(
  * ```
  *
  * @param suppressInAutomation `false` deixa o modal fechável abrir também em build de teste.
+ * @param onEvent estatística (2.335.0): [AnnouncementEvent.SHOWN] quando o modal de um comunicado abre
+ *   de fato, [AnnouncementEvent.ACTION_CLICK], [AnnouncementEvent.DISMISS_GOT_IT] e
+ *   [AnnouncementEvent.DISMISS_CLOSE] (X, voltar, toque fora). O fechamento que segue a ação não vira
+ *   evento próprio.
  */
 @Composable
 fun AnnouncementDialogHost(
@@ -880,15 +899,17 @@ fun AnnouncementDialogHost(
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
     suppressInAutomation: Boolean = true,
+    onEvent: AnnouncementEventListener? = null,
 ) {
     val state = rememberAnnouncementDialogState(announcements, store, clock, session, maxPerSession)
-    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts, suppressInAutomation)
+    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts, suppressInAutomation, onEvent)
 }
 
 /**
  * O mesmo [AnnouncementDialogHost], sobre um [AnnouncementDialogState] que a tela já tem.
  *
  * @param suppressInAutomation `false` deixa o modal fechável abrir também em build de teste.
+ * @param onEvent estatística (2.335.0) — ver a outra sobrecarga.
  */
 @Composable
 fun AnnouncementDialogHost(
@@ -899,6 +920,7 @@ fun AnnouncementDialogHost(
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
     suppressInAutomation: Boolean = true,
+    onEvent: AnnouncementEventListener? = null,
 ) {
     val ui = state.ui
     val current = ui.current
@@ -924,6 +946,12 @@ fun AnnouncementDialogHost(
     }
 
     val show = allowed && current != null && (blocking || (!suppressed && !automationMuted))
+    val listener by rememberUpdatedState(onEvent)
+    // Uma vez por comunicado que de fato abre (a chave é o id do da vez, não cada recomposição).
+    val opened = if (show) current else null
+    LaunchedEffect(opened?.id) {
+        if (opened != null) listener?.onEvent(opened, AnnouncementEvent.SHOWN)
+    }
     // O último conteúdo exibido — é ele que anima a SAÍDA depois que a fila esvazia.
     val lastShown = remember { arrayOfNulls<AnnouncementDialogUiState>(1) }
     if (show) lastShown[0] = ui
@@ -939,8 +967,18 @@ fun AnnouncementDialogHost(
     AnnouncementDialogWindow(
         visibleState = visibleState,
         ui = shown,
-        onDismiss = { shown.current?.let { state.dismiss(it.id) } },
-        onAction = { action -> shown.current?.let { onAction(it, action) } },
+        onDismiss = { reason ->
+            shown.current?.let { a ->
+                reason.toEvent()?.let { e -> listener?.onEvent(a, e) }
+                state.dismiss(a.id)
+            }
+        },
+        onAction = { action ->
+            shown.current?.let { a ->
+                listener?.onEvent(a, AnnouncementEvent.ACTION_CLICK)
+                onAction(a, action)
+            }
+        },
         texts = texts,
     )
 }

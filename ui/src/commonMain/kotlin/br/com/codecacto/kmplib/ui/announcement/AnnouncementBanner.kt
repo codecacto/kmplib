@@ -50,6 +50,8 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -538,6 +540,9 @@ fun rememberAnnouncementState(
  *     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
  * )
  * ```
+ *
+ * @param onEvent estatística (2.335.0) — exibição, clique na ação e fechamento, do cartão e do modal
+ *   ([AnnouncementEvent]). Nada sai do aparelho por aqui; o `RemoteAnnouncementHost` liga ao servidor.
  */
 @Composable
 fun AnnouncementHost(
@@ -550,11 +555,12 @@ fun AnnouncementHost(
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
     dialogSuppressInAutomation: Boolean = true,
+    onEvent: AnnouncementEventListener? = null,
 ) {
     val banners = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.BANNER } }
     val modals = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.MODAL } }
     val state = rememberAnnouncementState(banners, store, clock)
-    AnnouncementHost(state = state, modifier = modifier, onAction = onAction, extraContent = extraContent)
+    AnnouncementHost(state = state, modifier = modifier, onAction = onAction, extraContent = extraContent, onEvent = onEvent)
     AnnouncementDialogHost(
         announcements = modals,
         ready = dialogReady,
@@ -563,6 +569,7 @@ fun AnnouncementHost(
         clock = clock,
         onAction = onAction,
         suppressInAutomation = dialogSuppressInAutomation,
+        onEvent = onEvent,
     )
 }
 
@@ -570,6 +577,9 @@ fun AnnouncementHost(
  * O mesmo [AnnouncementHost], sobre um [AnnouncementState] que a tela já tem — SÓ banner: mostra
  * como cartão o que o estado escolher, qualquer que seja a `presentation`. Para o modal, some um
  * [AnnouncementDialogHost] (ou filtre a lista por `presentation` antes do [rememberAnnouncementState]).
+ *
+ * @param onEvent estatística (2.335.0): [AnnouncementEvent.SHOWN] quando o cartão de um aviso entra,
+ *   [AnnouncementEvent.ACTION_CLICK] e [AnnouncementEvent.DISMISS_CLOSE] (o X).
  */
 @Composable
 fun AnnouncementHost(
@@ -577,8 +587,14 @@ fun AnnouncementHost(
     modifier: Modifier = Modifier,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     extraContent: (@Composable (Announcement) -> Unit)? = null,
+    onEvent: AnnouncementEventListener? = null,
 ) {
     val reduceMotion = LocalReduceMotion.current
+    val listener by rememberUpdatedState(onEvent)
+    val current = state.current
+    LaunchedEffect(current?.id) {
+        if (current != null) listener?.onEvent(current, AnnouncementEvent.SHOWN)
+    }
     AnimatedContent(
         targetState = state.current,
         contentKey = { it?.id },
@@ -594,8 +610,14 @@ fun AnnouncementHost(
         if (announcement != null) {
             AnnouncementBanner(
                 announcement = announcement,
-                onDismiss = { state.dismiss(announcement.id) },
-                onAction = { action -> onAction(announcement, action) },
+                onDismiss = {
+                    listener?.onEvent(announcement, AnnouncementEvent.DISMISS_CLOSE)
+                    state.dismiss(announcement.id)
+                },
+                onAction = { action ->
+                    listener?.onEvent(announcement, AnnouncementEvent.ACTION_CLICK)
+                    onAction(announcement, action)
+                },
                 modifier = modifier,
                 now = state.now,
                 extraContent = extraContent?.let { content -> { content(announcement) } },

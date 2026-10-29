@@ -27,6 +27,22 @@ class FakeReviewStore : ReviewStore {
         return completionCount
     }
 
+    var prompts = 0
+    var lastPromptAt = 0L
+    var cachedConfig: CachedReviewConfig? = null
+
+    override fun getPromptCount(): Int = prompts
+    override fun getLastPromptAtMillis(): Long = lastPromptAt
+    override fun recordPrompt(atMillis: Long) {
+        prompts++
+        lastPromptAt = atMillis
+    }
+
+    override fun readCachedConfig(): CachedReviewConfig? = cachedConfig
+    override fun writeCachedConfig(config: ReviewPromptConfig, fetchedAtMillis: Long) {
+        cachedConfig = CachedReviewConfig(config, fetchedAtMillis)
+    }
+
     /** Helpers para setup direto em testes. */
     fun setReviewed(value: Boolean) { reviewed = value }
     fun setCompletionCount(value: Int) { completionCount = value }

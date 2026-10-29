@@ -21,6 +21,7 @@ class RestAdStatsRecorderTest {
         captured: Captured = Captured(),
         status: HttpStatusCode = HttpStatusCode.OK,
         isDebugBuild: Boolean = false,
+        installId: String? = null,
     ): RestAdStatsRecorder {
         val engine = MockEngine { request ->
             captured.url = request.url.toString()
@@ -28,7 +29,11 @@ class RestAdStatsRecorderTest {
             captured.body = (request.body as? io.ktor.http.content.TextContent)?.text
             respond(content = "{}", status = status, headers = jsonHeader)
         }
-        return RestAdStatsRecorder(httpClient = HttpClient(engine), isDebugBuild = { isDebugBuild })
+        return RestAdStatsRecorder(
+            httpClient = HttpClient(engine),
+            isDebugBuild = { isDebugBuild },
+            installIdProvider = { installId },
+        )
     }
 
     @Test
@@ -93,5 +98,21 @@ class RestAdStatsRecorderTest {
         val rec = RestAdStatsRecorder(httpClient = HttpClient(engine))
         // Nao deve lancar
         rec.record(AdProviderTag.CUSTOM, "x", AdFormat.BANNER, "a", AdEventType.IMPRESSION)
+    }
+
+    @Test
+    fun `installId vai no corpo quando existe`() = runTest {
+        val cap = Captured()
+        recorder(captured = cap, installId = "0b3c1d2e-4f5a-4b6c-8d7e-9f0a1b2c3d4e")
+            .record(AdProviderTag.CUSTOM, "meu-app", AdFormat.BANNER, "ad1", AdEventType.IMPRESSION)
+        assertTrue(cap.body!!.contains("\"installId\":\"0b3c1d2e-4f5a-4b6c-8d7e-9f0a1b2c3d4e\""), cap.body)
+    }
+
+    @Test
+    fun `sem installId o campo nao aparece`() = runTest {
+        val cap = Captured()
+        recorder(captured = cap, installId = null)
+            .record(AdProviderTag.CUSTOM, "meu-app", AdFormat.BANNER, "ad1", AdEventType.IMPRESSION)
+        assertTrue(!cap.body!!.contains("installId"), cap.body)
     }
 }
