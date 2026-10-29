@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.sync
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 
@@ -23,17 +24,20 @@ open class SyncableRepository<T : Any>(
     protected val engine: SyncEngine,
     protected val json: Json = defaultSyncJson,
 ) {
-    /** Observa todos os registros visíveis (não-deletados) da entidade. */
+    /**
+     * Observa todos os registros visíveis (não-deletados) da entidade. Emite só quando a lista
+     * decodificada muda — gravação em outra entidade ou do mesmo conteúdo não re-emite (2.335.2).
+     */
     fun observeAll(): Flow<List<T>> =
         store.observeVisible(entity.name).map { rows ->
             rows.mapNotNull { decode(it.payload_json) }
-        }
+        }.distinctUntilChanged()
 
-    /** Observa um registro por id local (== clientId). */
+    /** Observa um registro por id local (== clientId). Mesma regra de [observeAll]. */
     fun observeById(localId: String): Flow<T?> =
         store.observeVisibleById(entity.name, localId).map { row ->
             row?.let { decode(it.payload_json) }
-        }
+        }.distinctUntilChanged()
 
     /** Lê (síncrono) o modelo em cache por id local ou serverId. */
     fun getCached(id: String): T? {

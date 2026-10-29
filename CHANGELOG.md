@@ -5,6 +5,37 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.335.2 — **sync: os `observe*` não re-emitem mais a cada gravação em QUALQUER entidade** (OnMore / App do Personal, 29/out/2026)
+
+Origem: OnMore (App do Personal) em laço infinito de requisições (~600 por minuto). O SQLDelight notifica as consultas
+reativas **por tabela**, e todas as entidades moram na mesma `synced_entity`: toda gravação — de qualquer entidade, ou do
+mesmo conteúdo — re-emitia a mesma lista em todo observador. Um consumidor que reage à emissão gravando algo (cache,
+carimbo, outra entidade) fechava o laço: grava → re-emite → grava…
+
+### Corrigido
+- **`SqlDelightSyncStore`**: `observeVisible`, `observeVisibleById`, `observeVisibleByHandle` e `observeAllDirty` emitem só
+  quando o resultado da consulta muda (`distinctUntilChanged` sobre as linhas — `Synced_entity` é `data class`). A gravação de
+  outra entidade para aqui, antes de decodificar JSON.
+- **`LocalRepository.observeAll/observeById`**, **`SyncableRepository.observeAll/observeById`** e
+  **`RestEntityMirror.observeVisible/observeVisibleById/observeVisibleWithState/observeVisibleWithStateById`** (e, por eles,
+  `OfflineFirstRestRepository.observeAll/observeById/observeAllWithState/observeByIdWithState` e a lista da
+  `RestUploadOutbox`): `distinctUntilChanged` sobre o **já decodificado** — regravar o mesmo conteúdo (só `updated_at` ou
+  metadado de envio mudou; o pull que devolve o mesmo dado) não re-emite. Nos `…WithState`, mudança só do estado de envio
+  (Pendente → Falhou) **continua** emitindo: é parte do que a tela desenha.
+- Contrato documentado no `SyncStore`: os `observe*` emitem só quando o resultado muda. A igualdade é a do modelo
+  (`data class`); modelo sem `equals` estrutural segue emitindo como antes.
+
+### Ação
+- Nenhuma mudança de API. Contorno no app (`distinctUntilChanged` próprio, guarda "só grava se mudou") pode ficar ou sair.
+
+### Testes
+- `ObserveDistinctTest` (commonTest, 7): gravação em outra entidade não re-emite (`LocalRepository`, `SyncableRepository`,
+  `RestEntityMirror` com os 4 `observe*`), regravar conteúdo idêntico não re-emite, mudança real continua chegando, mudança só
+  de estado emite no `…WithState` e não no modelo. O `FakeSyncStore` notifica todo observador a cada gravação — como o SQLDelight.
+- `SqlDelightObserveDistinctTest` (androidUnitTest, 3, **SQLite de verdade** — `JdbcSqliteDriver` em memória, dependência só de
+  teste `sqldelight-driver-sqlite`): o store, o `LocalRepository` com um consumidor que grava a cada emissão (o laço do OnMore —
+  termina em 1 emissão) e o `RestEntityMirror`. Os 10 falham no código da 2.335.1. Suíte do `kmplib-sync`: 328 verdes.
+
 ## 2.335.1 — **App infantil não manda o identificador da instalação; o último parâmetro de cada função pública volta a ser o da 2.334.0** (code review da 2.335.0, 29/out/2026)
 
 ### Corrigido

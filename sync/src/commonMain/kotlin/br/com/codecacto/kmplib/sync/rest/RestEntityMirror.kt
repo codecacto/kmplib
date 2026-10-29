@@ -48,12 +48,21 @@ class RestEntityMirror<T : Any>(
 ) {
     // -- Leitura -----------------------------------------------------------
 
+    /**
+     * Espelho visível, decodificado. Emite **só quando a lista muda** (2.335.2): o SQLDelight
+     * notifica por tabela e a `synced_entity` é compartilhada, então sem o filtro uma gravação em
+     * QUALQUER entidade re-emitia esta lista — e quem reage gravando fechava um laço.
+     */
     fun observeVisible(): Flow<List<T>> =
-        store.observeVisible(name).map { rows -> rows.mapNotNull { decode(it.payload_json) } }
+        store.observeVisible(name)
+            .map { rows -> rows.mapNotNull { decode(it.payload_json) } }
+            .distinctUntilChanged()
 
     /** Observa a linha por **handle** — segue emitindo o mesmo registro depois de o id migrar. */
     fun observeVisibleById(localId: String): Flow<T?> =
-        store.observeVisibleByHandle(name, localId).map { row -> row?.let { decode(it.payload_json) } }
+        store.observeVisibleByHandle(name, localId)
+            .map { row -> row?.let { decode(it.payload_json) } }
+            .distinctUntilChanged()
 
     fun getVisible(): List<T> = store.getVisible(name).mapNotNull { decode(it.payload_json) }
 
@@ -136,11 +145,15 @@ class RestEntityMirror<T : Any>(
 
     /** Espelho visível **com o estado de cada linha** — a lista que a UI renderiza sem overlay próprio. */
     fun observeVisibleWithState(): Flow<List<RestRow<T>>> =
-        store.observeVisible(name).map { rows -> rows.mapNotNull { it.toRestRow() } }
+        store.observeVisible(name)
+            .map { rows -> rows.mapNotNull { it.toRestRow() } }
+            .distinctUntilChanged()
 
-    /** Uma linha visível com o seu estado (por **handle**). */
+    /** Uma linha visível com o seu estado (por **handle**). Emite só quando modelo ou estado mudam. */
     fun observeVisibleWithStateById(localId: String): Flow<RestRow<T>?> =
-        store.observeVisibleByHandle(name, localId).map { row -> row?.toRestRow() }
+        store.observeVisibleByHandle(name, localId)
+            .map { row -> row?.toRestRow() }
+            .distinctUntilChanged()
 
     fun getVisibleWithState(): List<RestRow<T>> = store.getVisible(name).mapNotNull { it.toRestRow() }
 

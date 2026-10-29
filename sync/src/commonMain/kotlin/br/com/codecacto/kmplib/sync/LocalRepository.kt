@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.sync
 
 import br.com.codecacto.kmplib.sync.db.Synced_entity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 
@@ -54,13 +55,22 @@ open class LocalRepository<T : Any>(
     protected val json: Json = defaultSyncJson,
     private val now: () -> String = ::isoNow,
 ) {
-    /** Observa (reativo) todos os registros da entidade, mais recentes primeiro. */
+    /**
+     * Observa (reativo) todos os registros da entidade, mais recentes primeiro.
+     *
+     * Emite **só quando a lista decodificada muda** (por `equals` — modelo `data class`): gravar em
+     * OUTRA entidade, ou regravar o mesmo conteúdo, não re-emite (2.335.2).
+     */
     fun observeAll(): Flow<List<T>> =
-        store.observeVisible(entity.name).map { rows -> rows.mapNotNull { decode(it.payload_json) } }
+        store.observeVisible(entity.name)
+            .map { rows -> rows.mapNotNull { decode(it.payload_json) } }
+            .distinctUntilChanged()
 
-    /** Observa (reativo) um registro por id local (== clientId). */
+    /** Observa (reativo) um registro por id local (== clientId). Mesma regra de [observeAll]. */
     fun observeById(localId: String): Flow<T?> =
-        store.observeVisibleById(entity.name, localId).map { row -> row?.let { decode(it.payload_json) } }
+        store.observeVisibleById(entity.name, localId)
+            .map { row -> row?.let { decode(it.payload_json) } }
+            .distinctUntilChanged()
 
     /** Lê (síncrono) todos os registros da entidade. */
     fun getAll(): List<T> =

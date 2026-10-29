@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 
 /**
@@ -117,6 +118,10 @@ interface SyncStore {
     }
 
     // -- Leitura reativa (Flow) --------------------------------------------
+    // Contrato (2.335.2): os `observe*` emitem SÓ quando o resultado da consulta MUDA. O SQLDelight
+    // notifica por TABELA, e a `synced_entity` é uma só para todas as entidades — sem o filtro, toda
+    // gravação em QUALQUER entidade re-emitia a mesma lista em todo observador, e quem reage a uma
+    // emissão gravando algo fechava um laço infinito (OnMore/App do Personal: ~600 req/min).
     fun observeVisible(entity: String): Flow<List<Synced_entity>>
     fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?>
     fun observeAllDirty(): Flow<List<Synced_entity>>
@@ -375,25 +380,25 @@ class SqlDelightSyncStore(
     override fun observeVisible(entity: String): Flow<List<Synced_entity>> =
         _accountScope.flatMapLatest { acc ->
             q.selectAllVisible(acc, entity).asFlow().mapToList(ioDispatcher)
-        }
+        }.distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeVisibleById(entity: String, localId: String): Flow<Synced_entity?> =
         _accountScope.flatMapLatest { acc ->
             q.selectVisibleById(acc, entity, localId).asFlow().mapToOneOrNull(ioDispatcher)
-        }
+        }.distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeVisibleByHandle(entity: String, handle: String): Flow<Synced_entity?> =
         _accountScope.flatMapLatest { acc ->
             q.selectVisibleByHandle(acc, entity, handle).asFlow().mapToOneOrNull(ioDispatcher)
-        }
+        }.distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeAllDirty(): Flow<List<Synced_entity>> =
         _accountScope.flatMapLatest { acc ->
             q.selectAllDirty(acc).asFlow().mapToList(ioDispatcher)
-        }
+        }.distinctUntilChanged()
 
     override fun getVisible(entity: String): List<Synced_entity> =
         q.selectAllVisible(account, entity).executeAsList()

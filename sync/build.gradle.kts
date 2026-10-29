@@ -56,5 +56,11 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.sqldelight.driver.native)
         }
+
+        // SQLite de verdade na JVM (JdbcSqliteDriver em memória): prova que o SqlDelightSyncStore não
+        // re-emite com gravação em outra entidade — o SQLDelight notifica por TABELA (2.335.2).
+        androidUnitTest.dependencies {
+            implementation(libs.sqldelight.driver.sqlite)
+        }
     }
 }
