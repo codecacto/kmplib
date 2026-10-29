@@ -51,8 +51,8 @@ import kotlinx.serialization.json.Json
 class RestAdStatsRecorder(
     private val httpClient: HttpClient,
     private val appsApiBaseUrl: String = DEFAULT_APPS_API_BASE_URL,
-    private val isDebugBuild: () -> Boolean = { BuildInfo.isDebug },
     private val installIdProvider: suspend () -> String? = { InstallId.forTelemetry() },
+    private val isDebugBuild: () -> Boolean = { BuildInfo.isDebug },
 ) : AdStatsRecorder {
     companion object {
         private const val TAG = "RestAdStatsRecorder"

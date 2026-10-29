@@ -2,6 +2,8 @@ package br.com.codecacto.kmplib.platform.install
 
 import br.com.codecacto.kmplib.core.prefs.InMemoryAppPreferences
 import br.com.codecacto.kmplib.core.util.isCanonicalUuid
+import br.com.codecacto.kmplib.platform.audience.AppAudience
+import br.com.codecacto.kmplib.platform.audience.KmpLibAudience
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -52,6 +54,30 @@ class InstallIdTest {
         assertNull(InstallId.forTelemetry())
         InstallId.isAutomation = { false }
         assertTrue(InstallId.forTelemetry() != null)
+    }
+
+    @Test
+    fun appInfantilNaoMandaNemCriaId() = runTest {
+        val prefs = InMemoryAppPreferences()
+        InstallId.useStorage(prefs)
+        InstallId.isAutomation = { false }
+        InstallId.isKidsAudience = { true }
+        assertNull(InstallId.forTelemetry())
+        assertEquals("", prefs.getString(InstallId.KEY), "nenhum id é gravado em app infantil")
+        InstallId.isKidsAudience = { false }
+        assertTrue(InstallId.forTelemetry() != null)
+    }
+
+    @Test
+    fun appInfantilPeloKmpLibAudience() = runTest {
+        InstallId.useStorage(InMemoryAppPreferences())
+        InstallId.isAutomation = { false }
+        KmpLibAudience.configure(AppAudience.KIDS)
+        try {
+            assertNull(InstallId.forTelemetry())
+        } finally {
+            KmpLibAudience.configure(AppAudience.GENERAL)
+        }
     }
 
     @Test

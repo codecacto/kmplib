@@ -214,9 +214,9 @@ data class CentralServicesConfig(
     val enableDeveloper: Boolean = true,
     val enableAnnouncements: Boolean = true,
     val enablePresence: Boolean = true,
-    val presencePayingProvider: (suspend () -> Boolean?)? = null,
     val enableModalEvents: Boolean = true,
     val enableReviewConfig: Boolean = true,
+    val presencePayingProvider: (suspend () -> Boolean?)? = null,
 ) {
     companion object {
         const val DEFAULT_APPS_API_BASE_URL: String = "https://apps-api.codecacto.com.br"

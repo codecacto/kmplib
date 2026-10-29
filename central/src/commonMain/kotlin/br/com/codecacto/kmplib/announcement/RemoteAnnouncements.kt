@@ -88,9 +88,9 @@ fun RemoteAnnouncementHost(
     extraContent: (@Composable (Announcement) -> Unit)? = null,
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
-    dialogSuppressInAutomation: Boolean = true,
     recordEvents: Boolean = true,
     onEvent: AnnouncementEventListener? = null,
+    dialogSuppressInAutomation: Boolean = true,
 ) {
     val remote = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
     val merged = remember(local, remote) { mergeAnnouncements(local, remote) }

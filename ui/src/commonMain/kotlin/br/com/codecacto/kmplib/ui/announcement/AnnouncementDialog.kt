@@ -309,8 +309,8 @@ fun AnnouncementDialogCard(
     total: Int = 1,
     dismissible: Boolean = announcement.dismissible,
     now: Instant = Clock.System.now(),
-    texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
     onClose: (() -> Unit)? = null,
+    texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
 ) {
     val closeAction: () -> Unit = onClose ?: onDismiss
     val colors = rememberDialogColors(announcement.kind)
@@ -898,11 +898,11 @@ fun AnnouncementDialogHost(
     maxPerSession: Int = DEFAULT_ANNOUNCEMENT_DIALOGS_PER_SESSION,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
-    suppressInAutomation: Boolean = true,
     onEvent: AnnouncementEventListener? = null,
+    suppressInAutomation: Boolean = true,
 ) {
     val state = rememberAnnouncementDialogState(announcements, store, clock, session, maxPerSession)
-    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts, suppressInAutomation, onEvent)
+    AnnouncementDialogHost(state, ready, suppressed, openDelay, onAction, texts, onEvent, suppressInAutomation)
 }
 
 /**
@@ -919,8 +919,8 @@ fun AnnouncementDialogHost(
     openDelay: Duration = DEFAULT_ANNOUNCEMENT_DIALOG_OPEN_DELAY,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
     texts: AnnouncementDialogTexts = rememberAnnouncementDialogTexts(),
-    suppressInAutomation: Boolean = true,
     onEvent: AnnouncementEventListener? = null,
+    suppressInAutomation: Boolean = true,
 ) {
     val ui = state.ui
     val current = ui.current

@@ -148,13 +148,13 @@ fun AppReviewDialog(
     thankYouMessage: String = "Seu feedback é muito valioso para nós",
     yesText: String = "Sim",
     noText: String = "Não",
-    suppressInAutomation: Boolean = true,
     trigger: String? = null,
     recordEvents: Boolean = true,
     onShown: () -> Unit = {},
     onPositive: () -> Unit = {},
     onNegative: () -> Unit = {},
     onDismissedWithoutAnswer: () -> Unit = {},
+    suppressInAutomation: Boolean = true,
 ) {
     if (KmpLibAudience.isKids) {
         // App infantil (2.259.0): o formulário pede e-mail e WhatsApp — dado que não se coleta de

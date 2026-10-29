@@ -5,6 +5,25 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.335.1 — **App infantil não manda o identificador da instalação; o último parâmetro de cada função pública volta a ser o da 2.334.0** (code review da 2.335.0, 29/out/2026)
+
+### Corrigido
+- **Privacidade (app infantil):** `InstallId.forTelemetry()` devolve `null` também com `KmpLibAudience` em `KIDS` — e o id
+  nem é criado. Os eventos (`ModalEvents`) e as estatísticas de house ad (`RestAdStatsRecorder`) continuam saindo, **sem**
+  identificador persistente (Apple Kids / Play Famílias). Contrato §1 atualizado.
+- **Compatibilidade de FONTE:** na 2.335.0 os parâmetros novos entraram no FIM das assinaturas e roubavam a posição de
+  lambda final/último argumento. Agora entram ANTES do último parâmetro que cada função tinha na 2.334.0:
+  `AnnouncementHost(state, …)` (último = `extraContent`, a lambda final volta a ir para o conteúdo), `AnnouncementHost(list, …)`
+  e `RemoteAnnouncementHost` (`dialogSuppressInAutomation`), `AnnouncementDialogHost` (as duas; `suppressInAutomation`),
+  `AnnouncementDialogCard` (`texts`), `AppReviewDialog` (`suppressInAutomation`), `RestAdStatsRecorder` (`isDebugBuild`),
+  `CentralServicesConfig` (`presencePayingProvider`) e `AppReviewManager` (`suppressed` — `AppReviewManager(…) { true }`
+  continua valendo). Quem chamou os novos por nome (o certo) não muda nada.
+- **`ModalEvents`:** o `flush` que encontra o lote vazio libera o agendamento sob o lock — um evento que chegava no fim do job
+  agendado ficava parado até o próximo evento (commit `2a7a508`, do revisor).
+
+### Testes
+- `InstallIdTest` (app infantil: `null` e nada gravado; pelo `KmpLibAudience` real).
+
 ## 2.335.0 — **Estatística dos modais (comunicado + avaliação), identificador anônimo da instalação e regra REMOTA do pedido de avaliação** (Nexus, 29/out/2026)
 
 Origem: o fundador — *"quero ter um pouco mais de controle sobre a visualização desses modais… assim como os anúncios… quero

@@ -133,12 +133,12 @@ val reviewConfigJson: Json = Json {
 class AppReviewManager(
     private val triggerCount: Int = 3,
     private val store: ReviewStore = PreferencesReviewStore(),
-    private val suppressed: () -> Boolean = {
-        AutomationMode.suppressesAutomaticPrompts || KmpLibAudience.isKids
-    },
     private val configSource: ReviewConfigSource? = null,
     private val clock: () -> Long = { currentTimeMillis() },
     private val configMaxAgeMillis: Long = DEFAULT_CONFIG_MAX_AGE_MILLIS,
+    private val suppressed: () -> Boolean = {
+        AutomationMode.suppressesAutomaticPrompts || KmpLibAudience.isKids
+    },
 ) {
     @Volatile
     private var memoryConfig: CachedReviewConfig? = null

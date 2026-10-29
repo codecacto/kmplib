@@ -4,6 +4,7 @@ import br.com.codecacto.kmplib.core.prefs.AppPreferences
 import br.com.codecacto.kmplib.core.prefs.appPreferences
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.isCanonicalUuid
+import br.com.codecacto.kmplib.platform.audience.KmpLibAudience
 import br.com.codecacto.kmplib.platform.automation.AutomationMode
 import kotlin.concurrent.Volatile
 import kotlin.uuid.ExperimentalUuidApi
@@ -22,8 +23,9 @@ import kotlinx.coroutines.sync.withLock
  *   outro — é de propósito: não sobrevive ao app.
  * - **Sem ligação** com conta, aparelho, anúncio (nada de `ANDROID_ID`, IDFA, IDFV) ou servidor: não
  *   identifica ninguém e não é PII. Não use como chave de conta nem como segredo.
- * - **Telemetria usa [forTelemetry]**, que devolve `null` em processo de teste ([AutomationMode]): a
- *   suíte não fabrica "pessoas" no painel.
+ * - **Telemetria usa [forTelemetry]**, que devolve `null` em processo de teste ([AutomationMode]) — a
+ *   suíte não fabrica "pessoas" no painel — e em **app infantil** ([KmpLibAudience] `KIDS`, 2.335.1):
+ *   os eventos continuam saindo, sem identificador persistente nenhum (Apple Kids / Play Famílias).
  *
  * Contrato do servidor: `docs/tarefas/2026-10-29-estatistica-dos-modais.md` §1 (fábrica).
  *
@@ -48,6 +50,9 @@ object InstallId {
 
     @Volatile
     internal var isAutomation: () -> Boolean = { runCatching { AutomationMode.isActive }.getOrDefault(false) }
+
+    @Volatile
+    internal var isKidsAudience: () -> Boolean = { runCatching { KmpLibAudience.isKids }.getOrDefault(false) }
 
     /**
      * O id desta instalação, criando-o no primeiro uso. `null` só quando as preferências não estão
@@ -77,8 +82,11 @@ object InstallId {
         }
     }
 
-    /** O id para mandar em telemetria: `null` em processo de teste ([AutomationMode]) ou sem preferências. */
-    suspend fun forTelemetry(): String? = if (isAutomation()) null else get()
+    /**
+     * O id para mandar em telemetria: `null` em processo de teste ([AutomationMode]), em app infantil
+     * ([KmpLibAudience] `KIDS`, 2.335.1 — nem é criado) ou sem preferências.
+     */
+    suspend fun forTelemetry(): String? = if (isAutomation() || isKidsAudience()) null else get()
 
     /**
      * Troca o armazenamento (teste, ou app que guarda as preferências da lib num lugar próprio).
@@ -94,6 +102,7 @@ object InstallId {
         preferencesOverride = null
         cached = null
         isAutomation = { runCatching { AutomationMode.isActive }.getOrDefault(false) }
+        isKidsAudience = { runCatching { KmpLibAudience.isKids }.getOrDefault(false) }
     }
 }
 

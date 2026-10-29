@@ -554,8 +554,8 @@ fun AnnouncementHost(
     extraContent: (@Composable (Announcement) -> Unit)? = null,
     dialogReady: Boolean = true,
     dialogSuppressed: Boolean = false,
-    dialogSuppressInAutomation: Boolean = true,
     onEvent: AnnouncementEventListener? = null,
+    dialogSuppressInAutomation: Boolean = true,
 ) {
     val banners = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.BANNER } }
     val modals = remember(announcements) { announcements.filter { it.presentation == AnnouncementPresentation.MODAL } }
@@ -586,8 +586,8 @@ fun AnnouncementHost(
     state: AnnouncementState,
     modifier: Modifier = Modifier,
     onAction: (Announcement, AnnouncementAction) -> Unit = { _, action -> openAnnouncementAction(action) },
-    extraContent: (@Composable (Announcement) -> Unit)? = null,
     onEvent: AnnouncementEventListener? = null,
+    extraContent: (@Composable (Announcement) -> Unit)? = null,
 ) {
     val reduceMotion = LocalReduceMotion.current
     val listener by rememberUpdatedState(onEvent)
