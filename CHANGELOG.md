@@ -5,6 +5,27 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.334.0 — **Tour: Pular/Próximo voltam a responder em todo Android, e tocar fora do balão PULA** (LocAki, 29/out/2026)
+
+Origem: o fundador, no LocAki — *"em alguns Androids, no tutorial do primeiro acesso, o Próximo e o Pular não dão certo;
+quero que o clique fora do modal conte como se a pessoa tivesse pulado, para evitar o travamento"*.
+
+### Corrigido
+- **`ProductTourHost`**: a camada escura consumia TODO evento de toque (`awaitPointerEvent().changes.forEach { it.consume() }`)
+  para a tela de baixo não reagir. O clique do Compose (`waitForUpOrCancellation`) se CANCELA quando um movimento do mesmo
+  toque chega consumido — e aparelho que reporta o tremor do dedo como MOVE entre o encostar e o soltar perdia todo toque em
+  Pular, Voltar e Próximo: o tour do primeiro acesso travava a tela. O consumo era também inútil: a tela de baixo não recebe o
+  toque de qualquer jeito (só o irmão de cima com entrada o recebe).
+
+### Mudou (comportamento)
+- **Toque simples fora do balão = Pular** (`state.skip()`, `TourEndReason.SKIPPED` — grava "visto" no first-run, como o botão).
+  Até a 2.333.0 não fazia nada. Toque no balão fora dos botões continua sem efeito (o balão segura o soltar); arrastar fora do
+  balão não faz nada; o voltar do sistema continua pulando.
+
+### Testes
+- `TourToqueNosBotoesTest` (varredura do fonte, `androidUnitTest`): a camada não consome todo evento, toque fora chama
+  `state.skip()`, o balão só consome o soltar. Sem teste de UI automatizado na lib (decisão do fundador, jun/2026).
+
 ## 2.333.0 — **Diálogos com contraste: texto do confirmar pela cor do BOTÃO (vermelho → branco) e Cancelar com contorno legível** (OnMore / App do Personal, 29/out/2026)
 
 Origem: o fundador, no OnMore — *"a palavra Sair está preta sobre o vermelho, deveria estar branco; o Cancelar também está

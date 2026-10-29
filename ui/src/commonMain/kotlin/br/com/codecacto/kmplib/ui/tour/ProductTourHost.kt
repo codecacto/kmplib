@@ -51,6 +51,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -201,7 +205,8 @@ object ProductTourDefaults {
  *   ([ProductTourFirstRun]). Build de teste (`AutomationMode`) não abre sozinho — o flow que quer
  *   o tour toca em "Refazer o tour".
  * - **Alvo fora da tela** no começo: o passo é pulado e sai da contagem.
- * - **Toque fora do balão** não faz nada (não fecha por engano); o **voltar do sistema** pula o tour.
+ * - **Toque fora do balão** pula o tour (conta como "Pular" — grava "visto"), e o **voltar do
+ *   sistema** também. Arrastar fora do balão não faz nada.
  * - **Acessibilidade**: a tela por baixo sai da árvore de semântica enquanto o tour está aberto
  *   (como num diálogo); o balão é um painel nomeado, o título é cabeçalho e anunciado a cada passo,
  *   e o foco vai para o botão principal.
@@ -335,14 +340,11 @@ private fun TourOverlay(
         modifier = Modifier
             .fillMaxSize()
             .testTag(ProductTourTestTags.CAMADA)
-            // Engole todo toque fora do balão: a tela por baixo não reage enquanto o tour está aberto.
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent().changes.forEach { it.consume() }
-                    }
-                }
-            },
+            // Toque simples fora do balão = Pular. A tela por baixo não recebe nada: o toque vai só
+            // ao irmão de cima que tem entrada (esta camada). NÃO consumir todo evento aqui: o clique
+            // de Pular/Próximo é cancelado quando um movimento do mesmo toque chega consumido, e
+            // aparelho que reporta o tremor do dedo como MOVE perdia todo toque nos botões (2.334.0).
+            .pointerInput(state) { detectTapGestures(onTap = { state.skip() }) },
     ) {
         val radiusPx = with(LocalDensity.current) { style.highlightCornerRadius.toPx() }
         Canvas(
@@ -469,6 +471,17 @@ private fun TourBalloon(
         shadowElevation = 8.dp,
         modifier = Modifier
             .testTag(ProductTourTestTags.BALAO)
+            // Toque no balão (fora dos botões) não chega à camada, que o leria como "Pular". Só o
+            // soltar é consumido — depois de os botões já o terem tratado (passe Main: filho antes).
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { if (it.changedToUp()) it.consume() }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
             .semantics {
                 paneTitle = texts.paneTitle
                 isTraversalGroup = true

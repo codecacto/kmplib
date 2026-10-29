@@ -49,6 +49,11 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.334.0
+    motivo: "tour do primeiro acesso travava a tela em parte dos Androids: Pular/Voltar/Próximo cancelados pela camada que consumia todo toque (agora toque fora do balão também pula)"
+    simbolos: [ProductTourHost]
+    bloqueia: false
+
   - versao: 2.333.0
     motivo: "diálogo de confirmação: Cancelar cinza apagado (~3,5:1) e texto do confirmar herdando onPrimary — \"Sair\" preto sobre o vermelho em app de primária clara"
     simbolos: [AppAlertDialog, AppInputDialog, AccountDeletionDialog, ConfirmationDialog, ErrorModal]
