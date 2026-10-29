@@ -306,7 +306,7 @@ private fun Double.format2(): String {
 
 /**
  * Cor de **conteúdo** (`onPrimary`, `onSecondary`, `onTertiary`, `onError`) para texto/ícone sobre uma
- * cor de MARCA preenchida (2.262.2). Escolhe entre branco e o quase-preto [ON_BRAND_DARK] o que der
+ * cor de MARCA preenchida (2.262.2). Escolhe entre branco e o quase-preto `#1C1C1C` o que der
  * MAIOR contraste WCAG sobre a cor efetivamente exibida ([fill] já composta, opaca); se nem o melhor
  * dos dois chegar a [ColorContrast.AA_TEXT] (4,5:1 — só acontece numa faixa estreita de luminância
  * média, por volta de 0,18), troca o quase-preto por preto puro, com o qual o par branco/preto
@@ -316,15 +316,7 @@ private fun Double.format2(): String {
  * vermelho `#DC2626` no escuro dava ~3,6:1 e um azul-marinho `#111827` deixava o texto do botão
  * praticamente invisível; no claro, amarelo/âmbar/verde-claro com texto branco ficavam ilegíveis.
  */
-internal fun onBrandColorFor(fill: Color): Color {
-    val opaque = if (fill.alpha < 1f) ColorContrast.compositeOver(fill, 1f, Color.Black) else fill
-    val best = ColorContrast.pickOnColor(opaque, light = Color.White, dark = ON_BRAND_DARK)
-    if (ColorContrast.meetsTextContrast(best, opaque)) return best
-    return ColorContrast.pickOnColor(opaque, light = Color.White, dark = Color.Black)
-}
-
-/** Quase-preto preferido para texto sobre cor de marca clara (o mesmo tom histórico do tema). */
-private val ON_BRAND_DARK = Color(0xFF1C1C1C)
+internal fun onBrandColorFor(fill: Color): Color = ColorContrast.readableOn(fill, backdrop = Color.Black)
 
 /**
  * Cor de **conteúdo** sobre o CONTAINER tonal da marca (`onPrimaryContainer`, `onSecondaryContainer`,

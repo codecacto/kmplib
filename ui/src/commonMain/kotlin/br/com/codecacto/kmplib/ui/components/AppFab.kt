@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import br.com.codecacto.kmplib.ui.theme.AppTheme
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -49,7 +50,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * @param extended Força/inibe a variante estendida. Padrão: estendida sempre que houver [label].
  * @param enabled Quando `false`, esmaece e desativa o clique. Padrão `true`.
  * @param containerColor Cor de fundo. Padrão: `primary` do tema.
- * @param contentColor Cor do ícone/label. Padrão: `onPrimary` do tema.
+ * @param contentColor Cor do ícone/label. Padrão (2.333.0): [readableContentColorFor] de [containerColor]
+ *   — `onPrimary` com a primária do tema, branco/preto pelo contraste AA com outra cor.
  */
 @Composable
 fun AppFab(
@@ -61,7 +63,7 @@ fun AppFab(
     extended: Boolean = label != null,
     enabled: Boolean = true,
     containerColor: Color = MaterialTheme.colorScheme.primary,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
+    contentColor: Color = readableContentColorFor(containerColor),
 ) {
     val safeOnClick = if (enabled) onClick else ({})
     val stateModifier = modifier

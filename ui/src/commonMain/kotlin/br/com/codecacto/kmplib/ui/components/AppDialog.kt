@@ -5,6 +5,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_confirm
 import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
 import br.com.codecacto.kmplib.generated.resources.kmplib_ok
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -121,8 +122,17 @@ fun AppDialog(
  * @param dismissText Texto do botão de cancelar (null = sem botão)
  * @param onConfirm Callback ao confirmar
  * @param isLoading Se está em estado de loading
- * @param confirmButtonColor Cor do botão de confirmar
+ * @param confirmButtonColor Cor do botão de confirmar. Ação destrutiva (Sair, Excluir): passe
+ *   `MaterialTheme.colorScheme.error` — o texto sai em `onError` (branco no vermelho).
  * @param dismissOnClickOutside Se permite fechar ao clicar fora
+ * @param confirmContentColor Texto/indicador do botão de confirmar (2.333.0). Default: calculado
+ *   pela cor EFETIVA do botão ([readableContentColorFor] de [confirmButtonColor]) — o `on*` do tema
+ *   quando a cor é do tema, senão branco ou preto pelo contraste AA (≥ 4,5:1). Até a 2.332.0 era o
+ *   `onPrimary` do tema qualquer que fosse a cor do botão: com primária clara, "Sair" saía PRETO
+ *   sobre o vermelho. Passe uma cor só para fugir da regra.
+ *
+ * O cancelar é um botão com CONTORNO (`outline`) e texto em `onSurface` — legível em qualquer marca
+ * e tema; até a 2.332.0 era `Color.Gray` fixo (apagado no claro, sumido no escuro).
  */
 @Composable
 fun AppAlertDialog(
@@ -137,7 +147,8 @@ fun AppAlertDialog(
     onConfirm: () -> Unit = onDismiss,
     isLoading: Boolean = false,
     confirmButtonColor: Color = MaterialTheme.colorScheme.primary,
-    dismissOnClickOutside: Boolean = true
+    dismissOnClickOutside: Boolean = true,
+    confirmContentColor: Color = readableContentColorFor(confirmButtonColor),
 ) {
     AppDialog(
         show = show,
@@ -164,13 +175,11 @@ fun AppAlertDialog(
         ) {
             // Botão cancelar (opcional)
             dismissText?.let {
-                AppOutlinedButton(
+                DialogDismissButton(
                     text = it,
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
                     enabled = !isLoading,
-                    primaryColor = Color.Gray,
-                    height = 48.dp
+                    modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
                 )
             }
 
@@ -181,6 +190,7 @@ fun AppAlertDialog(
                 modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CONFIRMAR),
                 isLoading = isLoading,
                 primaryColor = confirmButtonColor,
+                contentColor = confirmContentColor,
                 height = 48.dp
             )
         }
@@ -214,6 +224,12 @@ fun AppAlertDialog(
  *   encerre o estabelecimento antes de excluir a conta"). Aparece logo acima dos botões, em vermelho,
  *   como região viva (o leitor de tela anuncia), com o id `dialogo-erro`. `null` = nada. Erro do
  *   próprio campo continua em [textFieldError].
+ * @param confirmButtonColor Cor do botão de confirmar (2.333.0). Default = primária, como sempre foi;
+ *   ação destrutiva (o "digite EXCLUIR") = `MaterialTheme.colorScheme.error`.
+ * @param confirmContentColor Texto do botão de confirmar (2.333.0) — calculado pela cor do botão,
+ *   como no [AppAlertDialog].
+ *
+ * O cancelar é um botão com CONTORNO (`outline`) e texto em `onSurface` (era `Color.Gray` até a 2.332.0).
  */
 @Composable
 fun AppInputDialog(
@@ -233,6 +249,8 @@ fun AppInputDialog(
     isLoading: Boolean = false,
     confirmEnabled: Boolean = true,
     errorMessage: String? = null,
+    confirmButtonColor: Color = MaterialTheme.colorScheme.primary,
+    confirmContentColor: Color = readableContentColorFor(confirmButtonColor),
 ) {
     AppDialog(
         show = show,
@@ -283,13 +301,11 @@ fun AppInputDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AppOutlinedButton(
+            DialogDismissButton(
                 text = dismissText,
                 onClick = onDismiss,
-                modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
                 enabled = !isLoading,
-                primaryColor = Color.Gray,
-                height = 48.dp
+                modifier = Modifier.weight(1f).testTag(DialogTestTags.BTN_CANCELAR),
             )
 
             AppButton(
@@ -301,10 +317,36 @@ fun AppInputDialog(
                 // `SemanticsProperties.Disabled` (o leitor de tela anuncia "desativado") + clique
                 // ignorado. O `isLoading` continua desligando o botão por conta própria.
                 enabled = confirmEnabled,
+                primaryColor = confirmButtonColor,
+                contentColor = confirmContentColor,
                 height = 48.dp
             )
         }
     }
+}
+
+/**
+ * O "Cancelar" dos diálogos da lib (2.333.0): botão com CONTORNO do tema (`outline`) e texto em
+ * `onSurface` com peso médio — o botão secundário do Material3, legível sobre a superfície em
+ * qualquer marca e nos dois temas, sem competir com a ação principal. Substitui o `Color.Gray`
+ * fixo, que no claro ficava apagado (~3,5:1 de texto) e no escuro quase sumia.
+ */
+@Composable
+internal fun DialogDismissButton(
+    text: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    AppOutlinedButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        borderColor = MaterialTheme.colorScheme.outline,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        height = 48.dp,
+    )
 }
 
 /**

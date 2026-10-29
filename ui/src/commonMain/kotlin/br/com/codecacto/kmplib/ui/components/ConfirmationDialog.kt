@@ -5,6 +5,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_confirm
 import br.com.codecacto.kmplib.generated.resources.kmplib_cancel
 import br.com.codecacto.kmplib.generated.resources.kmplib_ok
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -41,8 +43,10 @@ import androidx.compose.ui.window.DialogProperties
  * @param icon Ícone opcional no topo do dialog
  * @param dismissOnBackPress Permite fechar com botão voltar
  * @param dismissOnClickOutside Permite fechar clicando fora
- * @param primaryContentColor Texto do botão de confirmar (2.315.0; default branco, como sempre foi).
- *   Com [primaryColor] clara (âmbar, amarelo), passe a cor escolhida por contraste.
+ * @param primaryContentColor Texto do botão de confirmar (2.315.0). Default (2.333.0): calculado pela
+ *   cor do botão ([readableContentColorFor] de [primaryColor]) — o `on*` do tema quando a cor é do
+ *   tema, senão branco ou preto pelo contraste AA. Até a 2.332.0 era branco fixo, ilegível em
+ *   primária clara (âmbar, amarelo, lima).
  */
 @Composable
 fun ConfirmationDialog(
@@ -59,7 +63,7 @@ fun ConfirmationDialog(
     icon: (@Composable () -> Unit)? = null,
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
-    primaryContentColor: Color = Color.White,
+    primaryContentColor: Color = readableContentColorFor(primaryColor),
 ) {
     if (show) {
         Dialog(
@@ -154,7 +158,7 @@ private fun BotoesDeConfirmacao(
     onDismiss: () -> Unit,
     isLoading: Boolean,
     primaryColor: Color,
-    primaryContentColor: Color = Color.White,
+    primaryContentColor: Color,
 ) {
     val medidor = rememberTextMeasurer()
     val densidade = LocalDensity.current
@@ -190,7 +194,7 @@ private fun BotoesDeConfirmacao(
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text(confirmText, maxLines = 1)
+                    Text(confirmText, maxLines = 1, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -204,8 +208,9 @@ private fun BotoesDeConfirmacao(
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
-                    Text(it, maxLines = 1)
+                    Text(it, maxLines = 1, fontWeight = FontWeight.Medium)
                 }
             }
         }

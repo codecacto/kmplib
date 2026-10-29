@@ -187,6 +187,8 @@ fun AccountDeletionDialog(
         onConfirm = { if (confere && !isLoading) onConfirm(typed) },
         modifier = modifier,
         errorMessage = errorMessage,
+        // Ação irreversível: confirmar no vermelho do tema, texto em `onError` (2.333.0).
+        confirmButtonColor = MaterialTheme.colorScheme.error,
     )
 }
 

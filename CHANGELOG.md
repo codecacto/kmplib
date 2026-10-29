@@ -5,6 +5,51 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.333.0 — **Diálogos com contraste: texto do confirmar pela cor do BOTÃO (vermelho → branco) e Cancelar com contorno legível** (OnMore / App do Personal, 29/out/2026)
+
+Origem: o fundador, no OnMore — *"a palavra Sair está preta sobre o vermelho, deveria estar branco; o Cancelar também está
+bem apagadinho"*. Dois defeitos do componente, corrigidos nele (nenhuma tela muda):
+1. o confirmar do `AppAlertDialog` usava `AppButton` com `contentColor = onPrimary` — derivado da PRIMÁRIA do tema, não da
+   cor do botão. Com primária clara (`onPrimary` escuro) e `confirmButtonColor = colorScheme.error`, o texto saía preto;
+2. o cancelar do `AppAlertDialog`/`AppInputDialog` era `AppOutlinedButton(primaryColor = Color.Gray)` — texto e borda
+   `#888888`, ~3,5:1 no claro (abaixo do AA) e sumindo no escuro.
+
+### Corrigido (sem mudar assinatura)
+- **`AppAlertDialog`**: texto/indicador do confirmar = `readableContentColorFor(confirmButtonColor)` — o `on*` do tema quando
+  a cor é do tema (`error` → `onError`, branco no vermelho), senão branco ou preto pelo contraste AA (≥ 4,5:1).
+- **`AppAlertDialog` / `AppInputDialog`**: Cancelar = botão com CONTORNO `outline` e texto `onSurface` (peso médio), o
+  secundário do Material3 — `Color.Gray` saiu da lib. `testTag`s iguais (`dialogo-btn-cancelar`/`dialogo-btn-confirmar`).
+- **`ConfirmationDialog`**: `primaryContentColor` passou de branco fixo para o calculado pela `primaryColor` (primária
+  âmbar/amarela/lima deixa de sair com texto branco ilegível); cancelar com contorno `outline` explícito e peso médio.
+- **`ErrorModal`**: botão vermelho com `onError` (o padrão do `buttonColors` era `onPrimary`).
+- **`AppButton`**: `contentColor` default = `readableContentColorFor(primaryColor)` (era `onPrimary` fixo). Com a primária
+  do tema o resultado é idêntico; só muda quem passa outra cor sem dizer a do texto — que é exatamente o defeito.
+- **`AppFab`**: idem, `contentColor` pela `containerColor`.
+- **`AppReviewDialog`, `FeedbackScreen`, `ContactScreen`** (`kmplib-central`): texto/ícone sobre `primaryColor` (botão e
+  cabeçalho) pelo contraste — eram `Color.White` fixo. Ex.: o azul default `#3B82F6` do `AppReviewDialog` passa a texto
+  escuro (branco dava 3,7:1).
+- **`AccountDeletionDialog`**: confirmar ("Excluir conta") no vermelho do tema (`colorScheme.error`), texto `onError`.
+
+### Novo (aditivo)
+- **`readableContentColorFor(container, backdrop = surface)`** (`ui.theme`, `@Composable`) + sobrecarga pura
+  `readableContentColorFor(container, scheme: ColorScheme, backdrop)`: par `on*` do tema para cor do tema (respeita o
+  `on*` declarado no `AppBrandColors`), contraste para qualquer outra; `Color.Unspecified` → `onSurface`.
+- **`ColorContrast.readableOn(fill, backdrop = Color.White)`**: branco × `#1C1C1C` pelo maior contraste, preto puro se
+  preciso — ≥ 4,5:1 para qualquer cor; translúcida composta sobre `backdrop`. Mesma conta que o `AppTheme` já usava
+  para `onPrimary`/`onError` (2.262.2), agora pública (o `onBrandColorFor` interno delega a ela, sem mudar resultado).
+- `AppAlertDialog(…, confirmContentColor)`; `AppInputDialog(…, confirmButtonColor, confirmContentColor)`;
+  `AppOutlinedButton(…, borderColor = primaryColor, contentColor = primaryColor)` — todos opcionais, no FIM da lista.
+
+### Compatibilidade
+Só parâmetros opcionais novos e defaults recalculados; nenhuma chamada deixa de compilar. Quem passava `contentColor`
+explícito continua com a cor dele. Piso visual em `docs/pisos.yaml` (`bloqueia: false`): `AppAlertDialog`,
+`AppInputDialog`, `AccountDeletionDialog`, `ConfirmationDialog`, `ErrorModal`. Não é aviso (visual, nada para de funcionar).
+
+### Provas
+`ReadableContentColorTest` (9 casos: vermelhos → branco, claros → escuro, varredura de 512 cores com AA, translúcida,
+par do tema, caso OnMore com `createLightColorScheme(AppColorPalette(primary = lima))`); `kmplib-ui` 1202 testes verdes;
+`kmplib-auth`/`kmplib-central` testes verdes; `compileKotlinIosArm64` de ui/central/auth executado (sem SKIPPED).
+
 ## 2.332.0 — **Seletor de ANEXO único: `rememberAttachmentPicker` — aceita foto → folha "Tirar foto · Galeria · Arquivo"; não aceita foto → seletor de arquivos direto** (regra do fundador, 27/out/2026)
 
 Origem: no LocAki, "Anexos do cliente" usava `rememberMultiFilePicker` (só Arquivos) e "Fotos da entrega" usava

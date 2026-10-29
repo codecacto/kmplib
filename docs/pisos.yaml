@@ -49,6 +49,11 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.333.0
+    motivo: "diálogo de confirmação: Cancelar cinza apagado (~3,5:1) e texto do confirmar herdando onPrimary — \"Sair\" preto sobre o vermelho em app de primária clara"
+    simbolos: [AppAlertDialog, AppInputDialog, AccountDeletionDialog, ConfirmationDialog, ErrorModal]
+    bloqueia: false
+
   - versao: 2.332.0
     motivo: "iOS: câmera negada abria tela preta sem erro no seletor de foto (agora confere a permissão e devolve CAMERA_PERMISSION_DENIED)"
     simbolos: [rememberImagePickerLauncher]

@@ -87,6 +87,9 @@ fun ErrorModal(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
+                        // O padrão do `buttonColors` é `onPrimary`: com primária clara, texto escuro
+                        // sobre o vermelho (até a 2.332.0). O par do `error` é o `onError`.
+                        contentColor = MaterialTheme.colorScheme.onError,
                     ),
                 ) {
                     Text(

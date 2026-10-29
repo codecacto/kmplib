@@ -111,6 +111,31 @@ object ColorContrast {
         }
         return target
     }
+
+    /**
+     * Cor de **conteúdo** (texto/ícone) legível sobre um preenchimento ARBITRÁRIO [fill] — o botão de
+     * cor customizada (2.333.0). [fill] translúcido é composto sobre [backdrop] (o que está atrás dele:
+     * a superfície do diálogo, o fundo da tela) antes da conta.
+     *
+     * Regra: entre **branco** e o quase-preto `#1C1C1C`, o de MAIOR contraste; se nem ele chegar a
+     * [AA_TEXT] (faixa estreita de luminância média, ~0,18–0,20), troca o quase-preto por **preto puro**,
+     * com o qual o par branco/preto garante ≥ 4,58:1 para qualquer cor. Sempre que o branco passa de
+     * 4,5:1 ele é também o de maior contraste — então vermelho de ação destrutiva (`#DC2626`,
+     * `#DC3545`, `#B3261E`) sai com texto **branco**; amarelo/âmbar/lima saem com texto escuro.
+     *
+     * É a mesma conta que o `AppTheme` usa para `onPrimary`/`onError` (2.262.2), agora pública para a
+     * cor que não é do tema. Em Compose prefira [readableContentColorFor], que devolve o par `on*` do
+     * tema quando a cor É do tema (respeita o `on*` declarado pelo app).
+     */
+    fun readableOn(fill: Color, backdrop: Color = Color.White): Color {
+        val opaque = if (fill.alpha < 1f) compositeOver(fill, 1f, backdrop) else fill
+        val best = pickOnColor(opaque, light = Color.White, dark = ON_FILL_DARK)
+        if (meetsTextContrast(best, opaque)) return best
+        return pickOnColor(opaque, light = Color.White, dark = Color.Black)
+    }
+
+    /** Quase-preto preferido para texto sobre preenchimento claro (o tom histórico do tema). */
+    private val ON_FILL_DARK = Color(0xFF1C1C1C)
 }
 
 /**

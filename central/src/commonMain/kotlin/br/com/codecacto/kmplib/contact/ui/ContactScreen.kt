@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.screens.developer
 
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import br.com.codecacto.kmplib.ui.screens.feedback.isCompleteWhatsapp
 import br.com.codecacto.kmplib.mask.PhoneInputFormat
 import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
@@ -114,6 +115,9 @@ fun ContactScreen(
 ) {
     @Suppress("NAME_SHADOWING")
     val texts: ContactTexts = texts ?: rememberContactTexts(phoneFormat)
+    // Texto/ícone sobre `primaryColor` (cabeçalho e botão): branco ou escuro pelo contraste AA
+    // (2.333.0) — era `Color.White` fixo, invisível com primária clara.
+    val onPrimaryColor = readableContentColorFor(primaryColor)
     var name by remember { mutableStateOf(defaultName.orEmpty()) }
     var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
     var whatsapp by remember { mutableStateOf(phoneFormat.fromStoredValue(defaultWhatsapp)) }
@@ -162,19 +166,19 @@ fun ContactScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,
-                            tint = Color.White
+                            tint = onPrimaryColor
                         )
                     }
                     Column {
                         Text(
                             text = texts.title,
-                            color = Color.White,
+                            color = onPrimaryColor,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = texts.subtitle,
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = onPrimaryColor.copy(alpha = 0.8f),
                             fontSize = 14.sp
                         )
                     }
@@ -215,7 +219,7 @@ fun ContactScreen(
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = onPrimaryColor)
                     ) {
                         Text(
                             text = texts.continueButton,
@@ -364,12 +368,12 @@ fun ContactScreen(
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = onPrimaryColor)
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = Color.White,
+                                color = onPrimaryColor,
                                 strokeWidth = 2.dp
                             )
                         } else {
@@ -377,14 +381,14 @@ fun ContactScreen(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp),
-                                tint = Color.White
+                                tint = onPrimaryColor
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = texts.sendButton,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = onPrimaryColor
                             )
                         }
                     }

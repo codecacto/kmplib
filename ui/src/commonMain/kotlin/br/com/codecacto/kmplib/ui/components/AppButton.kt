@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.generated.resources.*
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import org.jetbrains.compose.resources.painterResource
 
 /**
@@ -29,7 +30,11 @@ import org.jetbrains.compose.resources.painterResource
  * @param height Altura do botão
  * @param fontSize Tamanho da fonte
  * @param primaryColor Cor primária do botão
- * @param contentColor Cor do conteúdo (texto/ícone)
+ * @param contentColor Cor do conteúdo (texto/ícone). Default (2.333.0): [readableContentColorFor] de
+ *   [primaryColor] — o `on*` do tema quando a cor é do tema (primária → `onPrimary`, `error` →
+ *   `onError`), senão branco ou preto pelo contraste AA (≥ 4,5:1). Até a 2.332.0 era `onPrimary`
+ *   fixo: botão vermelho num app de primária clara saía com texto preto. Passe uma cor só para
+ *   fugir da regra.
  * @param icon Ícone opcional à ESQUERDA do rótulo (2.181.0). `null` = botão só com texto, como
  *   sempre foi. É [ImageVector] porque é o tipo que a lib já usa para ícone informado de fora
  *   (o `leadingIcon` do [AppTextField], o `navigationIcon` do [AppTopBar]); ícone de arquivo
@@ -48,7 +53,7 @@ fun AppButton(
     height: Dp = 56.dp,
     fontSize: TextUnit = 16.sp,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
+    contentColor: Color = readableContentColorFor(primaryColor),
     icon: ImageVector? = null
 ) {
     Button(
@@ -138,9 +143,13 @@ private fun AppButtonLabel(
  * @param enabled Se o botão está habilitado
  * @param height Altura do botão
  * @param fontSize Tamanho da fonte
- * @param primaryColor Cor da borda e do conteúdo
+ * @param primaryColor Cor da borda e do conteúdo (quando [borderColor]/[contentColor] não são passados)
  * @param borderWidth Largura da borda
  * @param icon Ícone opcional à ESQUERDA do rótulo (2.181.0) — ver [AppButton].
+ * @param borderColor Cor do contorno (2.333.0). Default = [primaryColor], como sempre foi.
+ * @param contentColor Cor do texto/ícone (2.333.0). Default = [primaryColor], como sempre foi. Botão
+ *   secundário NEUTRO (o "Cancelar" de diálogo) = `borderColor = colorScheme.outline` +
+ *   `contentColor = colorScheme.onSurface` — legível em qualquer marca, sem competir com a ação.
  */
 @Composable
 fun AppOutlinedButton(
@@ -153,7 +162,9 @@ fun AppOutlinedButton(
     fontSize: TextUnit = 16.sp,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
     borderWidth: Dp = 1.dp,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    borderColor: Color = primaryColor,
+    contentColor: Color = primaryColor,
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -162,15 +173,15 @@ fun AppOutlinedButton(
             .heightIn(min = height),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(borderWidth, primaryColor),
+        border = BorderStroke(borderWidth, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = primaryColor
+            contentColor = contentColor
         )
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = primaryColor,
+                color = contentColor,
                 strokeWidth = 2.dp
             )
         } else {

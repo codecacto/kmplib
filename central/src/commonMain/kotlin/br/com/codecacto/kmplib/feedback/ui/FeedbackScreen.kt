@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.screens.feedback
 
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import br.com.codecacto.kmplib.mask.PhoneInputFormat
 import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import androidx.compose.foundation.background
@@ -97,6 +98,9 @@ fun FeedbackScreen(
 ) {
     @Suppress("NAME_SHADOWING")
     val texts: FeedbackTexts = texts ?: rememberFeedbackTexts(phoneFormat)
+    // Texto/ícone sobre `primaryColor` (cabeçalho e botão): branco ou escuro pelo contraste AA
+    // (2.333.0) — era `Color.White` fixo, invisível com primária clara.
+    val onPrimaryColor = readableContentColorFor(primaryColor)
     var selectedMotivo by remember { mutableStateOf<FeedbackMotivo?>(null) }
     var mensagem by remember { mutableStateOf("") }
     var nome by remember { mutableStateOf(defaultName.orEmpty()) }
@@ -171,19 +175,19 @@ fun FeedbackScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = texts.backContentDescription,
-                            tint = Color.White
+                            tint = onPrimaryColor
                         )
                     }
                     Column {
                         Text(
                             text = texts.title,
-                            color = Color.White,
+                            color = onPrimaryColor,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = texts.subtitle,
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = onPrimaryColor.copy(alpha = 0.8f),
                             fontSize = 14.sp
                         )
                     }
@@ -233,7 +237,7 @@ fun FeedbackScreen(
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = onPrimaryColor)
                     ) {
                         Text(
                             text = texts.continueButton,
@@ -456,12 +460,12 @@ fun FeedbackScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor, contentColor = onPrimaryColor)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = Color.White,
+                            color = onPrimaryColor,
                             strokeWidth = 2.dp
                         )
                     } else {

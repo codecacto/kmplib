@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import br.com.codecacto.kmplib.platform.automation.exposeTestTagsAsResourceId
 import br.com.codecacto.kmplib.platform.automation.DialogTestTags
 import br.com.codecacto.kmplib.platform.automation.AutomationMode
@@ -362,7 +363,7 @@ private fun InitialStep(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = primaryColor,
-                    contentColor = Color.White
+                    contentColor = readableContentColorFor(primaryColor)
                 )
             ) {
                 Icon(
@@ -521,7 +522,7 @@ private fun FeedbackStep(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = primaryColor,
-                contentColor = Color.White,
+                contentColor = readableContentColorFor(primaryColor),
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
