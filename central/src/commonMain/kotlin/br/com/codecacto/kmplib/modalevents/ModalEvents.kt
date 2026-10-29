@@ -230,7 +230,13 @@ class ModalEventsClient(
     suspend fun flush() {
         while (true) {
             val chunk = mutex.withLock {
-                if (buffer.isEmpty()) return
+                if (buffer.isEmpty()) {
+                    // Esvaziou: libera o agendamento já aqui, sob o lock. Sem isso, um evento que
+                    // entra entre este `return` e o fim do job agendado vê `scheduled.isActive` e
+                    // fica parado no lote até o PRÓXIMO evento.
+                    scheduled = null
+                    return
+                }
                 val n = minOf(buffer.size, ModalEventsConfig.MAX_EVENTS_PER_BATCH)
                 val taken = buffer.subList(0, n).toList()
                 buffer.subList(0, n).clear()
