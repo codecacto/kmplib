@@ -6,11 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,6 +61,15 @@ import br.com.codecacto.kmplib.ui.components.NavigationType
 import br.com.codecacto.kmplib.ui.locale.rememberDevicePhoneInputFormat
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import br.com.codecacto.kmplib.core.util.BuildInfo
+import br.com.codecacto.kmplib.developer.withoutCurrentApp
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
+import coil3.compose.AsyncImagePainter
 
 private val WhatsAppGreen = Color(0xFF25D366)
 private val CONTENT_MAX_WIDTH = 560.dp
@@ -84,10 +91,14 @@ object DeveloperTestTags {
  * Tela **"Desenvolvido por"** — padrão de todo app da fábrica, aberta pela tela Sobre
  * (`AboutScreen`). Mesmo desenho da Sobre: barra de topo padrão, coluna central de no máximo 560dp.
  *
- * Mostra a marca CodeCacto (logo, slogan e a linha do site), **duas ações** — **Visitar o site** e
- * **Conversar no WhatsApp** (mensagem já dizendo de qual app a pessoa veio) — e a grade **Nossos
- * projetos**. Desde a 2.323.0 não há mais e-mail nem formulário "Entrar em contato" aqui: o contato
- * da empresa é o WhatsApp e o site.
+ * De cima para baixo (2.336.0):
+ * - a **marca** — o logo oficial da CodeCacto (o mesmo do site e do `DevelopedByCredit` da weblib),
+ *   o nome e o slogan **"Apps que resolvem."**;
+ * - o **parágrafo de venda** ([DeveloperTexts.brandTagline]): fazemos aplicativo e site sob medida;
+ * - **duas ações** — **Conversar no WhatsApp** (mensagem já dizendo de qual app a pessoa veio) e
+ *   **Visitar o site**;
+ * - **Nossos projetos**: um cartão por linha (ícone, nome, descrição de até 3 linhas e o indicador de
+ *   que abre a loja), sem o próprio app em que a pessoa está ([currentAppName]).
  *
  * Contato e projetos vêm do apps-api ([DeveloperInfoService], `GET /public/developer`, com reserva
  * offline — nunca quebra a tela). A ordem dos projetos é a do servidor: fixados primeiro e o resto
@@ -102,7 +113,8 @@ object DeveloperTestTags {
  * ```
  *
  * @param onBack voltar (seta da `AppTopBar`, id `topbar-voltar`).
- * @param primaryColor cor do botão "Visitar o site".
+ * @param primaryColor cor do botão "Visitar o site". O texto do botão sai pelo contraste
+ *   ([readableContentColorFor]), nunca branco fixo.
  * @param backgroundColor fundo da tela.
  * @param cardColor fundo dos cartões de projeto.
  * @param texts textos; default no idioma do aparelho ([rememberDeveloperTexts]).
@@ -112,6 +124,8 @@ object DeveloperTestTags {
  * @param bottomBar rodapé fixo, opcional (banner de house ad). O último cartão termina colado ao
  *   topo dele, nunca por baixo.
  * @param phoneFormat sem efeito desde a 2.323.0.
+ * @param currentAppName nome do app em execução, para tirá-lo de "Nossos projetos" (2.336.0).
+ *   Default: o nome que o sistema mostra ([BuildInfo.appName]); `null` mostra todos.
  */
 @Composable
 fun DeveloperScreen(
@@ -125,6 +139,7 @@ fun DeveloperScreen(
     defaultWhatsapp: String? = null,
     bottomBar: @Composable () -> Unit = {},
     phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
+    currentAppName: String? = remember { BuildInfo.appName },
 ) {
     @Suppress("NAME_SHADOWING")
     val texts: DeveloperTexts = texts ?: rememberDeveloperTexts(phoneFormat)
@@ -132,9 +147,9 @@ fun DeveloperScreen(
     var apps by remember { mutableStateOf<List<DeveloperApp>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(currentAppName) {
         contact = DeveloperInfoService.fetchContact().getOrDefault(DeveloperContact())
-        apps = DeveloperInfoService.fetchApps().getOrDefault(emptyList())
+        apps = DeveloperInfoService.fetchApps().getOrDefault(emptyList()).withoutCurrentApp(currentAppName)
         isLoading = false
     }
 
@@ -162,26 +177,28 @@ fun DeveloperScreen(
                 modifier = Modifier
                     .widthIn(max = CONTENT_MAX_WIDTH)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                Marca(texts)
+                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Marca(texts)
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AcaoPrincipal(
-                        texto = texts.siteButton,
-                        icone = Icons.Default.Language,
-                        cor = primaryColor,
-                        testTag = DeveloperTestTags.BTN_SITE,
-                        onClick = { getUrlLauncher().openUrl(contact.site.ifBlank { DeveloperContact().site }) },
-                    )
-                    AcaoPrincipal(
-                        texto = texts.whatsappButton,
-                        icone = Icons.AutoMirrored.Filled.Chat,
-                        cor = WhatsAppGreen,
-                        testTag = DeveloperTestTags.BTN_WHATSAPP,
-                        onClick = { getUrlLauncher().openWhatsApp(contact.whatsapp, texts.whatsappMessage) },
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AcaoPrincipal(
+                            texto = texts.whatsappButton,
+                            icone = Icons.AutoMirrored.Filled.Chat,
+                            cor = WhatsAppGreen,
+                            testTag = DeveloperTestTags.BTN_WHATSAPP,
+                            onClick = { getUrlLauncher().openWhatsApp(contact.whatsapp, texts.whatsappMessage) },
+                        )
+                        AcaoPrincipal(
+                            texto = texts.siteButton,
+                            icone = Icons.Default.Language,
+                            cor = primaryColor,
+                            testTag = DeveloperTestTags.BTN_SITE,
+                            onClick = { getUrlLauncher().openUrl(contact.site.ifBlank { DeveloperContact().site }) },
+                        )
+                    }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -190,15 +207,16 @@ fun DeveloperScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.semantics { heading() },
                     )
                     when {
-                        isLoading -> GradeCarregando(cardColor)
+                        isLoading -> ListaCarregando(cardColor)
                         apps.isEmpty() -> Text(
                             text = texts.appsEmpty,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        else -> GradeDeProjetos(apps, cardColor)
+                        else -> ListaDeProjetos(apps, cardColor, texts.appsOpenLabel)
                     }
                 }
             }
@@ -211,33 +229,38 @@ private fun Marca(texts: DeveloperTexts) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Logo oficial (o do site), fundo transparente: serve ao tema claro e ao escuro.
         Image(
             painter = painterResource(Res.drawable.codecacto_logo),
             // O nome logo abaixo é o que o leitor de tela anuncia.
             contentDescription = null,
-            modifier = Modifier.size(80.dp),
+            modifier = Modifier.size(96.dp),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             text = texts.brandName,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.semantics { heading() },
         )
+        Spacer(Modifier.height(4.dp))
         Text(
             text = texts.brandSlogan,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         if (texts.brandTagline.isNotBlank()) {
+            Spacer(Modifier.height(16.dp))
             Text(
                 text = texts.brandTagline,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 420.dp),
             )
         }
     }
@@ -255,10 +278,14 @@ private fun AcaoPrincipal(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 52.dp)
             .testTag(testTag),
         shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = cor, contentColor = Color.White),
+        // Texto pelo contraste (AA): branco sobre o verde do WhatsApp dava ~2:1.
+        colors = ButtonDefaults.buttonColors(
+            containerColor = cor,
+            contentColor = readableContentColorFor(cor, backdrop = MaterialTheme.colorScheme.background),
+        ),
     ) {
         Icon(imageVector = icone, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
@@ -266,104 +293,124 @@ private fun AcaoPrincipal(
     }
 }
 
-/** Duas colunas, cartões da mesma linha com a mesma altura. */
+/** Um projeto por linha: ícone, nome e descrição legíveis no celular, sem cortar no meio. */
 @Composable
-private fun GradeDeProjetos(apps: List<DeveloperApp>, cardColor: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        apps.chunked(2).forEach { linha ->
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                linha.forEach { app ->
-                    CartaoDeProjeto(app, cardColor, Modifier.weight(1f).fillMaxHeight())
-                }
-                if (linha.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+private fun ListaDeProjetos(apps: List<DeveloperApp>, cardColor: Color, openLabel: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        apps.forEach { app -> CartaoDeProjeto(app, cardColor, openLabel) }
     }
 }
 
 @Composable
-private fun CartaoDeProjeto(app: DeveloperApp, cardColor: Color, modifier: Modifier) {
-    val forma = RoundedCornerShape(20.dp)
+private fun CartaoDeProjeto(app: DeveloperApp, cardColor: Color, openLabel: String) {
+    val forma = RoundedCornerShape(18.dp)
+    val url = app.resolveStoreUrl()
+    val abre = url.isNotBlank()
     Surface(
         shape = forma,
         color = cardColor,
-        modifier = modifier
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(forma)
-            .clickable(role = Role.Button) {
-                val url = app.resolveStoreUrl()
-                if (url.isNotBlank()) getUrlLauncher().openUrl(url)
-            }
+            .then(
+                if (abre) {
+                    Modifier.clickable(role = Role.Button, onClickLabel = openLabel) {
+                        getUrlLauncher().openUrl(url)
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .semantics(mergeDescendants = true) {}
             .testTag(DeveloperTestTags.PROJETO),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier
+                .heightIn(min = 80.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
+            IconeDoProjeto(app.logoUrl)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                if (app.logoUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = app.logoUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Apps,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(
+                    text = app.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (app.description.isNotBlank()) {
+                    Text(
+                        text = app.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Text(
-                text = app.name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (app.description.isNotBlank()) {
-                Text(
-                    text = app.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+            if (abre) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    // A ação já é anunciada pelo `onClickLabel` do cartão.
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
     }
 }
 
+/** Ícone do app com moldura fina (ícone de fundo branco não some no cartão claro) e reserva. */
+@Composable
+private fun IconeDoProjeto(logoUrl: String) {
+    val forma = RoundedCornerShape(14.dp)
+    var carregou by remember(logoUrl) { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(forma)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, forma),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!carregou) {
+            Icon(
+                imageVector = Icons.Default.Apps,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (logoUrl.isNotBlank()) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                onState = { carregou = it is AsyncImagePainter.State.Success },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
 /** Esqueleto com a moldura e a altura aproximada dos cartões — a tela não pula quando eles chegam. */
 @Composable
-private fun GradeCarregando(cardColor: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        repeat(2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(2) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(140.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(cardColor),
-                    )
-                }
-            }
+private fun ListaCarregando(cardColor: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        repeat(3) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(cardColor),
+            )
         }
     }
 }

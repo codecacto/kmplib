@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.developer
 
+import br.com.codecacto.kmplib.core.text.foldForSearch
 import br.com.codecacto.kmplib.core.util.currentPlatform
 import kotlinx.serialization.Serializable
 
@@ -44,6 +45,22 @@ fun DeveloperApp.resolveStoreUrl(): String {
     val primary = if (isIos) appStoreUrl else playStoreUrl
     val secondary = if (isIos) playStoreUrl else appStoreUrl
     return primary.ifBlank { secondary }.ifBlank { storeUrl }
+}
+
+/**
+ * A vitrine sem o app em que a pessoa já está (2.336.0): oferecer "conheça o Super 8" dentro do
+ * próprio Super 8 é um cartão desperdiçado. Compara [currentAppName] (o nome que o sistema mostra,
+ * `BuildInfo.appName`) com o nome cadastrado no Nexus ignorando caixa, acento e espaços extras, e
+ * também sem o complemento entre parênteses do cadastro ("Calculadora BTU (app)" = "Calculadora BTU").
+ * [currentAppName] nulo ou em branco devolve a lista inteira.
+ */
+internal fun List<DeveloperApp>.withoutCurrentApp(currentAppName: String?): List<DeveloperApp> {
+    val atual = currentAppName?.let(::foldForSearch).orEmpty()
+    if (atual.isEmpty()) return this
+    return filterNot { app ->
+        val nome = foldForSearch(app.name)
+        nome == atual || foldForSearch(app.name.substringBefore('(')) == atual
+    }
 }
 
 /**

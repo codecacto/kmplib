@@ -5,6 +5,38 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.336.0 — **"Desenvolvido por": logo oficial, slogan "Apps que resolvem.", texto de venda e "Nossos projetos" em lista** (fundador, OnMore, 29/out/2026)
+
+Origem: o fundador abriu a `DeveloperScreen` no OnMore (2.335.2) — logo errado (o cacto de óculos escuros, arte antiga), sem o
+slogan da marca e sem dizer que a CodeCacto faz app e site sob medida.
+
+### Mudou na tela (`DeveloperScreen`, `kmplib-central`)
+- **Logo oficial** — o mesmo do site `codecacto.com.br` e do `DevelopedByCredit`/`CodeCactoLogo` da weblib ≥ 0.270.0 (cacto
+  verde com `< >` e trilhas de circuito, fundo transparente; arte-fonte `/srv/CodeCacto/icode-codecacto.png`, recorte em
+  `Lib/weblib/assets/brand/codecacto-logo-512.png`). Não existe vetor da marca: é PNG 512×512 com alfa (110 KB — o PNG antigo
+  tinha 1,4 MB), serve ao tema claro e ao escuro. Recurso `Res.drawable.codecacto_logo` (`kmplib-ui`), mesmo nome.
+- **Slogan "Apps que resolvem."** (en "Apps that get it done.", es "Apps que resuelven.") — o mesmo da weblib.
+- **Texto de venda** logo abaixo (`brandTagline`, 4 idiomas): "Criamos aplicativos e sites sob medida para a sua empresa. Você
+  conta como funciona o seu negócio e a gente entrega tudo pronto e fácil de usar."
+- **Conversar no WhatsApp** passou a ser o primeiro botão (o contato que vende), **Visitar o site** o segundo. O texto dos dois
+  sai pelo **contraste** (`readableContentColorFor`): branco sobre o verde do WhatsApp dava ~2:1.
+- **Nossos projetos** virou **lista de cartões** (um por linha: ícone 56 dp com moldura fina e reserva enquanto carrega,
+  nome, descrição de até **3** linhas e o indicador "abre fora"); a grade de duas colunas cortava a descrição em 2 linhas
+  estreitas no telefone. O leitor de tela anuncia nome + descrição + "Abrir na loja" (`DeveloperTexts.appsOpenLabel`); cartão
+  sem link de loja não é clicável. Título de seção e nome da marca marcados como cabeçalho. Esqueleto com a altura dos cartões.
+- **O próprio app sai da vitrine** — novo parâmetro opcional `currentAppName: String? = BuildInfo.appName` (último): compara
+  com o nome do Nexus ignorando caixa, acento, espaços e o complemento entre parênteses ("Calculadora BTU (app)").
+  `null` mostra todos.
+- `DeveloperInfoService`: campo `null` vindo do `/public/developer` cai no default em vez de derrubar a decodificação (antes
+  um só `null` esvaziava a vitrine inteira).
+
+### Compatibilidade
+- API pública compatível: `DeveloperScreen` ganhou só `currentAppName` (com default, no fim); `DeveloperTexts` ganhou
+  `appsOpenLabel` (com default, no fim). `DeveloperTestTags` iguais. Defaults de `brandSlogan`/`brandTagline` mudaram de texto.
+
+### Testes
+- `WithoutCurrentAppTest` (4) + `DeveloperInfoServiceTest` (campo `null`, 10 no total). Suíte `kmplib-central` 94 verdes.
+
 ## 2.335.2 — **sync: os `observe*` não re-emitem mais a cada gravação em QUALQUER entidade** (OnMore / App do Personal, 29/out/2026)
 
 Origem: OnMore (App do Personal) em laço infinito de requisições (~600 por minuto). O SQLDelight notifica as consultas

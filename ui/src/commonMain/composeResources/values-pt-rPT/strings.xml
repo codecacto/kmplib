@@ -141,8 +141,8 @@
     <!-- Desenvolvido por / Contato (central/developer, central/contact) -->
     <string name="kmplib_dev_title">Desenvolvido por</string>
     <string name="kmplib_dev_subtitle">Conheça quem faz a app</string>
-    <string name="kmplib_dev_slogan">O software que se torna o motor da sua empresa.</string>
-    <string name="kmplib_dev_tagline">Sistemas à medida, aplicações e sites para empresas.</string>
+    <string name="kmplib_dev_slogan">Apps que resolvem.</string>
+    <string name="kmplib_dev_tagline">Criamos aplicações e sites à medida para a sua empresa. Diga-nos como funciona o seu negócio e entregamos tudo pronto e fácil de usar.</string>
     <string name="kmplib_dev_contact_section">Fale connosco</string>
     <string name="kmplib_dev_whatsapp">Conversar no WhatsApp</string>
     <string name="kmplib_dev_email">Enviar e-mail</string>
@@ -153,6 +153,7 @@
     <string name="kmplib_dev_email_subject_from_app">Contacto através da app %1$s</string>
     <string name="kmplib_dev_apps_section">Os nossos projetos</string>
     <string name="kmplib_dev_apps_empty">Em breve, novos projetos por aqui.</string>
+    <string name="kmplib_dev_apps_open">Abrir na loja</string>
     <string name="kmplib_contact_title">Entrar em contacto</string>
     <string name="kmplib_contact_subtitle">Envie a sua mensagem e responderemos em breve.</string>
     <string name="kmplib_contact_name_label">Nome</string>

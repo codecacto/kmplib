@@ -72,6 +72,22 @@ class DeveloperInfoServiceTest {
     }
 
     @Test
+    fun `campo null de um projeto nao esvazia a vitrine`() = runTest {
+        init(
+            body = """
+                { "apps": [
+                  { "id": "a", "name": "A", "description": null, "logoUrl": null, "playStoreUrl": "https://p/a", "order": 0 },
+                  { "id": "b", "name": "B", "description": "desc b", "order": 1 }
+                ] }
+            """.trimIndent(),
+        )
+        val apps = DeveloperInfoService.fetchApps().getOrThrow()
+        assertEquals(listOf("a", "b"), apps.map { it.id })
+        assertEquals("", apps.first().description)
+        assertEquals("", apps.first().logoUrl)
+    }
+
+    @Test
     fun `cache faz um unico request para contato e apps`() = runTest {
         val cap = Captured()
         init(captured = cap)

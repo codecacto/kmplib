@@ -45,6 +45,10 @@ object DeveloperInfoService {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        // Campo `null` vindo do servidor (ex.: projeto sem descrição) cai no default do DTO em vez
+        // de derrubar a decodificação inteira — antes um só `null` esvaziava a grade (2.336.0).
+        coerceInputValues = true
+        explicitNulls = false
     }
 
     private var _config: DeveloperConfig? = null

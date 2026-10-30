@@ -21,6 +21,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email_subject
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_email_subject_from_app
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_section
 import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_empty
+import br.com.codecacto.kmplib.generated.resources.kmplib_dev_apps_open
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
@@ -35,8 +36,14 @@ data class DeveloperTexts(
     /** Sem uso na tela desde a 2.323.0 (a barra de topo é a padrão, só com o título). */
     val subtitle: String = "Conheça quem faz o app",
     val brandName: String = "CodeCacto",
-    val brandSlogan: String = "O software que vira o motor da sua empresa.",
-    val brandTagline: String = "Sistemas sob medida, aplicativos e sites para empresas.",
+    /** Slogan da marca, o mesmo do site e do `DevelopedByCredit` da weblib (2.336.0). */
+    val brandSlogan: String = "Apps que resolvem.",
+    /**
+     * O parágrafo de venda logo abaixo do slogan: fazemos app e site sob medida (2.336.0). Em branco,
+     * a tela não o mostra.
+     */
+    val brandTagline: String = "Criamos aplicativos e sites sob medida para a sua empresa. Você conta como " +
+        "funciona o seu negócio e a gente entrega tudo pronto e fácil de usar.",
     /** Sem uso na tela desde a 2.323.0. */
     val contactSectionTitle: String = "Fale com a gente",
     /** Sem uso na tela desde a 2.323.0 (o formulário de contato saiu dela). */
@@ -53,6 +60,8 @@ data class DeveloperTexts(
     val backContentDescription: String = "Voltar",
     /** Textos do formulário [ContactScreen] — sem uso nesta tela desde a 2.323.0. */
     val contact: ContactTexts = ContactTexts(),
+    /** Ação do cartão de projeto para o leitor de tela ("toque duas vezes para abrir na loja"), 2.336.0. */
+    val appsOpenLabel: String = "Abrir na loja",
 )
 
 /**
@@ -92,4 +101,5 @@ fun rememberDeveloperTexts(
         appsEmpty = kmpStringResource(Res.string.kmplib_dev_apps_empty),
         backContentDescription = kmpStringResource(Res.string.kmplib_back),
         contact = rememberContactTexts(phoneFormat),
+        appsOpenLabel = kmpStringResource(Res.string.kmplib_dev_apps_open),
     )
