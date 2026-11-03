@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 03/nov/2026 — OnMore (App do Personal)
+- [x] **`ReorderableColumn` — ENTREGUE na 2.339.0** (reordenar arrastando em lista curta dentro de um item de outra lista).
+- [x] **`AttachmentPickerLauncher.launch(source)` — ENTREGUE na 2.339.0** (as 3 origens com câmera própria ou folha do protótipo).
+- [ ] **ABERTO (P3):** a `ReorderableColumn` não rola a rolagem de fora durante o arrasto (o motor não tem isso). Só vale
+      resolver se um item alto, maior que a tela, virar queixa real.
+
 ### Registrado em 27/out/2026 — seletor de anexo único (regra do fundador; origem LocAki)
 - [x] **`rememberAttachmentPicker` — ENTREGUE na 2.332.0** (aceita foto → folha Tirar foto · Galeria · Arquivo; só
       documento → seletor direto; `PickedAttachment.Photo`/`File`, `readForUpload`). Junto: `rememberMultiFilePicker(allowMultiple)`,
@@ -5602,6 +5608,8 @@ Meu Fisio, PalpiteCerto, Exiba, LocaSys 3; Salmos, LocAki, Emprestei, FX Investi
 MinhaArena, MinhaEstadia, PontoFirme, Suzy 2; Colinha do Voto, MeuEstacionamento, MinhaAgenda, MinhaDespensa,
 PapelStudio, FolhaDeAxe, LiveCount, MeuFrete, MinhaObra, QueiMap, RedeDeOfertas, TattooStudio 1). Candidato a
 auditor no `Nexus/fabrica` (padrão `value = <x>.<query>` + `onValueChange = { onAction(…) }`).
+
+
 
 ## GAP-KM-402-ENVELOPE — 402 que NÃO é cota chega sem `serverCode`/`details` (10/out/2026, Vitalis M1.8)
 

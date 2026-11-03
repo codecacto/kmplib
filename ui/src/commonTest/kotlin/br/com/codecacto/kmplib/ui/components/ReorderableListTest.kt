@@ -6,6 +6,7 @@ import br.com.codecacto.kmplib.ui.components.ReorderAction.MOVE_TO_TOP
 import br.com.codecacto.kmplib.ui.components.ReorderAction.MOVE_UP
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class ReorderableListTest {
@@ -71,5 +72,26 @@ class ReorderableListTest {
     fun `texto de posicao nos modelos da lib`() {
         assertEquals("Posição 2 de 5", formatReorderPosition("Posição %1\$d de %2\$d", 2, 5))
         assertEquals("Position 10 of 12", formatReorderPosition("Position %1\$d of %2\$d", 10, 12))
+    }
+
+    // Coluna reordenável: o soltar chega com índices da ordem de quando o arrasto começou.
+
+    @Test
+    fun `soltar com a lista igual devolve os mesmos indices`() {
+        assertEquals(1 to 3, reorderSettleIndices(abcde, abcde, 1, 3))
+    }
+
+    @Test
+    fun `soltar depois de a lista mudar segue a chave e nao o indice`() {
+        // "a" saiu durante a animação de soltar: mover b para o lugar de d é 0 -> 2 agora.
+        assertEquals(0 to 2, reorderSettleIndices(abcde, listOf("b", "c", "d", "e"), 1, 3))
+    }
+
+    @Test
+    fun `soltar sem o item ou o destino nao move nada`() {
+        assertNull(reorderSettleIndices(abcde, listOf("a", "c", "d"), 1, 3))
+        assertNull(reorderSettleIndices(abcde, listOf("a", "b", "c"), 1, 3))
+        assertNull(reorderSettleIndices(abcde, abcde, 9, 1))
+        assertNull(reorderSettleIndices(abcde, abcde, 2, 2))
     }
 }

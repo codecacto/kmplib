@@ -160,6 +160,14 @@ internal data class AttachmentPickerPlan(
     val fileDeliversPhoto: Boolean,
 )
 
+/**
+ * Para onde vai um pedido de origem direta ([AttachmentPickerLauncher.launch] com origem): a origem
+ * pedida, se o lugar a oferece; senão o seletor de arquivos, a única saída de quem não aceita foto.
+ * É o que impede a câmera de abrir num lugar só de documento. Pura e testada.
+ */
+internal fun attachmentDirectTarget(plan: AttachmentPickerPlan, source: AttachmentSource): AttachmentSource =
+    if (source in plan.options) source else AttachmentSource.FILE
+
 internal fun attachmentPickerPlan(accept: AttachmentAccept): AttachmentPickerPlan = when (accept.kind) {
     AttachmentAcceptKind.FILES_ONLY -> AttachmentPickerPlan(
         showsSheet = false,
@@ -351,8 +359,23 @@ object AttachmentPickerTestTags {
 }
 
 /** O disparo do seletor de anexo. Guarde-o e chame [launch] no `onClick`. */
-class AttachmentPickerLauncher internal constructor(private val onLaunch: () -> Unit) {
+class AttachmentPickerLauncher internal constructor(
+    private val onLaunch: () -> Unit,
+    private val onLaunchSource: (AttachmentSource) -> Unit,
+) {
+    /** O caminho padrão: a folha com as 3 origens, ou o seletor de arquivos direto (lugar sem foto). */
     fun launch() = onLaunch()
+
+    /**
+     * Abre uma origem **sem a folha da lib**, com a mesma entrega e o mesmo tratamento dela (2.339.0).
+     * Para quem desenha a própria folha com as 3 origens porque o "Tirar foto" é uma CÂMERA PRÓPRIA
+     * (câmera guiada com silhueta) ou porque há protótipo: chame `launch(AttachmentSource.GALLERY)` e
+     * `launch(AttachmentSource.FILE)`, e a câmera é do app. Em [AttachmentAccept.ImagesOnly], "Arquivo"
+     * devolve o MESMO [PickedAttachment.Photo] da galeria.
+     *
+     * Origem que o lugar não oferece (câmera/galeria onde não se aceita foto) abre o seletor de arquivos.
+     */
+    fun launch(source: AttachmentSource) = onLaunchSource(source)
 }
 
 /**
@@ -403,6 +426,7 @@ class AttachmentPickerLauncher internal constructor(private val onLaunch: () -> 
  * - [onError] vem **uma vez** por escolha, mesmo que vários itens falhem; o que deu certo é entregue.
  * - [allowMultiple] = `false` → no máximo um item. A câmera dá sempre uma foto.
  * - [selectionLimit] limita a galeria múltipla (o seletor de arquivos do sistema não tem limite).
+ * - Câmera própria ou folha do protótipo: [AttachmentPickerLauncher.launch] com a origem (2.339.0).
  *
  * ### Requisitos do app consumidor
  * - **Android:** `<uses-permission android:name="android.permission.CAMERA" />` no manifest do APP
@@ -543,14 +567,15 @@ fun rememberAttachmentPicker(
     }
 
     return remember(plan, allowMultiple, camera, galeriaUma, galeriaVarias, arquivos) {
-        AttachmentPickerLauncher {
-            if (plan.showsSheet) folhaAberta = true else abrir(AttachmentSource.FILE)
-        }
+        AttachmentPickerLauncher(
+            onLaunch = { if (plan.showsSheet) folhaAberta = true else abrir(AttachmentSource.FILE) },
+            onLaunchSource = { origem -> abrir(attachmentDirectTarget(plan, origem)) },
+        )
     }
 }
 
 @Composable
-private fun AttachmentSourceSheetContent(
+internal fun AttachmentSourceSheetContent(
     title: String,
     options: List<AttachmentSource>,
     texts: AttachmentPickerTexts,

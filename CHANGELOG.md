@@ -5,6 +5,29 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.339.0 — **Reordenar arrastando DENTRO de um item de outra lista (`ReorderableColumn`) e origem direta no seletor de anexo (`launch(source)`)** (OnMore, 03/nov/2026)
+
+Origem: duas regras da fábrica travadas por lacuna no App do Personal. "Reordenar = arrastar" não cabia nos exercícios de
+um bloco nem nas perguntas de uma seção (o `ReorderableList` é `LazyColumn`, não mora dentro de outra rolagem), e as setas
+ficaram. "Foto = as 3 origens" não cabia na avaliação física: a câmera é a guiada com silhueta, e a conversão de arquivo
+em foto pronta era interna do `rememberAttachmentPicker`.
+
+### Novo (aditivo)
+- **`ReorderableColumn(items, key, onMove, modifier, onReorderFinished, verticalArrangement, horizontalAlignment, enabled,
+  dragOnLongPress = false, texts) { item, index, isDragging -> }`** — `kmplib-ui`, `ui.components`. Lista curta reordenável
+  dentro de uma rolagem que já existe, sobre o `ReorderableColumn` do Reorderable. Mesmo escopo (`DragHandle()`,
+  `Modifier.dragHandle()`), mesmas ações de acessibilidade, mesmos textos e mesmo háptico do `ReorderableList`. Diferenças:
+  `onMove` chega **uma vez, ao soltar**; sem autoscroll; só pela alça por default; o `remember` do item é recriado quando
+  ele muda de posição. Dentro de um `ReorderableList`, passe `dragOnLongPress = false` na lista de fora.
+- **`AttachmentPickerLauncher.launch(source: AttachmentSource)`** — abre uma origem sem a folha da lib, com a mesma entrega
+  e o mesmo tratamento. Para folha própria (protótipo) e câmera própria: `launch(GALLERY)`/`launch(FILE)`, e em
+  `ImagesOnly` o "Arquivo" devolve o mesmo `PickedAttachment.Photo` da galeria. Origem que o lugar não oferece abre o
+  seletor de arquivos: câmera nunca abre em lugar só de documento. `launch()` segue igual.
+
+### Decisão: origem direta, não "câmera customizada" na folha
+A alternativa era um parâmetro de ação de câmera na folha da lib. `launch(source)` resolve o mesmo com uma função só e
+também serve a quem tem protótipo (o protótipo vence a folha da lib); a folha padrão não ganhou nenhum ramo novo.
+
 ## 2.337.0 — **Teto de tempo por chamada nos verbos JSON do `DomainApiClient`** (Fotonix, 03/nov/2026)
 
 Origem: o Fotonix recalcula o diagnóstico com IA numa rota (`POST …/recalcular`) que pode levar ~60 s; o cliente HTTP do

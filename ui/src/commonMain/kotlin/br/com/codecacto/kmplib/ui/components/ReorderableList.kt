@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +44,8 @@ import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import sh.calvin.reorderable.ReorderableCollectionItemScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import sh.calvin.reorderable.ReorderableColumn as LibReorderableColumn
+import sh.calvin.reorderable.ReorderableListItemScope as LibColumnItemScope
 
 // ---------------------------------------------------------------------------------------------
 // Núcleo puro (testado)
@@ -83,6 +86,20 @@ fun reorderTargetIndex(action: ReorderAction, index: Int, size: Int): Int = when
     ReorderAction.MOVE_UP -> (index - 1).coerceAtLeast(0)
     ReorderAction.MOVE_DOWN -> (index + 1).coerceAtMost(size - 1)
     ReorderAction.MOVE_TO_BOTTOM -> size - 1
+}
+
+/**
+ * Traduz o `(from, to)` que o motor do arrasto soltou (índices em [keysWhenDragged], a ordem de quando
+ * o arrasto começou) para índices na lista ATUAL, pela CHAVE. A animação de soltar leva um instante, e
+ * a lista pode ter mudado nele: índice velho moveria o item errado. Sem o item, ou sem nada a mover,
+ * `null`. Pura e testada.
+ */
+internal fun <K> reorderSettleIndices(keysWhenDragged: List<K>, currentKeys: List<K>, from: Int, to: Int): Pair<Int, Int>? {
+    val fromKey = keysWhenDragged.getOrNull(from) ?: return null
+    val toKey = keysWhenDragged.getOrNull(to) ?: return null
+    val fromNow = currentKeys.indexOf(fromKey)
+    val toNow = currentKeys.indexOf(toKey)
+    return if (fromNow < 0 || toNow < 0 || fromNow == toNow) null else fromNow to toNow
 }
 
 /** Troca `%1$d`/`%2$d` do modelo de posição ("Posição %1$d de %2$d"). */
@@ -306,20 +323,182 @@ private class ReorderableListItemScopeImpl(
 
     @Composable
     override fun DragHandle(modifier: Modifier) {
-        // A alça não é um alvo para o leitor de tela: quem não vê usa as ações do ITEM. Sem isto,
-        // ela viraria uma parada de foco que não faz nada ao toque duplo.
-        Box(
-            modifier = modifier
-                .size(48.dp)
-                .dragHandle()
-                .clearAndSetSemantics { },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.DragHandle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        ReorderDragHandleIcon(modifier.dragHandle())
+    }
+}
+
+/** O desenho da alça, igual nas duas listas: [modifier] já traz o gesto. */
+@Composable
+private fun ReorderDragHandleIcon(modifier: Modifier) {
+    // A alça não é um alvo para o leitor de tela: quem não vê usa as ações do ITEM. Sem isto,
+    // ela viraria uma parada de foco que não faz nada ao toque duplo.
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clearAndSetSemantics { },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.DragHandle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Coluna reordenável (dentro de um item de outra lista)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * **Lista curta reordenável DENTRO de uma rolagem que já existe** (2.339.0) — exercícios de um bloco,
+ * perguntas de uma seção: o item de uma `LazyColumn` ou de um [ReorderableList], ou uma coluna com
+ * `verticalScroll`. Uma lista lazy não pode morar aí (altura infinita), e por isso o [ReorderableList]
+ * só serve como lista de nível superior. Mesma alça, mesmo escopo, mesmas ações de acessibilidade
+ * ("Mover para cima"… e "Posição 2 de 5") e mesmos textos; o aparelho vibra ao pegar, a cada troca e
+ * ao soltar. Construída sobre o `ReorderableColumn` do Reorderable, o modo dele para coluna não-lazy.
+ *
+ * ```kotlin
+ * ReorderableColumn(
+ *     items = bloco.itens,
+ *     key = { it.id },
+ *     onMove = { de, para -> onAction(Action.Mover(bloco.id, de, para)) },
+ *     onReorderFinished = { onAction(Action.Salvar) },
+ *     verticalArrangement = Arrangement.spacedBy(12.dp),
+ * ) { item, _, arrastando ->
+ *     Row(verticalAlignment = Alignment.CenterVertically) {
+ *         Text(item.nome, Modifier.weight(1f))
+ *         DragHandle()
+ *     }
+ * }
+ * ```
+ *
+ * **O que muda em relação ao [ReorderableList]:**
+ * - [onMove] é chamado **uma vez, ao soltar** (nunca por casa atravessada: durante o arrasto o motor
+ *   só desloca o desenho), com `from != to` em [items]. Aplique a troca síncrona ali; [onReorderFinished]
+ *   vem logo depois, e também após cada ação de acessibilidade.
+ * - **Sem autoscroll.** O motor não conversa com a rolagem de fora: é para lista que cabe na tela. Lista
+ *   longa = [ReorderableList], na rolagem dela.
+ * - **Só pela alça por default** ([dragOnLongPress] `false`): o item costuma ter campo de texto (segurar
+ *   seleciona texto) e está dentro de outro item arrastável.
+ * - O estado `remember` de cada item é **recriado** quando ele muda de posição, porque cada posição é
+ *   um nó próprio no motor. O dado do item mora no estado do app; o que não mora (foco, rolagem interna)
+ *   recomeça.
+ *
+ * **Dentro de um [ReorderableList]:** passe `dragOnLongPress = false` na lista de fora. Com o long-press
+ * dela ligado, segurar a alça de dentro sem mexer o dedo pegaria o item de fora.
+ *
+ * @param items a lista na ordem atual (fonte de verdade é do app).
+ * @param key chave **estável e única** do item (o id, nunca o índice).
+ * @param onMove leva o item de `from` para `to` (índices em [items]), ao soltar.
+ * @param onReorderFinished a ordem assentou — hora de salvar.
+ * @param enabled `false` desliga arrasto e ações (ex.: tela só leitura).
+ * @param dragOnLongPress `true` = segurar o item em qualquer ponto também começa o arrasto.
+ * @param itemContent o item; `isDragging` para realçar o que está sendo arrastado.
+ */
+@Composable
+fun <T> ReorderableColumn(
+    items: List<T>,
+    key: (T) -> Any,
+    onMove: (from: Int, to: Int) -> Unit,
+    modifier: Modifier = Modifier,
+    onReorderFinished: () -> Unit = {},
+    verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    enabled: Boolean = true,
+    dragOnLongPress: Boolean = false,
+    texts: ReorderableListTexts = rememberReorderableListTexts(),
+    itemContent: @Composable ReorderableListItemScope.(item: T, index: Int, isDragging: Boolean) -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+    val currentItems by rememberUpdatedState(items)
+    val currentKey by rememberUpdatedState(key)
+    val currentOnMove by rememberUpdatedState(onMove)
+    val currentOnFinished by rememberUpdatedState(onReorderFinished)
+
+    // O motor refaz o estado de arrasto quando a lista muda por igualdade e guarda os callbacks da
+    // primeira composição daquela lista. Daí a lista de CHAVES: digitar num campo do item muda o item
+    // (e não pode derrubar um arrasto), mover ou acrescentar muda a chave (e refaz). E, pela mesma
+    // razão, os callbacks só leem o estado atualizado.
+    val keys = items.map(key)
+    LibReorderableColumn(
+        list = keys,
+        onSettle = { from, to ->
+            val now = currentItems.map { currentKey(it) }
+            reorderSettleIndices(keys, now, from, to)?.let { (de, para) ->
+                currentOnMove(de, para)
+                currentOnFinished()
+            }
+        },
+        modifier = modifier,
+        verticalArrangement = verticalArrangement,
+        horizontalAlignment = horizontalAlignment,
+        onMove = { haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick) },
+    ) { index, itemKey, isDragging ->
+        val item = items.getOrNull(index) ?: return@LibReorderableColumn
+        // Sem isto o `remember` do item ficaria na POSIÇÃO e, ao soltar, passaria ao vizinho.
+        key(itemKey) {
+            ReorderableItem {
+                val itemScope = this
+                val onStart: (Offset) -> Unit = {
+                    haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                }
+                val onStop: (Float) -> Unit = {
+                    haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                }
+                val size = items.size
+                val actions = if (enabled) {
+                    reorderActionsFor(index, size).map { action ->
+                        CustomAccessibilityAction(texts.labelFor(action)) {
+                            currentOnMove(index, reorderTargetIndex(action, index, size))
+                            currentOnFinished()
+                            true
+                        }
+                    }
+                } else {
+                    emptyList()
+                }
+                val positionText = texts.position(index + 1, size)
+                val itemModifier = Modifier
+                    .semantics(mergeDescendants = true) {
+                        customActions = actions
+                        stateDescription = positionText
+                    }
+                    .then(
+                        if (dragOnLongPress) {
+                            with(itemScope) {
+                                Modifier.longPressDraggableHandle(
+                                    enabled = enabled,
+                                    onDragStarted = onStart,
+                                    onDragStopped = onStop,
+                                )
+                            }
+                        } else {
+                            Modifier
+                        },
+                    )
+                val columnScope = ReorderableColumnItemScopeImpl(itemScope, enabled, onStart, onStop)
+                Box(itemModifier) {
+                    columnScope.itemContent(item, index, isDragging)
+                }
+            }
         }
+    }
+}
+
+private class ReorderableColumnItemScopeImpl(
+    private val delegate: LibColumnItemScope,
+    private val enabled: Boolean,
+    private val onStart: (Offset) -> Unit,
+    private val onStop: (Float) -> Unit,
+) : ReorderableListItemScope {
+
+    override fun Modifier.dragHandle(): Modifier = with(delegate) {
+        this@dragHandle.draggableHandle(enabled = enabled, onDragStarted = onStart, onDragStopped = onStop)
+    }
+
+    @Composable
+    override fun DragHandle(modifier: Modifier) {
+        ReorderDragHandleIcon(modifier.dragHandle())
     }
 }

@@ -176,4 +176,18 @@ class AttachmentPickerTest {
         val arquivo = PickedAttachment.File(PickedFile("cnh-joao.pdf", "application/pdf", 1) { FilePickResult.Cancelled })
         assertFalse("joao" in arquivo.toString())
     }
+
+    // Origem direta (folha própria do app, câmera própria).
+
+    @Test
+    fun `origem direta abre a pedida onde o lugar aceita foto`() {
+        val plano = attachmentPickerPlan(AttachmentAccept.ImagesOnly)
+        AttachmentSource.entries.forEach { assertEquals(it, attachmentDirectTarget(plano, it)) }
+    }
+
+    @Test
+    fun `origem direta em lugar so de documento nunca abre camera nem galeria`() {
+        val plano = attachmentPickerPlan(AttachmentAccept.forMimeTypes(listOf("application/pdf")))
+        AttachmentSource.entries.forEach { assertEquals(AttachmentSource.FILE, attachmentDirectTarget(plano, it)) }
+    }
 }
