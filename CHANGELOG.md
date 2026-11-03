@@ -5,6 +5,23 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.341.0 — **`FeedbackScreen`: motivo e mensagem iniciais (`initialMotivo`/`initialMessage`)** (LocAki, 03/nov/2026)
+
+Origem: o app do LocAki abre o feedback a partir do cartão "Contrato personalizado — R$ 30", e o pedido precisa
+chegar identificado.
+
+### Adicionado
+- **`FeedbackScreen(…, initialMotivo: FeedbackMotivo? = null, initialMessage: String? = null, onFeedbackSent)`
+  (`kmplib-central`):** a tela abre com o motivo já marcado e o texto já escrito, os dois editáveis — paridade com
+  `defaultName`/`defaultEmail`/`defaultWhatsapp` e com o `initialSubject`/`initialMessage` da `ContactScreen`
+  (2.226.0). A mensagem não é aparada (pode terminar em `"\n\n"` para a pessoa continuar embaixo; o envio apara);
+  só espaço em branco conta como ausente. Valor que chega depois da primeira composição entra uma vez, e só se a
+  pessoa ainda não escolheu/escreveu nada (mesma semeadura dos `default*`).
+
+Aditivo: os dois parâmetros entraram antes de `onFeedbackSent`, então a trailing lambda de quem já chama continua
+igual. Regras puras internas `feedbackInitialMessage`/`shouldSeedFeedbackField` (`FeedbackPrefill.kt`), travadas
+por `FeedbackPrefillTest`. Sem piso, sem aviso.
+
 ## 2.340.2 — **Firebase: troca de senha e exclusão reconfirmam a credencial pelo caminho oficial (`reauthenticate`)** (03/nov/2026)
 
 Origem: security-review da área de autenticação (`Nexus/docs/tarefas/2026-11-03-app-perfeito.md`, F4).

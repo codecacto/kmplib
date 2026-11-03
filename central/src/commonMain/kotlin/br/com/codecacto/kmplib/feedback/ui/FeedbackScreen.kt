@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.feedback.FeedbackMotivo
 import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
+import br.com.codecacto.kmplib.feedback.feedbackInitialMessage
+import br.com.codecacto.kmplib.feedback.shouldSeedFeedbackField
 import br.com.codecacto.kmplib.ui.screens.espacoAcimaDoRodape
 import br.com.codecacto.kmplib.validation.EmailValidator
 import kotlinx.coroutines.launch
@@ -75,6 +77,21 @@ import br.com.codecacto.kmplib.platform.automation.TopBarTestTags
  *       bottomBar = { ManagedBannerAd(Modifier.fillMaxWidth(), size = BannerSize.STANDARD) },
  *   )
  *   ```
+ * @param initialMotivo Motivo com que a tela ABRE já marcado (2.341.0) — editável: a pessoa troca
+ *   pelos rádios. Par de [defaultName]: se chegar depois da primeira composição, entra uma vez, e
+ *   só se nenhum motivo foi escolhido.
+ * @param initialMessage Texto inicial da mensagem (2.341.0) — editável, a pessoa completa ou
+ *   apaga. Não é aparado (pode terminar em `"\n\n"` para ela continuar embaixo); o envio apara.
+ *   Mesma semeadura tardia do [initialMotivo]. Caso de uso: abrir o feedback a partir de um ponto
+ *   específico do app e o pedido chegar identificado.
+ *
+ *   ```kotlin
+ *   FeedbackScreen(
+ *       onBack = { navController.popBackStack() },
+ *       initialMotivo = FeedbackMotivo.OUTRO,
+ *       initialMessage = "Quero o contrato personalizado (R$ 30).\n\n",
+ *   )
+ *   ```
  * @param onFeedbackSent Callback opcional chamado após envio com sucesso
  */
 @Composable
@@ -94,6 +111,9 @@ fun FeedbackScreen(
      * como o número é enviado. Antes, quem estava fora do Brasil não conseguia enviar o feedback.
      */
     phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
+    // Antes de `onFeedbackSent` para não roubar a posição de trailing lambda (2.341.0).
+    initialMotivo: FeedbackMotivo? = null,
+    initialMessage: String? = null,
     onFeedbackSent: (() -> Unit)? = null
 ) {
     @Suppress("NAME_SHADOWING")
@@ -101,8 +121,8 @@ fun FeedbackScreen(
     // Texto/ícone sobre `primaryColor` (cabeçalho e botão): branco ou escuro pelo contraste AA
     // (2.333.0) — era `Color.White` fixo, invisível com primária clara.
     val onPrimaryColor = readableContentColorFor(primaryColor)
-    var selectedMotivo by remember { mutableStateOf<FeedbackMotivo?>(null) }
-    var mensagem by remember { mutableStateOf("") }
+    var selectedMotivo by remember { mutableStateOf(initialMotivo) }
+    var mensagem by remember { mutableStateOf(feedbackInitialMessage(initialMessage)) }
     var nome by remember { mutableStateOf(defaultName.orEmpty()) }
     var email by remember { mutableStateOf(defaultEmail.orEmpty()) }
     var whatsapp by remember { mutableStateOf(phoneFormat.fromStoredValue(defaultWhatsapp)) }
@@ -137,6 +157,19 @@ fun FeedbackScreen(
         if (!semeouWhatsapp && !defaultWhatsapp.isNullOrBlank()) {
             semeouWhatsapp = true
             if (whatsapp.isBlank()) whatsapp = phoneFormat.fromStoredValue(defaultWhatsapp)
+        }
+    }
+    // Mesma semeadura para motivo e mensagem iniciais (2.341.0).
+    var semeouMotivo by remember { mutableStateOf(initialMotivo != null) }
+    var semeouMensagem by remember { mutableStateOf(!initialMessage.isNullOrBlank()) }
+    LaunchedEffect(initialMotivo, initialMessage) {
+        if (shouldSeedFeedbackField(semeouMotivo, initialMotivo != null, selectedMotivo == null)) {
+            semeouMotivo = true
+            selectedMotivo = initialMotivo
+        }
+        if (shouldSeedFeedbackField(semeouMensagem, !initialMessage.isNullOrBlank(), mensagem.isBlank())) {
+            semeouMensagem = true
+            mensagem = feedbackInitialMessage(initialMessage)
         }
     }
 
