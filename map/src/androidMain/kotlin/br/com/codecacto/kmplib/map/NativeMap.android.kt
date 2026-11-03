@@ -52,6 +52,7 @@ import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MapsComposeExperimentalApi
+import com.google.maps.android.compose.Polygon
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.clustering.Clustering
 import com.google.maps.android.compose.clustering.rememberClusterManager
@@ -62,6 +63,7 @@ import kotlinx.coroutines.launch
 import com.google.android.gms.maps.model.CameraPosition as GmsCameraPosition
 import com.google.android.gms.maps.model.LatLng as GmsLatLng
 import com.google.android.gms.maps.model.LatLngBounds as GmsLatLngBounds
+import com.google.maps.android.compose.MapType as GmsMapType
 import com.google.maps.android.compose.Marker as ComposeMarker
 
 /**
@@ -76,6 +78,9 @@ internal actual fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
     circles: List<ResolvedCircle>,
+    polygons: List<ResolvedPolygon>,
+    mapType: MapType,
+    onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
@@ -126,7 +131,7 @@ internal actual fun PlatformNativeMap(
         modifier = modifier,
         cameraPositionState = cameraState,
         googleMapOptionsFactory = { GoogleMapOptions().liteMode(!interactive) },
-        properties = MapProperties(isMyLocationEnabled = myLocation && interactive),
+        properties = MapProperties(isMyLocationEnabled = myLocation && interactive, mapType = mapType.toGms()),
         uiSettings = mapUiSettingsFor(
             interactive,
             whenInteractive = MapUiSettings(
@@ -139,6 +144,26 @@ internal actual fun PlatformNativeMap(
         onMapClick = { latLng -> onMapClick?.invoke(latLng.toCommon()) },
         onMapLongClick = { latLng -> onMapLongClick?.invoke(latLng.toCommon()) },
     ) {
+        // Polígonos no fundo de tudo (abaixo do círculo, −1); o que vem depois na lista fica por cima.
+        // Tocáveis só quando o app quer o toque — senão o toque passa para o `onMapClick`.
+        val polygonTap by rememberUpdatedState(onPolygonClick)
+        polygons.forEachIndexed { index, area ->
+            key(area.id) {
+                Polygon(
+                    points = area.points.map { it.toGms() },
+                    holes = area.holes.map { ring -> ring.map { it.toGms() } },
+                    fillColor = area.fillColor,
+                    strokeColor = area.strokeColor,
+                    strokeWidth = area.strokeWidthDp * density,
+                    strokeJointType = JointType.ROUND,
+                    clickable = onPolygonClick != null,
+                    tag = area.id,
+                    zIndex = polygonZIndex(index, polygons.size).toFloat(),
+                    onClick = { polygonTap?.invoke(area.id) },
+                )
+            }
+        }
+
         // Círculos por baixo de rotas e pinos (zIndex menor). O `Circle` do maps-compose atualiza
         // centro/raio/cor no lugar quando o estado muda — é o raio "ao vivo".
         circles.forEach { ring ->
@@ -401,6 +426,14 @@ private suspend fun CameraPositionState.apply(command: MapCameraCommand, density
 
 private suspend fun CameraPositionState.run(update: CameraUpdate, animate: Boolean) {
     if (animate) animate(update) else move(update)
+}
+
+/** O [MapType] da lib no enum do maps-compose (mesmos nomes; `NONE` do SDK não é exposto). */
+internal fun MapType.toGms(): GmsMapType = when (this) {
+    MapType.NORMAL -> GmsMapType.NORMAL
+    MapType.SATELLITE -> GmsMapType.SATELLITE
+    MapType.HYBRID -> GmsMapType.HYBRID
+    MapType.TERRAIN -> GmsMapType.TERRAIN
 }
 
 private fun LatLng.toGms(): GmsLatLng = GmsLatLng(latitude, longitude)

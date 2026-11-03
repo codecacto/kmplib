@@ -5,6 +5,40 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.342.0 — **`NativeMap`: polígonos (`MapPolygon`) e tipo de mapa (`MapType` — satélite, híbrido, relevo)** (CampoRaiz, 03/nov/2026)
+
+Origem: decisão do fundador para o CampoRaiz — no app, o mapa da fazenda mostra o **satélite do Google** quando há
+internet, com os **talhões** desenhados por cima e coloridos pela situação (sem internet o app segue no desenho
+vetorial dele; isso é do app, não da lib). Mapa na fábrica = só Google Maps, pelo SDK oficial.
+
+### Adicionado (`kmplib-map`)
+- **`MapPolygon(id, points, fillColor = null, strokeColor = null, strokeWidth = 2.dp, holes = emptyList())`** — área
+  fechada geográfica; `null` = cor primária do tema (preenchimento a `DEFAULT_POLYGON_FILL_ALPHA` = 30%, contorno
+  cheio). Ponto final repetido sai, coordenada inválida é ignorada, < 3 vértices não desenha; buraco inválido é
+  ignorado e o polígono fica. `MapPolygon.fitPoints()`.
+- **`NativeMap(…, polygons: List<MapPolygon> = emptyList(), mapType: MapType = MapType.NORMAL,
+  onPolygonClick: ((MapPolygon) -> Unit)? = null, onItemClick, …)`** — os três entram depois de `interactive` e antes
+  de `onItemClick` (a trailing lambda de quem já chama não muda). Polígonos ficam **por baixo** de círculos, rotas e
+  pinos; entre eles, o último da lista por cima; mudar um id redesenha só ele; entram no `fitOnFirstLoad`. Toque:
+  só com `onPolygonClick` (senão o toque passa ao `onMapClick`), o de cima quando se sobrepõem.
+- **`enum class MapType { NORMAL, SATELLITE, HYBRID, TERRAIN }`.**
+- **Android:** `Polygon` oficial do maps-compose (`clickable`, `holes`, `zIndex`) e `MapProperties(mapType = …)`.
+- **iOS, ponte do Google — interface NOVA e OPCIONAL `IosNativeMapLayers`** (`setPolygons(polygons:
+  [IosMapPolygonData])`, `setMapType(type: MapType)`, `setOnPolygonClick(onClick:)`; dado `IosMapPolygonData(id,
+  points, holes, fillColor, strokeColor, strokeWidth, zIndex, tappable)`). Separada do `IosNativeRichMap` de
+  propósito: método novo no protocolo ObjC quebraria todo `MapBridge.swift` existente. A lib detecta por tipo; sem
+  ela o mapa segue igual, sem polígonos e no tipo normal, com `AppLogger.w("KmpLibMap", …)` uma vez por processo
+  (`IosMapLayersNotice`). Modelo atualizado: `Cascas/casca-mobile/iosApp/mapa-google/MapBridge.swift`
+  (`GMSPolygon` + `holes` + `isTappable`, `mapView.mapType`, `didTap overlay:`).
+- **iOS, fallback MapKit:** `MKPolygon` (com `interiorPolygons`) + `MKPolygonRenderer`, no fundo (abaixo dos
+  círculos); `mapType` padrão/satélite/híbrido; **relevo vira padrão** (o MapKit não tem). Toque no polígono pela
+  regra pura `topPolygonAt` (o MapKit não tem toque em overlay).
+
+Regras puras e testadas: `resolvePolygon`, `polygonRing`, `ringContains`/`ResolvedPolygon.contains` (par-ímpar, com
+buraco), `topPolygonAt`, `polygonZIndex`, `nativeMapFitPoints`, `MapType.supportedByMapKit`, `MapType.toGms`
+(Android). Testes: `MapPolygonTest` 14 + `MapTypeGmsTest` 1; `kmplib-map` 76 verdes; `compileKotlinIosArm64`
+do map executado. Aditivo, sem piso, sem aviso.
+
 ## 2.341.0 — **`FeedbackScreen`: motivo e mensagem iniciais (`initialMotivo`/`initialMessage`)** (LocAki, 03/nov/2026)
 
 Origem: o app do LocAki abre o feedback a partir do cartão "Contrato personalizado — R$ 30", e o pedido precisa

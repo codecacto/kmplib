@@ -124,6 +124,7 @@ não terá o ganho: um app que exporta o umbrella exporta a lib inteira.
 | `IosNativeMap` | `map/IosMapBridge.kt` | Protocolo para Google Maps nativo |
 | `IosMapMarkerData` | `map/IosMapBridge.kt` | Dados de marcador |
 | `IosNativeRichMap` (+ `IosMapPinData`/`IosMapPolylineData`/`IosMapCircleData`/`IosMapCoordinate`) | `map/IosMapBridge.kt` | Google Maps também no `NativeMap` (2.331.0, aditivo) |
+| `IosNativeMapLayers` (+ `IosMapPolygonData`, enum `MapType`) | `map/IosMapBridge.kt` | Polígonos e tipo de mapa no `NativeMap` (2.342.0, interface OPCIONAL — não quebra `MapBridge.swift` antigo) |
 | `IosMapBridge` | `map/IosMapBridge.kt` | `register(factory:)` (MapView + NativeMap) e o `factory` antigo |
 | `ImagePickerServiceBridge` | Varia por projeto | Photo picker |
 

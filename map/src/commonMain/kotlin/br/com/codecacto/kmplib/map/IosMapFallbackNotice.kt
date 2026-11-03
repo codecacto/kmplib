@@ -35,3 +35,32 @@ internal object IosMapFallbackNotice {
         warned = false
     }
 }
+
+/**
+ * Aviso (2.342.0) de que o `NativeMap` recebeu polígonos ou um tipo de mapa diferente do normal, mas a
+ * ponte do Google do app (`MapBridge.swift`) não implementa `IosNativeMapLayers` — então não aparecem.
+ * Uma vez por processo, como o [IosMapFallbackNotice]. Puro e testado aqui; quem chama é o iOS.
+ */
+internal object IosMapLayersNotice {
+    const val TAG: String = IosMapFallbackNotice.TAG
+
+    const val MESSAGE: String =
+        "NativeMap com polígonos ou mapType diferente de NORMAL, mas a ponte do Google Maps do app não " +
+            "implementa IosNativeMapLayers: polígonos e tipo de mapa NÃO aparecem no iPhone. Acrescente " +
+            "IosNativeMapLayers ao GoogleMapController (setPolygons/setMapType/setOnPolygonClick) — modelo no " +
+            "MapBridge.swift da casca-mobile (kmplib ≥ 2.342.0)."
+
+    private var warned: Boolean = false
+
+    /** Precisa avisar? Só quando há o que a ponte não desenha — e só na primeira vez do processo. */
+    fun claim(hasPolygons: Boolean, mapType: MapType): Boolean {
+        if (!hasPolygons && mapType == MapType.NORMAL) return false
+        if (warned) return false
+        warned = true
+        return true
+    }
+
+    internal fun resetForTest() {
+        warned = false
+    }
+}

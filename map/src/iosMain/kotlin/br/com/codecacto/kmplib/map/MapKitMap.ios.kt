@@ -35,6 +35,11 @@ import platform.MapKit.MKMarkerAnnotationView
 import platform.MapKit.MKOverlayProtocol
 import platform.MapKit.MKOverlayRenderer
 import platform.MapKit.MKPointAnnotation
+import platform.MapKit.MKMapTypeHybrid
+import platform.MapKit.MKMapTypeSatellite
+import platform.MapKit.MKMapTypeStandard
+import platform.MapKit.MKPolygon
+import platform.MapKit.MKPolygonRenderer
 import platform.MapKit.MKPolyline
 import platform.MapKit.MKPolylineRenderer
 import platform.MapKit.MKUserLocation
@@ -82,9 +87,12 @@ internal fun MapKitMap(
     modifier: Modifier,
     circles: List<ResolvedCircle> = emptyList(),
     interactive: Boolean = true,
+    polygons: List<ResolvedPolygon> = emptyList(),
+    mapType: MapType = MapType.NORMAL,
+    onPolygonClick: ((String) -> Unit)? = null,
 ) {
     val host = remember { MapKitHost(controller) }
-    host.callbacks = MapKitCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onLoaded)
+    host.callbacks = MapKitCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onLoaded, onPolygonClick)
     host.defaultColor = defaultColor
 
     DisposableEffect(host) {
@@ -102,6 +110,8 @@ internal fun MapKitMap(
             host.mapView.rotateEnabled = interactive
             host.mapView.pitchEnabled = interactive
             host.mapView.showsUserLocation = showUserLocation
+            host.setMapType(mapType)
+            host.updatePolygons(polygons)
             host.updateCircles(circles)
             host.updatePolylines(polylines)
             host.updateMarkers(markers)
@@ -115,6 +125,7 @@ internal class MapKitCallbacks(
     val onMapClick: ((LatLng) -> Unit)?,
     val onMapLongClick: ((LatLng) -> Unit)?,
     val onLoaded: () -> Unit,
+    val onPolygonClick: ((String) -> Unit)? = null,
 )
 
 /** Pino de um [MapItem] no MapKit; carrega o id para voltar ao item no toque e no agrupamento. */
@@ -144,6 +155,9 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     private val annotations = mutableMapOf<String, ItemAnnotation>()
     private val overlays = mutableMapOf<String, Pair<MKPolyline, ResolvedPolyline>>()
     private val circleOverlays = mutableMapOf<String, Pair<MKCircle, ResolvedCircle>>()
+    /** Polígonos na ordem da lista (o último por cima) — e é nesta ordem que ficam no fundo do mapa. */
+    private var polygonOverlays: List<Pair<MKPolygon, ResolvedPolygon>> = emptyList()
+    private var currentMapType: MapType? = null
     private var clustering = true
     private var loadedNotified = false
     private val gestures = MapKitGestureTarget(this)
@@ -233,6 +247,43 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
         }
     }
 
+    /** Tipo do fundo; relevo não existe no MapKit e vira o padrão ([supportedByMapKit]). */
+    fun setMapType(type: MapType) {
+        if (type == currentMapType) return
+        currentMapType = type
+        mapView.mapType = when (type.supportedByMapKit()) {
+            MapType.SATELLITE -> MKMapTypeSatellite
+            MapType.HYBRID -> MKMapTypeHybrid
+            else -> MKMapTypeStandard
+        }
+    }
+
+    /**
+     * `MKPolygon` é imutável e a ordem entre eles importa: com qualquer mudança, todos saem e entram de
+     * novo nos índices 0…n-1 — no fundo, abaixo dos círculos (que entram logo depois deles) e das rotas.
+     * Talhões são dezenas, não milhares: refazer o conjunto é barato.
+     */
+    fun updatePolygons(areas: List<ResolvedPolygon>) {
+        if (areas == polygonOverlays.map { it.second }) return
+        polygonOverlays.forEach { mapView.removeOverlay(it.first) }
+        polygonOverlays = areas.map { area -> buildPolygon(area.points, area.holes) to area }
+        polygonOverlays.forEachIndexed { index, (polygon, _) ->
+            mapView.insertOverlay(polygon, atIndex = index.toULong())
+        }
+    }
+
+    private fun buildPolygon(points: List<LatLng>, holes: List<List<LatLng>>): MKPolygon {
+        val interior = holes.map { buildPolygon(it, emptyList()) }
+        return memScoped {
+            val coords = allocArray<CLLocationCoordinate2D>(points.size)
+            points.forEachIndexed { i, p ->
+                coords[i].latitude = p.latitude
+                coords[i].longitude = p.longitude
+            }
+            MKPolygon.polygonWithCoordinates(coords, points.size.toULong(), interiorPolygons = interior.ifEmpty { null })
+        }
+    }
+
     /**
      * `MKCircle` é imutável: círculo que mudou (raio, centro, cor) sai e entra de novo. Entra no
      * índice 0 — por baixo das rotas, como no Android (`zIndex` −1).
@@ -255,7 +306,8 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
             )
             circle.setTitle(id)
             circleOverlays[id] = circle to ring
-            mapView.insertOverlay(circle, atIndex = 0uL)
+            // Logo acima dos polígonos (que ocupam os índices 0…n-1), abaixo das rotas.
+            mapView.insertOverlay(circle, atIndex = polygonOverlays.size.toULong())
         }
     }
 
@@ -375,6 +427,16 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     }
 
     override fun mapView(mapView: MKMapView, rendererForOverlay: MKOverlayProtocol): MKOverlayRenderer {
+        (rendererForOverlay as? MKPolygon)?.let { polygon ->
+            val area = polygonOverlays.firstOrNull { it.first === polygon }?.second
+                ?: return MKOverlayRenderer(overlay = rendererForOverlay)
+            return MKPolygonRenderer(polygon = polygon).apply {
+                fillColor = area.fillColor.toUIColor()
+                strokeColor = area.strokeColor.toUIColor()
+                lineWidth = area.strokeWidthDp.toDouble()
+                lineJoin = CGLineJoin.kCGLineJoinRound
+            }
+        }
         (rendererForOverlay as? MKCircle)?.let { circle ->
             val ring = circleOverlays.values.firstOrNull { it.first === circle }?.second
                 ?: return MKOverlayRenderer(overlay = rendererForOverlay)
@@ -423,7 +485,9 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     // --- gestos --------------------------------------------------------------------------------
 
     internal fun handleTap(recognizer: UIGestureRecognizer, long: Boolean) {
-        val cb = (if (long) callbacks?.onMapLongClick else callbacks?.onMapClick) ?: return
+        val polygonCb = if (long) null else callbacks?.onPolygonClick
+        val cb = if (long) callbacks?.onMapLongClick else callbacks?.onMapClick
+        if (cb == null && polygonCb == null) return
         val point = recognizer.locationInView(mapView)
         // Toque num pino é do pino (didSelect), não do mapa.
         var hit: UIView? = mapView.hitTest(point, withEvent = null)
@@ -431,8 +495,17 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
             if (hit is MKAnnotationView) return
             hit = hit.superview
         }
-        val coordinate = mapView.convertPoint(point, toCoordinateFromView = mapView)
-        cb(coordinate.useContents { LatLng(latitude, longitude) })
+        val coordinate = mapView.convertPoint(point, toCoordinateFromView = mapView).useContents { LatLng(latitude, longitude) }
+        // O MapKit não tem toque em overlay: o polígono de cima que contém o ponto (regra pura) é do
+        // polígono, como o `clickable` do Google — e aí o toque não vai ao mapa.
+        if (polygonCb != null) {
+            val area = topPolygonAt(polygonOverlays.map { it.second }, coordinate)
+            if (area != null) {
+                polygonCb(area.id)
+                return
+            }
+        }
+        cb?.invoke(coordinate)
     }
 }
 

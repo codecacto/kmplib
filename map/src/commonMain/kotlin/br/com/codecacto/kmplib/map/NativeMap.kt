@@ -133,6 +133,13 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *
  * @param items pinos. Mudar a lista redesenha só o que mudou (chave = [MapItem.id]).
  * @param circles círculos de raio em metros (chave = [MapCircle.id]); entram no enquadramento inicial.
+ * @param polygons áreas fechadas (2.342.0 — talhão, lote, zona; chave = [MapPolygon.id]), por baixo
+ *   de círculos, rotas e pinos; entram no enquadramento inicial. Android = `Polygon` do maps-compose;
+ *   iOS = `GMSPolygon` pela ponte ([IosNativeMapLayers]) ou `MKPolygon` no fallback MapKit.
+ * @param mapType fundo do mapa (2.342.0): ruas, satélite, híbrido ou relevo ([MapType]). No iOS com
+ *   a ponte, exige [IosNativeMapLayers] no `MapBridge.swift`; no fallback MapKit, relevo vira ruas.
+ * @param onPolygonClick toque numa área (2.342.0) — recebe o [MapPolygon] da lista, o de cima quando
+ *   se sobrepõem. `null` = áreas não tocáveis (o toque passa para o [onMapClick]).
  * @param interactive `false` = mapa **só leitura** (2.331.0): sem arrastar, pinçar, girar nem inclinar,
  *   e câmera sem animação. No Android vira o **modo lite** do Google Maps (respeita cantos
  *   arredondados) e, por isso, **sem agrupamento** — todos os pinos desenhados, o mais grave por cima;
@@ -150,6 +157,9 @@ fun NativeMap(
     fitOnFirstLoad: Boolean = true,
     circles: List<MapCircle> = emptyList(),
     interactive: Boolean = true,
+    polygons: List<MapPolygon> = emptyList(),
+    mapType: MapType = MapType.NORMAL,
+    onPolygonClick: ((MapPolygon) -> Unit)? = null,
     onItemClick: (MapItem) -> Unit = {},
     onClusterClick: ((List<MapItem>) -> Unit)? = null,
     onMapClick: ((LatLng) -> Unit)? = null,
@@ -162,11 +172,14 @@ fun NativeMap(
     }
 
     val rings = remember(circles, primary) { circles.mapNotNull { resolveCircle(it, primary) } }
+    val areas = remember(polygons, primary) { polygons.mapNotNull { resolvePolygon(it, primary) } }
+    val polygonsById = remember(polygons) { polygons.associateBy { it.id } }
+    val polygonClick by rememberUpdatedState(onPolygonClick)
 
     var fitted by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(items, polylines, circles, fitOnFirstLoad) {
+    LaunchedEffect(items, polylines, circles, polygons, fitOnFirstLoad) {
         if (fitOnFirstLoad && !fitted) {
-            val points = items.map { it.position } + polylines.flatMap { it.points } + circles.flatMap { it.extremePoints() }
+            val points = nativeMapFitPoints(items, polylines, circles, polygons)
             if (points.isNotEmpty()) {
                 controller.fitTo(points, animate = false)
                 fitted = true
@@ -195,6 +208,13 @@ fun NativeMap(
         markers = markers,
         polylines = lines,
         circles = rings,
+        polygons = areas,
+        mapType = mapType,
+        onPolygonClick = if (onPolygonClick == null) {
+            null
+        } else {
+            { id -> polygonsById[id]?.let { polygonClick?.invoke(it) } }
+        },
         controller = controller,
         clustering = clustering,
         showUserLocation = showUserLocation,
@@ -214,6 +234,9 @@ internal expect fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
     circles: List<ResolvedCircle>,
+    polygons: List<ResolvedPolygon>,
+    mapType: MapType,
+    onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
@@ -225,3 +248,13 @@ internal expect fun PlatformNativeMap(
     onMapLongClick: ((LatLng) -> Unit)?,
     modifier: Modifier,
 )
+
+/** Tudo que o enquadramento inicial cobre: pinos, rotas, círculos e polígonos. Pura e testada. */
+internal fun nativeMapFitPoints(
+    items: List<MapItem>,
+    polylines: List<MapPolyline>,
+    circles: List<MapCircle>,
+    polygons: List<MapPolygon>,
+): List<LatLng> =
+    items.map { it.position } + polylines.flatMap { it.points } + circles.flatMap { it.extremePoints() } +
+        polygons.flatMap { it.fitPoints() }

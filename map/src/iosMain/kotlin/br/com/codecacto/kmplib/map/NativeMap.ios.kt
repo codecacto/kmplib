@@ -26,6 +26,9 @@ internal actual fun PlatformNativeMap(
     markers: List<ResolvedMarker>,
     polylines: List<ResolvedPolyline>,
     circles: List<ResolvedCircle>,
+    polygons: List<ResolvedPolygon>,
+    mapType: MapType,
+    onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,
     showUserLocation: Boolean,
@@ -44,6 +47,9 @@ internal actual fun PlatformNativeMap(
             markers = markers,
             polylines = polylines,
             circles = circles,
+            polygons = polygons,
+            mapType = mapType,
+            onPolygonClick = onPolygonClick,
             controller = controller,
             clustering = clustering,
             showUserLocation = showUserLocation,
@@ -60,7 +66,7 @@ internal actual fun PlatformNativeMap(
     }
 
     val host = remember { GoogleBridgeMapHost(richFactory(), controller) }
-    host.callbacks = GoogleBridgeCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick)
+    host.callbacks = GoogleBridgeCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onPolygonClick)
     DisposableEffect(host) {
         onDispose { host.dispose() }
     }
@@ -70,6 +76,7 @@ internal actual fun PlatformNativeMap(
         update = {
             host.setInteractive(interactive)
             host.setShowsUserLocation(showUserLocation)
+            host.updateLayers(polygons, mapType, tappable = onPolygonClick != null)
             host.update(markers, polylines, circles, clustering, defaultColor)
         },
     )
@@ -80,6 +87,7 @@ internal class GoogleBridgeCallbacks(
     val onClusterClick: (List<MapItem>) -> Unit,
     val onMapClick: ((LatLng) -> Unit)?,
     val onMapLongClick: ((LatLng) -> Unit)?,
+    val onPolygonClick: ((String) -> Unit)? = null,
 )
 
 /**
@@ -104,6 +112,10 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
     private var sentCircles: List<ResolvedCircle>? = null
     private var interactive: Boolean? = null
     private var showsUserLocation: Boolean? = null
+    /** Camadas opcionais (2.342.0): `null` = `MapBridge.swift` anterior, sem polígono nem tipo. */
+    private val layers: IosNativeMapLayers? = map as? IosNativeMapLayers
+    private var sentPolygons: Pair<List<ResolvedPolygon>, Boolean>? = null
+    private var sentMapType: MapType? = null
     private val sink = MapCameraSink { command -> applyCommand(command) }
 
     init {
@@ -113,6 +125,40 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
         map.setOnMapClick { lat, lng -> callbacks?.onMapClick?.invoke(LatLng(lat, lng)) }
         map.setOnMapLongClick { lat, lng -> callbacks?.onMapLongClick?.invoke(LatLng(lat, lng)) }
         map.setOnCameraIdle { lat, lng, z -> onCameraIdle(lat, lng, z) }
+        layers?.setOnPolygonClick { id -> callbacks?.onPolygonClick?.invoke(id) }
+    }
+
+    /** Polígonos e tipo de mapa — só pela [IosNativeMapLayers]; sem ela, avisa uma vez e segue. */
+    fun updateLayers(polygons: List<ResolvedPolygon>, mapType: MapType, tappable: Boolean) {
+        val target = layers
+        if (target == null) {
+            if (IosMapLayersNotice.claim(polygons.isNotEmpty(), mapType)) {
+                AppLogger.w(IosMapLayersNotice.TAG, IosMapLayersNotice.MESSAGE)
+            }
+            return
+        }
+        if (mapType != sentMapType) {
+            sentMapType = mapType
+            target.setMapType(mapType)
+        }
+        val key = polygons to tappable
+        if (key != sentPolygons) {
+            sentPolygons = key
+            target.setPolygons(
+                polygons.mapIndexed { index, area ->
+                    IosMapPolygonData(
+                        id = area.id,
+                        points = area.points.map { IosMapCoordinate(it.latitude, it.longitude) },
+                        holes = area.holes.map { ring -> ring.map { IosMapCoordinate(it.latitude, it.longitude) } },
+                        fillColor = area.fillColor.toUIColor(),
+                        strokeColor = area.strokeColor.toUIColor(),
+                        strokeWidth = area.strokeWidthDp.toDouble(),
+                        zIndex = polygonZIndex(index, polygons.size),
+                        tappable = tappable,
+                    )
+                },
+            )
+        }
     }
 
     fun dispose() {
@@ -121,6 +167,7 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
         map.clearOnMapClick()
         map.setOnMapLongClick { _, _ -> }
         map.setOnCameraIdle { _, _, _ -> }
+        layers?.setOnPolygonClick { }
     }
 
     fun setInteractive(value: Boolean) {

@@ -135,6 +135,54 @@ interface IosNativeRichMap : IosNativeMap {
 }
 
 /**
+ * Polígono do [NativeMap] (2.342.0) com cores e espessura (pt) já resolvidas — `GMSPolygon` no Swift.
+ * [points] = contorno externo (sem repetir o primeiro ponto no fim), [holes] = buracos
+ * (`GMSPolygon.holes`), [zIndex] = ordem já decidida pela lib (todos abaixo do círculo, −1), e
+ * [tappable] = `GMSPolygon.isTappable` (o toque volta pelo `setOnPolygonClick` com o [id]).
+ */
+@ObjCName("IosMapPolygonData")
+data class IosMapPolygonData(
+    val id: String,
+    val points: List<IosMapCoordinate>,
+    val holes: List<List<IosMapCoordinate>>,
+    val fillColor: UIColor,
+    val strokeColor: UIColor,
+    val strokeWidth: Double,
+    val zIndex: Int,
+    val tappable: Boolean,
+)
+
+/**
+ * Camadas extras do [NativeMap] no mapa Google do iPhone (2.342.0): **polígonos** e **tipo de mapa**
+ * (satélite/híbrido/relevo). Interface SEPARADA e OPCIONAL, de propósito: método novo no
+ * [IosNativeRichMap] viraria método obrigatório do protocolo Objective-C e quebraria a compilação de
+ * todo `MapBridge.swift` existente. A lib detecta por tipo (`is IosNativeMapLayers`) a classe que o
+ * `IosMapBridge.register(factory:)` devolve; sem ela, o mapa segue igual, **sem** polígonos e no tipo
+ * normal, com um aviso no log uma vez por processo.
+ *
+ * No Swift (modelo: `MapBridge.swift` da `casca-mobile`):
+ * ```swift
+ * final class GoogleMapController: NSObject, IosNativeRichMap, IosNativeMapLayers, GMSMapViewDelegate {
+ *     func setPolygons(polygons: [IosMapPolygonData]) { /* GMSPolygon(path:) + holes + isTappable */ }
+ *     func setMapType(type: MapType) { mapView.mapType = … /* .normal/.satellite/.hybrid/.terrain */ }
+ *     func setOnPolygonClick(onClick: @escaping (String) -> Void) { … }
+ *     // GMSMapViewDelegate.mapView(_:didTap overlay:) → onClick(overlay.userData as String)
+ * }
+ * ```
+ */
+@ObjCName("IosNativeMapLayers")
+interface IosNativeMapLayers {
+    /** Redesenha os polígonos — o conjunto inteiro, já na ordem do [IosMapPolygonData.zIndex]. */
+    fun setPolygons(polygons: List<IosMapPolygonData>)
+
+    /** Tipo do mapa de fundo (`GMSMapView.mapType`). */
+    fun setMapType(type: MapType)
+
+    /** Toque num polígono tocável — recebe o [IosMapPolygonData.id] (`didTap overlay:`). */
+    fun setOnPolygonClick(onClick: (String) -> Unit)
+}
+
+/**
  * Ponto de injeção do mapa nativo iOS — **o padrão da fábrica** (mapa = Google Maps, nenhum outro;
  * fundador, 27/out/2026). No `AppDelegate`, depois de `GMSServices.provideAPIKey(...)` e antes de
  * qualquer tela:
