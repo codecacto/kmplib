@@ -5,6 +5,49 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.340.0 — **Foto ORIGINAL também pelo gerenciador de arquivos: folha padrão Galeria · Arquivo** (Lumio, 03/nov/2026)
+
+Origem: o `rememberOriginalPhotoPicker` (2.327.0) só oferecia a fototeca. A regra da fábrica é "foto = todas as origens",
+e o fotógrafo traz o JPG/RAW exportado da câmera pelo **gerenciador de arquivos** — arquivo que nunca passou pela galeria.
+O `rememberAttachmentPicker` recodifica no modo foto e o `rememberMultiFilePicker` não devolve caminho: nenhum servia.
+
+### Novo (aditivo)
+- **`rememberOriginalPhotoPicker(sources: List<OriginalPhotoSource>, maxItems = 0, texts, onResult)`** — `kmplib-ui`,
+  pacote `ui.components`. Abre a **folha padrão da lib** (a mesma do `rememberAttachmentPicker`: linhas, ícones, textos
+  nos 4 idiomas, ids `anexo-folha`/`anexo-opcao-galeria`/`anexo-opcao-arquivo`) com **Galeria · Arquivo** e devolve o
+  MESMO `OriginalPhotoPickResult`. `OriginalPhotoSource.Standard` = o padrão da fábrica; uma origem só abre direto;
+  lista vazia = `Standard`. `sources` vem primeiro e é obrigatório: não há ambiguidade com a função de mesmo nome do
+  `kmplib-platform`, e as chamadas antigas continuam nela.
+- **`rememberOriginalPhotoFilePicker(maxItems, onResult)`** — `kmplib-platform`, `platform.photos`. Android: Storage
+  Access Framework (`OpenMultipleDocuments`/`OpenDocument`, `image/*`), sem permissão, cópia por stream (nunca inteiro
+  na memória) para `ORIGINAL_PHOTO_TEMP_DIRECTORY`. iOS: `UIDocumentPickerViewController(forOpeningContentTypes: [.image],
+  asCopy: true)`, escopo de segurança aberto, MOVE da cópia do sistema para o tmp da lib (copia se não der), fora da
+  thread principal. Bytes, formato e EXIF como estão — com o GPS (quem o remove é só o Photo Picker do Android). O
+  sistema não limita a quantidade: com `maxItems > 0` ficam as primeiras (o excedente é descartado, não conta como falha).
+  Arquivo que não é imagem conta em `failedCount`.
+- **`enum OriginalPhotoSource { GALLERY, FILE }`**, `resolveOriginalPhotoMimeType(reported, fileName, fallback)` e RAW
+  (`cr2`/`cr3`/`nef`/`arw`/`raf`/`orf`/`rw2`) em `imageMimeTypeForFileName`/`imageExtensionForMimeType` — RAW costuma
+  chegar como `application/octet-stream`.
+
+### Decisão: sem câmera na folha de originais
+O contrato do original é o arquivo byte a byte (hash, HEIC, EXIF). A câmera do sistema não entrega isso no iOS
+(`UIImagePickerController` devolve `UIImage` decodificado — gravar é recodificar); o arquivo real exigiria câmera própria
+(`AVCapturePhotoOutput.fileDataRepresentation`). Foto tirada agora cai na fototeca e sai pela Galeria; anexo/formulário
+segue no `rememberAttachmentPicker` (com câmera).
+
+### Corrigido (security-review) — log do `UrlLauncher` sem token
+- `openUrl` registrava a URL inteira na falha (Android e iOS) — link de onboarding de gateway, reset de senha e convite
+  levam token na query/caminho. Agora só **esquema + host** (`urlForLog`, interno, testado) e o **tipo** da exceção (a
+  mensagem do `ActivityNotFoundException` repete o `Intent` com a URL); `openPhone` deixou de logar o número, e
+  e-mail/WhatsApp/loja/mapa/configurações também só o tipo do erro. Higiene de log: sem aviso, sem piso (régua de
+  28/set/2026).
+
+### Compatibilidade
+A 2.338.0 não existe como release: o número foi ultrapassado pela 2.339.0, publicada em paralelo.
+Fonte e binário compatíveis: `platform.photos.rememberOriginalPhotoPicker(maxItems, onResult)` igual (só galeria, sem
+folha); `copyOriginalPhoto` ganhou parâmetro interno com default. Testes: `OriginalPhotosTest` (+5),
+`UrlLogRedactionTest` (5), `OriginalPhotoSourcePickerTest` (5).
+
 ## 2.339.0 — **Reordenar arrastando DENTRO de um item de outra lista (`ReorderableColumn`) e origem direta no seletor de anexo (`launch(source)`)** (OnMore, 03/nov/2026)
 
 Origem: duas regras da fábrica travadas por lacuna no App do Personal. "Reordenar = arrastar" não cabia nos exercícios de

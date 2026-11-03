@@ -41,7 +41,8 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir URL: $url", e)
+            // Só esquema + host e o TIPO do erro: a URL (e a mensagem da exceção, que a repete) pode levar token.
+            AppLogger.e(TAG, "Erro ao abrir URL ${urlForLog(url)}: ${e::class.simpleName}")
         }
     }
 
@@ -68,7 +69,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir email", e)
+            AppLogger.e(TAG, "Erro ao abrir email: ${e::class.simpleName}")
         }
     }
 
@@ -80,7 +81,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir telefone: $phoneNumber", e)
+            AppLogger.e(TAG, "Erro ao abrir telefone: ${e::class.simpleName}") // o número é dado pessoal
         }
     }
 
@@ -95,7 +96,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir WhatsApp", e)
+            AppLogger.e(TAG, "Erro ao abrir WhatsApp: ${e::class.simpleName}")
         }
     }
 
@@ -116,7 +117,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
                 openUrl("https://play.google.com/store/apps/details?id=$packageName")
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir loja", e)
+            AppLogger.e(TAG, "Erro ao abrir loja: ${e::class.simpleName}")
         }
     }
 
@@ -137,7 +138,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
                 openUrl("https://www.google.com/maps/search/?api=1&query=$encodedQuery")
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir mapa", e)
+            AppLogger.e(TAG, "Erro ao abrir mapa: ${e::class.simpleName}")
         }
     }
 
@@ -156,7 +157,7 @@ class AndroidUrlLauncher(private val context: Context) : UrlLauncher {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir as Configurações do app", e)
+            AppLogger.e(TAG, "Erro ao abrir as Configurações do app: ${e::class.simpleName}")
         }
     }
 

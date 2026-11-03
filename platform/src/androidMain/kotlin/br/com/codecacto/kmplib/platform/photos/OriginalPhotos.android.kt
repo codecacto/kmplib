@@ -60,19 +60,69 @@ actual fun rememberOriginalPhotoPicker(
     }
 }
 
+@Composable
+actual fun rememberOriginalPhotoFilePicker(
+    maxItems: Int,
+    onResult: (OriginalPhotoPickResult) -> Unit,
+): () -> Unit {
+    val context = LocalContext.current.applicationContext
+    val scope = rememberCoroutineScope()
+    val callback = rememberUpdatedState(onResult)
+    val teto = rememberUpdatedState(maxItems)
+
+    fun entregar(uris: List<Uri>) {
+        // O SAF não limita a quantidade: fica com as primeiras, o resto nem é copiado.
+        val escolhidas = if (teto.value > 0) uris.take(teto.value) else uris
+        if (escolhidas.isEmpty()) {
+            callback.value(OriginalPhotoPickResult(emptyList()))
+            return
+        }
+        scope.launch {
+            val copias = withContext(Dispatchers.IO) {
+                // Arquivo do gerenciador: tipo declarado que não é imagem = não é foto (sem cair em JPEG).
+                escolhidas.map { copyOriginalPhoto(context, it, fallbackMimeType = null) }
+            }
+            val fotos = copias.filterNotNull()
+            callback.value(OriginalPhotoPickResult(fotos, failedCount = copias.size - fotos.size))
+        }
+    }
+
+    // Storage Access Framework (ACTION_OPEN_DOCUMENT): Arquivos, Drive, cartão, pendrive — sem permissão.
+    val uma = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        entregar(listOfNotNull(uri))
+    }
+    val varias = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        entregar(uris)
+    }
+    return remember(maxItems) {
+        {
+            runCatching { if (maxItems == 1) uma.launch(IMAGE_DOCUMENT_TYPES) else varias.launch(IMAGE_DOCUMENT_TYPES) }
+                .onFailure { AppLogger.w(TAG, "seletor de arquivos não abriu: ${it::class.simpleName}") }
+            Unit
+        }
+    }
+}
+
+private val IMAGE_DOCUMENT_TYPES = arrayOf("image/*")
+
 /**
- * Copia o conteúdo do provedor do Photo Picker **byte a byte** para o `cacheDir`. O seletor entrega o
- * arquivo da fototeca (sem transcodificar), menos a localização do EXIF — política do sistema.
+ * Copia o conteúdo do provedor (Photo Picker ou documento do SAF) **byte a byte**, por stream, para o
+ * `cacheDir`. O Photo Picker entrega o arquivo da fototeca (sem transcodificar), menos a localização do
+ * EXIF — política do sistema; o SAF entrega o arquivo inteiro.
  */
-internal fun copyOriginalPhoto(context: Context, uri: Uri): OriginalPhoto? = runCatching {
+internal fun copyOriginalPhoto(
+    context: Context,
+    uri: Uri,
+    fallbackMimeType: String? = "image/jpeg",
+): OriginalPhoto? = runCatching {
     val resolver = context.contentResolver
     var sugerido: String? = null
     resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
         if (c.moveToFirst() && !c.isNull(0)) sugerido = c.getString(0)
     }
-    val mime = resolver.getType(uri)?.takeIf { it.startsWith("image/") }
-        ?: sugerido?.let(::imageMimeTypeForFileName)
-        ?: "image/jpeg"
+    // Do Photo Picker vem sempre imagem (o fallback é JPEG); do gerenciador de arquivos, sem fallback.
+    val mime = resolveOriginalPhotoMimeType(resolver.getType(uri), sugerido, fallbackMimeType)
+        ?: error("arquivo escolhido não é imagem")
     val ext = imageExtensionForMimeType(mime)
         ?: MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
         ?: sugerido?.substringAfterLast('.', "")?.takeIf { it.isNotEmpty() }

@@ -42,6 +42,42 @@ class OriginalPhotosTest {
     }
 
     @Test
+    fun rawDaCameraReconhecidoPelaExtensaoENoTipo() {
+        assertEquals("image/x-sony-arw", imageMimeTypeForFileName("DSC01234.ARW"))
+        assertEquals("image/x-canon-cr3", imageMimeTypeForFileName("IMG_0001.CR3"))
+        assertEquals("image/x-nikon-nef", imageMimeTypeForFileName("a.nef"))
+        assertEquals("nef", imageExtensionForMimeType("image/x-nikon-nef"))
+        assertEquals("raf", imageExtensionForMimeType("image/x-fuji-raf"))
+    }
+
+    @Test
+    fun tipoDoArquivoEscolhidoVemDoSistemaDepoisDaExtensao() {
+        assertEquals("image/heic", resolveOriginalPhotoMimeType("IMAGE/HEIC", "x.jpg"), "o declarado imagem vence")
+        assertEquals("image/x-canon-cr2", resolveOriginalPhotoMimeType("application/octet-stream", "A.CR2"))
+        assertEquals("image/jpeg", resolveOriginalPhotoMimeType(null, "foto.jpeg"))
+    }
+
+    @Test
+    fun arquivoQueNaoEImagemNaoViraFoto() {
+        assertNull(resolveOriginalPhotoMimeType("application/pdf", "contrato.pdf"))
+        assertNull(resolveOriginalPhotoMimeType("application/pdf", "contrato.pdf", fallback = "image/jpeg"))
+        assertNull(resolveOriginalPhotoMimeType("application/octet-stream", "dados.bin"), "sem fallback = não é foto")
+        assertNull(resolveOriginalPhotoMimeType(null, null))
+    }
+
+    @Test
+    fun galeriaMantemOFallbackJpegQuandoOSistemaNaoDiz() {
+        assertEquals("image/jpeg", resolveOriginalPhotoMimeType(null, "sem-extensao", fallback = "image/jpeg"))
+        assertEquals("image/jpeg", resolveOriginalPhotoMimeType("application/octet-stream", null, fallback = "image/jpeg"))
+    }
+
+    @Test
+    fun origensPadraoSaoGaleriaEArquivoSemCamera() {
+        assertEquals(listOf(OriginalPhotoSource.GALLERY, OriginalPhotoSource.FILE), OriginalPhotoSource.Standard)
+        assertEquals(setOf("GALLERY", "FILE"), OriginalPhotoSource.entries.map { it.name }.toSet())
+    }
+
+    @Test
     fun resultadoVazioSemFalhaEDesistencia() {
         assertTrue(OriginalPhotoPickResult(emptyList()).isCancelled)
         assertFalse(OriginalPhotoPickResult(emptyList(), failedCount = 2).isCancelled)

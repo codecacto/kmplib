@@ -26,7 +26,8 @@ class IosUrlLauncher : UrlLauncher {
             val nsUrl = NSURL.URLWithString(url) ?: return
             UIApplication.sharedApplication.openURL(nsUrl, options = emptyMap<Any?, Any>(), completionHandler = null)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir URL: $url", e)
+            // Só esquema + host e o TIPO do erro: a URL (e a mensagem da exceção, que a repete) pode levar token.
+            AppLogger.e(TAG, "Erro ao abrir URL ${urlForLog(url)}: ${e::class.simpleName}")
         }
     }
 
@@ -53,7 +54,7 @@ class IosUrlLauncher : UrlLauncher {
 
             openUrl(url)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir email", e)
+            AppLogger.e(TAG, "Erro ao abrir email: ${e::class.simpleName}")
         }
     }
 
@@ -62,7 +63,7 @@ class IosUrlLauncher : UrlLauncher {
             val cleanNumber = phoneNumber.filter { it.isDigit() || it == '+' }
             openUrl("tel:$cleanNumber")
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir telefone: $phoneNumber", e)
+            AppLogger.e(TAG, "Erro ao abrir telefone: ${e::class.simpleName}") // o número é dado pessoal
         }
     }
 
@@ -72,7 +73,7 @@ class IosUrlLauncher : UrlLauncher {
             val encodedMessage = encodeUrlComponent(message)
             openUrl("https://api.whatsapp.com/send?phone=$cleanPhone&text=$encodedMessage")
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir WhatsApp", e)
+            AppLogger.e(TAG, "Erro ao abrir WhatsApp: ${e::class.simpleName}")
         }
     }
 
@@ -84,7 +85,7 @@ class IosUrlLauncher : UrlLauncher {
                 AppLogger.w(TAG, "iosAppId não fornecido para openStorePage(). Forneça o ID do app na App Store.")
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir loja", e)
+            AppLogger.e(TAG, "Erro ao abrir loja: ${e::class.simpleName}")
         }
     }
 
@@ -102,7 +103,7 @@ class IosUrlLauncher : UrlLauncher {
                 openUrl("https://www.google.com/maps/search/?api=1&query=$encodedQuery")
             }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao abrir mapa", e)
+            AppLogger.e(TAG, "Erro ao abrir mapa: ${e::class.simpleName}")
         }
     }
 

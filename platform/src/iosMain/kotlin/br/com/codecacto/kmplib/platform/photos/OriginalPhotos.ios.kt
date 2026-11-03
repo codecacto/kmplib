@@ -21,11 +21,15 @@ import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
 import platform.PhotosUI.PHPickerViewController
 import platform.PhotosUI.PHPickerViewControllerDelegateProtocol
+import platform.UIKit.UIDocumentPickerDelegateProtocol
+import platform.UIKit.UIDocumentPickerViewController
 import platform.UniformTypeIdentifiers.UTType
 import platform.UniformTypeIdentifiers.UTTypeImage
 import platform.UniformTypeIdentifiers.conformsToType
+import platform.darwin.DISPATCH_QUEUE_PRIORITY_DEFAULT
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_global_queue
 import platform.darwin.dispatch_get_main_queue
 
 private const val TAG = "OriginalPhotoPicker"
@@ -144,6 +148,121 @@ private fun copiarParaTemporario(origem: NSURL, tipo: String, sugerido: String?)
         return null
     }
     return OriginalPhoto(caminho, nome, mime, tamanho)
+}
+
+@Composable
+actual fun rememberOriginalPhotoFilePicker(
+    maxItems: Int,
+    onResult: (OriginalPhotoPickResult) -> Unit,
+): () -> Unit {
+    val callback = rememberUpdatedState(onResult)
+    val holder = remember { OriginalPhotoFilePickerHolder() }
+    return remember(holder, maxItems) { { holder.present(maxItems) { callback.value(it) } } }
+}
+
+/** Segura o delegate do seletor de documentos enquanto ele está aberto (referência FRACA no UIKit). */
+private class OriginalPhotoFilePickerHolder {
+    private var delegate: OriginalPhotoFilePickerDelegate? = null
+
+    fun present(maxItems: Int, done: (OriginalPhotoPickResult) -> Unit) {
+        if (delegate != null) return // já aberto
+        val topo = topViewController()
+        if (topo == null) {
+            AppLogger.w(TAG, "sem controlador para apresentar o seletor de arquivos")
+            return
+        }
+        // asCopy = true: o sistema entrega uma CÓPIA dentro do sandbox do app (o original do provedor
+        // não é tocado e o app não precisa de acesso persistente a ele).
+        val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypeImage), asCopy = true)
+        picker.allowsMultipleSelection = maxItems != 1
+        val d = OriginalPhotoFilePickerDelegate(maxItems, done) { delegate = null }
+        delegate = d
+        picker.delegate = d
+        topo.presentViewController(picker, animated = true, completion = null)
+    }
+}
+
+private class OriginalPhotoFilePickerDelegate(
+    private val maxItems: Int,
+    private val done: (OriginalPhotoPickResult) -> Unit,
+    private val release: () -> Unit,
+) : NSObject(), UIDocumentPickerDelegateProtocol {
+
+    override fun documentPicker(controller: UIDocumentPickerViewController, didPickDocumentsAtURLs: List<*>) {
+        val urls = didPickDocumentsAtURLs.filterIsInstance<NSURL>()
+        // O seletor de documentos não limita a quantidade: ficam as primeiras; as cópias do resto saem.
+        val escolhidas = if (maxItems > 0) urls.take(maxItems) else urls
+        urls.drop(escolhidas.size).forEach { descartarCopiaDoSistema(it) }
+        if (escolhidas.isEmpty()) {
+            release()
+            done(OriginalPhotoPickResult(emptyList()))
+            return
+        }
+        // RAW de 60 MB copia devagar: fora da thread principal, e a entrega volta para ela.
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u)) {
+            val copias = escolhidas.map(::trazerArquivoEscolhido)
+            dispatch_async(dispatch_get_main_queue()) {
+                val fotos = copias.filterNotNull()
+                release()
+                done(OriginalPhotoPickResult(fotos, failedCount = copias.size - fotos.size))
+            }
+        }
+    }
+
+    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
+        release()
+        done(OriginalPhotoPickResult(emptyList()))
+    }
+}
+
+/**
+ * Leva o arquivo escolhido (já uma cópia do sistema, por `asCopy`) para [ORIGINAL_PHOTO_TEMP_DIRECTORY],
+ * com o escopo de segurança aberto durante a operação. MOVE quando dá (sem dobrar o disco com um RAW);
+ * senão copia. Arquivo que não é imagem = `null`.
+ */
+private fun trazerArquivoEscolhido(origem: NSURL): OriginalPhoto? {
+    val escopo = origem.startAccessingSecurityScopedResource()
+    try {
+        val nomeOriginal = origem.lastPathComponent
+        val extOrigem = origem.pathExtension?.takeIf { it.isNotEmpty() }
+        val ut = extOrigem?.let { UTType.typeWithFilenameExtension(it) }
+        val mimeDoSistema = ut?.takeIf { it.conformsToType(UTTypeImage) }?.preferredMIMEType
+        val mime = resolveOriginalPhotoMimeType(mimeDoSistema ?: ut?.preferredMIMEType, nomeOriginal, null)
+        if (mime == null) {
+            AppLogger.w(TAG, "arquivo escolhido não é imagem")
+            descartarCopiaDoSistema(origem)
+            return null
+        }
+        val ext = extOrigem?.lowercase() ?: imageExtensionForMimeType(mime)
+        val fm = NSFileManager.defaultManager
+        val dir = NSTemporaryDirectory().trimEnd('/') + "/" + ORIGINAL_PHOTO_TEMP_DIRECTORY
+        fm.createDirectoryAtPath(dir, withIntermediateDirectories = true, attributes = null, error = null)
+        val caminho = "$dir/${newUuidV7()}" + (ext?.let { ".$it" } ?: "")
+        val destino = NSURL.fileURLWithPath(caminho)
+        val moveu = fm.moveItemAtURL(origem, toURL = destino, error = null)
+        if (!moveu) {
+            val copiou = fm.copyItemAtURL(origem, toURL = destino, error = null)
+            descartarCopiaDoSistema(origem)
+            if (!copiou) {
+                AppLogger.w(TAG, "arquivo escolhido não copiou")
+                return null
+            }
+        }
+        val tamanho = (fm.attributesOfItemAtPath(caminho, error = null)?.get(NSFileSize) as? NSNumber)?.longLongValue ?: 0L
+        if (tamanho <= 0L) {
+            fm.removeItemAtPath(caminho, error = null)
+            return null
+        }
+        val nome = originalPhotoFileName(nomeOriginal, ext)
+        return OriginalPhoto(caminho, nome, mime, tamanho)
+    } finally {
+        if (escopo) origem.stopAccessingSecurityScopedResource()
+    }
+}
+
+/** A cópia que o `asCopy` pôs no sandbox e que não vai ser usada: sai (melhor esforço). */
+private fun descartarCopiaDoSistema(url: NSURL) {
+    NSFileManager.defaultManager.removeItemAtURL(url, error = null)
 }
 
 internal actual fun deleteOriginalPhotoFile(path: String): Boolean {
