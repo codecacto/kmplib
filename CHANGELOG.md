@@ -5,6 +5,19 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.340.1 — **Login: identificador sem capitalização e sem autocorreção em todos os modos** (03/nov/2026)
+
+### Corrigido
+- **`LoginScreen`, modos `AuthIdentifierMode.BOTH` e `USERNAME`:** o campo usava `KeyboardType.Text`, e o `appKeyboardOptions`
+  liga capitalização de frase e autocorreção nesse tipo. No iPhone, "joao" virava "Joao" ou outra palavra, e o login recusava
+  um usuário que existe. Agora os três modos entram com `KeyboardCapitalization.None` e autocorreção desligada.
+- **Teclado por modo:** `EMAIL` e `BOTH` usam `KeyboardType.Email` (letras, números, `.` e `@`, que o `BOTH` precisa);
+  `USERNAME` segue em `KeyboardType.Text`, sem o `@`, porque o rótulo pode ser "Matrícula".
+
+Sem mudança de API pública. O default do `appKeyboardOptions` não mudou: `KeyboardType.Text` continua sendo texto corrido.
+Regra pura e interna `loginIdentifierKeyboardOptions(mode)`, travada por `LoginIdentifierKeyboardTest`. Piso 2.340.1
+(`LoginScreen`, `bloqueia: false`).
+
 ## 2.340.0 — **Foto ORIGINAL também pelo gerenciador de arquivos: folha padrão Galeria · Arquivo** (Lumio, 03/nov/2026)
 
 Origem: o `rememberOriginalPhotoPicker` (2.327.0) só oferecia a fototeca. A regra da fábrica é "foto = todas as origens",

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import br.com.codecacto.kmplib.auth.AuthIdentifierMode
 import androidx.compose.material.icons.filled.Person
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -134,6 +136,27 @@ internal fun loginSubmitEnabled(state: LoginState): Boolean =
  */
 internal fun loginImeDoneAction(state: LoginState): LoginAction? =
     if (loginSubmitEnabled(state)) LoginAction.Click.Login else null
+
+/**
+ * Teclado do campo identificador da [LoginScreen]. Identificador é digitado **literal** nos três
+ * modos: sem capitalização e sem autocorreção. O default do `appKeyboardOptions` só desliga as duas
+ * fora de `KeyboardType.Text`, e os modos `BOTH`/`USERNAME` usavam `Text`: no iPhone, "joao" virava
+ * "Joao" ou outra palavra e o login recusava um usuário que existe (corrigido na 2.340.1).
+ *
+ * - `EMAIL` e `BOTH`: teclado de e-mail, com `@` e `.` na primeira camada, letras e números — serve
+ *   ao e-mail e ao `joao.silva` que o `BOTH` aceita;
+ * - `USERNAME`: teclado de texto, porque aqui o `@` não tem uso e o rótulo pode ser "Matrícula".
+ */
+internal fun loginIdentifierKeyboardOptions(mode: AuthIdentifierMode): KeyboardOptions =
+    appKeyboardOptions(
+        keyboardType = when (mode) {
+            AuthIdentifierMode.EMAIL, AuthIdentifierMode.BOTH -> KeyboardType.Email
+            AuthIdentifierMode.USERNAME -> KeyboardType.Text
+        },
+        imeAction = ImeAction.Next,
+        capitalization = KeyboardCapitalization.None,
+        autoCorrect = false,
+    )
 
 /**
  * Tela de login stateless que aceita estado externo
@@ -276,9 +299,9 @@ fun LoginScreen(
                     // Email/Password Login
                     if (authMethods.emailPassword) {
                         // O que o campo pede vem do SERVIDOR (`state.identifierMode`), não de uma
-                        // decisão congelada aqui. `KeyboardType.Email` só quando é e-mail mesmo: no modo
-                        // usuário, o teclado de e-mail e a correção automática atrapalham quem digita
-                        // `joao.silva` — e o rótulo passaria a mentir.
+                        // decisão congelada aqui. O teclado também segue o modo, e nenhum deles
+                        // capitaliza nem autocorrige (`loginIdentifierKeyboardOptions`).
+                        val tecladoIdentificador = loginIdentifierKeyboardOptions(state.identifierMode)
                         val rotuloLocal = when (state.identifierMode) {
                             AuthIdentifierMode.EMAIL -> texts.emailLabel()
                             AuthIdentifierMode.USERNAME -> texts.usernameLabel()
@@ -302,12 +325,10 @@ fun LoginScreen(
                             } else {
                                 Icons.Default.Person
                             },
-                            keyboardType = if (state.identifierMode == AuthIdentifierMode.EMAIL) {
-                                KeyboardType.Email
-                            } else {
-                                KeyboardType.Text
-                            },
-                            imeAction = ImeAction.Next,
+                            keyboardType = tecladoIdentificador.keyboardType,
+                            imeAction = tecladoIdentificador.imeAction,
+                            capitalization = tecladoIdentificador.capitalization,
+                            autoCorrect = tecladoIdentificador.autoCorrectEnabled,
                             errorMessage = state.emailError,
                             primaryColor = colors.primary,
                             borderColor = colors.border,

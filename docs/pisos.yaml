@@ -49,6 +49,11 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.340.1
+    motivo: "login em modo BOTH/USERNAME capitalizava e autocorrigia o identificador no iPhone (\"joao\" virava \"Joao\") e recusava usuário que existe"
+    simbolos: [LoginScreen]
+    bloqueia: false
+
   - versao: 2.335.2
     motivo: "observe* do sync re-emitiam a cada gravação de QUALQUER entidade (tabela única) — consumidor que grava ao receber entra em laço de requisições"
     simbolos: [LocalRepository, SyncableRepository, OfflineFirstRestRepository, RestEntityMirror, SqlDelightSyncStore]
