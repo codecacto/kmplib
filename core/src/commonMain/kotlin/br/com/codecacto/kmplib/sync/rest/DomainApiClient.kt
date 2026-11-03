@@ -134,10 +134,11 @@ class DomainApiClient(
     suspend fun getJson(
         path: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
-            httpClient.get(url(path)) { bearer(token); extras(this) }
+            httpClient.get(url(path)) { bearer(token); extras(this); callTimeout(timeoutMillis) }
         }.texto()
     }
 
@@ -172,6 +173,7 @@ class DomainApiClient(
         path: String,
         etag: String?,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<EtagResult<String>> {
         val condicao = etag?.trim()?.takeIf { it.isNotEmpty() }
         val extras = extraHeaders(headers)
@@ -180,6 +182,7 @@ class DomainApiClient(
                 bearer(token)
                 extras(this)
                 condicao?.let { header(HttpHeaders.IfNoneMatch, it) }
+                callTimeout(timeoutMillis)
             }
         }.corpo { response ->
             val recebido = response.headers[HttpHeaders.ETag]?.trim()?.takeIf { it.isNotEmpty() }
@@ -196,16 +199,24 @@ class DomainApiClient(
      * `POST` com corpo JSON.
      *
      * @param headers cabeçalhos extras desta chamada (2.313.0) — ver [RESERVED_HEADERS] para a regra.
+     * @param timeoutMillis teto de tempo SÓ desta chamada (2.337.0) — requisição inteira **e**
+     *   silêncio do socket, pelo `timeout { }` oficial do Ktor (plugin `HttpTimeout`). Para a rota
+     *   que legitimamente demora mais que os 30 s do `createHttpClient` (ex.: recálculo com IA de
+     *   ~60 s), sem baixar o teto do app inteiro. `null` (default) = os tetos do cliente; `<= 0` ou
+     *   cliente sem `HttpTimeout` = ignorado. Vale igual em `getJson`, `getJsonWithEtag`, `putJson`,
+     *   `patchJson`, `delete`, `deleteJson` e `postJsonForBytes`.
      */
     suspend fun postJson(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.post(url(path)) {
-                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); callTimeout(timeoutMillis)
+                contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
     }
@@ -219,11 +230,13 @@ class DomainApiClient(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.put(url(path)) {
-                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); callTimeout(timeoutMillis)
+                contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
     }
@@ -237,11 +250,13 @@ class DomainApiClient(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.patch(url(path)) {
-                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); callTimeout(timeoutMillis)
+                contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
     }
@@ -254,9 +269,10 @@ class DomainApiClient(
     suspend fun delete(
         path: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<Unit> {
         val extras = extraHeaders(headers)
-        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this) } }.map { }
+        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this); callTimeout(timeoutMillis) } }.map { }
     }
 
     /**
@@ -273,9 +289,10 @@ class DomainApiClient(
     suspend fun deleteJson(
         path: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
-        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this) } }.texto()
+        return execute(path) { token -> httpClient.delete(url(path)) { bearer(token); extras(this); callTimeout(timeoutMillis) } }.texto()
     }
 
     /**
@@ -300,11 +317,13 @@ class DomainApiClient(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.delete(url(path)) {
-                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); callTimeout(timeoutMillis)
+                contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()
     }
@@ -441,6 +460,11 @@ class DomainApiClient(
         }.bytes()
     }
 
+    /** Teto opcional por chamada (2.337.0): `null` mantém os tetos do cliente. */
+    private fun HttpRequestBuilder.callTimeout(timeoutMillis: Long?) {
+        if (timeoutMillis != null) transferTimeout(timeoutMillis)
+    }
+
     private fun HttpRequestBuilder.transferTimeout(timeoutMillis: Long) {
         if (timeoutMillis <= 0L || httpClient.pluginOrNull(HttpTimeout) == null) return
         timeout {
@@ -535,11 +559,13 @@ class DomainApiClient(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
     ): DomainResult<ByteArray> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.post(url(path)) {
-                bearer(token); extras(this); contentType(ContentType.Application.Json); setBody(body)
+                bearer(token); extras(this); callTimeout(timeoutMillis)
+                contentType(ContentType.Application.Json); setBody(body)
             }
         }.bytes()
     }

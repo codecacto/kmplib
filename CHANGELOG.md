@@ -5,6 +5,24 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.337.0 — **Teto de tempo por chamada nos verbos JSON do `DomainApiClient`** (Fotonix, 03/nov/2026)
+
+Origem: o Fotonix recalcula o diagnóstico com IA numa rota (`POST …/recalcular`) que pode levar ~60 s; o cliente HTTP do
+`createHttpClient` tem 30 s fixos, e só `postMultipartParts`/`getBytes` aceitavam teto próprio (2.311.0). Baixar o teto do
+app inteiro para caber uma rota faria toda tela esperar minutos por um servidor parado.
+
+### Novo (aditivo, `kmplib-core`)
+- **`timeoutMillis: Long? = null`** — ÚLTIMO parâmetro (depois de `headers`, que segue posicional) em `getJson`,
+  `getJsonWithEtag`, `postJson`, `putJson`, `patchJson`, `delete`, `deleteJson` (as duas) e `postJsonForBytes`.
+  Aplica o `timeout { requestTimeoutMillis; socketTimeoutMillis }` oficial do Ktor SÓ naquela chamada (o mesmo do
+  multipart). `null` = os tetos do cliente; `<= 0` ou cliente sem o plugin `HttpTimeout` = ignorado. A repetição depois
+  do 401 (refresh) leva o mesmo teto.
+- Uso: `api.postJson("/v1/…/recalcular", "{}", timeoutMillis = 90_000)`.
+
+### Compatibilidade
+Fonte compatível (parâmetro novo com default, no fim). Binário JVM muda a assinatura, como em toda adição de parâmetro
+da lib — consumidor recompila. Sem piso (aditivo puro). Testes: `DomainApiClientCallTimeoutTest` (7).
+
 ## 2.336.0 — **"Desenvolvido por": logo oficial, slogan "Apps que resolvem.", texto de venda e "Nossos projetos" em lista** (fundador, OnMore, 29/out/2026)
 
 Origem: o fundador abriu a `DeveloperScreen` no OnMore (2.335.2) — logo errado (o cacto de óculos escuros, arte antiga), sem o
