@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.firebase.auth
 
 import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.EmailAuthProvider
 import dev.gitlive.firebase.auth.FirebaseAuth
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.GoogleAuthProvider
@@ -206,50 +207,42 @@ class AuthRepository : IAuthRepository {
     }
 
     /**
-     * Altera a senha do usuário (requer reautenticação recente).
+     * Altera a senha do usuário.
+     *
+     * Reconfirma a senha atual pelo caminho oficial do Firebase —
+     * `currentUser.reauthenticate(EmailAuthProvider.credential(email, senhaAtual))` — e só então
+     * chama `updatePassword`. Não abre sessão nova (até a 2.340.1 fazia `signInWithEmailAndPassword`).
+     * Erros: senha atual errada → [AuthException.InvalidCredentials]; nova fraca →
+     * [AuthException.WeakPassword]; excesso de tentativas → [AuthException.TooManyRequests];
+     * sem rede → [AuthException.NetworkError].
      */
     override suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
-        return try {
-            val currentUser = auth.currentUser
-                ?: return Result.failure(AuthException.NotAuthenticated)
-
-            val email = currentUser.email
-                ?: return Result.failure(AuthException.UnknownError("Email não encontrado"))
-
-            // Reautentica o usuário
-            auth.signInWithEmailAndPassword(email, currentPassword)
-
-            // Altera a senha
-            currentUser.updatePassword(newPassword)
-            AppLogger.d(TAG, "Senha alterada com sucesso")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao alterar senha", e)
-            Result.failure(mapAuthException(e))
-        }
+        val result = changePasswordReauthenticated(
+            target = auth.currentUser?.let(::FirebaseReauthTarget),
+            currentPassword = currentPassword,
+            newPassword = newPassword,
+        )
+        result.fold(
+            onSuccess = { AppLogger.d(TAG, "Senha alterada com sucesso") },
+            onFailure = { AppLogger.e(TAG, "Erro ao alterar senha", it) },
+        )
+        return result
     }
 
     /**
-     * Exclui a conta do usuário (requer reautenticação recente).
+     * Exclui a conta do usuário. Com [password] (conta de e-mail/senha), reconfirma a credencial pelo
+     * caminho oficial (`reauthenticate`) antes do `delete`.
      */
     override suspend fun deleteAccount(password: String?): Result<Unit> {
-        return try {
-            val currentUser = auth.currentUser
-                ?: return Result.failure(AuthException.NotAuthenticated)
-
-            // Se for login com email/senha, reautentica
-            val email = currentUser.email
-            if (password != null && email != null) {
-                auth.signInWithEmailAndPassword(email, password)
-            }
-
-            currentUser.delete()
-            AppLogger.d(TAG, "Conta excluída")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Erro ao excluir conta", e)
-            Result.failure(mapAuthException(e))
-        }
+        val result = deleteAccountReauthenticated(
+            target = auth.currentUser?.let(::FirebaseReauthTarget),
+            password = password,
+        )
+        result.fold(
+            onSuccess = { AppLogger.d(TAG, "Conta excluída") },
+            onFailure = { AppLogger.e(TAG, "Erro ao excluir conta", it) },
+        )
+        return result
     }
 
     /**
@@ -314,36 +307,22 @@ class AuthRepository : IAuthRepository {
         )
     }
 
-    private fun mapAuthException(e: Exception): AuthException {
-        val message = e.message?.lowercase() ?: ""
+    private fun mapAuthException(e: Exception): AuthException = mapFirebaseAuthException(e)
 
-        return when {
-            "invalid-email" in message || "badly formatted" in message ->
-                AuthException.InvalidEmail
+    /** Adapta o `FirebaseUser` do GitLive à costura [ReauthTarget]. */
+    private class FirebaseReauthTarget(private val user: FirebaseUser) : ReauthTarget {
+        override val email: String? get() = user.email
 
-            "wrong-password" in message || "invalid-credential" in message ||
-                    "invalid credential" in message ->
-                AuthException.InvalidCredentials
+        override suspend fun reauthenticateWithPassword(email: String, password: String) {
+            user.reauthenticate(EmailAuthProvider.credential(email, password))
+        }
 
-            "user-not-found" in message || "no user record" in message ->
-                AuthException.UserNotFound
+        override suspend fun updatePassword(newPassword: String) {
+            user.updatePassword(newPassword)
+        }
 
-            "email-already-in-use" in message || "already in use" in message ->
-                AuthException.EmailAlreadyInUse
-
-            "weak-password" in message || "should be at least" in message ->
-                AuthException.WeakPassword
-
-            "too-many-requests" in message || "blocked" in message ->
-                AuthException.TooManyRequests
-
-            "network" in message || "connection" in message ->
-                AuthException.NetworkError
-
-            "requires-recent-login" in message || "recent" in message ->
-                AuthException.RequiresRecentLogin
-
-            else -> AuthException.UnknownError(e.message ?: "Erro desconhecido")
+        override suspend fun delete() {
+            user.delete()
         }
     }
 }

@@ -5,6 +5,25 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.340.2 — **Firebase: troca de senha e exclusão reconfirmam a credencial pelo caminho oficial (`reauthenticate`)** (03/nov/2026)
+
+Origem: security-review da área de autenticação (`Nexus/docs/tarefas/2026-11-03-app-perfeito.md`, F4).
+
+### Corrigido (padrão-ouro)
+- **`AuthRepository.changePassword` (`kmplib-firebase`):** reautenticava com `signInWithEmailAndPassword`, que abre uma
+  SESSÃO NOVA (troca o `currentUser` e dispara `authStateChanged`) em vez de só reconfirmar a credencial da sessão
+  existente. Agora faz `currentUser.reauthenticate(EmailAuthProvider.credential(email, senhaAtual))` e só então
+  `updatePassword` — o caminho que a documentação do Firebase indica para operação sensível. GitLive 2.1.0, `commonMain`:
+  vale para Android e iOS.
+- **`AuthRepository.deleteAccount(password)`:** tinha o mesmo atalho; mesma correção antes do `delete()`.
+
+Sem mudança de API pública: assinaturas iguais e o mapeamento de erros idêntico (senha atual errada →
+`InvalidCredentials`, senha fraca → `WeakPassword`, excesso de tentativas → `TooManyRequests`, rede → `NetworkError`,
+sem usuário → `NotAuthenticated`, conta sem e-mail → `UnknownError("Email não encontrado")`). A sequência mora em funções
+internas sobre a costura `ReauthTarget` (`PasswordReauthentication.kt`), travada por `PasswordReauthenticationTest`
+(12 casos: ordem reautentica→troca, senha errada não chega ao `updatePassword`, mapeamento). Não é aviso nem piso: o
+caminho antigo funcionava.
+
 ## 2.340.1 — **Login: identificador sem capitalização e sem autocorreção em todos os modos** (03/nov/2026)
 
 ### Corrigido
