@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 04/nov/2026 — refatoração do **Meu Plantão** pelo protótipo
+
+- **GAP-MP-M02 — máscara de HORA no estado do campo** (`TimeInputTransformation`/`TimeOutputTransformation`,
+  `HH:MM`, par dos de data/moeda). Hoje há uma cópia provisória em
+  `8-Sistemas-Portal-App/Meu Plantão/mobile/.../core/ui/TimeMask.kt` (`4a47b92`). Promover e trocar o app para a lib.
+- **Sincronização com o calendário do aparelho** (Google Agenda / Calendário do iPhone) e **widgets** (Glance/WidgetKit
+  com "ocultar valores"): o protótipo do Meu Plantão pede os dois (pacote P10), e a lib não tem.
+
 ### Registrado em 03/nov/2026 — OnMore (App do Personal)
 - [x] **`ReorderableColumn` — ENTREGUE na 2.339.0** (reordenar arrastando em lista curta dentro de um item de outra lista).
 - [x] **`AttachmentPickerLauncher.launch(source)` — ENTREGUE na 2.339.0** (as 3 origens com câmera própria ou folha do protótipo).
@@ -5609,7 +5617,14 @@ MinhaArena, MinhaEstadia, PontoFirme, Suzy 2; Colinha do Voto, MeuEstacionamento
 PapelStudio, FolhaDeAxe, LiveCount, MeuFrete, MinhaObra, QueiMap, RedeDeOfertas, TattooStudio 1). Candidato a
 auditor no `Nexus/fabrica` (padrão `value = <x>.<query>` + `onValueChange = { onAction(…) }`).
 
+## GAP-KM-SOCIAL-LOGOS — logos oficiais do Google/Apple e botão social público (28/out/2026, App do Personal, redesenho da entrada)
 
+`ic_google` existe só dentro de `kmplib-ui` (`Res` interno, usado no `AppButton.kt`); o glifo da Apple não existe. Projeto com
+protótipo que desenha a própria tela de login (App do Personal) precisa dos dois **oficiais** (Google "G" 4 cores; Apple preto/branco)
+e não consegue reaproveitar. Proposta: expor `SocialLogos.google()`/`apple(onDark)` (`Painter`/`ImageVector`) e, se fizer sentido,
+um `SocialSignInButton(provider, loading, onClick, theme = LIGHT|DARK)` seguindo as diretrizes de marca dos dois provedores.
+Enquanto isso o projeto embute os vetores oficiais no próprio `composeResources` (dívida declarada em
+`AppDoPersonal/docs/design/redesenho-entrada-2026-10-28.md` §Gaps).
 
 ## GAP-KM-402-ENVELOPE — 402 que NÃO é cota chega sem `serverCode`/`details` (10/out/2026, Vitalis M1.8)
 
