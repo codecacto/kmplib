@@ -5,6 +5,30 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.343.0 — **iOS: "Galeria" da folha de anexo voltou a abrir** (LocAki, 04/nov/2026)
+
+Origem: LocAki 1.5.0 no iPhone — Detalhes da locação e Anexos do cliente → Adicionar foto → **nenhuma das 3 origens
+(Tirar foto, Galeria, Arquivo) abria nada**. Causa: a galeria (`PHPickerViewController`) era apresentada do `keyWindow.rootViewController`, e com
+a folha de anexo ainda por cima (ou saindo de cena) o UIKit recusa a apresentação e só loga "already presenting". A
+câmera já abria do controlador do topo desde a 2.332.0; a galeria, a folha "Adicionar foto/vídeo" e o vídeo não.
+
+### Corrigido (`kmplib-ui`, iOS)
+- `rememberImagePickerLauncher`, `rememberMultiImagePickerLauncher`, `rememberVideoPickerLauncher` e o player de vídeo
+  apresentam pelo **controlador do topo, esperando sair de cena o que está fechando** — vale para a folha de anexo
+  (`rememberAttachmentPicker`) e para a ação da folha nativa "Adicionar foto" (o handler do `UIAlertController` roda
+  com o alerta ainda fechando).
+
+- `rememberAttachmentPicker` (commonMain): ao escolher a origem, a folha **fecha com a animação inteira**
+  (`SheetState.hide()`) e só então o seletor abre — o padrão do Material 3. Antes a folha saía da composição e o
+  seletor era chamado no mesmo toque.
+- `rememberFilePicker`/`rememberMultiFilePicker` (`kmplib-platform`, iOS): mesma espera para apresentar.
+
+### Adicionado (`kmplib-platform`, iOS, interno da lib)
+- `kmplibPresent(controller, onUnavailable)` (`@KmpLibPlatformInternalApi`): apresenta do topo; havendo um
+  apresentado saindo, espera a transição (`transitionCoordinator`, ou 300 ms) e tenta de novo (até 4 vezes).
+
+Compilado `compileKotlinIosArm64` (platform + ui) e Android aqui; validação no aparelho é do Mac.
+
 ## 2.342.0 — **`NativeMap`: polígonos (`MapPolygon`) e tipo de mapa (`MapType` — satélite, híbrido, relevo)** (CampoRaiz, 03/nov/2026)
 
 Origem: decisão do fundador para o CampoRaiz — no app, o mapa da fazenda mostra o **satélite do Google** quando há

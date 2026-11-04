@@ -37,7 +37,8 @@ actual fun rememberMultiFilePicker(
             AppLogger.w(MULTI_TAG, "nenhuma janela ativa para apresentar o seletor de arquivos")
             entregar(emptyList())
         } else {
-            presenter.presentViewController(picker, animated = true, completion = null)
+            // Da folha de anexo, a folha ainda está fechando: espera ela sair (2.343.0).
+            apresentarQuandoPuder(picker)
         }
     }
 }

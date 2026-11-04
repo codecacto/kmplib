@@ -1,7 +1,9 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@file:OptIn(br.com.codecacto.kmplib.platform.KmpLibPlatformInternalApi::class, kotlinx.cinterop.ExperimentalForeignApi::class)
 
 package br.com.codecacto.kmplib.ui.components.video
 
+import br.com.codecacto.kmplib.platform.kmplibPresent
+import br.com.codecacto.kmplib.platform.kmplibTopViewController
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import platform.AVFoundation.AVPlayer
@@ -31,7 +33,7 @@ import platform.WebKit.WKWebViewConfiguration
 actual class VideoLauncher {
 
     actual fun play(source: VideoSource, compact: Boolean) {
-        val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return
+        val raiz = kmplibTopViewController() ?: return
         val controller: UIViewController = when (source) {
             is VideoSource.YouTube -> ControladorDeYouTube(source.videoId, compact)
             is VideoSource.File -> AVPlayerViewController().apply {
@@ -49,7 +51,7 @@ actual class VideoLauncher {
         } else {
             UIModalPresentationFullScreen
         }
-        raiz.presentViewController(controller, animated = true, completion = null)
+        kmplibPresent(controller)
     }
 }
 

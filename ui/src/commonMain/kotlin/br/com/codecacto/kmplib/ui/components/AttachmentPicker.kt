@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -550,17 +551,25 @@ fun rememberAttachmentPicker(
     }
 
     if (folhaAberta) {
+        val estadoDaFolha = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         AppModalBottomSheet(
             onDismissRequest = { folhaAberta = false },
             modifier = Modifier.testTag(AttachmentPickerTestTags.FOLHA),
+            sheetState = estadoDaFolha,
         ) {
             AttachmentSourceSheetContent(
                 title = texts.title,
                 options = plan.options,
                 texts = texts,
                 onSelect = { origem ->
-                    folhaAberta = false
-                    abrir(origem)
+                    // A folha FECHA (animação inteira) e só então o seletor abre (2.343.0) — o padrão do
+                    // Material 3 (`hide()` e depois remover). Abrir no mesmo toque fazia o iOS recusar a
+                    // apresentação com a folha ainda na tela: as 3 origens não abriam nada.
+                    escopo.launch { estadoDaFolha.hide() }.invokeOnCompletion { causa ->
+                        folhaAberta = false
+                        // Cancelado = a tela saiu no meio da animação: não abre seletor por cima de outra tela.
+                        if (causa == null) abrir(origem)
+                    }
                 },
             )
         }

@@ -1,5 +1,9 @@
+@file:OptIn(br.com.codecacto.kmplib.platform.KmpLibPlatformInternalApi::class)
+
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.kmplibPresent
+import br.com.codecacto.kmplib.platform.kmplibTopViewController
 import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -43,7 +47,7 @@ actual fun rememberMultiImagePickerLauncher(
     jpegQuality: Int,
 ): MultiImagePickerLauncher = remember(selectionLimit, onImagesPicked, onError, maxDimension, jpegQuality) {
     MultiImagePickerLauncher {
-        val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController
+        val raiz = kmplibTopViewController()
         if (raiz == null) {
             AppLogger.w(TAG, "Sem rootViewController: seletor múltiplo de fotos não abriu.")
             onError(ImagePickerError.IMAGE_UNREADABLE)
@@ -125,7 +129,7 @@ private fun abrirGaleriaMultipla(
     delegateDeSelecaoMultipla = delegate
     val seletor = PHPickerViewController(configuration = configuracao)
     seletor.delegate = delegate
-    raiz.presentViewController(seletor, animated = true, completion = null)
+    kmplibPresent(seletor)
 }
 
 /** Bytes crus → [PickedImage], pela mesma redução do seletor de uma foto (ImageIO, 2.278.0). */

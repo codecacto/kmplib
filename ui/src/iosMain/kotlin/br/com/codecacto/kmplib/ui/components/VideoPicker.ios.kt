@@ -1,8 +1,10 @@
-@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+@file:OptIn(br.com.codecacto.kmplib.platform.KmpLibPlatformInternalApi::class, kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 @file:Suppress("ktlint:standard:no-wildcard-imports")
 
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.kmplibPresent
+import br.com.codecacto.kmplib.platform.kmplibTopViewController
 import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -68,7 +70,7 @@ actual fun rememberVideoPickerLauncher(
     onError: (VideoPickerError) -> Unit,
 ): VideoPickerLauncher = remember(source, onVideoPicked, onError) {
     VideoPickerLauncher {
-        val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController
+        val raiz = kmplibTopViewController()
         if (raiz == null) {
             AppLogger.w(TAG, "Sem rootViewController: seletor de vídeo não abriu.")
             onError(VideoPickerError.UNREADABLE)
@@ -107,7 +109,7 @@ private fun escolherOrigem(
     folha.addAction(
         UIAlertAction.actionWithTitle(title = "Cancelar", style = UIAlertActionStyleCancel, handler = null),
     )
-    raiz.presentViewController(folha, animated = true, completion = null)
+    kmplibPresent(folha)
 }
 
 /**
@@ -153,7 +155,7 @@ private fun abrirGaleria(
     delegateEmUso = delegate
     val seletor = PHPickerViewController(configuration = configuracao)
     seletor.delegate = delegate
-    raiz.presentViewController(seletor, animated = true, completion = null)
+    kmplibPresent(seletor)
 }
 
 private fun abrirCamera(
@@ -185,7 +187,7 @@ private fun abrirCamera(
         mediaTypes = listOf("public.movie")
         this.delegate = delegate
     }
-    raiz.presentViewController(camera, animated = true, completion = null)
+    kmplibPresent(camera)
 }
 
 /** Copia para a nossa pasta temporária, lê o cabeçalho e devolve a referência. */

@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.343.0
+    motivo: "iOS: Galeria da folha de anexo (e do seletor de foto/vídeo) não abria nada"
+    simbolos: [rememberAttachmentPicker, rememberImagePickerLauncher, rememberMultiImagePickerLauncher, rememberVideoPickerLauncher]
+
   - versao: 2.340.1
     motivo: "login em modo BOTH/USERNAME capitalizava e autocorrigia o identificador no iPhone (\"joao\" virava \"Joao\") e recusava usuário que existe"
     simbolos: [LoginScreen]

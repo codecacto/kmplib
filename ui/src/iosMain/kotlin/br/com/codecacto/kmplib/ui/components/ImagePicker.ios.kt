@@ -1,7 +1,9 @@
-@file:OptIn(br.com.codecacto.kmplib.ui.KmpLibUiInternalApi::class)
+@file:OptIn(br.com.codecacto.kmplib.platform.KmpLibPlatformInternalApi::class, br.com.codecacto.kmplib.ui.KmpLibUiInternalApi::class)
 
 package br.com.codecacto.kmplib.ui.components
 
+import br.com.codecacto.kmplib.platform.kmplibPresent
+import br.com.codecacto.kmplib.platform.kmplibTopViewController
 import br.com.codecacto.kmplib.core.util.redactMediaUrlsIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -71,7 +73,7 @@ actual fun rememberImagePickerLauncher(
 ): ImagePickerLauncher = remember(source, onImagePicked, onError, maxDimension, jpegQuality) {
     val codificacao = Codificacao(maxDimension, jpegQuality)
     ImagePickerLauncher {
-        val raiz = UIApplication.sharedApplication.keyWindow?.rootViewController
+        val raiz = kmplibTopViewController()
         if (raiz == null) {
             // Antes isto era um `return@ImagePickerLauncher` mudo: o toque não abria nada e a tela
             // não dizia nada.
@@ -118,7 +120,7 @@ private fun escolherOrigemDaFoto(
     folha.addAction(
         UIAlertAction.actionWithTitle(title = "Cancelar", style = UIAlertActionStyleCancel, handler = null),
     )
-    raiz.presentViewController(folha, animated = true, completion = null)
+    kmplibPresent(folha)
 }
 
 /**
@@ -169,7 +171,7 @@ private fun abrirGaleriaDeFotos(
     delegateDeFotoEmUso = delegate
     val seletor = PHPickerViewController(configuration = configuracao)
     seletor.delegate = delegate
-    raiz.presentViewController(seletor, animated = true, completion = null)
+    kmplibPresent(seletor)
 }
 
 /**
@@ -254,7 +256,7 @@ private fun apresentarCameraDeFoto(
         sourceType = UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera
         this.delegate = delegate
     }
-    raiz.presentViewController(camera, animated = true, completion = null)
+    kmplibPresent(camera)
 }
 
 internal fun naFilaPrincipal(bloco: () -> Unit) {

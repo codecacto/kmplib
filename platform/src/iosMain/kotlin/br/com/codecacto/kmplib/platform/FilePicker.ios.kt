@@ -37,7 +37,8 @@ actual fun rememberFilePicker(
             AppLogger.w(TAG, "nenhuma janela ativa para apresentar o seletor de arquivo")
             entregar(FilePickResult.Failed(null, FilePickFailure.Unreadable))
         } else {
-            presenter.presentViewController(documentPicker, animated = true, completion = null)
+            // Da folha de anexo, a folha ainda está fechando: espera ela sair (2.343.0).
+            apresentarQuandoPuder(documentPicker)
         }
     }
 }
