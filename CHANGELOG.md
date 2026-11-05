@@ -5,6 +5,25 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.344.0 — **iOS: as origens da folha de anexo abrem de verdade** (LocAki, 04/nov/2026)
+
+A 2.343.0 **não resolveu**: no simulador (iPhone 17 Pro, teste `anexos-tres-origens` do LocAki), tocar em Galeria fechava
+a folha e não abria nada; o log mostrava a extensão de fotos subindo (`PlugInKit discovery`, `begin using plugin`) e
+nenhum seletor na tela. Causa: no Compose 1.10 para iOS, folhas e diálogos moram numa **janela própria**
+(`LayersWindow`, com o `ComposeLayersViewController`), que é a janela-chave enquanto a folha está aberta. A 2.343.0
+chamava o seletor no fim do `hide()` — com a folha ainda na composição — e o `kmplibPresent` apresentava do topo da
+janela-chave, ou seja, **nessa janela**. A folha saía, a janela sumia, e o seletor sumia junto.
+
+### Corrigido
+- `rememberAttachmentPicker` (`kmplib-ui`, commonMain): a origem escolhida fica pendente; a folha fecha (`hide()`),
+  **sai da composição**, e o seletor abre dois frames depois (`LaunchedEffect` + `withFrameNanos`). Tela que sai no meio
+  da animação cancela o efeito e não abre nada por cima de outra tela.
+- `topViewController`/`kmplibPresent` (`kmplib-platform`, iOS): **janela escondida não é candidata** — a `LayersWindow`
+  sem camada fica escondida, e o `keyWindow` pode continuar apontando para ela.
+
+Compilado `compileKotlinIosArm64` (platform + ui) e Android aqui; a prova é o `anexos-tres-origens` no simulador, que
+agora escolhe Galeria e Arquivo e exige o seletor do sistema por cima da tela.
+
 ## 2.343.0 — **iOS: "Galeria" da folha de anexo voltou a abrir** (LocAki, 04/nov/2026)
 
 Origem: LocAki 1.5.0 no iPhone — Detalhes da locação e Anexos do cliente → Adicionar foto → **nenhuma das 3 origens

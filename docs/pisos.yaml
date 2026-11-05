@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.344.0
+    motivo: "iOS: as origens da folha de anexo ainda não abriam na 2.343.0 — o seletor era apresentado na janela da folha (Compose LayersWindow), que some com ela"
+    simbolos: [rememberAttachmentPicker]
+
   - versao: 2.343.0
     motivo: "iOS: Galeria da folha de anexo (e do seletor de foto/vídeo) não abria nada"
     simbolos: [rememberAttachmentPicker, rememberImagePickerLauncher, rememberMultiImagePickerLauncher, rememberVideoPickerLauncher]

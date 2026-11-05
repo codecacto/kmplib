@@ -19,6 +19,7 @@ import platform.darwin.dispatch_time
  *
  * - Janela pelas `connectedScenes` (cena em primeiro plano, `keyWindow` dela): `UIApplication.windows`
  *   está obsoleto desde o iOS 15, e o primeiro da lista nem sempre é a janela que o usuário vê.
+ * - Pula janela escondida (2.344.0).
  * - Segue `presentedViewController`: apresentar do `rootViewController` quando já há algo por cima
  *   (uma sheet, um diálogo) não abre nada — o UIKit só loga "already presenting".
  *
@@ -28,9 +29,12 @@ internal fun topViewController(): UIViewController? {
     val scenes = UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>()
     val scene = scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
         ?: scenes.firstOrNull()
-    val window = scene?.keyWindow
-        ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull { it.isKeyWindow() }
-        ?: scene?.windows?.filterIsInstance<UIWindow>()?.firstOrNull()
+    // Janela ESCONDIDA não serve (2.344.0): o Compose (1.10) põe folhas e diálogos numa janela própria
+    // (`LayersWindow`), que fica escondida sem camada nenhuma — o que se apresentasse nela não apareceria.
+    val visiveis = scene?.windows?.filterIsInstance<UIWindow>()?.filter { !it.isHidden() }.orEmpty()
+    val window = scene?.keyWindow?.takeUnless { it.isHidden() }
+        ?: visiveis.firstOrNull { it.isKeyWindow() }
+        ?: visiveis.firstOrNull()
     var top = window?.rootViewController ?: return null
     while (true) {
         val next = top.presentedViewController ?: break

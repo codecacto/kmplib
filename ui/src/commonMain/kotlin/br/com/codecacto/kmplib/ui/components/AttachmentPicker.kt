@@ -20,12 +20,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -464,6 +466,8 @@ fun rememberAttachmentPicker(
     val qualidade by rememberUpdatedState(jpegQuality)
     val escopo = rememberCoroutineScope()
     var folhaAberta by remember { mutableStateOf(false) }
+    // Origem escolhida na folha, à espera de a folha sair da composição (2.344.0).
+    var origemPendente by remember { mutableStateOf<AttachmentSource?>(null) }
 
     fun agora(): LocalDateTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
@@ -550,6 +554,20 @@ fun rememberAttachmentPicker(
         }
     }
 
+    // O seletor do sistema abre só DEPOIS de a folha sair da composição (2.344.0). No iOS (Compose 1.10) a
+    // folha mora numa janela própria do Compose (`LayersWindow`), que é a janela-chave enquanto ela está na
+    // tela: apresentar antes de ela sair punha o seletor NESSA janela, que some com a folha — e o seletor
+    // sumia junto (a extensão de fotos chegava a subir, nada aparecia). Era o que a 2.343.0 ainda fazia ao
+    // abrir no fim do `hide()`. Dois frames: a composição que tira a folha é aplicada, e a camada dela sai.
+    LaunchedEffect(folhaAberta, origemPendente) {
+        val origem = origemPendente ?: return@LaunchedEffect
+        if (folhaAberta) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        origemPendente = null
+        abrir(origem)
+    }
+
     if (folhaAberta) {
         val estadoDaFolha = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         AppModalBottomSheet(
@@ -562,13 +580,12 @@ fun rememberAttachmentPicker(
                 options = plan.options,
                 texts = texts,
                 onSelect = { origem ->
-                    // A folha FECHA (animação inteira) e só então o seletor abre (2.343.0) — o padrão do
-                    // Material 3 (`hide()` e depois remover). Abrir no mesmo toque fazia o iOS recusar a
-                    // apresentação com a folha ainda na tela: as 3 origens não abriam nada.
+                    // A folha FECHA (animação inteira) e SAI da composição; só então o seletor abre — o
+                    // [LaunchedEffect] abaixo. Padrão do Material 3 (`hide()` e depois remover).
                     escopo.launch { estadoDaFolha.hide() }.invokeOnCompletion { causa ->
-                        folhaAberta = false
                         // Cancelado = a tela saiu no meio da animação: não abre seletor por cima de outra tela.
-                        if (causa == null) abrir(origem)
+                        if (causa == null) origemPendente = origem
+                        folhaAberta = false
                     }
                 },
             )
