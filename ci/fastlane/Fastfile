@@ -115,6 +115,16 @@ platform :ios do
   end
 
   def perfis_do_match(app_identifier, tipo)
+    # Extensão (Live Activity, widget) é outro alvo, com bundle id e perfil próprios; sem perfil, o export
+    # recusa: `"AppLiveActivity.appex" requires a provisioning profile` (OnMore, 06/nov/2026). Quem tem
+    # extensão declara os ids em APP_EXTENSION_IDENTIFIERS, separados por vírgula.
+    extensoes = ENV["APP_EXTENSION_IDENTIFIERS"].to_s.split(",").map(&:strip).reject(&:empty?)
+    perfis = perfil_do_match(app_identifier, tipo)
+    return perfis if perfis.empty?
+    extensoes.reduce(perfis) { |todos, id| todos.merge(perfil_do_match(id, tipo)) }
+  end
+
+  def perfil_do_match(app_identifier, tipo)
     return {} if ENV["MATCH_PASSWORD"].to_s.empty?
     return {} if app_identifier.to_s.empty?
 
