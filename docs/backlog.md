@@ -1013,7 +1013,7 @@
 
 ### Achado de passagem (08/set/2026) — o gate de cobertura da lib mede um módulo VAZIO
 
-- [ ] **GAP-LIB-M-01 (P1) — `:kmplib:koverVerify` reprova com 0,0% e ninguém vê.** O Kover está
+- [x] *(06/nov/2026: `kover.merge` na raiz, `koverVerifyUnit` soma os módulos; 46% de linhas, CI verde em 358989f.)* **GAP-LIB-M-01 (P1) — `:kmplib:koverVerify` reprova com 0,0% e ninguém vê.** O Kover está
       aplicado **só no módulo umbrella** (`library/build.gradle.kts`), e desde a modularização da
       2.163.0 esse módulo tem **dois arquivos** (`KmpLib.kt` e `KmpLibInit.kt`) — todo o código da
       lib mora nos 21 módulos vizinhos. O resultado é que `./gradlew :kmplib:koverVerify` falha com

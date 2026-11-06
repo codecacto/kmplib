@@ -42,7 +42,7 @@ o artifactId dos artefatos por-target do nome do projeto Gradle) e acrescente um
 
 ```bash
 # Testes (roda em qualquer host — é o gate obrigatório antes de commitar)
-./gradlew :kmplib:testDebugUnitTest
+./gradlew koverVerifyUnit   # testes de unidade de todos os módulos + mínimo de cobertura (o :kmplib é fachada, sem teste)
 
 # Publicação local (funciona em Linux desde a 2.69.0)
 ./gradlew publishToMavenLocal

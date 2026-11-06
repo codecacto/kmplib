@@ -1317,15 +1317,15 @@ A lib possui suite de testes em `library/src/commonTest/` rodando em Android + i
 # Todos os targets disponíveis
 ./gradlew :library:allTests
 
-# Relatório de cobertura (HTML em library/build/reports/kover/html/)
-./gradlew :library:koverHtmlReport
-./gradlew :library:koverXmlReport
+# Relatório de cobertura (HTML em build/reports/kover/htmlUnit/)
+./gradlew koverHtmlReportUnit
+./gradlew koverXmlReportUnit
 
 # Verifica cobertura mínima (falha se < 40%)
-./gradlew :library:koverVerify
+./gradlew koverVerifyUnit
 ```
 
-**Threshold atual:** 40% (conservador). Configurado em `library/build.gradle.kts`.
+**Threshold atual:** 40% (conservador). Configurado no `build.gradle.kts` da raiz.
 Holders Android (lifecycle providers) e classes geradas são excluídos.
 
 ### CI
