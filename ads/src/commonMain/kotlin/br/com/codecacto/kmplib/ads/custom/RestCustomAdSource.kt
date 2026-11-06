@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ads.custom
 
+import br.com.codecacto.kmplib.core.locale.deviceLanguageTag
 import br.com.codecacto.kmplib.core.util.currentPlatform
 import br.com.codecacto.kmplib.core.network.ApiResult
 import br.com.codecacto.kmplib.core.network.handleApiCall
@@ -19,7 +20,7 @@ import kotlinx.serialization.json.Json
  * por **projeto + superficie**.
  *
  * ```
- * GET {appsApiBaseUrl}/public/ads?project={projectSlug}&surface={surface}
+ * GET {appsApiBaseUrl}/public/ads?project={projectSlug}&surface={surface}[&lang={en|es|pt-PT}]
  *   -> { "ads": [ { id, imageUrl, targetUrl, title, ctaLabel, format } ] }
  * ```
  *
@@ -38,12 +39,18 @@ import kotlinx.serialization.json.Json
  * @param projectSlug slug do projeto no catalogo central (vai como `?project=`). OBRIGATORIO.
  * @param surface superficie onde os anuncios aparecem (vai como `?surface=`). Default "app".
  * @param appsApiBaseUrl base URL do apps-api (sem barra final). Default de producao.
+ * @param supportedLanguages idiomas que o app traduz; ver [CustomAdConfig.supportedLanguages]. Em pt-BR
+ *   o `lang` nao vai (sem `lang` = pt-BR). Em outro idioma a lista pode vir vazia: sem arte, sem anuncio.
+ * @param deviceLanguage idioma do aparelho, lido a cada busca. Default: [deviceLanguageTag], API publica
+ *   do `kmplib-core`. Teste passa um valor fixo.
  */
 class RestCustomAdSource(
     private val httpClient: HttpClient,
     private val projectSlug: String,
     private val surface: String = CustomAdConfig.DEFAULT_SURFACE,
     private val appsApiBaseUrl: String = DEFAULT_APPS_API_BASE_URL,
+    private val supportedLanguages: Set<String> = CustomAdConfig.DEFAULT_SUPPORTED_LANGUAGES,
+    private val deviceLanguage: () -> String = { deviceLanguageTag() },
 ) : CustomAdSource {
     companion object {
         private const val TAG = "RestCustomAdSource"
@@ -63,6 +70,7 @@ class RestCustomAdSource(
     /** Busca one-shot dos house ads do projeto/superficie. Best-effort: erro -> lista vazia. */
     override suspend fun fetchAds(): Result<List<CustomAd>> {
         val url = appsApiBaseUrl.trimEnd('/') + "/public/ads"
+        val lang = adLanguageQueryValue(resolveAdLanguage(deviceLanguage(), supportedLanguages))
 
         val result: ApiResult<List<CustomAd>> = handleApiCall {
             val raw = httpClient.get(url) {
@@ -72,6 +80,7 @@ class RestCustomAdSource(
                 // Plataforma p/ o servidor resolver o destino (app -> Play/App Store)
                 // quando o anúncio não tem URL própria.
                 parameter("platform", currentPlatform)
+                if (lang != null) parameter("lang", lang)
             }.bodyAsText()
             json.decodeFromString(CustomAdsResponse.serializer(), raw)
                 .ads

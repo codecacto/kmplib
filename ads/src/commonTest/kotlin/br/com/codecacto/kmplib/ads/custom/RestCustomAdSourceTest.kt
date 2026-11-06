@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ads.custom
 
+import br.com.codecacto.kmplib.core.util.currentPlatform
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RestCustomAdSourceTest {
@@ -52,6 +54,84 @@ class RestCustomAdSourceTest {
         assertTrue(cap.url!!.contains("/public/ads"), cap.url!!)
         assertTrue(cap.url!!.contains("project=meu-app"), cap.url!!)
         assertTrue(cap.url!!.contains("surface=app"), cap.url!!)
+    }
+
+    private fun sourceComIdioma(
+        captured: Captured,
+        device: String,
+        supported: Set<String> = CustomAdConfig.DEFAULT_SUPPORTED_LANGUAGES,
+        responseBody: String = body,
+    ) = RestCustomAdSource(
+        httpClient = HttpClient(MockEngine { request ->
+            captured.url = request.url.toString()
+            respond(content = responseBody, status = HttpStatusCode.OK, headers = jsonHeader)
+        }),
+        projectSlug = "meu-app",
+        supportedLanguages = supported,
+        deviceLanguage = { device },
+    )
+
+    private val urlDeSempre =
+        "https://apps-api.codecacto.com.br/public/ads?project=meu-app&surface=app&platform=$currentPlatform"
+
+    @Test
+    fun `app que so bumpa a lib manda a requisicao identica em qualquer aparelho`() = runTest {
+        for (device in listOf("pt-BR", "pt", "en-US", "es-MX", "pt-PT", "fr-FR")) {
+            val cap = Captured()
+            sourceComIdioma(cap, device).fetchAds()
+            assertEquals(urlDeSempre, cap.url, "aparelho em $device")
+        }
+    }
+
+    @Test
+    fun `app global em portugues do Brasil tambem nao manda lang`() = runTest {
+        val cap = Captured()
+        sourceComIdioma(cap, "pt-BR", setOf("pt-BR", "pt-PT", "en", "es")).fetchAds()
+        assertEquals(urlDeSempre, cap.url)
+    }
+
+    @Test
+    fun `app global manda o idioma do aparelho`() = runTest {
+        val global = setOf("pt-BR", "pt-PT", "en", "es")
+        for ((device, lang) in listOf("en-US" to "en", "es-MX" to "es", "pt-PT" to "pt-PT")) {
+            val cap = Captured()
+            sourceComIdioma(cap, device, global).fetchAds()
+            assertEquals("$urlDeSempre&lang=$lang", cap.url)
+        }
+    }
+
+    @Test
+    fun `idioma que o app nao declara nao vai`() = runTest {
+        val cap = Captured()
+        sourceComIdioma(cap, "es-MX", setOf("pt-BR", "en")).fetchAds()
+        assertFalse(cap.url!!.contains("lang="), cap.url!!)
+    }
+
+    @Test
+    fun `lista vazia em outro idioma vira sem anuncio`() = runTest {
+        val ads = sourceComIdioma(Captured(), "en-US", setOf("pt-BR", "en"), """{"ads":[]}""")
+            .fetchAds().getOrThrow()
+        assertTrue(ads.isEmpty())
+    }
+
+    @Test
+    fun `idioma e lido a cada busca`() = runTest {
+        var device = "pt-BR"
+        var url: String? = null
+        val src = RestCustomAdSource(
+            httpClient = HttpClient(MockEngine { request ->
+                url = request.url.toString()
+                respond(content = body, status = HttpStatusCode.OK, headers = jsonHeader)
+            }),
+            projectSlug = "meu-app",
+            supportedLanguages = setOf("pt-BR", "en"),
+            deviceLanguage = { device },
+        )
+        src.fetchAds()
+        assertEquals(urlDeSempre, url)
+        device = "en-US"
+        src.fetchAds()
+        assertEquals("$urlDeSempre&lang=en", url)
     }
 
     @Test

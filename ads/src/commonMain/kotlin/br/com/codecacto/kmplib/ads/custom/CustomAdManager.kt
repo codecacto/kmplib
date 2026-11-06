@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.ads.custom
 import br.com.codecacto.kmplib.ads.AdDefaults
 import br.com.codecacto.kmplib.ads.AdLoadState
 import br.com.codecacto.kmplib.ads.awaitSettled
+import br.com.codecacto.kmplib.core.locale.deviceLanguageTag
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,9 @@ object CustomAdManager {
     @Volatile
     private var generation = 0
 
+    /** Idioma da lista em [ads]. Ela vive na memoria do processo; o idioma muda com o processo vivo. */
+    private var loadedLanguage: String? = null
+
     /** Configuracao atual (null se nao inicializado). */
     val config: CustomAdConfig? get() = _config
 
@@ -99,20 +103,30 @@ object CustomAdManager {
         source: CustomAdSource? = null,
         scope: CoroutineScope? = null
     ) {
-        observerJob?.cancel()
         scope?.let { this.scope = it }
         _config = config
 
         val resolvedSource = source ?: resolveDefaultSource(config)
         _source = resolvedSource
 
+        startLoading(resolvedSource, resolveAdLanguage(deviceLanguageTag(), config.supportedLanguages))
+
+        _initialized.value = true
+        AppLogger.d(TAG, "CustomAdManager inicializado (project=${config.projectSlug}, surface=${config.surface})")
+    }
+
+    private fun startLoading(source: CustomAdSource, language: String) {
+        observerJob?.cancel()
+        loadedLanguage = language
+
         val myGeneration = ++generation
         _loadState.value = AdLoadState.LOADING
 
-        observerJob = resolvedSource.observeAds()
+        observerJob = source.observeAds()
             .onEach {
+                if (myGeneration != generation) return@onEach
                 _ads.value = it
-                if (myGeneration == generation) _loadState.value = AdLoadState.READY
+                _loadState.value = AdLoadState.READY
             }
             // Regra de ouro: anuncio nunca derruba o app. Uma fonte que lanca (sem `catch`, a excecao
             // subiria ao handler do scope e encerraria o processo) vira carga FALHA.
@@ -127,9 +141,21 @@ object CustomAdManager {
                 }
             }
             .launchIn(this.scope)
+    }
 
-        _initialized.value = true
-        AppLogger.d(TAG, "CustomAdManager inicializado (project=${config.projectSlug}, surface=${config.surface})")
+    /**
+     * A pessoa trocou o idioma com o processo vivo (Android: a Activity e recriada, este objeto nao)?
+     * Recarrega, e a lista do idioma antigo sai antes: arte em outro idioma nao fica na tela. Sem
+     * mudanca do idioma do anuncio nao faz nada, e por isso app so pt-BR nunca recarrega aqui.
+     * Os composables chamam ao entrar na tela.
+     */
+    internal fun syncLanguage(deviceTag: String? = deviceLanguageTag()) {
+        val config = _config ?: return
+        val source = _source ?: return
+        val language = resolveAdLanguage(deviceTag, config.supportedLanguages)
+        if (language == loadedLanguage) return
+        _ads.value = emptyList()
+        startLoading(source, language)
     }
 
     /**
@@ -146,6 +172,7 @@ object CustomAdManager {
                 projectSlug = slug,
                 surface = config.surface,
                 appsApiBaseUrl = config.appsApiBaseUrl,
+                supportedLanguages = config.supportedLanguages,
             )
         } else {
             AppLogger.w(TAG, "CustomAdConfig sem httpClient/projectSlug e sem source — nenhum anuncio sera carregado.")
@@ -161,8 +188,10 @@ object CustomAdManager {
             AppLogger.w(TAG, "refresh() chamado antes de initialize()")
             return
         }
+        val myGeneration = generation
         scope.launch {
-            source.fetchAds().onSuccess { _ads.value = it }
+            // Busca que voltou depois de uma recarga (troca de idioma) nao sobrescreve a lista nova.
+            source.fetchAds().onSuccess { if (myGeneration == generation) _ads.value = it }
         }
     }
 
@@ -172,6 +201,7 @@ object CustomAdManager {
         observerJob = null
         _config = null
         _source = null
+        loadedLanguage = null
         _ads.value = emptyList()
         _initialized.value = false
         _loadState.value = AdLoadState.IDLE

@@ -5,6 +5,27 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.345.0 — **House ad no idioma da tela** (mutirão do anúncio por idioma, 05/nov/2026)
+
+Contrato do servidor: `GET /public/ads` com `lang` opcional. Sem `lang` = pt-BR, como sempre; com `en`, `es` ou `pt-PT`,
+só projeto global com arte naquele idioma, e a lista pode vir vazia (sem arte, sem anúncio).
+
+### Novo
+- `CustomAdConfig.supportedLanguages: Set<String>` (default `setOf("pt-BR")`, `CustomAdConfig.DEFAULT_SUPPORTED_LANGUAGES`):
+  os idiomas que o APP traduz. O anúncio segue o idioma do aparelho (`deviceLanguageTag()`, API do `kmplib-core`) só se ele
+  estiver nessa lista; senão, pt-BR. Casa como o `compose-resources`: `en-US`→`en`, `es-MX`→`es`, `pt-PT`→`pt-PT`,
+  `pt-BR`/`pt`→`pt-BR`. O idioma do aparelho sozinho seria mentira: app só em português abre em português num aparelho em inglês.
+- `RestCustomAdSource(…, supportedLanguages, deviceLanguage)`: manda `lang` depois de `platform`. **Em pt-BR não manda
+  nada: a requisição fica idêntica à da 2.344.0**, e app que só bumpa a lib não muda de comportamento (teste compara a URL inteira).
+
+### A lista em memória acompanha o idioma
+`CustomAdManager.ads` vive no processo, e no Android o idioma muda com o processo vivo. `CustomBannerAd` e
+`CustomInterstitialAd`, ao entrar na tela, comparam o idioma do anúncio com o da lista carregada: mudou, a lista antiga sai e
+recarrega. Busca de `refresh()` que volta depois disso não sobrescreve a lista nova. Sem cache em disco: o `imageUrl` é
+diferente por arte, então o cache de imagem não colide.
+
+Aditivo, sem piso, sem aviso. `supportedLanguages` entra antes de `onImpression`, para não roubar a posição de trailing lambda.
+
 ## 2.344.0 — **iOS: as origens da folha de anexo abrem de verdade** (LocAki, 04/nov/2026)
 
 A 2.343.0 **não resolveu**: no simulador (iPhone 17 Pro, teste `anexos-tres-origens` do LocAki), tocar em Galeria fechava

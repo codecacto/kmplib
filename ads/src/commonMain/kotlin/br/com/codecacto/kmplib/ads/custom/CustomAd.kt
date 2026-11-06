@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
  * so renderiza o que vem e, quando ha mais de um ativo, escolhe um por rotacao simples
  * (ver [selectAd]).
  *
+ * Desde a 2.345.0 o servidor entrega tambem pelo idioma da tela ([CustomAdConfig.supportedLanguages]):
+ * a arte ja vem no idioma certo, e `imageUrl` diferente nao colide no cache de imagem.
+ *
  * Schema de cada item na resposta `GET /public/ads`:
  * ```json
  * {

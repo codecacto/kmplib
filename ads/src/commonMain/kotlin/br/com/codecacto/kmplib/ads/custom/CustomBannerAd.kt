@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,8 @@ fun CustomBannerAd(
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
     val ads by CustomAdManager.ads.collectAsState()
+
+    LaunchedEffect(Unit) { CustomAdManager.syncLanguage() }
 
     if (!showAds) {
         Spacer(modifier = modifier)

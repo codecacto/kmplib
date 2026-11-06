@@ -43,7 +43,8 @@ package br.com.codecacto.kmplib
  *
  * Sem AdMob: a publicidade é apenas house ads servidos pelo backend central
  * (`GET /public/ads?project={slug}&surface=app`). Cada anúncio traz uma imagem e a URL que abre ao
- * clicar.
+ * clicar. O anúncio segue o idioma da tela: `CustomAdConfig.supportedLanguages` diz quais o app tem
+ * (default só pt-BR, sem `lang` na requisição).
  *
  * ### Ad Router (liga/desliga house ads remotamente)
  * - `AdRouter` - Singleton que lê a config (`GET /public/ad-config/{appId}`) no apps-api

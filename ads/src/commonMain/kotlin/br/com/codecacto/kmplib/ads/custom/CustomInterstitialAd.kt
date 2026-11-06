@@ -150,6 +150,7 @@ internal fun InterstitialAdHost(
     val loadCreative = rememberCreativeLoader()
 
     LaunchedEffect(Unit) {
+        CustomAdManager.syncLanguage()
         val decision = decideInterstitial(
             showAds = MonetizationManager.shouldShowAds,
             ads = CustomAdManager.ads,
