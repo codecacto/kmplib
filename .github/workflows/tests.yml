@@ -86,8 +86,19 @@ jobs:
           path: ~/.konan
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
+      # Todos os módulos que linkam no simulador. Ficam de fora os que importam framework que só o
+      # app traz (Sentry, FirebaseMessaging): `ld: framework not found`. Os testes deles seguem no
+      # job do Android. Heap maior: com o padrão de 2 GB o compilador estoura em kmplib-inspection.
       - name: Run iOS Simulator tests
-        run: ./gradlew iosSimulatorArm64Test --continue
+        run: >-
+          ./gradlew iosSimulatorArm64Test --continue --max-workers=2
+          -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8"
+          -Pkotlin.daemon.jvmargs=-Xmx3g
+          -x :kmplib-ads:iosSimulatorArm64Test
+          -x :kmplib-firebase:iosSimulatorArm64Test
+          -x :kmplib-observability:iosSimulatorArm64Test
+          -x :kmplib-push:iosSimulatorArm64Test
+          -x :kmplib-testing:iosSimulatorArm64Test
 
       - name: Upload iOS test results
         if: always()

@@ -231,7 +231,7 @@ class SocialReauthTest {
     }
 
     @Test
-    fun `401 sem codigo no start e sessao invalida, nao credencial social`() = runTest {
+    fun `401 sem codigo no start e sessao invalida nao credencial social`() = runTest {
         val c = cenario(Respostas(start = HttpStatusCode.Unauthorized to """{"message":"x"}"""))
         val e = signIn(c).reauthenticate(SocialProvider.GOOGLE, sessionAccess).exceptionOrNull()
         assertIs<OwnAuthException.NotAuthenticated>(e)
@@ -276,7 +276,7 @@ class SocialReauthTest {
     }
 
     @Test
-    fun `Apple no iOS vai sempre pelo nativo, sem pedir claim`() = runTest {
+    fun `Apple no iOS vai sempre pelo nativo sem pedir claim`() = runTest {
         val c = cenario()
         val nativo = Nativo()
         signIn(c, mode = SocialLoginMode.BACKEND, nativo = nativo, platform = "ios")

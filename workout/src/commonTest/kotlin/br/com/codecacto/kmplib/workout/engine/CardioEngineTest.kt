@@ -31,7 +31,7 @@ class CardioEngineTest {
     // ── Ordem de execução ──
 
     @Test
-    fun `intervalado vira uma fase por passo, volta a volta, trabalho e descanso`() {
+    fun `intervalado vira uma fase por passo volta a volta trabalho e descanso`() {
         val order = cardioIntervalPlan().executionOrder()
         assertEquals(7, order.size)
         val cardio = order.take(6)
@@ -114,7 +114,7 @@ class CardioEngineTest {
     }
 
     @Test
-    fun `Cursor set no cardio devolve a fase como Timed, sem estourar o indice`() {
+    fun `Cursor set no cardio devolve a fase como Timed sem estourar o indice`() {
         val plan = cardioIntervalPlan()
         assertEquals(SetTarget.Timed(40), Cursor(0, 0, 2, 0).set(plan))
         assertEquals(SetTarget.Timed(20), Cursor(0, 0, 2, 1).set(plan))

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 class ProductTourFirstRunTest {
 
     @Test
-    fun `nasce nao visto, grava e outra instancia le`() = runTest {
+    fun `nasce nao visto grava e outra instancia le`() = runTest {
         val prefs = InMemoryAppPreferences()
         val primeira = ProductTourFirstRun("tour.inicio.v1", prefs)
         assertFalse(primeira.hasBeenSeen())
@@ -65,7 +65,7 @@ class ProductTourFirstRunTest {
     }
 
     @Test
-    fun `conta que nunca viu abre, e concluir grava nos dois`() = runTest {
+    fun `conta que nunca viu abre e concluir grava nos dois`() = runTest {
         val conta = ContaFalsa()
         val tour = ProductTourFirstRun("t.v1", InMemoryAppPreferences(), conta)
         assertTrue(tour.shouldOpen())

@@ -118,7 +118,7 @@ class RestOutboxOrderTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `filho de pai com falha retentavel e SEGURADO, nao recusado, e sobe depois do pai`() = runTest {
+    fun `filho de pai com falha retentavel e SEGURADO nao recusado e sobe depois do pai`() = runTest {
         val s = FakeSyncStore()
         val b = Backend().apply { talhaoFalha500 = true }
         val tal = talhoes(b, s)
@@ -147,7 +147,7 @@ class RestOutboxOrderTest {
     }
 
     @Test
-    fun `filho drenado ANTES do pai no mesmo ciclo espera, sem recusa`() = runTest {
+    fun `filho drenado ANTES do pai no mesmo ciclo espera sem recusa`() = runTest {
         val s = FakeSyncStore()
         val b = Backend()
         val tal = talhoes(b, s)

@@ -33,7 +33,7 @@ class HeartRateZonesTest {
     }
 
     @Test
-    fun `zonas vizinhas nao se sobrepoem nem deixam buraco, e a zona do bpm bate com a faixa`() {
+    fun `zonas vizinhas nao se sobrepoem nem deixam buraco e a zona do bpm bate com a faixa`() {
         for (max in 100..220) {
             val ranges = HeartRateZone.entries.map { it.bpmRange(max) }
             ranges.zipWithNext().forEach { (a, b) -> assertEquals(a.last + 1, b.first, "max $max") }

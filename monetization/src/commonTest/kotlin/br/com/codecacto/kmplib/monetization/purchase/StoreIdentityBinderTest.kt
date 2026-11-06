@@ -332,7 +332,7 @@ class StoreIdentityBinderTest {
     // ------------------------------------------------------------------ gerenciado desde a declaração (2.305.0)
 
     @Test
-    fun `compra antes da primeira emissao do bind e NO_SUBJECT, nunca UNMANAGED`() = runTest {
+    fun `compra antes da primeira emissao do bind e NO_SUBJECT nunca UNMANAGED`() = runTest {
         val store = RecordingStore()
         val binder = StoreIdentityBinder(store)
         val subjects = MutableSharedFlow<String?>()

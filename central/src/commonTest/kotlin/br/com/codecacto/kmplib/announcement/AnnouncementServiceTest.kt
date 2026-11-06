@@ -115,7 +115,7 @@ class AnnouncementServiceTest {
     }
 
     @Test
-    fun `objeto em vez de array e falha, array vazio nao`() = runTest {
+    fun `objeto em vez de array e falha array vazio nao`() = runTest {
         assertNull(client(respondWith = { respond("{}", HttpStatusCode.OK, jsonHeader) }).fetchOrNull("android", "pt-BR"))
         assertEquals(emptyList(), client(respondWith = { respond("[]", HttpStatusCode.OK, jsonHeader) }).fetchOrNull("android", "pt-BR"))
     }

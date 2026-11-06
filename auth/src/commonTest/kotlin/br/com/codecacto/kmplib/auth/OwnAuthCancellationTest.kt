@@ -11,6 +11,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -105,9 +106,11 @@ class OwnAuthCancellationTest {
     fun `sem rede o signOut volta no teto curto com o cofre ja limpo`() = runTest {
         val storage = FakeSecureTokenStorage()
         var logoutCalls = 0
+        val logoutStarted = CompletableDeferred<Unit>()
         val engine = MockEngine { request ->
             if (request.url.encodedPath.endsWith("logout")) {
                 logoutCalls++
+                logoutStarted.complete(Unit)
                 awaitCancellation() // rede pendurada: a resposta nunca chega
             } else {
                 respond(tokensJson(fakeJwt("acc-1"), "r-abc"), HttpStatusCode.OK, jsonHeaders)
@@ -121,7 +124,12 @@ class OwnAuthCancellationTest {
         // Tempo VIRTUAL de propósito: o teto de 5 s corre no relógio do teste e o MockEngine nunca
         // responde — o signOut tem de voltar pelo teto, com o aparelho já limpo.
         val start = testScheduler.currentTime
-        repo.signOut() // não lança, não espera a rede além do teto
+        val signOut = launch { repo.signOut() } // não lança, não espera a rede além do teto
+        testScheduler.runCurrent()
+        // O MockEngine roda em outra thread. Bloqueia sem suspender: suspenso, o `runTest` adiantaria o
+        // relógio virtual e o teto venceria antes de o logout chegar ao engine (falha intermitente).
+        runBlocking(Dispatchers.Default) { withTimeout(5_000) { logoutStarted.await() } }
+        signOut.join()
         val elapsed = testScheduler.currentTime - start
 
         assertTrue(
@@ -256,7 +264,9 @@ class OwnAuthCancellationTest {
         val repo = EmailPasswordAuthRepository(api, tm)
         repo.signInWithEmail("a@x.com", "p").getOrThrow() // par que expira em 5 s → o próximo token renova
 
-        val pending = launch { tm.accessToken() }
+        // Fora do relógio virtual: o MockEngine responde em outra thread e, no `runTest`, o teto da
+        // revogação do par descartado venceria na hora, sem o logout ter chegado (falha intermitente).
+        val pending = launch(Dispatchers.Default) { tm.accessToken() }
         withContext(Dispatchers.Default) { withTimeout(5_000) { refreshStarted.await() } }
 
         // "Sair" com o refresh pendurado na rede: não espera por ele.

@@ -100,7 +100,7 @@ class AppBrandColorsTest {
     }
 
     @Test
-    fun `aviso so para on manual abaixo de 4,5`() {
+    fun `aviso so para on manual abaixo de 45`() {
         val ok = AppColorPalette(primary = yellow, lightBrand = AppBrandColors(primary = navy))
         assertTrue(brandContrastWarnings(ok, darkTheme = false).isEmpty(), "derivado não avisa")
         val bad = AppColorPalette(

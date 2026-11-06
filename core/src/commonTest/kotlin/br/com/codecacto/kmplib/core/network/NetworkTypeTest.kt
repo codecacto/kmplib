@@ -54,7 +54,7 @@ class NetworkTypeTest {
         ConnectivityObserver(fonte, 2.seconds, TestScope(StandardTestDispatcher(testScheduler)))
 
     @Test
-    fun `antes de iniciar - online e tarifada (nunca supoe Wi-Fi)`() = runTest {
+    fun `antes de iniciar - online e tarifada nunca supoe Wi-Fi`() = runTest {
         val obs = observer(FakeSource())
         assertTrue(obs.isOnline.value)
         assertEquals(NetworkType.METERED, obs.networkType.value)

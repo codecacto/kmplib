@@ -151,7 +151,7 @@ class DomainApiClientHeadersTest {
     }
 
     @Test
-    fun `lista de reservados cobre credencial, corpo e conexao`() {
+    fun `lista de reservados cobre credencial corpo e conexao`() {
         listOf("authorization", "content-type", "content-length", "if-none-match", "host", "transfer-encoding")
             .forEach { assertTrue(it in DomainApiClient.RESERVED_HEADERS, it) }
         assertTrue("accept-language" !in DomainApiClient.RESERVED_HEADERS)

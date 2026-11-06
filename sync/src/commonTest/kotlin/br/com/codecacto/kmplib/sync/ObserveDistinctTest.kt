@@ -97,7 +97,7 @@ class ObserveDistinctTest {
     }
 
     @Test
-    fun `LocalRepository observeById ignora outra entidade, outro registro e conteudo identico`() = runTest {
+    fun `LocalRepository observeById ignora outra entidade outro registro e conteudo identico`() = runTest {
         val store = FakeSyncStore()
         val treinos = LocalRepository(TreinoEntity, store, now = relogio())
         val series = LocalRepository(SerieEntity, store, now = relogio())

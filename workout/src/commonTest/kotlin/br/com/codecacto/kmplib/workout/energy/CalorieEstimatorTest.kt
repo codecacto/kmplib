@@ -66,7 +66,7 @@ class CalorieEstimatorTest {
     }
 
     @Test
-    fun `roundKcal - dezena a partir de 10, unidade abaixo, nunca zero para gasto positivo`() {
+    fun `roundKcal - dezena a partir de 10 unidade abaixo nunca zero para gasto positivo`() {
         assertEquals(0, CalorieEstimator.roundKcal(0.0))
         assertEquals(0, CalorieEstimator.roundKcal(-3.0))
         assertEquals(0, CalorieEstimator.roundKcal(Double.NaN))

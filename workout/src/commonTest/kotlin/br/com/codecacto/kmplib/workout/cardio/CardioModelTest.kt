@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 class CardioModelTest {
 
     @Test
-    fun `total e voltas vezes trabalho mais descanso, o Tabata de 4 min`() {
+    fun `total e voltas vezes trabalho mais descanso o Tabata de 4 min`() {
         assertEquals(480, CardioBlock.interval(40, 20, 8).totalSeconds)
         assertEquals(240, CardioBlock.interval(20, 10, 8).totalSeconds)
         assertEquals(1800, CardioBlock.continuous(1800).totalSeconds)
@@ -43,7 +43,7 @@ class CardioModelTest {
     }
 
     @Test
-    fun `faixas do contrato no continuo - 1 volta sem descanso, ate 2 h`() {
+    fun `faixas do contrato no continuo - 1 volta sem descanso ate 2 h`() {
         assertTrue(CardioBlock.continuous(7200).isValid)
         assertEquals(listOf("workSeconds"), CardioBlock.continuous(7201).invalidFields())
         assertEquals(listOf("workSeconds"), CardioBlock.continuous(9).invalidFields())

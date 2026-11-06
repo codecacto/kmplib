@@ -58,7 +58,7 @@ class HoldToConfirmGestureTest {
     }
 
     @Test
-    fun `degraus intermediarios sao tres em quatro, o quarto e a confirmacao`() {
+    fun `degraus intermediarios sao tres em quatro o quarto e a confirmacao`() {
         var last = 0
         var ticks = 0
         var t = 0L
@@ -90,7 +90,7 @@ class HoldToConfirmGestureTest {
     }
 
     @Test
-    fun `leitor de tela le rotulo, apoio e a dica do gesto`() {
+    fun `leitor de tela le rotulo apoio e a dica do gesto`() {
         assertEquals(
             "Acionar pânico. Toque duas vezes e segure para confirmar",
             holdToConfirmContentDescription("Acionar pânico", null, "Toque duas vezes e segure para confirmar"),

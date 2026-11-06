@@ -34,7 +34,7 @@ class CardioResultTest {
     }
 
     @Test
-    fun `agrega voltas, segundos por fase, puladas e FC`() {
+    fun `agrega voltas segundos por fase puladas e FC`() {
         val (plan, run) = mixedRun()
         assertEquals(
             CardioResult(
@@ -59,7 +59,7 @@ class CardioResultTest {
     }
 
     @Test
-    fun `item sem fase registrada devolve o agregado zerado, nao nulo`() {
+    fun `item sem fase registrada devolve o agregado zerado nao nulo`() {
         val plan = cardioIntervalPlan()
         val run = (engine.start(plan, T0, "r") as WorkoutState.InSet).run
         assertEquals(CardioResult(0, 0, 0, 0), run.cardioResult(plan, "ex-run"))
@@ -73,7 +73,7 @@ class CardioResultTest {
     }
 
     @Test
-    fun `voltas completas contam cada volta uma vez, todas cheias`() {
+    fun `voltas completas contam cada volta uma vez todas cheias`() {
         val plan = cardioIntervalPlan()
         val s = engine.reduce(engine.start(plan, T0, "r"), WorkoutEvent.Tick, at(500))
         assertEquals(
