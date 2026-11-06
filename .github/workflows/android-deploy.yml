@@ -96,8 +96,14 @@ jobs:
           version-override: ${{ inputs.marketing_version }}
 
       - name: Decode google-services.json
-        if: ${{ secrets.GOOGLE_SERVICES_JSON_B64 != '' }}
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 --decode > ${{ inputs.app_module }}/google-services.json
+        # `secrets` não pode ser lido em `if` de step: com ele o arquivo é inválido e o GitHub
+        # registra uma execução reprovada a cada push ("workflow file issue").
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > ${{ inputs.app_module }}/google-services.json
+          fi
 
       - name: Decode keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode > ${{ github.workspace }}/android.keystore

@@ -19,18 +19,10 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - target: iosSimulatorArm64Test
-            os: macos-latest
-          - target: jvmTest
-            os: ubuntu-latest
-          - target: linuxX64Test
-            os: ubuntu-latest
-          - target: testAndroidHostTest
-            os: ubuntu-latest
-    runs-on: ${{ matrix.os }}
+    # Só o alvo jvm (hoje, `kmplib-workout`, que tem teste exclusivo em jvmTest). Android e iOS rodam
+    # em todos os módulos no tests.yml; a matriz antiga chamava `testAndroidHostTest` e `linuxX64Test`,
+    # que não existem nesta lib, e a primeira que caía cancelava as outras.
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v7
@@ -49,4 +41,4 @@ jobs:
     - name: Build with Gradle
       uses: gradle/gradle-build-action@ce999babab2de1c4b649dc15f0ee67e6246c994f
       with:
-        arguments: ${{ matrix.target }}
+        arguments: jvmTest

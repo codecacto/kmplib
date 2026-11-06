@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    alias(libs.plugins.kover)
     alias(libs.plugins.sqldelight)
     // Trava de grafo (2.291.0): o umbrella é o grafo INTEIRO — Analytics/Crashlytics/measurement/
     // AdMob reprovam o build aqui também.
@@ -89,45 +88,8 @@ compose.resources {
     generateResClass = never
 }
 
-// =============================================================================
-// Kover — cobertura de testes
-// =============================================================================
-//
-// Roda automaticamente com :library:koverHtmlReport e :library:koverXmlReport.
-// Threshold de 40% no `koverVerify` (não-bloqueante em CI por enquanto;
-// quando estabilizar, mover `koverVerify` para os jobs obrigatórios em
-// .github/workflows/tests.yml).
-//
-// Exclusões: classes geradas, telas Compose UI (testadas separadamente),
-// holders Android que dependem de Activity/Context, código iOS bridge.
-//
-kover {
-    reports {
-        filters {
-            excludes {
-                // Classes geradas pelo Compose
-                classes("*generated.resources*")
-                classes("*ComposableSingletons*")
-                // Holders são providers para Android lifecycle — não testáveis em unit test
-                classes("*Holder")
-                // Adapters Android internos (não API pública)
-                classes("br.com.codecacto.kmplib.firebase.auth.GoogleAuthHolder")
-                classes("br.com.codecacto.kmplib.platform.BiometricAuthHolder")
-                classes("br.com.codecacto.kmplib.platform.NotificationSchedulerHolder")
-                classes("br.com.codecacto.kmplib.platform.ShareHandlerHolder")
-                classes("br.com.codecacto.kmplib.platform.UrlLauncherHolder")
-                classes("br.com.codecacto.kmplib.media.AudioPlayerHolder")
-                classes("br.com.codecacto.kmplib.platform.permission.PermissionHostHolder")
-            }
-        }
-
-        verify {
-            rule {
-                minBound(40)  // bound conservador. Aumentar conforme cobertura crescer.
-            }
-        }
-    }
-}
+// Cobertura: medida na raiz, somando os módulos (`./gradlew koverVerifyUnit`, ver build.gradle.kts).
+// Este módulo é só a fachada: 2 fontes e nenhum teste.
 
 android {
     namespace = "br.com.codecacto.kmplib"

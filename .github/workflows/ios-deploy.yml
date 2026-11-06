@@ -102,9 +102,14 @@ jobs:
           version-override: ${{ inputs.marketing_version }}
 
       - name: Decode GoogleService-Info.plist
-        if: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 != '' }}
+        # `secrets` não pode ser lido em `if` de step: com ele o arquivo é inválido e o GitHub
+        # registra uma execução reprovada a cada push ("workflow file issue").
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_B64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}
         run: |
-          echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST_B64 }}" | base64 --decode > iosApp/iosApp/GoogleService-Info.plist
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST_B64" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST_B64" | base64 --decode > iosApp/iosApp/GoogleService-Info.plist
+          fi
 
       - name: Install CocoaPods dependencies
         if: ${{ inputs.use_workspace }}

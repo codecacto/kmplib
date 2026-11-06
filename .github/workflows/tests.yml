@@ -32,27 +32,21 @@ jobs:
           path: ~/.konan
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
-      - name: Run Android unit tests
-        run: ./gradlew :kmplib:testDebugUnitTest
+      # A cobertura soma todos os módulos (`kover.merge` no build.gradle.kts da raiz). O
+      # koverVerifyUnit depende dos testes de unidade de cada um, então é ele que os roda.
+      - name: Run Android unit tests + verify Kover threshold
+        run: ./gradlew koverVerifyUnit --continue
 
-      - name: Generate Kover HTML report
+      - name: Generate Kover reports
         if: always()
-        run: ./gradlew :kmplib:koverHtmlReport
-
-      - name: Generate Kover XML report
-        if: always()
-        run: ./gradlew :kmplib:koverXmlReport
-
-      - name: Verify Kover coverage threshold
-        if: always()
-        run: ./gradlew :kmplib:koverVerify
+        run: ./gradlew koverHtmlReportUnit koverXmlReportUnit
 
       - name: Upload Kover HTML
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: kover-html-report
-          path: library/build/reports/kover/html/
+          path: build/reports/kover/htmlUnit/
           retention-days: 30
 
       - name: Upload Kover XML
@@ -60,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: kover-xml-report
-          path: library/build/reports/kover/report.xml
+          path: build/reports/kover/reportUnit.xml
           retention-days: 30
 
       - name: Upload test results
@@ -68,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: android-unit-test-results
-          path: library/build/test-results/
+          path: '**/build/test-results/testDebugUnitTest/'
           retention-days: 14
 
   ios-tests:
@@ -93,12 +87,12 @@ jobs:
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
 
       - name: Run iOS Simulator tests
-        run: ./gradlew :kmplib:iosSimulatorArm64Test
+        run: ./gradlew iosSimulatorArm64Test --continue
 
       - name: Upload iOS test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ios-test-results
-          path: library/build/test-results/
+          path: '**/build/test-results/iosSimulatorArm64Test/'
           retention-days: 14
