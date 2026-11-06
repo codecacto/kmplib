@@ -35,6 +35,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
@@ -217,6 +218,7 @@ object ProductTourDefaults {
  * @param firstRunSteps os passos do tour automático.
  * @param firstRunEnabled segure em `false` enquanto a tela não é a certa (ex.: antes do login).
  * @param suppressFirstRunInAutomation `false` deixa o tour automático abrir também em build de teste.
+ * @param firstRunAccountStore guarda o "já viu" também na conta (2.346.0): vale em qualquer aparelho e reinstalação.
  * @param firstRunPreferences onde gravar o "já viu" (teste); default = as preferências da lib.
  */
 @Composable
@@ -228,6 +230,7 @@ fun ProductTourHost(
     firstRunEnabled: Boolean = true,
     suppressFirstRunInAutomation: Boolean = true,
     firstRunPreferences: AppPreferences? = null,
+    firstRunAccountStore: ProductTourAccountStore? = null,
     texts: ProductTourTexts = rememberProductTourTexts(),
     style: ProductTourStyle = ProductTourDefaults.style(),
     content: @Composable () -> Unit,
@@ -244,13 +247,22 @@ fun ProductTourHost(
     }
 
     if (firstRunKey != null) {
-        val firstRun = remember(firstRunKey, firstRunPreferences) {
-            ProductTourFirstRun(firstRunKey, firstRunPreferences ?: appPreferences())
+        val firstRun = remember(firstRunKey, firstRunPreferences, firstRunAccountStore) {
+            ProductTourFirstRun(firstRunKey, firstRunPreferences ?: appPreferences(), firstRunAccountStore)
         }
+        // O tour automático marca ao abrir; se não havia nada para mostrar, a marca sai.
+        val autoOpened = remember(firstRun) { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         DisposableEffect(state, firstRun) {
             val listener: (TourEndReason) -> Unit = { reason ->
-                if (reason != TourEndReason.NOTHING_TO_SHOW) scope.launch { firstRun.markSeen() }
+                val wasAutoOpen = autoOpened.value
+                autoOpened.value = false
+                scope.launch {
+                    when {
+                        reason != TourEndReason.NOTHING_TO_SHOW -> firstRun.markSeen()
+                        wasAutoOpen -> firstRun.reset()
+                    }
+                }
             }
             state.addEndListener(listener)
             onDispose { state.removeEndListener(listener) }
@@ -258,9 +270,11 @@ fun ProductTourHost(
         LaunchedEffect(state, firstRun, firstRunEnabled, firstRunSteps, suppressFirstRunInAutomation) {
             if (!firstRunEnabled || firstRunSteps.isEmpty()) return@LaunchedEffect
             if (suppressFirstRunInAutomation && AutomationMode.suppressesAutomaticPrompts) return@LaunchedEffect
-            if (firstRun.hasBeenSeen()) return@LaunchedEffect
+            if (!firstRun.shouldOpen()) return@LaunchedEffect
             delay(ProductTourDefaults.FIRST_RUN_DELAY_MILLIS)
             if (state.isActive || state.isStarting) return@LaunchedEffect
+            firstRun.markLocally()
+            autoOpened.value = true
             state.start(firstRunSteps)
         }
     }

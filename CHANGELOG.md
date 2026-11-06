@@ -5,6 +5,15 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.346.0 — `ui/tour`: "já viu" guardado na CONTA, e marcado ao ABRIR
+
+**Aditivo. Não é aviso.** Origem: LocAki (fundador, 05/nov/2026: *"ele já viu, acabou"*).
+
+- `ProductTourHost(firstRunAccountStore = …)` + `ProductTourAccountStore` (`isSeen`/`markSeen`), implementado pelo app sobre a própria
+  API, no contrato do `backlib-product-tour`. A conta decide se abre; sem resposta dela o tour NÃO abre (a próxima abertura pergunta
+  de novo). Quem viu só neste aparelho sobe para a conta uma vez.
+- O tour automático agora marca ao ABRIR, como o da web: até aqui só marcava ao concluir ou pular, e fechar o app no meio mostrava de novo.
+
 ## 2.345.0 — **House ad no idioma da tela** (mutirão do anúncio por idioma, 05/nov/2026)
 
 Contrato do servidor: `GET /public/ads` com `lang` opcional. Sem `lang` = pt-BR, como sempre; com `en`, `es` ou `pt-PT`,
