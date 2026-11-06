@@ -96,6 +96,7 @@ jobs:
           -Pkotlin.daemon.jvmargs=-Xmx3g
           -x :kmplib-ads:iosSimulatorArm64Test
           -x :kmplib-firebase:iosSimulatorArm64Test
+          -x :kmplib-monetization:iosSimulatorArm64Test
           -x :kmplib-observability:iosSimulatorArm64Test
           -x :kmplib-push:iosSimulatorArm64Test
           -x :kmplib-testing:iosSimulatorArm64Test

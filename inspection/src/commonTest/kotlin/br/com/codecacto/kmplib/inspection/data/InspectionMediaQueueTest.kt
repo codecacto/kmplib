@@ -109,7 +109,7 @@ class InspectionMediaQueueTest {
     }
 
     @Test
-    fun `intencao com o hash da captura, PUT com todos os cabecalhos assinados e conclusao`() = runTest {
+    fun `intencao com o hash da captura PUT com todos os cabecalhos assinados e conclusao`() = runTest {
         val m = montar()
         m.server.on("POST", "/inspections/$id/media", Reply(body = InspectionFixtures.mediaIntentSingle("m1", sha, bytes.size.toLong())))
         m.server.on("POST", "/media/m1/complete", Reply(body = InspectionFixtures.mediaConfirmed("m1", sha, bytes.size.toLong())))

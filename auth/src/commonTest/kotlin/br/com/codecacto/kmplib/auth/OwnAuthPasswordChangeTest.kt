@@ -74,7 +74,7 @@ class OwnAuthPasswordChangeTest {
         val e = c.repo.changeOwnPassword("errada", "novaSenha1").exceptionOrNull()
 
         assertIs<OwnAuthException.InvalidCredentials>(e)
-        assertEquals(OwnAuthTexts().currentPasswordIncorrect, e.message)
+        assertEquals(loadOwnAuthTexts().currentPasswordIncorrect, e.message) // segue o idioma do aparelho
         assertEquals("r1", c.tm.session.value?.refreshToken, "recusa não mexe na sessão")
     }
 

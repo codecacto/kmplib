@@ -119,7 +119,7 @@ class OwnAuthApiTest {
             api.register("Ana", "a@x.com", "novaSenha1", acceptedTerms = true).exceptionOrNull(),
         )) {
             assertIs<OwnAuthException.Server>(e)
-            assertEquals(OwnAuthTexts().server(500), e.message)
+            assertEquals(loadOwnAuthTexts().server(500), e.message) // segue o idioma do aparelho
             assertFalse(e.message.contains("PSQL"))
         }
     }
