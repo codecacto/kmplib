@@ -117,7 +117,7 @@
     <string name="kmplib_error_state_offline_message">Verifique a sua ligação à internet e tente novamente.</string>
     <!-- Feedback (central/feedback) -->
     <string name="kmplib_feedback_title">Deixe os seus comentários</string>
-    <string name="kmplib_feedback_subtitle">A sua opinião é importante para nós</string>
+    <string name="kmplib_feedback_subtitle">Lemos cada mensagem e respondemos pelo WhatsApp.</string>
     <string name="kmplib_feedback_reason_label">Qual o motivo do seu comentário?</string>
     <string name="kmplib_feedback_reason_suggestion">Sugestão</string>
     <string name="kmplib_feedback_reason_bug">Comunicar um erro</string>
@@ -132,8 +132,10 @@
     <string name="kmplib_feedback_email_label">O seu e-mail (opcional)</string>
     <string name="kmplib_feedback_whatsapp_label">O seu WhatsApp</string>
     <string name="kmplib_feedback_submit">Enviar comentários</string>
-    <string name="kmplib_feedback_success">Os seus comentários foram enviados com sucesso.</string>
+    <string name="kmplib_feedback_success">Recebemos a sua mensagem. Se precisarmos de mais detalhes, falamos consigo pelo WhatsApp.</string>
     <string name="kmplib_feedback_error">Erro ao enviar os comentários. Tente novamente.</string>
+    <string name="kmplib_feedback_contact_label">Para lhe respondermos</string>
+    <string name="kmplib_feedback_success_reason_label">Motivo</string>
     <string name="kmplib_feedback_reason_error">Selecione um motivo</string>
     <string name="kmplib_feedback_message_error">Escreva a sua mensagem</string>
     <string name="kmplib_email_error">E-mail inválido.</string>

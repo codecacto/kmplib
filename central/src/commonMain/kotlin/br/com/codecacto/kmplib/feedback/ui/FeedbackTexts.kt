@@ -33,6 +33,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_message_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_email_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_whatsapp_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_contact_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_success_reason_label
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
@@ -45,7 +47,8 @@ import br.com.codecacto.kmplib.ui.locale.kmpStringResource
  */
 data class FeedbackTexts(
     val title: String = "Deixe seu Feedback",
-    val subtitle: String = "Sua opinião é importante para nós",
+    /** A linha de contexto do cabeçalho — o que acontece com a mensagem (2.347.0). */
+    val subtitle: String = "Lemos cada mensagem e respondemos pelo WhatsApp.",
     val motivoLabel: String = "Qual o motivo do seu feedback?",
     val motivoSugestao: String = "Sugestão",
     val motivoBug: String = "Reportar Bug",
@@ -62,16 +65,24 @@ data class FeedbackTexts(
     val whatsappLabel: String = "Seu WhatsApp",
     val whatsappPlaceholder: String = FormPlaceholders.PHONE,
     val submitButton: String = "Enviar Feedback",
+    /**
+     * Sem uso desde 2.347.0: o rodapé fixo tem um botão só (Enviar) e a saída é o voltar do
+     * cabeçalho. Fica na classe para quem constrói [FeedbackTexts] com ele continuar compilando.
+     */
     val cancelButton: String = "Cancelar",
     val successTitle: String = "Obrigado!",
-    val successMessage: String = "Seu feedback foi enviado com sucesso.",
+    val successMessage: String = "Recebemos sua mensagem. Se precisarmos de mais detalhes, falamos com você pelo WhatsApp.",
     val continueButton: String = "Continuar",
     val errorMessage: String = "Erro ao enviar feedback. Tente novamente.",
     val motivoError: String = "Selecione um motivo",
     val mensagemError: String = "Digite sua mensagem",
     val emailError: String = "E-mail inválido",
     val whatsappError: String = "Informe um WhatsApp com 11 dígitos",
-    val backContentDescription: String = "Voltar"
+    val backContentDescription: String = "Voltar",
+    /** Título do bloco de nome, e-mail e WhatsApp (2.347.0). */
+    val contactSectionLabel: String = "Para te responder",
+    /** Rótulo do motivo no resumo da confirmação de envio (2.347.0). */
+    val successReasonLabel: String = "Motivo",
 )
 
 /**
@@ -109,6 +120,8 @@ fun rememberFeedbackTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInp
         emailError = kmpStringResource(Res.string.kmplib_email_error),
         whatsappError = kmpStringResource(Res.string.kmplib_whatsapp_error),
         backContentDescription = kmpStringResource(Res.string.kmplib_back),
+        contactSectionLabel = kmpStringResource(Res.string.kmplib_feedback_contact_label),
+        successReasonLabel = kmpStringResource(Res.string.kmplib_feedback_success_reason_label),
     )
 
 /**

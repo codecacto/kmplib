@@ -5,6 +5,34 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.347.0 — `FeedbackScreen` redesenhada: motivo em cartões, envio fixo no rodapé e confirmação de verdade
+
+**Aditivo (mesma assinatura). Não é aviso.** Origem: CampoRaiz (fundador, 07/nov/2026: *"é muito feia essa tela;
+tem que ser um padrão usado em todos os aplicativos"*). Todo app que chama `FeedbackScreen(onBack, …)` ganha o
+visual novo no próximo bump, sem mudar nada.
+
+- **Cabeçalho** na cor do fundo (não mais a faixa em `primaryColor`): voltar (`topbar-voltar`), título
+  (`topbar-titulo`) e uma linha de contexto — `FeedbackTexts.subtitle` passou a dizer o que acontece com a
+  mensagem ("Lemos cada mensagem e respondemos pelo WhatsApp.", 4 idiomas).
+- **Motivo em cartões** com ícone (grade 2 colunas no telefone, 3 em janela média/expandida), escolha única
+  acessível (`Role.RadioButton`, `selectableGroup`), selecionado com borda e fundo da cor de destaque e um
+  visto no canto. Cores animam (nada anima com "reduzir movimento").
+- **Mensagem** em campo de 6 linhas; bloco **"Para te responder"** com WhatsApp (o obrigatório, primeiro),
+  nome e e-mail. Texto mora no campo (`keepTextLocally`) — sem perda de letra no iOS.
+- **Enviar fixo no rodapé**, acima do `bottomBar` do app (banner) e acompanhando o teclado. O botão **envia
+  sempre**: até a 2.346.0 ficava desligado enquanto faltasse algo, sem dizer o quê. Agora todos os campos
+  recusados são marcados NO campo de uma vez e o primeiro vem à vista (foco/rolagem). Regra pura
+  `validateFeedbackForm` (interna, testada).
+- **Recusa do servidor** numa faixa logo acima do botão (região viva, `feedback-erro`) — era um snackbar.
+- **Confirmação de envio**: selo com animação de mola, "Obrigado!", mensagem nova, resumo do motivo e do
+  WhatsApp de retorno, e "Continuar" no rodapé.
+- Botão **Cancelar** saiu (a saída é o voltar). `FeedbackTexts.cancelButton` fica, sem uso. Novos textos
+  `contactSectionLabel` e `successReasonLabel` (4 idiomas).
+- **`FeedbackTestTags`**: `feedback-motivo-<valor>`, `feedback-input-mensagem|nome|email|whatsapp`,
+  `feedback-btn-enviar`, `feedback-erro`, `feedback-sucesso`, `feedback-btn-continuar`.
+- `primaryColor`/`backgroundColor`/`cardColor` continuam valendo: destaque, fundo da tela (cabeçalho e
+  rodapé incluídos) e fundo dos cartões.
+
 ## 2.346.0 — `ui/tour`: "já viu" guardado na CONTA, e marcado ao ABRIR
 
 **Aditivo. Não é aviso.** Origem: LocAki (fundador, 05/nov/2026: *"ele já viu, acabou"*).

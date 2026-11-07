@@ -117,7 +117,7 @@
     <string name="kmplib_error_state_offline_message">Check your internet connection and try again.</string>
     <!-- Feedback (central/feedback) -->
     <string name="kmplib_feedback_title">Leave your feedback</string>
-    <string name="kmplib_feedback_subtitle">Your opinion matters to us</string>
+    <string name="kmplib_feedback_subtitle">We read every message and reply on WhatsApp.</string>
     <string name="kmplib_feedback_reason_label">What is your feedback about?</string>
     <string name="kmplib_feedback_reason_suggestion">Suggestion</string>
     <string name="kmplib_feedback_reason_bug">Report a bug</string>
@@ -132,8 +132,10 @@
     <string name="kmplib_feedback_email_label">Your email (optional)</string>
     <string name="kmplib_feedback_whatsapp_label">Your WhatsApp</string>
     <string name="kmplib_feedback_submit">Send feedback</string>
-    <string name="kmplib_feedback_success">Your feedback was sent successfully.</string>
+    <string name="kmplib_feedback_success">We got your message. If we need more details, we'll reach you on WhatsApp.</string>
     <string name="kmplib_feedback_error">Error sending feedback. Try again.</string>
+    <string name="kmplib_feedback_contact_label">So we can reply</string>
+    <string name="kmplib_feedback_success_reason_label">Reason</string>
     <string name="kmplib_feedback_reason_error">Select a reason</string>
     <string name="kmplib_feedback_message_error">Enter your message</string>
     <string name="kmplib_email_error">Invalid email.</string>
