@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.monetization.alert
 import br.com.codecacto.kmplib.observability.CrashLevel
 import br.com.codecacto.kmplib.observability.CrashReporterConfig
 import br.com.codecacto.kmplib.observability.RecordingCrashReporter
+import br.com.codecacto.kmplib.platform.automation.AutomationSignal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -227,5 +228,46 @@ class PaymentAlertReporterTest {
         alertas.report(PaymentAlertKind.CompraFalhou, tagsExtra = mapOf("plataforma" to "android"))
 
         assertEquals("android", crash.messages.single().tags["plataforma"])
+    }
+
+    @Test
+    fun processo_de_automacao_nao_envia_nenhum_sinal() {
+        // Super 8 #415/#416: o pré-lançamento da Play (Test Lab, aparelho sem conta Google) gerava
+        // "paywall sem nenhum plano" a cada release. Alerta de pagamento sem loja real é falso.
+        AutomationSignal.entries.forEach { sinal ->
+            val crash = reporterAtivo()
+            val alertas = PaymentAlertReporter(crash, projeto = "super-8", automationSignal = { sinal })
+
+            PaymentAlertKind.entries.forEach { kind ->
+                assertFalse(alertas.report(kind, detalhe = "pacotes=0"), "$sinal/$kind não pode sair do aparelho")
+            }
+            assertTrue(crash.messages.isEmpty(), "nada ao CrashReporter com $sinal")
+        }
+    }
+
+    @Test
+    fun test_lab_em_particular_cala_o_paywall_sem_plano() {
+        val crash = reporterAtivo()
+        val alertas = PaymentAlertReporter(crash, projeto = "super-8", automationSignal = { AutomationSignal.FIREBASE_TEST_LAB })
+
+        assertFalse(alertas.report(PaymentAlertKind.PaywallSemPlano))
+        assertFalse(alertas.report(PaymentAlertKind.LojaIndisponivel))
+        assertTrue(crash.messages.isEmpty())
+    }
+
+    @Test
+    fun uso_real_continua_enviando() {
+        val crash = reporterAtivo()
+        val alertas = PaymentAlertReporter(crash, projeto = "super-8", automationSignal = { null })
+
+        assertTrue(alertas.report(PaymentAlertKind.PaywallSemPlano))
+        assertEquals(1, crash.messages.size)
+    }
+
+    @Test
+    fun default_le_o_modo_automacao_do_processo() {
+        // Processo de teste comum não é automação: o default (AutomationMode.signal) deixa enviar.
+        val crash = reporterAtivo()
+        assertTrue(PaymentAlertReporter(crash, projeto = "super-8").report(PaymentAlertKind.CompraFalhou))
     }
 }

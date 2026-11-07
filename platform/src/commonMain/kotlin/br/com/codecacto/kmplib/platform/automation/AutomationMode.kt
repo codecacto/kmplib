@@ -75,6 +75,44 @@ enum class AutomationSignal {
      * primeiro valia, e num app assim a marca nunca pegava (LocAki: tour aberto na suíte, 19/out/2026).
      */
     QA_RUNNER,
+
+    /**
+     * O processo roda no **Firebase Test Lab** (2.350.0) — inclusive o **relatório de pré-lançamento
+     * da Google Play**, que é o Test Lab executando o AAB **de release** enviado ao Console, com robô
+     * de rastreamento em aparelhos do Google (OnePlus 8 Pro, Galaxy S25 Ultra…) **sem conta Google**.
+     *
+     * Detecção pelo método DOCUMENTADO pelo Google (Test Lab → "Detect Test Lab"):
+     * `Settings.System.getString(contentResolver, "firebase.test.lab") == "true"`. É uma chave que o
+     * próprio Test Lab grava no aparelho de teste; aparelho de usuário não a tem. Por isso este sinal
+     * — diferente da marca do runner — **vale também em release**: é justamente o release que o
+     * pré-lançamento testa, e é dele que vinham os falsos alertas.
+     *
+     * | Plataforma | Como a lib lê | Quando |
+     * |---|---|---|
+     * | Android | `Settings.System` (`FirebaseTestLabSignal.SETTINGS_KEY`), uma vez por processo, com o `Context` do `initKmpLibPlatform`/`initKmpLibCore` | debug **e** release |
+     * | iOS | — **não existe equivalente**: o Test Lab de iOS não grava marca documentada no aparelho, e a Apple não roda robô de pré-lançamento | nunca |
+     *
+     * **Efeito:** o mesmo de todo sinal ([AutomationMode.suppressesAutomaticPrompts] — o robô não tem
+     * o que fazer com avaliação, atualização opcional, tour nem comunicado, e eles só atrapalham o
+     * rastreamento das telas) **mais** o de todo `isActive`: presença diária e estatística de modal
+     * não contam (robô não é usuário), `InstallId.forTelemetry()` é `null` e o
+     * `PaymentAlertReporter` (`kmplib-monetization`) não envia alerta de pagamento ao GlitchTip — a
+     * loja de um aparelho sem conta devolve vazio, e o "paywall sem nenhum plano" que saía a cada
+     * release era falso (Super 8, issues #415/#416).
+     */
+    FIREBASE_TEST_LAB,
+}
+
+/**
+ * A marca do Firebase Test Lab ([AutomationSignal.FIREBASE_TEST_LAB]): chave e valor DOCUMENTADOS
+ * pelo Google (firebase.google.com/docs/test-lab/android/android-studio → "Detect Test Lab").
+ */
+object FirebaseTestLabSignal {
+    /** Chave de `Settings.System` que o Test Lab grava no aparelho de teste. */
+    const val SETTINGS_KEY: String = "firebase.test.lab"
+
+    /** Só o valor documentado, `"true"`, liga (comparação exata, como no exemplo oficial). */
+    fun isOnValue(raw: String?): Boolean = raw == "true"
 }
 
 /**
@@ -138,9 +176,21 @@ object QaRunnerSignal {
  *   (`setprop` no emulador, `defaults write -g` no simulador), lida a cada consulta e só em binário
  *   de depuração. É o que cobre o app que NÃO vende pela loja (sem dublê) sem nenhuma linha nele.
  *
- * Build de release não tem nenhum dos quatro: a `kmplib-testing` não é dependência dele, aparelho de
- * usuário não está em Test Harness Mode (ligar o modo apaga os dados do aparelho) e a marca do runner
- * só é lida em binário depurável.
+ * - **O Firebase Test Lab** ([AutomationSignal.FIREBASE_TEST_LAB], 2.350.0) — chave documentada
+ *   `firebase.test.lab` em `Settings.System`, lida uma vez por processo. É o ÚNICO sinal que vale em
+ *   release, porque o relatório de pré-lançamento da Play roda o AAB de release no Test Lab.
+ *
+ * Aparelho de usuário não tem nenhum dos cinco: a `kmplib-testing` não é dependência do release,
+ * aparelho de usuário não está em Test Harness Mode (ligar o modo apaga os dados do aparelho), a
+ * marca do runner só é lida em binário depurável e a chave do Test Lab só existe no aparelho do Test
+ * Lab.
+ *
+ * ## Além dos pedidos: o que mais lê [isActive]
+ *
+ * Presença diária (`AppPresence`) e estatística de modal (`ModalEvents`) não contam,
+ * `InstallId.forTelemetry()` é `null`, e o `PaymentAlertReporter` não envia alerta de pagamento ao
+ * GlitchTip (2.350.0 — teste nunca fala com o GlitchTip de produção; loja sem conta real devolve
+ * vazio e o alerta seria falso).
  */
 object AutomationMode {
 
@@ -151,6 +201,7 @@ object AutomationMode {
     val signal: AutomationSignal?
         get() = declared
             ?: if (isDeviceInTestHarness()) AutomationSignal.DEVICE_TEST_HARNESS
+            else if ((firebaseTestLabOverride ?: ::isFirebaseTestLab)()) AutomationSignal.FIREBASE_TEST_LAB
             else if ((qaRunnerMarkOverride ?: ::isQaRunnerMarked)()) AutomationSignal.QA_RUNNER
             else null
 
@@ -177,6 +228,16 @@ object AutomationMode {
         declared = null
     }
 }
+
+/**
+ * O processo roda no Firebase Test Lab (relatório de pré-lançamento da Play incluso)? Android lê
+ * `Settings.System`; iOS é sempre `false`. Ver [AutomationSignal.FIREBASE_TEST_LAB].
+ */
+internal expect fun isFirebaseTestLab(): Boolean
+
+/** Só para teste da lib: substitui a leitura da marca do Test Lab. */
+@Volatile
+internal var firebaseTestLabOverride: (() -> Boolean)? = null
 
 /** Test Harness Mode / Monkey no Android; `false` no iOS (sem equivalente na plataforma). */
 internal expect fun isDeviceInTestHarness(): Boolean

@@ -43,4 +43,31 @@ class QaRunnerSignalAndroidTest {
             AutomationContextHolder.fallback = original
         }
     }
+
+    @Test
+    fun testLabSemContextoNaoVale() {
+        assertFalse(readFirebaseTestLabSetting(null))
+    }
+
+    @Test
+    fun testLabComFalhaNoResolverNaoVaiAoAr() {
+        // Context sem base (getContentResolver lança) ou framework de stub: não é Test Lab, sem lançar.
+        val semBase = object : ContextWrapper(null) {
+            override fun getApplicationContext(): Context = this
+        }
+        assertFalse(readFirebaseTestLabSetting(semBase))
+    }
+
+    @Test
+    fun testLabSemContextoNaoFixaAResposta() {
+        val original = AutomationContextHolder.fallback
+        try {
+            FirebaseTestLabProbe.resetForTest()
+            AutomationContextHolder.fallback = { null }
+            assertFalse(isFirebaseTestLab())
+        } finally {
+            AutomationContextHolder.fallback = original
+            FirebaseTestLabProbe.resetForTest()
+        }
+    }
 }

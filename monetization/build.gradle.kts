@@ -10,6 +10,10 @@ kotlin {
             api(project(":kmplib-ui"))
             // O relato de falha de pagamento vai para o Sentry.
             api(project(":kmplib-observability"))
+            // AutomationMode (2.350.0): alerta de pagamento não sai de processo de teste (Test Lab,
+            // runner de QA, dublê). Já vinha transitivo pelo kmplib-ui; declarado por ser uso direto.
+            // Sem ciclo: o kmplib-platform só depende do kmplib-core.
+            api(project(":kmplib-platform"))
 
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)

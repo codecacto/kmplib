@@ -9,6 +9,11 @@ import kotlin.native.Platform
 // da marca do runner de QA no simulador (`isQaRunnerMarked`).
 internal actual fun isDeviceInTestHarness(): Boolean = false
 
+// Sem equivalente no iOS: o Firebase Test Lab de iOS não grava marca documentada no aparelho (a
+// chave `firebase.test.lab` é de `Settings.System`, só Android), e a App Store não roda robô de
+// pré-lançamento sobre o binário de release. Ver [AutomationSignal.FIREBASE_TEST_LAB].
+internal actual fun isFirebaseTestLab(): Boolean = false
+
 /**
  * O binário é de SIMULADOR? Decidido na COMPILAÇÃO, por alvo (`iosSimulatorArm64`/`iosX64` = true,
  * `iosArm64` = false) — o equivalente Kotlin do `#if targetEnvironment(simulator)` do Swift. Não há

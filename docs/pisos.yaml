@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.350.0
+    motivo: "alerta de pagamento falso (\"paywall sem nenhum plano\", Fatal) vindo do pré-lançamento da Play / Firebase Test Lab a cada release"
+    simbolos: [PaymentAlertReporter]
+
   - versao: 2.344.0
     motivo: "iOS: as origens da folha de anexo ainda não abriam na 2.343.0 — o seletor era apresentado na janela da folha (Compose LayersWindow), que some com ela"
     simbolos: [rememberAttachmentPicker]

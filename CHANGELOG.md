@@ -5,6 +5,37 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.350.0 — Firebase Test Lab liga o modo automação; alerta de pagamento não sai de processo de teste
+
+**Correção (falso alarme de pagamento). Não é aviso** — nada deixa de funcionar para o usuário; o que
+some é ruído no GlitchTip/Discord. Origem: Super 8, issues #415 ("PAGAMENTO: paywall sem nenhum plano —
+impossível vender", Fatal) e #416 ("loja sem pacotes de assinatura"), vindas de OnePlus8Pro/SM-S938U a
+cada release, com a offering da RevenueCat certa e venda real no período (diagnóstico de 25/out/2026,
+`Nexus/docs/tarefas/2026-10-25-zerar-crashes-e-avisos.md` P4/C5). Esses aparelhos são do **relatório de
+pré-lançamento da Google Play**, que é o Firebase Test Lab rodando o AAB **de release** sem conta Google:
+a loja devolve vazio.
+
+- **`AutomationSignal.FIREBASE_TEST_LAB`** (`kmplib-platform`): detectado pelo método documentado pelo
+  Google — `Settings.System.getString(contentResolver, "firebase.test.lab") == "true"`
+  (`FirebaseTestLabSignal.SETTINGS_KEY`/`isOnValue`). Lido uma vez por processo, com o `Context` do
+  `initKmpLibPlatform` ou do `initKmpLibCore`. **Vale em release** (é o release que o pré-lançamento
+  testa). **iOS: não existe equivalente** — sempre desligado.
+- Efeito do sinal novo = o de todo sinal: `suppressesAutomaticPrompts` (avaliação, atualização
+  opcional, tour e comunicado fechável não abrem para o robô) e tudo que lê `isActive` (presença e
+  `ModalEvents` não contam, `InstallId.forTelemetry()` = `null`).
+- **`PaymentAlertReporter.report`** (`kmplib-monetization`): com **qualquer** sinal de automação (Test
+  Lab, runner de QA, Test Harness, dublê da loja, `activate`) o alerta fica só no `AppLogger` e devolve
+  `false` — nada vai ao `CrashReporter`. Critério: alerta de pagamento num processo onde a loja não tem
+  conta real é sempre falso positivo; e teste não fala com o GlitchTip de produção. Parâmetro novo
+  `automationSignal: () -> AutomationSignal?` (default `AutomationMode.signal`) é a costura de teste;
+  chamadas existentes compilam igual.
+- `kmplib-monetization` declara `api(project(":kmplib-platform"))` (já vinha transitivo pelo
+  `kmplib-ui`; sem ciclo — o platform só depende do core).
+- `AutomationSignal` ganhou valor: `when` exaustivo sobre ele no app precisa do ramo novo (nenhum app da
+  fábrica faz isso hoje).
+
+**Ação:** nenhuma no app além do bump. Piso em `docs/pisos.yaml` (símbolo `PaymentAlertReporter`).
+
 ## 2.349.0 — Feedback: contato pelo alcance do app (BR × GLOBAL), nasce preenchido com quem está logado, topo só com o título
 
 **Aditivo. Não é aviso.** Rodada 2 da tela (fundador, 07/nov/2026, depois de ver a 2.347.0 no aparelho).

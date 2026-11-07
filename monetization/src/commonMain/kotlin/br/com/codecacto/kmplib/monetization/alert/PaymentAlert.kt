@@ -3,6 +3,8 @@ package br.com.codecacto.kmplib.monetization.alert
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.observability.CrashLevel
 import br.com.codecacto.kmplib.observability.CrashReporter
+import br.com.codecacto.kmplib.platform.automation.AutomationMode
+import br.com.codecacto.kmplib.platform.automation.AutomationSignal
 
 /**
  * O que aconteceu de errado no caminho do dinheiro. Cada tipo tem **título estável** (o GlitchTip
@@ -158,15 +160,30 @@ enum class PaymentAlertKind(
  * várias vezes e o fallback dispararia em todas). Reincidência dentro da sessão só entra no log
  * local. Passe `umaVezPorSessao = false` para desligar (útil em teste).
  *
+ * **Processo de automação não alerta (2.350.0).** Com `AutomationMode.signal` ligado — Firebase
+ * Test Lab (o relatório de pré-lançamento da Play), runner de QA da fábrica, Test Harness do
+ * Android, dublê da loja ou `AutomationMode.activate` — o alerta fica SÓ no log local
+ * (`AppLogger`) e [report] devolve `false`; nada vai ao `CrashReporter`. Vale para TODO sinal, não
+ * só o do Test Lab, porque o critério é um só: **alerta de pagamento num processo onde a loja não
+ * tem conta real é sempre falso positivo** — o aparelho do Test Lab não tem conta Google e a loja
+ * devolve vazio; o dublê não é a loja; o emulador do runner testa o app, não o catálogo. E a regra
+ * da fábrica já era essa: teste nunca fala com o GlitchTip de produção, o resultado fica no
+ * relatório do próprio teste. Caso que originou: Super 8, issues #415 ("paywall sem nenhum plano",
+ * Fatal) e #416 ("loja sem pacotes") vindas de OnePlus8Pro/SM-S938U a cada release, com a offering
+ * certa e venda real no mesmo período.
+ *
  * @param reporter reporter injetado pelo app (Koin `crashReporterModule`). Se ele estiver inativo
  *   (DSN em branco), [report] avisa no log — alerta de pagamento indo para o vazio é, ele mesmo,
  *   um defeito.
  * @param projeto slug do projeto (`admin_projects.slug`), vira tag `projeto` no evento.
+ * @param automationSignal o sinal de automação do processo, `null` = uso real (troque em teste;
+ *   default: `AutomationMode.signal`).
  */
 class PaymentAlertReporter(
     private val reporter: CrashReporter,
     private val projeto: String,
     private val umaVezPorSessao: Boolean = true,
+    private val automationSignal: () -> AutomationSignal? = { runCatching { AutomationMode.signal }.getOrNull() },
 ) {
 
     private val jaReportados = mutableSetOf<String>()
@@ -222,6 +239,16 @@ class PaymentAlertReporter(
                 if (repetido) " (repetido na sessão — não reenviado)" else "",
         )
         if (repetido) return false
+
+        val automacao = automationSignal()
+        if (automacao != null) {
+            AppLogger.i(
+                TAG,
+                "${kind.slug}: não enviado ao CrashReporter — processo de automação ($automacao); " +
+                    "a loja aqui não tem conta real e o alerta seria falso.",
+            )
+            return false
+        }
 
         if (!reporter.isActive) {
             AppLogger.e(

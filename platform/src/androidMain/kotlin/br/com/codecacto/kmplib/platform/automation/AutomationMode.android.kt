@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.provider.Settings
 import br.com.codecacto.kmplib.core.context.AndroidAppContext
 import kotlin.concurrent.Volatile
 
@@ -78,3 +79,42 @@ internal actual fun isQaRunnerMarked(): Boolean =
     // A elegibilidade é memorizada pelo probe, então só se consulta depois que há Context — antes
     // disso responde `false` sem fixar "não elegível" para o resto do processo.
     AutomationContextHolder.contextOrNull() != null && qaRunnerProbe.isOn()
+
+/**
+ * Lê a chave do Firebase Test Lab pelo método documentado pelo Google:
+ * `Settings.System.getString(contentResolver, "firebase.test.lab")`. Qualquer falha (sem `Context`,
+ * JVM de teste com o stub do framework, `SecurityException` de fabricante) = não é Test Lab — fecha
+ * para o lado que mantém o comportamento de produção.
+ */
+internal fun readFirebaseTestLabSetting(context: Context?): Boolean {
+    if (context == null) return false
+    return try {
+        val resolver = context.contentResolver ?: return false
+        FirebaseTestLabSignal.isOnValue(Settings.System.getString(resolver, FirebaseTestLabSignal.SETTINGS_KEY))
+    } catch (_: Exception) {
+        false
+    }
+}
+
+/**
+ * Memória da leitura: a chave é gravada pelo Test Lab ANTES de o app abrir e não muda durante o
+ * processo, então basta ler uma vez — mas só depois que há `Context` (antes disso responde `false`
+ * sem fixar a resposta, igual à marca do runner).
+ */
+internal object FirebaseTestLabProbe {
+    @Volatile
+    private var cached: Boolean? = null
+
+    fun isOn(): Boolean {
+        cached?.let { return it }
+        val context = AutomationContextHolder.contextOrNull() ?: return false
+        return readFirebaseTestLabSetting(context).also { cached = it }
+    }
+
+    /** Só para teste: esquece a leitura memorizada. */
+    internal fun resetForTest() {
+        cached = null
+    }
+}
+
+internal actual fun isFirebaseTestLab(): Boolean = FirebaseTestLabProbe.isOn()
