@@ -136,6 +136,11 @@
     <string name="kmplib_feedback_error">Error sending feedback. Try again.</string>
     <string name="kmplib_feedback_contact_label">So we can reply</string>
     <string name="kmplib_feedback_success_reason_label">Reason</string>
+    <string name="kmplib_feedback_subtitle_email">We read every message and reply by email.</string>
+    <string name="kmplib_feedback_success_email">We got your message. If we need more details, we'll reach you by email.</string>
+    <string name="kmplib_feedback_email_required_label">Your email</string>
+    <string name="kmplib_feedback_whatsapp_optional_label">Your WhatsApp (optional)</string>
+    <string name="kmplib_feedback_email_required_error">Enter your email</string>
     <string name="kmplib_feedback_reason_error">Select a reason</string>
     <string name="kmplib_feedback_message_error">Enter your message</string>
     <string name="kmplib_email_error">Invalid email.</string>

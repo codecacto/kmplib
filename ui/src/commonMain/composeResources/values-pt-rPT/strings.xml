@@ -136,6 +136,11 @@
     <string name="kmplib_feedback_error">Erro ao enviar os comentários. Tente novamente.</string>
     <string name="kmplib_feedback_contact_label">Para lhe respondermos</string>
     <string name="kmplib_feedback_success_reason_label">Motivo</string>
+    <string name="kmplib_feedback_subtitle_email">Lemos cada mensagem e respondemos por e-mail.</string>
+    <string name="kmplib_feedback_success_email">Recebemos a sua mensagem. Se precisarmos de mais detalhes, falamos consigo por e-mail.</string>
+    <string name="kmplib_feedback_email_required_label">O seu e-mail</string>
+    <string name="kmplib_feedback_whatsapp_optional_label">O seu WhatsApp (opcional)</string>
+    <string name="kmplib_feedback_email_required_error">Indique o seu e-mail</string>
     <string name="kmplib_feedback_reason_error">Selecione um motivo</string>
     <string name="kmplib_feedback_message_error">Escreva a sua mensagem</string>
     <string name="kmplib_email_error">E-mail inválido.</string>

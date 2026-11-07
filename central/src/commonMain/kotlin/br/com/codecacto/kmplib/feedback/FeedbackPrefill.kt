@@ -25,3 +25,11 @@ internal fun feedbackInitialMessage(initialMessage: String?): String =
  */
 internal fun shouldSeedFeedbackField(alreadySeeded: Boolean, hasIncoming: Boolean, fieldIsEmpty: Boolean): Boolean =
     !alreadySeeded && hasIncoming && fieldIsEmpty
+
+/**
+ * Valor com que um campo de contato (nome, e-mail, WhatsApp) nasce (2.349.0): o que o APP passou à
+ * tela ([screenValue] — `defaultName`/`defaultEmail`/`defaultWhatsapp`) vence; sem ele, o usuário
+ * logado que o [FeedbackService] já conhece ([serviceValue], de `updateUser`). Em branco = ausente.
+ */
+internal fun feedbackPrefillValue(screenValue: String?, serviceValue: String?): String? =
+    screenValue?.takeIf { it.isNotBlank() } ?: serviceValue?.takeIf { it.isNotBlank() }

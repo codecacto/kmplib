@@ -39,4 +39,13 @@ class FeedbackPrefillTest {
     fun naoSobrescreveOQueAPessoaPreencheu() {
         assertFalse(shouldSeedFeedbackField(alreadySeeded = false, hasIncoming = true, fieldIsEmpty = false))
     }
+
+    @Test
+    fun valorDaTelaVenceODoServico() {
+        assertEquals("Ana", feedbackPrefillValue("Ana", "Mariana"))
+        assertEquals("Mariana", feedbackPrefillValue(null, "Mariana"))
+        assertEquals("Mariana", feedbackPrefillValue("  ", "Mariana"))
+        assertEquals(null, feedbackPrefillValue("", " "))
+        assertEquals(null, feedbackPrefillValue(null, null))
+    }
 }

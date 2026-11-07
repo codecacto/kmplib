@@ -10,6 +10,10 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 
 /**
@@ -37,7 +41,12 @@ import kotlinx.serialization.json.Json
  * )
  *
  * // Após login (opcional)
- * FeedbackService.updateUser(userId = "abc123", userEmail = "user@email.com")
+ * FeedbackService.updateUser(
+ *     userId = "abc123",
+ *     userEmail = "user@email.com",
+ *     userName = "Mariana Costa",      // 2.349.0: a tela nasce com nome, e-mail e WhatsApp
+ *     userPhone = "65999998888",
+ * )
  * ```
  *
  * ## Uso direto
@@ -61,8 +70,18 @@ object FeedbackService {
         encodeDefaults = false // não serializa campos nulos (opcionais omitidos)
     }
 
-    private var _config: FeedbackConfig? = null
+    private val _configFlow = MutableStateFlow<FeedbackConfig?>(null)
+    private var _config: FeedbackConfig?
+        get() = _configFlow.value
+        set(value) { _configFlow.value = value }
     val config: FeedbackConfig? get() = _config
+
+    /**
+     * A configuração como fluxo (2.349.0): a `FeedbackScreen` observa para nascer preenchida com o
+     * usuário logado mesmo quando o [updateUser] chega DEPOIS de a tela abrir (perfil lido em segundo
+     * plano).
+     */
+    val configFlow: StateFlow<FeedbackConfig?> = _configFlow.asStateFlow()
 
     /**
      * Inicializa o serviço de feedback.
@@ -73,10 +92,19 @@ object FeedbackService {
     }
 
     /**
-     * Atualiza dados do usuário (chamar após login/logout).
+     * Atualiza dados do usuário (chamar após login/logout — no logout, sem argumentos).
+     *
+     * Desde a 2.349.0 aceita também [userName] e [userPhone]: com eles a `FeedbackScreen` nasce com
+     * nome, e-mail e WhatsApp de quem está logado (a pessoa ainda pode editar). Quem chama só com
+     * `userId`/`userEmail` continua igual.
      */
-    fun updateUser(userId: String = "", userEmail: String = "") {
-        _config = _config?.copy(userId = userId, userEmail = userEmail)
+    fun updateUser(
+        userId: String = "",
+        userEmail: String = "",
+        userName: String = "",
+        userPhone: String = "",
+    ) {
+        _configFlow.update { it?.copy(userId = userId, userEmail = userEmail, userName = userName, userPhone = userPhone) }
     }
 
     /**

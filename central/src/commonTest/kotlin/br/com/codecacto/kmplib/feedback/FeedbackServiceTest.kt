@@ -146,4 +146,19 @@ class FeedbackServiceTest {
         assertTrue(res.isSuccess)
         assertTrue(bodyJson(cap)["message"]!!.jsonPrimitive.content.contains("direto"))
     }
+
+    @Test
+    fun `updateUser guarda nome e telefone e o fluxo publica o usuario logado`() {
+        init()
+        FeedbackService.updateUser(userId = "u1", userEmail = "mariana@codecacto.com.br", userName = "Mariana Costa", userPhone = "65999998888")
+        val cfg = FeedbackService.configFlow.value
+        kotlin.test.assertEquals("Mariana Costa", cfg?.userName)
+        kotlin.test.assertEquals("65999998888", cfg?.userPhone)
+        kotlin.test.assertEquals("mariana@codecacto.com.br", cfg?.userEmail)
+        // Logout: sem argumentos, tudo volta a vazio; a política de contato não muda.
+        FeedbackService.updateUser()
+        kotlin.test.assertEquals("", FeedbackService.config?.userName)
+        kotlin.test.assertEquals("", FeedbackService.config?.userPhone)
+        kotlin.test.assertEquals(FeedbackContactPolicy.WHATSAPP_REQUIRED, FeedbackService.config?.contactPolicy)
+    }
 }

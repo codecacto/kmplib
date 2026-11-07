@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.349.0 — Feedback: contato pelo alcance do app (BR × GLOBAL), nasce preenchido com quem está logado, topo só com o título
+
+**Aditivo. Não é aviso.** Rodada 2 da tela (fundador, 07/nov/2026, depois de ver a 2.347.0 no aparelho).
+
+- **Cabeçalho só com o título.** A linha de contexto ("Lemos cada mensagem e respondemos pelo WhatsApp.")
+  desceu para o corpo, logo abaixo do título da seção do motivo, em texto mais leve.
+- **`FeedbackContactPolicy`** (`WHATSAPP_REQUIRED` | `EMAIL_REQUIRED`) + `forStoreReach("BR"|"GLOBAL")`:
+  app BR = WhatsApp obrigatório, e-mail opcional (o de sempre, e o default); app GLOBAL = **e-mail
+  obrigatório e primeiro** no bloco, WhatsApp opcional (se preenchido, tem de estar completo). Declarado UMA
+  vez: `FeedbackConfig(contactPolicy = …)` ou `CentralServicesConfig(feedbackContactPolicy = …)`; a tela lê
+  de lá (`FeedbackScreen(contactPolicy = …)` só para fugir da regra). Contexto, rótulos, erro ("Informe seu
+  e-mail"), confirmação e resumo seguem a política. A lib não sabia o alcance do app (nenhum config o
+  carregava, e deduzir pelos idiomas mudaria o comportamento de app BR que não declara idiomas) — por isso
+  é declaração explícita, com default = comportamento atual.
+- **Nasce preenchido para TODO app:** `FeedbackService.updateUser(userId, userEmail, userName = "",
+  userPhone = "")` (os dois últimos novos) e `FeedbackConfig.userName`/`userPhone`; a tela observa
+  `FeedbackService.configFlow` e usa nome, e-mail e telefone do serviço como valor inicial.
+  `defaultName`/`defaultEmail`/`defaultWhatsapp` da tela vencem o do serviço. Semeia uma vez por campo, nunca
+  por cima do que a pessoa digitou; telefone normalizado (dígitos, E.164 ou mascarado) e desenhado pela máscara.
+- Textos novos nos 4 idiomas: `subtitleEmail`, `successMessageEmail`, `emailRequiredLabel`,
+  `whatsappOptionalLabel`, `emailRequiredError`.
+
 ## 2.347.0 — `FeedbackScreen` redesenhada: motivo em cartões, envio fixo no rodapé e confirmação de verdade
 
 **Aditivo (mesma assinatura). Não é aviso.** Origem: CampoRaiz (fundador, 07/nov/2026: *"é muito feia essa tela;

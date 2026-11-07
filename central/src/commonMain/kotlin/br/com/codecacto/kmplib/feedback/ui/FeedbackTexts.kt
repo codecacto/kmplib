@@ -35,6 +35,11 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_whatsapp_error
 import br.com.codecacto.kmplib.generated.resources.kmplib_back
 import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_contact_label
 import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_success_reason_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_subtitle_email
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_success_email
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_email_required_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_whatsapp_optional_label
+import br.com.codecacto.kmplib.generated.resources.kmplib_feedback_email_required_error
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 
 /**
@@ -47,7 +52,11 @@ import br.com.codecacto.kmplib.ui.locale.kmpStringResource
  */
 data class FeedbackTexts(
     val title: String = "Deixe seu Feedback",
-    /** A linha de contexto do cabeçalho — o que acontece com a mensagem (2.347.0). */
+    /**
+     * A linha de contexto — o que acontece com a mensagem (2.347.0). Desde a 2.349.0 fica no corpo,
+     * logo abaixo do título da seção do motivo (o cabeçalho leva só o título). Com a política
+     * [br.com.codecacto.kmplib.feedback.FeedbackContactPolicy.EMAIL_REQUIRED] vale [subtitleEmail].
+     */
     val subtitle: String = "Lemos cada mensagem e respondemos pelo WhatsApp.",
     val motivoLabel: String = "Qual o motivo do seu feedback?",
     val motivoSugestao: String = "Sugestão",
@@ -83,6 +92,16 @@ data class FeedbackTexts(
     val contactSectionLabel: String = "Para te responder",
     /** Rótulo do motivo no resumo da confirmação de envio (2.347.0). */
     val successReasonLabel: String = "Motivo",
+    /** [subtitle] do app GLOBAL — o retorno é por e-mail (2.349.0). */
+    val subtitleEmail: String = "Lemos cada mensagem e respondemos por e-mail.",
+    /** [successMessage] do app GLOBAL — o retorno é por e-mail (2.349.0). */
+    val successMessageEmail: String = "Recebemos sua mensagem. Se precisarmos de mais detalhes, falamos com você por e-mail.",
+    /** Rótulo do e-mail quando ele é o contato obrigatório (app GLOBAL, 2.349.0). */
+    val emailRequiredLabel: String = "Seu e-mail",
+    /** Rótulo do WhatsApp quando ele é opcional (app GLOBAL, 2.349.0). */
+    val whatsappOptionalLabel: String = "Seu WhatsApp (opcional)",
+    /** Erro do e-mail obrigatório deixado em branco (app GLOBAL, 2.349.0). */
+    val emailRequiredError: String = "Informe seu e-mail",
 )
 
 /**
@@ -122,6 +141,11 @@ fun rememberFeedbackTexts(phoneFormat: PhoneInputFormat = rememberDevicePhoneInp
         backContentDescription = kmpStringResource(Res.string.kmplib_back),
         contactSectionLabel = kmpStringResource(Res.string.kmplib_feedback_contact_label),
         successReasonLabel = kmpStringResource(Res.string.kmplib_feedback_success_reason_label),
+        subtitleEmail = kmpStringResource(Res.string.kmplib_feedback_subtitle_email),
+        successMessageEmail = kmpStringResource(Res.string.kmplib_feedback_success_email),
+        emailRequiredLabel = kmpStringResource(Res.string.kmplib_feedback_email_required_label),
+        whatsappOptionalLabel = kmpStringResource(Res.string.kmplib_feedback_whatsapp_optional_label),
+        emailRequiredError = kmpStringResource(Res.string.kmplib_feedback_email_required_error),
     )
 
 /**

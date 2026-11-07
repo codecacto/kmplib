@@ -7,6 +7,7 @@ import br.com.codecacto.kmplib.contact.ContactService
 import br.com.codecacto.kmplib.developer.DeveloperConfig
 import br.com.codecacto.kmplib.developer.DeveloperInfoService
 import br.com.codecacto.kmplib.feedback.FeedbackConfig
+import br.com.codecacto.kmplib.feedback.FeedbackContactPolicy
 import br.com.codecacto.kmplib.feedback.AppReviewService
 import br.com.codecacto.kmplib.feedback.AppReviewServiceConfig
 import br.com.codecacto.kmplib.feedback.FeedbackService
@@ -87,6 +88,7 @@ object CentralServices {
                     appVersion = config.appVersion,
                     userId = config.userId,
                     userEmail = config.userEmail,
+                    contactPolicy = config.feedbackContactPolicy,
                 ),
             )
         }
@@ -217,6 +219,11 @@ data class CentralServicesConfig(
     val enableModalEvents: Boolean = true,
     val enableReviewConfig: Boolean = true,
     val presencePayingProvider: (suspend () -> Boolean?)? = null,
+    /**
+     * Canal obrigatório de retorno da `FeedbackScreen` pelo alcance do app (2.349.0):
+     * `FeedbackContactPolicy.forStoreReach("GLOBAL")` = e-mail obrigatório. Default: WhatsApp (o de sempre).
+     */
+    val feedbackContactPolicy: FeedbackContactPolicy = FeedbackContactPolicy.WHATSAPP_REQUIRED,
 ) {
     companion object {
         const val DEFAULT_APPS_API_BASE_URL: String = "https://apps-api.codecacto.com.br"

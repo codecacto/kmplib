@@ -50,6 +50,7 @@ import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -68,6 +69,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,7 +100,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.feedback.FeedbackContactPolicy
 import br.com.codecacto.kmplib.feedback.FeedbackField
+import br.com.codecacto.kmplib.feedback.feedbackPrefillValue
 import br.com.codecacto.kmplib.feedback.FeedbackMotivo
 import br.com.codecacto.kmplib.feedback.FeedbackService
 import br.com.codecacto.kmplib.feedback.FeedbackSource
@@ -148,9 +152,10 @@ object FeedbackTestTags {
  *
  * ## Desenho (2.347.0)
  *
- * Cabeçalho com voltar, título e uma linha de contexto ([FeedbackTexts.subtitle]); o motivo em
- * CARTÕES com ícone (grade de 2 colunas no telefone, 3 fora dele); a mensagem num campo generoso; o
- * bloco "Para te responder" com WhatsApp (o único obrigatório, primeiro), nome e e-mail; e o botão **Enviar fixo no rodapé**, que
+ * Cabeçalho só com voltar e título; no corpo, o título da seção do motivo com a linha de contexto
+ * logo abaixo ([FeedbackTexts.subtitle], 2.349.0); o motivo em CARTÕES com ícone (grade de 2 colunas no telefone, 3 fora dele); a mensagem num campo generoso; o
+ * bloco "Para te responder" com o canal obrigatório primeiro, nome e o canal opcional (ver
+ * [FeedbackContactPolicy]: app BR = WhatsApp obrigatório; app GLOBAL = e-mail obrigatório); e o botão **Enviar fixo no rodapé**, que
  * acompanha o teclado. O botão envia sempre: os campos recusados são marcados todos de uma vez, no
  * próprio campo, e o primeiro é trazido à vista; a recusa do SERVIDOR aparece numa faixa logo acima do
  * botão. Enviado, a tela vira uma confirmação (selo animado, mensagem, resumo do motivo e do WhatsApp
@@ -164,9 +169,11 @@ object FeedbackTestTags {
  * )
  * ```
  *
- * O feedback é IDENTIFICADO: nome (opcional), e-mail (opcional) e WhatsApp (OBRIGATÓRIO) podem ser
- * pré-preenchidos via [defaultName]/[defaultEmail]/[defaultWhatsapp] quando o app já conhece o
- * usuário. Se vazios, o usuário digita.
+ * O feedback é IDENTIFICADO. **Nasce preenchido com quem está logado** (2.349.0): nome, e-mail e
+ * WhatsApp vêm de [defaultName]/[defaultEmail]/[defaultWhatsapp] e, sem eles, do que o app entregou
+ * ao `FeedbackService.updateUser(userId, userEmail, userName, userPhone)` — o app que já chama o
+ * `updateUser` no login não precisa passar nada à tela. Valor que chega depois de a tela abrir entra
+ * uma vez por campo, e nunca por cima do que a pessoa digitou.
  *
  * @param onBack Callback para voltar à tela anterior
  * @param primaryColor Cor de destaque (motivo escolhido, botão, selo da confirmação). Default: a
@@ -223,10 +230,28 @@ fun FeedbackScreen(
     // Antes de `onFeedbackSent` para não roubar a posição de trailing lambda (2.341.0).
     initialMotivo: FeedbackMotivo? = null,
     initialMessage: String? = null,
+    /**
+     * Canal obrigatório de retorno (2.349.0). `null` (default) = o declarado na inicialização
+     * ([br.com.codecacto.kmplib.feedback.FeedbackConfig.contactPolicy] /
+     * `CentralServicesConfig.feedbackContactPolicy`), que por sua vez é WhatsApp por default. Passe
+     * aqui só para uma tela que precise fugir da regra do app.
+     */
+    contactPolicy: FeedbackContactPolicy? = null,
     onFeedbackSent: (() -> Unit)? = null
 ) {
     @Suppress("NAME_SHADOWING")
     val texts: FeedbackTexts = texts ?: rememberFeedbackTexts(phoneFormat)
+    // O usuário logado que o serviço já conhece (`FeedbackService.updateUser`, 2.349.0): é o valor
+    // com que nome, e-mail e WhatsApp nascem quando o app não passa `default*`. Observado, porque o
+    // perfil costuma chegar depois de a tela abrir.
+    val serviceConfig by FeedbackService.configFlow.collectAsState()
+    val policy = contactPolicy ?: serviceConfig?.contactPolicy ?: FeedbackContactPolicy.WHATSAPP_REQUIRED
+    @Suppress("NAME_SHADOWING")
+    val defaultName = feedbackPrefillValue(defaultName, serviceConfig?.userName)
+    @Suppress("NAME_SHADOWING")
+    val defaultEmail = feedbackPrefillValue(defaultEmail, serviceConfig?.userEmail)
+    @Suppress("NAME_SHADOWING")
+    val defaultWhatsapp = feedbackPrefillValue(defaultWhatsapp, serviceConfig?.userPhone)
     var selectedMotivo by remember { mutableStateOf(initialMotivo) }
     var mensagem by remember { mutableStateOf(feedbackInitialMessage(initialMessage)) }
     var nome by remember { mutableStateOf(defaultName.orEmpty()) }
@@ -246,21 +271,23 @@ fun FeedbackScreen(
     // Quem chama esta tela lê o perfil de forma assíncrona (`produceState`, `collectAsState`), então
     // na primeira composição os três defaults são `null` e os `remember` capturam string vazia.
     // Semeia **uma vez por campo, quando o valor aparece**, e só se a pessoa ainda não digitou nada.
-    var semeouNome by remember { mutableStateOf(false) }
-    var semeouEmail by remember { mutableStateOf(false) }
-    var semeouWhatsapp by remember { mutableStateOf(false) }
+    // Um valor presente já na 1ª composição conta como semeado (entrou pelo `remember`).
+    var semeouNome by remember { mutableStateOf(!defaultName.isNullOrBlank()) }
+    var semeouEmail by remember { mutableStateOf(!defaultEmail.isNullOrBlank()) }
+    var semeouWhatsapp by remember { mutableStateOf(!defaultWhatsapp.isNullOrBlank()) }
     LaunchedEffect(defaultName, defaultEmail, defaultWhatsapp) {
-        if (!semeouNome && !defaultName.isNullOrBlank()) {
+        if (shouldSeedFeedbackField(semeouNome, !defaultName.isNullOrBlank(), nome.isBlank())) {
             semeouNome = true
-            if (nome.isBlank()) nome = defaultName
+            nome = defaultName.orEmpty()
         }
-        if (!semeouEmail && !defaultEmail.isNullOrBlank()) {
+        if (shouldSeedFeedbackField(semeouEmail, !defaultEmail.isNullOrBlank(), email.isBlank())) {
             semeouEmail = true
-            if (email.isBlank()) email = defaultEmail
+            email = defaultEmail.orEmpty()
         }
-        if (!semeouWhatsapp && !defaultWhatsapp.isNullOrBlank()) {
+        if (shouldSeedFeedbackField(semeouWhatsapp, !defaultWhatsapp.isNullOrBlank(), whatsapp.isBlank())) {
             semeouWhatsapp = true
-            if (whatsapp.isBlank()) whatsapp = phoneFormat.fromStoredValue(defaultWhatsapp)
+            // Normaliza dígitos, E.164 ou número já mascarado; a máscara do campo desenha o resto.
+            whatsapp = phoneFormat.fromStoredValue(defaultWhatsapp)
         }
     }
     // Mesma semeadura para motivo e mensagem iniciais (2.341.0).
@@ -293,11 +320,17 @@ fun FeedbackScreen(
             motivo = selectedMotivo,
             mensagem = mensagem,
             email = email,
+            whatsapp = whatsapp,
             whatsappComplete = phoneFormat.isCompleteWhatsapp(whatsapp),
+            policy = policy,
         )
         motivoError = if (FeedbackField.MOTIVO in recusados) texts.motivoError else null
         mensagemError = if (FeedbackField.MENSAGEM in recusados) texts.mensagemError else null
-        emailError = if (FeedbackField.EMAIL in recusados) texts.emailError else null
+        emailError = when {
+            FeedbackField.EMAIL !in recusados -> null
+            email.isBlank() -> texts.emailRequiredError
+            else -> texts.emailError
+        }
         whatsappError = if (FeedbackField.WHATSAPP in recusados) texts.whatsappError else null
         when (recusados.firstOrNull()) {
             FeedbackField.MOTIVO -> {
@@ -338,7 +371,6 @@ fun FeedbackScreen(
         topBar = {
             FeedbackHeader(
                 title = texts.title,
-                subtitle = if (isSent) null else texts.subtitle,
                 backContentDescription = texts.backContentDescription,
                 backgroundColor = backgroundColor,
                 onBack = onBack,
@@ -372,6 +404,8 @@ fun FeedbackScreen(
                     FeedbackSuccess(
                         texts = texts,
                         motivo = selectedMotivo,
+                        policy = policy,
+                        email = email.trim(),
                         whatsappFormatado = formatWhatsapp(phoneFormat, whatsapp),
                         primaryColor = primaryColor,
                         backgroundColor = backgroundColor,
@@ -402,7 +436,16 @@ fun FeedbackScreen(
                                     modifier = Modifier.bringIntoViewRequester(motivoView),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    SectionTitle(texts.motivoLabel)
+                                    // Título da seção + a linha de contexto (o que acontece com a
+                                    // mensagem), mais leve logo abaixo — 2.349.0: saiu do cabeçalho.
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        SectionTitle(texts.motivoLabel)
+                                        Text(
+                                            text = if (policy == FeedbackContactPolicy.EMAIL_REQUIRED) texts.subtitleEmail else texts.subtitle,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                     MotivoGrid(
                                         texts = texts,
                                         selected = selectedMotivo,
@@ -448,9 +491,10 @@ fun FeedbackScreen(
                                     keepTextLocally = true,
                                 )
 
-                                // Contato
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionTitle(texts.contactSectionLabel)
+                                // Contato — o canal obrigatório da política vem primeiro, o nome no
+                                // meio e o canal opcional por último (2.349.0).
+                                val emailObrigatorio = policy == FeedbackContactPolicy.EMAIL_REQUIRED
+                                val campoWhatsapp: @Composable (ImeAction) -> Unit = { ime ->
                                     AppTextField(
                                         value = whatsapp,
                                         onValueChange = {
@@ -461,9 +505,11 @@ fun FeedbackScreen(
                                         modifier = Modifier
                                             .focusRequester(whatsappFocus)
                                             .testTag(FeedbackTestTags.WHATSAPP),
-                                        label = texts.whatsappLabel,
+                                        label = if (emailObrigatorio) texts.whatsappOptionalLabel else texts.whatsappLabel,
                                         placeholder = texts.whatsappPlaceholder,
                                         keyboardType = KeyboardType.Phone,
+                                        imeAction = ime,
+                                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                                         visualTransformation = phoneFormat.visualTransformation,
                                         errorMessage = whatsappError,
                                         enabled = !isLoading,
@@ -471,6 +517,32 @@ fun FeedbackScreen(
                                         // Sem `keepTextLocally`: o filtro RECUSA o que não é dígito, e com o
                                         // texto local a letra recusada ficaria na tela.
                                     )
+                                }
+                                val campoEmail: @Composable (ImeAction) -> Unit = { ime ->
+                                    AppTextField(
+                                        value = email,
+                                        onValueChange = {
+                                            email = it
+                                            emailError = null
+                                            serverError = null
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(emailFocus)
+                                            .testTag(FeedbackTestTags.EMAIL),
+                                        label = if (emailObrigatorio) texts.emailRequiredLabel else texts.emailLabel,
+                                        placeholder = texts.emailPlaceholder,
+                                        keyboardType = KeyboardType.Email,
+                                        imeAction = ime,
+                                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                                        errorMessage = emailError,
+                                        enabled = !isLoading,
+                                        primaryColor = primaryColor,
+                                        keepTextLocally = true,
+                                    )
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    SectionTitle(texts.contactSectionLabel)
+                                    if (emailObrigatorio) campoEmail(ImeAction.Next) else campoWhatsapp(ImeAction.Next)
                                     AppTextField(
                                         value = nome,
                                         onValueChange = {
@@ -485,26 +557,7 @@ fun FeedbackScreen(
                                         primaryColor = primaryColor,
                                         keepTextLocally = true,
                                     )
-                                    AppTextField(
-                                        value = email,
-                                        onValueChange = {
-                                            email = it
-                                            emailError = null
-                                            serverError = null
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(emailFocus)
-                                            .testTag(FeedbackTestTags.EMAIL),
-                                        label = texts.emailLabel,
-                                        placeholder = texts.emailPlaceholder,
-                                        keyboardType = KeyboardType.Email,
-                                        imeAction = ImeAction.Done,
-                                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                                        errorMessage = emailError,
-                                        enabled = !isLoading,
-                                        primaryColor = primaryColor,
-                                        keepTextLocally = true,
-                                    )
+                                    if (emailObrigatorio) campoWhatsapp(ImeAction.Done) else campoEmail(ImeAction.Done)
                                 }
                             }
                         }
@@ -536,7 +589,6 @@ fun FeedbackScreen(
 @Composable
 private fun FeedbackHeader(
     title: String,
-    subtitle: String?,
     backContentDescription: String,
     backgroundColor: Color,
     onBack: () -> Unit,
@@ -544,25 +596,17 @@ private fun FeedbackHeader(
     val contentColor = contentColorFor(backgroundColor).takeOrElse(MaterialTheme.colorScheme.onSurface)
     TopAppBar(
         title = {
-            Column(Modifier.testTag(TopBarTestTags.TITULO)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { heading() },
-                )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.72f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            // Só o título (2.349.0): a linha de contexto mora no corpo, acima dos motivos.
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .testTag(TopBarTestTags.TITULO)
+                    .semantics { heading() },
+            )
         },
         navigationIcon = {
             IconButton(onClick = onBack, modifier = Modifier.testTag(TopBarTestTags.VOLTAR)) {
@@ -798,6 +842,8 @@ private fun formatWhatsapp(phoneFormat: PhoneInputFormat, digits: String): Strin
 private fun FeedbackSuccess(
     texts: FeedbackTexts,
     motivo: FeedbackMotivo?,
+    policy: FeedbackContactPolicy,
+    email: String,
     whatsappFormatado: String,
     primaryColor: Color,
     backgroundColor: Color,
@@ -860,12 +906,15 @@ private fun FeedbackSuccess(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = texts.successMessage,
+                    text = if (policy == FeedbackContactPolicy.EMAIL_REQUIRED) texts.successMessageEmail else texts.successMessage,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-                if (motivo != null || whatsappFormatado.isNotEmpty()) {
+                // O canal de retorno do resumo é o da política (o obrigatório, sempre preenchido aqui).
+                val retornoPorEmail = policy == FeedbackContactPolicy.EMAIL_REQUIRED
+                val retorno = if (retornoPorEmail) email else whatsappFormatado
+                if (motivo != null || retorno.isNotEmpty()) {
                     Spacer(Modifier.height(28.dp))
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -882,17 +931,17 @@ private fun FeedbackSuccess(
                                     primaryColor = primaryColor,
                                 )
                             }
-                            if (motivo != null && whatsappFormatado.isNotEmpty()) {
+                            if (motivo != null && retorno.isNotEmpty()) {
                                 HorizontalDivider(
                                     color = MaterialTheme.colorScheme.outlineVariant,
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                 )
                             }
-                            if (whatsappFormatado.isNotEmpty()) {
+                            if (retorno.isNotEmpty()) {
                                 SummaryRow(
-                                    icon = Icons.AutoMirrored.Outlined.Chat,
-                                    label = texts.whatsappLabel,
-                                    value = whatsappFormatado,
+                                    icon = if (retornoPorEmail) Icons.Outlined.Email else Icons.AutoMirrored.Outlined.Chat,
+                                    label = if (retornoPorEmail) texts.emailRequiredLabel else texts.whatsappLabel,
+                                    value = retorno,
                                     primaryColor = primaryColor,
                                 )
                             }
