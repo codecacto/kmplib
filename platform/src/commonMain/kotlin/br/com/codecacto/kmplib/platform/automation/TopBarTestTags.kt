@@ -48,4 +48,16 @@ object TopBarTestTags {
 
     /** O botão de menu da barra (`MenuTopBar` / `NavigationType.MENU`). */
     const val MENU: String = "topbar-menu"
+
+    /** A lupa do `SearchTopBar` que abre a busca (2.351.0). */
+    const val BUSCAR: String = "topbar-buscar"
+
+    /** O campo de texto do `SearchTopBar`, com a busca aberta (2.351.0) — `tapOn` + `inputText`. */
+    const val BUSCA_CAMPO: String = "topbar-busca-campo"
+
+    /** O "x" que limpa o texto da busca aberta (2.351.0). */
+    const val BUSCA_LIMPAR: String = "topbar-busca-limpar"
+
+    /** A seta que fecha a busca aberta (e limpa a consulta) (2.351.0). */
+    const val BUSCA_FECHAR: String = "topbar-busca-fechar"
 }

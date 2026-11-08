@@ -5,6 +5,27 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.351.0 — ids de automação no `SearchTopBar` e em cada chip do `ThemeChipGrid`
+
+**Aditivo. Não é aviso** — nada muda para o usuário. Origem: pente fino Maestro de 07/nov/2026
+(`docs/tarefas/anexos/2026-11-07-pf-maestro.md`): a lupa e o campo da busca no topo e os chips da grade
+eram desenhados pela lib sem `testTag`, e o flow só alcançava pelo texto — que muda com o idioma do
+aparelho (app GLOBAL em 4 idiomas) — ou por coordenada.
+
+- **`TopBarTestTags`** (`kmplib-platform`) ganhou `BUSCAR` (`topbar-buscar`, a lupa que abre a busca),
+  `BUSCA_CAMPO` (`topbar-busca-campo`, o campo com a busca aberta), `BUSCA_LIMPAR`
+  (`topbar-busca-limpar`, o "x") e `BUSCA_FECHAR` (`topbar-busca-fechar`, a seta que fecha e limpa).
+  O `SearchTopBar` aplica os quatro. Literais travados em `TopBarTestTagsTest`.
+- **`ThemeChipGrid(…, testTagPrefix: String? = "chip")`**: cada chip ganha `testTag`
+  `"<prefixo>-<id>"` (`themeChipTestTag(prefix, id)`, `THEME_CHIP_TEST_TAG_PREFIX`). Prefixo próprio
+  quando houver duas grades na mesma tela; `null` desliga. Teste `ThemeChipGridTestTagTest`.
+
+Flow: `tapOn: { id: "topbar-buscar" }` → `tapOn: { id: "topbar-busca-campo" }` → `inputText: "…"`;
+`tapOn: { id: "chip-ansiedade" }`.
+
+**Ação:** nenhuma — chamadas existentes compilam igual. App que tinha id próprio por cima (`Modifier.testTag`
+passado no `modifier` do `SearchTopBar`) continua com o dele na barra inteira.
+
 ## 2.350.0 — Firebase Test Lab liga o modo automação; alerta de pagamento não sai de processo de teste
 
 **Correção (falso alarme de pagamento). Não é aviso** — nada deixa de funcionar para o usuário; o que

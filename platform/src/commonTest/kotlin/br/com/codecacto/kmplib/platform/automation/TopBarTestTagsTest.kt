@@ -20,4 +20,12 @@ class TopBarTestTagsTest {
         assertEquals("topbar-voltar", TopBarTestTags.VOLTAR)
         assertEquals("topbar-menu", TopBarTestTags.MENU)
     }
+
+    @Test
+    fun `ids literais da busca sao estaveis`() {
+        assertEquals("topbar-buscar", TopBarTestTags.BUSCAR)
+        assertEquals("topbar-busca-campo", TopBarTestTags.BUSCA_CAMPO)
+        assertEquals("topbar-busca-limpar", TopBarTestTags.BUSCA_LIMPAR)
+        assertEquals("topbar-busca-fechar", TopBarTestTags.BUSCA_FECHAR)
+    }
 }

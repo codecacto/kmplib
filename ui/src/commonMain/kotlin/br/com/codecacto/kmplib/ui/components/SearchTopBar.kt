@@ -181,6 +181,11 @@ fun filterBadgeLabel(activeCount: Int): String? = when {
  * }) { ... }
  * ```
  *
+ * **Automação de UI (2.351.0):** a lupa, o campo, o "x" e a seta de fechar têm ids fixos
+ * ([TopBarTestTags.BUSCAR], [TopBarTestTags.BUSCA_CAMPO], [TopBarTestTags.BUSCA_LIMPAR],
+ * [TopBarTestTags.BUSCA_FECHAR]) — o flow Maestro faz `tapOn: { id: "topbar-buscar" }` e
+ * `tapOn: { id: "topbar-busca-campo" }` + `inputText`, sem depender do texto do idioma.
+ *
  * @param onQueryChange espelha o texto para o ViewModel (aplique debounce lá, não aqui).
  * @param onSearchClosed opcional; disparado ao fechar (o `onQueryChange("")` já é emitido).
  */
@@ -218,15 +223,19 @@ fun SearchTopBar(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
+                        .focusRequester(focusRequester)
+                        .testTag(TopBarTestTags.BUSCA_CAMPO),
                     singleLine = true,
                     placeholder = { Text(texts.searchPlaceholder) },
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
-                            IconButton(onClick = {
-                                state.clearQuery()
-                                onQueryChange("")
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    state.clearQuery()
+                                    onQueryChange("")
+                                },
+                                modifier = Modifier.testTag(TopBarTestTags.BUSCA_LIMPAR),
+                            ) {
                                 Icon(Icons.Default.Clear, contentDescription = texts.clearQueryDescription)
                             }
                         }
@@ -254,11 +263,14 @@ fun SearchTopBar(
         },
         navigationIcon = {
             when {
-                state.active -> IconButton(onClick = {
-                    state.close()
-                    onQueryChange("")
-                    onSearchClosed()
-                }) {
+                state.active -> IconButton(
+                    onClick = {
+                        state.close()
+                        onQueryChange("")
+                        onSearchClosed()
+                    },
+                    modifier = Modifier.testTag(TopBarTestTags.BUSCA_FECHAR),
+                ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = texts.closeSearchDescription,
@@ -284,7 +296,10 @@ fun SearchTopBar(
         },
         actions = {
             if (!state.active) {
-                IconButton(onClick = { state.open() }) {
+                IconButton(
+                    onClick = { state.open() },
+                    modifier = Modifier.testTag(TopBarTestTags.BUSCAR),
+                ) {
                     Icon(Icons.Default.Search, contentDescription = texts.openSearchDescription)
                 }
                 filter?.let { FilterIconButton(it, texts.filterDescription) }

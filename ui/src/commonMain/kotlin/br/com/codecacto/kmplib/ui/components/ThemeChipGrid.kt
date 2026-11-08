@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -89,6 +90,9 @@ data class ChipItem(
  * @param wideThreshold Largura a partir da qual a grade é considerada "larga".
  * @param horizontalSpacing Espaço horizontal entre chips.
  * @param verticalSpacing Espaço vertical entre linhas.
+ * @param testTagPrefix Prefixo do `testTag` de cada chip (2.351.0): o chip ganha
+ *   `"<prefixo>-<id>"` (ver [themeChipTestTag]) — default `"chip"` ⇒ `chip-ansiedade`. Use um
+ *   prefixo próprio quando houver duas grades na mesma tela; `null` desliga.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -101,7 +105,8 @@ fun ThemeChipGrid(
     maxItemsPerRowWide: Int = 5,
     wideThreshold: Dp = 600.dp,
     horizontalSpacing: Dp = 8.dp,
-    verticalSpacing: Dp = 8.dp
+    verticalSpacing: Dp = 8.dp,
+    testTagPrefix: String? = THEME_CHIP_TEST_TAG_PREFIX,
 ) {
     if (items.isEmpty()) return
 
@@ -121,6 +126,9 @@ fun ThemeChipGrid(
                 val selected = item.id in selectedIds
                 val description =
                     if (selectable && selected) "${item.label}, selecionado" else item.label
+                val chipModifier = Modifier
+                    .semantics { contentDescription = description }
+                    .let { m -> testTagPrefix?.let { m.testTag(themeChipTestTag(it, item.id)) } ?: m }
 
                 if (selectable) {
                     FilterChip(
@@ -136,7 +144,7 @@ fun ThemeChipGrid(
                                 )
                             }
                         },
-                        modifier = Modifier.semantics { contentDescription = description }
+                        modifier = chipModifier
                     )
                 } else {
                     AssistChip(
@@ -151,13 +159,19 @@ fun ThemeChipGrid(
                                 )
                             }
                         },
-                        modifier = Modifier.semantics { contentDescription = description }
+                        modifier = chipModifier
                     )
                 }
             }
         }
     }
 }
+
+/** Prefixo padrão do `testTag` dos chips do [ThemeChipGrid] (2.351.0). */
+const val THEME_CHIP_TEST_TAG_PREFIX: String = "chip"
+
+/** `testTag` de um chip do [ThemeChipGrid]: `"<prefix>-<id>"`. Função pura, testável (2.351.0). */
+fun themeChipTestTag(prefix: String, id: String): String = "$prefix-$id"
 
 @Suppress("DEPRECATION")
 @Preview
