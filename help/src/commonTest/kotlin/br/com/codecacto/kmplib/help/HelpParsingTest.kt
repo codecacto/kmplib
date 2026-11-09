@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.help
 
 import br.com.codecacto.kmplib.core.network.ApiResult
+import br.com.codecacto.kmplib.core.network.HttpLogLevel
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -94,15 +95,32 @@ class HelpParsingTest {
         assertFalse(HelpState(question = "meu cpf é 123").toString().contains("123"))
     }
 
-    private fun config(engine: MockEngine, perfil: String? = "cliente") = HelpConfig(
-        projectSlug = "suzy",
-        httpClient = HttpClient(engine),
-        perfil = perfil,
-        appsApiBaseUrl = "https://api.exemplo/",
-        language = "pt-BR",
+    private fun source(engine: MockEngine, perfil: String? = "cliente") = RestHelpSource(
+        HelpConfig(
+            projectSlug = "suzy",
+            perfil = perfil,
+            appsApiBaseUrl = "https://api.exemplo/",
+            language = "pt-BR",
+        ),
+        HttpClient(engine),
     )
 
     private val jsonHeader = headersOf("Content-Type", "application/json")
+
+    @Test
+    fun `cliente proprio nao carrega sessao nem loga alem de INFO`() {
+        assertEquals(HttpLogLevel.INFO, HelpHttpOptions.logLevel)
+        assertNull(HelpHttpOptions.subscriptionBlock)
+        assertNull(HelpHttpOptions.accountDeletion)
+    }
+
+    @Test
+    fun `acoes e estado da busca nao expoem o texto digitado`() {
+        val pergunta = "meu cpf é 123"
+        assertEquals("QuestionChanged", HelpAction.QuestionChanged(pergunta).toString())
+        assertEquals("QueryChanged", HelpLibraryAction.QueryChanged(pergunta).toString())
+        assertFalse(HelpLibraryState(query = pergunta).toString().contains("123"))
+    }
 
     @Test
     fun `GET manda project perfil surface app e lang`() = runTest {
@@ -111,7 +129,7 @@ class HelpParsingTest {
             url = request.url
             respond("""{"ativo":true,"fluxos":[],"videos":[]}""", HttpStatusCode.OK, jsonHeader)
         }
-        assertIs<ApiResult.Success<HelpCatalog>>(RestHelpSource(config(engine)).loadCatalog())
+        assertIs<ApiResult.Success<HelpCatalog>>(source(engine).loadCatalog())
         val called = assertNotNull(url)
         assertEquals("/public/ajuda", called.encodedPath)
         assertEquals("suzy", called.parameters["project"])
@@ -127,7 +145,7 @@ class HelpParsingTest {
             url = request.url
             respond("""{"ativo":false,"fluxos":[],"videos":[]}""", HttpStatusCode.OK, jsonHeader)
         }
-        RestHelpSource(config(engine, perfil = null)).loadCatalog()
+        source(engine, perfil = null).loadCatalog()
         assertFalse(assertNotNull(url).parameters.contains("perfil"))
     }
 
@@ -140,7 +158,7 @@ class HelpParsingTest {
             body = (request.body as TextContent).text
             respond("""{"resultado":"sem_resposta","fluxo":null}""", HttpStatusCode.OK, jsonHeader)
         }
-        val result = RestHelpSource(config(engine)).ask("  como cancelo?  ")
+        val result = source(engine).ask("  como cancelo?  ")
         assertEquals(HelpAnswer.NotFound, assertIs<ApiResult.Success<HelpAnswer>>(result).data)
         assertEquals(HttpMethod.Post, method)
         val json = Json.parseToJsonElement(body).jsonObject
@@ -154,8 +172,8 @@ class HelpParsingTest {
     @Test
     fun `erro HTTP e corpo fora do contrato viram erro, sem lancar`() = runTest {
         val down = MockEngine { respondError(HttpStatusCode.TooManyRequests) }
-        assertIs<ApiResult.Error>(RestHelpSource(config(down)).ask("como cancelo?"))
+        assertIs<ApiResult.Error>(source(down).ask("como cancelo?"))
         val html = MockEngine { respond("<html>", HttpStatusCode.OK) }
-        assertIs<ApiResult.Error>(RestHelpSource(config(html)).loadCatalog())
+        assertIs<ApiResult.Error>(source(html).loadCatalog())
     }
 }

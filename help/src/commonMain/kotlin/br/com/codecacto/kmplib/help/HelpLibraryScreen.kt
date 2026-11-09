@@ -117,6 +117,8 @@ internal fun HelpLibraryContent(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .testTag(HelpTestTags.LIBRARY_SEARCH),
                 placeholder = texts.librarySearch,
+                // O termo é livre, pode trazer dado pessoal: não entra no estado salvo.
+                saveable = false,
             )
         }
         RefreshableBox(

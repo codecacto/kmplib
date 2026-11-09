@@ -2,6 +2,9 @@ package br.com.codecacto.kmplib.help
 
 import br.com.codecacto.kmplib.core.locale.appLanguageTag
 import br.com.codecacto.kmplib.core.network.ApiResult
+import br.com.codecacto.kmplib.core.network.HttpClientOptions
+import br.com.codecacto.kmplib.core.network.HttpLogLevel
+import br.com.codecacto.kmplib.core.network.createHttpClient
 import br.com.codecacto.kmplib.core.network.handleApiCall
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
@@ -17,7 +20,6 @@ import io.ktor.http.contentType
  * Configuração da ajuda do produto, servida pelo apps-api central.
  *
  * @param projectSlug slug do projeto no Nexus (o `project=` das rotas).
- * @param httpClient o `HttpClient` do app, idealmente o `createHttpClient` da lib.
  * @param perfil perfil de quem está logado (`cliente`, `profissional`…). Vídeos e fluxos são filtrados por
  *   ele; `null` não manda o parâmetro.
  * @param appsApiBaseUrl base pública do apps-api, sem barra final. Default de produção.
@@ -26,7 +28,6 @@ import io.ktor.http.contentType
  */
 data class HelpConfig(
     val projectSlug: String,
-    val httpClient: HttpClient,
     val perfil: String? = null,
     val appsApiBaseUrl: String = DEFAULT_APPS_API_BASE_URL,
     val language: String? = null,
@@ -55,12 +56,27 @@ interface HelpSource {
     suspend fun ask(question: String): ApiResult<HelpAnswer>
 }
 
+/** Sem sessão de quem está logado, sem cookie e com log no máximo INFO: as rotas são públicas. */
+internal val HelpHttpOptions: HttpClientOptions = HttpClientOptions(
+    logLevel = HttpLogLevel.INFO,
+    subscriptionBlock = null,
+    accountDeletion = null,
+)
+
+/** Cliente próprio do módulo, um por processo: credencial do app nunca chega às rotas públicas da ajuda. */
+private val helpHttpClient: HttpClient by lazy { createHttpClient(HelpHttpOptions) }
+
 /** Implementação sobre as rotas públicas do apps-api. Nenhuma das duas chamadas lança, salvo cancelamento. */
-class RestHelpSource(private val config: HelpConfig) : HelpSource {
+class RestHelpSource internal constructor(
+    private val config: HelpConfig,
+    private val httpClient: HttpClient,
+) : HelpSource {
+
+    constructor(config: HelpConfig) : this(config, helpHttpClient)
 
     override suspend fun loadCatalog(): ApiResult<HelpCatalog> {
         val result = handleApiCall {
-            config.httpClient.get(url(PATH_CATALOG)) {
+            httpClient.get(url(PATH_CATALOG)) {
                 expectSuccess = true
                 parameter("project", config.projectSlug)
                 config.perfil?.let { parameter("perfil", it) }
@@ -83,7 +99,7 @@ class RestHelpSource(private val config: HelpConfig) : HelpSource {
             ),
         )
         val result = handleApiCall {
-            config.httpClient.post(url(PATH_ASK)) {
+            httpClient.post(url(PATH_ASK)) {
                 expectSuccess = true
                 contentType(ContentType.Application.Json)
                 setBody(body)

@@ -18,6 +18,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TestTimeSource
 
@@ -397,6 +398,30 @@ class HelpAvailabilityCacheTest {
         assertTrue(cache.refresh("k", source(on)))
         time += 6.minutes
         assertTrue(cache.refresh("k", source(failure)))
+    }
+
+    @Test
+    fun `true em cache vence depois de falhas alem da validade maxima`() = runTest {
+        val time = TestTimeSource()
+        val cache = HelpAvailabilityCache(timeSource = time, minInterval = 5.minutes, maxStaleness = 1.hours)
+        assertTrue(cache.refresh("k", source(on)))
+
+        time += 59.minutes
+        assertTrue(cache.refresh("k", source(failure)))
+        time += 1.minutes
+        assertFalse(cache.refresh("k", source(failure)))
+        assertFalse(cache.values.value.containsKey("k"))
+
+        assertTrue(cache.refresh("k", source(on)), "resposta boa religa")
+    }
+
+    @Test
+    fun `falso nao vira verdadeiro por falha`() = runTest {
+        val time = TestTimeSource()
+        val cache = HelpAvailabilityCache(timeSource = time, minInterval = 5.minutes, maxStaleness = 1.hours)
+        assertFalse(cache.refresh("k", source(off)))
+        time += 2.hours
+        assertFalse(cache.refresh("k", source(failure)))
     }
 
     @Test

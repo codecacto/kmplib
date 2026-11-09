@@ -33,7 +33,10 @@ data class HelpState(
 }
 
 sealed interface HelpAction {
-    data class QuestionChanged(val text: String) : HelpAction
+    data class QuestionChanged(val text: String) : HelpAction {
+        /** O texto é livre e pode trazer dado pessoal. */
+        override fun toString(): String = "QuestionChanged"
+    }
     data object Submit : HelpAction
     data class SuggestionSelected(val flow: HelpFlow) : HelpAction
 
@@ -64,6 +67,10 @@ data class HelpLibraryState(
 ) {
     val hasContent: Boolean get() = flows.isNotEmpty() || videos.isNotEmpty()
     val hasResults: Boolean get() = visibleFlows.isNotEmpty() || visibleVideos.isNotEmpty()
+
+    /** O termo de busca é livre e pode trazer dado pessoal. */
+    override fun toString(): String =
+        "HelpLibraryState(status=$status, flows=${flows.size}, videos=${videos.size}, detail=${selection != null})"
 }
 
 sealed interface HelpLibraryAction {
@@ -73,7 +80,10 @@ sealed interface HelpLibraryAction {
     /** O gesto de puxar para atualizar. */
     data object Refresh : HelpLibraryAction
     data object Retry : HelpLibraryAction
-    data class QueryChanged(val query: String) : HelpLibraryAction
+    data class QueryChanged(val query: String) : HelpLibraryAction {
+        /** O termo de busca é livre e pode trazer dado pessoal. */
+        override fun toString(): String = "QueryChanged"
+    }
     data class FlowSelected(val flow: HelpFlow) : HelpLibraryAction
     data class VideoSelected(val video: HelpVideo) : HelpLibraryAction
     data object CloseDetail : HelpLibraryAction

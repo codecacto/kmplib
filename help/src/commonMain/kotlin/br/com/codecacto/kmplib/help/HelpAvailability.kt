@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import br.com.codecacto.kmplib.core.network.ApiResult
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -20,11 +21,13 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Lembra, por processo, se a ajuda está ligada para cada combinação de conteúdo: o ícone aparece em várias
- * telas e cada uma consultar o servidor seria desperdício. Falha de rede mantém a resposta anterior.
+ * telas e cada uma consultar o servidor seria desperdício. Falha de rede mantém a resposta anterior até
+ * [maxStaleness] depois da última resposta boa; passado isso, a resposta é esquecida e vale `false`.
  */
 internal class HelpAvailabilityCache(
     private val timeSource: TimeSource = TimeSource.Monotonic,
     private val minInterval: Duration = 5.minutes,
+    private val maxStaleness: Duration = 1.hours,
 ) {
     private val mutex = Mutex()
     private val marks = mutableMapOf<String, TimeMark>()
@@ -40,6 +43,9 @@ internal class HelpAvailabilityCache(
             if (result is ApiResult.Success) {
                 _values.update { it + (key to result.data.active) }
                 marks[key] = timeSource.markNow()
+            } else if (last != null && last.elapsedNow() >= maxStaleness) {
+                _values.update { it - key }
+                marks.remove(key)
             }
         }
         _values.value[key] == true
@@ -49,8 +55,9 @@ internal class HelpAvailabilityCache(
 private val processAvailability = HelpAvailabilityCache()
 
 /**
- * `true` quando o projeto tem a ajuda ligada. Sem resposta do servidor, `false`: quem esconde o ícone não
- * mostra um botão que levaria a uma tela sem conteúdo.
+ * `true` quando o projeto tem a ajuda ligada. Sem resposta do servidor, `false`, inclusive quando as falhas
+ * se prolongam por mais de uma hora depois da última resposta boa: quem esconde o ícone não mostra um botão
+ * que levaria a uma tela sem conteúdo.
  */
 suspend fun isHelpEnabled(config: HelpConfig): Boolean =
     processAvailability.refresh(config.contentKey(), RestHelpSource(config))

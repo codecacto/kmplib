@@ -5,6 +5,20 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.352.1 — `kmplib-help`: cliente HTTP próprio e texto digitado fora dos logs
+
+**Endurecimento pedido pela revisão de segurança. Não é aviso** e não tem piso: nada deixa de funcionar para o usuário.
+
+- ⚠️ **`httpClient` saiu do `HelpConfig`** (única quebra, em API de um dia, sem consumidor além da casca e da Suzy, migrados
+  junto). O módulo cria o próprio cliente pelo `createHttpClient`, sem sessão, sem cookie e com log no máximo INFO: as
+  rotas são públicas e credencial do app não deve chegar a elas. Em teste, injete pela interface `HelpSource`.
+- `HelpAction.QuestionChanged`, `HelpLibraryAction.QueryChanged` e `HelpLibraryState` não expõem mais o texto no `toString`.
+- A busca da Biblioteca fica fora do estado salvo (`saveable = false`), como a pergunta da ajuda.
+- `isHelpEnabled`/`rememberIsHelpEnabled`: `true` em cache tem validade máxima de 1 hora em falhas sucessivas e depois
+  vira `false`.
+
+**Ação:** quem montava `HelpConfig(httpClient = …)` tira o argumento.
+
 ## 2.352.0 — `kmplib-help`: Biblioteca de vídeos e tela de ajuda
 
 **Aditivo. Não é aviso.** Módulo novo `br.com.codecacto:kmplib-help` (no umbrella), consumindo o apps-api central
