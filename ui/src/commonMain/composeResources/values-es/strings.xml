@@ -922,4 +922,23 @@
     <string name="kmplib_attachment_take_photo">Tomar foto</string>
     <string name="kmplib_attachment_gallery">Galería</string>
     <string name="kmplib_attachment_file">Archivo</string>
+    <string name="kmplib_help_title">Ayuda</string>
+    <string name="kmplib_help_question_placeholder">¿Cuál es tu duda?</string>
+    <string name="kmplib_help_ask">Preguntar</string>
+    <string name="kmplib_help_question_too_short">Escribe al menos 3 letras.</string>
+    <string name="kmplib_help_suggestions">Dudas frecuentes</string>
+    <string name="kmplib_help_steps">Paso a paso</string>
+    <string name="kmplib_help_not_found">No encontré eso aquí</string>
+    <string name="kmplib_help_support">Hablar con soporte</string>
+    <string name="kmplib_help_open_library">Ver la Biblioteca</string>
+    <string name="kmplib_help_ask_error">No se pudo obtener la respuesta.</string>
+    <string name="kmplib_help_load_error">No se pudo cargar la ayuda.</string>
+    <string name="kmplib_help_inactive">Ayuda no disponible</string>
+    <string name="kmplib_help_library_title">Biblioteca</string>
+    <string name="kmplib_help_library_search">Buscar en la Biblioteca</string>
+    <string name="kmplib_help_library_empty">Todavía no hay contenido</string>
+    <string name="kmplib_help_library_search_empty">No se encontró nada</string>
+    <string name="kmplib_help_library_videos">Vídeos</string>
+    <string name="kmplib_help_library_flows">Cómo hacerlo</string>
+    <string name="kmplib_help_refresh_failed">No se pudo actualizar.</string>
 </resources>

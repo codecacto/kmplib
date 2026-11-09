@@ -115,6 +115,11 @@ project(":kmplib-media").projectDir = file("media")
 include(":kmplib-video")
 project(":kmplib-video").projectDir = file("video")
 
+// `kmplib-help` (2.352.0) — Biblioteca de vídeos e tela de ajuda, servidas pelo apps-api central. Fora do
+// `kmplib-central` porque depende do `kmplib-video` (Media3).
+include(":kmplib-help")
+project(":kmplib-help").projectDir = file("help")
+
 // `kmplib-chat` (2.287.0) — conversa 1:1 sem WebSocket (envio otimista com id do cliente, fila
 // durável, não lidas, consulta periódica `after=`). Fora do umbrella: só app com conversa declara.
 include(":kmplib-chat")

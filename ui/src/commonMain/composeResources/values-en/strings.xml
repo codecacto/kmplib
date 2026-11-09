@@ -922,4 +922,23 @@
     <string name="kmplib_attachment_take_photo">Take photo</string>
     <string name="kmplib_attachment_gallery">Gallery</string>
     <string name="kmplib_attachment_file">File</string>
+    <string name="kmplib_help_title">Help</string>
+    <string name="kmplib_help_question_placeholder">What do you need help with?</string>
+    <string name="kmplib_help_ask">Ask</string>
+    <string name="kmplib_help_question_too_short">Type at least 3 letters.</string>
+    <string name="kmplib_help_suggestions">Common questions</string>
+    <string name="kmplib_help_steps">Step by step</string>
+    <string name="kmplib_help_not_found">I couldn\'t find that here</string>
+    <string name="kmplib_help_support">Talk to support</string>
+    <string name="kmplib_help_open_library">Open the Library</string>
+    <string name="kmplib_help_ask_error">We couldn\'t get the answer.</string>
+    <string name="kmplib_help_load_error">We couldn\'t load help.</string>
+    <string name="kmplib_help_inactive">Help unavailable</string>
+    <string name="kmplib_help_library_title">Library</string>
+    <string name="kmplib_help_library_search">Search the Library</string>
+    <string name="kmplib_help_library_empty">Nothing here yet</string>
+    <string name="kmplib_help_library_search_empty">Nothing found</string>
+    <string name="kmplib_help_library_videos">Videos</string>
+    <string name="kmplib_help_library_flows">How to</string>
+    <string name="kmplib_help_refresh_failed">We couldn\'t refresh.</string>
 </resources>

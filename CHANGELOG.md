@@ -5,6 +5,24 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.352.0 — `kmplib-help`: Biblioteca de vídeos e tela de ajuda
+
+**Aditivo. Não é aviso.** Módulo novo `br.com.codecacto:kmplib-help` (no umbrella), consumindo o apps-api central
+(`GET /public/ajuda`, `POST /public/ajuda/perguntar`, `surface=app`). Separado do `kmplib-central` porque depende do
+`kmplib-video` (Media3). Plano: `docs/tarefas/2026-11-09-biblioteca-e-ajuda-nos-produtos.md`, T6.
+
+- **`HelpTopBarAction(onClick)`**: o "?" do `actions` do `AppTopBar`. **`rememberIsHelpEnabled(config)`** e
+  `isHelpEnabled(config)` escondem o ícone em projeto com `ativo:false`.
+- **`HelpScreen(config, onBack, onSupport, onOpenLibrary)`**: campo de dúvida, resposta com título, vídeo, passos e
+  texto; `sem_resposta` oferece o suporte; os 5 primeiros fluxos como sugestão. Resposta de pergunta anterior nunca aparece.
+- **`HelpLibraryScreen(config, onBack)`**: vídeos e fluxos, busca por partes sem acento em que as palavras se somam,
+  `RefreshableBox` em todos os estados, recarga no `ON_RESUME`, detalhe com passos e vídeo.
+- `**trecho**` em `passos` e `texto` sai em negrito; nenhum outro markdown é interpretado, e a busca ignora os asteriscos.
+- Textos nos 4 idiomas (`kmplib_help_*`), `lang` do idioma da tela, vídeo só `https`, mudo por padrão. A pergunta,
+  por ser texto livre, fica fora do estado salvo e dos `toString`.
+
+**Ação:** nenhuma. Quem adotar declara `api(libs.kmplib.help)` e chama `initKmpLibVideo(context)` no Android.
+
 ## 2.351.0 — ids de automação no `SearchTopBar` e em cada chip do `ThemeChipGrid`
 
 **Aditivo. Não é aviso** — nada muda para o usuário. Origem: pente fino Maestro de 07/nov/2026
