@@ -1,5 +1,7 @@
 plugins {
     id("kmplib.module")
+    // Alvo desktop (2.353.0): o own-auth e o cliente HTTP padrão no Compose Desktop.
+    id("kmplib.module.jvm")
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -49,5 +51,16 @@ kotlin {
             // Engine oficial recomendado no iOS (URLSession).
             implementation(libs.ktor.client.darwin)
         }
+
+        matching { it.name == "jvmMain" }.configureEach { dependencies {
+            // Desktop (2.353.0): o MESMO engine do Android — OkHttp é JVM puro, HTTP/2, pool de
+            // conexão e o mesmo mapa de exceção do `isPermanentTransportFailure`. É um dos engines
+            // oficiais do Ktor para JVM; o comportamento do app desktop fica idêntico ao do Android.
+            implementation(libs.ktor.client.okhttp)
+        } }
+
+        matching { it.name == "jvmTest" }.configureEach { dependencies {
+            implementation(libs.ktor.client.mock)
+        } }
     }
 }

@@ -42,7 +42,13 @@ class ProvedoresSociaisDaPlataformaTest {
     }
 
     @Test
-    fun `o Google esta disponivel em toda plataforma`() {
+    fun `no desktop nenhum botao social aparece`() {
+        // 2.353.0: o login social ainda não existe no PC (`SocialBrowserLogin` do jvmMain recusa).
+        assertEquals(emptySet(), provedoresSociaisPara("desktop"))
+    }
+
+    @Test
+    fun `o Google esta disponivel nas plataformas moveis`() {
         listOf("android", "ios", "jvm").forEach { plataforma ->
             assertTrue(SocialProvider.GOOGLE in provedoresSociaisPara(plataforma), plataforma)
         }

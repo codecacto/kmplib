@@ -1,5 +1,7 @@
 plugins {
     id("kmplib.module.compose")
+    // Alvo desktop (2.353.0, opt-in): own-auth + login no Compose Desktop.
+    id("kmplib.module.jvm")
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -41,5 +43,11 @@ kotlin {
             // Cofre cifrado no Android Keystore para o refresh token do own-auth.
             implementation(libs.androidx.security.crypto)
         }
+
+        matching { it.name == "jvmMain" }.configureEach { dependencies {
+            // Desktop (2.353.0): o cofre de tokens protege a chave pela DPAPI do Windows
+            // (`Crypt32Util`), a API oficial do SO para segredo por usuário.
+            implementation(libs.jna.platform)
+        } }
     }
 }

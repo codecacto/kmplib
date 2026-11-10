@@ -1,5 +1,7 @@
 plugins {
     id("kmplib.module.compose")
+    // Alvo desktop (2.353.0, opt-in): own-auth + login no Compose Desktop.
+    id("kmplib.module.jvm")
 }
 
 kotlin {

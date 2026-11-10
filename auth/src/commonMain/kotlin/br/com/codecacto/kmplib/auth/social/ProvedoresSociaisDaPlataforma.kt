@@ -46,6 +46,9 @@ val provedoresSociaisDaPlataforma: Set<SocialProvider>
  */
 fun provedoresSociaisPara(plataforma: String): Set<SocialProvider> = when (plataforma) {
     "ios" -> setOf(SocialProvider.GOOGLE, SocialProvider.APPLE)
+    // Desktop (alvo `jvm`, 2.353.0): login social ainda não existe no PC (ver `SocialBrowserLogin`
+    // do jvmMain) — a tela de login não oferece botão que não funciona.
+    "desktop" -> emptySet()
     // Android — e qualquer alvo novo que apareça. Google é o denominador comum de todas as
     // plataformas; a Apple é a exceção, e exceção se declara, não se presume.
     else -> setOf(SocialProvider.GOOGLE)

@@ -35,6 +35,9 @@ kmplib/
 
 Um módulo novo é `plugins { id("kmplib.module") }` (ou `kmplib.module.compose`, se desenha tela)
 mais as suas dependências — alvos, namespace, guarda de host e publicação vêm do convention plugin.
+Alvo **desktop (`jvm`)** é opt-in por módulo com `id("kmplib.module.jvm")` (2.353.0: core, mask, platform, ui,
+auth) e só é declarado com os alvos Apple ou com `-Pkmplib.jvmTarget=true` — nunca "sempre" (lib Android+JVM sem
+iOS quebra app Android+iOS no Linux/Windows). Testes: `./gradlew :kmplib-auth:jvmTest -Pkmplib.jvmTarget=true`.
 Registre-o no `settings.gradle.kts` **com o nome do artefato** (`:kmplib-x`, nunca `:x`: o KMP deriva
 o artifactId dos artefatos por-target do nome do projeto Gradle) e acrescente um `api()` no umbrella.
 

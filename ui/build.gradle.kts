@@ -1,5 +1,7 @@
 plugins {
     id("kmplib.module.compose")
+    // Alvo desktop (2.353.0, opt-in): own-auth + login no Compose Desktop.
+    id("kmplib.module.jvm")
     // O questionário (`ui.questionnaire`, 2.265.0) é JSON vindo do servidor — o MESMO contrato do
     // `QuestionnaireRunner` da weblib. O runtime (`kotlinx-serialization-json`) já chega por `core`.
     alias(libs.plugins.kotlinSerialization)

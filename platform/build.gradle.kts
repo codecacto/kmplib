@@ -1,5 +1,7 @@
 plugins {
     id("kmplib.module.compose")
+    // Alvo desktop (2.353.0, opt-in): own-auth + login no Compose Desktop.
+    id("kmplib.module.jvm")
     alias(libs.plugins.kotlinSerialization)
 }
 
@@ -47,5 +49,11 @@ kotlin {
             // consumidor por acaso, transitivamente pelo Firebase.
             api(libs.androidx.fragment)
         }
+
+        matching { it.name == "jvmMain" }.configureEach { dependencies {
+            // Desktop (2.353.0): `SetThreadExecutionState` do Windows (o `KeepScreenOn`), pela API
+            // oficial do SO via JNA — a JVM não tem como impedir o descanso de tela.
+            implementation(libs.jna.platform)
+        } }
     }
 }

@@ -12,6 +12,8 @@ doistNormalize = "1.2.0"
 kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.7.1"
 ktor = "3.1.1"
+# JNA (2.353.0): DPAPI do Windows (cofre de tokens do desktop) e SetThreadExecutionState (tela acesa).
+jna = "5.17.0"
 kmpnotifier = "1.6.0"
 
 # Firebase (GitLive) - mantido em 2.1.0 pois 2.3.0 não suporta iosX64
@@ -129,6 +131,7 @@ ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "k
 ktor-client-encoding = { module = "io.ktor:ktor-client-encoding", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 # Push Notifications
 kmpnotifier = { module = "io.github.mirzemehdi:kmpnotifier", version.ref = "kmpnotifier" }

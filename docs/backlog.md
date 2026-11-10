@@ -3,6 +3,15 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 09/nov/2026 — alvo desktop (StatusHub Desktop, Windows)
+- [x] **Alvo `jvm` opt-in em core/mask/platform/ui/auth — ENTREGUE na 2.353.0** (convenção `kmplib.module.jvm`,
+      `initKmpLibCore(DesktopAppInfo)`, OkHttp, cofre AES-GCM + DPAPI, `LoginScreen` no Compose Desktop).
+- [ ] **ABERTO (P2):** login social no desktop — redirect de loopback (RFC 8252) no `authLocalSocialFlowRoutes` da
+      backlib + `SocialBrowserLogin` JVM com servidor local de uma requisição.
+- [ ] **ABERTO (P3):** `DesktopKeyProtector` do macOS (Keychain via Security.framework) e do Linux (Secret Service);
+      hoje falha fechada.
+- [ ] **ABERTO (P3):** alvo `jvm` em `sync`/`central`/`monetization` quando um app desktop precisar (sync offline do PC).
+
 ### Registrado em 04/nov/2026 — refatoração do **Meu Plantão** pelo protótipo
 
 - **GAP-MP-M02 — máscara de HORA no estado do campo** (`TimeInputTransformation`/`TimeOutputTransformation`,

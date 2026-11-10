@@ -5,6 +5,38 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.353.0 — alvo DESKTOP (`jvm`) opt-in: own-auth e cliente HTTP no Compose Desktop
+
+**Aditivo. Não é aviso** e não tem piso: Android e iOS seguem idênticos (a única linha de `commonMain` que mudou é
+`provedoresSociaisPara("desktop")`, que só existe no alvo novo). Pedido do fundador para o StatusHub Desktop (Windows).
+
+- **Convenção `kmplib.module.jvm`** (opt-in por módulo): `kmplib-core`, `-mask`, `-platform`, `-ui` e `-auth` ganham
+  o alvo `jvm`. Ele só é DECLARADO quando os alvos Apple também entram (Mac / `-Pkmplib.forceAppleTargets=true`) ou
+  com `-Pkmplib.jvmTarget=true` / `systemProp.kmplib.jvmTarget=true` — lib Android+JVM sem iOS quebraria todo app
+  Android+iOS que compila no Linux/Windows. Sem os flags, nada muda (provado compilando o colaborador do StatusHub
+  e a casca-mobile sem flag).
+- **core:** `initKmpLibCore(DesktopAppInfo(appId, …))`, `DesktopAppContext`/`defaultAppDataDirectory`
+  (`%LOCALAPPDATA%\<appId>`), `createHttpClient` com **OkHttp** (mesmo log INFO, gzip e retry de GET), `appPreferences()`
+  em `preferences.json`, `BlobStore` em arquivo, `writeFileDurably`/`deleteFileDurably` (fsync + troca atômica),
+  conectividade por consulta às interfaces, formatos regionais pelo CLDR do JDK.
+- **auth:** `secureTokenStorage()` no desktop = cofre **AES-256-GCM** com a chave protegida pela **DPAPI** do usuário
+  (`WindowsDpapiKeyProtector`, `DpapiScope.LOCAL_MACHINE` para totem), gravação durável ou lança, falha passageira
+  tentada 3×, cofre adulterado descartado, trava entre processos. macOS/Linux: **falha fechada**
+  (`SecureStorageUnavailableException`) — nunca `java.util.prefs` em claro. `desktopSecureTokenStorage(…)`,
+  `DesktopKeyProtector`. `LoginScreen`/`ForcePasswordChangeDialog` rodam no Compose Desktop; login social não existe
+  no PC ainda (sem botões; `SocialBrowserLogin` recusa com `reason = "unsupported"`).
+- **ui/platform:** seletores pelo `FileDialog` nativo (arquivo, foto — JPEG em pé, EXIF aplicado e removido —, vídeo
+  por referência), salvar como, abrir com o app padrão, URL/e-mail/WhatsApp pelo navegador, clipboard (sensível expira
+  em 120 s), imprimir PDF pelo verbo do SO, manter a tela acesa (`SetThreadExecutionState`), galeria = Imagens/Vídeos.
+  Sem equivalente no PC, declarados e inertes: câmera, vídeo embutido (abre no navegador), WebView, TTS, biometria,
+  notificação agendada (use o `Tray`), áudio, lanterna, vibração, brilho, bateria, proteção de captura.
+- `jna-platform` 5.17.0 só no `jvmMain` (DPAPI e `SetThreadExecutionState`). `jvmTest` de módulo Compose recebe o
+  Skiko do host sozinho.
+
+**Ação:** nenhuma para app Android/iOS. App desktop: `systemProp.kmplib.jvmTarget=true` no `gradle.properties`,
+`implementation("br.com.codecacto:kmplib-auth")` + `compose.desktop.currentOs`, e `initKmpLibCore(DesktopAppInfo(...))`
+no `main()`. Detalhe: catálogo `references/core.md` §Alvo desktop e `references/auth.md` §Desktop.
+
 ## 2.352.1 — `kmplib-help`: cliente HTTP próprio e texto digitado fora dos logs
 
 **Endurecimento pedido pela revisão de segurança. Não é aviso** e não tem piso: nada deixa de funcionar para o usuário.
