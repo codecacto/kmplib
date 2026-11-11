@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.353.2
+    motivo: "iPhone: o \"digite EXCLUIR\" da exclusão de conta perdia/trocava letras (\"EXCLURI\") e o confirmar não acendia; idem senha do primeiro acesso e da reautenticação"
+    simbolos: [AccountDeletionDialog, AppInputDialog, InputDialog, ForcePasswordChangeDialog, RecentAuthHost]
+
   - versao: 2.350.0
     motivo: "alerta de pagamento falso (\"paywall sem nenhum plano\", Fatal) vindo do pré-lançamento da Play / Firebase Test Lab a cada release"
     simbolos: [PaymentAlertReporter]

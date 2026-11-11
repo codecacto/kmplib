@@ -229,6 +229,14 @@ fun AppAlertDialog(
  * @param confirmContentColor Texto do botão de confirmar (2.333.0) — calculado pela cor do botão,
  *   como no [AppAlertDialog].
  *
+ * @param keepTextLocally O texto **mora no campo** (2.353.2, default `true`) — o mesmo
+ *   `keepTextLocally` do [AppTextField]. Até a 2.353.1 o campo era controlado só por
+ *   [textFieldValue] e, no iPhone, a digitação rápida perdia ou trocava letras de lugar ("EXCLUIR"
+ *   virava "EXCLURI", "XCLUIRE", "EXCLUR"): o "digite EXCLUIR" da exclusão de conta podia nunca
+ *   conferir. [textFieldValue] continua sendo ouvido quando a tela muda o texto por outro motivo
+ *   (limpar, preencher). Passe `false` só se [onTextFieldValueChange] RECUSA teclas (não muda o
+ *   valor) — com o texto local, a tecla recusada ficaria na tela; filtrar/cortar funciona com `true`.
+ *
  * O cancelar é um botão com CONTORNO (`outline`) e texto em `onSurface` (era `Color.Gray` até a 2.332.0).
  */
 @Composable
@@ -251,6 +259,7 @@ fun AppInputDialog(
     errorMessage: String? = null,
     confirmButtonColor: Color = MaterialTheme.colorScheme.primary,
     confirmContentColor: Color = readableContentColorFor(confirmButtonColor),
+    keepTextLocally: Boolean = true,
 ) {
     AppDialog(
         show = show,
@@ -279,7 +288,8 @@ fun AppInputDialog(
             placeholder = textFieldPlaceholder,
             errorMessage = textFieldError,
             enabled = !isLoading,
-            modifier = Modifier.testTag(DialogTestTags.INPUT)
+            modifier = Modifier.testTag(DialogTestTags.INPUT),
+            keepTextLocally = keepTextLocally,
         )
 
         // Erro que não é do campo: junto dos botões, onde o olho está depois do toque.

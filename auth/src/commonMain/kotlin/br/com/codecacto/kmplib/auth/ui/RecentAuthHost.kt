@@ -201,6 +201,8 @@ fun RecentAuthHost(state: RecentAuthState, texts: RecentAuthTexts = rememberRece
                 keyboardActions = KeyboardActions(onDone = { enviarSenha() }),
                 errorMessage = erroNoCampo,
                 enabled = !loading,
+                // Texto no campo: no iPhone a digitação rápida perdia letras (2.353.2).
+                keepTextLocally = true,
             )
         }
 

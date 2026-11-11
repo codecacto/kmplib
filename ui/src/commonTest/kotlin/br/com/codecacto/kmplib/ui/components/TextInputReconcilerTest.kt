@@ -203,4 +203,18 @@ class TextInputReconcilerTest {
         assertEquals("tes", campo.texto)
         assertEquals("tes", vm.valor)
     }
+
+    /**
+     * 2.353.2 — o "digite EXCLUIR" do `AccountDeletionDialog` (um `AppInputDialog`) saía "EXCLURI",
+     * "XCLUIRE", "EXCLUR" no iPhone (suíte Maestro do StatusHub). Com o texto no campo (o default do
+     * `AppInputDialog` agora), a palavra chega inteira e confere, em qualquer cadência de quadros.
+     */
+    @Test
+    fun `digite EXCLUIR em rajada chega inteiro e confere`() {
+        for (cadencia in 1..4) for (conflar in listOf(false, true)) {
+            val digitado = digitarEmRajada("EXCLUIR", quadroACada = cadencia, conflar = conflar)
+            assertEquals("EXCLUIR", digitado, "cadência $cadencia, conflar=$conflar")
+            assertTrue(typedConfirmationMatches(digitado, "EXCLUIR"))
+        }
+    }
 }

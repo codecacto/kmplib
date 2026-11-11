@@ -257,6 +257,9 @@ private val ESPACO_ENTRE_BOTOES: Dp = 8.dp
  * @param modifier Modificador customizado
  * @param isLoading Estado de loading
  * @param primaryColor Cor primária
+ * @param keepTextLocally O texto mora no campo (2.353.2, default `true`) — sem isso o iPhone perde
+ *   ou troca letras na digitação rápida (mesmo defeito do [AppInputDialog]). `false` só se
+ *   [onTextFieldValueChange] recusa teclas.
  */
 @Composable
 fun InputDialog(
@@ -275,7 +278,8 @@ fun InputDialog(
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    keepTextLocally: Boolean = true,
 ) {
     if (show) {
         AlertDialog(
@@ -303,7 +307,8 @@ fun InputDialog(
                         isPassword = isPassword,
                         primaryColor = primaryColor,
                         enabled = !isLoading,
-                        modifier = Modifier.testTag(DialogTestTags.INPUT)
+                        modifier = Modifier.testTag(DialogTestTags.INPUT),
+                        keepTextLocally = keepTextLocally,
                     )
                 }
             },

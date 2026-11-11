@@ -129,6 +129,8 @@ fun ForcePasswordChangeDialog(
                 imeAction = ImeAction.Next,
                 // Vermelho só DEPOIS do envio — marcar enquanto a pessoa digita é ruído.
                 errorMessage = if (enviado) erroSenha else null,
+                // Texto no campo: no iPhone a digitação rápida perdia letras (2.353.2).
+                keepTextLocally = true,
             )
             AppTextField(
                 value = confirmacao,
@@ -140,6 +142,8 @@ fun ForcePasswordChangeDialog(
                 isPassword = true,
                 imeAction = ImeAction.Done,
                 errorMessage = if (enviado) erroConfirmacao else null,
+                // Texto no campo: no iPhone a digitação rápida perdia letras (2.353.2).
+                keepTextLocally = true,
             )
         }
 

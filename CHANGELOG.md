@@ -5,6 +5,29 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.353.2 — iPhone: o "digite EXCLUIR" da exclusão de conta não perde nem troca letras
+
+**Correção (piso).** Achado pela suíte Maestro do StatusHub (11/nov/2026): no iPhone, o campo do
+`AccountDeletionDialog` (um `AppInputDialog`) saía "EXCLURI", "XCLUIRE" ou "EXCLUR" digitando a palavra
+de uma vez — o confirmar nunca acendia e a pessoa podia não conseguir pedir a exclusão da conta.
+
+- **Causa:** o `AppInputDialog` montava o `AppTextField(value = textFieldValue, …)` controlado só pelo
+  valor de fora (o caminho `String` do `OutlinedTextField`); a cada tecla o campo era recomposto com o valor
+  devolvido, e o IME do iOS em digitação rápida perdia ou reordenava caracteres. É o mesmo defeito da busca
+  (2.258.0) e do `NumberField` (2.262.1).
+- **Correção:** o texto passa a **morar no campo** — `AppInputDialog(…, keepTextLocally = true)` (parâmetro
+  novo, default `true`) liga o `keepTextLocally` do `AppTextField` (`TextInputReconciler`): a tecla aplica
+  sobre o texto local no mesmo quadro e o valor de fora só reescreve o campo quando a tela muda o texto por
+  outro motivo (limpar, preencher). `false` só para quem RECUSA teclas no `onTextFieldValueChange`.
+- **Mesmo padrão, também corrigidos** (diálogo com campo controlado por valor, texto exato importa):
+  `InputDialog` (`ConfirmationDialog.kt`, parâmetro `keepTextLocally = true`), as duas senhas do
+  `ForcePasswordChangeDialog` (primeiro acesso) e a senha do `RecentAuthHost` (reautenticação).
+- Teste: `TextInputReconcilerTest` — "EXCLUIR" em rajada chega inteiro e confere, em 4 cadências, com e sem
+  conflação.
+
+**Ação nos apps:** subir para 2.353.2 e rebuildar o iOS. Nada a mudar no código. **Aviso:** sim (exclusão de
+conta deixa de funcionar no iPhone).
+
 ## 2.353.1 — Fastfile iOS: distribuição de teste pelo Firebase App Distribution
 
 Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). O 2º caminho de teste além do TestFlight,
