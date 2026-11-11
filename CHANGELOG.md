@@ -5,6 +5,19 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.353.1 — Fastfile iOS: distribuição de teste pelo Firebase App Distribution
+
+Patch, só `ci/fastlane/Fastfile` (nenhum artefato Kotlin mudou). O 2º caminho de teste além do TestFlight,
+pedido pelo fundador em 11/nov/2026 depois de o TestFlight da conta ficar travado desde 20/out (revisão beta
+em 422, convites que não chegam). Com `DISTRIBUICAO_TESTE=firebase` no ambiente, a lane `release` assina com
+o perfil **Ad Hoc** do `match` (refeito com os aparelhos cadastrados: `force_for_new_devices`, fora do
+readonly só no tipo `adhoc`), exporta `ad-hoc` e envia pela CLI oficial do Firebase
+(`firebase-tools@15.34.2`) no lugar do TestFlight. Sem a variável, nada muda. Quem liga é o qa-runner
+(`release` com `destino: firebase`); quem registra o app no Firebase e os iPhones na Apple é o servidor
+(`Nexus/fabrica/distribuir-teste.py`).
+
+**Ação nos apps:** nenhuma — o Fastfile é importado da `main`. Não é aviso.
+
 ## 2.353.0 — alvo DESKTOP (`jvm`) opt-in: own-auth e cliente HTTP no Compose Desktop
 
 **Aditivo. Não é aviso** e não tem piso: Android e iOS seguem idênticos (a única linha de `commonMain` que mudou é

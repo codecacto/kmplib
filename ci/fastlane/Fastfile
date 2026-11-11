@@ -163,6 +163,69 @@ platform :ios do
   end
 
   # ---------------------------------------------------------------------------------------------
+  # Distribuição de TESTE pelo Firebase App Distribution (11/nov/2026)
+  #
+  # O 2º caminho de teste além do TestFlight, para a fábrica não parar quando a Apple trava (o
+  # TestFlight da conta ficou parado desde 20/out/2026: revisão beta em 422 e convites que não chegam).
+  # Tarefa: docs/tarefas/2026-11-11-distribuicao-de-teste-pelo-firebase.md (studio).
+  #
+  # Quem liga é o runner (`release` com `destino: firebase`), pelo ambiente: DISTRIBUICAO_TESTE=firebase,
+  # FIREBASE_APP_ID, FIREBASE_GRUPOS, GOOGLE_APPLICATION_CREDENTIALS e, opcional, FIREBASE_NOTAS. A
+  # lane `release` troca então três coisas e nada mais: perfil Ad Hoc no lugar do App Store, export
+  # `ad-hoc` e envio ao Firebase no lugar do TestFlight. O app não leva SDK, json nem plist.
+  # ---------------------------------------------------------------------------------------------
+
+  # Versão FIXA do firebase-tools: `npx` sem versão baixaria a de hoje a cada release, e um build que
+  # passou ontem quebraria amanhã sem nada ter mudado aqui.
+  FIREBASE_TOOLS = "firebase-tools@15.34.2"
+
+  def distribuicao_pelo_firebase?
+    ENV["DISTRIBUICAO_TESTE"] == "firebase"
+  end
+
+  # Perfil Ad Hoc pelo `match`, com os aparelhos registrados na conta. SEM volta ao chaveiro: Ad Hoc só
+  # instala nos aparelhos que estão no perfil, e um perfil que o Xcode resolvesse sozinho poderia sair
+  # sem o iPhone que acabou de ser cadastrado — o build "passaria" e não instalaria em ninguém.
+  def perfis_adhoc(app_identifier)
+    UI.user_error!("distribuição pelo Firebase precisa do match (MATCH_PASSWORD ausente)") if ENV["MATCH_PASSWORD"].to_s.empty?
+    UI.user_error!("distribuição pelo Firebase precisa do app_identifier") if app_identifier.to_s.empty?
+    extensoes = ENV["APP_EXTENSION_IDENTIFIERS"].to_s.split(",").map(&:strip).reject(&:empty?)
+    ([app_identifier] + extensoes).reduce({}) do |todos, id|
+      sync_signing(app_identifier: id, tipo: "adhoc", novos_aparelhos: "true")
+      nome = ENV["sigh_#{id}_adhoc_profile-name"]
+      UI.user_error!("match não publicou o nome do perfil Ad Hoc de #{id}") if nome.to_s.empty?
+      todos.merge(id => nome)
+    end
+  end
+
+  # Envia o IPA ao Firebase App Distribution pela CLI oficial. Argumentos em LISTA (sem shell) e
+  # validados pelo formato: chegam do ambiente que o runner montou a partir de uma tarefa da fila.
+  def distribuir_no_firebase(ipa)
+    app_id = ENV["FIREBASE_APP_ID"].to_s
+    grupos = ENV["FIREBASE_GRUPOS"].to_s
+    credencial = ENV["GOOGLE_APPLICATION_CREDENTIALS"].to_s
+    UI.user_error!("FIREBASE_APP_ID fora do formato do Firebase: '#{app_id}'") unless app_id.match?(/\A1:\d+:ios:[0-9a-f]+\z/)
+    UI.user_error!("FIREBASE_GRUPOS fora do formato (aliases separados por vírgula): '#{grupos}'") unless grupos.match?(/\A[a-z0-9-]+(,[a-z0-9-]+)*\z/)
+    UI.user_error!("GOOGLE_APPLICATION_CREDENTIALS não aponta para a conta de serviço") unless File.file?(credencial)
+    UI.user_error!("IPA não encontrado: #{ipa}") unless ipa && File.file?(ipa)
+
+    comando = ["npx", "--yes", FIREBASE_TOOLS, "appdistribution:distribute", ipa, "--app", app_id, "--groups", grupos]
+    notas = ENV["FIREBASE_NOTAS"].to_s.strip
+    comando += ["--release-notes", notas[0, 1000]] unless notas.empty?
+    # Ambiente MÍNIMO para código de terceiro baixado na hora (security-review, 11/nov/2026): a CLI do
+    # Firebase não precisa — e não recebe — MATCH_PASSWORD, senhas da keystore nem ids da ASC.
+    ambiente = {
+      "PATH" => ENV["PATH"].to_s,
+      "HOME" => ENV["HOME"].to_s,
+      "LANG" => ENV["LANG"].to_s,
+      "GOOGLE_APPLICATION_CREDENTIALS" => credencial
+    }
+    UI.message("$ #{comando.first(4).join(' ')} #{File.basename(ipa)} --app #{app_id} --groups #{grupos}")
+    ok = system(ambiente, *comando, unsetenv_others: true)
+    UI.user_error!("a CLI do Firebase falhou (saída #{$?.exitstatus}) — nada foi distribuído") unless ok
+  end
+
+  # ---------------------------------------------------------------------------------------------
   # NÃO existe lane de METADADOS aqui, e não deve existir (19/ago/2026).
   #
   # A ficha de loja (textos, prints, Data Safety) é publicada pelo `provisioner app apply|
@@ -211,6 +274,12 @@ platform :ios do
 
     tipo = options[:tipo] || "appstore"
     setup = options[:setup].to_s == "true"
+    # Ad Hoc com aparelho novo (distribuição pelo Firebase): o perfil PRECISA ser refeito com os
+    # aparelhos cadastrados, então o `match` sai do readonly. O risco do readonly (revogar o
+    # certificado) não vale aqui: o certificado de distribuição já está no repositório e é reusado;
+    # o que se cria ou regenera é só o perfil Ad Hoc do app. Restrito a `adhoc`, de propósito.
+    novos_aparelhos = options[:novos_aparelhos].to_s == "true"
+    UI.user_error!("novos_aparelhos só vale para tipo adhoc") if novos_aparelhos && tipo != "adhoc"
     # `github.com`, não o apelido `github-alt`: o apelido só existe no ~/.ssh/config do SERVIDOR, e
     # o `match` roda no Mac ("Could not resolve hostname github-alt", 28/set/2026).
     git_url = options[:git_url] || ENV["MATCH_GIT_URL"] ||
@@ -236,6 +305,24 @@ platform :ios do
       )
     end
 
+    # Antes de sair do readonly (Ad Hoc com aparelho novo): o certificado de distribuição do
+    # repositório TEM de estar válido. Sem esta conferência, um certificado vencido faria o match
+    # CRIAR outro sozinho e gravá-lo no repositório, desalinhando os perfis App Store (security-review,
+    # 11/nov/2026). Readonly + sem perfis = só confere e instala o certificado; falha se não houver.
+    if novos_aparelhos
+      match(
+        api_key: api_key,
+        type: tipo,
+        app_identifier: [app_identifier],
+        git_url: git_url,
+        storage_mode: "git",
+        readonly: true,
+        skip_provisioning_profiles: true,
+        keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
+        keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
+      )
+    end
+
     match(
       api_key: api_key,
       type: tipo,
@@ -243,7 +330,8 @@ platform :ios do
       git_url: git_url,
       storage_mode: "git",
       # A trava que impede o estrago descrito acima. Só cai quando alguém pede `setup: true`.
-      readonly: !setup,
+      readonly: !setup && !novos_aparelhos,
+      force_for_new_devices: novos_aparelhos,
       # Sem isto o match tenta abrir o Xcode/keychain de forma interativa e trava um build headless.
       keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
@@ -368,11 +456,12 @@ platform :ios do
 
     app_id_release = options[:app_identifier] || ENV["APP_IDENTIFIER"] ||
                      CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
-    perfis = perfis_do_match(app_id_release, "appstore")
+    firebase = distribuicao_pelo_firebase?
+    perfis = firebase ? perfis_adhoc(app_id_release) : perfis_do_match(app_id_release, "appstore")
 
     build_params = {
       scheme: scheme,
-      export_method: "app-store",
+      export_method: firebase ? "ad-hoc" : "app-store",
       export_options: {
         provisioningProfiles: perfis
       },
@@ -422,6 +511,12 @@ platform :ios do
     build_params[:export_options] = { signingStyle: "automatic" } if perfis.empty?
 
     build_app(**build_params)
+
+    if firebase
+      distribuir_no_firebase(lane_context[SharedValues::IPA_OUTPUT_PATH])
+      UI.success("iOS: build Ad Hoc enviado ao Firebase App Distribution (grupos #{ENV['FIREBASE_GRUPOS']})")
+      next
+    end
 
     upload_to_testflight(
       api_key: api_key,
