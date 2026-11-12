@@ -17,6 +17,7 @@ import platform.UserNotifications.UNNotificationPresentationOptionSound
 import platform.UserNotifications.UNNotificationPresentationOptionBanner
 import platform.UserNotifications.UNNotificationPresentationOptions
 import platform.UserNotifications.UNNotificationResponse
+import platform.UserNotifications.UNPushNotificationTrigger
 import platform.UserNotifications.UNUserNotificationCenter
 import platform.UserNotifications.UNUserNotificationCenterDelegateProtocol
 import platform.darwin.NSObject
@@ -36,10 +37,12 @@ import platform.darwin.NSObject
  * func userNotificationCenter(_ center: UNUserNotificationCenter,
  *                             didReceive response: UNNotificationResponse,
  *                             withCompletionHandler completionHandler: @escaping () -> Void) {
+ *     let request = response.notification.request
  *     let handled = NotificationActionBridge.shared.onNotificationResponse(
- *         requestIdentifier: response.notification.request.identifier,
+ *         requestIdentifier: request.identifier,
  *         actionIdentifier: response.actionIdentifier,
- *         userInfo: response.notification.request.content.userInfo
+ *         // push remoto não leva a marca da lib adiante (2.357.1)
+ *         userInfo: request.trigger is UNPushNotificationTrigger ? [:] : request.content.userInfo
  *     )
  *     if !handled {
  *         // não era uma ação da kmplib — trate o seu push aqui
@@ -80,11 +83,16 @@ object NotificationActionBridge {
      * com ele o toque no corpo chega a [NotificationTaps] também quando a notificação já saiu do
      * registro da lib (`showNotificationNow`, disparo único vencido).
      *
+     * **Push remoto: passe `[:]`** (2.357.1). O `userInfo` de um push vem de fora do aparelho e não
+     * deve virar [NotificationTap] pela marca da lib — só notificação LOCAL a carrega.
+     *
      * ```swift
+     * let request = response.notification.request
+     * let isRemote = request.trigger is UNPushNotificationTrigger
      * let handled = NotificationActionBridge.shared.onNotificationResponse(
-     *     requestIdentifier: response.notification.request.identifier,
+     *     requestIdentifier: request.identifier,
      *     actionIdentifier: response.actionIdentifier,
-     *     userInfo: response.notification.request.content.userInfo
+     *     userInfo: isRemote ? [:] : request.content.userInfo
      * )
      * ```
      */
@@ -154,10 +162,13 @@ class KmpLibNotificationDelegate : NSObject(), UNUserNotificationCenterDelegateP
         withCompletionHandler: () -> Unit,
     ) {
         runCatching {
+            val request = didReceiveNotificationResponse.notification.request
             NotificationActionBridge.onNotificationResponse(
-                requestIdentifier = didReceiveNotificationResponse.notification.request.identifier,
+                requestIdentifier = request.identifier,
                 actionIdentifier = didReceiveNotificationResponse.actionIdentifier,
-                userInfo = didReceiveNotificationResponse.notification.request.content.userInfo,
+                // Push remoto não é notificação local da lib: o `userInfo` dele vem de fora e não
+                // pode virar NotificationTap pela marca (2.357.1).
+                userInfo = if (request.trigger is UNPushNotificationTrigger) emptyMap<Any?, Any?>() else request.content.userInfo,
             )
         }
         withCompletionHandler()

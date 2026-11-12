@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.357.1 — Toque na notificação local com prova de origem (security-review)
+
+**Correção de segurança, API inalterada.** Origem: security-review do `NotificationTaps` (2.357.0). Piso em
+`docs/pisos.yaml` (quem usa `NotificationTapEffect`/`NotificationTaps`/`handleNotificationTapIntent`).
+
+- **platform / Android — toque forjado (Médio):** a marca do toque chega na `Activity` de abertura, que é
+  `exported`; qualquer app instalado mandava `kmplib.notification.tap` + `…tap.data` e virava um `NotificationTap` com
+  o `data` que quisesse. Agora o `PendingIntent` da notificação leva **`kmplib.notification.tap.proof`** = HMAC-SHA256 de
+  `id` + `data` (codificação canônica, chaves em ordem, comprimento antes de cada campo) com **chave aleatória de 256 bits
+  por instalação** (`SecureRandom`, `SharedPreferences` privadas, `commit()`); o `handle` confere em tempo constante
+  (`MessageDigest.isEqual`) e **descarta** o toque sem prova válida. Por que HMAC e não `Activity` trampolim
+  `exported="false"`: o trampolim muda a pilha de tarefas dos apps e põe uma `Activity` a mais no manifesto de todos; o
+  HMAC mantém o `PendingIntent` abrindo direto a `Activity` de entrada (recomendação do Android) e prova o mesmo — só o
+  processo conhece a chave, e o conteúdo de um `PendingIntent` não é legível por outro app. **Notificação que já estava
+  na bandeja antes do update** não tem a prova: o toque abre o app como sempre, mas não vira `NotificationTap` (decisão
+  consciente; o lembrete rolante é reagendado a cada abertura e o que ainda não disparou é montado já com a prova).
+- **platform / Android — `Bundle` externo (Baixo):** ler os extras (`hasExtra`/`getBundleExtra`/`keySet()`) de um
+  `Intent` de fora podia lançar `BadParcelableException`/`ClassNotFoundException` e derrubar o `onCreate`. Agora a leitura
+  roda em `runCatching`: descarta, tira a marca e registra só o TIPO do erro no log.
+- **platform / iOS:** o delegate da lib só usa a marca do `userInfo` para notificação **local** (`trigger` que não é
+  `UNPushNotificationTrigger`); o exemplo Swift do `NotificationActionBridge` passa `[:]` para push remoto.
+- **KDoc:** `NotificationTap.data` é **entrada não confiável** — validar formato, id existente e rota de lista fechada
+  antes de navegar; nunca URL. O exemplo do `NotificationTapEffect` valida a data. Os extras soltos antigos
+  (`notification_id` + chaves do `data`) seguem no `Intent`, sem prova: quem lê à mão deve migrar para `NotificationTaps`.
+
 ## 2.357.0 — Lacunas da família cristã: Premium sem trial dito pela metade, toque na notificação local, seções/links extras no kit, "Mais" do compartilhar e nota no onboarding
 
 **Aditivo** (nada muda para quem não usa; um valor novo em `PaymentAlertKind`). Origem: os 12 apps da família cristã

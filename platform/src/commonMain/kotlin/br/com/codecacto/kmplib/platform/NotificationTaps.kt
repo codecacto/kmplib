@@ -17,6 +17,11 @@ import kotlin.concurrent.Volatile
  * @property notificationId o `id` usado no agendamento (no lembrete rolante/mensal: `idBase + i`).
  * @property data o `data` do agendamento — inclusive `"kmplib.date"` (AAAA-MM-DD) do
  *   `scheduleRollingDaily`/`scheduleMonthly`. As chaves internas da lib não vêm.
+ *   **Trate como entrada NÃO confiável** (2.357.1): valide antes de navegar — formato da data, id
+ *   que existe no banco do app, rota de uma lista fechada (allowlist); **nunca** use um valor como
+ *   URL, caminho de arquivo ou rota livre. A lib prova a origem no Android, mas o `data` é o que o
+ *   app gravou no agendamento, e o app pode ter gravado algo que mudou (registro apagado, versão
+ *   nova com outro formato).
  * @property sequence número crescente no processo: dois toques na mesma notificação são dois eventos.
  */
 data class NotificationTap(
@@ -44,18 +49,25 @@ data class NotificationTap(
  * tela para navegar. Toque novo antes de consumir o anterior substitui o anterior (vale o último).
  *
  * ```kotlin
- * // Na tela raiz, DEPOIS de a navegação existir:
+ * // Na tela raiz, DEPOIS de a navegação existir. O `data` é entrada: valide antes de navegar.
  * NotificationTapEffect { tap ->
- *     val data = tap.scheduledDate ?: return@NotificationTapEffect
- *     navController.navigate(Rota.Dia(data))
+ *     val dia = tap.scheduledDate
+ *         ?.let { runCatching { LocalDate.parse(it) }.getOrNull() } // só AAAA-MM-DD válido
+ *         ?: return@NotificationTapEffect
+ *     navController.navigate(Rota.Dia(dia.toString()))              // rota fechada, nunca URL do data
  * }
  * ```
  *
  * **Android:** nada no app — o `initKmpLibPlatform` passa a observar a `Activity` de abertura
  * (`onCreate` e `onNewIntent`, via `ActivityLifecycleCallbacks` + `OnNewIntentProvider`) e entrega o toque;
- * reabrir pelos recentes e girar a tela não entregam de novo. O app que abre outra `Activity` pelo
+ * reabrir pelos recentes e girar a tela não entregam de novo. Desde a 2.357.1 o toque só é entregue
+ * com a **prova de origem** (HMAC com chave local por instalação) que a lib grava no `PendingIntent`:
+ * a `Activity` de abertura é exportada, e um `Intent` com os mesmos extras vindo de outro app é
+ * descartado. Notificação que já estava na bandeja antes do update não tem a prova (o toque abre o
+ * app, mas não vira [NotificationTap]). O app que abre outra `Activity` pelo
  * toque pode chamar `handleNotificationTapIntent(intent)` (androidMain). Os extras antigos
- * (`notification_id` e cada chave do `data`) continuam no `Intent`: quem lia à mão segue funcionando.
+ * (`notification_id` e cada chave do `data`) continuam no `Intent`: quem lia à mão segue funcionando —
+ * mas esses extras soltos **não têm prova** e qualquer app pode forjá-los; migre para esta API.
  *
  * **iOS:** o delegate da lib ([installNotificationActionDelegate]) entrega sozinho. App com delegate
  * próprio (push) passa o `userInfo` ao bridge — `NotificationActionBridge.onNotificationResponse(

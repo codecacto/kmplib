@@ -119,7 +119,7 @@ internal object NotificationPresenter {
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         launchIntent.putExtra(AndroidNotificationScheduler.EXTRA_NOTIFICATION_ID, id)
         data.forEach { (key, value) -> launchIntent.putExtra(key, value) }
-        if (asTap) NotificationTapIntents.mark(launchIntent, id, data)
+        if (asTap) NotificationTapIntents.mark(ctx, launchIntent, id, data)
         return PendingIntent.getActivity(
             ctx,
             id,
