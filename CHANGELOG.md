@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.358.0 — kmplib-familia: identidade de app de FORA da família cristã
+
+**Aditivo, sem quebra (fonte e binário).** Origem: os 6 apps simples de ferramenta de trabalho
+(`docs/estudos/apps-simples-2026-11-12/`) nascem no MESMO sistema de design dos 12 cristãos, cada um com paleta e
+ícone próprios. O kit passa a servir à **família visual CodeCacto** em geral; o nome do artefato (`kmplib-familia`)
+fica por compatibilidade.
+
+- **`interface FamilyAppIdentity { code; slug; displayName; icon; scheme }`** (`familia.theme`) — `FamilyApp`
+  implementa (`scheme = FamilyPalettes.of(app)`); app de fora cria a sua com
+  `FamilyAppIdentity(slug, displayName, icon, scheme, code = slug)` (igualdade por valor).
+- **`FamilyTheme(identity, darkTheme, textScale) { }`** — nova sobrecarga; `FamilyTheme(FamilyApp.X, …, scheme)`
+  segue idêntica. `LocalFamilyIdentity` + `FamilyTheme.identity` / `FamilyTheme.familyAppOrNull` /
+  `identity.familyApp`. `LocalFamilyApp`/`FamilyTheme.app` só são providos para `FamilyApp` (em app de fora falham
+  com mensagem que aponta para `identity`).
+- Defaults das telas comuns leem a identidade: `FamilyTopBar.appIcon`, `FamilyOnboarding.appIcon`,
+  `FamilyAboutScreen` (nome e ícone). `FamilyAppIcon(identity, size)`.
+- **Outros apps sem a grade cristã para app de fora:** `familyOtherAppsCatalogFor(identity)` (os 12 para cristão,
+  vazio para os demais), `FamilyOtherAppsScreen(onBack, catalog, modifier, current = FamilyTheme.identity)`,
+  `loadFamilyOtherApps(identity, catalog)` (catálogo vazio não vai à rede) e a escolha pura
+  `selectFamilyOtherApps(publicados, current, catalog)`. As formas antigas (`FamilyOtherAppsScreen(onBack)`,
+  `loadFamilyOtherApps(FamilyApp)`) delegam a ela com o mesmo comportamento.
+- Textos do kit conferidos nos 4 idiomas: neutros (nada de igreja/fé/Bíblia); "Sobre a tradução" continua opcional.
+- Testes: `FamilyIdentityTest` (paleta passada aplicada, `FamilyApp` como identidade, catálogo vazio para app de
+  fora, catálogo próprio).
+
 ## 2.357.1 — Toque na notificação local com prova de origem (security-review)
 
 **Correção de segurança, API inalterada.** Origem: security-review do `NotificationTaps` (2.357.0). Piso em

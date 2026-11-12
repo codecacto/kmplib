@@ -20,8 +20,19 @@ val LocalFamilyColors = staticCompositionLocalOf<FamilyPalette> { error("Sem Fam
 /** A tipografia em vigor (já com o A− A+). */
 val LocalFamilyTypography = staticCompositionLocalOf<FamilyTypography> { error("Sem FamilyTheme na árvore") }
 
-/** O app em vigor. */
-val LocalFamilyApp = staticCompositionLocalOf<FamilyApp> { error("Sem FamilyTheme na árvore") }
+/**
+ * O app da família CRISTÃ em vigor. Só é provido quando o tema nasce de um [FamilyApp]; app de fora
+ * (identidade própria) lê [LocalFamilyIdentity] — ler este lá falha com a explicação.
+ */
+val LocalFamilyApp = staticCompositionLocalOf<FamilyApp> {
+    error(
+        "Sem FamilyApp na árvore: ou falta FamilyTheme, ou o app usa uma FamilyAppIdentity própria " +
+            "(fora da família cristã) — leia FamilyTheme.identity / LocalFamilyIdentity.",
+    )
+}
+
+/** A identidade do app em vigor (2.358.0) — vale para os 12 cristãos e para app de fora. */
+val LocalFamilyIdentity = staticCompositionLocalOf<FamilyAppIdentity> { error("Sem FamilyTheme na árvore") }
 
 /** `true` no tema escuro. */
 val LocalFamilyDark = staticCompositionLocalOf { false }
@@ -32,8 +43,20 @@ object FamilyTheme {
         @Composable @ReadOnlyComposable get() = LocalFamilyColors.current
     val type: FamilyTypography
         @Composable @ReadOnlyComposable get() = LocalFamilyTypography.current
+    /**
+     * O app da família cristã. **Só existe em app da família** — app com identidade própria falha aqui;
+     * use [identity] (ou [familyAppOrNull]).
+     */
     val app: FamilyApp
         @Composable @ReadOnlyComposable get() = LocalFamilyApp.current
+
+    /** A identidade do app em vigor (nome, slug, ícone, paleta) — 2.358.0. */
+    val identity: FamilyAppIdentity
+        @Composable @ReadOnlyComposable get() = LocalFamilyIdentity.current
+
+    /** O [FamilyApp] em vigor, ou `null` em app de fora da família cristã. */
+    val familyAppOrNull: FamilyApp?
+        @Composable @ReadOnlyComposable get() = LocalFamilyIdentity.current.familyApp
     val isDark: Boolean
         @Composable @ReadOnlyComposable get() = LocalFamilyDark.current
 }
@@ -50,6 +73,8 @@ object FamilyTheme {
  * FamilyTheme(FamilyApp.VersiculoHoje, darkTheme = mode.isDarkTheme(), textScale = scale) { … }
  * ```
  *
+ * App de FORA da família cristã: a sobrecarga com [FamilyAppIdentity] (2.358.0).
+ *
  * @param scheme paleta — default a do protótipo para [app]; só troque em teste/pré-visualização.
  */
 @Composable
@@ -58,6 +83,32 @@ fun FamilyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     textScale: TextScale = TextScale.STANDARD,
     scheme: FamilyColorScheme = FamilyPalettes.of(app),
+    content: @Composable () -> Unit,
+) = FamilyThemeImpl(app, scheme, darkTheme, textScale, content)
+
+/**
+ * Tema de um app com identidade PRÓPRIA (2.358.0) — o mesmo kit (fontes, A− A+, primitivos, telas
+ * comuns) na paleta e com o ícone de [identity]. Serve também aos 12 cristãos (`FamilyApp` é uma
+ * identidade), mas para eles a sobrecarga com [FamilyApp] é a escolhida.
+ *
+ * ```kotlin
+ * FamilyTheme(MeuAppIdentity, darkTheme = mode.isDarkTheme(), textScale = scale) { … }
+ * ```
+ */
+@Composable
+fun FamilyTheme(
+    identity: FamilyAppIdentity,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    textScale: TextScale = TextScale.STANDARD,
+    content: @Composable () -> Unit,
+) = FamilyThemeImpl(identity, identity.scheme, darkTheme, textScale, content)
+
+@Composable
+private fun FamilyThemeImpl(
+    identity: FamilyAppIdentity,
+    scheme: FamilyColorScheme,
+    darkTheme: Boolean,
+    textScale: TextScale,
     content: @Composable () -> Unit,
 ) {
     val palette = scheme.forTheme(darkTheme)
@@ -79,14 +130,15 @@ fun FamilyTheme(
             onSecondaryContainer = palette.acd,
         )
         MaterialTheme(colorScheme = material, typography = MaterialTheme.typography) {
-            CompositionLocalProvider(
+            val provided = listOfNotNull(
                 LocalFamilyColors provides palette,
                 LocalFamilyTypography provides typography,
-                LocalFamilyApp provides app,
+                LocalFamilyIdentity provides identity,
+                identity.familyApp?.let { LocalFamilyApp provides it },
                 LocalFamilyDark provides darkTheme,
                 LocalTextScale provides textScale,
-                content = content,
             )
+            CompositionLocalProvider(*provided.toTypedArray(), content = content)
         }
     }
 }

@@ -46,6 +46,7 @@ import br.com.codecacto.kmplib.familia.generated.resources.*
 import br.com.codecacto.kmplib.familia.familiaString
 import br.com.codecacto.kmplib.familia.icons.FamilyIcons
 import br.com.codecacto.kmplib.familia.theme.FamilyApp
+import br.com.codecacto.kmplib.familia.theme.FamilyAppIdentity
 import br.com.codecacto.kmplib.familia.theme.FamilyFixedColors
 import br.com.codecacto.kmplib.familia.theme.FamilyTheme
 import br.com.codecacto.kmplib.ui.components.AppDialog
@@ -249,6 +250,10 @@ fun FamilyProgressDialog(message: String, testTag: String = "dialogo-progresso")
 /** Ícone de app em squircle (`.ai`, raio 23%). */
 @Composable
 fun FamilyAppIcon(app: FamilyApp, size: Dp, modifier: Modifier = Modifier) = FamilyAppIcon(app.icon, size, modifier)
+
+/** Ícone de app em squircle de qualquer identidade (2.358.0 — app de fora da família cristã inclusive). */
+@Composable
+fun FamilyAppIcon(identity: FamilyAppIdentity, size: Dp, modifier: Modifier = Modifier) = FamilyAppIcon(identity.icon, size, modifier)
 
 /** Ícone de app em squircle a partir da arte. */
 @Composable

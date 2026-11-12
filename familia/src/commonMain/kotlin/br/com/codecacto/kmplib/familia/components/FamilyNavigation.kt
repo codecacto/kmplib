@@ -100,7 +100,7 @@ fun FamilyTopBar(
     onMenuClick: () -> Unit,
     modifier: Modifier = Modifier,
     showPremiumSeal: Boolean = true,
-    appIcon: ImageVector = FamilyTheme.app.icon,
+    appIcon: ImageVector = FamilyTheme.identity.icon,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val c = FamilyTheme.colors

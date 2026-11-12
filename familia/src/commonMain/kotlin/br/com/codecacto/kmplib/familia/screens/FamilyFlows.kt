@@ -79,7 +79,7 @@ fun FamilyOnboarding(
     reminder: FamilyOnboardingReminder?,
     onFinished: (allowNotifications: Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    appIcon: ImageVector = FamilyTheme.app.icon,
+    appIcon: ImageVector = FamilyTheme.identity.icon,
     firstPageNote: String? = null,
 ) {
     val c = FamilyTheme.colors

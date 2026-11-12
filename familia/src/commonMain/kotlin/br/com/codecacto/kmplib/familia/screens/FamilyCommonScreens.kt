@@ -64,6 +64,9 @@ import br.com.codecacto.kmplib.familia.familiaString
 import br.com.codecacto.kmplib.familia.generated.resources.*
 import br.com.codecacto.kmplib.familia.icons.FamilyIcons
 import br.com.codecacto.kmplib.familia.theme.FamilyApp
+import br.com.codecacto.kmplib.familia.theme.FamilyAppIdentity
+import br.com.codecacto.kmplib.familia.theme.familyOtherAppsCatalogFor
+import br.com.codecacto.kmplib.core.text.foldForSearch
 import br.com.codecacto.kmplib.familia.theme.FamilyTheme
 import br.com.codecacto.kmplib.ui.screens.feedback.FeedbackScreen
 import br.com.codecacto.kmplib.platform.getUrlLauncher
@@ -379,12 +382,30 @@ fun FamilyTimeSheet(selected: Int, times: List<Int>, onSelect: (Int) -> Unit, on
 /**
  * **Outros apps** (02 §6): os irmãos da família vindos do Nexus (`/public/developer`), sem o próprio
  * app; toque → página na loja do aparelho. Ids `outros-<slug>`.
+ *
+ * Só para os 12 apps cristãos (lê [FamilyTheme.app]). App com identidade própria usa a sobrecarga com
+ * `catalog` — ou esconde a linha no "Mais" (`onOtherApps = null`).
  */
 @Composable
-fun FamilyOtherAppsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, current: FamilyApp = FamilyTheme.app) {
-    val c = FamilyTheme.colors
-    var apps by remember { mutableStateOf<List<Pair<FamilyApp, DeveloperApp>>?>(null) }
-    LaunchedEffect(current) { apps = loadFamilyOtherApps(current) }
+fun FamilyOtherAppsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, current: FamilyApp = FamilyTheme.app) =
+    FamilyOtherAppsScreen(onBack = onBack, catalog = FamilyApp.entries, modifier = modifier, current = current)
+
+/**
+ * **Outros apps** de um [catalog] qualquer (2.358.0): os apps do catálogo publicados no Nexus
+ * (casados pelo nome, sem acento e sem caixa), sem o [current], com o ícone de cada identidade.
+ * Default de catálogo para o app em vigor: [familyOtherAppsCatalogFor] — os 12 cristãos para app da
+ * família, **vazio** para app de fora (aí a tela mostra lista vazia; esconda a linha do menu com
+ * `onOtherApps = null` ou use [loadFamilyOtherApps] para decidir). Ids `outros-<slug>`.
+ */
+@Composable
+fun FamilyOtherAppsScreen(
+    onBack: () -> Unit,
+    catalog: List<FamilyAppIdentity>,
+    modifier: Modifier = Modifier,
+    current: FamilyAppIdentity = FamilyTheme.identity,
+) {
+    var apps by remember { mutableStateOf<List<Pair<FamilyAppIdentity, DeveloperApp>>?>(null) }
+    LaunchedEffect(current, catalog) { apps = loadFamilyOtherApps(current, catalog) }
     FamilyScaffold(modifier.testTag("outros-tela"), topBar = { FamilySubTopBar(familiaString(Res.string.familia_other_apps), onBack) }) { inner ->
         Column(Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp)) {
             val list = apps
@@ -397,7 +418,7 @@ fun FamilyOtherAppsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, cur
                         row(
                             dev.name.ifBlank { fam.displayName },
                             dev.description.takeIf { it.isNotBlank() },
-                            leading = { FamilyAppIcon(fam, 52.dp) },
+                            leading = { FamilyAppIcon(fam.icon, 52.dp) },
                             trailing = { FamilyPill(see) },
                             onClick = { dev.primaryStoreUrl()?.let { getUrlLauncher().openUrl(it) } },
                             testTag = "outros-${fam.slug}",
@@ -414,10 +435,36 @@ fun FamilyOtherAppsScreen(onBack: () -> Unit, modifier: Modifier = Modifier, cur
  * "Outros apps" do menu (`onOtherApps = null`).
  */
 suspend fun loadFamilyOtherApps(current: FamilyApp): List<Pair<FamilyApp, DeveloperApp>> =
-    DeveloperInfoService.fetchApps().getOrDefault(emptyList())
-        .mapNotNull { dev -> FamilyApp.matchName(dev.name)?.let { it to dev } }
-        .filter { (fam, dev) -> fam != current && dev.primaryStoreUrl() != null }
-        .distinctBy { it.first }
+    loadFamilyOtherApps(current, FamilyApp.entries).map { (id, dev) -> (id as FamilyApp) to dev }
+
+/**
+ * Os apps de [catalog] publicados (com link de loja), sem [current], na ordem do Nexus (2.358.0).
+ * Catálogo vazio não consulta a rede e devolve vazio. Lista vazia = esconda "Outros apps" do menu.
+ */
+suspend fun loadFamilyOtherApps(
+    current: FamilyAppIdentity,
+    catalog: List<FamilyAppIdentity> = familyOtherAppsCatalogFor(current),
+): List<Pair<FamilyAppIdentity, DeveloperApp>> {
+    if (catalog.none { it != current }) return emptyList()
+    return selectFamilyOtherApps(DeveloperInfoService.fetchApps().getOrDefault(emptyList()), current, catalog)
+}
+
+/**
+ * A escolha de [loadFamilyOtherApps] sobre a lista do Nexus já baixada: casa cada item com o
+ * [catalog] pelo nome (sem acento e sem caixa), tira o [current] e quem não tem link de loja, um por
+ * identidade. Pura.
+ */
+fun selectFamilyOtherApps(
+    published: List<DeveloperApp>,
+    current: FamilyAppIdentity,
+    catalog: List<FamilyAppIdentity>,
+): List<Pair<FamilyAppIdentity, DeveloperApp>> {
+    val byName = catalog.associateBy { foldForSearch(it.displayName) }
+    return published
+        .mapNotNull { dev -> byName[foldForSearch(dev.name)]?.let { it to dev } }
+        .filter { (id, dev) -> id != current && dev.primaryStoreUrl() != null }
+        .distinctBy { it.first.slug }
+}
 
 private fun DeveloperApp.primaryStoreUrl(): String? = resolveStoreUrl().takeIf { it.isNotBlank() }
 
@@ -437,7 +484,7 @@ fun FamilyAboutScreen(
     privacyUrl: String,
     onDevelopedBy: () -> Unit,
     modifier: Modifier = Modifier,
-    appName: String = FamilyTheme.app.displayName,
+    appName: String = FamilyTheme.identity.displayName,
     onAboutTranslation: (() -> Unit)? = null,
     extraLinks: List<AboutExtraLink> = emptyList(),
 ) {
@@ -449,7 +496,7 @@ fun FamilyAboutScreen(
         onDevelopedByClick = onDevelopedBy,
         modifier = modifier,
         appName = appName,
-        appIcon = androidx.compose.ui.graphics.vector.rememberVectorPainter(FamilyTheme.app.icon),
+        appIcon = androidx.compose.ui.graphics.vector.rememberVectorPainter(FamilyTheme.identity.icon),
         bottomBar = { SubscreenBanner() },
         extraLinks = familyAboutLinks(onAboutTranslation?.let { AboutExtraLink(label, "sobre-btn-traducao", onClick = it) }, extraLinks),
     )

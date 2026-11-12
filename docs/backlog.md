@@ -3,6 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/nov/2026 — kit visual para app de FORA da família cristã (entregue na 2.358.0)
+
+Origem: 6 apps simples de trabalho (`docs/estudos/apps-simples-2026-11-12/`) no mesmo design dos 12 cristãos.
+
+- [x] `FamilyAppIdentity` (interface; `FamilyApp` implementa) + `FamilyTheme(identity, …)`; "Outros apps" sem a
+      grade cristã para app de fora (catálogo próprio opcional). Nome do artefato `kmplib-familia` mantido.
+
 ### Registrado em 12/nov/2026 — lacunas dos 12 apps da família cristã (2.357.0)
 
 Origem: os relatos de construção dos 12 apps (`1-Apps-Offline-Ads/<Pasta>/mobile/`) e o security-review do kit.

@@ -7,8 +7,15 @@ import br.com.codecacto.kmplib.familia.icons.FamilyAppIconArt
  * Os 12 apps da família cristã CodeCacto. [code] é o prefixo do protótipo (`vh`, `rh`…), [slug] o do
  * projeto/repo/loja, [displayName] o nome de nascença (pt-BR) — o nome por idioma na loja mora no
  * Nexus; o app passa o dele para as telas quando for outro.
+ *
+ * Desde a 2.358.0 é uma [FamilyAppIdentity] — app de FORA da família declara a sua com
+ * `FamilyAppIdentity(slug, displayName, icon, scheme)` e usa o mesmo kit.
  */
-enum class FamilyApp(val code: String, val slug: String, val displayName: String) {
+enum class FamilyApp(
+    override val code: String,
+    override val slug: String,
+    override val displayName: String,
+) : FamilyAppIdentity {
     VersiculoHoje("vh", "versiculo-hoje", "Versículo Hoje"),
     RosarioHoje("rh", "rosario-hoje", "Rosário Hoje"),
     Decora("dc", "decora", "Decora"),
@@ -23,7 +30,7 @@ enum class FamilyApp(val code: String, val slug: String, val displayName: String
     AtlasBiblico("at", "atlas-biblico", "Atlas Bíblico");
 
     /** O ícone do app (arte do protótipo, 100×100). Recorte em squircle: `FamilyAppIcon`. */
-    val icon: ImageVector
+    override val icon: ImageVector
         get() = when (this) {
             VersiculoHoje -> FamilyAppIconArt.VersiculoHoje
             RosarioHoje -> FamilyAppIconArt.RosarioHoje
@@ -38,6 +45,10 @@ enum class FamilyApp(val code: String, val slug: String, val displayName: String
             CadernoDeSermao -> FamilyAppIconArt.CadernoDeSermao
             AtlasBiblico -> FamilyAppIconArt.AtlasBiblico
         }
+
+    /** A paleta do protótipo deste app ([FamilyPalettes.of]). */
+    override val scheme: FamilyColorScheme
+        get() = FamilyPalettes.of(this)
 
     companion object {
         /** O app do [slug] (`"versiculo-hoje"`), ou `null`. */
