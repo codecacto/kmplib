@@ -1,6 +1,12 @@
 package br.com.codecacto.kmplib.platform
 
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart
+import kotlinx.io.Buffer
+import kotlinx.io.IOException
+import kotlinx.io.RawSource
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.refTo
 import platform.Foundation.NSData
@@ -94,5 +100,66 @@ internal fun readPickedFile(url: NSURL, maxBytes: Long): FilePickResult {
         FilePickResult.Failed(fileName, FilePickFailure.Unreadable)
     } finally {
         if (securityScoped) url.stopAccessingSecurityScopedResource()
+    }
+}
+
+/**
+ * Parte multipart em fluxo de um arquivo do seletor de documentos (2.356.0). Tamanho EXATO lido com o
+ * escopo de segurança aberto (`null` quando o sistema não informa — arquivo do iCloud ainda não
+ * baixado: aí sobe em `chunked`).
+ */
+internal fun pickedFileStreamingPart(url: NSURL, fieldName: String, fileName: String, mimeType: String): StreamingMultipartPart {
+    val escopo = url.startAccessingSecurityScopedResource()
+    val tamanho = try {
+        declaredFileSize(url).takeIf { it >= 0L }
+    } finally {
+        if (escopo) url.stopAccessingSecurityScopedResource()
+    }
+    return StreamingMultipartPart(fieldName, fileName, mimeType, tamanho) { openPickedFileSource(url) }
+}
+
+/**
+ * Abre o arquivo para leitura em fluxo: escopo de segurança aberto (fechado junto com a fonte) e
+ * abertura dentro de `NSFileCoordinator` — o que a Apple indica para arquivo de provedor (o iCloud
+ * baixa aqui). O descritor aberto dentro do bloco continua válido depois dele.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun openPickedFileSource(url: NSURL): RawSource {
+    val escopo = url.startAccessingSecurityScopedResource()
+    try {
+        var fonte: RawSource? = null
+        var falha: Throwable? = null
+        NSFileCoordinator(filePresenter = null).coordinateReadingItemAtURL(
+            url = url,
+            options = NSFileCoordinatorReadingWithoutChanges,
+            error = null,
+        ) { coordenada ->
+            val caminho = (coordenada ?: url).path
+            if (caminho == null) {
+                falha = IOException("arquivo sem caminho")
+            } else {
+                try {
+                    fonte = SystemFileSystem.source(Path(caminho))
+                } catch (e: Throwable) {
+                    falha = e
+                }
+            }
+        }
+        val aberta = fonte ?: throw (falha as? IOException ?: IOException("arquivo indisponível", falha))
+        return ScopedSource(aberta) { if (escopo) url.stopAccessingSecurityScopedResource() }
+    } catch (e: Throwable) {
+        if (escopo) url.stopAccessingSecurityScopedResource()
+        throw e
+    }
+}
+
+/** Repassa a leitura e, no fechamento, fecha o escopo de segurança (uma vez). */
+private class ScopedSource(private val delegate: RawSource, private val onClose: () -> Unit) : RawSource {
+    private var fechada = false
+    override fun readAtMostTo(sink: Buffer, byteCount: Long): Long = delegate.readAtMostTo(sink, byteCount)
+    override fun close() {
+        if (fechada) return
+        fechada = true
+        try { delegate.close() } finally { onClose() }
     }
 }

@@ -1,6 +1,7 @@
 package br.com.codecacto.kmplib.platform
 
 import androidx.compose.runtime.Composable
+import br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart
 
 /**
  * Um arquivo escolhido no seletor de **vários** arquivos ([rememberMultiFilePicker], 2.311.0).
@@ -22,12 +23,21 @@ import androidx.compose.runtime.Composable
  * @property sizeBytes tamanho informado pelo provedor; `-1` quando ele não informa (a leitura com teto
  *   decide nesse caso).
  */
-class PickedFile(
+class PickedFile internal constructor(
     val name: String,
     val mimeType: String,
     val sizeBytes: Long,
     private val reader: suspend (maxBytes: Long) -> FilePickResult,
+    private val stream: PickedFileStream?,
 ) {
+    /** Construtor do dublê de teste: sem leitura em fluxo ([toMultipartPart] devolve `null`). */
+    constructor(
+        name: String,
+        mimeType: String,
+        sizeBytes: Long,
+        reader: suspend (maxBytes: Long) -> FilePickResult,
+    ) : this(name, mimeType, sizeBytes, reader, null)
+
     /** Extensão do nome, sem o ponto (`""` quando não há). */
     val extension: String get() = name.substringAfterLast('.', "")
 
@@ -47,8 +57,37 @@ class PickedFile(
     suspend fun read(maxBytes: Long = DEFAULT_MAX_FILE_BYTES): FilePickResult =
         reader(resolveMaxFileBytes(maxBytes))
 
+    /** `true` quando o arquivo pode subir em fluxo por [toMultipartPart] (todo arquivo vindo do seletor). */
+    val canStream: Boolean get() = stream != null
+
+    /**
+     * Parte multipart **em fluxo** (2.356.0) para [br.com.codecacto.kmplib.sync.rest.DomainApiClient.postMultipartStreaming]:
+     * o arquivo é lido em pedaços enquanto sobe, sem passar inteiro pela memória — o caminho para vídeo e
+     * PDF grande. Confira o tamanho antes ([exceeds]); o servidor continua sendo quem recusa.
+     *
+     * - **Android:** lê a URI do seletor pelo `ContentResolver` (a permissão vale enquanto o app está aberto).
+     * - **iOS:** abre o escopo de segurança da URL e lê de forma coordenada (`NSFileCoordinator` — arquivo do
+     *   iCloud ainda não baixado é baixado ao abrir); o escopo fecha junto com a fonte.
+     *
+     * Devolve `null` só no [PickedFile] montado à mão (dublê de teste), que não tem arquivo por trás.
+     *
+     * @param fileName nome no `Content-Disposition`; default = o nome do arquivo escolhido.
+     */
+    fun toMultipartPart(fieldName: String = "file", fileName: String = name): StreamingMultipartPart? {
+        val s = stream ?: return null
+        return s.toPart(fieldName, fileName, mimeType)
+    }
+
     /** Sem o nome: "cnh-joao-silva.pdf" é dado pessoal e não pode ir para log/GlitchTip. */
     override fun toString(): String = "PickedFile(mimeType=$mimeType, sizeBytes=$sizeBytes)"
+}
+
+/**
+ * Como o arquivo escolhido vira parte em fluxo (interno à lib): cada plataforma sabe abrir a sua
+ * referência (URI do `ContentResolver`, URL com escopo de segurança, caminho do desktop).
+ */
+internal fun interface PickedFileStream {
+    fun toPart(fieldName: String, fileName: String, mimeType: String): StreamingMultipartPart
 }
 
 /**

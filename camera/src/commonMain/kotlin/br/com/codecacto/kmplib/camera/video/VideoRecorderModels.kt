@@ -268,3 +268,19 @@ private const val MAX_START_DELAY_SECONDS = 10
 
 /** Apaga o arquivo gravado. `true` se apagou ou já não existia. Nunca lança. */
 internal expect fun deleteRecordedVideoFile(path: String): Boolean
+
+/**
+ * Parte multipart **em fluxo** (2.356.0) do vídeo gravado, para `DomainApiClient.postMultipartStreaming`:
+ * lido do [RecordedVideo.path] em pedaços durante o envio, sem passar inteiro pela memória. Só apague o
+ * arquivo ([RecordedVideo.deleteFile]) **depois** do envio — a repetição pós-401 reabre o arquivo.
+ */
+fun RecordedVideo.toMultipartPart(
+    fieldName: String = "file",
+    fileName: String = "video.mp4",
+): br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart =
+    br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart.fromLocalFile(
+        fieldName = fieldName,
+        reference = path,
+        fileName = fileName,
+        mimeType = mimeType.ifBlank { "video/mp4" },
+    )

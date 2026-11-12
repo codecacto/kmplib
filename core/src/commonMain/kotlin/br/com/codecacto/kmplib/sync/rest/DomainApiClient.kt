@@ -14,6 +14,7 @@ import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.InputProvider
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -31,6 +32,7 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.contentType
+import kotlinx.io.buffered
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -506,7 +508,7 @@ class DomainApiClient(
         postMultipartParts(path, listOf(MultipartPart(fieldName, fileName, fileBytes, mimeType)), formFields)
 
     private fun multipartBody(
-        parts: List<MultipartPart>,
+        parts: List<MultipartBodyPart>,
         formFields: Map<String, String> = emptyMap(),
     ) = MultiPartFormDataContent(
         formData {
@@ -514,20 +516,79 @@ class DomainApiClient(
                 if (nome.isNotBlank()) append(nome, valor)
             }
             parts.forEach { part ->
-                append(
-                    key = part.fieldName,
-                    value = part.bytes,
-                    headers = Headers.build {
-                        append(HttpHeaders.ContentType, part.mimeType)
-                        append(
-                            HttpHeaders.ContentDisposition,
-                            "filename=\"${multipartFileNameValue(part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } })}\"",
-                        )
-                    },
-                )
+                val partHeaders = Headers.build {
+                    append(HttpHeaders.ContentType, part.mimeType)
+                    append(
+                        HttpHeaders.ContentDisposition,
+                        "filename=\"${multipartFileNameValue(part.fileName.ifBlank { part.fieldName.ifBlank { "anexo" } })}\"",
+                    )
+                }
+                when (part) {
+                    is MultipartPart -> append(key = part.fieldName, value = part.bytes, headers = partHeaders)
+                    // InputProvider = corpo em fluxo oficial do Ktor 3 (kotlinx-io `Source`); o bloco roda a
+                    // cada escrita do corpo, então a repetição pós-401 reabre o arquivo do começo.
+                    is StreamingMultipartPart -> append(
+                        key = part.fieldName,
+                        value = InputProvider(part.sizeBytes) { part.openSource().buffered() },
+                        headers = partHeaders,
+                    )
+                }
             }
         },
     )
+
+    // ---- Multipart em fluxo (2.356.0) -------------------------------------
+
+    /**
+     * Upload multipart com partes **em fluxo** (2.356.0): cada [StreamingMultipartPart] é lida em
+     * pedaços enquanto sobe — um vídeo de 40 MB não passa inteiro pela memória. Aceita também
+     * [MultipartPart] (bytes) no mesmo request, para misturar (ex.: vídeo em fluxo + capa JPEG).
+     *
+     * Mesma resiliência das demais chamadas: Bearer, refresh + 1 repetição no 401 (o arquivo é
+     * reaberto e reenviado do início), 402 → [DomainResult.Quota], envelope de erro da backlib, e
+     * falha de leitura do arquivo ou de rede vira [DomainResult.Error] com `code = -1` — nunca lança.
+     * Campos de texto vão **antes** das partes binárias (ver [postMultipartParts] com `formFields`).
+     *
+     * @param timeoutMillis teto desta chamada só (requisição inteira e silêncio do socket) — vídeo no
+     *   4G passa dos 30 s do cliente. `null` mantém os tetos do `createHttpClient`.
+     * @param headers cabeçalhos extras desta chamada — ver [RESERVED_HEADERS].
+     */
+    suspend fun postMultipartStreaming(
+        path: String,
+        parts: List<MultipartBodyPart>,
+        formFields: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
+            httpClient.post(url(path)) {
+                bearer(token)
+                extras(this)
+                callTimeout(timeoutMillis)
+                setBody(multipartBody(parts, formFields))
+            }
+        }.texto()
+    }
+
+    /** Versão PUT do [postMultipartStreaming] (2.356.0) — substituir o binário de um recurso. */
+    suspend fun putMultipartStreaming(
+        path: String,
+        parts: List<MultipartBodyPart>,
+        formFields: Map<String, String> = emptyMap(),
+        timeoutMillis: Long? = null,
+        headers: Map<String, String> = emptyMap(),
+    ): DomainResult<String> {
+        val extras = extraHeaders(headers)
+        return execute(path) { token ->
+            httpClient.put(url(path)) {
+                bearer(token)
+                extras(this)
+                callTimeout(timeoutMillis)
+                setBody(multipartBody(parts, formFields))
+            }
+        }.texto()
+    }
 
     /**
      * Stream autenticado dos bytes de um binário — ex.: `GET /v1/anexos/{id}/bytes`.
@@ -871,13 +932,16 @@ internal fun etagWeakMatch(a: String, b: String): Boolean {
 /**
  * Uma parte nomeada de um upload multipart ([DomainApiClient.postMultipartParts]). Ex.: a foto-prova
  * de uma vistoria envia duas partes (`full` e `thumb`) num único request.
+ *
+ * Os bytes ficam INTEIROS na memória. Para vídeo e arquivo grande, use [StreamingMultipartPart]
+ * com [DomainApiClient.postMultipartStreaming] (2.356.0), que lê em pedaços durante o envio.
  */
 class MultipartPart(
-    val fieldName: String,
-    val fileName: String,
+    override val fieldName: String,
+    override val fileName: String,
     val bytes: ByteArray,
-    val mimeType: String,
-) {
+    override val mimeType: String,
+) : MultipartBodyPart {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is MultipartPart) return false

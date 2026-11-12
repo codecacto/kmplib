@@ -48,6 +48,9 @@ actual fun rememberMultiFilePicker(
                     mimeType = DesktopFiles.mimeTypeOf(path),
                     sizeBytes = runCatching { java.nio.file.Files.size(path) }.getOrDefault(-1L),
                     reader = { max -> withContext(Dispatchers.IO) { DesktopFiles.readPicked(path, max) } },
+                    stream = PickedFileStream { campo, arquivo, mime ->
+                        br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart.fromLocalFile(campo, path.toString(), arquivo, mime)
+                    },
                 )
             },
         )

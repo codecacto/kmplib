@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import br.com.codecacto.kmplib.core.util.AppLogger
+import br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -64,7 +65,13 @@ private fun pickedFileOf(context: Context, uri: Uri): PickedFile {
     val tipo = runCatching { context.contentResolver.getType(uri) }.getOrNull()
         ?.takeIf { it.isNotBlank() } ?: "application/octet-stream"
     val tamanho = queryDeclaredSize(context, uri)
-    return PickedFile(name = nome, mimeType = tipo, sizeBytes = tamanho) { maxBytes ->
+    // Em fluxo: a mesma leitura do `fromLocalFile` do core (ContentResolver + tamanho pelo descritor,
+    // que é exato; o OpenableColumns.SIZE do provedor nem sempre é).
+    val referencia = uri.toString()
+    val fluxo = PickedFileStream { campo, arquivo, mime ->
+        StreamingMultipartPart.fromLocalFile(campo, referencia, arquivo, mime)
+    }
+    return PickedFile(name = nome, mimeType = tipo, sizeBytes = tamanho, stream = fluxo, reader = { maxBytes ->
         try {
             withContext(Dispatchers.IO) { readFileFromUri(context, uri, maxBytes) }
         } catch (e: CancellationException) {
@@ -75,5 +82,5 @@ private fun pickedFileOf(context: Context, uri: Uri): PickedFile {
             AppLogger.w(MULTI_TAG, "não foi possível ler o arquivo escolhido: ${e::class.simpleName}")
             FilePickResult.Failed(nome, FilePickFailure.Unreadable)
         }
-    }
+    })
 }

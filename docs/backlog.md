@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/nov/2026 — multipart em fluxo (Koinonia, L1; entregue na 2.356.0)
+
+- [x] `StreamingMultipartPart` + `DomainApiClient.postMultipartStreaming`/`putMultipartStreaming` (Ktor `InputProvider`
+  + `kotlinx.io.Source`); `PickedVideo`/`RecordedVideo`/`PickedFile.toMultipartPart`. Aberto: progresso do envio
+  (`onUpload` do Ktor) não entrou — ninguém pediu ainda; prova em aparelho (Android `content://`, iOS iCloud) é do Mac.
+
 ### Registrado em 11/nov/2026 — família de 12 apps cristãos, Onda 0 (entregue na 2.355.0)
 
 Estudo: `docs/estudos/igrejas-e-perfis-instagram-2026-11-11/familia-12-apps/00-LEIA-PRIMEIRO.md` §5.

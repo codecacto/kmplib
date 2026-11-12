@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.356.0 — Multipart EM FLUXO: vídeo e arquivo grande sobem lidos em pedaços, sem `ByteArray` (Koinonia, L1)
+
+**Aditivo** (a API com `ByteArray` continua igual). Origem: `8-Sistemas-Portal-App/Koinonia/docs/auditoria/app-integracao-2.md`
+item L1 — o vídeo da publicação (até 40 MB) era lido inteiro para a memória antes de subir.
+
+- **core** (`sync.rest`): `sealed interface MultipartBodyPart` (implementada por `MultipartPart`, sem mudança de uso) e
+  **`StreamingMultipartPart(fieldName, fileName, mimeType, sizeBytes: Long?, open: () -> RawSource)`** — corpo em fluxo
+  pelo `InputProvider` do Ktor 3 com `kotlinx.io.Source` (a forma oficial); `open` roda a cada envio, então a repetição
+  pós-401 reabre o arquivo do início. `sizeBytes` exato vira `Content-Length`; `null` sobe em `chunked`. `toString` sem o
+  nome do arquivo. **`StreamingMultipartPart.fromLocalFile(fieldName, reference, fileName, mimeType, sizeBytes = null)`**:
+  Android `content://`/`file://`/caminho (ContentResolver; tamanho pelo `AssetFileDescriptor`), iOS caminho/`file://`,
+  desktop caminho/`file:` (`SystemFileSystem`).
+- **core** (`DomainApiClient`): **`postMultipartStreaming(path, parts: List<MultipartBodyPart>, formFields = emptyMap(),
+  timeoutMillis = null, headers = emptyMap())`** e **`putMultipartStreaming(...)`** — mesma resiliência (401→refresh,
+  402→cota, envelope de erro; falha ao abrir/ler o arquivo vira `DomainResult.Error(-1)`, nunca exceção), campos de
+  texto antes do arquivo, mistura parte em fluxo e parte em bytes no mesmo request.
+- **ui**: `PickedVideo.toMultipartPart(fieldName = "file", fileName)`.
+- **camera**: `RecordedVideo.toMultipartPart(fieldName = "file", fileName = "video.mp4")` (apague o arquivo só depois do envio).
+- **platform**: `PickedFile.toMultipartPart(fieldName = "file", fileName = name): StreamingMultipartPart?` + `canStream`
+  (Android pela URI do seletor; iOS com escopo de segurança + `NSFileCoordinator`, escopo fechado com a fonte; desktop
+  pelo caminho). `null` só no `PickedFile` montado à mão (dublê) — o construtor público de 4 parâmetros não mudou.
+- Testes: `DomainApiClientStreamingMultipartTest` (9 casos: corpo inteiro, campos antes, `Content-Length` exato,
+  `chunked` sem tamanho, reabertura no 401, mistura + PUT, falha de abertura vira erro, `fromLocalFile` do disco,
+  arquivo inexistente).
+
 ## 2.355.0 — Onda 0 da família de 12 apps cristãos: kit (`kmplib-familia`), motor bíblico (`kmplib-bible`), widget, cópia de segurança, A− A+, envio direto ao WhatsApp/Instagram, lembrete com texto do dia e mensal, cromo do intersticial, segunda tela e leitura contínua
 
 **Aditivo** (nada muda para quem não usa). Base: `docs/estudos/igrejas-e-perfis-instagram-2026-11-11/familia-12-apps/`

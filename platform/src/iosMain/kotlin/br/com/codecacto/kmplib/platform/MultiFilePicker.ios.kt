@@ -91,10 +91,16 @@ private fun pickedFileOf(url: NSURL): PickedFile {
     } finally {
         if (escopo) url.stopAccessingSecurityScopedResource()
     }
-    return PickedFile(name = nome, mimeType = mimeTypeForFileName(nome), sizeBytes = tamanho) { maxBytes ->
-        // Leitura coordenada pode baixar da nuvem: fora da thread principal.
-        withContext(Dispatchers.Default) { readPickedFile(url, maxBytes) }
-    }
+    return PickedFile(
+        name = nome,
+        mimeType = mimeTypeForFileName(nome),
+        sizeBytes = tamanho,
+        stream = PickedFileStream { campo, arquivo, mime -> pickedFileStreamingPart(url, campo, arquivo, mime) },
+        reader = { maxBytes ->
+            // Leitura coordenada pode baixar da nuvem: fora da thread principal.
+            withContext(Dispatchers.Default) { readPickedFile(url, maxBytes) }
+        },
+    )
 }
 
 // Constante de arquivo: campo em companion de subclasse de NSObject não compila no K/N.

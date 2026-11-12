@@ -2,6 +2,7 @@ package br.com.codecacto.kmplib.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import br.com.codecacto.kmplib.sync.rest.StreamingMultipartPart
 import kotlinx.coroutines.launch
 
 /**
@@ -339,3 +340,24 @@ private suspend fun PickedVideo.paraSelectedVideo(): SelectedVideo {
     }
     return SelectedVideo(bytes = bytes, mimeType = mimeType, name = name)
 }
+
+/**
+ * Parte multipart **em fluxo** (2.356.0) para `DomainApiClient.postMultipartStreaming`: o vídeo sobe lido
+ * em pedaços, sem passar inteiro pela memória (um vídeo de 40 MB em `ByteArray` era o `OutOfMemoryError`
+ * de aparelho de entrada). Confira [PickedVideo.sizeBytes] e [PickedVideo.durationMillis] antes.
+ *
+ * O `Content-Length` sai do tamanho que o sistema dá para o arquivo na hora (exato); sem ele, o corpo
+ * sobe em `chunked`. No Android a referência é a URI do seletor/câmera (lida pelo `ContentResolver`);
+ * no iOS, o caminho do arquivo. Leia antes de o arquivo temporário ser apagado.
+ *
+ * @param fileName nome no `Content-Disposition`; default = o nome do vídeo (ou `video.mp4`).
+ */
+fun PickedVideo.toMultipartPart(
+    fieldName: String = "file",
+    fileName: String = name.ifBlank { "video.mp4" },
+): StreamingMultipartPart = StreamingMultipartPart.fromLocalFile(
+    fieldName = fieldName,
+    reference = reference,
+    fileName = fileName,
+    mimeType = mimeType.ifBlank { "video/mp4" },
+)
