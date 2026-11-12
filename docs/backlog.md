@@ -5747,3 +5747,11 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
   toque (`findAnnouncementById`) relê a lista pública e procura o id, então comunicado fora da janela/inativo não
   abre. Se o Nexus passar a permitir campanha com comunicado não listado, criar a rota por id (apps-api) e trocar a
   busca aqui.
+
+- [x] *(12/nov/2026, 2.361.0)* **Analytics do app — `kmplib-analytics`:** telas e eventos-chave no Umami da fábrica
+  (lote `/api/batch` com recuo `/api/m`, fila em disco, UA de navegador móvel, sem PII, `TrackNavigationScreens`).
+  Campanha: `docs/tarefas/2026-11-12-umami-em-todos-os-projetos.md` (lote F) do monorepo.
+- [ ] **GAP-ANALYTICS-01 (P3) — abertura de push no analytics** (Fase 4 do estudo `analytics-gratuito-2026-11-12`):
+  `PushTapHost` registrar `push_open` com o id da campanha, quando a sessão do push fechar.
+- [ ] **GAP-ANALYTICS-02 (P3) — retenção no Umami:** o Umami não tem; cron de `DELETE` por idade no banco (estudo 02 §2.3)
+  — é de infra, não da lib; anotado aqui porque o volume vem dos apps.

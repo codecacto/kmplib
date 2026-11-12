@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.361.0 — `kmplib-analytics`: telas e eventos-chave do app no Umami da fábrica
+
+**Aditivo, módulo novo** (também no umbrella; sem `websiteId` é no-op). Campanha Umami, lote F
+(`docs/tarefas/2026-11-12-umami-em-todos-os-projetos.md`; estudo `docs/estudos/analytics-gratuito-2026-11-12/`, Fase 3).
+
+- **`Analytics`** (`br.com.codecacto.kmplib.analytics`): `initialize(AnalyticsConfig(websiteId, projectSlug, …))`,
+  `trackScreen(rota, title?)` (`url = /app/<rota>`, `hostname = <slug>.app`), `trackEvent(nome, dados, screen?)`,
+  `flush()`, `isEnabled`; `AnalyticsClient.status` (`ENABLED`/`NO_WEBSITE_ID`/`DEBUG_BUILD`/`NO_PROJECT_SLUG`).
+  Website id = uuid5 de `<slug>:app` (`Nexus/fabrica/garantir-umami.py <slug> --dominio <slug>.app --superficie app`).
+- **No-op** sem id válido, em build de depuração (`sendInDebug` liga) e em teste (`AutomationMode`, a cada evento).
+- **Envio:** `POST /api/batch` em lote (≤ 20), recuo para `POST /api/m` (a coleta renomeada; 404/405 no lote passa
+  ao unitário; 400 isola um a um e descarta o recusado); `timestamp` do momento do evento; `id` = `InstallId`
+  anônimo (`null` em app infantil/teste; `sendInstallId`); `os`/`device`/`browser = "app"`/`tag` = versão do app.
+  Cliente HTTP próprio (`createHttpClient`), nunca o da API do app.
+- **User-Agent de navegador móvel** (`analyticsUserAgent`: `Mozilla/5.0 (Linux; Android 14; Mobile) CodeCactoApp/1.4.2`,
+  `(iPhone; CPU iPhone OS 18_1 like Mac OS X)`, tablet/iPad) — o Umami descarta como robô (200 `beep:boop`, sem
+  gravar) o UA do OkHttp e do Ktor, testado contra o servidor em 12/nov/2026. Resposta sem `cache` = aviso no log.
+- **Fila em disco** (`BlobStore` `kmplib_analytics`, fora do backup; memória se o disco faltar), teto de 500, descarte
+  de evento com mais de 7 dias, reenvio offline com espera 30 s → 15 min, no próximo evento e ao voltar ao 1º plano;
+  tenta esvaziar ao ir para o 2º plano (`ProcessLifecycleOwner` / `UIApplication` notifications). Nunca lança.
+- **Sem PII:** `analyticsScreenPath` tira query/fragmento e troca trecho com cara de id por `:id`;
+  `sanitizeEventData` aceita só texto/número/booleano/enum (20 chaves, 500 caracteres) e descarta chave de dado
+  pessoal e valor que parece e-mail ou tem 8+ algarismos; `sanitizeEventName` (50, sem `= + - @`).
+- **Navegação:** `TrackNavigationScreens(navController)` (uma visita por entrada nova da pilha, nome pela rota em
+  kebab — `Route.ItemDetail` → `/app/item-detail`, sem o valor dos argumentos; girar/recompor não conta) e
+  `TrackScreen(rota)` para aba/passo. `libs.navigation.runtime` (2.9.1) entra no catálogo de versões.
+- Testes: `AnalyticsSanitizerTest`, `AnalyticsClientTest`, `AnalyticsQueueTest`; envio real sob demanda
+  (`UmamiLiveSendTest`, `KMPLIB_UMAMI_LIVE_WEBSITE`).
+
 ## 2.360.0 — Notificações pelo Nexus (lado do app): registro central do aparelho, seção "Notificações" e roteador do toque
 
 **Aditivo, sem quebra de fonte.** Contrato: `docs/tarefas/2026-11-12-notificacoes-push-pelo-nexus.md` (monorepo).

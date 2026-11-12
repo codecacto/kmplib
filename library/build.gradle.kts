@@ -150,6 +150,8 @@ kotlin {
             api(project(":kmplib-map"))
             api(project(":kmplib-qr"))
             api(project(":kmplib-central"))
+            // 2.361.0 — telas e eventos no Umami; no-op até `Analytics.initialize` com o id do app.
+            api(project(":kmplib-analytics"))
             api(project(":kmplib-sync"))
             api(project(":kmplib-monetization"))
             api(project(":kmplib-auth"))

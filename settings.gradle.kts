@@ -120,6 +120,12 @@ project(":kmplib-video").projectDir = file("video")
 include(":kmplib-help")
 project(":kmplib-help").projectDir = file("help")
 
+// `kmplib-analytics` (2.361.0) — telas e eventos-chave do app no Umami da fábrica
+// (`metricas.codecacto.com.br`), com fila em disco e envio em lote. Módulo próprio: não é o apps-api
+// (o `kmplib-central`) e traz o `navigation-runtime` para o rastreio automático de tela.
+include(":kmplib-analytics")
+project(":kmplib-analytics").projectDir = file("analytics")
+
 // `kmplib-chat` (2.287.0) — conversa 1:1 sem WebSocket (envio otimista com id do cliente, fila
 // durável, não lidas, consulta periódica `after=`). Fora do umbrella: só app com conversa declara.
 include(":kmplib-chat")

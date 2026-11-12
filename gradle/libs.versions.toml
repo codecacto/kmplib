@@ -109,6 +109,8 @@ workManager = "2.10.1"
 
 [libraries]
 navigation-common = { module = "org.jetbrains.androidx.navigation:navigation-common", version.ref = "navigation" }
+# `kmplib-analytics` (2.361.0): `NavController.currentBackStackEntryFlow` para o rastreio automático de tela.
+navigation-runtime = { module = "org.jetbrains.androidx.navigation:navigation-runtime", version.ref = "navigation" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 # Coroutines
