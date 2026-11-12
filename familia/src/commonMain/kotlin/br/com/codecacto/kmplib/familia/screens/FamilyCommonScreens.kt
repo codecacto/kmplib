@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +61,7 @@ import br.com.codecacto.kmplib.familia.components.FamilySwitch
 import br.com.codecacto.kmplib.familia.components.FamilyToastState
 import br.com.codecacto.kmplib.familia.components.FamilyAppIcon
 import br.com.codecacto.kmplib.familia.components.rememberIsPremium
+import br.com.codecacto.kmplib.familia.components.rememberShowFamilyBanner
 import br.com.codecacto.kmplib.familia.familiaString
 import br.com.codecacto.kmplib.familia.generated.resources.*
 import br.com.codecacto.kmplib.familia.icons.FamilyIcons
@@ -77,24 +79,93 @@ import br.com.codecacto.kmplib.ui.theme.TextScaleController
 import br.com.codecacto.kmplib.ui.theme.ThemeMode
 import br.com.codecacto.kmplib.ui.theme.ThemeModeController
 
-/** Banner padrão das subtelas (rodapé, com o inset da barra de gestos). */
+/** Banner padrão das subtelas (rodapé, com o inset da barra de gestos). Some em app sem anúncio (2.359.0). */
 @Composable
 private fun SubscreenBanner() {
-    if (!rememberIsPremium()) ManagedBannerAd()
+    if (rememberShowFamilyBanner()) ManagedBannerAd()
 }
 
-/** Subtítulo da linha Premium do menu e de Configurações. */
+/**
+ * Subtítulo da linha Premium do menu e de Configurações. Sem Premium: "Sem anúncios e com extras"; em
+ * app sem anúncio ([adsRemoved] `false`, default = `FamilyAppIdentity.showsAds`), "Libere todos os
+ * recursos" (2.359.0).
+ */
 @Composable
-fun familyPremiumSubtitle(isPremium: Boolean, planName: String?): String = when {
-    !isPremium -> familiaString(Res.string.familia_premium_sub_off)
+fun familyPremiumSubtitle(
+    isPremium: Boolean,
+    planName: String?,
+    adsRemoved: Boolean = FamilyTheme.identity.showsAds,
+): String = when {
+    !isPremium -> familiaString(if (adsRemoved) Res.string.familia_premium_sub_off else Res.string.familia_premium_sub_off_neutral)
     planName != null -> familiaString(Res.string.familia_premium_sub_on, planName)
     else -> familiaString(Res.string.familia_premium_sub_on_noplan)
+}
+
+/** Onde um item do APP entra na tela Mais (2.359.0). A ordem da casa nunca muda; o item entra no ponto pedido. */
+enum class FamilyMoreSlot {
+    /** No topo, antes de "Premium" (o default — atalhos do app: "Meus dados", "Exportar"). */
+    BEFORE_PREMIUM,
+
+    /** Entre "Premium" e "Configurações". */
+    AFTER_PREMIUM,
+
+    /** Depois de "Configurações" (antes de "Outros apps"). */
+    AFTER_SETTINGS,
+
+    /** Depois de "Outros apps" — antes de "Enviar feedback" (o ponto mais baixo permitido). */
+    BEFORE_FEEDBACK,
+}
+
+/**
+ * Um item do APP na tela Mais (2.359.0), desenhado como os da casa (selo do ícone + chevron). O id vira
+ * o `testTag` `mais-<id>`. Nunca repita aqui Premium/Configurações/Feedback/Sobre — esses são da casa.
+ */
+class FamilyMoreItem(
+    val id: String,
+    val title: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+    val subtitle: String? = null,
+    val slot: FamilyMoreSlot = FamilyMoreSlot.BEFORE_PREMIUM,
+)
+
+/** Uma linha da tela Mais, na ordem em que aparece ([familyMoreEntries]). */
+sealed interface FamilyMoreEntry {
+    data object Premium : FamilyMoreEntry
+    data object Settings : FamilyMoreEntry
+    data object OtherApps : FamilyMoreEntry
+    data object Feedback : FamilyMoreEntry
+    data object About : FamilyMoreEntry
+    class Extra(val item: FamilyMoreItem) : FamilyMoreEntry
+}
+
+/**
+ * A ordem da tela Mais (2.359.0): os itens do app nos seus [FamilyMoreSlot] (na ordem em que vieram) em
+ * volta da ordem da casa — Premium · Configurações · (Outros apps) · Enviar feedback · Sobre. Item do
+ * app com id repetido entra uma vez só. Puro.
+ */
+fun familyMoreEntries(showPremium: Boolean, showOtherApps: Boolean, extraItems: List<FamilyMoreItem>): List<FamilyMoreEntry> {
+    val extras = extraItems.distinctBy { it.id }
+    fun at(slot: FamilyMoreSlot) = extras.filter { it.slot == slot }.map { FamilyMoreEntry.Extra(it) }
+    return buildList {
+        addAll(at(FamilyMoreSlot.BEFORE_PREMIUM))
+        if (showPremium) add(FamilyMoreEntry.Premium)
+        addAll(at(FamilyMoreSlot.AFTER_PREMIUM))
+        add(FamilyMoreEntry.Settings)
+        addAll(at(FamilyMoreSlot.AFTER_SETTINGS))
+        if (showOtherApps) add(FamilyMoreEntry.OtherApps)
+        addAll(at(FamilyMoreSlot.BEFORE_FEEDBACK))
+        add(FamilyMoreEntry.Feedback)
+        add(FamilyMoreEntry.About)
+    }
 }
 
 /**
  * Tela **Mais** (menu ☰, 02 §3) na ordem da fábrica (D3): Premium · Configurações · Outros apps ·
  * **Enviar feedback · Sobre**. [onOtherApps] `null` esconde "Outros apps" (nenhum irmão publicado).
- * Ids `mais-premium`, `mais-configuracoes`, `mais-outros-apps`, `mais-feedback`, `mais-sobre`.
+ * [extraItems] (2.359.0) = linhas do app, cada uma no seu [FamilyMoreSlot] (default: antes de Premium);
+ * nunca depois de "Enviar feedback". O banner some sozinho em app sem anúncio.
+ * Ids `mais-premium`, `mais-configuracoes`, `mais-outros-apps`, `mais-feedback`, `mais-sobre`, `mais-<id>`.
  */
 @Composable
 fun FamilyMoreScreen(
@@ -108,6 +179,7 @@ fun FamilyMoreScreen(
     isPremium: Boolean = rememberIsPremium(),
     planName: String? = null,
     showPremium: Boolean = true,
+    extraItems: List<FamilyMoreItem> = emptyList(),
 ) {
     FamilyScaffold(modifier.testTag("mais-tela"), topBar = { FamilySubTopBar(familiaString(Res.string.familia_more_title), onBack) }) { inner ->
         Column(Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp)) {
@@ -116,12 +188,21 @@ fun FamilyMoreScreen(
                 familiaString(Res.string.familia_premium), familiaString(Res.string.familia_settings), familiaString(Res.string.familia_other_apps),
                 familiaString(Res.string.familia_feedback), familiaString(Res.string.familia_about),
             )
+            val entries = familyMoreEntries(showPremium, onOtherApps != null, extraItems)
             FamilyList {
-                if (showPremium) row(t[0], premiumSub, leading = { FamilyRowBadge(FamilyIcons.Star) }, trailing = { FamilyRowChevron() }, onClick = onPremium, testTag = "mais-premium")
-                row(t[1], leading = { FamilyRowBadge(FamilyIcons.Sliders) }, trailing = { FamilyRowChevron() }, onClick = onSettings, testTag = "mais-configuracoes")
-                if (onOtherApps != null) row(t[2], leading = { FamilyRowBadge(FamilyIcons.Grid) }, trailing = { FamilyRowChevron() }, onClick = onOtherApps, testTag = "mais-outros-apps")
-                row(t[3], leading = { FamilyRowBadge(FamilyIcons.Send) }, trailing = { FamilyRowChevron() }, onClick = onFeedback, testTag = "mais-feedback")
-                row(t[4], leading = { FamilyRowBadge(FamilyIcons.Info) }, trailing = { FamilyRowChevron() }, onClick = onAbout, testTag = "mais-sobre")
+                entries.forEach { e ->
+                    when (e) {
+                        FamilyMoreEntry.Premium -> row(t[0], premiumSub, leading = { FamilyRowBadge(FamilyIcons.Star) }, trailing = { FamilyRowChevron() }, onClick = onPremium, testTag = "mais-premium")
+                        FamilyMoreEntry.Settings -> row(t[1], leading = { FamilyRowBadge(FamilyIcons.Sliders) }, trailing = { FamilyRowChevron() }, onClick = onSettings, testTag = "mais-configuracoes")
+                        FamilyMoreEntry.OtherApps -> if (onOtherApps != null) row(t[2], leading = { FamilyRowBadge(FamilyIcons.Grid) }, trailing = { FamilyRowChevron() }, onClick = onOtherApps, testTag = "mais-outros-apps")
+                        FamilyMoreEntry.Feedback -> row(t[3], leading = { FamilyRowBadge(FamilyIcons.Send) }, trailing = { FamilyRowChevron() }, onClick = onFeedback, testTag = "mais-feedback")
+                        FamilyMoreEntry.About -> row(t[4], leading = { FamilyRowBadge(FamilyIcons.Info) }, trailing = { FamilyRowChevron() }, onClick = onAbout, testTag = "mais-sobre")
+                        is FamilyMoreEntry.Extra -> {
+                            val item = e.item
+                            row(item.title, item.subtitle, leading = { FamilyRowBadge(item.icon) }, trailing = { FamilyRowChevron() }, onClick = item.onClick, testTag = "mais-${item.id}")
+                        }
+                    }
+                }
             }
         }
     }

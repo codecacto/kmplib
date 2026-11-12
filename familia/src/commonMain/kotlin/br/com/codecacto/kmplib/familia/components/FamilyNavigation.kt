@@ -51,6 +51,7 @@ import br.com.codecacto.kmplib.ads.router.ManagedBannerAd
 import br.com.codecacto.kmplib.familia.familiaString
 import br.com.codecacto.kmplib.familia.generated.resources.*
 import br.com.codecacto.kmplib.familia.icons.FamilyIcons
+import br.com.codecacto.kmplib.familia.theme.FamilyAppIdentity
 import br.com.codecacto.kmplib.familia.theme.FamilyTheme
 import br.com.codecacto.kmplib.monetization.MonetizationManager
 import br.com.codecacto.kmplib.monetization.PremiumStatus
@@ -61,6 +62,20 @@ fun rememberIsPremium(): Boolean {
     val status by MonetizationManager.premiumStatus.collectAsState()
     return status == PremiumStatus.Premium
 }
+
+/**
+ * Se a casca reserva o banner (2.359.0): o app mostra anúncio ([FamilyAppIdentity.showsAds]) **e** o
+ * Premium não está confirmado. App sem anúncio (`FamilyAppIdentity(…, showsAds = false)`) = sempre `false`,
+ * sem depender de o `AdRouter` não ter sido inicializado. É o default de `FamilyScaffold(showBanner)`.
+ */
+@Composable
+fun rememberShowFamilyBanner(): Boolean {
+    val premium = rememberIsPremium()
+    return familyShowsBanner(FamilyTheme.identity.showsAds, premium)
+}
+
+/** A regra do [rememberShowFamilyBanner]: anúncio ligado no app e sem Premium. Pura. */
+fun familyShowsBanner(appShowsAds: Boolean, isPremium: Boolean): Boolean = appShowsAds && !isPremium
 
 /**
  * Selo "Premium" do topo (`.seal`): altura 34, raio 999, borda 1,5 `ln`, texto `acd`; ativo = pílula
@@ -212,17 +227,19 @@ fun FamilyBottomBar(tabs: List<FamilyTab>, selectedId: String, onSelect: (String
  * banner sai e a lista desce até as abas. O aviso ([toastState]) fica 14 acima do rodapé; o
  * [floatingAction] 18 da direita e 18 acima do rodapé.
  *
- * @param showBanner default = sem Premium confirmado ([rememberIsPremium]). Telas sem banner (oração,
- *   leitura em tela cheia, boas-vindas) passam `false`.
- * @param banner o anúncio — default `ManagedBannerAd` (STANDARD, sem inset: as abas já cuidam dele).
+ * @param showBanner default = app com anúncio e sem Premium confirmado ([rememberShowFamilyBanner]; app com
+ *   `FamilyAppIdentity(showsAds = false)` nunca reserva banner). Telas sem banner (oração, leitura em tela
+ *   cheia, boas-vindas) passam `false`.
+ * @param banner o anúncio — default `ManagedBannerAd` (STANDARD, sem inset: as abas já cuidam dele);
+ *   `null` = esta casca não tem banner (2.359.0), qualquer que seja o [showBanner].
  */
 @Composable
 fun FamilyScaffold(
     modifier: Modifier = Modifier,
     topBar: @Composable () -> Unit = {},
     tabs: (@Composable () -> Unit)? = null,
-    showBanner: Boolean = !rememberIsPremium(),
-    banner: @Composable () -> Unit = { ManagedBannerAd(windowInsets = if (tabs == null) WindowInsets.navigationBars else WindowInsets(0)) },
+    showBanner: Boolean = rememberShowFamilyBanner(),
+    banner: (@Composable () -> Unit)? = { ManagedBannerAd(windowInsets = if (tabs == null) WindowInsets.navigationBars else WindowInsets(0)) },
     toastState: FamilyToastState? = null,
     floatingAction: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
@@ -230,6 +247,7 @@ fun FamilyScaffold(
     val c = FamilyTheme.colors
     var bottomHeight by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
+    val bannerSlot = banner.takeIf { showBanner }
     Box(modifier.fillMaxSize().background(c.bg)) {
         Scaffold(
             topBar = topBar,
@@ -239,10 +257,10 @@ fun FamilyScaffold(
                 Column(
                     Modifier
                         .onSizeChanged { bottomHeight = with(density) { it.height.toDp() } }
-                        .background(if (tabs != null) c.sf else if (showBanner) c.sf2 else c.bg)
+                        .background(if (tabs != null) c.sf else if (bannerSlot != null) c.sf2 else c.bg)
                         .windowInsetsPadding(WindowInsets.navigationBars),
                 ) {
-                    if (showBanner) Box(Modifier.fillMaxWidth().background(c.sf2)) { banner() }
+                    if (bannerSlot != null) Box(Modifier.fillMaxWidth().background(c.sf2)) { bannerSlot() }
                     tabs?.invoke()
                 }
             },

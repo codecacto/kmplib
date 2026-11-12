@@ -74,7 +74,8 @@ import kotlinx.datetime.toLocalDateTime
  * Tela **Premium** da família (02 §2) — o desenho do protótipo sobre o [PaywallViewModel] da kmplib
  * (loja, restaurar, gerenciar, ordem Mensal → Semestral → Anual e preços SEMPRE da loja).
  *
- * - Sem Premium: medalha + "{Nome} Premium", benefícios ("Sem anúncios" primeiro + [extras]), planos
+ * - Sem Premium: medalha + "{Nome} Premium", benefícios ("Sem anúncios" primeiro + [extras]; app sem
+ *   anúncio, só [extras] — [adsRemovedBenefit]), planos
  *   com rádio e selo "Melhor valor" no de MAIOR duração disponível, "Assinar {plano}", nota da loja,
  *   Termos · Privacidade, "Restaurar compras". Estados: carregando (3 esqueletos), loja indisponível
  *   ("Tentar de novo"), compra pendente ("Verificar agora"), "Abrindo a loja…" durante a compra.
@@ -87,8 +88,12 @@ import kotlinx.datetime.toLocalDateTime
  * Ids: `premium-plano-<id>`, `premium-btn-assinar`, `premium-btn-restaurar`, `premium-btn-tentar`,
  * `premium-btn-verificar`, `premium-btn-gerenciar`, `premium-link-termos`, `premium-link-privacidade`.
  *
- * @param extras benefícios do app depois de "Sem anúncios" (lista do doc de cada app).
+ * @param extras benefícios do app depois de "Sem anúncios" (lista do doc de cada app); em app sem
+ *   anúncio, são TODOS os benefícios (o 1º sai em negrito).
  * @param toastState aviso da tela (mensagens da loja e "Premium ativado").
+ * @param adsRemovedBenefit `true` = "Sem anúncios" é o 1º benefício e o aviso de ativação diz "Os
+ *   anúncios sumiram"; `false` = só [extras] e o aviso neutro "Premium ativado. Tudo liberado." (4
+ *   idiomas). Default = [br.com.codecacto.kmplib.familia.theme.FamilyAppIdentity.showsAds] (2.359.0).
  */
 @Composable
 fun FamilyPremiumScreen(
@@ -100,11 +105,13 @@ fun FamilyPremiumScreen(
     toastState: FamilyToastState = rememberFamilyToastState(),
     onOpenUrl: (String) -> Unit = { getUrlLauncher().openUrl(it) },
     onManageSubscription: () -> Unit = { getUrlLauncher().openSubscriptionManagement() },
+    adsRemovedBenefit: Boolean = FamilyTheme.identity.showsAds,
 ) {
     val host by viewModel.state.collectAsStateWithLifecycle()
     val state = host.paywall
     val currentBack by rememberUpdatedState(onBack)
-    val activated = familiaString(Res.string.familia_activated)
+    val activated = familiaString(if (adsRemovedBenefit) Res.string.familia_activated else Res.string.familia_activated_neutral)
+    val benefits = familyPremiumBenefits(familiaString(Res.string.familia_no_ads), extras, adsRemovedBenefit)
     var wasPremium by remember { mutableStateOf<Boolean?>(null) }
 
     LifecycleResumeEffect(viewModel) {
@@ -145,19 +152,20 @@ fun FamilyPremiumScreen(
             Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (state.isPremium) PremiumActive(state, appName, extras) { viewModel.dispatch(PaywallHostAction.Paywall(PaywallAction.ManageSubscription)) }
-            else PremiumOffer(state, appName, extras, viewModel)
+            if (state.isPremium) PremiumActive(state, appName, benefits) { viewModel.dispatch(PaywallHostAction.Paywall(PaywallAction.ManageSubscription)) }
+            else PremiumOffer(state, appName, benefits, viewModel)
         }
     }
     if (state.isPurchasing && state.purchasingPlanId != null) FamilyProgressDialog(familiaString(Res.string.familia_opening_store), testTag = "premium-abrindo-loja")
 }
 
 @Composable
-private fun Benefits(extras: List<String>, active: Boolean) {
+private fun Benefits(benefits: List<String>, active: Boolean) {
+    if (benefits.isEmpty()) return
     val c = FamilyTheme.colors
-    FamilyCard {
+    FamilyCard(modifier = Modifier.testTag("premium-beneficios")) {
         if (active) FamilyEyebrow(familiaString(Res.string.familia_unlocked))
-        (listOf(familiaString(Res.string.familia_no_ads)) + extras).forEachIndexed { i, text ->
+        benefits.forEachIndexed { i, text ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (active) Icon(FamilyIcons.Check, null, tint = c.acd, modifier = Modifier.size(24.dp))
                 else FamilyBadge(FamilyIcons.Check, size = 34.dp, round = true, iconSize = 18.dp)
@@ -168,13 +176,13 @@ private fun Benefits(extras: List<String>, active: Boolean) {
 }
 
 @Composable
-private fun PremiumOffer(state: PaywallState, appName: String, extras: List<String>, vm: PaywallViewModel) {
+private fun PremiumOffer(state: PaywallState, appName: String, benefits: List<String>, vm: PaywallViewModel) {
     val c = FamilyTheme.colors
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FamilyBadge(FamilyIcons.StarFilled, size = 76.dp, round = true, iconSize = 36.dp, background = c.ac, contentColor = c.aci)
         Text(familiaString(Res.string.familia_premium_title, appName), style = FamilyTheme.type.h1.copy(textAlign = TextAlign.Center), color = c.fg)
     }
-    Benefits(extras, active = false)
+    Benefits(benefits, active = false)
 
     val plans = state.plans.filterNot { it.isFree }.sortedBy { it.durationMonths ?: Int.MAX_VALUE }
     val best = familyBestPlanId(plans)
@@ -273,7 +281,7 @@ private fun LegalLinks(vm: PaywallViewModel) {
 }
 
 @Composable
-private fun PremiumActive(state: PaywallState, appName: String, extras: List<String>, onManage: () -> Unit) {
+private fun PremiumActive(state: PaywallState, appName: String, benefits: List<String>, onManage: () -> Unit) {
     val c = FamilyTheme.colors
     FamilyCard(style = FamilyCardStyle.HERO, large = true, gap = 14.dp, modifier = Modifier.testTag("premium-ativo")) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -290,7 +298,7 @@ private fun PremiumActive(state: PaywallState, appName: String, extras: List<Str
             if (renew != null && sub?.willRenew == true) LabelValue(familiaString(Res.string.familia_renews), renew, Modifier.weight(1f))
         }
     }
-    Benefits(extras, active = true)
+    Benefits(benefits, active = true)
     FamilyButton(familiaString(Res.string.familia_manage), onManage, variant = FamilyButtonVariant.SOFT, testTag = "premium-btn-gerenciar")
     Text(familiaString(Res.string.familia_manage_note), style = FamilyTheme.type.xs.copy(textAlign = TextAlign.Center), color = c.mu, modifier = Modifier.fillMaxWidth())
 }
@@ -379,6 +387,14 @@ fun familyPremiumCta(plan: PaywallPlan, subscribeLabel: String, texts: PaywallTe
     val terms = texts.trialTerms(plan) ?: return FamilyPremiumCta(subscribeLabel, null)
     return FamilyPremiumCta(texts.ctaLabel(plan), terms)
 }
+
+/**
+ * Os benefícios da tela Premium, na ordem (2.359.0): "Sem anúncios" ([noAdsLabel]) primeiro quando o
+ * app tem anúncio ([adsRemovedBenefit]), depois os [extras] do app. App sem anúncio = só os [extras].
+ * Itens em branco e repetidos saem. Puro.
+ */
+fun familyPremiumBenefits(noAdsLabel: String, extras: List<String>, adsRemovedBenefit: Boolean): List<String> =
+    ((if (adsRemovedBenefit) listOf(noAdsLabel) else emptyList()) + extras).filter { it.isNotBlank() }.distinct()
 
 /** O plano do selo "Melhor valor": o de MAIOR duração disponível (regra da fábrica). Puro. */
 fun familyBestPlanId(plans: List<PaywallPlan>): String? =

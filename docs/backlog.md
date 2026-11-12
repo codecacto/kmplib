@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/nov/2026 — lacunas do 1º app de fora sem anúncio, Chegou Aqui (entregue na 2.359.0)
+
+- [x] App sem anúncio explícito: `FamilyAppIdentity(showsAds = false)` → sem banner, sem intersticial, Premium sem
+      "Sem anúncios" e com ativação neutra (`adsRemovedBenefit`).
+- [x] Itens do app no "Mais": `FamilyMoreScreen(extraItems = listOf(FamilyMoreItem(…, slot)))`.
+- [x] Máscara no `FamilyTextField` (`inputTransformation`/`outputTransformation`) + `FamilyPhoneField` ("WhatsApp").
+- [x] `normalizeBrPhoneDigits` pública (kmplib-mask) + `InternationalPhoneInputTransformation`.
+
 ### Registrado em 12/nov/2026 — kit visual para app de FORA da família cristã (entregue na 2.358.0)
 
 Origem: 6 apps simples de trabalho (`docs/estudos/apps-simples-2026-11-12/`) no mesmo design dos 12 cristãos.

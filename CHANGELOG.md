@@ -5,6 +5,42 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.359.0 — kmplib-familia: app SEM anúncio, itens do app no "Mais", campo de WhatsApp; `normalizeBrPhoneDigits` pública
+
+**Aditivo, sem quebra de fonte** (os 12 apps cristãos não mudam nada). Origem: o Chegou Aqui, 1º dos 6 apps de
+ferramenta de trabalho (cota → Premium, **sem anúncio**) a terminar com o kit, achou 4 lacunas.
+
+- **App sem anúncio, explícito e num lugar só — `FamilyAppIdentity(…, showsAds = false)`** (novo membro
+  `FamilyAppIdentity.showsAds`, default `true`; `FamilyApp` = `true`). Com `false`:
+  - `FamilyScaffold` não reserva banner — default `showBanner = rememberShowFamilyBanner()` (=
+    `familyShowsBanner(identity.showsAds, isPremium)`, puro); antes o banner só sumia porque o `AdRouter` não fora
+    inicializado. O parâmetro `banner` passou a aceitar `null` (= esta casca não tem banner). As subtelas
+    (Sobre, Feedback, Desenvolvido por) seguem a mesma regra.
+  - `FamilyInterstitialAd` não abre: com `show = true` chama `onDismiss` na hora.
+  - `FamilyPremiumScreen(…, adsRemovedBenefit = FamilyTheme.identity.showsAds)`: `false` tira "Sem anúncios" dos
+    benefícios (os `extras` passam a ser todos, o 1º em negrito; lista vazia esconde o cartão, id
+    `premium-beneficios`) e o aviso de ativação vira o neutro "Premium ativado. Tudo liberado." (4 idiomas).
+    Regra pura `familyPremiumBenefits(noAdsLabel, extras, adsRemovedBenefit)`.
+  - `familyPremiumSubtitle(isPremium, planName, adsRemoved = identity.showsAds)`: sem Premium, "Libere todos os
+    recursos" no lugar de "Sem anúncios e com extras" (Mais e Configurações).
+- **Itens do app no "Mais"** — `FamilyMoreScreen(…, extraItems: List<FamilyMoreItem> = emptyList())` com
+  `FamilyMoreItem(id, title, icon, onClick, subtitle = null, slot = FamilyMoreSlot.BEFORE_PREMIUM)` e os slots
+  `BEFORE_PREMIUM` · `AFTER_PREMIUM` · `AFTER_SETTINGS` · `BEFORE_FEEDBACK`. A ordem da casa (Premium · Configurações ·
+  (Outros apps) · Enviar feedback · Sobre) não muda; nada entra depois de "Enviar feedback". Id `mais-<id>`. Ordem
+  pura `familyMoreEntries(showPremium, showOtherApps, extraItems): List<FamilyMoreEntry>`.
+- **Máscara no campo** — `FamilyTextField(…, inputTransformation: InputTransformation? = null,
+  outputTransformation: OutputTransformation? = null)` (no fim da lista). **`FamilyPhoneField(phone, onPhoneChange,
+  modifier, label = "WhatsApp", region = deviceRegion(), placeholder = "(00) 00000-0000" no BR, error, saveable = false,
+  imeAction, testTag = "campo-whatsapp")`**: Brasil (região BR/desconhecida) = `(65) 99999-9999` visível
+  (`PhoneInputTransformation` + `PhoneBrOutputTransformation`), devolve só os algarismos com DDD; fora do Brasil =
+  `+` e algarismos, livre (E.164). `familyPhoneFieldValue(phone, brazilian)` (puro) normaliza o valor de fora.
+  Strings novas: `familia_whatsapp`, `familia_premium_sub_off_neutral`, `familia_activated_neutral` (4 idiomas).
+- **`kmplib-mask`: `normalizeBrPhoneDigits(input)` agora é PÚBLICA** (era `internal`), com KDoc — o app que copiou a
+  regra troca a cópia pela chamada. Novo **`InternationalPhoneInputTransformation`** (estado com `+` + algarismos,
+  até 15; par de estado do `filterInternationalPhoneInput`).
+- Testes: `FamilyNoAdsTest` (6: identidade, banner, benefícios, ordem do Mais com e sem Premium/Outros apps,
+  valor do WhatsApp) e `TextFieldStateMasksTest` (+2: normalização pública e entrada internacional).
+
 ## 2.358.0 — kmplib-familia: identidade de app de FORA da família cristã
 
 **Aditivo, sem quebra (fonte e binário).** Origem: os 6 apps simples de ferramenta de trabalho

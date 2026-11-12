@@ -87,8 +87,36 @@ object CepOutputTransformation : OutputTransformation {
     }
 }
 
-/** Algarismos de um telefone BR, tirando o DDI 55 de número colado com 12-13 algarismos. */
-internal fun normalizeBrPhoneDigits(input: String): String {
+/**
+ * Telefone internacional no estado (2.359.0): `+` só no começo e algarismos, até 15 (E.164) — a mesma
+ * regra do [filterInternationalPhoneInput]. Colar "+351 912 345 678" guarda "+351912345678". Sem par de
+ * exibição de propósito: fora do Brasil o formato é livre (o número é mostrado como digitado, só com
+ * algarismos). Para decidir entre este e o [PhoneInputTransformation], [PhoneInputFormat.forRegion].
+ */
+object InternationalPhoneInputTransformation : InputTransformation {
+    override fun TextFieldBuffer.transformInput() {
+        val proposed = asCharSequence().toString()
+        val filtered = filterInternationalPhoneInput(proposed)
+        if (filtered != proposed) {
+            replace(0, length, filtered)
+            placeCursorAtEnd()
+        }
+    }
+}
+
+/**
+ * **Os algarismos de um telefone brasileiro (DDD + número), prontos para guardar ou enviar** — a regra
+ * do [PhoneInputTransformation], exposta para o app aplicar ao valor que chega de FORA do campo (do
+ * servidor, de um contato, de um texto colado em outro lugar) sem copiar a regra (pública desde 2.359.0).
+ *
+ * - Tira tudo que não é algarismo: `"(65) 99999-8888"` → `"65999998888"`.
+ * - Tira o DDI 55 de número com 12 ou 13 algarismos que começa por 55 e sobra 10-11:
+ *   `"+55 65 99999-8888"` → `"65999998888"`. Um número de 11 algarismos com DDD 55 (RS) fica como está.
+ * - Corta em 11 algarismos (o máximo de um número BR com DDD).
+ *
+ * Não valida (DDD existente, celular com 9): para isso, `PhoneValidator`. Vazio devolve vazio.
+ */
+fun normalizeBrPhoneDigits(input: String): String {
     val digits = input.filter { it.isDigit() }
     if (digits.length > 11 && digits.startsWith("55") && digits.length - 2 in 10..11) {
         return digits.drop(2)

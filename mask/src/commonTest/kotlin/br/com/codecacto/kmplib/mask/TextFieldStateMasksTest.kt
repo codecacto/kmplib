@@ -64,6 +64,27 @@ class TextFieldStateMasksTest {
         assertEquals("55123", normalizeBrPhoneDigits("55123"))
     }
 
+    @Test
+    fun normalize_publico_valorDeFora() {
+        assertEquals("65999998888", normalizeBrPhoneDigits("(65) 99999-8888"))
+        assertEquals("65999998888", normalizeBrPhoneDigits("+55 65 99999-8888"))
+        assertEquals("6533221100", normalizeBrPhoneDigits("+55 (65) 3322-1100"))
+        assertEquals("55999998888", normalizeBrPhoneDigits("55999998888")) // DDD 55 (RS), 11 algarismos
+    }
+
+    @Test
+    fun internationalInput_mantemMaisNoComecoEDigitos() {
+        val s = TextFieldState("")
+        s.colar("+351 912 345 678", InternationalPhoneInputTransformation)
+        assertEquals("+351912345678", s.text.toString())
+        val semMais = TextFieldState("")
+        semMais.colar("(415) 555-0100", InternationalPhoneInputTransformation)
+        assertEquals("4155550100", semMais.text.toString())
+        val longo = TextFieldState("")
+        longo.colar("+1234567890123456789", InternationalPhoneInputTransformation)
+        assertEquals("+123456789012345", longo.text.toString())
+    }
+
     // --- telefone: exibição ---
 
     @Test

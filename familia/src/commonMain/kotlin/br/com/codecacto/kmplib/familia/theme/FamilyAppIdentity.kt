@@ -47,6 +47,16 @@ interface FamilyAppIdentity {
 
     /** A paleta claro/escuro (11 tokens). */
     val scheme: FamilyColorScheme
+
+    /**
+     * `true` (default, os 12 cristãos) = o app mostra publicidade da casa sem Premium; `false` = app
+     * **sem anúncio** (monetização por cota → Premium, app infantil). Com `false` o kit inteiro deixa de
+     * falar em anúncio, sem flag espalhada pelas telas (2.359.0): `FamilyScaffold` e as subtelas não
+     * reservam banner, o intersticial não abre, a tela Premium não lista "Sem anúncios" nem diz "os
+     * anúncios sumiram", e a linha Premium do Mais/Configurações usa o texto neutro. Cada tela ainda
+     * aceita o parâmetro explícito (`showBanner`, `adsRemovedBenefit`) para o caso pontual.
+     */
+    val showsAds: Boolean get() = true
 }
 
 /**
@@ -54,6 +64,7 @@ interface FamilyAppIdentity {
  * Igualdade por valor (duas declarações iguais são a mesma identidade).
  *
  * @param code prefixo curto (default = [slug]).
+ * @param showsAds `false` = app sem anúncio (2.359.0) — ver [FamilyAppIdentity.showsAds].
  */
 fun FamilyAppIdentity(
     slug: String,
@@ -61,10 +72,11 @@ fun FamilyAppIdentity(
     icon: ImageVector,
     scheme: FamilyColorScheme,
     code: String = slug,
+    showsAds: Boolean = true,
 ): FamilyAppIdentity {
     require(slug.isNotBlank()) { "slug vazio" }
     require(displayName.isNotBlank()) { "displayName vazio" }
-    return CustomFamilyAppIdentity(code = code, slug = slug, displayName = displayName, icon = icon, scheme = scheme)
+    return CustomFamilyAppIdentity(code = code, slug = slug, displayName = displayName, icon = icon, scheme = scheme, showsAds = showsAds)
 }
 
 @Immutable
@@ -74,6 +86,7 @@ private data class CustomFamilyAppIdentity(
     override val displayName: String,
     override val icon: ImageVector,
     override val scheme: FamilyColorScheme,
+    override val showsAds: Boolean,
 ) : FamilyAppIdentity {
     override fun toString(): String = "FamilyAppIdentity($slug)"
 }

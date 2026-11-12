@@ -90,4 +90,8 @@
     <string name="familia_ad_footer">No ads with Premium.</string>
     <string name="familia_ad_cta">See Premium</string>
     <string name="familia_subscription">Subscription</string>
+    <!-- 2.359.0: app sem anúncio (FamilyAppIdentity.showsAds = false) e campo de WhatsApp -->
+    <string name="familia_premium_sub_off_neutral">Unlock every feature</string>
+    <string name="familia_activated_neutral">Premium activated. Everything is unlocked.</string>
+    <string name="familia_whatsapp">WhatsApp</string>
 </resources>
