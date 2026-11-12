@@ -775,6 +775,54 @@ class PaywallViewModelTest {
         assertEquals(false, store.purchasedWithoutFreeTrial)
     }
 
+    // ------------------------------------------------------------ produto sem trial por regra (2.357.0)
+
+    @Test
+    fun `sem trial por regra - Android compra o plano base, mostra Assinar e alerta TrialForaDaRegra`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE))))
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy.NoTrial)
+        vm.onAction(PaywallHostAction.Load)
+
+        val plano = vm.paywall.plans.single()
+        assertNull(plano.trial)
+        assertEquals("Assinar", PaywallTexts().ctaLabel(plano))
+        assertNull(PaywallTexts().trialTerms(plano))
+        assertEquals(listOf("trial_fora_da_regra"), crash.alertTypes)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(true, store.purchasedWithoutFreeTrial)
+    }
+
+    @Test
+    fun `sem trial por regra - iOS sem como pular mostra o trial com o termo de cobranca, nunca esconde`() {
+        val store = FakeStore(
+            offerings = OfferingsOutcome.Disponivel(listOf(comTrial(MENSAL, TrialEligibility.ELIGIBLE, canSkip = false))),
+        )
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy.NoTrial)
+        vm.onAction(PaywallHostAction.Load)
+
+        val plano = vm.paywall.plans.single()
+        assertEquals("7 dias", plano.trial?.periodLabel)
+        assertEquals("Começar 7 dias grátis", PaywallTexts().ctaLabel(plano))
+        assertTrue(PaywallTexts().trialTerms(plano)!!.startsWith("Grátis por 7 dias"))
+        assertEquals(listOf("trial_fora_da_regra"), crash.alertTypes)
+    }
+
+    @Test
+    fun `sem trial por regra e loja sem oferta gratis - nada muda e nao alerta`() {
+        val store = FakeStore(offerings = OfferingsOutcome.Disponivel(listOf(MENSAL, ANUAL)))
+        val vm = viewModel(store, trialPolicy = PaywallTrialPolicy.NoTrial)
+        vm.onAction(PaywallHostAction.Load)
+
+        assertEquals(2, vm.paywall.plans.size)
+        assertTrue(crash.alertTypes.isEmpty())
+    }
+
+    @Test
+    fun `default oferece trial - a politica antiga nao muda`() {
+        assertTrue(PaywallTrialPolicy().offersTrial)
+        assertFalse(PaywallTrialPolicy.NoTrial.offersTrial)
+    }
+
     // ------------------------------------------------------------ porta da identidade (2.233.0)
 
     @Test

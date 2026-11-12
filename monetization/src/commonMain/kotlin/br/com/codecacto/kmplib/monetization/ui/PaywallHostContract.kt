@@ -158,8 +158,16 @@ class PaywallSavings(
  * @param alreadyUsed lê do backend se a conta já usou o trial — normalmente
  *   `{ controller.entitlement().trialUsed }` (campo `trialUsadoEm` do admin-api). Falha na leitura =
  *   `false`: a loja decide, e o card continua dizendo só o que a loja confirma.
- * @param offeringWithoutTrial ver acima. Só é lido quando [alreadyUsed] é `true` e algum pacote tem
- *   trial que a loja não deixa pular.
+ * @param offeringWithoutTrial ver acima. Só é lido quando [alreadyUsed] é `true` (ou [offersTrial] é
+ *   `false`) e algum pacote tem trial que a loja não deixa pular.
+ * @param offersTrial `false` = o produto **não tem teste grátis por regra** (2.357.0;
+ *   [PaywallTrialPolicy.NoTrial]). Se a loja mesmo assim trouxer oferta introdutória (produto mal
+ *   configurado no console), o paywall trata como trial já usado — **Android compra o plano base sem a
+ *   fase grátis** e o card diz "Assinar"; o que a loja não deixa pular (iOS sem [offeringWithoutTrial])
+ *   continua aparecendo **como a loja vai cobrar** ("Começar 7 dias grátis" + o termo de cobrança junto
+ *   do botão — Apple 3.1.2), nunca escondido — e a fábrica é avisada uma vez por sessão pelo alerta
+ *   `PaymentAlertKind.TrialForaDaRegra`, para corrigir o produto na loja. Esconder o plano deixaria o
+ *   app sem vender nada justamente quando o erro está em todos os produtos.
  *
  * ⚠️ **Exige o provider da lib** (`PurchaseManagerEntitlementProvider`/`RevenueCatEntitlementProvider`)
  * ou um `EntitlementProvider` próprio que implemente `purchasePackage(packageId, withoutFreeTrial)` e
@@ -169,7 +177,16 @@ class PaywallSavings(
 class PaywallTrialPolicy(
     val alreadyUsed: suspend () -> Boolean = { false },
     val offeringWithoutTrial: String? = null,
-)
+    val offersTrial: Boolean = true,
+) {
+    companion object {
+        /**
+         * Produto **sem teste grátis por regra** (2.357.0) — a família de apps cristãos, app por cota.
+         * Ver [offersTrial].
+         */
+        val NoTrial: PaywallTrialPolicy = PaywallTrialPolicy(offersTrial = false)
+    }
+}
 
 /**
  * Configuração do [PaywallViewModel] — o que muda de um app para outro. Todo o resto (ordem Mensal →

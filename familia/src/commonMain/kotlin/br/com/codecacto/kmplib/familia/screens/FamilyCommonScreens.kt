@@ -145,6 +145,64 @@ data class FamilyReminderSetting(
     val times: List<Int> = FamilyReminderTimes,
 )
 
+/**
+ * Onde uma seção extra do app entra em [FamilySettingsScreen] (2.357.0). As seções do kit ficam
+ * sempre na ordem do protótipo; a do app entra logo DEPOIS da âncora escolhida (âncora ausente — sem
+ * lembretes, sem cópia, sem Premium — não some com a seção: ela entra no mesmo ponto da ordem).
+ */
+enum class FamilySettingsSlot {
+    /** Depois de "Aparência". */
+    AFTER_APPEARANCE,
+
+    /** Depois de "Tamanho da letra". */
+    AFTER_TEXT_SIZE,
+
+    /** Depois de "Lembretes". */
+    AFTER_REMINDERS,
+
+    /** Depois de "Cópia de segurança" — antes de "Assinatura". O default. */
+    AFTER_BACKUP,
+
+    /** Depois de "Assinatura" (fim da tela). */
+    AFTER_SUBSCRIPTION,
+}
+
+/**
+ * Uma seção do APP em Configurações, no desenho do kit (2.357.0): o rótulo ([FamilyEyebrow]) e a lista
+ * ([FamilyList]) com as linhas que o app monta — `row(...)` (com `FamilySwitch` no `trailing` para
+ * liga/desliga) ou `custom { }`.
+ *
+ * ```kotlin
+ * FamilySettingsSection("privacidade", "Privacidade") {
+ *     row("Bloquear o app", "Pede a digital ou o PIN ao abrir",
+ *         leading = { FamilyRowBadge(FamilyIcons.Lock) },
+ *         trailing = { FamilySwitch(bloqueio, onBloqueio) },
+ *         onClick = { onBloqueio(!bloqueio) }, role = Role.Switch, testTag = "config-bloquear")
+ * }
+ * ```
+ *
+ * @param id estável; vira o id `config-secao-<id>` da seção.
+ * @param slot onde a seção entra ([FamilySettingsSlot.AFTER_BACKUP] = antes de "Assinatura").
+ */
+class FamilySettingsSection(
+    val id: String,
+    val title: String,
+    val slot: FamilySettingsSlot = FamilySettingsSlot.AFTER_BACKUP,
+    val rows: FamilyListScope.() -> Unit,
+)
+
+/** As seções de [sections] que entram depois de [slot], na ordem em que o app as passou. Puro. */
+fun familySettingsSectionsAt(sections: List<FamilySettingsSection>, slot: FamilySettingsSlot): List<FamilySettingsSection> =
+    sections.filter { it.slot == slot }
+
+@Composable
+private fun ExtraSettingsSections(sections: List<FamilySettingsSection>, slot: FamilySettingsSlot) {
+    familySettingsSectionsAt(sections, slot).forEach { section ->
+        FamilyEyebrow(section.title)
+        FamilyList(modifier = Modifier.testTag("config-secao-${section.id}"), content = section.rows)
+    }
+}
+
 /** O que a seção "Cópia de segurança" faz (`null` em Configurações = app sem dado do usuário: some). */
 data class FamilyBackupActions(val onMakeBackup: () -> Unit, val onRestoreBackup: () -> Unit)
 
@@ -154,6 +212,8 @@ data class FamilyBackupActions(val onMakeBackup: () -> Unit, val onRestoreBackup
  * [extraReminderRows]), Cópia de segurança ([backup] — some se `null`), Assinatura (linha Premium).
  *
  * @param textPreview a frase da prévia do tamanho de letra — da TRADUÇÃO embarcada, nunca do protótipo.
+ * @param extraSections seções do APP no desenho do kit (2.357.0; ex.: "Privacidade → Bloquear o app"),
+ *   cada uma no seu [FamilySettingsSlot]. Ver [FamilySettingsSection].
  * Ids `config-tema-<system|light|dark>`, `config-letra-menos`/`-mais`, `config-lembrete-<id>`,
  * `config-lembrete-<id>-horario`, `config-copia-fazer`, `config-copia-restaurar`, `config-premium`.
  */
@@ -171,6 +231,7 @@ fun FamilySettingsScreen(
     isPremium: Boolean = rememberIsPremium(),
     planName: String? = null,
     toastState: FamilyToastState? = null,
+    extraSections: List<FamilySettingsSection> = emptyList(),
 ) {
     val c = FamilyTheme.colors
     val mode by themeController.mode.collectAsState()
@@ -200,6 +261,7 @@ fun FamilySettingsScreen(
                     )
                 }
             }
+            ExtraSettingsSections(extraSections, FamilySettingsSlot.AFTER_APPEARANCE)
 
             FamilyEyebrow(familiaString(Res.string.familia_text_size))
             FamilyCard {
@@ -210,6 +272,7 @@ fun FamilySettingsScreen(
                 }
                 Text(textPreview, style = FamilyTheme.type.h2.copy(fontWeight = FontWeight.Normal), color = c.fg)
             }
+            ExtraSettingsSections(extraSections, FamilySettingsSlot.AFTER_TEXT_SIZE)
 
             if (reminders.isNotEmpty()) {
                 FamilyEyebrow(familiaString(Res.string.familia_reminders))
@@ -237,6 +300,7 @@ fun FamilySettingsScreen(
                     extraReminderRows()
                 }
             }
+            ExtraSettingsSections(extraSections, FamilySettingsSlot.AFTER_REMINDERS)
 
             if (backup != null) {
                 FamilyEyebrow(familiaString(Res.string.familia_backup))
@@ -249,6 +313,7 @@ fun FamilySettingsScreen(
                     row(restT, restS, leading = { FamilyRowBadge(FamilyIcons.Upload) }, trailing = { FamilyRowChevron() }, onClick = backup.onRestoreBackup, testTag = "config-copia-restaurar")
                 }
             }
+            ExtraSettingsSections(extraSections, FamilySettingsSlot.AFTER_BACKUP)
 
             if (onPremium != null) {
                 FamilyEyebrow(familiaString(Res.string.familia_subscription))
@@ -258,6 +323,7 @@ fun FamilySettingsScreen(
                     row(premiumT, sub, leading = { FamilyRowBadge(FamilyIcons.Star) }, trailing = { FamilyRowChevron() }, onClick = onPremium, testTag = "config-premium")
                 }
             }
+            ExtraSettingsSections(extraSections, FamilySettingsSlot.AFTER_SUBSCRIPTION)
         }
     }
 
@@ -359,6 +425,10 @@ private fun DeveloperApp.primaryStoreUrl(): String? = resolveStoreUrl().takeIf {
  * **Sobre** (02 §7): a `AboutScreen` da kmplib nas cores do app (ícone, nome, versão, Termos,
  * Privacidade, Desenvolvido por), com a 4ª linha "Sobre a tradução" só quando [onAboutTranslation]
  * existe (crédito exigido pela licença CC BY — D9). Banner no rodapé sem Premium.
+ *
+ * @param extraLinks linhas a mais do app, DEPOIS de "Sobre a tradução" (2.357.0) — ex.: "Fontes dos
+ *   mapas" no Atlas: `listOf(AboutExtraLink("Fontes dos mapas", "sobre-btn-fontes", onClick = …))`.
+ *   Crédito de dado/licença, nada de "Desenvolvido por"/Termos/Privacidade (já estão aqui).
  */
 @Composable
 fun FamilyAboutScreen(
@@ -369,6 +439,7 @@ fun FamilyAboutScreen(
     modifier: Modifier = Modifier,
     appName: String = FamilyTheme.app.displayName,
     onAboutTranslation: (() -> Unit)? = null,
+    extraLinks: List<AboutExtraLink> = emptyList(),
 ) {
     val label = familiaString(Res.string.familia_about_translation)
     AboutScreen(
@@ -380,9 +451,13 @@ fun FamilyAboutScreen(
         appName = appName,
         appIcon = androidx.compose.ui.graphics.vector.rememberVectorPainter(FamilyTheme.app.icon),
         bottomBar = { SubscreenBanner() },
-        extraLinks = onAboutTranslation?.let { listOf(AboutExtraLink(label, "sobre-btn-traducao", onClick = it)) }.orEmpty(),
+        extraLinks = familyAboutLinks(onAboutTranslation?.let { AboutExtraLink(label, "sobre-btn-traducao", onClick = it) }, extraLinks),
     )
 }
+
+/** As linhas extras do Sobre: "Sobre a tradução" (quando há) e depois as do app, sem id repetido. Puro. */
+fun familyAboutLinks(translation: AboutExtraLink?, extra: List<AboutExtraLink>): List<AboutExtraLink> =
+    (listOfNotNull(translation) + extra).distinctBy { it.testTag }
 
 /**
  * "Sobre a tradução": nome, licença, crédito e link, lidos da tabela `meta` do banco embarcado (o

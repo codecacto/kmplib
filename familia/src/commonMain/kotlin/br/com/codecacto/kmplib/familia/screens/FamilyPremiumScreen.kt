@@ -64,6 +64,8 @@ import br.com.codecacto.kmplib.ui.screens.paywall.PaywallHostAction
 import br.com.codecacto.kmplib.ui.screens.paywall.PaywallHostEffect
 import br.com.codecacto.kmplib.ui.screens.paywall.PaywallPlan
 import br.com.codecacto.kmplib.ui.screens.paywall.PaywallState
+import br.com.codecacto.kmplib.ui.screens.paywall.PaywallTexts
+import br.com.codecacto.kmplib.ui.screens.paywall.rememberPaywallTexts
 import br.com.codecacto.kmplib.ui.screens.paywall.PaywallViewModel
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -76,7 +78,10 @@ import kotlinx.datetime.toLocalDateTime
  *   com rádio e selo "Melhor valor" no de MAIOR duração disponível, "Assinar {plano}", nota da loja,
  *   Termos · Privacidade, "Restaurar compras". Estados: carregando (3 esqueletos), loja indisponível
  *   ("Tentar de novo"), compra pendente ("Verificar agora"), "Abrindo a loja…" durante a compra.
- *   **Sem teste grátis** (os apps da família não têm trial). A folha de compra é a do sistema.
+ *   **Sem teste grátis** (os apps da família não têm trial — monte o `PaywallViewModel` com
+ *   `PaywallConfig(trialPolicy = PaywallTrialPolicy.NoTrial)`). Se a loja ainda assim trouxer oferta
+ *   introdutória que não dá para pular, o botão e o termo de cobrança dizem a verdade
+ *   ([familyPremiumCta], id `premium-termo-trial`). A folha de compra é a do sistema.
  * - Premium ativo: cartão herói, plano e renovação, "Liberado para você", "Gerenciar assinatura".
  *
  * Ids: `premium-plano-<id>`, `premium-btn-assinar`, `premium-btn-restaurar`, `premium-btn-tentar`,
@@ -217,12 +222,22 @@ private fun PremiumOffer(state: PaywallState, appName: String, extras: List<Stri
                 }
             }
             chosen?.let { p ->
+                val cta = familyPremiumCta(p, familiaString(Res.string.familia_subscribe, p.name), rememberPaywallTexts())
                 FamilyButton(
-                    familiaString(Res.string.familia_subscribe, p.name),
+                    cta.label,
                     { vm.dispatch(PaywallHostAction.Paywall(PaywallAction.SelectPlan(p.id))) },
                     enabled = !state.isPurchasing,
                     testTag = "premium-btn-assinar",
                 )
+                // Termo de cobrança JUNTO do botão quando a loja vai dar período grátis (Apple 3.1.2).
+                if (cta.terms != null) {
+                    Text(
+                        cta.terms,
+                        style = FamilyTheme.type.sm.copy(textAlign = TextAlign.Center),
+                        color = c.fg,
+                        modifier = Modifier.fillMaxWidth().testTag("premium-termo-trial"),
+                    )
+                }
             }
         }
     }
@@ -340,6 +355,29 @@ fun FamilyPlanCard(
             )
         }
     }
+}
+
+/**
+ * O botão de compra da tela Premium da família e o termo de cobrança abaixo dele (2.357.0).
+ *
+ * @property label o texto do botão.
+ * @property terms "Grátis por 7 dias, depois R$ 9,90/mês. Renova automaticamente; cancele quando
+ *   quiser." — só quando o plano tem trial confirmado pela loja; `null` no caso normal.
+ */
+data class FamilyPremiumCta(val label: String, val terms: String?)
+
+/**
+ * A regra do botão (2.357.0): a família **não tem teste grátis** e o botão é "Assinar {plano}". Se
+ * a loja mesmo assim confirmou oferta introdutória para [plan] ([PaywallPlan.trial] — produto mal
+ * configurado que a loja não deixa pular, iOS), o botão passa a dizer o que a loja vai fazer
+ * ([PaywallTexts.ctaLabel]: "Começar 7 dias grátis") e o termo de cobrança ([PaywallTexts.trialTerms])
+ * fica junto dele — começar período grátis sem o termo ao lado é recusa da App Store (3.1.2). O
+ * `PaywallViewModel` com `PaywallTrialPolicy.NoTrial` compra sem a fase grátis onde a loja deixa
+ * (Android) e alerta a fábrica (`TrialForaDaRegra`). Puro.
+ */
+fun familyPremiumCta(plan: PaywallPlan, subscribeLabel: String, texts: PaywallTexts): FamilyPremiumCta {
+    val terms = texts.trialTerms(plan) ?: return FamilyPremiumCta(subscribeLabel, null)
+    return FamilyPremiumCta(texts.ctaLabel(plan), terms)
 }
 
 /** O plano do selo "Melhor valor": o de MAIOR duração disponível (regra da fábrica). Puro. */

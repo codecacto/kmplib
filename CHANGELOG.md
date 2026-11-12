@@ -5,6 +5,43 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.357.0 — Lacunas da família cristã: Premium sem trial dito pela metade, toque na notificação local, seções/links extras no kit, "Mais" do compartilhar e nota no onboarding
+
+**Aditivo** (nada muda para quem não usa; um valor novo em `PaymentAlertKind`). Origem: os 12 apps da família cristã
+(`1-Apps-Offline-Ads/<Pasta>/mobile/`) e o security-review do kit (2.355.0). Piso em `docs/pisos.yaml`.
+
+- **monetization / familia — Premium sem trial (security-review, Baixo):** a `FamilyPremiumScreen` ignorava
+  `PaywallPlan.trial` — produto mal configurado na loja (com oferta introdutória) começaria período grátis sem o termo
+  de cobrança junto do botão (App Store 3.1.2). Agora:
+  - **`familyPremiumCta(plan, subscribeLabel, texts): FamilyPremiumCta(label, terms)`** — sem trial "Assinar {plano}";
+    com trial confirmado pela loja `PaywallTexts.ctaLabel`/`trialTerms` (botão "Começar 7 dias grátis" + termo abaixo,
+    id `premium-termo-trial`).
+  - **`PaywallTrialPolicy(offersTrial = false)` / `PaywallTrialPolicy.NoTrial`** — produto sem teste grátis por regra:
+    a oferta da loja é tratada como trial já usado (Android compra o plano base sem a fase grátis e o card diz
+    "Assinar"; o que a loja não deixa pular — iOS sem `offeringWithoutTrial` — aparece como a loja vai cobrar, nunca
+    escondido) e o alerta novo **`PaymentAlertKind.TrialForaDaRegra`** (Warning, 1×/sessão, só contagens) avisa a
+    fábrica para corrigir o produto. Decisão: mostrar a verdade + alertar, não esconder — esconder deixaria o app sem
+    vender quando o erro está em todos os produtos. Os apps da família passam `trialPolicy = PaywallTrialPolicy.NoTrial`.
+- **platform — toque no corpo da notificação local (Caderno de Sermão, Atlas Bíblico):** **`NotificationTaps`**
+  (`pending: StateFlow<NotificationTap?>`, `consume(tap)`, `deliver(id, data)`, `clear()`) + **`NotificationTapEffect { tap -> }`**;
+  `NotificationTap(notificationId, data, sequence)` com `scheduledDate` (`"kmplib.date"` dos lembretes rolante/mensal).
+  App frio e quente. **Android** sem nada no app: o `initKmpLibPlatform` registra `ActivityLifecycleCallbacks` + o
+  `OnNewIntentProvider` oficial do androidx; recriar a `Activity` e reabrir pelos recentes não entregam de novo;
+  `handleNotificationTapIntent(intent)` para outra `Activity`. Os extras antigos continuam no `Intent`; botão de ação
+  que abre o app não vira toque. **iOS:** o delegate da lib entrega sozinho; delegate próprio usa a sobrecarga nova
+  **`NotificationActionBridge.onNotificationResponse(requestIdentifier, actionIdentifier, userInfo)`** — a
+  notificação da lib ganhou uma marca no `userInfo`, então `showNotificationNow` e disparo único já vencido também
+  chegam (antes se perdiam). O evento `NotificationActions` padrão segue igual.
+- **familia:** `FamilySettingsScreen(extraSections = listOf(FamilySettingsSection(id, title, slot) { row(…) }))` com
+  `FamilySettingsSlot` (`AFTER_APPEARANCE`…`AFTER_SUBSCRIPTION`, default `AFTER_BACKUP`), id `config-secao-<id>` ·
+  `FamilyAboutScreen(extraLinks = listOf(AboutExtraLink(…)))` depois de "Sobre a tradução" (`familyAboutLinks`) ·
+  `FamilyShareSheet`: o destino **"Mais" que dá certo chama `onResult(null)`** (até a 2.356.0 não chamava nada) e
+  **`onShared: (FamilyShareDestination) -> Unit`** para o intersticial depois de compartilhar
+  (`FamilyShareDestination`, `FamilyShareOutcome`, `familyShareOutcome`) · `FamilyOnboarding(firstPageNote = "…")`
+  (cartão tingido na 1ª página, id `boas-vindas-nota`).
+- Testes: `PaywallViewModelTest` (+4, sem trial por regra), `FamilyKitLacunasTest` (5), `NotificationTapsTest` (6).
+- Backlog: o resto das lacunas relatadas pelos apps (`docs/backlog.md`, 12/nov/2026).
+
 ## 2.356.0 — Multipart EM FLUXO: vídeo e arquivo grande sobem lidos em pedaços, sem `ByteArray` (Koinonia, L1)
 
 **Aditivo** (a API com `ByteArray` continua igual). Origem: `8-Sistemas-Portal-App/Koinonia/docs/auditoria/app-integracao-2.md`

@@ -489,9 +489,10 @@ class IosNotificationScheduler : NotificationScheduler {
             if (isCritical) UNNotificationSound.defaultCriticalSound()
             else UNNotificationSound.defaultSound()
         )
-        if (data.isNotEmpty()) {
-            setUserInfo(data.mapKeys { it.key as Any } as Map<Any?, *>)
-        }
+        // A marca identifica a notificação da lib no toque, mesmo fora do registro (o
+        // `showNotificationNow` e o disparo único já vencido) — 2.357.0. O app nunca a vê.
+        val info: Map<Any?, *> = data.mapKeys { it.key as Any? } + (NotificationTaps.MARKER_KEY to "1")
+        setUserInfo(info)
         val category = NotificationActionRules.categoryIdentifier(actions)
         if (category.isNotEmpty()) setCategoryIdentifier(category)
     }

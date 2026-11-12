@@ -102,15 +102,24 @@ internal object NotificationPresenter {
     private fun requestCode(notificationId: Int, actionId: String): Int =
         (notificationId * 31 + actionId.hashCode()) and 0x7FFFFFFF
 
+    /**
+     * `PendingIntent` do toque no corpo: abre a `Activity` de entrada do app com o id e o `data` como
+     * extras (o formato histórico, que app antigo lê à mão) e — com [asTap] — a marca do toque
+     * ([NotificationTapIntents]), que o `initKmpLibPlatform` converte em [NotificationTaps] (2.357.0).
+     *
+     * @param asTap `false` quando quem abre o app é um BOTÃO de ação (já virou `NotificationActions`).
+     */
     fun contentPendingIntent(
         ctx: Context,
         id: Int,
         data: Map<String, String>,
+        asTap: Boolean = true,
     ): PendingIntent? {
         val launchIntent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName) ?: return null
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         launchIntent.putExtra(AndroidNotificationScheduler.EXTRA_NOTIFICATION_ID, id)
         data.forEach { (key, value) -> launchIntent.putExtra(key, value) }
+        if (asTap) NotificationTapIntents.mark(launchIntent, id, data)
         return PendingIntent.getActivity(
             ctx,
             id,

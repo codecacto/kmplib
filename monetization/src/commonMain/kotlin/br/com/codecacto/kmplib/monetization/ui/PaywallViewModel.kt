@@ -69,6 +69,7 @@ import kotlinx.coroutines.launch
  * | Loja respondeu SEM pacote, ou nenhum plano vendável sobrou | `PaywallSemPlano` |
  * | Leitura da loja falhou por incidente (config, loja, desconhecido) | `LojaIndisponivel` |
  * | Compra / restauração falhou por incidente | `CompraFalhou` / `RestauracaoFalhou` |
+ * | Loja com teste grátis em produto sem trial (`PaywallTrialPolicy.NoTrial`, 2.357.0) | `TrialForaDaRegra` |
  * | Sem rede · cancelamento · cartão recusado · build sem chave (`Indisponivel`) | **nenhum** |
  *
  * O `detalhe` do alerta é técnico (contagens, código), nunca texto do SDK nem dado pessoal.
@@ -219,15 +220,20 @@ class PaywallViewModel(
             val d = async { tierConfig?.let { readCurrentTier(it) } }
             OfferRead(c.await(), s.await(), t.await(), d.await())
         }
-        withoutFreeTrial = trialUsed
-        val store = if (trialUsed) offeringForUsedTrial(storeRead) else storeRead
+        // Produto sem trial por regra (2.357.0): a oferta introdutória que a loja trouxer é tratada
+        // como trial já usado — e a fábrica é avisada para corrigir o produto.
+        val noTrialByRule = !config.trialPolicy.offersTrial
+        if (noTrialByRule) reportUnexpectedTrial(storeRead)
+        val skipTrial = trialUsed || noTrialByRule
+        withoutFreeTrial = skipTrial
+        val store = if (skipTrial) offeringForUsedTrial(storeRead) else storeRead
 
         if (tierConfig != null) {
-            applyTierOffer(tierConfig, central != null, centralResult, store, trialUsed, outsideTier, m)
+            applyTierOffer(tierConfig, central != null, centralResult, store, skipTrial, outsideTier, m)
             return
         }
 
-        val plans = buildPlans(centralResult, packagesFor(store.pacotes, trialUsed), m)
+        val plans = buildPlans(centralResult, packagesFor(store.pacotes, skipTrial), m)
         reportOffer(central != null, centralResult, store, plans)
 
         val subscription = entitlementProvider.subscriptionInfo()
@@ -452,6 +458,21 @@ class PaywallViewModel(
         // Só o tipo: a mensagem de uma falha de rede pode trazer URL/corpo.
         AppLogger.w(TAG, "leitura do trial usado falhou (${e::class.simpleName}) — a loja decide")
         false
+    }
+
+    /**
+     * Produto sem trial por regra ([PaywallTrialPolicy.offersTrial] `false`) com oferta grátis na loja:
+     * alerta `TrialForaDaRegra` (uma vez por sessão). O detalhe é só contagem — nunca id de produto.
+     */
+    private fun reportUnexpectedTrial(store: OfferingsOutcome) {
+        val withTrial = store.pacotes.filter { it.freeTrial != null }
+        if (withTrial.isEmpty()) return
+        val unskippable = withTrial.count { !it.canSkipFreeTrial }
+        AppLogger.w(TAG, "loja trouxe teste grátis em produto sem trial (${withTrial.size} pacote(s))")
+        paymentAlerts.report(
+            PaymentAlertKind.TrialForaDaRegra,
+            detalhe = "pacotes-com-trial=${withTrial.size} sem-como-pular=$unskippable pacotes=${store.pacotes.size}",
+        )
     }
 
     /**

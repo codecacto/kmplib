@@ -3,6 +3,39 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 12/nov/2026 — lacunas dos 12 apps da família cristã (2.357.0)
+
+Origem: os relatos de construção dos 12 apps (`1-Apps-Offline-Ads/<Pasta>/mobile/`) e o security-review do kit.
+
+- [x] **`FamilyPremiumScreen` ignorava `PaywallPlan.trial`** (security-review, Baixo): agora `familyPremiumCta` —
+  com trial confirmado pela loja o botão diz "Começar N grátis" e o termo de cobrança fica junto (App Store 3.1.2).
+  E `PaywallTrialPolicy.NoTrial` (`offersTrial = false`): Android compra sem a fase grátis, iOS sem como pular mostra
+  a verdade, e a fábrica recebe `PaymentAlertKind.TrialForaDaRegra` para corrigir o produto. Esconder o plano foi
+  recusado: produto todo mal configurado deixaria o app sem vender nada.
+- [x] **Toque no corpo da notificação local:** `NotificationTaps` (`pending`/`consume`/`deliver`) +
+  `NotificationTapEffect`; Android pelo `initKmpLibPlatform` (`onCreate` + `OnNewIntentProvider`,
+  `handleNotificationTapIntent`), iOS pelo delegate da lib ou `NotificationActionBridge.onNotificationResponse(…, userInfo)`.
+- [x] `FamilySettingsScreen(extraSections = listOf(FamilySettingsSection(…)))` (`FamilySettingsSlot`).
+- [x] `FamilyAboutScreen(extraLinks = listOf(AboutExtraLink(…)))`.
+- [x] `FamilyShareSheet`: "Mais" chama `onResult(null)`; `onShared(FamilyShareDestination)` para o intersticial.
+- [x] `FamilyOnboarding(firstPageNote = "…")`.
+- [ ] **`LocalRepository.replaceAll(items)`** atômico (todos os apps contornaram com transação no app).
+- [ ] **`GallerySaver.save(bytes, fileName, mimeType, album)`** — hoje só por caminho; os apps gravam um temporário antes.
+- [ ] **`FamilyTextField` com estado externo e foco programático** (`TextFieldState` do app + `FocusRequester`).
+- [ ] **`FamilySegmented` com conteúdo** (ícone/rótulo composto por segmento, não só `String`).
+- [ ] **Fontes do kit públicas para PDF** (`PdfFontFamily.fromBytes` com Fraunces/Atkinson sem o app duplicar os `.ttf`).
+- [ ] **`ScreenOrientationEffect` liberar paisagem em app só-retrato no iOS** (`supportedInterfaceOrientations` dinâmico
+  pelo `UIViewController` raiz / `requestGeometryUpdate`).
+- [ ] **`ExternalDisplayBridge` exportável ao Swift** (`@ObjCName`, sem o app escrever adaptador).
+- [ ] **`BackHandler` depreciado → `NavigationEventHandler`** nos componentes do kit (folhas, tela cheia).
+- [ ] **Esconder barras do sistema** (leitura imersiva): `SystemBarsVisibility`/`ImmersiveEffect` (WindowInsetsControllerCompat
+  / `prefersStatusBarHidden`).
+- [ ] **`ZoomableBox` com controle externo** (estado de escala/offset elevado: botões +/−, reset).
+- [ ] **`FamilyDayCell` com ✓** (dia cumprido), além do estado atual.
+- [ ] **`FolhaDeCompartilharTexto`** do Rosário → kit (folha de compartilhar só TEXTO, sem imagem).
+- [ ] **`scheduleRollingDaily` com `data` por dia** (hoje o `data` é o mesmo para a janela + `kmplib.date`).
+- [ ] **`kmplib-tts-background`** (já anotado na Onda 0): leitura em voz com o app fechado, OPT-IN.
+
 ### Registrado em 12/nov/2026 — multipart em fluxo (Koinonia, L1; entregue na 2.356.0)
 
 - [x] `StreamingMultipartPart` + `DomainApiClient.postMultipartStreaming`/`putMultipartStreaming` (Ktor `InputProvider`

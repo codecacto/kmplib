@@ -125,7 +125,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     private fun openApp(ctx: Context, notificationId: Int, data: Map<String, String>) {
         runCatching {
-            NotificationPresenter.contentPendingIntent(ctx, notificationId, data)?.send()
+            NotificationPresenter.contentPendingIntent(ctx, notificationId, data, asTap = false)?.send()
         }.onFailure {
             AppLogger.w(TAG, "Não foi possível abrir o app pela ação: ${it.message}")
         }

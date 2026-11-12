@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.357.0
+    motivo: "Premium da família: produto com oferta introdutória na loja iniciava período grátis sem o termo de cobrança junto do botão (App Store 3.1.2); \"Mais\" do compartilhar não avisava o app"
+    simbolos: [FamilyPremiumScreen, FamilyShareSheet]
+
   - versao: 2.353.2
     motivo: "iPhone: o \"digite EXCLUIR\" da exclusão de conta perdia/trocava letras (\"EXCLURI\") e o confirmar não acendia; idem senha do primeiro acesso e da reautenticação"
     simbolos: [AccountDeletionDialog, AppInputDialog, InputDialog, ForcePasswordChangeDialog, RecentAuthHost]

@@ -133,6 +133,19 @@ enum class PaymentAlertKind(
         titulo = "PAGAMENTO: compra recusada — loja não identificada com a conta logada",
         nivel = CrashLevel.Error,
     ),
+
+    /**
+     * **Teste grátis fora da regra (2.357.0).** O produto declara que NÃO tem trial
+     * (`PaywallTrialPolicy.NoTrial`), mas a loja trouxe oferta introdutória grátis em algum pacote —
+     * produto mal configurado no console (App Store Connect / Play). O paywall continua vendendo e
+     * dizendo a verdade (Android compra sem a fase grátis; iOS mostra o termo de cobrança), então não é
+     * `Error`: é catálogo divergente do manifesto, a corrigir na loja.
+     */
+    TrialForaDaRegra(
+        slug = "trial_fora_da_regra",
+        titulo = "PAGAMENTO: loja oferece teste grátis em produto sem trial — corrigir o produto",
+        nivel = CrashLevel.Warning,
+    ),
 }
 
 /**

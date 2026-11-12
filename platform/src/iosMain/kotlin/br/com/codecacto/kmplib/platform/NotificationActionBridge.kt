@@ -38,7 +38,8 @@ import platform.darwin.NSObject
  *                             withCompletionHandler completionHandler: @escaping () -> Void) {
  *     let handled = NotificationActionBridge.shared.onNotificationResponse(
  *         requestIdentifier: response.notification.request.identifier,
- *         actionIdentifier: response.actionIdentifier
+ *         actionIdentifier: response.actionIdentifier,
+ *         userInfo: response.notification.request.content.userInfo
  *     )
  *     if !handled {
  *         // não era uma ação da kmplib — trate o seu push aqui
@@ -71,19 +72,38 @@ object NotificationActionBridge {
      *   `false` quando não é assunto da lib — aí o app segue com o próprio tratamento (push, deep
      *   link), sem duplicar nada.
      */
-    fun onNotificationResponse(requestIdentifier: String, actionIdentifier: String): Boolean {
+    fun onNotificationResponse(requestIdentifier: String, actionIdentifier: String): Boolean =
+        onNotificationResponse(requestIdentifier, actionIdentifier, emptyMap<Any?, Any?>())
+
+    /**
+     * Igual ao de dois parâmetros, com o `userInfo` da notificação (2.357.0) — **prefira este**:
+     * com ele o toque no corpo chega a [NotificationTaps] também quando a notificação já saiu do
+     * registro da lib (`showNotificationNow`, disparo único vencido).
+     *
+     * ```swift
+     * let handled = NotificationActionBridge.shared.onNotificationResponse(
+     *     requestIdentifier: response.notification.request.identifier,
+     *     actionIdentifier: response.actionIdentifier,
+     *     userInfo: response.notification.request.content.userInfo
+     * )
+     * ```
+     */
+    fun onNotificationResponse(requestIdentifier: String, actionIdentifier: String, userInfo: Map<Any?, *>): Boolean {
         val notificationId = IosNotificationRequests.notificationIdOf(requestIdentifier) ?: return false
         val scheduler = IosNotificationScheduler()
         val item = scheduler.scheduledNotifications().firstOrNull { it.id == notificationId }
+        val markedData = NotificationTapRules.dataFromUserInfo(userInfo)
+        val isOurs = item != null || markedData != null
 
         // Deslizar para dispensar não é ação: o usuário mandou a notificação embora e pronto.
-        if (actionIdentifier == UNNotificationDismissActionIdentifier) return item != null
+        if (actionIdentifier == UNNotificationDismissActionIdentifier) return isOurs
 
-        // Toque no CORPO: comportamento histórico (abre o app). Só vira evento se o app declarou
-        // interesse — a lib não inventa uma ação que ninguém pediu.
+        // Toque no CORPO: vira NotificationTaps (2.357.0) e, como antes, o evento de ação padrão.
         if (actionIdentifier == UNNotificationDefaultActionIdentifier) {
-            if (item == null) return false
-            dispatch(notificationId, NotificationActionEvent.DEFAULT_ACTION_ID, item.data)
+            if (!isOurs) return false
+            val data = markedData ?: item?.data.orEmpty()
+            NotificationTaps.deliver(notificationId, data)
+            dispatch(notificationId, NotificationActionEvent.DEFAULT_ACTION_ID, data)
             return true
         }
 
@@ -137,6 +157,7 @@ class KmpLibNotificationDelegate : NSObject(), UNUserNotificationCenterDelegateP
             NotificationActionBridge.onNotificationResponse(
                 requestIdentifier = didReceiveNotificationResponse.notification.request.identifier,
                 actionIdentifier = didReceiveNotificationResponse.actionIdentifier,
+                userInfo = didReceiveNotificationResponse.notification.request.content.userInfo,
             )
         }
         withCompletionHandler()

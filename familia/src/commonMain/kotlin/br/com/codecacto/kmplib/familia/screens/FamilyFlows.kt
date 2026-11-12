@@ -40,6 +40,8 @@ import br.com.codecacto.kmplib.familia.components.FamilyAppIcon
 import br.com.codecacto.kmplib.familia.components.FamilyBadge
 import br.com.codecacto.kmplib.familia.components.FamilyButton
 import br.com.codecacto.kmplib.familia.components.FamilyButtonVariant
+import br.com.codecacto.kmplib.familia.components.FamilyCard
+import br.com.codecacto.kmplib.familia.components.FamilyCardStyle
 import br.com.codecacto.kmplib.familia.components.FamilyConfirmDialog
 import br.com.codecacto.kmplib.familia.components.FamilyFullScreen
 import br.com.codecacto.kmplib.familia.components.FamilySheet
@@ -65,6 +67,10 @@ data class FamilyOnboardingReminder(val question: String, val detail: String)
  * [onFinished] recebe `true` quando a pessoa escolheu "Permitir" — o APP pede a permissão do sistema,
  * liga o lembrete e grava o "já viu" (sem conta: `AppPreferences`). Com [reminder] `null`, a 1ª tela
  * termina direto (`false`). Ids `boas-vindas-continuar`, `boas-vindas-permitir`, `boas-vindas-agora-nao`.
+ *
+ * @param firstPageNote nota opcional na 1ª página, depois dos [bullets] (2.357.0) — o aviso que a
+ *   pessoa precisa ler ANTES de usar (Jejuar: "Jejum não substitui orientação médica…"). Cartão tingido
+ *   com o ícone de informação, lido como um bloco pelo leitor de tela; id `boas-vindas-nota`.
  */
 @Composable
 fun FamilyOnboarding(
@@ -74,6 +80,7 @@ fun FamilyOnboarding(
     onFinished: (allowNotifications: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     appIcon: ImageVector = FamilyTheme.app.icon,
+    firstPageNote: String? = null,
 ) {
     val c = FamilyTheme.colors
     var page by rememberSaveable { mutableIntStateOf(0) }
@@ -92,6 +99,14 @@ fun FamilyOnboarding(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 FamilyBadge(FamilyIcons.Check, size = 36.dp, round = true, iconSize = 18.dp)
                                 Text(b, style = FamilyTheme.type.body, color = c.fg)
+                            }
+                        }
+                    }
+                    if (!firstPageNote.isNullOrBlank()) {
+                        FamilyCard(style = FamilyCardStyle.TINT, modifier = Modifier.semantics(mergeDescendants = true) {}.testTag("boas-vindas-nota")) {
+                            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(FamilyIcons.Info, null, tint = c.acd, modifier = Modifier.size(22.dp))
+                                Text(firstPageNote, style = FamilyTheme.type.sm, color = c.fg)
                             }
                         }
                     }
@@ -135,12 +150,26 @@ class FamilySharePayload(
     val copyText: String,
 )
 
+/** Os destinos da [FamilyShareSheet] (2.357.0); [id] é o sufixo do id `compartilhar-<id>`. */
+enum class FamilyShareDestination(val id: String) {
+    WHATSAPP("whatsapp"),
+    WHATSAPP_STATUS("status"),
+    INSTAGRAM_STORIES("instagram"),
+    COPY("copiar"),
+    MORE("mais"),
+}
+
 /**
  * **Folha de compartilhar** (02 §9): prévia ([preview] + [title] + [subtitle]) e os destinos
  * WhatsApp · Status · Instagram · Copiar · Mais — **destino ausente é escondido** (`ShareHandler.isInstalled`;
  * "Status" não tem caminho oficial e some), "Mais" = folha do sistema. Instagram exige [metaAppId].
  *
- * [onResult] devolve o aviso para mostrar ("Texto copiado.") ou `null`. Ids `compartilhar-<destino>`.
+ * [onResult] devolve o aviso para mostrar ("Texto copiado.", "Não foi possível compartilhar.") ou
+ * `null` — e é chamado em TODO destino, "Mais" inclusive (até a 2.356.0 o "Mais" que dava certo não
+ * chamava nada). [onShared] (2.357.0) é chamado só quando o envio saiu (app de destino aberto, folha do
+ * sistema aberta, texto copiado), com o destino — é o gancho do intersticial depois de compartilhar.
+ * A folha do sistema não diz se a pessoa concluiu o envio lá dentro: "saiu" = a folha abriu.
+ * Ids `compartilhar-<destino>`.
  */
 @Composable
 fun FamilyShareSheet(
@@ -152,6 +181,7 @@ fun FamilyShareSheet(
     metaAppId: String? = null,
     preview: (@Composable () -> Unit)? = null,
     onResult: (message: String?) -> Unit = {},
+    onShared: (destination: FamilyShareDestination) -> Unit = {},
 ) {
     val c = FamilyTheme.colors
     val handler = remember { getShareHandler() }
@@ -159,28 +189,37 @@ fun FamilyShareSheet(
     val copied = familiaString(Res.string.familia_copied)
     val failed = familiaString(Res.string.familia_share_failed)
     data class Dest(val id: String, val label: String, val icon: ImageVector, val bg: Color, val fg: Color, val action: () -> Unit)
-    fun direct(target: ShareTarget) {
+    fun report(destination: FamilyShareDestination, outcome: FamilyShareOutcome) {
+        when (outcome) {
+            FamilyShareOutcome.SHARED -> { onResult(null); onShared(destination) }
+            FamilyShareOutcome.FAILED -> onResult(failed)
+        }
+    }
+    fun systemSheet(destination: FamilyShareDestination) =
+        report(destination, familyShareOutcome(runCatching { handler.shareImage(payload.imageBytes, payload.fileName, title) }))
+    fun direct(target: ShareTarget, destination: FamilyShareDestination) {
         when (handler.shareImageTo(target, payload.imageBytes, payload.fileName, options)) {
-            ShareTargetResult.Opened -> onResult(null)
-            else -> runCatching { handler.shareImage(payload.imageBytes, payload.fileName, title) }.onFailure { onResult(failed) }
+            ShareTargetResult.Opened -> report(destination, FamilyShareOutcome.SHARED)
+            else -> systemSheet(destination)
         }
     }
     val destinations = buildList {
         if (handler.isInstalled(ShareTarget.WHATSAPP, options)) {
-            add(Dest("whatsapp", familiaString(Res.string.familia_share_whatsapp), FamilyIcons.Send, FamilyFixedColors.shareWhatsApp, FamilyFixedColors.shareOnColor) { direct(ShareTarget.WHATSAPP) })
+            add(Dest("whatsapp", familiaString(Res.string.familia_share_whatsapp), FamilyIcons.Send, FamilyFixedColors.shareWhatsApp, FamilyFixedColors.shareOnColor) { direct(ShareTarget.WHATSAPP, FamilyShareDestination.WHATSAPP) })
         }
         if (handler.isInstalled(ShareTarget.WHATSAPP_STATUS, options)) {
-            add(Dest("status", familiaString(Res.string.familia_share_status), FamilyIcons.Image, FamilyFixedColors.shareStatus, FamilyFixedColors.shareOnColor) { direct(ShareTarget.WHATSAPP_STATUS) })
+            add(Dest("status", familiaString(Res.string.familia_share_status), FamilyIcons.Image, FamilyFixedColors.shareStatus, FamilyFixedColors.shareOnColor) { direct(ShareTarget.WHATSAPP_STATUS, FamilyShareDestination.WHATSAPP_STATUS) })
         }
         if (handler.isInstalled(ShareTarget.INSTAGRAM_STORIES, options)) {
-            add(Dest("instagram", familiaString(Res.string.familia_share_instagram), FamilyIcons.Camera, FamilyFixedColors.shareInstagram, FamilyFixedColors.shareOnColor) { direct(ShareTarget.INSTAGRAM_STORIES) })
+            add(Dest("instagram", familiaString(Res.string.familia_share_instagram), FamilyIcons.Camera, FamilyFixedColors.shareInstagram, FamilyFixedColors.shareOnColor) { direct(ShareTarget.INSTAGRAM_STORIES, FamilyShareDestination.INSTAGRAM_STORIES) })
         }
         add(Dest("copiar", familiaString(Res.string.familia_share_copy), FamilyIcons.Copy, c.sf2, c.fg) {
             getClipboard().copy(payload.copyText)
             onResult(copied)
+            onShared(FamilyShareDestination.COPY)
         })
         add(Dest("mais", familiaString(Res.string.familia_share_more), FamilyIcons.More, c.sf2, c.fg) {
-            runCatching { handler.shareImage(payload.imageBytes, payload.fileName, title) }.onFailure { onResult(failed) }
+            systemSheet(FamilyShareDestination.MORE)
         })
     }
     FamilySheet(onDismiss = onDismiss, modifier = modifier, testTag = "compartilhar-folha") {
@@ -209,6 +248,13 @@ fun FamilyShareSheet(
         FamilyButton(familiaString(Res.string.familia_cancel), onDismiss, variant = FamilyButtonVariant.OUTLINE, testTag = "compartilhar-cancelar")
     }
 }
+
+/** Resultado de um destino da [FamilyShareSheet]. */
+enum class FamilyShareOutcome { SHARED, FAILED }
+
+/** A folha do sistema abriu (`SHARED`) ou lançou (`FAILED`). Puro. */
+fun familyShareOutcome(result: Result<Unit>): FamilyShareOutcome =
+    if (result.isSuccess) FamilyShareOutcome.SHARED else FamilyShareOutcome.FAILED
 
 /**
  * Folha **"Cópia pronta"** (02 §10): nome do arquivo + "Salvar arquivo" (seletor de destino do sistema)
