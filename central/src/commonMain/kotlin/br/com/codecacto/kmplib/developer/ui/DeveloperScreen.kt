@@ -71,7 +71,7 @@ import br.com.codecacto.kmplib.developer.withoutCurrentApp
 import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import coil3.compose.AsyncImagePainter
 
-private val WhatsAppGreen = Color(0xFF25D366)
+private val WhatsAppGreen = br.com.codecacto.kmplib.ui.components.WhatsAppColors.Green
 private val CONTENT_MAX_WIDTH = 560.dp
 
 /**

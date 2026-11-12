@@ -941,4 +941,6 @@
     <string name="kmplib_help_library_videos">Vídeos</string>
     <string name="kmplib_help_library_flows">Como fazer</string>
     <string name="kmplib_help_refresh_failed">Não foi possível atualizar.</string>
+    <string name="kmplib_whatsapp_chat">Conversar no WhatsApp</string>
+    <string name="kmplib_whatsapp_chat_with">Conversar no WhatsApp com %1$s</string>
 </resources>

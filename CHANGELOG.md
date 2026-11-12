@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.354.0 — Botão de WhatsApp do cliente (`WhatsAppIconButton`) e o número normalizado para o WhatsApp
+
+**Aditivo.** Decisão do fundador (11/nov/2026): toda listagem de clientes e todo cadastro/detalhe de
+cliente, em web e app, têm um botão com o ícone do WhatsApp que abre a conversa direto. Primeiros
+consumidores: Suzy e Meu Barbeiro. Par da weblib `WhatsAppButton` + `normalizeWhatsAppPhone` (0.318.0).
+
+- **`whatsAppPhoneNumber(phone: String?): String?`** (`kmplib-platform`, pacote
+  `br.com.codecacto.kmplib.platform`, puro) — o telefone como está no banco vira o número do WhatsApp:
+  só algarismos; zeros à esquerda saem; `+`/`00` explícito = já tem DDI (8 a 15 algarismos fica);
+  10 ou 11 algarismos = DDD + número do Brasil → prefixa `55` (também com DDD 55); 12 a 15 = já com DDI
+  → fica; vazio, sem DDD, curto ou acima de 15 (E.164) → `null`. **A mesma régua da weblib**, caso a caso.
+- **`WhatsAppIconButton(phone, contactName = null, message = "", modifier, enabled, tint, iconSize,
+  testTag = "whatsapp-btn-conversar", onOpen)`** (`kmplib-ui`, `ui.components`) — `IconButton` (alvo
+  48 dp) com o glifo oficial; toque = `getUrlLauncher().openWhatsApp(numero, message)` (resolvido no toque:
+  portão de pais e dublês valem). **Telefone inválido não desenha nada.** Nome acessível "Conversar no
+  WhatsApp com {nome}" (4 idiomas; sem nome, "Conversar no WhatsApp"). Dentro de linha clicável inteira
+  (`Modifier.clickable` no cartão) o `IconButton` consome o próprio toque: abre o WhatsApp, não o detalhe.
+- **`WhatsAppGlyph: ImageVector`** + `WHATSAPP_ICON_PATH` — o glifo oficial (o mesmo caminho da weblib,
+  viewBox 24, flags de arco por extenso). **`WhatsAppColors`** (`Green` `#25D366`, `TealGreen` `#128C7E`,
+  `DarkGreen` `#075E54`) e **`whatsAppIconTint(background)`**: o verde da marca quando tem contraste de
+  objeto gráfico (≥ 3:1, WCAG 1.4.11) sobre o fundo; no fundo claro, o verde-azulado da marca
+  (`#25D366` sobre branco mede 1,98:1). `WhatsAppIconButtonDefaults` (`TEST_TAG`, `IconSize`, `tint()`).
+- `DeveloperScreen` passa a ler `WhatsAppColors.Green` (mesma cor, sem mudança visual).
+- Testes: `WhatsAppPhoneTest` (platform), `WhatsAppIconButtonTest` (glifo, flags dos arcos, contraste).
+
 ## 2.353.2 — iPhone: o "digite EXCLUIR" da exclusão de conta não perde nem troca letras
 
 **Correção (piso).** Achado pela suíte Maestro do StatusHub (11/nov/2026): no iPhone, o campo do
