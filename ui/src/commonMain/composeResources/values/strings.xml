@@ -954,4 +954,7 @@
     <!-- Botão de WhatsApp do cliente (ui/components/WhatsAppIconButton.kt, 2.354.0). %1$s = nome do cliente. -->
     <string name="kmplib_whatsapp_chat">Conversar no WhatsApp</string>
     <string name="kmplib_whatsapp_chat_with">Conversar no WhatsApp com %1$s</string>
+    <!-- Seção "Notificações" de Configurações (push/ui/NotificationSettingsSection.kt, 2.360.0). -->
+    <string name="kmplib_push_settings_title">Notificações</string>
+    <string name="kmplib_push_marketing">Notificações de publicidade</string>
 </resources>

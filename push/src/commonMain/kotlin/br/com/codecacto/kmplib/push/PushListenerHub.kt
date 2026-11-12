@@ -53,7 +53,11 @@ class PushListenerRegistration internal constructor(
 @OptIn(ExperimentalAtomicApi::class)
 class PushListenerHub : PushNotificationListener {
 
-    private class Entry(val listener: PushNotificationListener, val handles: List<PushListenerRegistration>)
+    private class Entry(
+        val listener: PushNotificationListener,
+        val handles: List<PushListenerRegistration>,
+        val receivesTaps: Boolean,
+    )
 
     private class State(val entries: List<Entry>, val pendingTap: Map<String, String>?)
 
@@ -74,10 +78,16 @@ class PushListenerHub : PushNotificationListener {
      * entregue a este ouvinte logo depois do registro — e deixa de estar pendente.
      *
      * [NoOpPushNotificationListener] não é registrado (e nunca consome o toque pendente).
+     *
+     * @param receiveTaps `false` (2.360.0) = ouvinte só de token/recebimento (ex.: o registro central
+     *   do aparelho, `PushRegistration`): não recebe [PushNotificationListener.onNotificationClicked]
+     *   e NÃO conta como "alguém para o toque" — sem nenhum ouvinte de toque, o toque continua
+     *   ficando pendente para a tela que montar depois. Com `false`, [receivePendingTap] é ignorado.
      */
     fun addListener(
         listener: PushNotificationListener,
         receivePendingTap: Boolean = true,
+        receiveTaps: Boolean = true,
     ): PushListenerRegistration {
         lateinit var handle: PushListenerRegistration
         handle = PushListenerRegistration { removeHandle(it) }
@@ -90,11 +100,13 @@ class PushListenerHub : PushNotificationListener {
             val atual = state.load()
             val existente = atual.entries.firstOrNull { it.listener === listener }
             val entries = if (existente != null) {
-                atual.entries.map { if (it === existente) Entry(listener, it.handles + handle) else it }
+                atual.entries.map {
+                    if (it === existente) Entry(listener, it.handles + handle, it.receivesTaps || receiveTaps) else it
+                }
             } else {
-                atual.entries + Entry(listener, listOf(handle))
+                atual.entries + Entry(listener, listOf(handle), receiveTaps)
             }
-            delivered = if (receivePendingTap) atual.pendingTap else null
+            delivered = if (receivePendingTap && receiveTaps) atual.pendingTap else null
             val novo = State(entries, if (delivered != null) null else atual.pendingTap)
             if (state.compareAndSet(atual, novo)) break
         }
@@ -122,7 +134,7 @@ class PushListenerHub : PushNotificationListener {
                     entry
                 } else {
                     val resto = entry.handles.filterNot { it === handle }
-                    if (resto.isEmpty()) null else Entry(entry.listener, resto)
+                    if (resto.isEmpty()) null else Entry(entry.listener, resto, entry.receivesTaps)
                 }
             }
             if (state.compareAndSet(atual, State(entries, atual.pendingTap))) return
@@ -164,12 +176,16 @@ class PushListenerHub : PushNotificationListener {
         listeners().forEach { it.onPushNotificationWithPayloadData(title, body, data) }
     }
 
-    /** Sem ouvinte, o toque fica pendente (substitui o anterior); com ouvinte, vai a todos. */
+    /**
+     * Sem ouvinte DE TOQUE, o toque fica pendente (substitui o anterior); com ouvinte, vai a todos os
+     * que recebem toque (`receiveTaps = true`).
+     */
     override fun onNotificationClicked(data: Map<String, String>) {
         while (true) {
             val atual = state.load()
-            if (atual.entries.isNotEmpty()) {
-                atual.entries.forEach { it.listener.onNotificationClicked(data) }
+            val tapReceivers = atual.entries.filter { it.receivesTaps }
+            if (tapReceivers.isNotEmpty()) {
+                tapReceivers.forEach { it.listener.onNotificationClicked(data) }
                 return
             }
             if (state.compareAndSet(atual, State(atual.entries, data))) {
@@ -205,7 +221,8 @@ object PushEvents {
     fun addListener(
         listener: PushNotificationListener,
         receivePendingTap: Boolean = true,
-    ): PushListenerRegistration = hub.addListener(listener, receivePendingTap)
+        receiveTaps: Boolean = true,
+    ): PushListenerRegistration = hub.addListener(listener, receivePendingTap, receiveTaps)
 
     /** Ver [PushListenerHub.removeListener]. */
     fun removeListener(listener: PushNotificationListener) = hub.removeListener(listener)

@@ -35,6 +35,9 @@ actual object BuildInfo {
             return code.takeIf { it > 0 }?.toString()
         }
 
+    actual val appId: String?
+        get() = AndroidAppContext.get()?.packageName?.trim()?.takeIf { it.isNotEmpty() }
+
     /** O `PackageInfo` do próprio app; `null` sem contexto ou se o sistema recusar (nunca lança). */
     private fun packageInfo(): PackageInfo? {
         val context = AndroidAppContext.get() ?: return null

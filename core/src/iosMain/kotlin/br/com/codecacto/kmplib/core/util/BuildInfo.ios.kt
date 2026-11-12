@@ -21,6 +21,9 @@ actual object BuildInfo {
     actual val appBuildNumber: String?
         get() = bundleString("CFBundleVersion")
 
+    actual val appId: String?
+        get() = NSBundle.mainBundle.bundleIdentifier?.trim()?.takeIf { it.isNotEmpty() }
+
     private fun bundleString(key: String): String? =
         (NSBundle.mainBundle.objectForInfoDictionaryKey(key) as? String)?.trim()?.takeIf { it.isNotEmpty() }
 }

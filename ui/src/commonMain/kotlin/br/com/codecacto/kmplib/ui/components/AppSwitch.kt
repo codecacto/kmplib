@@ -26,14 +26,15 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * ```
  *
  * @param checked Estado atual (ligado/desligado).
- * @param onCheckedChange Callback disparado ao alternar o estado.
+ * @param onCheckedChange Callback disparado ao alternar o estado. `null` (2.360.0) = o switch só
+ *   desenha: a LINHA inteira é o alvo (`Modifier.toggleable` com `Role.Switch`), sem dois alvos.
  * @param modifier Modificador externo aplicado ao switch.
  * @param enabled Se o controle está habilitado para interação.
  */
 @Composable
 fun AppSwitch(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {

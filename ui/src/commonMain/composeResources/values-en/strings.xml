@@ -943,4 +943,7 @@
     <string name="kmplib_help_refresh_failed">We couldn\'t refresh.</string>
     <string name="kmplib_whatsapp_chat">Chat on WhatsApp</string>
     <string name="kmplib_whatsapp_chat_with">Chat on WhatsApp with %1$s</string>
+    <!-- Seção "Notificações" de Configurações (push/ui/NotificationSettingsSection.kt, 2.360.0). -->
+    <string name="kmplib_push_settings_title">Notifications</string>
+    <string name="kmplib_push_marketing">Advertising notifications</string>
 </resources>

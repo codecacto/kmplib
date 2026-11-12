@@ -15,4 +15,7 @@ actual object BuildInfo {
 
     actual val appBuildNumber: String?
         get() = DesktopAppContext.get()?.buildNumber?.trim()?.takeIf { it.isNotEmpty() }
+
+    actual val appId: String?
+        get() = DesktopAppContext.get()?.appId?.trim()?.takeIf { it.isNotEmpty() }
 }

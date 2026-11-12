@@ -5739,3 +5739,11 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
   `quantity`); o mapeador lê os dois e escreve o da weblib. Unificar quando o editor for tocado.
 - [ ] **(P2) Zoom no `GuidedCameraController`** (o "1×" do topo da câmera do kit).
 - [ ] **(P3) LK-M17** — `PhotoMarkupEditor` (v2) e integridade do app (v3).
+
+- [x] *(12/nov/2026, 2.360.0)* **Notificações pelo Nexus — lado do app:** `PushRegistration` (cadastro central
+  `/push/v1/aparelhos`), `NotificationSettingsSection` ("Notificações de publicidade"), `PushTapHost` (roteador de
+  `cc_acao`). Contrato: `docs/tarefas/2026-11-12-notificacoes-push-pelo-nexus.md` do monorepo.
+- [ ] **GAP-PUSH-01 (P2) — comunicado por id.** O apps-api não expõe `GET /public/announcements/{id}`; o roteador do
+  toque (`findAnnouncementById`) relê a lista pública e procura o id, então comunicado fora da janela/inativo não
+  abre. Se o Nexus passar a permitir campanha com comunicado não listado, criar a rota por id (apps-api) e trocar a
+  busca aqui.

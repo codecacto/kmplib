@@ -160,4 +160,25 @@ class PushListenerHubTest {
         hub.clearPendingTap()
         assertNull(hub.pendingTap.value)
     }
+
+    @Test
+    fun ouvinte_sem_toque_recebe_token_mas_nao_rouba_o_toque() {
+        val hub = PushListenerHub()
+        val token = Gravador()
+        hub.addListener(token, receivePendingTap = true, receiveTaps = false)
+        hub.onNewToken("t")
+        hub.onNotificationClicked(toque)
+        assertEquals(toque, hub.pendingTap.value, "sem ouvinte de toque, o toque fica pendente")
+        assertTrue(token.toques.isEmpty())
+        assertEquals(listOf("t"), token.tokens)
+
+        val tela = Gravador()
+        hub.addListener(tela)
+        assertEquals(listOf(toque), tela.toques)
+        assertNull(hub.pendingTap.value)
+
+        hub.onNotificationClicked(toque)
+        assertEquals(2, tela.toques.size)
+        assertTrue(token.toques.isEmpty())
+    }
 }

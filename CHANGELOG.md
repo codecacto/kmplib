@@ -5,6 +5,39 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.360.0 — Notificações pelo Nexus (lado do app): registro central do aparelho, seção "Notificações" e roteador do toque
+
+**Aditivo, sem quebra de fonte.** Contrato: `docs/tarefas/2026-11-12-notificacoes-push-pelo-nexus.md` (monorepo).
+O artefato `kmplib-push` passou a ser módulo **compose** e a depender do `kmplib-central` (o central NÃO depende do
+push: quem usa só o central continua sem FCM/KMPNotifier).
+
+- **Registro central do aparelho — `PushRegistration`** (`push.central`): `POST {appsApi}/push/v1/aparelhos`
+  `{projeto, app, token, plataforma, provedor, projetoFcm?, conta?, idioma, versaoApp, publicidade}` e
+  `POST /push/v1/aparelhos/remover {projeto, token}`. `PushRegistration.initialize(PushRegistrationConfig(projectSlug,
+  httpClient, appsApiBaseUrl, appId?, appVersion?))` (ou `PushRegistrationConfig.from(centralConfig)`) e, na raiz,
+  `PushRegistration.bind(authRepository)` (conta = `User.id`, o MESMO sujeito do `MonetizationManager.bindIdentity`;
+  `bind(flowDoId)` no multi-tenant; `bindWithoutAccount()` em app sem login): abertura com sessão e login registram,
+  logout remove, token novo (`PushEvents` `onNewToken`) e troca do interruptor re-registram. Provedor: iOS `apns`
+  (token hex do `ApplePushBridge`); Android `fcm` + `projetoFcm` = `FirebaseApp` default (`initFirebaseForPush` ou
+  `google-services.json`). `idioma` = `appLanguageTag()`. `register(conta)`/`unregister()` avulsos devolvem
+  `PushRegistrationOutcome`. Nunca lança; falha de rede vai ao log. Build de teste (`AutomationMode`) não cadastra;
+  app infantil (`AppAudience.KIDS`) manda `publicidade = false` sempre.
+- **`PushMarketingPreference`** — o interruptor "Notificações de publicidade" (padrão ligado, gravado no aparelho em
+  `kmplib.push.publicidade`), `PushRegistration.marketing`.
+- **Configurações — `NotificationSettingsSection(content = { NotificationSettingRow(…) })`** (`push.ui`): título
+  "Notificações" + o interruptor de publicidade (escondido em app infantil); o app acrescenta os seus interruptores
+  na mesma seção. Visual do `ThemeModeSelector`; ids `notificacoes-secao`/`notificacoes-publicidade`; 4 idiomas.
+- **Roteador do toque — `PushTapHost(onOpenPremium, enabled, onOtherTap)`** (`push.ui`) e `PushTapRouter`/`PushActions`
+  (`push.action`, puros): `cc_acao` `app` (só abre) · `premium` → `onOpenPremium` · `comunicado` → o comunicado
+  `cc_comunicado` no MESMO `AnnouncementDialog` · `link` → `cc_url` no navegador externo (só `http(s)`; outro esquema
+  vira "só abre"). Toque a frio coberto pelo toque pendente do `PushEvents`. **Limitação:** o apps-api não tem busca
+  de comunicado por id — `findAnnouncementById` relê `GET /public/announcements` e procura o id; comunicado fora da
+  janela/inativo não abre (o toque só abre o app).
+- **`PushEvents.addListener(…, receiveTaps = false)`** — ouvinte só de token, que não recebe nem "rouba" o toque
+  pendente (o do registro usa).
+- **`BuildInfo.appId`** (core) — package Android / bundle id iOS / `appId` do desktop.
+- **`AppSwitch(onCheckedChange = null)`** — só desenha (a linha é o alvo); chamadas existentes não mudam.
+
 ## 2.359.0 — kmplib-familia: app SEM anúncio, itens do app no "Mais", campo de WhatsApp; `normalizeBrPhoneDigits` pública
 
 **Aditivo, sem quebra de fonte** (os 12 apps cristãos não mudam nada). Origem: o Chegou Aqui, 1º dos 6 apps de

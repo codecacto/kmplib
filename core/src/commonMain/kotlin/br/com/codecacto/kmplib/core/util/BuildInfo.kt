@@ -27,4 +27,12 @@ expect object BuildInfo {
      * não dá para ler.
      */
     val appBuildNumber: String?
+
+    /**
+     * O identificador do app **na loja** — `applicationId` (package) no Android e
+     * `CFBundleIdentifier` no iOS (2.360.0). Sai certo em todo flavor. É o `app` do cadastro de
+     * aparelhos de push (o tópico do APNs é o bundle id). `null` quando não dá para ler (lib não
+     * inicializada no Android).
+     */
+    val appId: String?
 }
