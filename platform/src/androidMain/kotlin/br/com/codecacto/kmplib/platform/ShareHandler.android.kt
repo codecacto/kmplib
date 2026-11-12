@@ -154,6 +154,83 @@ class AndroidShareHandler(private val context: Context) : ShareHandler {
         return apagados
     }
 
+    override fun isInstalled(target: ShareTarget, options: ShareImageOptions): Boolean = when (target) {
+        ShareTarget.WHATSAPP -> whatsAppPackage() != null
+        // Sem intent oficial para o Status: o WhatsApp oferece "Meu status" dentro do envio comum.
+        ShareTarget.WHATSAPP_STATUS -> false
+        ShareTarget.INSTAGRAM_STORIES ->
+            isValidMetaAppId(options.metaAppId) && isPackageInstalled(INSTAGRAM_ANDROID_PACKAGE)
+    }
+
+    /**
+     * WhatsApp: `ACTION_SEND` com `setPackage` (documentação do WhatsApp, "Android: share to WhatsApp").
+     * Instagram: `com.instagram.share.ADD_TO_STORY` com a imagem como fundo e `source_application` =
+     * App ID da Meta, `grantUriPermission` explícito ao pacote do Instagram (documentação da Meta,
+     * "Sharing to Stories").
+     */
+    override fun shareImageTo(
+        target: ShareTarget,
+        imageBytes: ByteArray,
+        fileName: String,
+        options: ShareImageOptions,
+    ): ShareTargetResult {
+        if (!isInstalled(target, options)) return ShareTargetResult.NotAvailable
+        return try {
+            clearSharedFiles()
+            val uri = writeSharedFile(imageBytes, fileName)
+            val mime = getMimeType(fileName).takeIf { it.startsWith("image/") } ?: "image/png"
+            val intent = when (target) {
+                ShareTarget.WHATSAPP -> Intent(Intent.ACTION_SEND).apply {
+                    type = mime
+                    setPackage(whatsAppPackage())
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                ShareTarget.INSTAGRAM_STORIES -> Intent(INSTAGRAM_STORIES_ANDROID_ACTION).apply {
+                    setDataAndType(uri, mime)
+                    setPackage(INSTAGRAM_ANDROID_PACKAGE)
+                    putExtra("source_application", options.metaAppId!!.trim())
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                ShareTarget.WHATSAPP_STATUS -> return ShareTargetResult.NotAvailable
+            }
+            val host: Context = ShareHandlerHolder.currentActivity() ?: context
+            if (target == ShareTarget.INSTAGRAM_STORIES) {
+                host.grantUriPermission(INSTAGRAM_ANDROID_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            if (intent.resolveActivity(context.packageManager) == null) return ShareTargetResult.NotAvailable
+            if (host !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            host.startActivity(intent)
+            ShareTargetResult.Opened
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Erro no envio direto (${target.name}): ${e::class.simpleName}")
+            ShareTargetResult.Failed(e::class.simpleName ?: "erro")
+        }
+    }
+
+    private fun writeSharedFile(bytes: ByteArray, fileName: String): android.net.Uri {
+        val dir = sharedFilesDir()
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, sanitizeSharedFileName(fileName))
+        FileOutputStream(file).use { it.write(bytes) }
+        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    private fun whatsAppPackage(): String? = WHATSAPP_ANDROID_PACKAGES.firstOrNull { isPackageInstalled(it) }
+
+    /** Pede ao sistema; a visibilidade dos pacotes vem do `<queries>` do manifesto da lib (Android 11+). */
+    private fun isPackageInstalled(pkg: String): Boolean = try {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            context.packageManager.getPackageInfo(pkg, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(pkg, 0)
+        }
+        true
+    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        false
+    }
+
     /**
      * Abre o chooser do sistema a partir da `Activity` em foco, quando houver; senão, do
      * `applicationContext` com `FLAG_ACTIVITY_NEW_TASK` (obrigatório fora de uma Activity).

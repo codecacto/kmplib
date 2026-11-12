@@ -247,6 +247,7 @@ class PaywallViewModel(
                     plans = shown,
                     isLoadingPlans = false,
                     isPremium = isPremium,
+                    pendingPurchasePlanId = paywall.pendingPurchasePlanId.takeUnless { isPremium },
                     subscription = if (isPremium) subscription else null,
                     error = error,
                     selectedPlanId = selectedPlanFor(shown, paywall.selectedPlanId),
@@ -344,6 +345,7 @@ class PaywallViewModel(
                     plans = shown,
                     isLoadingPlans = false,
                     isPremium = isPremium,
+                    pendingPurchasePlanId = paywall.pendingPurchasePlanId.takeUnless { isPremium },
                     subscription = if (isPremium) subscription else null,
                     error = error,
                     selectedPlanId = selectedPlanFor(shown, paywall.selectedPlanId),
@@ -580,6 +582,7 @@ class PaywallViewModel(
                     isPurchasing = true,
                     purchasingPlanId = packageId,
                     error = null,
+                    pendingPurchasePlanId = null,
                 ),
             )
         }
@@ -648,7 +651,7 @@ class PaywallViewModel(
         when (outcome) {
             PurchaseOutcome.Ativado -> {
                 val subscription = entitlementProvider.subscriptionInfo()
-                setState { copy(paywall = paywall.copy(isPremium = true, subscription = subscription)) }
+                setState { copy(paywall = paywall.copy(isPremium = true, subscription = subscription, pendingPurchasePlanId = null)) }
                 if (scheduled) sendEffect(PaywallHostEffect.ShowMessage(m.tierChangeScheduled))
                 try {
                     config.onPremiumActivated()
@@ -672,7 +675,15 @@ class PaywallViewModel(
                 if (outcome.code.isPaymentIncident) {
                     paymentAlerts.report(failureKind, detalhe = "code=${outcome.code}")
                 }
-                setState { copy(paywall = paywall.copy(error = outcome.code.userMessage(m.purchaseErrors))) }
+                val pending = outcome.code == PurchaseErrorCode.PAYMENT_PENDING
+                setState {
+                    copy(
+                        paywall = paywall.copy(
+                            error = outcome.code.userMessage(m.purchaseErrors),
+                            pendingPurchasePlanId = if (pending) paywall.selectedPlanId else paywall.pendingPurchasePlanId,
+                        ),
+                    )
+                }
             }
         }
     }

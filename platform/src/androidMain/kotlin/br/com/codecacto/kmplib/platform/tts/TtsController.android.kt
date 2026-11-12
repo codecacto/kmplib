@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.platform.tts
 
+import kotlinx.coroutines.launch
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -60,6 +61,7 @@ class AndroidTtsController : TtsController {
         const val TAG = "TtsController"
         const val UTTERANCE_ID = "kmplib-tts"
         const val SYNTH_PREFIX = "kmplib-tts-synth-"
+        const val QUEUE_PREFIX = "kmplib-tts-q-"
         /** Ganho de amplificação em milibéis (2500 mB = +25 dB). O device faz clamp no suportado. */
         const val LOUDNESS_GAIN_MB = 2500
         const val SYNTH_TIMEOUT_MS = 8_000L
@@ -107,11 +109,24 @@ class AndroidTtsController : TtsController {
                 // Só a fala DIRETA marca Speaking aqui; a síntese-para-arquivo é silenciosa
                 // (o playback amplificado é quem marca Speaking).
                 if (utteranceId == UTTERANCE_ID) _state.value = TtsState.Speaking
+                queueIndexOf(utteranceId)?.let { i ->
+                    _state.value = TtsState.Speaking
+                    _queue.value = _queue.value?.copy(index = i, isPaused = false)
+                }
             }
 
             override fun onDone(utteranceId: String?) {
                 if (utteranceId != null && utteranceId.startsWith(SYNTH_PREFIX)) {
                     synthDone[utteranceId]?.complete(true)
+                    return
+                }
+                val qi = queueIndexOf(utteranceId)
+                if (qi != null) {
+                    val q = _queue.value
+                    if (q != null && qi >= q.total - 1) {
+                        _queue.value = q.copy(index = qi, isFinished = true)
+                        if (_state.value != TtsState.Error) _state.value = TtsState.Idle
+                    }
                     return
                 }
                 if (_state.value != TtsState.Error) _state.value = TtsState.Idle
@@ -253,6 +268,58 @@ class AndroidTtsController : TtsController {
      * Fala direta pelo motor. `KEY_PARAM_VOLUME = 1.0` é **relativo** ao stream de mídia: mantém a
      * fala no topo do que o usuário permitiu, sem alterar o volume do aparelho.
      */
+    // ---- Fila (2.355.0) ----
+    private val _queue = MutableStateFlow<TtsQueueProgress?>(null)
+    override val queueProgress: StateFlow<TtsQueueProgress?> = _queue.asStateFlow()
+    private var queueChunks: List<String> = emptyList()
+    private var queueLang: String = ""
+    private val queueScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
+
+    private fun queueIndexOf(id: String?): Int? =
+        id?.takeIf { it.startsWith(QUEUE_PREFIX) }?.removePrefix(QUEUE_PREFIX)?.toIntOrNull()
+
+    override fun speakQueue(chunks: List<String>, langTag: String, rate: Float, startIndex: Int) {
+        if (chunks.isEmpty()) return
+        queueChunks = chunks
+        queueLang = langTag
+        val from = startIndex.coerceIn(0, chunks.lastIndex)
+        _queue.value = TtsQueueProgress(index = from, total = chunks.size)
+        queueScope.launch {
+            val engine = engine() ?: return@launch
+            val effectiveRate = resolveTtsSpeakRate(rate, currentRate)
+            currentRate = effectiveRate
+            try {
+                val locale = localeOf(langTag)
+                engine.language = locale
+                applyVoiceGender(engine, langTag)
+                engine.setSpeechRate(effectiveRate)
+                engine.setAudioAttributes(mediaAudioAttributes())
+                for (i in from until chunks.size) {
+                    val id = QUEUE_PREFIX + i
+                    val params = Bundle().apply { putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, id) }
+                    engine.speak(chunks[i], if (i == from) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, params, id)
+                }
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Falha ao ler a fila: ${e::class.simpleName}")
+                _state.value = TtsState.Error
+            }
+        }
+    }
+
+    override fun pauseQueue() {
+        val q = _queue.value ?: return
+        if (q.isFinished) return
+        try { tts?.stop() } catch (_: Exception) { }
+        _queue.value = q.copy(isPaused = true)
+        if (_state.value != TtsState.Error) _state.value = TtsState.Idle
+    }
+
+    override fun resumeQueue() {
+        val q = _queue.value ?: return
+        if (!q.isPaused || queueChunks.isEmpty()) return
+        speakQueue(queueChunks, queueLang, Float.NaN, q.index)
+    }
+
     private fun speakDirect(engine: TextToSpeech, text: String) {
         val params = Bundle().apply {
             putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID)

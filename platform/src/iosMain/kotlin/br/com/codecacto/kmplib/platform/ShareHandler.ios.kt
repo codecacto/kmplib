@@ -128,6 +128,16 @@ class IosShareHandler : ShareHandler {
         return apagados
     }
 
+    override fun isInstalled(target: ShareTarget, options: ShareImageOptions): Boolean =
+        IosShareTargets.isInstalled(target, options)
+
+    override fun shareImageTo(
+        target: ShareTarget,
+        imageBytes: ByteArray,
+        fileName: String,
+        options: ShareImageOptions,
+    ): ShareTargetResult = IosShareTargets.share(target, imageBytes, fileName, options)
+
     private fun sharedFilesDirectory(): String =
         NSTemporaryDirectory().trimEnd('/') + "/" + SHARED_FILES_DIRECTORY
 

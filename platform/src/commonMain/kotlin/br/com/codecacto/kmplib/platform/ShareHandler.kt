@@ -93,6 +93,35 @@ interface ShareHandler {
      * @return quantos arquivos foram apagados (`0` também quando não havia nada a apagar).
      */
     fun clearSharedFiles(olderThanMillis: Long = DEFAULT_SHARED_FILE_TTL_MILLIS): Int = 0
+
+    /**
+     * O destino de envio direto está disponível neste aparelho? (2.354.0)
+     *
+     * `false` quando o app não está instalado, quando a plataforma não oferece o destino de forma
+     * oficial ([ShareTarget.WHATSAPP_STATUS]) ou quando falta configuração (Instagram sem
+     * [ShareImageOptions.metaAppId] válido). Use para **esconder** o botão. Ver [ShareTarget].
+     *
+     * O corpo default (`false`) existe para `ShareHandler` escrito à mão (dublê de teste) continuar
+     * compilando; as implementações de Android e iOS sobrescrevem.
+     */
+    fun isInstalled(target: ShareTarget, options: ShareImageOptions = ShareImageOptions()): Boolean = false
+
+    /**
+     * Envia a imagem **direto** ao [target], sem a folha do sistema (2.354.0). Ver [ShareTarget] para
+     * o caminho oficial de cada plataforma.
+     *
+     * Nunca lança: destino ausente = [ShareTargetResult.NotAvailable] (ofereça o "Mais", a folha do
+     * sistema, com [shareImage]); falha = [ShareTargetResult.Failed] (o motivo é técnico, para log).
+     *
+     * @param imageBytes PNG ou JPEG.
+     * @param fileName nome do arquivo (a extensão define o tipo; sanitizado).
+     */
+    fun shareImageTo(
+        target: ShareTarget,
+        imageBytes: ByteArray,
+        fileName: String,
+        options: ShareImageOptions = ShareImageOptions(),
+    ): ShareTargetResult = ShareTargetResult.NotAvailable
 }
 
 /**

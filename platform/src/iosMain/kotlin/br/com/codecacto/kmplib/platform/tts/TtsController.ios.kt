@@ -51,6 +51,9 @@ class IosTtsController : TtsController {
             didStartSpeechUtterance: AVSpeechUtterance
         ) {
             _state.value = TtsState.Speaking
+            queueUtterances.indexOfFirst { it === didStartSpeechUtterance }.takeIf { it >= 0 }?.let { i ->
+                _queue.value = _queue.value?.copy(index = queueOffset + i, isPaused = false)
+            }
         }
 
         @ObjCSignatureOverride
@@ -58,6 +61,9 @@ class IosTtsController : TtsController {
             synthesizer: AVSpeechSynthesizer,
             didFinishSpeechUtterance: AVSpeechUtterance
         ) {
+            val i = queueUtterances.indexOfFirst { it === didFinishSpeechUtterance }
+            if (i >= 0 && i < queueUtterances.lastIndex) return // a fila segue: continua "falando"
+            if (i >= 0) _queue.value = _queue.value?.copy(isFinished = true)
             if (_state.value != TtsState.Error) _state.value = TtsState.Idle
         }
 
@@ -109,6 +115,43 @@ class IosTtsController : TtsController {
             AppLogger.w(TAG, "Falha ao falar: ${e.message}")
             _state.value = TtsState.Error
         }
+    }
+
+    // ---- Fila (2.355.0) ----
+    private val _queue = MutableStateFlow<TtsQueueProgress?>(null)
+    override val queueProgress: StateFlow<TtsQueueProgress?> = _queue.asStateFlow()
+    private var queueUtterances: List<AVSpeechUtterance> = emptyList()
+    private var queueOffset = 0
+
+    /** Fila inteira na fila do `AVSpeechSynthesizer` (segue em 2º plano com `UIBackgroundModes audio`). */
+    override fun speakQueue(chunks: List<String>, langTag: String, rate: Float, startIndex: Int) {
+        if (released || chunks.isEmpty()) return
+        val effectiveRate = resolveTtsSpeakRate(rate, currentRate)
+        currentRate = effectiveRate
+        val normalized = normalizeTtsLangTag(langTag)
+        val voice = pickIosVoice(normalized, voiceGender) ?: AVSpeechSynthesisVoice.voiceWithLanguage(normalized) ?: return
+        if (synthesizer.speaking) synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
+        val from = startIndex.coerceIn(0, chunks.lastIndex)
+        queueOffset = from
+        queueUtterances = chunks.drop(from).map { text ->
+            AVSpeechUtterance(string = text).also { it.voice = voice; it.rate = iosRate(effectiveRate); it.volume = 1.0f }
+        }
+        _queue.value = TtsQueueProgress(index = from, total = chunks.size)
+        queueUtterances.forEach { synthesizer.speakUtterance(it) }
+    }
+
+    override fun pauseQueue() {
+        val q = _queue.value ?: return
+        if (q.isFinished || q.isPaused) return
+        synthesizer.pauseSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryWord)
+        _queue.value = q.copy(isPaused = true)
+    }
+
+    override fun resumeQueue() {
+        val q = _queue.value ?: return
+        if (!q.isPaused) return
+        synthesizer.continueSpeaking()
+        _queue.value = q.copy(isPaused = false)
     }
 
     override fun stop() {

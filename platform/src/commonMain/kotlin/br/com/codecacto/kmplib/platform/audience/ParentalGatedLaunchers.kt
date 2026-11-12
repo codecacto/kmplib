@@ -1,5 +1,9 @@
 package br.com.codecacto.kmplib.platform.audience
 
+import br.com.codecacto.kmplib.platform.ShareImageOptions
+import br.com.codecacto.kmplib.platform.ShareTarget
+import br.com.codecacto.kmplib.platform.ShareTargetResult
+
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.platform.FileOpenResult
 import br.com.codecacto.kmplib.platform.FileOpener
@@ -44,6 +48,22 @@ internal class ParentalGatedShareHandler(private val delegate: ShareHandler) : S
     override fun shareLink(url: String, message: String, title: String) =
         gated { delegate.shareLink(url, message, title) }
     override fun clearSharedFiles(olderThanMillis: Long): Int = delegate.clearSharedFiles(olderThanMillis)
+    override fun isInstalled(target: ShareTarget, options: ShareImageOptions): Boolean =
+        delegate.isInstalled(target, options)
+
+    override fun shareImageTo(
+        target: ShareTarget,
+        imageBytes: ByteArray,
+        fileName: String,
+        options: ShareImageOptions,
+    ): ShareTargetResult {
+        if (!ParentalGate.isRequired) return delegate.shareImageTo(target, imageBytes, fileName, options)
+        ParentalGate.guard {
+            val r = delegate.shareImageTo(target, imageBytes, fileName, options)
+            if (r != ShareTargetResult.Opened) AppLogger.w("ShareHandler", "Envio direto depois do portão de pais: $r")
+        }
+        return ShareTargetResult.Opened
+    }
 
     private fun gated(action: () -> Unit) {
         if (!ParentalGate.isRequired) {

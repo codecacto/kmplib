@@ -435,6 +435,20 @@ class PaywallViewModelTest {
     }
 
     @Test
+    fun `pagamento pendente marca o plano pendente e a frase continua`() {
+        val vm = viewModel(
+            FakeStore(
+                offerings = OfferingsOutcome.Disponivel(listOf(MENSAL)),
+                purchaseResult = PurchaseOutcome.Falha("sdk", PurchaseErrorCode.PAYMENT_PENDING),
+            ),
+        )
+        vm.onAction(PaywallHostAction.Load)
+        vm.onAction(PaywallHostAction.Paywall(PaywallAction.SelectPlan(MENSAL.packageId)))
+        assertEquals(MENSAL.packageId, vm.paywall.pendingPurchasePlanId)
+        assertEquals(PaywallMessages().purchaseErrors.paymentPending, vm.paywall.error)
+    }
+
+    @Test
     fun `falha de compra que e incidente alerta CompraFalhou`() {
         val vm = viewModel(
             FakeStore(

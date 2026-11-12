@@ -5,6 +5,60 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.355.0 — Onda 0 da família de 12 apps cristãos: kit (`kmplib-familia`), motor bíblico (`kmplib-bible`), widget, cópia de segurança, A− A+, envio direto ao WhatsApp/Instagram, lembrete com texto do dia e mensal, cromo do intersticial, segunda tela e leitura contínua
+
+**Aditivo** (nada muda para quem não usa). Base: `docs/estudos/igrejas-e-perfis-instagram-2026-11-11/familia-12-apps/`
+(00 §3/§5, 01, 02). Quatro módulos novos, todos **opt-in** (fora do umbrella).
+
+- **`kmplib-familia`** (novo): as 12 paletas do protótipo (`FamilyPalettes`, 11 tokens × claro/escuro, gerado do
+  `ds.css` — único lugar com `Color(0x…)`), `FamilyColorPair` para token próprio do app (D16), `FamilyTheme(app,
+  darkTheme, textScale)` sobre o `AppTheme` (ponte `toAppColorPalette` com `lightBrand`/`darkBrand`: a cor de ação
+  muda no escuro), Fraunces variável + Atkinson Hyperlegible embarcadas (SIL OFL, licenças em `files/`), a escala
+  nomeada `FamilyTypography` (h1 h2 h3 vs big hdT ey body sm xs lab rowT rowS tab planPrice button) que segue o A− A+,
+  os primitivos nas medidas do `ds.css` (`FamilyCard`, `FamilyList`/`FamilyRow`, `FamilyBadge`, `FamilyPill`,
+  `FamilyChip`, `FamilySegmented`, `FamilySwitch`, `FamilyRadio`, `FamilyCheckbox`, `FamilyProgress`, `FamilyDayCell`,
+  `FamilyButton`, `FamilyActionGrid`, `FamilyTextField`/`FamilySearchField` sobre `rememberSyncedTextFieldState`,
+  `FamilyFab`, `FamilyToastState`, estados vazio/erro/esqueleto/indicador, `FamilySheet`/`FamilyDialog`), a casca
+  (`FamilyTopBar` + `PremiumSeal`, `FamilySubTopBar`, `FamilyBottomBar`, `FamilyScaffold` = conteúdo → banner 60 só sem
+  Premium → abas 78, com o `innerPadding` certo) e as telas comuns: `FamilyPremiumScreen` (sobre o `PaywallViewModel`,
+  preços da loja, Mensal→Semestral→Anual, "Melhor valor" no de maior duração, carregando/indisponível/pendente,
+  "Abrindo a loja…", sem trial), `FamilyMoreScreen` (ordem D3), `FamilySettingsScreen` (Aparência, Tamanho da letra,
+  Lembretes com linhas do app, Cópia, Assinatura), `FamilyOtherAppsScreen` (do `/public/developer`), `FamilyAboutScreen`
+  (+ "Sobre a tradução"), `FamilyFeedbackScreen`/`FamilyDeveloperScreen` (telas da kmplib pintadas pela paleta, banner
+  no rodapé), `FamilyOnboarding` (2 páginas), `FamilyShareSheet` (destino ausente escondido), folhas da cópia e
+  `FamilyInterstitialAd`. `FamilyIcons` (82) e a arte dos 13 ícones de app, gerados pelo
+  `Ferramentas/familia-svg/extrair_svg.py`. Textos em pt-BR/en/es/pt-PT; app BR em aparelho estrangeiro recebe pt-BR.
+- **`kmplib-bible`** (novo): `BibleBook` (66, USFM, nomes/abreviações em 4 idiomas), `VerseRef` com chave canônica
+  (`JHN.3.16`, `LAM.3.22-23`, `PSA.23`), `BibleReferenceParser` ("Jo 3:16", "João 3,16", "1 Co 13:4-7", "John 3:16",
+  "Juan 3:16"; "Jó" ≠ "Jo"), leitor do banco embarcado somente leitura (`BibleAssets.install/open` copia para o
+  armazenamento fora do backup na 1ª abertura e quando a versão muda; `BibleDatabase`: versículo, intervalo,
+  capítulo, disponibilidade — arquivo pode ser recorte —, meta/crédito, **busca por partes sem acento com `instr()`**),
+  `BibleReferencePicker` (Livro → Capítulo → Versículo, sem cor própria) e `LiturgicalCalendar` (Páscoa de Meeus,
+  Cinzas, Pentecostes, Advento, Batismo do Senhor, tempos e cores; default CNBB).
+- **`kmplib-widget`** (novo): `createWidgetDataStore(appGroupId)` (Android SharedPreferences lidas pelo Glance; iOS App
+  Group), `Widgets.requestUpdate()` (Android: refresher do app; iOS: `WidgetReloader` registrado pelo Swift — o
+  WidgetCenter não tem ponte ObjC), `Widgets.scheduleDailyRefresh` (WorkManager logo depois da meia-noite),
+  `nextMidnight`.
+- **`kmplib-backup`** (novo): `<slug>-DD-MM-AAAA.copia` = ZIP padrão (stored + CRC-32) com `manifesto.json`,
+  `dados.json`, `anexos/`; `AppBackupManager(source).create/inspect/restore` (confere o app, migra esquema antigo,
+  recusa o mais novo, troca numa transação do app; corrompido = erro claro sem apagar nada) e
+  `rememberBackupFileActions` (salvar pelo seletor do sistema, enviar pela folha do sistema, escolher arquivo).
+- **`kmplib-ui`:** `TextScale` (1,0 · 19/17 · 21/17) + `TextScaleController` persistido + `LocalTextScale`;
+  `AboutScreen(extraLinks: List<AboutExtraLink>)`.
+- **`kmplib-platform`:** `ShareHandler.isInstalled(target)`/`shareImageTo(ShareTarget.WHATSAPP | WHATSAPP_STATUS |
+  INSTAGRAM_STORIES, …)` pelos caminhos oficiais (Status não tem → `false`; Stories exige App ID da Meta) + `<queries>`
+  no manifesto; `NotificationScheduler.scheduleRollingDaily` (texto do dia, janela única reagendável, teto do iOS) e
+  `scheduleMonthly` (dia 29–31 → último dia do mês) sobre `NotificationPlanning`; `ExternalDisplayContent` +
+  `ExternalDisplay.isConnected` (Android `Presentation`; iOS cena externa via `ExternalDisplayBridge`) e
+  `ScreenOrientationEffect`; `TtsController.speakQueue/pauseQueue/resumeQueue/queueProgress` (fila inteira no motor —
+  segue com a tela apagada) + `splitForSpeech`.
+- **`kmplib-ads`:** `InterstitialChrome` em `ManagedInterstitialAd`/`CustomInterstitialAd` (opcional): "Fechar em N" →
+  "✕ Fechar", selo "Anúncio", rodapé "Sem anúncios com o Premium." + "Conhecer o Premium".
+- **`kmplib-monetization`:** `PaywallState.pendingPurchasePlanId` (compra pendente na loja).
+- Testes: livros, chave, parser, Páscoa/tempos, leitor contra SQLite real (JDBC), ZIP/manifesto/restauração, janela
+  rolante e mensal, paletas dos 12 (contraste AA), escala de texto, selo "Melhor valor", pilha de orientação,
+  divisão de texto para leitura, compra pendente.
+
 ## 2.354.0 — Botão de WhatsApp do cliente (`WhatsAppIconButton`) e o número normalizado para o WhatsApp
 
 **Aditivo.** Decisão do fundador (11/nov/2026): toda listagem de clientes e todo cadastro/detalhe de

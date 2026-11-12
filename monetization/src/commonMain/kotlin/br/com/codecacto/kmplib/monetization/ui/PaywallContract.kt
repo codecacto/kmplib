@@ -138,6 +138,13 @@ data class PaywallState(
     val selectedTierId: String? = null,
     val currentTierId: String? = null,
     val canChangePlan: Boolean = false,
+    /**
+     * A loja respondeu "pagamento pendente" para este plano (2.355.0) — Pix/boleto da Play, aprovação
+     * familiar na Apple. O Premium libera sozinho quando a loja aprovar; a tela mostra o estado
+     * "Compra pendente" com "Verificar agora" (= `PaywallHostAction.Refresh`). `null` = nada pendente.
+     * Aditivo: [error] continua trazendo a frase de sempre para quem não lê este campo.
+     */
+    val pendingPurchasePlanId: String? = null,
 )
 
 /** Acoes do paywall disparadas pela UI stateless para o ViewModel do app. */

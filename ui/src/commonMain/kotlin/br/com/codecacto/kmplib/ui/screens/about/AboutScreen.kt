@@ -174,6 +174,7 @@ object AboutTestTags {
  * @param onOpenUrl como abrir um link legal. Default: `getUrlLauncher().openUrl`, resolvido no toque.
  * @param bottomBar rodapé fixo (ex.: banner de house ad) — o conteúdo desconta a altura dele.
  * @param texts textos; default no idioma do aparelho.
+ * @param extraLinks linhas a mais no fim da lista (2.354.0) — só crédito obrigatório (ex.: "Sobre a tradução"). Ver [AboutExtraLink].
  */
 @Composable
 fun AboutScreen(
@@ -190,6 +191,7 @@ fun AboutScreen(
     onOpenUrl: (String) -> Unit = ::openAboutUrl,
     bottomBar: @Composable () -> Unit = {},
     texts: AboutTexts = rememberAboutTexts(),
+    extraLinks: List<AboutExtraLink> = emptyList(),
 ) {
     val versionLabel = aboutVersionLabel(versionName, buildNumber, showBuildNumber, texts)
 
@@ -245,6 +247,7 @@ fun AboutScreen(
                                 add(AboutRow(texts.privacy, AboutTestTags.BTN_PRIVACIDADE, external = true) { onOpenUrl(privacyUrl) })
                             }
                             add(AboutRow(texts.developedBy, AboutTestTags.BTN_DESENVOLVIDO_POR, external = false, onDevelopedByClick))
+                            extraLinks.forEach { add(AboutRow(it.label, it.testTag, it.external, it.onClick)) }
                         }
                         rows.forEachIndexed { index, row ->
                             if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -256,6 +259,20 @@ fun AboutScreen(
         }
     }
 }
+
+/**
+ * Linha a mais no fim da lista do [AboutScreen] (2.354.0) — só para o que é OBRIGAÇÃO de crédito,
+ * como "Sobre a tradução" da Bíblia CC BY. Não é lugar de "Enviar feedback" nem de item de menu: o
+ * Sobre continua ícone, nome, versão, Termos, Privacidade e Desenvolvido por (padrão da fábrica).
+ *
+ * @param external `true` = abre fora do app (ícone de link externo); `false` = tela do próprio app.
+ */
+data class AboutExtraLink(
+    val label: String,
+    val testTag: String,
+    val external: Boolean = false,
+    val onClick: () -> Unit,
+)
 
 private class AboutRow(
     val label: String,

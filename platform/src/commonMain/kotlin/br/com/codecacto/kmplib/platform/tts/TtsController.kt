@@ -138,6 +138,63 @@ interface TtsController {
      * Obrigatório no `onCleared()` do ViewModel (ou use [rememberTtsController]).
      */
     fun release()
+
+    // ---------------------------------------------------------------------------------------
+    // Leitura contínua (2.355.0): devocional, capítulo da Bíblia — a fila vai INTEIRA para o motor
+    // ---------------------------------------------------------------------------------------
+
+    /** Progresso da leitura em fila; `null` = nenhuma fila. */
+    val queueProgress: StateFlow<TtsQueueProgress?> get() = NoTtsQueue
+
+    /**
+     * Lê [chunks] em sequência a partir de [startIndex] (parágrafos, versículos). A fila inteira é
+     * entregue ao MOTOR de uma vez (Android `QUEUE_ADD`; iOS a fila do `AVSpeechSynthesizer`): a leitura
+     * continua com a tela apagada e o app em segundo plano, sem depender de código do app rodando
+     * entre um trecho e outro. Progresso em [queueProgress].
+     *
+     * **Segundo plano:** iOS exige `UIBackgroundModes` → `audio` no `Info.plist` (a sessão de áudio já é
+     * `.playback`). Android: o motor de TTS é um serviço do sistema e segue tocando a fila já entregue
+     * com a tela apagada.
+     *
+     * Interrompe qualquer fala/fila em andamento. O default (dublê escrito à mão) fala só o primeiro trecho.
+     */
+    fun speakQueue(chunks: List<String>, langTag: String, rate: Float = Float.NaN, startIndex: Int = 0) {}
+
+    /** Pausa a fila (iOS: no fim da palavra; Android: para e lembra o trecho). */
+    fun pauseQueue() {}
+
+    /** Retoma a fila pausada (do ponto, no iOS; do começo do trecho, no Android). */
+    fun resumeQueue() {}
+}
+
+/**
+ * Estado da fila de leitura.
+ * @property index trecho em leitura (ou onde parou); @property total quantos trechos.
+ */
+data class TtsQueueProgress(
+    val index: Int,
+    val total: Int,
+    val isPaused: Boolean = false,
+    val isFinished: Boolean = false,
+)
+
+private val NoTtsQueue: StateFlow<TtsQueueProgress?> = kotlinx.coroutines.flow.MutableStateFlow(null)
+
+/** Divide um texto longo em trechos de leitura (parágrafos; parágrafo enorme vai por frases). Puro. */
+fun splitForSpeech(text: String, maxChars: Int = 1_000): List<String> {
+    val paragraphs = text.split(Regex("\\n\\s*\\n|\\n")).map { it.trim() }.filter { it.isNotEmpty() }
+    return paragraphs.flatMap { p ->
+        if (p.length <= maxChars) listOf(p) else {
+            val out = mutableListOf<String>()
+            val sb = StringBuilder()
+            Regex("[^.!?…]+[.!?…]*\\s*").findAll(p).forEach { m ->
+                if (sb.length + m.value.length > maxChars && sb.isNotEmpty()) { out += sb.toString().trim(); sb.clear() }
+                sb.append(m.value)
+            }
+            if (sb.isNotBlank()) out += sb.toString().trim()
+            out
+        }
+    }
 }
 
 /** Velocidade mínima aceita de fala. Valores menores são elevados a este piso. */

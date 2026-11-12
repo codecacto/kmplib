@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.ads.router
 
+import br.com.codecacto.kmplib.ads.custom.InterstitialChrome
 import androidx.compose.runtime.Composable
 import br.com.codecacto.kmplib.ads.AdDefaults
 import br.com.codecacto.kmplib.ads.custom.CustomAd
@@ -37,6 +38,8 @@ import kotlin.time.Duration
  * @param onShown chamado so quando o anuncio aparece de fato — o lugar de contar frequencia.
  * @param firstLoadTimeout teto da espera pela primeira carga. `Duration.ZERO` = decidir na hora
  *   (para intersticial que segura uma navegacao no `onDismiss`).
+ * @param chrome cromo opcional (2.355.0): "Fechar em N" → "✕ Fechar", selo "Anúncio" e o rodapé do
+ *   Premium — ver [InterstitialChrome]. `null` (default) = o intersticial de sempre.
  * @param creativeLoadTimeout teto do download da ARTE, depois de escolhido o anuncio (2.246.0). O
  *   dialogo so abre com a imagem pronta; nao carregou no teto (ou falhou) = exibicao pulada, sem
  *   impressao — nunca a tela preta com so o "X".
@@ -48,6 +51,7 @@ fun ManagedInterstitialAd(
     onShown: ((CustomAd) -> Unit)? = null,
     firstLoadTimeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT,
     creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
+    chrome: InterstitialChrome? = null,
 ) {
     InterstitialAdHost(
         show = show,
@@ -58,5 +62,6 @@ fun ManagedInterstitialAd(
         firstLoadTimeout = firstLoadTimeout,
         creativeLoadTimeout = creativeLoadTimeout,
         withRouting = true,
+        chrome = chrome,
     )
 }

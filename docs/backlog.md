@@ -3,6 +3,24 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 11/nov/2026 — família de 12 apps cristãos, Onda 0 (entregue na 2.355.0)
+
+Estudo: `docs/estudos/igrejas-e-perfis-instagram-2026-11-11/familia-12-apps/00-LEIA-PRIMEIRO.md` §5.
+
+- [x] `kmplib-familia` (kit), `kmplib-bible` (motor bíblico + calendário litúrgico), `kmplib-widget`, `kmplib-backup`.
+- [x] `TextScaleController` (ui), `ShareHandler.shareImageTo` (platform), `scheduleRollingDaily`/`scheduleMonthly`,
+  cromo do intersticial (`InterstitialChrome`), `ExternalDisplayContent` + `ScreenOrientationEffect`,
+  `TtsController.speakQueue`.
+- [ ] **Leitura em voz com o app morto no Android:** a fila vai inteira para o motor do sistema (segue com a tela
+  apagada enquanto o processo vive), mas o caminho robusto para "tocar por 20 min com o app fechado" é um
+  `MediaSessionService`/foreground service `mediaPlayback` com controles na notificação. Vai em módulo OPT-IN
+  (`kmplib-tts-background`), pelo mesmo motivo do `kmplib-video-download`: a permissão de FGS no manifesto barra na
+  Play quem não precisa. Pedir quando o Devocional/Bíblia Aberta for construído.
+- [ ] **Widget de cópia pronta no app:** o Glance/WidgetKit ficam no app (receita em `references/widget.md`). Se dois
+  apps repetirem a mesma UI de widget, promover um `FamilyWidget` (Glance) ao kit.
+- [ ] **Validação visual no Mac** do kit (fontes variáveis Fraunces no iOS, `Presentation`/cena externa, Stories) —
+  na 1ª publicação do Versículo Hoje.
+
 ### Registrado em 09/nov/2026 — alvo desktop (StatusHub Desktop, Windows)
 - [x] **Alvo `jvm` opt-in em core/mask/platform/ui/auth — ENTREGUE na 2.353.0** (convenção `kmplib.module.jvm`,
       `initKmpLibCore(DesktopAppInfo)`, OkHttp, cofre AES-GCM + DPAPI, `LoginScreen` no Compose Desktop).

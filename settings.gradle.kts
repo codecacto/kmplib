@@ -131,6 +131,16 @@ project(":kmplib-chat").projectDir = file("chat")
 include(":kmplib-inspection")
 project(":kmplib-inspection").projectDir = file("inspection")
 
+// 2.354.0 — família cristã (Onda 0), todos OPT-IN (fora do umbrella).
+include(":kmplib-bible")
+project(":kmplib-bible").projectDir = file("bible")
+include(":kmplib-familia")
+project(":kmplib-familia").projectDir = file("familia")
+include(":kmplib-widget")
+project(":kmplib-widget").projectDir = file("widget")
+include(":kmplib-backup")
+project(":kmplib-backup").projectDir = file("backup")
+
 // `kmplib-video-download` (2.212.0) — o DOWNLOAD saiu do player porque traz um foreground service
 // `dataSync` no manifesto, e a Play barra o bundle de quem herda o serviço sem usá-lo. Opt-in: só
 // o app que baixa declara; o umbrella `:kmplib` NÃO o inclui.

@@ -1,7 +1,10 @@
+@file:OptIn(kotlin.time.ExperimentalTime::class)
+
 package br.com.codecacto.kmplib.platform
 
 import br.com.codecacto.kmplib.core.util.AppLogger
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 
 /**
  * Agendador de notificações locais multiplataforma.
@@ -298,6 +301,98 @@ interface NotificationScheduler {
      * risco a revisão na Play, ao contrário de pedir a isenção direto.
      */
     fun openBatteryOptimizationSettings() {}
+
+    // -----------------------------------------------------------------------------------------
+    // Texto que muda por dia e lembrete mensal (2.355.0) — sobre disparos ÚNICOS
+    // -----------------------------------------------------------------------------------------
+
+    /**
+     * Lembrete diário com **texto que muda** (versículo do dia, devocional, santo do dia) — 2.355.0.
+     *
+     * O agendamento recorrente ([scheduleDailyNotification]) repete o MESMO texto; aqui são agendadas
+     * notificações **únicas** para os próximos [days] dias, cada uma com o texto que [contentForDay]
+     * devolve para aquela data (`null` = sem notificação naquele dia). Chame **a cada abertura do app**
+     * (e quando o horário/conteúdo mudar): a janela anterior do mesmo [idBase] é cancelada e refeita,
+     * então quem abre o app todo dia sempre tem [days] dias à frente.
+     *
+     * Ids usados: `idBase … idBase + MAX_ROLLING_DAYS − 1` — reserve esse intervalo. iOS: no máximo
+     * 64 pendentes no app inteiro ([NotificationPlanning.IOS_PENDING_LIMIT]); some as janelas de todos os
+     * lembretes. Android: os disparos sobrevivem ao reboot pelo registro da lib.
+     *
+     * @return quantas notificações ficaram agendadas.
+     */
+    fun scheduleRollingDaily(
+        idBase: Int,
+        hour: Int,
+        minute: Int,
+        days: Int = NotificationPlanning.DEFAULT_ROLLING_DAYS,
+        timeZoneId: String? = null,
+        channelId: String? = null,
+        data: Map<String, String> = emptyMap(),
+        now: Instant = kotlin.time.Clock.System.now(),
+        contentForDay: (LocalDate) -> NotificationContent?,
+    ): Int {
+        cancelRollingDaily(idBase)
+        val tz = notificationTimeZone(timeZoneId)
+        var count = 0
+        NotificationPlanning.rollingDaily(now, tz, days, hour, minute).forEachIndexed { i, plan ->
+            val content = contentForDay(plan.date) ?: return@forEachIndexed
+            scheduleNotification(idBase + i, content.title, content.body, plan.at, data + ("kmplib.date" to plan.date.toString()), channelId)
+            count++
+        }
+        return count
+    }
+
+    /** Cancela a janela de [scheduleRollingDaily] de [idBase]. */
+    fun cancelRollingDaily(idBase: Int) {
+        NotificationPlanning.ids(idBase, NotificationPlanning.MAX_ROLLING_DAYS).forEach { cancelNotification(it) }
+    }
+
+    /**
+     * Lembrete **mensal** no dia [dayOfMonth] (2.355.0) — o dia do pagamento do dízimo, por exemplo.
+     * Dia 29–31 em mês mais curto cai no último dia do mês. São agendados os próximos [months] meses
+     * como disparos únicos (o calendário recorrente do iOS com `day = 31` simplesmente pula os meses
+     * curtos); reagende a cada abertura do app. Ids: `idBase … idBase + 23`.
+     *
+     * @param contentForMonth texto de cada disparo (recebe a data); `null` pula aquele mês.
+     * @return quantas notificações ficaram agendadas.
+     */
+    fun scheduleMonthly(
+        idBase: Int,
+        dayOfMonth: Int,
+        hour: Int,
+        minute: Int,
+        months: Int = NotificationPlanning.DEFAULT_MONTHS_AHEAD,
+        timeZoneId: String? = null,
+        channelId: String? = null,
+        data: Map<String, String> = emptyMap(),
+        now: Instant = kotlin.time.Clock.System.now(),
+        contentForMonth: (LocalDate) -> NotificationContent?,
+    ): Int {
+        cancelMonthly(idBase)
+        val tz = notificationTimeZone(timeZoneId)
+        var count = 0
+        NotificationPlanning.monthly(now, tz, dayOfMonth, hour, minute, months).forEachIndexed { i, plan ->
+            val content = contentForMonth(plan.date) ?: return@forEachIndexed
+            scheduleNotification(idBase + i, content.title, content.body, plan.at, data + ("kmplib.date" to plan.date.toString()), channelId)
+            count++
+        }
+        return count
+    }
+
+    /** Cancela os disparos de [scheduleMonthly] de [idBase]. */
+    fun cancelMonthly(idBase: Int) {
+        NotificationPlanning.ids(idBase, 24).forEach { cancelNotification(it) }
+    }
+}
+
+/** O fuso IANA pedido, ou o do aparelho (desconhecido = o do aparelho, com log). */
+internal fun notificationTimeZone(id: String?): kotlinx.datetime.TimeZone {
+    if (id.isNullOrBlank()) return kotlinx.datetime.TimeZone.currentSystemDefault()
+    return runCatching { kotlinx.datetime.TimeZone.of(id) }.getOrElse {
+        AppLogger.w("NotificationScheduler", "fuso desconhecido ($id) — usando o do aparelho")
+        kotlinx.datetime.TimeZone.currentSystemDefault()
+    }
 }
 
 /**

@@ -107,6 +107,7 @@ fun CustomInterstitialAd(
     onShown: ((CustomAd) -> Unit)? = null,
     firstLoadTimeout: Duration = AdDefaults.INTERSTITIAL_FIRST_LOAD_TIMEOUT,
     creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
+    chrome: InterstitialChrome? = null,
 ) {
     InterstitialAdHost(
         show = show,
@@ -117,6 +118,7 @@ fun CustomInterstitialAd(
         firstLoadTimeout = firstLoadTimeout,
         creativeLoadTimeout = creativeLoadTimeout,
         withRouting = false,
+        chrome = chrome,
     )
 }
 
@@ -138,6 +140,7 @@ internal fun InterstitialAdHost(
     firstLoadTimeout: Duration,
     creativeLoadTimeout: Duration = AdDefaults.INTERSTITIAL_CREATIVE_LOAD_TIMEOUT,
     withRouting: Boolean,
+    chrome: InterstitialChrome? = null,
 ) {
     val showAds by MonetizationManager.shouldShowAds.collectAsState()
 
@@ -186,6 +189,7 @@ internal fun InterstitialAdHost(
         closeMode = closeMode,
         onAdClick = onAdClick,
         onShown = onShown,
+        chrome = chrome,
     )
 }
 
@@ -196,6 +200,7 @@ private fun InterstitialAdDialog(
     closeMode: InterstitialCloseMode,
     onAdClick: ((CustomAd) -> Unit)?,
     onShown: ((CustomAd) -> Unit)?,
+    chrome: InterstitialChrome? = null,
 ) {
 
     // Modo TIMED: barra de progresso no topo enche em durationSeconds; so entao libera o fechar.
@@ -218,6 +223,18 @@ private fun InterstitialAdDialog(
 
     // Carga da arte, para o id `ads-interstitial-carregado` (ver `AdsTestTags`).
     var load by remember(ad.id, ad.imageUrl) { mutableStateOf(AdCreativeLoad.Loading) }
+
+    // Cromo (2.355.0): "Fechar em N" conta a partir da arte pintada; até zerar, nem o "voltar" fecha.
+    var chromeRemaining by remember(ad.id) { mutableStateOf(chrome?.closeAfterSeconds?.coerceIn(0, 30) ?: 0) }
+    LaunchedEffect(ad.id, load, chrome != null) {
+        if (chrome != null && load == AdCreativeLoad.Loaded) {
+            while (chromeRemaining > 0) {
+                kotlinx.coroutines.delay(1_000)
+                chromeRemaining--
+            }
+        }
+    }
+    val canDismiss = canClose && chromeRemaining <= 0
 
     // A impressão (e o `onShown`) contam quando a ARTE foi pintada, não quando o diálogo montou
     // (2.246.0). A arte já vem pré-carregada pelo host, então isso acontece no primeiro frame; se
@@ -245,11 +262,11 @@ private fun InterstitialAdDialog(
     }
 
     Dialog(
-        onDismissRequest = { if (canClose) onDismiss() },
+        onDismissRequest = { if (canDismiss) onDismiss() },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             // Enquanto a contagem nao termina (TIMED), nao deixa fechar pelo "voltar".
-            dismissOnBackPress = canClose,
+            dismissOnBackPress = canDismiss,
             dismissOnClickOutside = false,
         )
     ) {
@@ -258,6 +275,10 @@ private fun InterstitialAdDialog(
         // re-ligar os ids deste anúncio — inclusive o "X" de fechar, desde a 2.166.0 — ficavam
         // invisíveis ao Maestro. No iOS é no-op (a tag já vira `accessibilityIdentifier`).
         WithTestTagsAsResourceId {
+            if (chrome != null) {
+                ChromedInterstitial(ad, chrome, chromeRemaining, onDismiss, handleClick, onLoad = { load = it }, loadedTag = creativeTestTag(load, AdsTestTags.INTERSTITIAL_CARREGADO))
+                return@WithTestTagsAsResourceId
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()

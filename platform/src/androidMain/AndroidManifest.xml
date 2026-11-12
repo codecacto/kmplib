@@ -43,6 +43,22 @@
     -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!--
+      <queries> (2.354.0) — `ShareHandler.isInstalled`/`shareImageTo`: no Android 11+ um app só
+      "enxerga" outro pacote declarado aqui. Sem isto o WhatsApp e o Instagram pareceriam não
+      instalados e os botões de envio direto sumiriam. Declarar pacotes específicos não exige
+      justificativa na Play (QUERY_ALL_PACKAGES é que exige — e não é usada).
+    -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.instagram.android" />
+        <intent>
+            <action android:name="com.instagram.share.ADD_TO_STORY" />
+            <data android:mimeType="image/*" />
+        </intent>
+    </queries>
+
     <application>
 
         <!--
