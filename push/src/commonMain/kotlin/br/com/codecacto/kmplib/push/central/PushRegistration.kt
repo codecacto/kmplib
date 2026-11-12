@@ -319,6 +319,8 @@ object PushRegistration {
     fun initialize(config: PushRegistrationConfig) {
         _client = PushRegistrationClient(config, marketing)
         AppLogger.d(PushRegistrationClient.TAG, "Inicializado projeto='${config.projectSlug}'")
+        // 2.362.0: as aberturas guardadas (toque a frio antes do initialize, ou sem rede) saem agora.
+        PushOpenings.flush()
     }
 
     /** Ver [PushRegistrationClient.register]. */

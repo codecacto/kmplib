@@ -5751,7 +5751,7 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
 - [x] *(12/nov/2026, 2.361.0)* **Analytics do app — `kmplib-analytics`:** telas e eventos-chave no Umami da fábrica
   (lote `/api/batch` com recuo `/api/m`, fila em disco, UA de navegador móvel, sem PII, `TrackNavigationScreens`).
   Campanha: `docs/tarefas/2026-11-12-umami-em-todos-os-projetos.md` (lote F) do monorepo.
-- [ ] **GAP-ANALYTICS-01 (P3) — abertura de push no analytics** (Fase 4 do estudo `analytics-gratuito-2026-11-12`):
+- [x] **GAP-ANALYTICS-01 (P3) — abertura de push no analytics** — FEITO na 2.362.0 (`PushOpenings`: `POST /public/push/aberturas` uma vez por campanha por aparelho + `push_aberto` no Umami) (Fase 4 do estudo `analytics-gratuito-2026-11-12`):
   `PushTapHost` registrar `push_open` com o id da campanha, quando a sessão do push fechar.
 - [ ] **GAP-ANALYTICS-02 (P3) — retenção no Umami:** o Umami não tem; cron de `DELETE` por idade no banco (estudo 02 §2.3)
   — é de infra, não da lib; anotado aqui porque o volume vem dos apps.

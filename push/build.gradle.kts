@@ -16,6 +16,9 @@ kotlin {
             // AnnouncementDialog da ui). O central NÃO depende do push — sem ciclo, e quem usa só o
             // central não leva FCM/KMPNotifier.
             api(project(":kmplib-central"))
+            // 2.362.0: a abertura de campanha conta também `push_aberto` no Umami, quando o app liga o
+            // `Analytics` (no-op sem initialize). O analytics NÃO depende do push — sem ciclo.
+            implementation(project(":kmplib-analytics"))
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)
         }

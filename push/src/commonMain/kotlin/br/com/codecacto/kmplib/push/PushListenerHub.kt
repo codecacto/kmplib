@@ -62,6 +62,15 @@ class PushListenerHub : PushNotificationListener {
     private class State(val entries: List<Entry>, val pendingTap: Map<String, String>?)
 
     private val state = AtomicReference(State(emptyList(), null))
+
+    /**
+     * Chamado UMA vez para todo toque que chega ao hub, antes de entregá-lo ou guardá-lo como
+     * pendente (2.362.0 — é por aqui que o [br.com.codecacto.kmplib.push.central.PushOpenings] conta a
+     * abertura, inclusive do toque a frio). Falha do observador nunca impede o toque.
+     */
+    @kotlin.concurrent.Volatile
+    internal var tapObserver: ((Map<String, String>) -> Unit)? = null
+
     private val _pendingTap = MutableStateFlow<Map<String, String>?>(null)
 
     /**
@@ -181,6 +190,7 @@ class PushListenerHub : PushNotificationListener {
      * que recebem toque (`receiveTaps = true`).
      */
     override fun onNotificationClicked(data: Map<String, String>) {
+        tapObserver?.let { observer -> runCatching { observer(data) } }
         while (true) {
             val atual = state.load()
             val tapReceivers = atual.entries.filter { it.receivesTaps }
@@ -215,7 +225,10 @@ class PushListenerHub : PushNotificationListener {
  * o tira.
  */
 object PushEvents {
-    internal val hub = PushListenerHub()
+    internal val hub = PushListenerHub().apply {
+        // 2.362.0: toda abertura de campanha do Nexus é contada (cc_campanha) — sem bloquear o toque.
+        tapObserver = { data -> br.com.codecacto.kmplib.push.central.PushOpenings.onTap(data) }
+    }
 
     /** Ver [PushListenerHub.addListener]. */
     fun addListener(

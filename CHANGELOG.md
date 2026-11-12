@@ -5,6 +5,25 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.362.0 — `kmplib-push`: quem abriu cada notificação de campanha (`PushOpenings`)
+
+**Aditivo, nada a fazer no app** (vem com o `kmplib-push`; fecha o GAP-ANALYTICS-01). Contrato do apps-api:
+`POST {appsApiBaseUrl}/public/push/aberturas` `{"campanha","projeto","plataforma","installId"?}` → 204, sem `Authorization`.
+
+- Todo toque que chega ao hub do push (`PushEvents` — KMPNotifier no Android, `ApplePushBridge` no iOS), **inclusive o
+  que abre o app a frio**, passa pelo `PushListenerHub.tapObserver` antes de ser entregue ou guardado como pendente: com
+  `cc_campanha` (UUID), `PushOpenings` conta a abertura **uma vez por campanha por aparelho** (lembra as últimas 200).
+- `projeto`/`appsApiBaseUrl` = os do `PushRegistration`; `plataforma` = `android`/`ios`; `installId` =
+  `InstallId.forTelemetry()` (`null` em app infantil e em teste). Cliente HTTP próprio (`createHttpClient`), sem a sessão.
+- Fila pequena em disco (`BlobStore` `kmplib_push_aberturas`, fora do backup; até 20, descarta com mais de 7 dias):
+  sem rede, 404 (rota ainda não publicada), 408, 429 e 5xx ficam e reenviam com espera 30 s → 15 min e no
+  `PushRegistration.initialize`; outro 4xx sai sem repetir. Toque antes do `initialize` só espera na fila.
+- App que monta o próprio `PushRegistrationClient` (sem `PushRegistration.initialize` — ex.: LocAki, FCM no iOS):
+  `PushOpenings.initialize(config)` com a mesma `PushRegistrationConfig` dá o destino (o `httpClient` dela não é usado).
+- Com o `Analytics` ligado (`kmplib-analytics`), também `push_aberto {acao: app|premium|comunicado|link}` — só o tipo
+  da ação, nunca a URL nem o id do comunicado.
+- Nunca lança e nunca segura a navegação: o observador só agenda; falha dele não impede o toque.
+
 ## 2.361.0 — `kmplib-analytics`: telas e eventos-chave do app no Umami da fábrica
 
 **Aditivo, módulo novo** (também no umbrella; sem `websiteId` é no-op). Campanha Umami, lote F
