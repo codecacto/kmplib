@@ -35,6 +35,10 @@ Origem: os relatos de construção dos 12 apps (`1-Apps-Offline-Ads/<Pasta>/mobi
 - [ ] **`FolhaDeCompartilharTexto`** do Rosário → kit (folha de compartilhar só TEXTO, sem imagem).
 - [ ] **`scheduleRollingDaily` com `data` por dia** (hoje o `data` é o mesmo para a janela + `kmplib.date`).
 - [ ] **`kmplib-tts-background`** (já anotado na Onda 0): leitura em voz com o app fechado, OPT-IN.
+- [ ] **Delegate de notificação no iOS instalado pela lib**: hoje cada app chama `installNotificationActionDelegate()` até o
+  `didFinishLaunching` (os 12 apps ganharam `instalarToqueDeNotificacao()`), senão o toque que abre o app frio se perde.
+  O `initKmpLibPlatform` do iOS poderia instalar sozinho (idempotente).
+- [ ] **`FamilyBackupReadySheet` com título configurável** (o Diário usou folha própria para o PDF).
 
 ### Registrado em 12/nov/2026 — multipart em fluxo (Koinonia, L1; entregue na 2.356.0)
 
