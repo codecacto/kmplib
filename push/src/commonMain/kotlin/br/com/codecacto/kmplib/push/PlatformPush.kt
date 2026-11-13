@@ -12,9 +12,16 @@ package br.com.codecacto.kmplib.push
  *    device token APNs (hex) em cache.
  *
  * Aditivo: apps que já constroem [KmpPushNotificationService] diretamente seguem funcionando.
+ *
+ * O [listener] recebe o toque do push do próprio app; o toque de campanha do Nexus (`cc_acao`) é só do
+ * `PushTapHost` (2.363.0). Ouvinte só de token: `receiveTaps = false`. No Android, a Activity precisa
+ * de `PushActivityHooks` (`onCreate`/`onNewIntent`), senão nenhum toque chega.
+ *
+ * @param receiveTaps `false` = o ouvinte nunca recebe toque (só token/recebimento) (2.363.0).
  */
 expect fun createPushNotificationService(
     listener: PushNotificationListener = NoOpPushNotificationListener,
+    receiveTaps: Boolean = true,
 ): PushNotificationService
 
 /**

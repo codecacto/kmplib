@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.363.0
+    motivo: "ouvinte do push do app roubava o toque de campanha do Nexus que abriu o app a frio (premium/comunicado/link não abriam)"
+    simbolos: [PushTapHost]
+
   - versao: 2.357.1
     motivo: "toque na notificação local podia ser forjado por outro app (Intent sem prova de origem) e Bundle ilegível derrubava o onCreate"
     simbolos: [NotificationTapEffect, NotificationTaps, handleNotificationTapIntent]

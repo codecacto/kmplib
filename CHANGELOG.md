@@ -5,6 +5,30 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.363.0 — `kmplib-push`: o toque de campanha é só do `PushTapHost`; `PushActivityHooks` no Android
+
+**Corrige defeito visto pelo usuário (piso em `docs/pisos.yaml`, quem usa `PushTapHost`).** Revisão das notificações
+push (`docs/tarefas/2026-11-12-revisao-notificacoes-push.md`): em 5 apps o ouvinte do push operacional (registrado com
+o padrão `receiveTaps = true` antes do `PushTapHost` ligar) consumia o toque de campanha que abriu o app a frio, e em 7
+apps + casca a Activity não chamava `NotifierManager.onCreateOrOnNewIntent` (no Android nenhum toque chegava).
+
+- **Hub separa os dois toques.** `PushEvents.addListener(…, receiveCampaignTaps: Boolean = false)` (novo, também em
+  `PushListenerHub`): toque com `cc_acao` (campanha do Nexus) só vai a quem pede `receiveCampaignTaps = true`; sem
+  ninguém, fica pendente. `receiveTaps` passa a valer só para o toque do próprio app. O pendente só é entregue a um
+  ouvinte que receba aquele tipo. Ouvinte do app não recebe mais campanha — nenhum app a usava fora do host.
+- **`PushTapHost`** registra com `receiveCampaignTaps = true`; `onOtherTap` virou **opcional (`null` padrão)**: sem
+  ele, o host NÃO recebe o toque operacional e esse segue para o ouvinte do serviço do app (antes o host o consumia e
+  descartava em `{}` — o deep link do parceiro do Meu Advogado se perdia). Com ele, o host é o dono do toque
+  operacional; não registre também o ouvinte do serviço com `receiveTaps = true` (entrega dupla).
+- **`createPushNotificationService(listener, receiveTaps = true)`**, `KmpPushNotificationService(…, receiveTaps)` e
+  `ApplePushNotificationService(listener, receiveTaps)`: `false` = ouvinte só de token. Fonte compatível
+  (`ApplePushBridge.addListener` não mudou — o seletor Swift fica igual).
+- **`PushActivityHooks` (Android, novo):** `onCreate(activity, savedInstanceState)` entrega o intent só no 1º
+  `onCreate` (não na rotação nem no relançamento pelo histórico) e `onNewIntent(activity, intent)` faz `setIntent` +
+  entrega; os dois instalam o `attachKmpNotifier()` antes. A Activity deve ser `singleTop`/`singleTask`.
+- KDoc de `PushTapHost`, `PushRegistration`, `KmpPushNotificationService` e `createPushNotificationService` dizendo o
+  que o Android exige.
+
 ## 2.362.0 — `kmplib-push`: quem abriu cada notificação de campanha (`PushOpenings`)
 
 **Aditivo, nada a fazer no app** (vem com o `kmplib-push`; fecha o GAP-ANALYTICS-01). Contrato do apps-api:

@@ -181,4 +181,50 @@ class PushListenerHubTest {
         assertEquals(2, tela.toques.size)
         assertTrue(token.toques.isEmpty())
     }
+
+    private val campanha = mapOf("cc_acao" to "premium", "cc_campanha" to "c1")
+
+    @Test
+    fun ouvinte_do_app_nao_rouba_o_toque_de_campanha_a_frio() {
+        val hub = PushListenerHub()
+        val operacional = Gravador()
+        hub.addListener(operacional) // receiveTaps padrão: recebe só o toque do próprio app
+        hub.onNotificationClicked(campanha)
+        assertTrue(operacional.toques.isEmpty(), "campanha não vai ao ouvinte operacional")
+        assertEquals(campanha, hub.pendingTap.value, "fica pendente para o PushTapHost")
+
+        val host = Gravador()
+        hub.addListener(host, receiveTaps = false, receiveCampaignTaps = true)
+        assertEquals(listOf(campanha), host.toques)
+        assertNull(hub.pendingTap.value)
+
+        hub.onNotificationClicked(toque)
+        assertEquals(listOf(toque), operacional.toques)
+        assertEquals(listOf(campanha), host.toques, "host só de campanha não recebe o do app")
+    }
+
+    @Test
+    fun toque_do_app_pendente_nao_vai_ao_host_so_de_campanha() {
+        val hub = PushListenerHub()
+        hub.onNotificationClicked(toque)
+        val host = Gravador()
+        hub.addListener(host, receiveTaps = false, receiveCampaignTaps = true)
+        assertTrue(host.toques.isEmpty())
+        assertEquals(toque, hub.pendingTap.value)
+
+        val operacional = Gravador()
+        hub.addListener(operacional)
+        assertEquals(listOf(toque), operacional.toques)
+        assertNull(hub.pendingTap.value)
+    }
+
+    @Test
+    fun ouvinte_dos_dois_tipos_recebe_campanha_e_toque_do_app() {
+        val hub = PushListenerHub()
+        val tudo = Gravador()
+        hub.addListener(tudo, receiveCampaignTaps = true)
+        hub.onNotificationClicked(campanha)
+        hub.onNotificationClicked(toque)
+        assertEquals(listOf(campanha, toque), tudo.toques)
+    }
 }

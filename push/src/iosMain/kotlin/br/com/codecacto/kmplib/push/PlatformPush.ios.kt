@@ -12,7 +12,8 @@ import platform.UserNotifications.UNUserNotificationCenter
  */
 actual fun createPushNotificationService(
     listener: PushNotificationListener,
-): PushNotificationService = ApplePushNotificationService(listener)
+    receiveTaps: Boolean,
+): PushNotificationService = ApplePushNotificationService(listener, receiveTaps)
 
 /** iOS: notificação local via `UNUserNotificationCenter` (fluxo oficial Apple). */
 actual fun createLocalPushNotifier(): LocalPushNotifier = AppleLocalPushNotifier()
@@ -29,11 +30,13 @@ actual fun createLocalPushNotifier(): LocalPushNotifier = AppleLocalPushNotifier
  */
 class ApplePushNotificationService(
     listener: PushNotificationListener = NoOpPushNotificationListener,
+    receiveTaps: Boolean = true,
 ) : PushNotificationService {
 
     // 2.314.0: registra no hub (vários serviços convivem; antes o último sobrescrevia o anterior)
-    // e recebe o toque que abriu o app antes de este serviço existir.
-    private val registration = ApplePushBridge.addListener(listener)
+    // e recebe o toque que abriu o app antes de este serviço existir. 2.363.0: o toque de campanha
+    // (`cc_acao`) é só do PushTapHost; `receiveTaps = false` = ouvinte só de token.
+    private val registration = PushEvents.addListener(listener, receiveTaps = receiveTaps)
 
     override fun release() = registration.remove()
 

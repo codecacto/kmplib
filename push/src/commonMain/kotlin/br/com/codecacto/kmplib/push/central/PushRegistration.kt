@@ -301,6 +301,14 @@ internal fun buildRegistrationBody(
  *
  * [marketing] existe sempre (mesmo antes de [initialize]), para a tela de Configurações funcionar
  * em qualquer ordem.
+ *
+ * **O cadastro não basta para o toque (2.363.0).** O toque nas campanhas é do
+ * [br.com.codecacto.kmplib.push.ui.PushTapHost]; no **Android** ele só chega com
+ * `PushActivityHooks.onCreate(this, savedInstanceState)` no `onCreate` e
+ * `PushActivityHooks.onNewIntent(this, intent)` no `onNewIntent` da MainActivity (o KMPNotifier só
+ * dispara o clique por `NotifierManager.onCreateOrOnNewIntent`). O serviço de push próprio do app
+ * (token para o backend do produto) é ouvinte **só de token**: `createPushNotificationService(ouvinte,
+ * receiveTaps = false)` quando o toque operacional vai pelo `PushTapHost(onOtherTap = …)`.
  */
 object PushRegistration {
 

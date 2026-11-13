@@ -20,17 +20,28 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  * por instância (o KMPNotifier não tem como remover listener: cada instância vazava um). Vários
  * serviços coexistem; o MESMO ouvinte em dois serviços recebe cada evento uma vez; [release] tira o
  * ouvinte; e o toque que chegou antes do serviço existir (app aberto pelo push) é entregue a ele.
+ *
+ * **Toque (2.363.0).** O [listener] recebe o toque do push **do próprio app** (sem `cc_acao`); o de
+ * campanha do Nexus é só do `PushTapHost` (o hub não entrega mais campanha a este ouvinte, então ele
+ * não rouba o toque a frio). Ouvinte só de token (ex.: registrar o token no backend do produto) passa
+ * `receiveTaps = false` — aí o toque operacional fica para o `PushTapHost(onOtherTap = …)`.
+ *
+ * ⚠️ **Android: o toque só existe com `PushActivityHooks` na Activity** (`onCreate` e `onNewIntent`) —
+ * o KMPNotifier dispara o clique só pelo `NotifierManager.onCreateOrOnNewIntent(intent)`.
+ *
+ * @param receiveTaps `false` = ouvinte só de token/recebimento, nunca recebe toque (2.363.0).
  */
 class KmpPushNotificationService(
     private val listener: PushNotificationListener = NoOpPushNotificationListener,
     emitCurrentTokenOnStart: Boolean = false,
+    receiveTaps: Boolean = true,
 ) : PushNotificationService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val registration: PushListenerRegistration
 
     init {
         attachKmpNotifier()
-        registration = PushEvents.addListener(listener)
+        registration = PushEvents.addListener(listener, receiveTaps = receiveTaps)
 
         if (emitCurrentTokenOnStart) {
             scope.launch {

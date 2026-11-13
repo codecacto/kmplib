@@ -37,9 +37,24 @@ import kotlinx.coroutines.channels.Channel
  * pelo portão de pais do `getUrlLauncher`).
  *
  * Inclusive o toque que **abriu o app a frio**: enquanto [enabled] for `false` (ou antes de o host
- * existir), o toque fica pendente em [PushEvents] e é entregue quando ele liga. Toque de push que não
- * é de campanha vai para [onOtherTap] (o deep link próprio do app). No logout, `PushEvents.clearPendingTap()`.
+ * existir), o toque fica pendente em [PushEvents] e é entregue quando ele liga. No logout,
+ * `PushEvents.clearPendingTap()`.
  *
+ * **Quem é dono de qual toque (2.363.0).** O host recebe SEMPRE o toque de campanha (`cc_acao`) — e só
+ * ele: o ouvinte do push operacional do app (`createPushNotificationService(listener)`, `addListener`
+ * com o padrão) não recebe mais campanha, então não "rouba" o toque a frio. O toque que NÃO é de campanha
+ * só vem ao host quando [onOtherTap] é passado; sem ele (`null`), fica para o ouvinte do próprio app.
+ * Escolha UM dono para o toque operacional: ou [onOtherTap], ou o ouvinte do serviço do app
+ * (`receiveTaps = true`) — os dois juntos entregam o mesmo toque duas vezes.
+ *
+ * ⚠️ **Android: sem `PushActivityHooks` na Activity o toque nunca chega aqui.** O KMPNotifier só dispara
+ * o toque pelo `NotifierManager.onCreateOrOnNewIntent(intent)`; chame
+ * `PushActivityHooks.onCreate(this, savedInstanceState)` no `onCreate` e
+ * `PushActivityHooks.onNewIntent(this, intent)` no `onNewIntent` da MainActivity (que deve ser
+ * `singleTop`/`singleTask`). Sem isso a notificação aparece e o toque só abre o app.
+ *
+ * @param onOtherTap toque que não é de campanha (deep link próprio do app); `null` (padrão) = o host
+ *   não o recebe e ele segue para o ouvinte do serviço de push do app (ou fica pendente).
  * @param announcementClient de onde buscar o comunicado; default o do `CentralServices`.
  * @param openUrl abre o link (default: `getUrlLauncher().openUrl`).
  */
@@ -47,7 +62,7 @@ import kotlinx.coroutines.channels.Channel
 fun PushTapHost(
     onOpenPremium: () -> Unit,
     enabled: Boolean = true,
-    onOtherTap: (Map<String, String>) -> Unit = {},
+    onOtherTap: ((Map<String, String>) -> Unit)? = null,
     announcementClient: AnnouncementClient? = AnnouncementService.client,
     openUrl: (String) -> Unit = { getUrlLauncher().openUrl(it) },
     onAnnouncementAction: (AnnouncementAction) -> Unit = ::openAnnouncementAction,
@@ -57,7 +72,9 @@ fun PushTapHost(
     val open by rememberUpdatedState(openUrl)
     var shown by remember { mutableStateOf<Announcement?>(null) }
 
-    LaunchedEffect(enabled, announcementClient) {
+    val wantsOtherTaps = onOtherTap != null
+
+    LaunchedEffect(enabled, announcementClient, wantsOtherTaps) {
         if (!enabled) return@LaunchedEffect
         val taps = Channel<Map<String, String>>(Channel.UNLIMITED)
         val listener = object : PushNotificationListener {
@@ -70,9 +87,14 @@ fun PushTapHost(
             openUrl = { open(it) },
             findAnnouncement = { id -> findAnnouncementById(announcementClient, id) },
             showAnnouncement = { shown = it },
-            onOtherTap = { other(it) },
+            onOtherTap = { data -> other?.invoke(data) },
         )
-        val registration = PushEvents.addListener(listener, receivePendingTap = true)
+        val registration = PushEvents.addListener(
+            listener,
+            receivePendingTap = true,
+            receiveTaps = wantsOtherTaps,
+            receiveCampaignTaps = true,
+        )
         try {
             for (data in taps) router.route(data)
         } finally {

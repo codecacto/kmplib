@@ -57,7 +57,10 @@ class PushListenerHub : PushNotificationListener {
         val listener: PushNotificationListener,
         val handles: List<PushListenerRegistration>,
         val receivesTaps: Boolean,
-    )
+        val receivesCampaignTaps: Boolean,
+    ) {
+        fun accepts(campaign: Boolean): Boolean = if (campaign) receivesCampaignTaps else receivesTaps
+    }
 
     private class State(val entries: List<Entry>, val pendingTap: Map<String, String>?)
 
@@ -91,12 +94,22 @@ class PushListenerHub : PushNotificationListener {
      * @param receiveTaps `false` (2.360.0) = ouvinte só de token/recebimento (ex.: o registro central
      *   do aparelho, `PushRegistration`): não recebe [PushNotificationListener.onNotificationClicked]
      *   e NÃO conta como "alguém para o toque" — sem nenhum ouvinte de toque, o toque continua
-     *   ficando pendente para a tela que montar depois. Com `false`, [receivePendingTap] é ignorado.
+     *   ficando pendente para a tela que montar depois. Desde a 2.363.0 vale só para o toque que
+     *   NÃO é de campanha (o push do próprio app); o de campanha é [receiveCampaignTaps].
+     * @param receiveCampaignTaps (2.363.0) recebe o toque de **campanha do Nexus** (carga com
+     *   `cc_acao`). Default `false`: só o [br.com.codecacto.kmplib.push.ui.PushTapHost] (que liga) o
+     *   recebe, e o ouvinte do push operacional do app não "rouba" mais o toque que abriu o app a frio
+     *   — sem ouvinte de campanha, ele fica pendente até o host ligar. Antes da 2.363.0 todo ouvinte
+     *   com `receiveTaps = true` recebia também o de campanha (a armadilha pegou 5 apps).
+     *
+     * Sem nenhum dos dois, [receivePendingTap] é ignorado; com algum, o pendente só é entregue se for
+     * do tipo que o ouvinte recebe.
      */
     fun addListener(
         listener: PushNotificationListener,
         receivePendingTap: Boolean = true,
         receiveTaps: Boolean = true,
+        receiveCampaignTaps: Boolean = false,
     ): PushListenerRegistration {
         lateinit var handle: PushListenerRegistration
         handle = PushListenerRegistration { removeHandle(it) }
@@ -110,12 +123,29 @@ class PushListenerHub : PushNotificationListener {
             val existente = atual.entries.firstOrNull { it.listener === listener }
             val entries = if (existente != null) {
                 atual.entries.map {
-                    if (it === existente) Entry(listener, it.handles + handle, it.receivesTaps || receiveTaps) else it
+                    if (it === existente) {
+                        Entry(
+                            listener,
+                            it.handles + handle,
+                            it.receivesTaps || receiveTaps,
+                            it.receivesCampaignTaps || receiveCampaignTaps,
+                        )
+                    } else {
+                        it
+                    }
                 }
             } else {
-                atual.entries + Entry(listener, listOf(handle), receiveTaps)
+                atual.entries + Entry(listener, listOf(handle), receiveTaps, receiveCampaignTaps)
             }
-            delivered = if (receivePendingTap && receiveTaps) atual.pendingTap else null
+            val pendente = atual.pendingTap
+            delivered = if (
+                receivePendingTap && pendente != null &&
+                (if (pendente.isCampaignTap()) receiveCampaignTaps else receiveTaps)
+            ) {
+                pendente
+            } else {
+                null
+            }
             val novo = State(entries, if (delivered != null) null else atual.pendingTap)
             if (state.compareAndSet(atual, novo)) break
         }
@@ -143,7 +173,7 @@ class PushListenerHub : PushNotificationListener {
                     entry
                 } else {
                     val resto = entry.handles.filterNot { it === handle }
-                    if (resto.isEmpty()) null else Entry(entry.listener, resto, entry.receivesTaps)
+                    if (resto.isEmpty()) null else Entry(entry.listener, resto, entry.receivesTaps, entry.receivesCampaignTaps)
                 }
             }
             if (state.compareAndSet(atual, State(entries, atual.pendingTap))) return
@@ -186,14 +216,16 @@ class PushListenerHub : PushNotificationListener {
     }
 
     /**
-     * Sem ouvinte DE TOQUE, o toque fica pendente (substitui o anterior); com ouvinte, vai a todos os
-     * que recebem toque (`receiveTaps = true`).
+     * Sem ouvinte para ESTE tipo de toque, o toque fica pendente (substitui o anterior); com ouvinte,
+     * vai a todos os que o recebem — o de campanha (`cc_acao`) a quem registrou com
+     * `receiveCampaignTaps = true`; o do app a quem registrou com `receiveTaps = true` (2.363.0).
      */
     override fun onNotificationClicked(data: Map<String, String>) {
         tapObserver?.let { observer -> runCatching { observer(data) } }
+        val campaign = data.isCampaignTap()
         while (true) {
             val atual = state.load()
-            val tapReceivers = atual.entries.filter { it.receivesTaps }
+            val tapReceivers = atual.entries.filter { it.accepts(campaign) }
             if (tapReceivers.isNotEmpty()) {
                 tapReceivers.forEach { it.listener.onNotificationClicked(data) }
                 return
@@ -235,7 +267,8 @@ object PushEvents {
         listener: PushNotificationListener,
         receivePendingTap: Boolean = true,
         receiveTaps: Boolean = true,
-    ): PushListenerRegistration = hub.addListener(listener, receivePendingTap, receiveTaps)
+        receiveCampaignTaps: Boolean = false,
+    ): PushListenerRegistration = hub.addListener(listener, receivePendingTap, receiveTaps, receiveCampaignTaps)
 
     /** Ver [PushListenerHub.removeListener]. */
     fun removeListener(listener: PushNotificationListener) = hub.removeListener(listener)
@@ -252,3 +285,7 @@ object PushEvents {
     /** Ouvintes distintos registrados agora. */
     val listenerCount: Int get() = hub.listenerCount
 }
+
+/** Toque de campanha do Nexus = carga com `cc_acao` (mesma régua do `PushActions.isCampaign`). */
+private fun Map<String, String>.isCampaignTap(): Boolean =
+    br.com.codecacto.kmplib.push.action.PushActions.isCampaign(this)

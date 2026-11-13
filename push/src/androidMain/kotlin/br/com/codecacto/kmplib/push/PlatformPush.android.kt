@@ -8,7 +8,8 @@ import com.mmk.kmpnotifier.notification.NotifierManager
  */
 actual fun createPushNotificationService(
     listener: PushNotificationListener,
-): PushNotificationService = KmpPushNotificationService(listener)
+    receiveTaps: Boolean,
+): PushNotificationService = KmpPushNotificationService(listener, receiveTaps = receiveTaps)
 
 /** Android: notificação local delega ao `LocalNotifier` do KMPNotifier (canais já configurados). */
 actual fun createLocalPushNotifier(): LocalPushNotifier = KmpNotifierLocalPushNotifier()
