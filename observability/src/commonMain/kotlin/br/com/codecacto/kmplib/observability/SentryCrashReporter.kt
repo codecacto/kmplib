@@ -22,6 +22,18 @@ internal class SentryCrashReporter : CrashReporter {
     /** Guarda se o SDK foi inicializado de fato — quando `false`, tudo é no-op. */
     private var active: Boolean = false
 
+    /** Usuário do escopo: só id opaco, guardado antes do `init` e seguindo a sessão (2.364.0). */
+    private val user = CrashUserBinding { id ->
+        if (id == null) {
+            Sentry.setUser(null)
+        } else {
+            // SÓ id opaco — jamais e-mail/username/nome/CPF (LGPD).
+            val sentryUser = User()
+            sentryUser.id = id
+            Sentry.setUser(sentryUser)
+        }
+    }
+
     override val isActive: Boolean get() = active
 
     override fun init(config: CrashReporterConfig) {
@@ -32,6 +44,7 @@ internal class SentryCrashReporter : CrashReporter {
         // enabled=false OU DSN em branco => no-op (debug local sem DSN configurado).
         if (!config.enabled || config.dsn.isBlank()) {
             active = false
+            user.deactivate()
             return
         }
 
@@ -64,6 +77,9 @@ internal class SentryCrashReporter : CrashReporter {
             }
         }
         active = true
+        // Depois do `Sentry.init`: aplica o `setUser` pedido antes dele e passa a seguir a conta
+        // logada publicada pela sessão (own-auth / Firebase) — regra de 14/nov/2026.
+        user.activate(follow = config.followSignedInAccount)
     }
 
     override fun captureException(throwable: Throwable, tags: Map<String, String>) {
@@ -106,20 +122,12 @@ internal class SentryCrashReporter : CrashReporter {
     }
 
     override fun setUser(id: String?) {
-        if (!active) return
-        if (id.isNullOrBlank()) {
-            Sentry.setUser(null)
-        } else {
-            // SÓ id opaco — jamais e-mail/username/nome/CPF (LGPD).
-            val user = User()
-            user.id = id
-            Sentry.setUser(user)
-        }
+        // Guardado mesmo inativo: aplicado no `init` (até a 2.363.0 o pedido se perdia).
+        user.set(id)
     }
 
     override fun clearUser() {
-        if (!active) return
-        Sentry.setUser(null)
+        user.set(null)
     }
 
     override fun setTag(key: String, value: String) {

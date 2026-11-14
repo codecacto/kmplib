@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.identity.SignedInAccount
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.currentTimeMillis
 import kotlinx.coroutines.CancellationException
@@ -60,6 +61,20 @@ class OwnAuthTokenManager(
     val session: StateFlow<OwnAuthSession?> = _session.asStateFlow()
 
     /**
+     * Único ponto que troca [session] — e, quando a CONTA muda (login, restauração do cofre, troca
+     * de conta, logout, sessão derrubada pelo servidor), publica o id interno (`sub`) em
+     * [SignedInAccount] (2.364.0). É o que faz o `CrashReporter` mandar todo erro com o `user.id`
+     * certo sem o app chamar `setUser`. Renovação e perfil (mesma conta) não republicam. O id passa
+     * pelo filtro de id opaco: `sub` que fosse e-mail nunca sai.
+     */
+    private fun publish(next: OwnAuthSession?) {
+        val previousAccount = _session.value?.accountId
+        _session.value = next
+        val nextAccount = next?.accountId
+        if (previousAccount != nextAccount) SignedInAccount.publish(nextAccount)
+    }
+
+    /**
      * Semeia [session] a partir do cofre. Chamar no bootstrap, **na raiz do app** (um deep link não
      * passa pela Splash) — e pode ser chamada de mais de um lugar: é **idempotente**.
      *
@@ -75,7 +90,7 @@ class OwnAuthTokenManager(
      * acontece (uma gravação no cofre que falhou), e reler ali trocaria o par novo pelo antigo.
      */
     suspend fun restore(): OwnAuthSession? = stateLock.withLock {
-        _session.value ?: store.load().also { _session.value = it }
+        _session.value ?: store.load().also { publish(it) }
     }
 
     /**
@@ -93,7 +108,7 @@ class OwnAuthTokenManager(
         val session = tokens.toSession(email, name, providerId, username)
         stateLock.withLock {
             store.save(session)
-            _session.value = session
+            publish(session)
         }
     }
 
@@ -115,7 +130,7 @@ class OwnAuthTokenManager(
             }
             val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
             store.save(renewed)
-            _session.value = renewed
+            publish(renewed)
             AdoptOutcome.Adopted(replaced = current)
         }
 
@@ -153,7 +168,7 @@ class OwnAuthTokenManager(
         )
         if (merged != current) {
             store.save(merged)
-            _session.value = merged
+            publish(merged)
         }
         merged
     }
@@ -165,7 +180,7 @@ class OwnAuthTokenManager(
     suspend fun clear() {
         stateLock.withLock {
             store.clear()
-            _session.value = null
+            publish(null)
         }
     }
 
@@ -184,7 +199,7 @@ class OwnAuthTokenManager(
         stateLock.withLock {
             val previous = _session.value ?: store.load()
             store.clear()
-            _session.value = null
+            publish(null)
             previous
         }
     }
@@ -280,7 +295,7 @@ class OwnAuthTokenManager(
                     // para não desfazer um perfil aplicado enquanto o pedido estava na rede.
                     val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
                     store.save(renewed)
-                    _session.value = renewed
+                    publish(renewed)
                     RefreshCommit.Saved(renewed.accessToken)
                 }
                 when (outcome) {
@@ -302,7 +317,7 @@ class OwnAuthTokenManager(
                         val current = _session.value
                         if (current != null && current.refreshToken == session.refreshToken) {
                             store.clear()
-                            _session.value = null
+                            publish(null)
                         }
                         tokenForSameAccount(origin = session, now = _session.value)
                     }

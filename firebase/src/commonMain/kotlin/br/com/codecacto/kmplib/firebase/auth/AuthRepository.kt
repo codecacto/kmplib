@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import br.com.codecacto.kmplib.core.identity.SignedInAccount
 import br.com.codecacto.kmplib.core.util.AppLogger
 
 /**
@@ -45,9 +47,20 @@ class AuthRepository : IAuthRepository {
     }
 
     /**
+     * O estado de login do Firebase, publicando o `uid` em [SignedInAccount] a cada emissão
+     * (2.364.0): é o que faz o `CrashReporter` mandar o `user.id` do GlitchTip sem o app chamar
+     * `setUser`. Vale enquanto o app OBSERVA [currentUser] ou [isLoggedIn] (o que todo app com login
+     * faz para decidir a rota); app que nunca observa chama `SignedInAccount.publish(uid)` ele mesmo.
+     * Publicar é idempotente — vários coletores mandam o mesmo valor.
+     */
+    private val authState: Flow<FirebaseUser?> = auth.authStateChanged.onEach { firebaseUser ->
+        SignedInAccount.publish(firebaseUser?.uid)
+    }
+
+    /**
      * Flow do usuário atual (null se não autenticado).
      */
-    override val currentUser: Flow<User?> = auth.authStateChanged.map { firebaseUser ->
+    override val currentUser: Flow<User?> = authState.map { firebaseUser ->
         firebaseUser?.toUser()
     }
 
@@ -64,7 +77,7 @@ class AuthRepository : IAuthRepository {
      * Isto é estado, não evento: "está logado?" só interessa quando a resposta MUDA.
      */
     override val isLoggedIn: Flow<Boolean> =
-        auth.authStateChanged.map { it != null }.distinctUntilChanged()
+        authState.map { it != null }.distinctUntilChanged()
 
     /**
      * Obtém o usuário atual de forma síncrona (pode ser null).

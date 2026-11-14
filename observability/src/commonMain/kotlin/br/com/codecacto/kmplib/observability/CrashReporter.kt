@@ -89,6 +89,12 @@ interface CrashReporter {
     /**
      * Define o usuário corrente por um **id opaco** (nunca e-mail/CPF/nome — LGPD).
      * `null`/vazio limpa o usuário (equivale a [clearUser]).
+     *
+     * **Desde a 2.364.0 quase nunca é preciso chamar:** com
+     * [CrashReporterConfig.followSignedInAccount] (default) o reporter segue sozinho a conta que a
+     * sessão publica em `SignedInAccount` (own-auth e Firebase Auth da lib). Chamado antes do [init],
+     * o pedido fica guardado e vale quando o reporter liga. Id que não é opaco (e-mail, nome,
+     * telefone, CPF/CNPJ — ver `opaqueAccountIdOrNull`) é recusado: o evento segue anônimo.
      */
     fun setUser(id: String?)
 
@@ -108,6 +114,9 @@ interface CrashReporter {
  * @property sendDefaultPii **LGPD: mantenha `false` sempre.** Ligar enviaria IP/dados pessoais.
  * @property tracesSampleRate Performance/tracing. `0.0` (OFF) — GlitchTip não suporta bem.
  * @property enabled `false` faz [CrashReporter.init] virar no-op (debug local sem DSN).
+ * @property followSignedInAccount (2.364.0) o `user.id` dos eventos segue a conta logada publicada
+ *   pela sessão em `SignedInAccount` — login/restauração preenchem, logout limpa, sem login fica
+ *   anônimo. Regra da fábrica (14/nov/2026): deixe `true`.
  */
 data class CrashReporterConfig(
     val dsn: String,
@@ -116,6 +125,7 @@ data class CrashReporterConfig(
     val sendDefaultPii: Boolean = false,
     val tracesSampleRate: Double = 0.0,
     val enabled: Boolean = true,
+    val followSignedInAccount: Boolean = true,
 )
 
 /** Nível/severidade de um evento ou breadcrumb (mapeia 1:1 ao `SentryLevel`). */

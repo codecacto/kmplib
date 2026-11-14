@@ -5,6 +5,31 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.364.0 — o erro diz DE QUEM é: `user.id` automático no GlitchTip (`SignedInAccount`)
+
+**Aditivo, nada a fazer no app que entra pelo own-auth da lib** (regra do fundador de 14/nov/2026, item
+Observabilidade da constituição; `docs/tarefas/2026-11-14-glitchtip-identifica-o-usuario.md`). Todo evento leva o
+id interno da conta e nunca nome, e-mail, telefone ou CPF; o logout limpa; sem login, o evento sai anônimo.
+
+- **`kmplib-core`: `SignedInAccount`** (`core.identity`), a ponte entre quem conhece a sessão e quem reporta erro,
+  sem um módulo depender do outro: `publish(accountId)`, `id: StateFlow<String?>`, `addListener`. **`opaqueAccountIdOrNull(raw)`**
+  só deixa passar id opaco (UUID, numérico, `uid` do Firebase, `sub` de provedor). Recusa e-mail (`@`), nome/texto livre
+  (espaço, acento, caractere fora de `A-Za-z0-9._:|-`), telefone (`+`, parênteses, ou só algarismos com 10 a 14
+  dígitos, que também cobre CPF e CNPJ) e qualquer id acima de 128 caracteres.
+- **`kmplib-auth`:** o `OwnAuthTokenManager` publica o `sub` (`accountId`) sempre que a CONTA muda: login,
+  restauração do cofre, troca de conta, logout, `clear` e refresh recusado pelo servidor. Renovação e perfil não
+  republicam. Se o `sub` for um e-mail, ele não sai do aparelho.
+- **`kmplib-firebase`:** o `AuthRepository` publica o `uid` a cada emissão do estado de login, enquanto o app observa
+  `currentUser`/`isLoggedIn`. App que nunca observa chama `SignedInAccount.publish(uid)`.
+- **`kmplib-observability`:** `CrashReporterConfig.followSignedInAccount = true` (novo, padrão). O `CrashReporter`
+  segue a conta publicada sem precisar de `setUser`. **Correção:** `setUser` chamado antes do `init` deixou de ser
+  descartado. Até a 2.363.0 o reporter ainda inativo jogava o pedido fora e todo erro saía anônimo. Agora ele fica
+  guardado e vale quando o reporter liga. `setUser` com id que não é opaco é recusado (o evento sai anônimo e um aviso
+  vai ao log, sem o valor). O `RecordingCrashReporter` segue a mesma regra (`CrashUserBinding`, interno).
+- **App com outro caminho de login** (backend próprio sem own-auth): uma linha no observador de sessão,
+  `SignedInAccount.publish(user?.id)`. O `crashReporter.setUser(user?.id)` manual continua valendo e é idempotente
+  com o automático.
+
 ## 2.363.0 — `kmplib-push`: o toque de campanha é só do `PushTapHost`; `PushActivityHooks` no Android
 
 **Corrige defeito visto pelo usuário (piso em `docs/pisos.yaml`, quem usa `PushTapHost`).** Revisão das notificações

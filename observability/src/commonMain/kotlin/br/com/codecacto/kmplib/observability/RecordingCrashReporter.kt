@@ -24,8 +24,11 @@ class RecordingCrashReporter : CrashReporter {
     val messages = mutableListOf<Message>()
     val breadcrumbs = mutableListOf<Breadcrumb>()
     val tags = mutableMapOf<String, String>()
+    /** O usuário que o reporter real estaria mandando (só id opaco; `null` = anônimo ou inativo). */
     var currentUserId: String? = null
         private set
+
+    private val user = CrashUserBinding { id -> currentUserId = id }
 
     data class Message(
         val message: String,
@@ -40,6 +43,12 @@ class RecordingCrashReporter : CrashReporter {
     override fun init(config: CrashReporterConfig) {
         initializedConfig = config
         active = config.enabled && config.dsn.isNotBlank()
+        if (active) {
+            user.activate(follow = config.followSignedInAccount)
+        } else {
+            user.deactivate()
+            currentUserId = null
+        }
     }
 
     override fun captureException(throwable: Throwable, tags: Map<String, String>) {
@@ -63,13 +72,11 @@ class RecordingCrashReporter : CrashReporter {
     }
 
     override fun setUser(id: String?) {
-        if (!active) return
-        currentUserId = id?.takeIf { it.isNotBlank() }
+        user.set(id)
     }
 
     override fun clearUser() {
-        if (!active) return
-        currentUserId = null
+        user.set(null)
     }
 
     override fun setTag(key: String, value: String) {
