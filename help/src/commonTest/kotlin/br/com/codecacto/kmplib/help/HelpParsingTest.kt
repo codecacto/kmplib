@@ -170,6 +170,79 @@ class HelpParsingTest {
     }
 
     @Test
+    fun `pedirDetalhes so vale com sem_resposta e ausente e falso`() {
+        assertEquals(
+            HelpReply(HelpAnswer.NotFound, needsDetails = true),
+            parseHelpReply("""{"resultado":"sem_resposta","fluxo":null,"pedirDetalhes":true}"""),
+        )
+        assertEquals(HelpReply(HelpAnswer.NotFound), parseHelpReply("""{"resultado":"sem_resposta","fluxo":null}"""))
+        assertEquals(
+            HelpReply(HelpAnswer.NotFound),
+            parseHelpReply("""{"resultado":"sem_resposta","pedirDetalhes":"sim"}"""),
+            "valor fora de booleano conta como falso",
+        )
+        val fluxo = """{"id":"f","slug":"s","titulo":"T"}"""
+        val withFlow = assertNotNull(parseHelpReply("""{"resultado":"texto","fluxo":$fluxo,"pedirDetalhes":true}"""))
+        assertIs<HelpAnswer.Found>(withFlow.answer)
+        assertFalse(withFlow.needsDetails, "pedirDetalhes não esconde uma resposta")
+        assertNull(parseHelpReply("nao e json"))
+    }
+
+    @Test
+    fun `parse antigo da resposta continua igual com o campo novo`() {
+        assertEquals(
+            HelpAnswer.NotFound,
+            parseHelpAnswer("""{"resultado":"sem_resposta","fluxo":null,"pedirDetalhes":true}"""),
+        )
+        val fluxo = """{"id":"f","slug":"s","titulo":"T"}"""
+        assertIs<HelpAnswer.Found>(parseHelpAnswer("""{"resultado":"video","fluxo":$fluxo,"pedirDetalhes":false}"""))
+    }
+
+    @Test
+    fun `needsDetails com resposta encontrada nao existe`() {
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            HelpReply(HelpAnswer.Found(HelpFlow("f", "s", "T", null, emptyList(), null, null)), needsDetails = true)
+        }
+    }
+
+    private fun capture(onBody: (String) -> Unit, response: String = """{"resultado":"sem_resposta","fluxo":null,"pedirDetalhes":true}""") =
+        MockEngine { request ->
+            onBody((request.body as TextContent).text)
+            respond(response, HttpStatusCode.OK, jsonHeader)
+        }
+
+    @Test
+    fun `pergunta unica nao manda historico`() = runTest {
+        var body = ""
+        source(capture({ body = it })).ask("como cancelo?")
+        assertFalse(Json.parseToJsonElement(body).jsonObject.containsKey("historico"))
+    }
+
+    @Test
+    fun `conversa manda historico vazio na primeira pergunta e le pedirDetalhes`() = runTest {
+        var body = ""
+        val result = source(capture({ body = it })).ask("como cancelo?", emptyList())
+        val json = Json.parseToJsonElement(body).jsonObject
+        assertEquals(0, assertIs<kotlinx.serialization.json.JsonArray>(json["historico"]).size)
+        assertEquals(HelpReply(HelpAnswer.NotFound, needsDetails = true), assertIs<ApiResult.Success<HelpReply>>(result).data)
+    }
+
+    @Test
+    fun `historico vai com os ultimos 5, pergunta cortada em 300 e fluxo nulo omitido`() = runTest {
+        var body = ""
+        val history = (1..7).map { HelpHistoryTurn("  pergunta $it  ", if (it % 2 == 0) "fluxo-$it" else null) } +
+            HelpHistoryTurn("x".repeat(400), "longa")
+        source(capture({ body = it })).ask("e agora?", history)
+        val turns = assertIs<kotlinx.serialization.json.JsonArray>(Json.parseToJsonElement(body).jsonObject["historico"])
+        assertEquals(HELP_HISTORY_MAX_TURNS, turns.size)
+        val first = turns[0].jsonObject
+        assertEquals("pergunta 4", first["pergunta"]?.jsonPrimitive?.content)
+        assertEquals("fluxo-4", first["fluxo"]?.jsonPrimitive?.content)
+        assertFalse(turns[1].jsonObject.containsKey("fluxo"), "fluxo nulo é omitido; o servidor lê ausente como null")
+        assertEquals(HELP_QUESTION_MAX_LENGTH, turns[4].jsonObject["pergunta"]?.jsonPrimitive?.content?.length)
+    }
+
+    @Test
     fun `erro HTTP e corpo fora do contrato viram erro, sem lancar`() = runTest {
         val down = MockEngine { respondError(HttpStatusCode.TooManyRequests) }
         assertIs<ApiResult.Error>(source(down).ask("como cancelo?"))

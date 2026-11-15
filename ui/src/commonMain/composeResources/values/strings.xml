@@ -953,6 +953,12 @@
     <string name="kmplib_help_library_videos">Vídeos</string>
     <string name="kmplib_help_library_flows">Como fazer</string>
     <string name="kmplib_help_refresh_failed">Não foi possível atualizar.</string>
+    <string name="kmplib_help_new_conversation">Nova conversa</string>
+    <string name="kmplib_help_needs_details">Não entendi, pode explicar melhor?</string>
+    <string name="kmplib_help_searching">Buscando…</string>
+    <string name="kmplib_help_see_steps">Ver passo a passo</string>
+    <string name="kmplib_help_retry">Tentar de novo</string>
+    <string name="kmplib_help_you_asked">Você perguntou</string>
     <!-- Botão de WhatsApp do cliente (ui/components/WhatsAppIconButton.kt, 2.354.0). %1$s = nome do cliente. -->
     <string name="kmplib_whatsapp_chat">Conversar no WhatsApp</string>
     <string name="kmplib_whatsapp_chat_with">Conversar no WhatsApp com %1$s</string>

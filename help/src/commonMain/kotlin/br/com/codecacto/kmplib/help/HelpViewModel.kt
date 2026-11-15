@@ -7,50 +7,47 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Estado da [HelpScreen].
+ * Estado da [HelpScreen]: uma CONVERSA (2.367.0). Cada pergunta vira um turno; a resposta é sempre um fluxo
+ * escrito (nada gerado) ou "sem resposta".
  *
- * Só a pergunta mais recente pode preencher a tela: cada nova pergunta, edição do campo ou escolha de
- * sugestão avança [askGeneration], e a resposta de uma geração antiga é descartada ainda que o servidor
- * responda depois.
+ * - Toda pergunta leva o histórico dos turnos anteriores ([HelpSource.ask] com histórico): só os que tiveram
+ *   resposta do servidor (achou ou não achou), nunca os que falharam por rede; a fonte corta nos últimos 5.
+ * - A conversa mora na memória do processo ([HelpConversationMemory]): o ViewModel morre ao sair da tela, a
+ *   conversa não. Pergunta que estava no ar quando a tela fechou volta como falha, com "Tentar de novo".
+ * - Anti-corrida: um envio por vez (o segundo toque é ignorado enquanto o primeiro espera), e "Nova conversa"
+ *   avança [askGeneration] — a resposta de uma geração antiga é descartada ainda que o servidor responda depois.
  */
-class HelpViewModel(private val source: HelpSource) : BaseViewModel<HelpState, HelpAction, Nothing>(HelpState()) {
+class HelpViewModel internal constructor(
+    private val source: HelpSource,
+    private val conversation: HelpConversationMemory,
+) : BaseViewModel<HelpState, HelpAction, Nothing>(HelpState()) {
+
+    /** Conversa só deste ViewModel, sem sobreviver a ele (a [HelpScreen] usa a da memória do processo). */
+    constructor(source: HelpSource) : this(source, HelpConversationMemory())
 
     private var askGeneration = 0L
     private var askJob: Job? = null
-    private var askedQuestion: String? = null
 
     init {
+        val restored = conversation.read().map { turn ->
+            if (turn.status == HelpTurnStatus.Asking) turn.copy(status = HelpTurnStatus.Failed) else turn
+        }
+        if (restored.isNotEmpty()) setTurns(restored)
         loadSuggestions()
     }
 
     override fun onAction(action: HelpAction) {
         when (action) {
-            is HelpAction.QuestionChanged -> onQuestionChanged(action.text)
+            is HelpAction.QuestionChanged -> updateState {
+                it.copy(question = action.text.take(HELP_QUESTION_MAX_LENGTH), questionError = false)
+            }
             HelpAction.Submit -> submit()
-            is HelpAction.SuggestionSelected -> {
-                invalidateAsk()
-                updateState { it.copy(answer = HelpAnswerState.Found(action.flow), questionError = false) }
-            }
-            HelpAction.ClearAnswer -> {
-                invalidateAsk()
-                updateState { it.copy(question = "", questionError = false, answer = HelpAnswerState.Idle) }
-            }
-            HelpAction.RetryAsk -> askedQuestion?.let(::ask)
+            is HelpAction.SuggestionSelected -> selectSuggestion(action.flow)
+            HelpAction.ClearAnswer, HelpAction.NewConversation -> newConversation()
+            HelpAction.RetryAsk -> retryLast()
             HelpAction.RetryLoad -> loadSuggestions()
-        }
-    }
-
-    private fun onQuestionChanged(text: String) {
-        val limited = text.take(HELP_QUESTION_MAX_LENGTH)
-        // Espaço no fim não muda o que foi perguntado; qualquer outra edição torna a resposta alheia ao campo.
-        val staleAnswer = limited.trim() != askedQuestion
-        if (staleAnswer) invalidateAsk()
-        updateState {
-            it.copy(
-                question = limited,
-                questionError = false,
-                answer = if (staleAnswer) HelpAnswerState.Idle else it.answer,
-            )
+            is HelpAction.OpenFlow -> updateState { it.copy(openFlow = action.flow) }
+            HelpAction.CloseFlow -> updateState { it.copy(openFlow = null) }
         }
     }
 
@@ -60,35 +57,62 @@ class HelpViewModel(private val source: HelpSource) : BaseViewModel<HelpState, H
             updateState { it.copy(questionError = true) }
             return
         }
-        if (currentState.answer == HelpAnswerState.Asking && question == askedQuestion) return
-        ask(question)
+        if (currentState.isAsking) return
+        val turn = HelpTurn(id = conversation.newTurnId(), question = question, status = HelpTurnStatus.Asking)
+        val history = historyBefore(currentState.turns)
+        updateState { it.copy(question = "", questionError = false) }
+        setTurns(currentState.turns + turn)
+        ask(turn, history)
     }
 
-    private fun ask(question: String) {
-        invalidateAsk()
+    private fun selectSuggestion(flow: HelpFlow) {
+        if (currentState.isAsking) return
+        val turn = HelpTurn(id = conversation.newTurnId(), question = flow.title, status = HelpTurnStatus.Found(flow))
+        setTurns(currentState.turns + turn)
+    }
+
+    private fun retryLast() {
+        val last = currentState.turns.lastOrNull() ?: return
+        if (last.status != HelpTurnStatus.Failed) return
+        val history = historyBefore(currentState.turns.dropLast(1))
+        setTurns(currentState.turns.dropLast(1) + last.copy(status = HelpTurnStatus.Asking))
+        ask(last, history)
+    }
+
+    private fun ask(turn: HelpTurn, history: List<HelpHistoryTurn>) {
+        askGeneration++
+        askJob?.cancel()
         val generation = askGeneration
-        askedQuestion = question
-        updateState { it.copy(answer = HelpAnswerState.Asking, questionError = false) }
         askJob = viewModelScope.launch {
-            val result = source.ask(question)
+            val result = source.ask(turn.question, history)
             if (generation != askGeneration) return@launch
-            updateState { it.copy(answer = result.toAnswerState()) }
+            val status = result.toTurnStatus()
+            setTurns(currentState.turns.map { if (it.id == turn.id) it.copy(status = status) else it })
         }
     }
 
-    private fun invalidateAsk() {
+    private fun newConversation() {
         askGeneration++
         askJob?.cancel()
         askJob = null
-        askedQuestion = null
+        conversation.clear()
+        updateState { it.copy(question = "", questionError = false, openFlow = null) }
+        setTurns(emptyList())
     }
 
-    private fun ApiResult<HelpAnswer>.toAnswerState(): HelpAnswerState = when (this) {
-        is ApiResult.Success -> when (val answer = data) {
-            is HelpAnswer.Found -> HelpAnswerState.Found(answer.flow)
-            HelpAnswer.NotFound -> HelpAnswerState.NotFound
+    /** Grava na memória (com o teto) e publica, recalculando o resumo [HelpState.answer]. */
+    private fun setTurns(turns: List<HelpTurn>) {
+        conversation.write(turns)
+        val kept = conversation.read()
+        updateState { it.copy(turns = kept, answer = kept.lastOrNull().toAnswerState()) }
+    }
+
+    private fun ApiResult<HelpReply>.toTurnStatus(): HelpTurnStatus = when (this) {
+        is ApiResult.Success -> when (val answer = data.answer) {
+            is HelpAnswer.Found -> HelpTurnStatus.Found(answer.flow)
+            HelpAnswer.NotFound -> HelpTurnStatus.NotFound(needsDetails = data.needsDetails)
         }
-        is ApiResult.Error, ApiResult.Loading -> HelpAnswerState.Failed
+        is ApiResult.Error, ApiResult.Loading -> HelpTurnStatus.Failed
     }
 
     private fun loadSuggestions() {
@@ -110,6 +134,23 @@ class HelpViewModel(private val source: HelpSource) : BaseViewModel<HelpState, H
     private companion object {
         const val HELP_SUGGESTION_COUNT = 5
     }
+}
+
+/** Os turnos que vão ao servidor como contexto: os que ele respondeu, nunca os que falharam ou esperam. */
+internal fun historyBefore(turns: List<HelpTurn>): List<HelpHistoryTurn> = turns.mapNotNull { turn ->
+    when (val status = turn.status) {
+        is HelpTurnStatus.Found -> HelpHistoryTurn(turn.question, status.flow.slug)
+        is HelpTurnStatus.NotFound -> HelpHistoryTurn(turn.question, null)
+        HelpTurnStatus.Asking, HelpTurnStatus.Failed -> null
+    }
+}.takeLast(HELP_HISTORY_MAX_TURNS)
+
+private fun HelpTurn?.toAnswerState(): HelpAnswerState = when (val status = this?.status) {
+    null -> HelpAnswerState.Idle
+    HelpTurnStatus.Asking -> HelpAnswerState.Asking
+    is HelpTurnStatus.Found -> HelpAnswerState.Found(status.flow)
+    is HelpTurnStatus.NotFound -> HelpAnswerState.NotFound
+    HelpTurnStatus.Failed -> HelpAnswerState.Failed
 }
 
 /** Estado da [HelpLibraryScreen]. A carga mais recente vence, como na pergunta da ajuda. */

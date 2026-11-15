@@ -943,6 +943,12 @@
     <string name="kmplib_help_library_videos">Videos</string>
     <string name="kmplib_help_library_flows">How to</string>
     <string name="kmplib_help_refresh_failed">We couldn\'t refresh.</string>
+    <string name="kmplib_help_new_conversation">New conversation</string>
+    <string name="kmplib_help_needs_details">I didn\'t understand. Could you explain a bit more?</string>
+    <string name="kmplib_help_searching">Searching…</string>
+    <string name="kmplib_help_see_steps">See step by step</string>
+    <string name="kmplib_help_retry">Try again</string>
+    <string name="kmplib_help_you_asked">You asked</string>
     <string name="kmplib_whatsapp_chat">Chat on WhatsApp</string>
     <string name="kmplib_whatsapp_chat_with">Chat on WhatsApp with %1$s</string>
     <!-- Seção "Notificações" de Configurações (push/ui/NotificationSettingsSection.kt, 2.360.0). -->

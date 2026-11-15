@@ -5,6 +5,40 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.367.0 — `kmplib-help`: a ajuda vira CONVERSA (bolhas, histórico, "Não entendi, pode explicar melhor?")
+
+**Aditivo, nada a fazer em app existente** — a `HelpScreen` tem a mesma assinatura e passa a conversar sozinha.
+Par do servidor: `POST /public/ajuda/perguntar` com `historico` (apps-api) e da conversa da weblib.
+
+- **Tela:** bolhas (pergunta à direita, resposta à esquerda); resposta = título + texto do fluxo (o resumo se o texto
+  vier vazio) + vídeo quando houver + **"Ver passo a passo"**, que abre o fluxo inteiro (o detalhe de antes) e volta à
+  conversa na mesma posição; "Buscando…" e o erro (com "Tentar de novo", só no turno mais recente) como bolha;
+  campo fixo embaixo (`imePadding` sem somar o banner/barra de gestos, texto no campo e fora do estado salvo,
+  3–300 caracteres como antes); rolagem até a pergunta mais recente (`LazyColumn` + `animateScrollToItem`); conversa
+  vazia mostra as sugestões; "Falar com o suporte" e "Ver a Biblioteca" seguem no fim da lista, e o "sem resposta" traz
+  o suporte dentro da bolha. **"Nova conversa"** no top bar. O texto mostrado é sempre o do fluxo — nada gerado.
+- **A conversa sobrevive a sair e voltar à ajuda** na mesma sessão do app: memória do processo, nunca disco, por
+  projeto+perfil+idioma, teto de **`HELP_CONVERSATION_MAX_TURNS` = 30** turnos. Some com "Nova conversa", o fim do
+  processo ou **`clearHelpConversations()`** — chame no logout. Pergunta que estava no ar quando a tela fechou volta
+  como falha, com "Tentar de novo".
+- **Contrato:** toda pergunta da tela manda `historico` (lista vazia na 1ª — é o que liga o modo conversa):
+  os turnos ANTERIORES que o servidor respondeu (`{pergunta, fluxo: slug | ausente}`), sem os que falharam por rede, no
+  máximo os últimos **`HELP_HISTORY_MAX_TURNS` = 5**, cada pergunta cortada em 300. A resposta lê o novo
+  `pedirDetalhes` (ausente = `false`; só vale com `sem_resposta`).
+- **API nova:** `HelpSource.ask(question, history: List<HelpHistoryTurn>): ApiResult<HelpReply>` — **com default** que
+  cai no `ask(question)`, então implementação/dublê própria continua compilando; `HelpReply(answer: HelpAnswer,
+  needsDetails: Boolean = false)`; `HelpHistoryTurn(question, flowSlug)`; `HelpTurn(id, question, status)` +
+  `HelpTurnStatus` (`Asking`/`Found`/`NotFound(needsDetails)`/`Failed`); `HelpState.turns`/`openFlow`/`isAsking`;
+  ações `NewConversation`/`OpenFlow(flow)`/`CloseFlow`; `HelpTexts` `newConversation`/`needsDetails`/`searching`/
+  `seeSteps`/`retry`/`youAsked` (4 idiomas); `HelpTestTags` `CONVERSATION`, `NEW_CONVERSATION_BUTTON`, `ASKING`,
+  `NEEDS_DETAILS`, `ASK_ERROR`, `RETRY_BUTTON`, `SEE_STEPS_BUTTON`, `FLOW_DETAIL`, `SUPPORT_IN_ANSWER_BUTTON`,
+  `questionBubble(id)`/`answerBubble(id)`.
+- **Mantido:** `HelpAnswer` (`Found`/`NotFound`) e `HelpSource.ask(question)` iguais (pergunta única, sem `historico`);
+  `HelpState.answer` continua, derivado do turno mais recente; `HelpAction.ClearAnswer` = "Nova conversa".
+- **Mudou de comportamento (tela):** voltar sai da ajuda (antes limpava a resposta) — a conversa fica; editar o
+  campo não apaga mais a resposta; enviar com uma pergunta no ar é ignorado até ela voltar; o botão "Perguntar" virou
+  o ícone de enviar ao lado do campo (mesmo id `ajuda-btn-perguntar`).
+
 ## 2.366.0 — o 429 do own-auth diz em quantos minutos tentar de novo (`Retry-After`)
 
 **Aditivo, nada a fazer em app existente.** Pedido do FotuNex (`docs/backlog.md`, 15/nov/2026): o portal mostra

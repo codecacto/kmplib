@@ -77,6 +77,37 @@ sealed interface HelpAnswer {
     data object NotFound : HelpAnswer
 }
 
+/**
+ * Resposta a uma pergunta feita DENTRO de uma conversa ([HelpSource.ask] com histórico, 2.367.0).
+ *
+ * [needsDetails] só pode ser `true` com [HelpAnswer.NotFound]: o servidor achou a pergunta vaga demais e a tela
+ * pede para explicar melhor ("Não entendi, pode explicar melhor?") em vez de "Não encontrei isso aqui". Nos dois
+ * casos, o suporte continua oferecido. O texto mostrado é sempre o do fluxo: nada é gerado.
+ */
+data class HelpReply(
+    val answer: HelpAnswer,
+    val needsDetails: Boolean = false,
+) {
+    init {
+        require(!needsDetails || answer == HelpAnswer.NotFound) { "needsDetails só existe com HelpAnswer.NotFound" }
+    }
+}
+
+/**
+ * Um turno ANTERIOR da conversa, como vai ao servidor: a pergunta e o **slug** do fluxo que a respondeu (`null`
+ * = ficou sem resposta). Turno com erro de rede não entra no histórico.
+ */
+data class HelpHistoryTurn(
+    val question: String,
+    val flowSlug: String?,
+) {
+    /** A pergunta é texto livre: pode trazer dado pessoal, e não vai para log. */
+    override fun toString(): String = "HelpHistoryTurn(flowSlug=$flowSlug)"
+}
+
+/** Quantos turnos anteriores o cliente manda no máximo (o servidor recusa acima de 10 e usa os últimos 5). */
+const val HELP_HISTORY_MAX_TURNS: Int = 5
+
 internal val HelpJson: Json = Json {
     ignoreUnknownKeys = true
     isLenient = false
@@ -172,12 +203,21 @@ internal fun parseHelpCatalog(body: String): HelpCatalog? {
  * desconhecido com um fluxo válido conta como resposta: versão nova do servidor não apaga a resposta do
  * app já publicado.
  */
-internal fun parseHelpAnswer(body: String): HelpAnswer? {
+internal fun parseHelpAnswer(body: String): HelpAnswer? = parseHelpReply(body)?.answer
+
+/**
+ * Mesma leitura de [parseHelpAnswer], com o `pedirDetalhes` (2.367.0): ausente ou fora de booleano = `false`, e
+ * só vale com `resultado = sem_resposta` — servidor que mandar `true` junto de um fluxo não esconde a resposta.
+ */
+internal fun parseHelpReply(body: String): HelpReply? {
     val root = parseObject(body) ?: return null
     val resultado = (root["resultado"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: return null
-    if (resultado == RESULTADO_SEM_RESPOSTA) return HelpAnswer.NotFound
+    if (resultado == RESULTADO_SEM_RESPOSTA) {
+        val pedirDetalhes = (root["pedirDetalhes"] as? kotlinx.serialization.json.JsonPrimitive)?.booleanOrNull ?: false
+        return HelpReply(HelpAnswer.NotFound, needsDetails = pedirDetalhes)
+    }
     val flow = root["fluxo"]?.takeIf { it !is JsonNull }?.let(::decodeFlow)
-    return if (flow != null) HelpAnswer.Found(flow) else HelpAnswer.NotFound
+    return HelpReply(if (flow != null) HelpAnswer.Found(flow) else HelpAnswer.NotFound)
 }
 
 private const val RESULTADO_SEM_RESPOSTA = "sem_resposta"
@@ -189,7 +229,31 @@ internal data class HelpAskRequest(
     val surface: String,
     val lang: String,
     val pergunta: String,
+    /**
+     * Turnos anteriores (mais antigo primeiro). `null` = não manda o campo: o modo de pergunta única de antes.
+     * Lista vazia É mandada (`[]`) e liga o modo conversa no servidor.
+     */
+    val historico: List<HelpAskHistoryTurn>? = null,
 ) {
     /** A pergunta é texto livre: pode trazer dado pessoal, e não vai para log. */
-    override fun toString(): String = "HelpAskRequest(project=$project, perfil=$perfil, surface=$surface, lang=$lang)"
+    override fun toString(): String =
+        "HelpAskRequest(project=$project, perfil=$perfil, surface=$surface, lang=$lang, historico=${historico?.size})"
 }
+
+/** `fluxo` nulo é omitido (`explicitNulls = false`): o servidor lê ausente como `null`. */
+@Serializable
+internal data class HelpAskHistoryTurn(
+    val pergunta: String,
+    val fluxo: String? = null,
+) {
+    override fun toString(): String = "HelpAskHistoryTurn(fluxo=$fluxo)"
+}
+
+/** Os últimos [HELP_HISTORY_MAX_TURNS], cada pergunta aparada e cortada no teto do contrato. */
+internal fun List<HelpHistoryTurn>.toWireHistory(): List<HelpAskHistoryTurn> =
+    takeLast(HELP_HISTORY_MAX_TURNS).map { turn ->
+        HelpAskHistoryTurn(
+            pergunta = turn.question.trim().take(HELP_QUESTION_MAX_LENGTH),
+            fluxo = turn.flowSlug?.trim()?.takeIf { it.isNotEmpty() },
+        )
+    }

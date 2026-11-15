@@ -12,7 +12,10 @@ enum class HelpContentStatus {
     Failed,
 }
 
-/** O que a tela mostra como resposta à dúvida. */
+/**
+ * A resposta do turno MAIS RECENTE da conversa (o modelo de "uma pergunta → uma resposta" de antes da 2.367.0).
+ * A tela desenha [HelpState.turns]; este resumo segue derivado para quem o lia.
+ */
 sealed interface HelpAnswerState {
     data object Idle : HelpAnswerState
     data object Asking : HelpAnswerState
@@ -21,15 +24,56 @@ sealed interface HelpAnswerState {
     data object Failed : HelpAnswerState
 }
 
+/** Como está a resposta de um turno da conversa (2.367.0). */
+sealed interface HelpTurnStatus {
+    /** Esperando o servidor: a bolha diz "Buscando…". */
+    data object Asking : HelpTurnStatus
+
+    /** O fluxo que responde: título, texto (ou resumo), vídeo e "Ver passo a passo". */
+    data class Found(val flow: HelpFlow) : HelpTurnStatus
+
+    /**
+     * Nenhum fluxo responde. [needsDetails] = a pergunta ficou vaga ("Não entendi, pode explicar melhor?");
+     * senão "Não encontrei isso aqui". Nos dois, "Falar com o suporte".
+     */
+    data class NotFound(val needsDetails: Boolean = false) : HelpTurnStatus
+
+    /** Erro de rede ou resposta ilegível: a bolha oferece "Tentar de novo". Não entra no histórico. */
+    data object Failed : HelpTurnStatus
+}
+
+/**
+ * Um turno da conversa: a pergunta (bolha à direita) e a resposta (bolha à esquerda).
+ *
+ * @property id crescente na conversa, estável enquanto ela existe — chave da lista e do `testTag`.
+ */
+data class HelpTurn(
+    val id: Long,
+    val question: String,
+    val status: HelpTurnStatus,
+) {
+    /** A pergunta é texto livre: pode trazer dado pessoal, e não vai para log. */
+    override fun toString(): String = "HelpTurn(id=$id, status=${status::class.simpleName})"
+}
+
 data class HelpState(
     val question: String = "",
     val questionError: Boolean = false,
     val status: HelpContentStatus = HelpContentStatus.Loading,
     val suggestions: List<HelpFlow> = emptyList(),
+    /** Resumo do turno mais recente; derivado de [turns]. */
     val answer: HelpAnswerState = HelpAnswerState.Idle,
+    /** A conversa, mais antigo primeiro (2.367.0). Vazia = a tela mostra as sugestões. */
+    val turns: List<HelpTurn> = emptyList(),
+    /** Fluxo aberto inteiro pelo "Ver passo a passo"; `null` = a conversa está à vista (2.367.0). */
+    val openFlow: HelpFlow? = null,
 ) {
+    /** Há uma pergunta esperando o servidor: um novo envio é ignorado até ela voltar. */
+    val isAsking: Boolean get() = turns.lastOrNull()?.status == HelpTurnStatus.Asking
+
     /** A pergunta é texto livre: pode trazer dado pessoal, e não vai para log. */
-    override fun toString(): String = "HelpState(status=$status, answer=${answer::class.simpleName})"
+    override fun toString(): String =
+        "HelpState(status=$status, answer=${answer::class.simpleName}, turns=${turns.size}, openFlow=${openFlow != null})"
 }
 
 sealed interface HelpAction {
@@ -38,14 +82,25 @@ sealed interface HelpAction {
         override fun toString(): String = "QuestionChanged"
     }
     data object Submit : HelpAction
+
+    /** Sugestão tocada: entra na conversa como pergunta (o título) já respondida pelo próprio fluxo. */
     data class SuggestionSelected(val flow: HelpFlow) : HelpAction
 
-    /** Volta das respostas para as sugestões. */
+    /** Mesmo efeito de [NewConversation] (o nome de antes da 2.367.0). */
     data object ClearAnswer : HelpAction
 
-    /** Repete a última pergunta que falhou. */
+    /** Repete a pergunta do turno mais recente, quando ele falhou. */
     data object RetryAsk : HelpAction
     data object RetryLoad : HelpAction
+
+    /** Apaga a conversa (memória) e volta às sugestões (2.367.0). */
+    data object NewConversation : HelpAction
+
+    /** "Ver passo a passo": abre o fluxo inteiro por cima da conversa (2.367.0). */
+    data class OpenFlow(val flow: HelpFlow) : HelpAction
+
+    /** Fecha o fluxo aberto e volta à conversa como estava (2.367.0). */
+    data object CloseFlow : HelpAction
 }
 
 /** O que está aberto no detalhe da Biblioteca. */

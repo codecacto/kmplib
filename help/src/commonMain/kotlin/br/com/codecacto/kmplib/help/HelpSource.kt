@@ -53,7 +53,23 @@ private const val SURFACE_APP = "app"
 interface HelpSource {
     suspend fun loadCatalog(): ApiResult<HelpCatalog>
 
+    /** Pergunta única, sem conversa (o contrato de antes: o pedido não leva `historico`). */
     suspend fun ask(question: String): ApiResult<HelpAnswer>
+
+    /**
+     * Pergunta dentro de uma conversa (2.367.0): [history] são os turnos ANTERIORES, mais antigo primeiro, sem o
+     * atual e sem os que falharam por rede; lista vazia na primeira pergunta. A [RestHelpSource] manda só os
+     * últimos [HELP_HISTORY_MAX_TURNS].
+     *
+     * O default cai na pergunta única, para implementação (ou dublê) escrita antes desta versão continuar
+     * compilando e respondendo igual.
+     */
+    suspend fun ask(question: String, history: List<HelpHistoryTurn>): ApiResult<HelpReply> =
+        when (val result = ask(question)) {
+            is ApiResult.Success -> ApiResult.Success(HelpReply(result.data))
+            is ApiResult.Error -> result
+            ApiResult.Loading -> ApiResult.Loading
+        }
 }
 
 /** Sem sessão de quem está logado, sem cookie e com log no máximo INFO: as rotas são públicas. */
@@ -87,7 +103,12 @@ class RestHelpSource internal constructor(
         return parsed(result, ::parseHelpCatalog)
     }
 
-    override suspend fun ask(question: String): ApiResult<HelpAnswer> {
+    override suspend fun ask(question: String): ApiResult<HelpAnswer> = parsed(post(question, null), ::parseHelpAnswer)
+
+    override suspend fun ask(question: String, history: List<HelpHistoryTurn>): ApiResult<HelpReply> =
+        parsed(post(question, history.toWireHistory()), ::parseHelpReply)
+
+    private suspend fun post(question: String, history: List<HelpAskHistoryTurn>?): ApiResult<String> {
         val body = HelpJson.encodeToString(
             HelpAskRequest.serializer(),
             HelpAskRequest(
@@ -96,16 +117,16 @@ class RestHelpSource internal constructor(
                 surface = SURFACE_APP,
                 lang = config.languageTag(),
                 pergunta = question.trim().take(HELP_QUESTION_MAX_LENGTH),
+                historico = history,
             ),
         )
-        val result = handleApiCall {
+        return handleApiCall {
             httpClient.post(url(PATH_ASK)) {
                 expectSuccess = true
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }.bodyAsText()
         }
-        return parsed(result, ::parseHelpAnswer)
     }
 
     private fun url(path: String): String = config.appsApiBaseUrl.trimEnd('/') + path
