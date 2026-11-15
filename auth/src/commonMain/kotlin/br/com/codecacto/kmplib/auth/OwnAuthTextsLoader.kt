@@ -13,6 +13,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_error_network
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_server
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_session_expired
 import br.com.codecacto.kmplib.generated.resources.kmplib_error_too_many_attempts
+import br.com.codecacto.kmplib.generated.resources.kmplib_error_too_many_attempts_retry_one
+import br.com.codecacto.kmplib.generated.resources.kmplib_error_too_many_attempts_retry_other
 import br.com.codecacto.kmplib.ui.locale.formatStatusTemplate
 import kotlinx.coroutines.CancellationException
 import br.com.codecacto.kmplib.ui.locale.kmpGetString
@@ -32,6 +34,8 @@ import br.com.codecacto.kmplib.ui.locale.kmpGetString
 suspend fun loadOwnAuthTexts(): OwnAuthTexts =
     try {
         val servidor = kmpGetString(Res.string.kmplib_error_server)
+        val esperaUm = kmpGetString(Res.string.kmplib_error_too_many_attempts_retry_one)
+        val esperaVarios = kmpGetString(Res.string.kmplib_error_too_many_attempts_retry_other)
         OwnAuthTexts(
             invalidCredentials = kmpGetString(Res.string.kmplib_auth_invalid_credentials),
             emailAlreadyInUse = kmpGetString(Res.string.kmplib_auth_email_in_use),
@@ -45,6 +49,9 @@ suspend fun loadOwnAuthTexts(): OwnAuthTexts =
             unsupported = kmpGetString(Res.string.kmplib_auth_unsupported),
             currentPasswordIncorrect = kmpGetString(Res.string.kmplib_auth_current_password_incorrect),
             profileRejected = kmpGetString(Res.string.kmplib_auth_profile_rejected),
+            tooManyRequestsRetryIn = { minutos ->
+                if (minutos == 1L) esperaUm else esperaVarios.replace("%1\$d", minutos.toString())
+            },
         )
     } catch (e: CancellationException) {
         throw e

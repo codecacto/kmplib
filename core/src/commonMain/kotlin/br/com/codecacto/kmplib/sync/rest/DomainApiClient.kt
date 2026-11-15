@@ -8,6 +8,7 @@ import br.com.codecacto.kmplib.monetization.access.SUBSCRIPTION_BLOCK_STATUS
 import br.com.codecacto.kmplib.monetization.access.SubscriptionBlockReason
 import br.com.codecacto.kmplib.monetization.entitlement.QuotaExceeded
 import br.com.codecacto.kmplib.monetization.entitlement.parseQuotaExceeded
+import br.com.codecacto.kmplib.core.network.parseRetryAfterSeconds
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.pluginOrNull
@@ -786,8 +787,9 @@ class DomainApiClient(
                 }
                 // 2.321.0: o `Retry-After` (segundos, RFC 9110 §10.2.3) do 429/503 chega em
                 // `details.retryAfterSeconds` — a backlib escreve o recuo SÓ no cabeçalho, e o erro não
-                // carrega cabeçalhos. O valor do corpo, quando vier, vence.
-                val recuo = response.headers[HttpHeaders.RetryAfter]?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
+                // carrega cabeçalhos. O valor do corpo, quando vier, vence. Desde 2.366.0 a forma de
+                // data HTTP também vale (`parseRetryAfterSeconds`).
+                val recuo = parseRetryAfterSeconds(response.headers[HttpHeaders.RetryAfter])
                 val detalhes = envelope?.details.orEmpty().let { d ->
                     if (recuo != null && (status == 429 || status == 503) && !d.containsKey(DomainResult.RETRY_AFTER_DETAIL)) {
                         d + (DomainResult.RETRY_AFTER_DETAIL to recuo.toString())
@@ -1169,7 +1171,8 @@ sealed class DomainResult<out T> {
 
         /**
          * Quantos segundos esperar antes de repetir (2.321.0): `details.retryAfterSeconds` do corpo ou, no
-         * 429/503, o cabeçalho `Retry-After` em segundos. `null` = o servidor não disse.
+         * 429/503, o cabeçalho `Retry-After` (segundos ou, desde 2.366.0, data HTTP). `null` = o servidor
+         * não disse.
          */
         val retryAfterSeconds: Long?
             get() = (details[RETRY_AFTER_DETAIL] ?: (detail(RETRY_AFTER_DETAIL) as? JsonPrimitive)?.contentOrNull)

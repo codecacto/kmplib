@@ -3,9 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
-### Registrado em 15/nov/2026 — minutos do bloqueio do login (`Retry-After`), FotuNex
+### Registrado em 15/nov/2026 — minutos do bloqueio do login (`Retry-After`), FotuNex (entregue na 2.366.0)
 
-- [ ] **`OwnAuthException.TooManyRequests` sem o `Retry-After`.** O 429 do `POST /auth/login` vira
+- [x] **ENTREGUE na 2.366.0:** `OwnAuthException.TooManyRequests.retryAfterSeconds` (segundos ou data HTTP, pelo
+      `parseRetryAfterSeconds` do core), a `message` já com "Tente de novo em N minutos" nos 4 idiomas
+      (`OwnAuthTexts.tooManyRequestsRetryIn`/`tooManyRequestsMessage`) e `OwnAuthService.signInWithPassword` (o login
+      com o erro tipado — o `signInWithEmail` do `IAuthRepository` segue devolvendo a `AuthException` constante).
+      **`OwnAuthException.TooManyRequests` sem o `Retry-After`.** O 429 do `POST /auth/login` vira
       `TooManyRequests(texts.tooManyRequests)` (`auth/OwnAuthApi.kt:485/520/540`) e o cabeçalho se perde; o
       `DomainResult.Error.retryAfterSeconds` (2.321.0) existe, mas não chega ao own-auth. O portal mostra "Tente de novo
       em N minutos" (weblib `minutesUntilUnblock`); o app só pode dizer "em instantes". **Pedido:** `retryAfterSeconds:

@@ -5,6 +5,32 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.366.0 — o 429 do own-auth diz em quantos minutos tentar de novo (`Retry-After`)
+
+**Aditivo, nada a fazer em app existente.** Pedido do FotuNex (`docs/backlog.md`, 15/nov/2026): o portal mostra
+"Tente de novo em N minutos" no bloqueio do login, e o app só podia dizer "em instantes" — o `Retry-After` do 429 se
+perdia no `OwnAuthApi`.
+
+- **`parseRetryAfterSeconds(value, nowEpochMillis)`** (`core.network`): lê o `Retry-After` nas duas formas da
+  RFC 9110 §10.2.3 — segundos (`120`) e data HTTP (IMF-fixdate pelo `fromHttpToGmtDate` do Ktor, e as formas
+  obsoletas RFC 850 e asctime, que a RFC manda aceitar e o Ktor não lê). Data passada = `0`; fração arredonda para
+  cima; ausente/negativo/ilegível = `null`. **`retryAfterMinutesForDisplay(seconds)`** = minutos para a tela
+  (para cima, mínimo 1).
+- **`OwnAuthException.TooManyRequests(message, retryAfterSeconds: Long? = null)`**: todo 429 do own-auth (login,
+  cadastro, senha, social, perfil) traz os segundos do cabeçalho, e a `message` já vem com o prazo
+  ("Muitas tentativas. Tente de novo em 5 minutos.") no idioma da tela — o app que mostra `e.message` na
+  `LoginScreen` (`LoginState.errorMessage`) passa a mostrar os minutos sozinho. Sem cabeçalho, a frase de antes.
+  Construtor antigo `TooManyRequests(message)` segue valendo.
+- **`OwnAuthTexts.tooManyRequestsRetryIn: (minutes: Long) -> String`** (último parâmetro, com default pt-BR) +
+  **`tooManyRequestsMessage(retryAfterSeconds)`**; `loadOwnAuthTexts()` lê
+  `kmplib_error_too_many_attempts_retry_one`/`_other` (pt-BR, en, es, pt-PT).
+- **`OwnAuthService.signInWithPassword(identifier, password): Result<User>`**: o mesmo login do
+  `IAuthRepository.signInWithEmail` (adota a sessão igual), mas a falha sai como a `OwnAuthException` tipada — é o
+  caminho para ler `retryAfterSeconds`. O `signInWithEmail` continua devolvendo a `AuthException.TooManyRequests`
+  constante (data object — mudar o tipo quebraria `when` exaustivo nos apps). Default da interface: `Unsupported`.
+- **`DomainResult.Error.retryAfterSeconds`** (2.321.0) passa a aceitar também a forma de data HTTP do cabeçalho
+  (antes ignorada → `null`; agora os segundos que faltam, `0` se já passou).
+
 ## 2.365.0 — loja só com itens avulsos (`StoreItemsOnly`) e compra CONSUMÍVEL por id sob demanda
 
 **Aditivo, nada a fazer em app existente.** Pedido do FotuNex (`8-Sistemas-Portal-App/FotuNex/docs/tarefas/2026-11-14-app-igual-ao-portal.md`,

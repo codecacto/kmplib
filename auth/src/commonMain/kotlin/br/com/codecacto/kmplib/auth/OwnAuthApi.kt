@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.network.parseRetryAfterSeconds
 import br.com.codecacto.kmplib.core.network.ReauthRequiredException
 import br.com.codecacto.kmplib.core.network.RecentAuthChallenge
 import br.com.codecacto.kmplib.auth.social.SocialBrowserException
@@ -422,7 +423,16 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
             // mínimo de caracteres exigido, qual campo faltou, etc. O texto local vira fallback.
             val envelope = parseServerErrorEnvelope(runCatching { response.bodyAsText() }.getOrNull())
             socialReauthFailure(suffix, status, envelope)?.let { return Result.failure(it) }
-            Result.failure(mapStatus(texts(), suffix, status, envelope))
+            val failure = mapStatus(texts(), suffix, status, envelope)
+            Result.failure(
+                if (failure is OwnAuthException.TooManyRequests) {
+                    // 2.366.0: o prazo do bloqueio vem no `Retry-After` (segundos ou data HTTP).
+                    val seconds = parseRetryAfterSeconds(response.headers[HttpHeaders.RetryAfter])
+                    OwnAuthException.TooManyRequests(texts().tooManyRequestsMessage(seconds), seconds)
+                } else {
+                    failure
+                },
+            )
         }
     }
 

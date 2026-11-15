@@ -101,6 +101,8 @@
     <string name="kmplib_error_session_expired">La sesión expiró. Inicie sesión de nuevo.</string>
     <string name="kmplib_error_rate_limited">Demasiadas solicitudes. Inténtelo de nuevo en unos instantes.</string>
     <string name="kmplib_error_too_many_attempts">Demasiados intentos. Inténtelo de nuevo en unos instantes.</string>
+    <string name="kmplib_error_too_many_attempts_retry_one">Demasiados intentos. Inténtelo de nuevo en 1 minuto.</string>
+    <string name="kmplib_error_too_many_attempts_retry_other">Demasiados intentos. Inténtelo de nuevo en %1$d minutos.</string>
     <string name="kmplib_error_server">Error del servidor (%1$d).</string>
     <string name="kmplib_error_quota_reached">Límite alcanzado.</string>
     <string name="kmplib_auth_invalid_credentials">Correo electrónico o contraseña incorrectos.</string>

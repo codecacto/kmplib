@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.auth
 
+import br.com.codecacto.kmplib.core.network.retryAfterMinutesForDisplay
 import br.com.codecacto.kmplib.core.network.DefaultHttpClientJson
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
@@ -157,7 +158,26 @@ data class OwnAuthTexts(
      * explica o motivo (nome vazio/longo, usuário em uso) e é a frase dela que vai para o campo.
      */
     val profileRejected: String = "Não foi possível salvar as alterações do perfil.",
-)
+    /**
+     * 429 **com prazo** (2.366.0): o servidor mandou `Retry-After`, e a frase diz em quantos minutos
+     * tentar de novo. Recebe os minutos já arredondados para cima (mínimo 1 —
+     * `retryAfterMinutesForDisplay`). Sem `Retry-After`, vale [tooManyRequests].
+     */
+    val tooManyRequestsRetryIn: (minutes: Long) -> String = { minutes ->
+        if (minutes == 1L) {
+            "Muitas tentativas. Tente de novo em 1 minuto."
+        } else {
+            "Muitas tentativas. Tente de novo em $minutes minutos."
+        }
+    },
+) {
+    /**
+     * A frase do 429: com [retryAfterSeconds] conhecido, "Tente de novo em N minutos"
+     * ([tooManyRequestsRetryIn]); sem ele, a frase sem prazo ([tooManyRequests]).
+     */
+    fun tooManyRequestsMessage(retryAfterSeconds: Long?): String =
+        retryAfterSeconds?.let { tooManyRequestsRetryIn(retryAfterMinutesForDisplay(it)) } ?: tooManyRequests
+}
 
 /**
  * Exceção tipada do fluxo own-auth. [code] carrega o status HTTP (ou [OFFLINE_CODE] para falha de
@@ -169,7 +189,18 @@ sealed class OwnAuthException(override val message: String, val code: Int) : Exc
     class EmailAlreadyInUse(message: String) : OwnAuthException(message, 409)
     class WeakPassword(message: String) : OwnAuthException(message, 422)
     class InvalidResetToken(message: String) : OwnAuthException(message, 400)
-    class TooManyRequests(message: String) : OwnAuthException(message, 429)
+    /**
+     * 429 — excesso de tentativas.
+     *
+     * @property retryAfterSeconds quantos segundos o servidor mandou esperar, lido do cabeçalho
+     *   `Retry-After` (segundos **ou** data HTTP, 2.366.0); `null` = o servidor não disse. Com ele, a
+     *   [message] já vem com o prazo ("Tente de novo em 5 minutos"); para montar outra frase, use
+     *   `retryAfterMinutesForDisplay(retryAfterSeconds)`.
+     */
+    class TooManyRequests(
+        message: String,
+        val retryAfterSeconds: Long? = null,
+    ) : OwnAuthException(message, 429)
     class Server(message: String, code: Int) : OwnAuthException(message, code)
     class Network(message: String) : OwnAuthException(message, OFFLINE_CODE)
     class NotAuthenticated(message: String) : OwnAuthException(message, 401)

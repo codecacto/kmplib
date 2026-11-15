@@ -63,6 +63,9 @@ class EmailPasswordAuthRepository(
     override suspend fun signInWithEmail(email: String, password: String): Result<User> =
         api.login(email, password).mapAndAdopt(email)
 
+    override suspend fun signInWithPassword(identifier: String, password: String): Result<User> =
+        api.login(identifier, password).mapAndAdopt(identifier, keepOwnAuthErrors = true)
+
     override suspend fun getIdToken(forceRefresh: Boolean): Result<String> {
         val token = tokenManager.accessToken(forceRefresh)
             ?: return Result.failure(AuthException.NotAuthenticated)
@@ -385,6 +388,8 @@ class EmailPasswordAuthRepository(
         email: String,
         name: String = "",
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
+        /** `true` = a falha sai como veio do [OwnAuthApi] ([OwnAuthException] tipada, 2.366.0). */
+        keepOwnAuthErrors: Boolean = false,
     ): Result<User> =
         fold(
             onSuccess = { tokens ->
@@ -395,7 +400,7 @@ class EmailPasswordAuthRepository(
                     tokenManager.session.value?.toUser() ?: fallbackUser(email, name, providerId)
                 )
             },
-            onFailure = { Result.failure(it.toAuthException()) },
+            onFailure = { Result.failure(if (keepOwnAuthErrors) it else it.toAuthException()) },
         )
 
     private fun <T> Result<T>.mapAuthError(): Result<T> =

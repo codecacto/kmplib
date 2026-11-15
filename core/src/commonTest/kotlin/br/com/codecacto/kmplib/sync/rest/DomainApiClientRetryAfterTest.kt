@@ -36,11 +36,12 @@ class DomainApiClientRetryAfterTest {
     }
 
     @Test
-    fun `o valor do corpo vence o cabecalho e data HTTP e ignorada`() = runTest {
+    fun `o valor do corpo vence o cabecalho e data HTTP no passado vira zero`() = runTest {
         val corpo = cliente(HttpStatusCode.TooManyRequests, """{"message":"x","details":{"retryAfterSeconds":"7"}}""", "42").getJson("/x")
         assertEquals(7L, assertIs<DomainResult.Error>(corpo).retryAfterSeconds)
         val data = cliente(HttpStatusCode.ServiceUnavailable, """{"message":"x"}""", "Wed, 21 Oct 2026 07:28:00 GMT").getJson("/x")
-        assertNull(assertIs<DomainResult.Error>(data).retryAfterSeconds)
+        // 2.366.0: a forma de data HTTP passou a valer (RFC 9110 §10.2.3); esta data já passou.
+        assertEquals(0L, assertIs<DomainResult.Error>(data).retryAfterSeconds)
     }
 
     @Test

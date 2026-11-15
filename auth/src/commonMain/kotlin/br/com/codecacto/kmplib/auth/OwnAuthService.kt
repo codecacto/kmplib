@@ -60,6 +60,31 @@ interface OwnAuthService {
     suspend fun requestPasswordReset(email: String): Result<Unit>
 
     /**
+     * **Login por usuário ou e-mail + senha com o erro TIPADO** (2.366.0) — o mesmo login do
+     * `IAuthRepository.signInWithEmail` (adota a sessão do mesmo jeito), mas a falha chega como a
+     * [OwnAuthException] do [OwnAuthApi], no idioma da tela, em vez da `AuthException` canônica
+     * (constante, pt-BR, sem detalhe). É o caminho para a tela de login mostrar o PRAZO do bloqueio:
+     *
+     * ```kotlin
+     * service.signInWithPassword(identificador, senha).onFailure { e ->
+     *     val segundos = (e as? OwnAuthException.TooManyRequests)?.retryAfterSeconds
+     *     // segundos != null → "Tente de novo em N minutos" (e.message já diz isso)
+     * }
+     * ```
+     *
+     * ### Erros
+     * - [OwnAuthException.InvalidCredentials] — usuário/e-mail ou senha não conferem.
+     * - [OwnAuthException.TooManyRequests] — bloqueio por excesso de tentativas;
+     *   `retryAfterSeconds` = o `Retry-After` do servidor (segundos ou data HTTP), `null` se não veio.
+     * - [OwnAuthException.Network], [OwnAuthException.Server].
+     *
+     * Default: falha com [OwnAuthException.Unsupported] — mantém compilando quem implementa esta
+     * porta fora da lib.
+     */
+    suspend fun signInWithPassword(identifier: String, password: String): Result<User> =
+        Result.failure(OwnAuthException.Unsupported("signInWithPassword não implementado."))
+
+    /**
      * Confirma a nova senha a partir do `token` recebido por e-mail (`password/reset`, uso único).
      * Não faz login automático — o app leva o usuário à tela de login em seguida.
      */
