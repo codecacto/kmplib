@@ -9,7 +9,7 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseConfig
  * 2. [sellsSubscription] — existe **paywall** de assinatura?
  * 3. [hasFreeTier] — existe **tier gratuito** utilizavel (alguem usa o app sem pagar)?
  *
- * Quatro modos cobrem as combinacoes legais:
+ * Cinco modos cobrem as combinacoes legais:
  *
  * | Modo             | ads   | assinatura | tier gratis | quem e                                   |
  * |------------------|-------|------------|-------------|------------------------------------------|
@@ -18,6 +18,8 @@ import br.com.codecacto.kmplib.monetization.purchase.PurchaseConfig
  * | [Freemium]       | sim   | sim        | sim         | gratis com ads + assinatura pra remover  |
  * | [FreemiumQuota]  | nao   | sim        | sim         | **default do ecossistema**: gratis com   |
  * |                  |       |            |             | limite de uso -> paywall, SEM anuncio    |
+ * | [StoreItemsOnly] | nao   | nao        | sim         | loja SO com itens avulsos (consumivel /  |
+ * |                  |       |            |             | nao-consumivel), sem assinatura (2.365.0)|
  *
  * ## Por que quatro modos nomeados e nao tres booleanos soltos
  *
@@ -67,8 +69,17 @@ sealed class MonetizationConfig {
      */
     abstract val hasFreeTier: Boolean
 
-    /** Config de compra (RevenueCat), quando o modo vende assinatura; `null` quando nao vende. */
+    /**
+     * Config de compra (RevenueCat), quando o modo fala com a loja — vende assinatura ou, em
+     * [StoreItemsOnly], só itens avulsos; `null` quando o app não compra nada pela loja.
+     */
     abstract val purchaseConfig: PurchaseConfig?
+
+    /**
+     * O app fala com a loja (RevenueCat)? (2.365.0) — `true` em todo modo com [purchaseConfig]:
+     * assinatura **ou** só itens avulsos ([StoreItemsOnly]).
+     */
+    val usesStore: Boolean get() = purchaseConfig != null
 
     /**
      * Decisao corrente de exibir anuncio, dado o estado da assinatura. Regra pura (testavel) que o
@@ -127,6 +138,28 @@ sealed class MonetizationConfig {
         override val modeName: String get() = "FREEMIUM_QUOTA"
         override val showsAds: Boolean get() = false
         override val sellsSubscription: Boolean get() = true
+        override val hasFreeTier: Boolean get() = true
+        override val purchaseConfig: PurchaseConfig get() = purchase
+    }
+
+    /**
+     * **Loja só com itens AVULSOS** (2.365.0) — o app vende pela loja (RevenueCat) produtos de compra
+     * única, consumíveis ou não, e **nada de assinatura nem anúncio** (ex.: FotuNex vende faixas
+     * avulsas). Sem este modo, quem não vende assinatura caía em `NONE` e a loja nem era configurada:
+     * toda compra voltava `CONFIGURATION_ERROR`.
+     *
+     * - configura a loja (o SDK, a identidade do `bindIdentity`/`bindStoreSubject`) com [purchase];
+     * - [sellsSubscription] = `false`: nenhum paywall/"Premium"; `premiumStatus` resolve na hora como
+     *   `Free(NOT_SOLD)` e `isPremium` fica `false`;
+     * - compra por `MonetizationManager.purchaseConsumableItem` (consumível, id sob demanda) e
+     *   `purchaseItem`/`getStoreItems`/`restoreItems` (não-consumível).
+     *
+     * O [PurchaseConfig.offeringId]/[PurchaseConfig.entitlementId] não são lidos neste modo.
+     */
+    data class StoreItemsOnly(val purchase: PurchaseConfig) : MonetizationConfig() {
+        override val modeName: String get() = "STORE_ITEMS_ONLY"
+        override val showsAds: Boolean get() = false
+        override val sellsSubscription: Boolean get() = false
         override val hasFreeTier: Boolean get() = true
         override val purchaseConfig: PurchaseConfig get() = purchase
     }

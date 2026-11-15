@@ -5,6 +5,39 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.365.0 — loja só com itens avulsos (`StoreItemsOnly`) e compra CONSUMÍVEL por id sob demanda
+
+**Aditivo, nada a fazer em app existente.** Pedido do FotuNex (`8-Sistemas-Portal-App/FotuNex/docs/tarefas/2026-11-14-app-igual-ao-portal.md`,
+Rodadas C e G): vender pela loja cerca de 250 faixas avulsas, sem assinatura e sem anúncio. Duas lacunas fechadas:
+
+- **`MonetizationConfig.StoreItemsOnly(purchase)`** (`modeName = "STORE_ITEMS_ONLY"`): configura a loja (SDK da
+  RevenueCat e identidade do `bindIdentity`/`bindStoreSubject`) sem vender assinatura. `showsAds = false`,
+  `sellsSubscription = false`, `hasFreeTier = true`; `premiumStatus` resolve na hora como `Free(NOT_SOLD)`, sem
+  observar assinatura; a identidade declarada antes da loja é reaplicada no `initialize`. Antes, quem não vendia
+  assinatura ficava em `NONE`, a loja nem era configurada e toda compra voltava `CONFIGURATION_ERROR`.
+  `initializeWhenStoreAvailable` vale igual (sem chave → segue gratuito). Novo `MonetizationConfig.usesStore`.
+  ⚠️ `when` exaustivo sobre `MonetizationConfig` no app precisa do ramo novo (nenhum app da fábrica faz isso hoje;
+  a casca usa o `monetizationConfigFor`, atualizado na mesma rodada).
+- **`MonetizationManager.purchaseConsumableItem(productId, allowUnmanagedIdentity = false): ConsumableItemPurchaseResult`**:
+  busca o produto pelo id NA HORA (`Purchases.getProducts([id])`, sem cache — o `StoreProduct` carrega o contexto
+  do app user) e compra pelo `purchase(storeProduct)` oficial, o mesmo código em Android e iOS. Não precisa de
+  `PurchaseConfig.products`. Desfechos: `Success(ConsumablePurchase)` (`transactionId` = o da loja, ou o da
+  RevenueCat quando a loja não informa — `transactionIdSource`, `storeTransactionId`, `revenueCatTransactionId`,
+  `store`, `appUserId`, `purchasedAtMillis`), **`Pending`** (`PAYMENT_PENDING` deixou de ser erro neste caminho),
+  `CompletedWithoutReceipt` (cobrou e não veio id: conciliar pela conta), **`IdentityNotBound(status)`** (a loja não
+  está ligada à conta logada — recusado ANTES de abrir a loja; só `BOUND` passa, `UNMANAGED` só com
+  `allowUnmanagedIdentity = true`), `Cancelled` (inclui portão de pais), `Failed(code, message)`. Produto de
+  assinatura passado aqui é recusado (`PRODUCT_NOT_FOUND`). A transação da RevenueCat só vale como recibo desta compra
+  se for do mesmo produto e de até 5 min antes do instante da loja — compra anterior nunca vira recibo da nova.
+- `PurchaseRepository.purchaseConsumableItem(productId)` com default honesto (`CONFIGURATION_ERROR`): dublê próprio do
+  app continua compilando. **`kmplib-testing`:** `FakePurchaseRepository(resultadoDoConsumivelPorId = …)`,
+  `compraConsumivelQueDaCerto(loja, appUserId)` (recibo novo a cada compra), `compraConsumivelQueTermina(desfecho)`,
+  `consumiveisComprados`.
+- O `purchaseConsumable` legado (lista em `PurchaseConfig.products`, `PAYMENT_PENDING` como erro) continua igual.
+- Na loja: o produto precisa ser **consumível** no App Store Connect / Play Console e na RevenueCat (o SDK consome no
+  Play e finaliza no StoreKit). A lib não credita nada: o servidor confere pela RevenueCat, idempotente pelo
+  `transactionId`.
+
 ## 2.364.0 — o erro diz DE QUEM é: `user.id` automático no GlitchTip (`SignedInAccount`)
 
 **Aditivo, nada a fazer no app que entra pelo own-auth da lib** (regra do fundador de 14/nov/2026, item

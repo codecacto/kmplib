@@ -35,6 +35,7 @@ class MonetizationConfigTest {
         MonetizationConfig.PremiumOnly(purchase),
         MonetizationConfig.Freemium(purchase),
         MonetizationConfig.FreemiumQuota(purchase),
+        MonetizationConfig.StoreItemsOnly(purchase),
     )
 
     /** Postura esperada por modo: (ads, assinatura, tier gratuito). */
@@ -44,6 +45,7 @@ class MonetizationConfigTest {
             is MonetizationConfig.PremiumOnly -> Triple(false, true, false)
             is MonetizationConfig.Freemium -> Triple(true, true, true)
             is MonetizationConfig.FreemiumQuota -> Triple(false, true, true)
+            is MonetizationConfig.StoreItemsOnly -> Triple(false, false, true)
         }
 
     @Test
@@ -68,7 +70,11 @@ class MonetizationConfigTest {
     @Test
     fun `modo que vende assinatura carrega config de compra e o resto nao`() {
         allModes().forEach { config ->
-            if (config.sellsSubscription) {
+            if (config is MonetizationConfig.StoreItemsOnly) {
+                // Loja só de itens avulsos: fala com a loja sem vender assinatura (2.365.0).
+                assertEquals(purchase, config.purchaseConfig)
+                assertTrue(config.usesStore)
+            } else if (config.sellsSubscription) {
                 assertNotNull(config.purchaseConfig, "${config.modeName} vende assinatura sem PurchaseConfig")
             } else {
                 assertNull(config.purchaseConfig, "${config.modeName} não vende assinatura mas tem PurchaseConfig")
@@ -134,7 +140,7 @@ class MonetizationConfigTest {
     fun `modeName e estavel e unico por modo`() {
         val names = allModes().map { it.modeName }
         assertEquals(
-            listOf("ADS_ONLY", "PREMIUM_ONLY", "FREEMIUM", "FREEMIUM_QUOTA"),
+            listOf("ADS_ONLY", "PREMIUM_ONLY", "FREEMIUM", "FREEMIUM_QUOTA", "STORE_ITEMS_ONLY"),
             names,
         )
         assertEquals(names.size, names.toSet().size, "modeName duplicado entre modos")

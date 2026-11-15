@@ -233,6 +233,25 @@ interface PurchaseRepository {
         )
 
     /**
+     * **Compra CONSUMÍVEL pelo id, buscado na hora** (2.365.0) — o caminho oficial da RevenueCat
+     * (`getProducts([id])` → `purchase(storeProduct)`), sem depender de [PurchaseConfig.products]:
+     * serve a catálogo de centenas de itens avulsos. `PAYMENT_PENDING` vira
+     * [ConsumableItemPurchaseResult.Pending], nunca erro; produto de ASSINATURA é recusado
+     * (`PRODUCT_NOT_FOUND`), nunca vendido por aqui.
+     *
+     * **Não confere identidade** — quem confere é
+     * `MonetizationManager.purchaseConsumableItem`, a porta que o app usa.
+     *
+     * Default honesto: "este repositório não vende consumível por id" (`CONFIGURATION_ERROR`) —
+     * dublê próprio do app continua compilando.
+     */
+    suspend fun purchaseConsumableItem(productId: String): ConsumableItemPurchaseResult =
+        ConsumableItemPurchaseResult.Failed(
+            PurchaseErrorCode.CONFIGURATION_ERROR,
+            "compra consumivel por id nao suportada por este repository",
+        )
+
+    /**
      * **Restaura as compras avulsas — devolvendo a LISTA de itens**, não um booleano.
      *
      * A mesma leitura traz o estado da assinatura ([ItemRestoreResult.Restored.subscription]) e

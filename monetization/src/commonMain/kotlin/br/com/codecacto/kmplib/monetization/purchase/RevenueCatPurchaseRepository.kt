@@ -543,6 +543,117 @@ internal class RevenueCatPurchaseRepository(
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Compra CONSUMÍVEL por id, sob demanda (2.365.0).
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Fluxo oficial da RevenueCat para produto avulso fora de offering: `getProducts([id])` na hora
+     * (sem cache — o `StoreProduct` carrega o contexto do app user corrente, e o catálogo pode ter
+     * centenas de faixas) e `purchase(storeProduct)`. O consumo (Play) e o `finish` (StoreKit) são do
+     * SDK: o produto precisa estar como **consumível** na loja e na RevenueCat.
+     */
+    override suspend fun purchaseConsumableItem(productId: String): ConsumableItemPurchaseResult {
+        val id = productId.trim()
+        if (id.isEmpty()) {
+            return ConsumableItemPurchaseResult.Failed(PurchaseErrorCode.PRODUCT_NOT_FOUND, "productId em branco")
+        }
+        if (!Purchases.isConfigured) {
+            return ConsumableItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "RevenueCat nao configurado",
+            )
+        }
+        // App infantil: compra só depois do portão de pais; negado = desistência.
+        if (!ParentalGate.awaitPass()) return ConsumableItemPurchaseResult.Cancelled
+
+        val product = when (val lookup = fetchConsumableProduct(id)) {
+            is ConsumableLookup.Found -> lookup.product
+            is ConsumableLookup.Failure -> return lookup.result
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.purchase(
+                storeProduct = product,
+                onError = { error, userCancelled ->
+                    continuation.resume(
+                        when (val failure = error.toPurchaseFailure(userCancelled)) {
+                            is PurchaseFailure.Cancelled -> ConsumableItemPurchaseResult.Cancelled
+                            is PurchaseFailure.Failed -> ConsumableItemPurchaseResult.fromFailure(
+                                code = failure.code,
+                                message = failure.message,
+                                productId = id,
+                            )
+                        }
+                    )
+                },
+                onSuccess = { storeTransaction, customerInfo ->
+                    continuation.resume(
+                        consumablePurchaseResultOf(
+                            requestedProductId = id,
+                            storeProductIds = storeTransaction.productIds,
+                            storeTransactionId = storeTransaction.transactionId,
+                            storePurchaseTimeMillis = storeTransaction.purchaseTime,
+                            revenueCatTransactions = customerInfo.nonSubscriptionTransactions.map { tx ->
+                                OwnedStoreItem(
+                                    productId = tx.productIdentifier,
+                                    transactionId = tx.transactionIdentifier,
+                                    purchasedAtMillis = tx.purchaseDateMillis,
+                                )
+                            },
+                            store = PurchaseStore.fromWire(currentStore()),
+                            appUserId = currentAppUserId().orEmpty(),
+                        ).also { result ->
+                            if (result is ConsumableItemPurchaseResult.CompletedWithoutReceipt) {
+                                AppLogger.w(TAG, "compra consumivel concluida sem id de transacao")
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    }
+
+    private sealed interface ConsumableLookup {
+        data class Found(val product: StoreProduct) : ConsumableLookup
+        data class Failure(val result: ConsumableItemPurchaseResult) : ConsumableLookup
+    }
+
+    private suspend fun fetchConsumableProduct(productId: String): ConsumableLookup =
+        suspendCancellableCoroutine { continuation ->
+            Purchases.sharedInstance.getProducts(
+                productIds = listOf(productId),
+                onError = { error ->
+                    val code = error.code.toPurchaseErrorCode()
+                    AppLogger.e(TAG, "Erro ao ler produto consumivel [$code]: ${error.message}")
+                    continuation.resume(
+                        ConsumableLookup.Failure(ConsumableItemPurchaseResult.Failed(code, error.message))
+                    )
+                },
+                onSuccess = { products ->
+                    val matching = products.filter { it.id == productId }
+                    val product = matching.firstOrNull { it.category == ProductCategory.NON_SUBSCRIPTION }
+                    continuation.resume(
+                        when {
+                            product != null -> ConsumableLookup.Found(product)
+                            matching.isNotEmpty() -> ConsumableLookup.Failure(
+                                ConsumableItemPurchaseResult.Failed(
+                                    PurchaseErrorCode.PRODUCT_NOT_FOUND,
+                                    "produto de ASSINATURA nao se vende como consumivel: $productId",
+                                )
+                            )
+                            else -> ConsumableLookup.Failure(
+                                ConsumableItemPurchaseResult.Failed(
+                                    PurchaseErrorCode.PRODUCT_NOT_FOUND,
+                                    "produto consumivel nao encontrado na loja: $productId",
+                                )
+                            )
+                        }
+                    )
+                }
+            )
+        }
+
     override suspend fun restoreItems(): ItemRestoreResult {
         return suspendCancellableCoroutine { continuation ->
             Purchases.sharedInstance.restorePurchases(

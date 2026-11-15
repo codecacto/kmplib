@@ -3,6 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 15/nov/2026 — venda de itens avulsos pela loja, FotuNex (entregue na 2.365.0)
+
+- [x] `MonetizationConfig.StoreItemsOnly`: loja configurada sem assinatura nem anúncio (antes, `NONE` → `CONFIGURATION_ERROR`).
+- [x] `MonetizationManager.purchaseConsumableItem(productId)`: consumível buscado pelo id na hora (catálogo de ~250
+      faixas), `transactionId` da loja ou da RevenueCat, `Pending` sem erro, recusa sem a loja ligada à conta.
+- [ ] Depreciar o `purchaseConsumable` legado (lista em `PurchaseConfig.products`) quando os consumidores migrarem.
+
 ### Registrado em 12/nov/2026 — lacunas do 1º app de fora sem anúncio, Chegou Aqui (entregue na 2.359.0)
 
 - [x] App sem anúncio explícito: `FamilyAppIdentity(showsAds = false)` → sem banner, sem intersticial, Premium sem

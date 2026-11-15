@@ -59,6 +59,17 @@ class FakePurchaseRepository(
 
     override suspend fun restorePurchases(): RestoreResult = RestoreResult.NoPurchasesToRestore
 
+    /** Resultado de [purchaseConsumableItem] (2.365.0); `null` = default da interface. */
+    var consumableItemResult: ((String) -> ConsumableItemPurchaseResult)? = null
+
+    /** Ids pedidos a [purchaseConsumableItem] — o teste prova que a loja NÃO foi aberta. */
+    val consumableItemCalls = mutableListOf<String>()
+
+    override suspend fun purchaseConsumableItem(productId: String): ConsumableItemPurchaseResult {
+        consumableItemCalls += productId
+        return consumableItemResult?.invoke(productId) ?: super.purchaseConsumableItem(productId)
+    }
+
     override suspend fun identify(appUserId: String): Result<Unit> {
         identifyCalls++
         val id = when (val check = PurchaseIdentity.check(appUserId)) {

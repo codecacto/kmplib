@@ -103,6 +103,14 @@ object PurchaseManager {
                 "purchase nao inicializado",
             )
 
+    /** Compra consumível pelo id, buscado na hora (ver [PurchaseRepository.purchaseConsumableItem]). */
+    internal suspend fun purchaseConsumableItem(productId: String): ConsumableItemPurchaseResult =
+        _repository?.purchaseConsumableItem(productId)
+            ?: ConsumableItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "purchase nao inicializado",
+            )
+
     /** Restaura as compras avulsas — N itens (ver [PurchaseRepository.restoreItems]). */
     internal suspend fun restoreItems(): ItemRestoreResult =
         _repository?.restoreItems()

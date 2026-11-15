@@ -1,7 +1,10 @@
 package br.com.codecacto.kmplib.testing
 
 import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
+import br.com.codecacto.kmplib.monetization.purchase.ConsumableItemPurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchase
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ConsumableTransactionIdSource
 import br.com.codecacto.kmplib.monetization.purchase.FreeTrialPeriod
 import br.com.codecacto.kmplib.monetization.purchase.FreeTrialUnit
 import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
@@ -73,6 +76,8 @@ import kotlin.time.Instant
  * | [compraDeItemQueTermina] | `Pending` (em análise — **não liberar**) e `Failed`, por código |
  * | [itensJaComprados] | o celular novo: `restoreItems` devolve **N itens** |
  * | [catalogoDeItensQueFalha] | a leitura do catálogo de itens falha |
+ * | [compraConsumivelQueDaCerto] | `purchaseConsumableItem` → `Success` com recibo novo a cada compra |
+ * | [compraConsumivelQueTermina] | consumível em `Pending`/`Failed` |
  *
  * ## O que ele registra, e por que isso importa
  *
@@ -121,6 +126,11 @@ class FakePurchaseRepository(
     private val verificacao: StoreVerification = StoreVerification.VERIFIED,
     /** Offerings pedidos POR ID ([getOfferings] com id) — o offering "sem trial" (2.231.0). */
     private val ofertasPorOffering: Map<String, List<PurchasePackage>> = emptyMap(),
+    /**
+     * Resultado de [purchaseConsumableItem] (consumível por id, 2.365.0). `null` (default) = o dublê
+     * não vende consumível por id e responde `CONFIGURATION_ERROR`, como um repositório sem suporte.
+     */
+    private val resultadoDoConsumivelPorId: ((String) -> ConsumableItemPurchaseResult)? = null,
 ) : PurchaseRepository {
 
     /**
@@ -325,6 +335,21 @@ class FakePurchaseRepository(
         // app manda ao servidor conciliar, e um dublê que devolvesse só o item novo esconderia o
         // reenvio idempotente que conserta compra antiga sem webhook.
         return resultado.copy(claim = claimAtual())
+    }
+
+    /** `productId` de cada consumível comprado com sucesso por [purchaseConsumableItem], na ordem. */
+    val consumiveisComprados: List<String> get() = _consumiveisComprados.toList()
+    private val _consumiveisComprados = mutableListOf<String>()
+
+    override suspend fun purchaseConsumableItem(productId: String): ConsumableItemPurchaseResult {
+        val desfecho = resultadoDoConsumivelPorId
+            ?: return ConsumableItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "dublê sem venda de consumível por id configurada",
+            )
+        val resultado = desfecho(productId)
+        if (resultado is ConsumableItemPurchaseResult.Success) _consumiveisComprados += productId
+        return resultado
     }
 
     override suspend fun restoreItems(): ItemRestoreResult {
@@ -587,6 +612,54 @@ class FakePurchaseRepository(
                     claim = StorePurchaseClaim(appUserId, loja, listOf(comprado), StoreVerification.VERIFIED),
                 )
             },
+        )
+
+        /**
+         * A loja vende **consumíveis por id** e toda compra fecha (2.365.0): `Success` com um
+         * `transactionId` NOVO a cada compra (`dublê-<productId>-<n>`, origem `STORE`), com o
+         * [appUserId] da loja. Para a porta da identidade passar, ligue a conta com o mesmo id
+         * (`MonetizationManager.syncIdentity(appUserId)`).
+         */
+        fun compraConsumivelQueDaCerto(
+            loja: PurchaseStore = PurchaseStore.PLAY_STORE,
+            appUserId: String = "cliente-1",
+        ): FakePurchaseRepository {
+            var contador = 0
+            var repo: FakePurchaseRepository? = null
+            repo = FakePurchaseRepository(
+                ofertas = emptyList(),
+                initialAppUserId = appUserId,
+                lojaDoDuble = loja,
+                resultadoDoConsumivelPorId = { productId ->
+                    contador++
+                    ConsumableItemPurchaseResult.Success(
+                        ConsumablePurchase(
+                            productId = productId,
+                            transactionId = "duble-$productId-$contador",
+                            transactionIdSource = ConsumableTransactionIdSource.STORE,
+                            storeTransactionId = "duble-$productId-$contador",
+                            revenueCatTransactionId = null,
+                            store = loja,
+                            appUserId = repo?.currentAppUserId() ?: appUserId,
+                            purchasedAtMillis = 1_700_000_000_000,
+                        )
+                    )
+                },
+            )
+            return repo
+        }
+
+        /**
+         * A compra consumível termina sempre em [desfecho] — use com
+         * [ConsumableItemPurchaseResult.Pending] (não liberar) e [ConsumableItemPurchaseResult.Failed].
+         */
+        fun compraConsumivelQueTermina(
+            desfecho: ConsumableItemPurchaseResult,
+            appUserId: String = "cliente-1",
+        ): FakePurchaseRepository = FakePurchaseRepository(
+            ofertas = emptyList(),
+            initialAppUserId = appUserId,
+            resultadoDoConsumivelPorId = { desfecho },
         )
 
         /**

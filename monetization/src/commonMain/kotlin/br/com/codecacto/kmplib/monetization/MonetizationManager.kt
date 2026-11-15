@@ -5,7 +5,10 @@ import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
 import br.com.codecacto.kmplib.monetization.alert.PaymentAlertReporter
 import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
+import br.com.codecacto.kmplib.monetization.purchase.ConsumableItemPurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchase
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchaseResult
+import br.com.codecacto.kmplib.monetization.purchase.PurchaseErrorCode
 import br.com.codecacto.kmplib.monetization.purchase.ItemPurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.ItemRestoreResult
 import br.com.codecacto.kmplib.monetization.purchase.PurchaseIdentity
@@ -304,6 +307,16 @@ object MonetizationManager {
             val declared = userId ?: storeIdentity.subject.value
                 ?.let { (PurchaseIdentity.check(it) as? AppUserIdCheck.Valid)?.appUserId }
             PurchaseManager.initialize(purchase, declared)
+            if (!config.sellsSubscription) {
+                // Loja só de itens avulsos (StoreItemsOnly, 2.365.0): não há assinatura a observar
+                // — premium resolve NOT_SOLD logo abaixo. A identidade declarada antes da loja
+                // existir é reaplicada agora (o mesmo que a primeira leitura faz no modo com
+                // assinatura), e não só na porta da compra.
+                firstReadJob = scope.launch {
+                    if (storeIdentity.isManaged) storeIdentity.reconcile()
+                }
+                return@let
+            }
             // Assina o repositório CORRENTE (2.251.0), não o do instante da inicialização: o
             // `PurchaseTestHooks.instalar/limpar` (e `PurchaseManager.initializeWith/reset`) trocam o
             // repositório depois, e até a 2.250.0 o manager continuava ouvindo o antigo — `isPremium` e
@@ -322,8 +335,9 @@ object MonetizationManager {
                 .launchIn(scope)
         }
 
-        if (config.purchaseConfig == null) {
-            // Modo que não vende assinatura: não há loja a esperar.
+        if (!config.sellsSubscription) {
+            // Modo que não vende assinatura (sem loja, ou loja só de itens avulsos): não há
+            // assinatura a esperar.
             updatePremiumStatus { current ->
                 if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.NOT_SOLD)
             }
@@ -344,6 +358,54 @@ object MonetizationManager {
     suspend fun purchaseConsumable(productId: String): ConsumablePurchaseResult =
         PurchaseManager.purchaseConsumable(productId)
 
+
+    /**
+     * **Compra CONSUMÍVEL pelo id, buscado na hora** (2.365.0) — para catálogo de centenas de itens
+     * avulsos que não cabem no [PurchaseConfig.products]. Fluxo oficial da RevenueCat
+     * (`getProducts([id])` → `purchase(storeProduct)`), igual em Android e iOS.
+     *
+     * Ordem:
+     * 1. sem loja configurada → `Failed(CONFIGURATION_ERROR)`;
+     * 2. **porta da identidade** ([ensureIdentityForPurchase]): só segue com
+     *    [StoreIdentityStatus.BOUND] — a loja identificada exatamente com a conta logada do
+     *    `bindIdentity`/`bindStoreSubject`. Qualquer outro estado devolve
+     *    [ConsumableItemPurchaseResult.IdentityNotBound] **sem abrir a loja** (nada é cobrado).
+     *    [allowUnmanagedIdentity] = `true` aceita também `UNMANAGED` (app sem conta, arquétipo A);
+     * 3. a compra: `Success` (recibo com o `transactionId` da loja ou, sem ele, o da RevenueCat),
+     *    `Pending` (pagamento em análise — não é erro), `CompletedWithoutReceipt`, `Cancelled`,
+     *    `Failed`.
+     *
+     * **Não credita nada**: mande o [ConsumablePurchase] ao servidor, que confere com a RevenueCat
+     * (idempotente pelo `transactionId`). NÃO altera [isPremium].
+     *
+     * ```kotlin
+     * when (val r = MonetizationManager.purchaseConsumableItem(faixa.productId)) {
+     *     is ConsumableItemPurchaseResult.Success -> api.creditarCompra(r.purchase)
+     *     is ConsumableItemPurchaseResult.Pending -> aviso(textos.paymentPending)
+     *     is ConsumableItemPurchaseResult.CompletedWithoutReceipt -> api.conciliarCompras()
+     *     is ConsumableItemPurchaseResult.IdentityNotBound -> erro("Não foi possível vincular a compra à sua conta.")
+     *     ConsumableItemPurchaseResult.Cancelled -> Unit
+     *     is ConsumableItemPurchaseResult.Failed -> erro(r.code.userMessage())
+     * }
+     * ```
+     */
+    suspend fun purchaseConsumableItem(
+        productId: String,
+        allowUnmanagedIdentity: Boolean = false,
+    ): ConsumableItemPurchaseResult {
+        if (!PurchaseManager.hasInstalledStore) {
+            return ConsumableItemPurchaseResult.Failed(
+                PurchaseErrorCode.CONFIGURATION_ERROR,
+                "purchase nao inicializado",
+            )
+        }
+        val status = ensureIdentityForPurchase()
+        if (!consumableIdentityAllows(status, allowUnmanagedIdentity)) {
+            AppLogger.w(TAG, "compra consumivel recusada: identidade da loja ${status.name}")
+            return ConsumableItemPurchaseResult.IdentityNotBound(status)
+        }
+        return PurchaseManager.purchaseConsumableItem(productId)
+    }
 
     // ---------------------------------------------------------------------------------------------
     // Venda AVULSA — item não-consumível (compra única, acesso vitalício). Aditivo, 2.192.0.
@@ -695,3 +757,11 @@ internal fun resolvePremiumStatus(
         if (current.isResolved) current else PremiumStatus.Free(PremiumStatus.FreeReason.STORE_FAILURE)
     else -> current
 }
+
+/**
+ * A porta da compra consumível (regra pura, testada): só [StoreIdentityStatus.BOUND] — ou `UNMANAGED`
+ * quando o app declara que não tem conta. `NO_STORE` não passa: sem app user na loja não há a quem
+ * creditar.
+ */
+internal fun consumableIdentityAllows(status: StoreIdentityStatus, allowUnmanaged: Boolean): Boolean =
+    status == StoreIdentityStatus.BOUND || (allowUnmanaged && status == StoreIdentityStatus.UNMANAGED)
