@@ -3,6 +3,15 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 15/nov/2026 — minutos do bloqueio do login (`Retry-After`), FotuNex
+
+- [ ] **`OwnAuthException.TooManyRequests` sem o `Retry-After`.** O 429 do `POST /auth/login` vira
+      `TooManyRequests(texts.tooManyRequests)` (`auth/OwnAuthApi.kt:485/520/540`) e o cabeçalho se perde; o
+      `DomainResult.Error.retryAfterSeconds` (2.321.0) existe, mas não chega ao own-auth. O portal mostra "Tente de novo
+      em N minutos" (weblib `minutesUntilUnblock`); o app só pode dizer "em instantes". **Pedido:** `retryAfterSeconds:
+      Long?` no `TooManyRequests` (lido do `Retry-After` em segundos ou data HTTP) e o texto padrão da `LoginScreen`/
+      `loadOwnAuthTexts()` com os minutos no plural certo nos 4 idiomas. O app NÃO contorna (relê o cabeçalho na mão).
+
 ### Registrado em 15/nov/2026 — venda de itens avulsos pela loja, FotuNex (entregue na 2.365.0)
 
 - [x] `MonetizationConfig.StoreItemsOnly`: loja configurada sem assinatura nem anúncio (antes, `NONE` → `CONFIGURATION_ERROR`).
