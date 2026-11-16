@@ -241,6 +241,9 @@ fun <T> ReorderableList(
         }
     }
 
+    // Índices (em [items]) dos itens que o dedo pode pegar — a base da posição e das ações.
+    val movable = items.indices.filter { canDrag(items[it]) }
+
     LazyColumn(
         modifier = modifier,
         state = state,
@@ -264,11 +267,14 @@ fun <T> ReorderableList(
                         currentOnFinished()
                     }
                 }
-                val size = items.size
-                val actions = if (draggable) {
-                    reorderActionsFor(index, size).map { action ->
+                // Posição e ações contam SÓ os itens que se pegam (2.368.1): numa lista com cabeçalhos de
+                // grupo, "3 de 42" com 36 itens e "para o início" caindo no 1º cabeçalho eram mentira.
+                val slot = movable.indexOf(index)
+                val size = movable.size
+                val actions = if (draggable && slot >= 0) {
+                    reorderActionsFor(slot, size).map { action ->
                         CustomAccessibilityAction(texts.labelFor(action)) {
-                            val target = reorderTargetIndex(action, index, size)
+                            val target = movable[reorderTargetIndex(action, slot, size)]
                             currentOnMove(index, target)
                             currentOnFinished()
                             // O item pode ter saído da área visível: leva a lista até ele, para o
@@ -283,11 +289,11 @@ fun <T> ReorderableList(
                 } else {
                     emptyList()
                 }
-                val positionText = texts.position(index + 1, size)
+                val positionText = if (draggable && slot >= 0) texts.position(slot + 1, size) else null
                 val itemModifier = Modifier
                     .semantics(mergeDescendants = true) {
                         customActions = actions
-                        stateDescription = positionText
+                        if (positionText != null) stateDescription = positionText
                     }
                     .then(
                         if (dragOnLongPress && draggable) {

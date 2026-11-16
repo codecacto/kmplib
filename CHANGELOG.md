@@ -5,6 +5,12 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.368.1 — `ReorderableList(canDrag)`: o leitor de tela conta só os itens que se pegam
+
+**Correção, nada a fazer** — só muda algo para quem passa `canDrag`. A posição anunciada ("Posição 3 de 36") e as ações
+"Mover para o início/fim/cima/baixo" passam a contar SÓ os itens arrastáveis: antes os cabeçalhos entravam na conta
+("3 de 42") e "Mover para o início" caía no primeiro cabeçalho. Item que não se pega não anuncia posição.
+
 ## 2.368.0 — `ReorderableList(canDrag = …)`: cabeçalhos de grupo na mesma lista, e o item arrastado muda de grupo
 
 **Aditivo, nada a fazer em app existente** — o default (`{ true }`) é o comportamento de antes.
