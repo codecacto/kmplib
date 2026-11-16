@@ -5,6 +5,12 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.369.1 — `TtsController.voices()`: aparelho só com voz de rede não fica com a lista vazia
+
+**Correção, nada a fazer.** No Android a lista levava só as vozes offline; aparelho cujo motor só tem voz de rede
+(o emulador, alguns motores) recebia lista vazia — o app dizia "nenhuma voz" com a voz falando. Sem nenhuma offline,
+entram as instaladas (as não baixadas continuam de fora).
+
 ## 2.369.0 — `TtsController.voices()` + `setVoice()`: listar as vozes do aparelho e escolher uma
 
 **Correção do `setVoiceGender(Male)` no Android + aditivo.** O Android não informa o gênero de uma voz, e o motor do

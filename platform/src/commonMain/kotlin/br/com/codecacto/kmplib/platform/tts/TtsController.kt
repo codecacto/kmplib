@@ -163,8 +163,9 @@ interface TtsController {
 
     /**
      * Vozes **instaladas no aparelho** para o idioma de [langTag] (qualquer região: `pt` casa `pt-BR` e
-     * `pt-PT`; as da região exata vêm primeiro). Só entram vozes que falam **sem internet**: no Android,
-     * as que pedem rede ou ainda não foram baixadas ficam de fora.
+     * `pt-PT`; as da região exata vêm primeiro). No Android entram as que falam **sem internet**; se o
+     * aparelho não tiver nenhuma (só voz de rede), entram as instaladas (2.369.1). As ainda não baixadas
+     * ficam sempre de fora.
      *
      * Existe porque o Android **não informa o gênero** de uma voz: o motor do Google as chama
      * `pt-br-x-afs-local`, `pt-br-x-ptd-local`… Quando o nome não diz, [TtsVoice.gender] é `null`, e o

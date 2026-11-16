@@ -374,8 +374,11 @@ class AndroidTtsController : TtsController {
     override suspend fun voices(langTag: String): List<TtsVoice> {
         val engine = engine() ?: return emptyList()
         return try {
-            val all = engine.voices.orEmpty()
-                .filter { it.isOffline() }
+            val installed = engine.voices.orEmpty()
+                .filter { it.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true }
+            // Prefere as que falam sem internet; aparelho que só tem voz de rede (emulador, alguns
+            // motores) mostra essas — lista vazia dizia "nenhuma voz" com a voz falando.
+            val all = installed.filter { it.isOffline() }.ifEmpty { installed }
                 .map { v ->
                     val tag = v.locale.toLanguageTag()
                     TtsVoice(id = v.name, name = v.name, langTag = tag, gender = ttsVoiceGenderHint(v.name))
