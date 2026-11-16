@@ -194,6 +194,10 @@ interface ReorderableListItemScope {
  * @param enabled `false` desliga arrasto e ações (ex.: enquanto salva).
  * @param dragOnLongPress `true` (default) = segurar o item em qualquer ponto começa o arrasto;
  *   `false` = só pela alça (use quando o item tem long-press próprio).
+ * @param canDrag quais itens o dedo pode PEGAR (2.368.0). `false` = o item não arrasta nem oferece as
+ *   ações de mover, mas continua sendo uma casa da lista: os outros passam por ele. É o que faz uma
+ *   lista com **cabeçalhos de grupo** na mesma rolagem — o cabeçalho fica parado e o item arrastado
+ *   por cima dele muda de grupo (o app decide o grupo pela posição, no [onMove]). Default: todos.
  * @param header itens FIXOS antes da lista (não reordenáveis), na mesma rolagem. Desde 2.318.0.
  * @param footer itens FIXOS depois da lista — o botão "+ Adicionar" que rola junto com ela, em vez
  *   de ficar preso fora da lista. Desde 2.318.0.
@@ -211,6 +215,7 @@ fun <T> ReorderableList(
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
     enabled: Boolean = true,
     dragOnLongPress: Boolean = true,
+    canDrag: (T) -> Boolean = { true },
     texts: ReorderableListTexts = rememberReorderableListTexts(),
     header: (LazyListScope.() -> Unit)? = null,
     footer: (LazyListScope.() -> Unit)? = null,
@@ -246,6 +251,8 @@ fun <T> ReorderableList(
         itemsIndexed(items, key = { _, item -> key(item) }) { index, item ->
             ReorderableItem(reorderState, key = key(item), enabled = enabled) { isDragging ->
                 val itemScope = this
+                // Item que não se pega (cabeçalho de grupo): continua casa da lista, sem gesto nem ações.
+                val draggable = enabled && canDrag(item)
                 val onStart: (Offset) -> Unit = {
                     movedDuringDrag = false
                     haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
@@ -258,7 +265,7 @@ fun <T> ReorderableList(
                     }
                 }
                 val size = items.size
-                val actions = if (enabled) {
+                val actions = if (draggable) {
                     reorderActionsFor(index, size).map { action ->
                         CustomAccessibilityAction(texts.labelFor(action)) {
                             val target = reorderTargetIndex(action, index, size)
@@ -283,10 +290,10 @@ fun <T> ReorderableList(
                         stateDescription = positionText
                     }
                     .then(
-                        if (dragOnLongPress) {
+                        if (dragOnLongPress && draggable) {
                             with(itemScope) {
                                 Modifier.longPressDraggableHandle(
-                                    enabled = enabled,
+                                    enabled = true,
                                     onDragStarted = onStart,
                                     onDragStopped = onStop,
                                 )
@@ -297,7 +304,7 @@ fun <T> ReorderableList(
                     )
                 val listScope = ReorderableListItemScopeImpl(
                     delegate = itemScope,
-                    enabled = enabled,
+                    enabled = draggable,
                     onStart = onStart,
                     onStop = onStop,
                 )

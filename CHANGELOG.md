@@ -5,6 +5,17 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.368.0 — `ReorderableList(canDrag = …)`: cabeçalhos de grupo na mesma lista, e o item arrastado muda de grupo
+
+**Aditivo, nada a fazer em app existente** — o default (`{ true }`) é o comportamento de antes.
+
+- **`canDrag: (T) -> Boolean`** diz quais itens o dedo pode PEGAR. Item com `false` não arrasta (nem pelo long-press
+  nem pela alça) e não oferece as ações de mover ao leitor de tela, mas **continua sendo uma casa da lista**: os outros
+  passam por ele. É o que faz uma lista com **cabeçalhos de grupo** na mesma rolagem — o cabeçalho fica parado e o item
+  arrastado por cima dele troca de grupo (o app decide o grupo pela posição, no `onMove`).
+- Motivo: editor do Minha Voz (protótipo de 16/nov/2026) — segurar o botão e arrastar, inclusive para outra categoria,
+  sem setas. Uma `LazyColumn` com várias listas dentro não existe, e `ReorderableColumn` aninhada não rola sozinha.
+
 ## 2.367.0 — `kmplib-help`: a ajuda vira CONVERSA (bolhas, histórico, "Não entendi, pode explicar melhor?")
 
 **Aditivo, nada a fazer em app existente** — a `HelpScreen` tem a mesma assinatura e passa a conversar sozinha.
