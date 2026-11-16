@@ -211,4 +211,22 @@ class TtsControllerTest {
             pickVoiceName(vozes, TtsVoiceGender.Male, "")
         )
     }
+
+    @Test
+    fun samsung_smt_indica_genero() {
+        assertEquals(TtsVoiceGender.Male, ttsVoiceGenderHint("pt-BR-SMTm00"))
+        assertEquals(TtsVoiceGender.Female, ttsVoiceGenderHint("pt-BR-SMTf00"))
+        assertNull(ttsVoiceGenderHint("pt-br-x-ptd-local"))
+    }
+
+    @Test
+    fun vozes_regiao_exata_primeiro_e_sem_outro_idioma() {
+        val v = listOf(
+            TtsVoice("a", "a", "pt-PT", null),
+            TtsVoice("b", "b", "en-US", null),
+            TtsVoice("c", "c", "pt-BR", TtsVoiceGender.Male),
+            TtsVoice("d", "d", "pt_br", null),
+        )
+        assertEquals(listOf("c", "d", "a"), sortVoicesForLang(v, "pt-BR").map { it.id })
+    }
 }

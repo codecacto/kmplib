@@ -72,6 +72,8 @@ class AndroidTtsController : TtsController {
 
     private var currentRate: Float = 1f
     private var voiceGender: TtsVoiceGender = TtsVoiceGender.Female
+    /** Voz fixada por [setVoice] (`Voice.name`); `null` = automática pelo gênero. */
+    private var voiceId: String? = null
     /** Amplificação opt-in ([setVolumeBoost]). Desligada = respeita o volume do aparelho. */
     private var volumeBoost = false
     private var released = false
@@ -365,6 +367,32 @@ class AndroidTtsController : TtsController {
         volumeBoost = enabled
     }
 
+    override fun setVoice(id: String?) {
+        voiceId = id
+    }
+
+    override suspend fun voices(langTag: String): List<TtsVoice> {
+        val engine = engine() ?: return emptyList()
+        return try {
+            val all = engine.voices.orEmpty()
+                .filter { it.isOffline() }
+                .map { v ->
+                    val tag = v.locale.toLanguageTag()
+                    TtsVoice(id = v.name, name = v.name, langTag = tag, gender = ttsVoiceGenderHint(v.name))
+                }
+                .sortedBy { it.id }
+            sortVoicesForLang(all, langTag)
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Falha ao listar vozes: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** Fala sem internet: não pede rede e os dados já estão no aparelho. */
+    private fun android.speech.tts.Voice.isOffline(): Boolean =
+        !isNetworkConnectionRequired &&
+            features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true
+
     /**
      * Best-effort: seleciona uma [android.speech.tts.Voice] de `engine.voices` para [langTag] cujo
      * nome sugira [voiceGender] (via [pickVoiceName]/[ttsVoiceGenderHint]) e faz `engine.voice = ...`.
@@ -373,7 +401,16 @@ class AndroidTtsController : TtsController {
     private fun applyVoiceGender(engine: TextToSpeech, langTag: String) {
         try {
             val voices = engine.voices ?: return
-            val chosenName = pickVoiceName(voices.map { it.name }, voiceGender, langTag) ?: return
+            // A voz escolhida pela pessoa ([setVoice]) vence o gênero, se ainda existir e for do idioma.
+            val lang = normalizeTtsLangTag(langTag).lowercase().substringBefore('-')
+            voiceId?.let { id ->
+                voices.firstOrNull { it.name == id && it.locale.language.lowercase() == lang }?.let {
+                    engine.voice = it
+                    return
+                }
+            }
+            val usable = voices.filter { it.isOffline() }.ifEmpty { voices.toList() }
+            val chosenName = pickVoiceName(usable.map { it.name }, voiceGender, langTag) ?: return
             voices.firstOrNull { it.name == chosenName }?.let { engine.voice = it }
         } catch (e: Exception) {
             AppLogger.w(TAG, "Falha ao selecionar voz por gênero: ${e.message}")

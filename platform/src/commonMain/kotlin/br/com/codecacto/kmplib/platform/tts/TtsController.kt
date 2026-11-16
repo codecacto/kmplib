@@ -34,6 +34,34 @@ enum class TtsVoiceGender {
 }
 
 /**
+ * Uma voz instalada no aparelho ([TtsController.voices]).
+ * @property id identificador estável para [TtsController.setVoice] (Android: `Voice.name`; iOS: `identifier`).
+ * @property name nome para mostrar quando o sistema tem um (iOS: "Luciana", "Felipe"); no Android é o
+ *   código do motor, que não serve para tela: o app numera ("Voz 1", "Voz 2").
+ * @property langTag idioma BCP-47 da voz (`pt-BR`).
+ * @property gender gênero, quando o sistema informa ou o nome indica; `null` = desconhecido.
+ */
+data class TtsVoice(
+    val id: String,
+    val name: String,
+    val langTag: String,
+    val gender: TtsVoiceGender?,
+)
+
+/**
+ * Ordena as vozes para a tela: região exata de [langTag] primeiro, depois as outras regiões do mesmo
+ * idioma; dentro de cada grupo, a ordem de entrada. Filtra as de outro idioma. Pura, testável.
+ */
+fun sortVoicesForLang(voices: List<TtsVoice>, langTag: String): List<TtsVoice> {
+    val lang = normalizeTtsLangTag(langTag).lowercase()
+    if (lang.isEmpty()) return voices
+    val languageOnly = lang.substringBefore('-')
+    val same = voices.filter { normalizeTtsLangTag(it.langTag).lowercase().substringBefore('-') == languageOnly }
+    val (exact, others) = same.partition { normalizeTtsLangTag(it.langTag).lowercase() == lang }
+    return exact + others
+}
+
+/**
  * Disponibilidade da voz para um idioma (BCP-47).
  *
  * - [Available]: há voz instalada para o idioma (fala funciona).
@@ -132,6 +160,25 @@ interface TtsController {
      * Guarda o estado e o aplica nas **próximas** falas (não afeta a fala em andamento).
      */
     fun setVolumeBoost(enabled: Boolean) {}
+
+    /**
+     * Vozes **instaladas no aparelho** para o idioma de [langTag] (qualquer região: `pt` casa `pt-BR` e
+     * `pt-PT`; as da região exata vêm primeiro). Só entram vozes que falam **sem internet**: no Android,
+     * as que pedem rede ou ainda não foram baixadas ficam de fora.
+     *
+     * Existe porque o Android **não informa o gênero** de uma voz: o motor do Google as chama
+     * `pt-br-x-afs-local`, `pt-br-x-ptd-local`… Quando o nome não diz, [TtsVoice.gender] é `null`, e o
+     * app deixa a pessoa **ouvir e escolher** ([setVoice]). No iOS o gênero vem do sistema.
+     * Best-effort: motor indisponível → lista vazia; nunca lança.
+     */
+    suspend fun voices(langTag: String): List<TtsVoice> = emptyList()
+
+    /**
+     * Fixa a voz das próximas falas pelo [TtsVoice.id] (de [voices]); `null` volta à escolha automática
+     * por [setVoiceGender]. A escolha explícita vence o gênero. Voz que deixou de existir (desinstalada,
+     * outro idioma) é ignorada em silêncio e vale o gênero.
+     */
+    fun setVoice(id: String?) {}
 
     /**
      * Libera os recursos nativos do motor de TTS. Após chamar, crie outro via [createTtsController].
@@ -284,6 +331,9 @@ fun ttsVoiceGenderHint(name: String): TtsVoiceGender? {
         n.contains("male") -> TtsVoiceGender.Male
         n.contains("#f") || n.contains("-f") || n.contains("_f") -> TtsVoiceGender.Female
         n.contains("#m") || n.contains("-m") || n.contains("_m") -> TtsVoiceGender.Male
+        // Motor da Samsung: `pt-BR-SMTf00` (feminina), `pt-BR-SMTm00` (masculina).
+        Regex("smtf\\d").containsMatchIn(n) -> TtsVoiceGender.Female
+        Regex("smtm\\d").containsMatchIn(n) -> TtsVoiceGender.Male
         else -> null
     }
 }

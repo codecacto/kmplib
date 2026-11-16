@@ -5,6 +5,24 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.369.0 — `TtsController.voices()` + `setVoice()`: listar as vozes do aparelho e escolher uma
+
+**Correção do `setVoiceGender(Male)` no Android + aditivo.** O Android não informa o gênero de uma voz, e o motor do
+Google as chama `pt-br-x-afs-local`, `pt-br-x-ptd-local`…: a heurística por nome não achava voz masculina nenhuma e
+ficava na padrão (feminina). Agora:
+
+- **`suspend fun voices(langTag): List<TtsVoice>`** — as vozes instaladas para o idioma (região exata primeiro), só as
+  que falam **sem internet** (no Android saem as que pedem rede ou não foram baixadas). `TtsVoice(id, name, langTag,
+  gender)`: no iOS o gênero e o nome ("Luciana", "Felipe") vêm do sistema; no Android `gender` é `null` quando o nome
+  não diz, e o app deixa a pessoa **ouvir e escolher**.
+- **`fun setVoice(id: String?)`** — fixa a voz das próximas falas; vence o gênero. `null` volta ao automático. Voz que
+  sumiu (desinstalada, outro idioma) é ignorada e vale o gênero.
+- `ttsVoiceGenderHint` reconhece o motor da Samsung (`SMTm00`/`SMTf00`); a escolha por gênero no Android passa a
+  preferir vozes offline.
+- `sortVoicesForLang` (pura) ordena/filtra a lista.
+
+Defaults na interface: dublê escrito à mão continua compilando.
+
 ## 2.368.1 — `ReorderableList(canDrag)`: o leitor de tela conta só os itens que se pegam
 
 **Correção, nada a fazer** — só muda algo para quem passa `canDrag`. A posição anunciada ("Posição 3 de 36") e as ações

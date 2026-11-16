@@ -40,6 +40,8 @@ class IosTtsController : TtsController {
 
     private var currentRate: Float = 1f
     private var voiceGender: TtsVoiceGender = TtsVoiceGender.Female
+    /** Voz fixada por [setVoice] (`identifier`); `null` = automática pelo gênero. */
+    private var voiceId: String? = null
     private var released = false
 
     private val synthesizer = AVSpeechSynthesizer()
@@ -194,7 +196,39 @@ class IosTtsController : TtsController {
      * (`AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderMale`/`Female`, iOS 13+). Prefere o match de idioma exato ao de
      * prefixo. Retorna `null` se nada casar (o chamador cai no `voiceWithLanguage`). Nunca lança.
      */
+    override fun setVoice(id: String?) {
+        voiceId = id
+    }
+
+    override suspend fun voices(langTag: String): List<TtsVoice> = try {
+        val all = AVSpeechSynthesisVoice.speechVoices()
+            .filterIsInstance<AVSpeechSynthesisVoice>()
+            .map { v ->
+                TtsVoice(
+                    id = v.identifier,
+                    name = v.name,
+                    langTag = v.language,
+                    gender = when (v.gender) {
+                        AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderMale -> TtsVoiceGender.Male
+                        AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderFemale -> TtsVoiceGender.Female
+                        else -> null
+                    },
+                )
+            }
+        sortVoicesForLang(all, langTag)
+    } catch (e: Exception) {
+        AppLogger.w(TAG, "Falha ao listar vozes: ${e.message}")
+        emptyList()
+    }
+
     private fun pickIosVoice(langTag: String, gender: TtsVoiceGender): AVSpeechSynthesisVoice? {
+        // A voz escolhida pela pessoa ([setVoice]) vence o gênero, se ainda existir e for do idioma.
+        voiceId?.let { id ->
+            val chosen = AVSpeechSynthesisVoice.voiceWithIdentifier(id)
+            if (chosen != null && chosen.language.lowercase().substringBefore('-') == langTag.lowercase().substringBefore('-')) {
+                return chosen
+            }
+        }
         return try {
             val target = when (gender) {
                 TtsVoiceGender.Female -> AVSpeechSynthesisVoiceGender.AVSpeechSynthesisVoiceGenderFemale
