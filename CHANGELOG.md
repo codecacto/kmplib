@@ -5,6 +5,18 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.370.0 — `AppTimeGridScheduler`: atendimento curto colado no seguinte não fica mais por cima dele
+
+**Correção visual, nada a fazer além do bump.** Achado no Meu Barbeiro (17/nov/2026). A grade empacotava as lanes
+pelo horário REAL, mas desenhava o bloco com a altura mínima (`minEventHeight`, 44dp, alvo de toque) e o rabo do
+buffer: na escala do celular (56dp/hora) um atendimento de 30 min ocupa ~47 min na tela e o das 09:30 era
+desenhado por cima do das 09:00, cobrindo o horário. Agora o empacotamento conta o espaço DESENHADO: o curto colado
+no seguinte vai para a lane ao lado; o terceiro reaproveita a lane quando o desenho do primeiro já acabou. Posição,
+altura e rótulo continuam pelo horário real.
+
+- `packLanes(..., visualEnd: (T, MinuteRange) -> Int)` — opcional; default = fim real (comportamento anterior).
+- `packEventLanes(events, minSpanMin = 0)` — conta `max(duração, minSpanMin) + bufferMin`.
+
 ## 2.369.1 — `TtsController.voices()`: aparelho só com voz de rede não fica com a lista vazia
 
 **Correção, nada a fazer.** No Android a lista levava só as vozes offline; aparelho cujo motor só tem voz de rede

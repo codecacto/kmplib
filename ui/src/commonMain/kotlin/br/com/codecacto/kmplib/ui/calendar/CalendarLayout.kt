@@ -111,11 +111,17 @@ data class LaidOutEvent<T>(
  * transitiva; dentro do cluster, cada evento cai na primeira lane livre (cuja última faixa termina ≤
  * início do evento). Todo evento do cluster recebe o mesmo `laneCount` → largura = `1/laneCount`,
  * `left = laneIndex/laneCount`. Determinístico: ordena por início asc, fim asc, `id` (estável).
+ *
+ * [visualEnd] (≥ 2.370.0): o fim que o DESENHO ocupa, quando ele passa do fim real — altura mínima
+ * do bloco (alvo de toque) e rabo de buffer. Sem ele, um atendimento de 30 min esticado até a altura
+ * mínima invade o seguinte e os dois se sobrepõem na mesma lane. O `range` devolvido continua o real
+ * (rótulo de horário, posição). Default: o fim real (comportamento anterior).
  */
 fun <T> packLanes(
     events: List<T>,
     getRange: (T) -> MinuteRange?,
     id: (T) -> String,
+    visualEnd: (T, MinuteRange) -> Int = { _, r -> r.endMin },
 ): List<LaidOutEvent<T>> {
     data class WithRange(val event: T, val range: MinuteRange)
 
@@ -153,6 +159,7 @@ fun <T> packLanes(
     }
 
     for (item in withRange) {
+        val end = maxOf(item.range.endMin, visualEnd(item.event, item.range))
         // Novo cluster quando o evento começa em/depois do fim de tudo que veio antes.
         if (cluster.isNotEmpty() && item.range.startMin >= clusterMaxEnd) {
             flushCluster()
@@ -161,22 +168,34 @@ fun <T> packLanes(
         var lane = clusterLanes.indexOfFirst { it <= item.range.startMin }
         if (lane == -1) {
             lane = clusterLanes.size
-            clusterLanes.add(item.range.endMin)
+            clusterLanes.add(end)
         } else {
-            clusterLanes[lane] = item.range.endMin
+            clusterLanes[lane] = end
         }
         laneOf[id(item.event)] = lane
         cluster.add(item)
-        clusterMaxEnd = maxOf(clusterMaxEnd, item.range.endMin)
+        clusterMaxEnd = maxOf(clusterMaxEnd, end)
     }
     if (cluster.isNotEmpty()) flushCluster()
 
     return result
 }
 
-/** Açúcar para eventos `ScheduleEvent` (usa `id`/`start`/`end` diretos). */
-fun packEventLanes(events: List<ScheduleEvent>): List<LaidOutEvent<ScheduleEvent>> =
-    packLanes(events, getRange = { toMinuteRange(it.start, it.end) }, id = { it.id })
+/**
+ * Açúcar para eventos `ScheduleEvent` (usa `id`/`start`/`end` diretos).
+ *
+ * [minSpanMin] (≥ 2.370.0): duração mínima, em minutos, que o bloco ocupa na tela (a altura mínima
+ * convertida pela escala). O espaço do desenho conta no empacotamento — altura mínima + rabo de
+ * `bufferMin` —, e o atendimento curto colado no seguinte vai para a lane ao lado em vez de ficar por
+ * cima dele. `0` = só a duração real + buffer.
+ */
+fun packEventLanes(events: List<ScheduleEvent>, minSpanMin: Int = 0): List<LaidOutEvent<ScheduleEvent>> =
+    packLanes(
+        events,
+        getRange = { toMinuteRange(it.start, it.end) },
+        id = { it.id },
+        visualEnd = { e, r -> r.startMin + maxOf(r.endMin - r.startMin, minSpanMin) + maxOf(0, e.bufferMin) },
+    )
 
 /** Faixas de FORA do expediente dentro da janela (para sombrear). Complemento de `availableRanges`. */
 fun offHoursRanges(

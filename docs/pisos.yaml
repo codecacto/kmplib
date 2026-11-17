@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.370.0
+    motivo: "agenda: atendimento curto colado no seguinte desenhado por cima dele (altura mínima invadia o próximo)"
+    simbolos: [AppTimeGridScheduler]
+
   - versao: 2.363.0
     motivo: "ouvinte do push do app roubava o toque de campanha do Nexus que abriu o app a frio (premium/comunicado/link não abriam)"
     simbolos: [PushTapHost]

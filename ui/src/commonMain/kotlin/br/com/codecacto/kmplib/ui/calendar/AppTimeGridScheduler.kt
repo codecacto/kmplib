@@ -790,7 +790,10 @@ private fun ResourceColumn(
     val nowColor = MaterialTheme.colorScheme.primary
     val borderColor = MaterialTheme.colorScheme.outlineVariant
 
-    val laidOut = remember(events) { packEventLanes(events) }
+    // O empacotamento conta o espaço DESENHADO: a altura mínima (alvo de toque) em minutos da escala
+    // atual + o rabo do buffer. Sem isso, um atendimento de 30 min esticado a 44dp cobria o seguinte.
+    val minSpanMin = if (unitPerMinute > 0f) kotlin.math.ceil(minEventHeight.value / unitPerMinute).toInt() else 0
+    val laidOut = remember(events, minSpanMin) { packEventLanes(events, minSpanMin) }
     val offHours = remember(window, column.availableRanges) { offHoursRanges(window, column.availableRanges) }
 
     // Fonte ÚNICA da destinação vigente: o mesmo achatamento que o `layerAtMinute` público usa para responder

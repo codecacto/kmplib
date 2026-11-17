@@ -94,6 +94,35 @@ class CalendarLayoutTest {
     }
 
     @Test
+    fun `curto colado no seguinte, esticado pela altura minima, vai para a lane ao lado`() {
+        // 30 min a ~0,93dp/min = 28dp; a altura mínima de 44dp ocupa ~48 min e invadiria o das 09:30.
+        val out = packEventLanes(listOf(ev("a", 9, 0, 9, 30), ev("b", 9, 30, 10, 0)), minSpanMin = 48)
+        val a = out.first { it.event.id == "a" }
+        val b = out.first { it.event.id == "b" }
+        assertEquals(2, a.laneCount)
+        assertEquals(setOf(0, 1), setOf(a.laneIndex, b.laneIndex))
+        // O range devolvido segue o REAL (rótulo e posição): 09:00–09:30.
+        assertEquals(9 * 60 + 30, a.range.endMin)
+    }
+
+    @Test
+    fun `altura minima que cabe na duracao nao muda nada`() {
+        val out = packEventLanes(listOf(ev("a", 9, 0, 10, 0), ev("b", 10, 0, 11, 0)), minSpanMin = 48)
+        assertTrue(out.all { it.laneCount == 1 && it.laneIndex == 0 })
+    }
+
+    @Test
+    fun `terceiro curto reaproveita a lane quando o desenho do primeiro ja acabou`() {
+        val out = packEventLanes(
+            listOf(ev("a", 9, 0, 9, 30), ev("b", 9, 30, 10, 0), ev("c", 10, 0, 10, 30)),
+            minSpanMin = 48,
+        )
+        assertEquals(0, out.first { it.event.id == "a" }.laneIndex)
+        assertEquals(1, out.first { it.event.id == "b" }.laneIndex)
+        assertEquals(0, out.first { it.event.id == "c" }.laneIndex)
+    }
+
+    @Test
     fun `dois sobrepostos viram 2 lanes lado a lado`() {
         val out = packEventLanes(listOf(ev("a", 9, 0, 10, 0), ev("b", 9, 30, 10, 30)))
         val a = out.first { it.event.id == "a" }
