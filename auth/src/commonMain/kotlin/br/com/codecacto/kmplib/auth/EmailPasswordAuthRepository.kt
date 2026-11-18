@@ -194,7 +194,7 @@ class EmailPasswordAuthRepository(
             if (renovada != null) {
                 tokenManager.adopt(
                     renovada, email = sessao.email, name = sessao.name,
-                    providerId = sessao.providerId, username = sessao.username,
+                    providerId = sessao.providerId, username = sessao.username, createdAt = sessao.createdAt,
                 )
                 val usuario = tokenManager.session.value?.toUser()
                     ?: fallbackUser(sessao.email, sessao.name, sessao.providerId)
@@ -219,7 +219,7 @@ class EmailPasswordAuthRepository(
         val tokens = api.firstAccessPasswordChange(newPassword, token).getOrElse { return Result.failure(it) }
         tokenManager.adopt(
             tokens, email = sessao.email, name = sessao.name,
-            providerId = sessao.providerId, username = sessao.username,
+            providerId = sessao.providerId, username = sessao.username, createdAt = sessao.createdAt,
         )
         // Na sessão restrita o `/me` omitia e-mail e usuário; agora, com a senha própria, vêm.
         syncProfileQuietly()
@@ -425,6 +425,7 @@ class EmailPasswordAuthRepository(
         // `user.isGoogleProvider`/`isAppleProvider` responderem a verdade no own-auth.
         providerId = providerId,
         username = username,
+        createdAt = createdAt,
     )
 
     /** Converte a [OwnAuthException] tipada para a [AuthException] canônica que os apps já tratam. */

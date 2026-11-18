@@ -38,11 +38,18 @@ class OwnAuthProfileTest {
         return Cenario(EmailPasswordAuthRepository(api, tm), tm, cap)
     }
 
-    private fun me(name: String? = "Ana Souza", username: String? = "ana", email: String = "ana@x.com", id: String = "acc-1") =
+    private fun me(
+        name: String? = "Ana Souza",
+        username: String? = "ana",
+        email: String = "ana@x.com",
+        id: String = "acc-1",
+        createdAt: String? = null,
+    ) =
         buildString {
             append("""{"id":"$id","email":"$email"""")
             if (name != null) append(""","name":"$name"""")
             if (username != null) append(""","username":"$username"""")
+            if (createdAt != null) append(""","createdAt":"$createdAt"""")
             append("}")
         }
 
@@ -60,6 +67,21 @@ class OwnAuthProfileTest {
         val leitura = c.captured.single { it.url.endsWith("/v1/staff/auth/me") }
         assertEquals("GET", leitura.method)
         assertTrue(leitura.authorization.orEmpty().startsWith("Bearer "), "o /me vai com o token da sessão")
+    }
+
+    @Test
+    fun `login le a criacao da conta do me e o refresh preserva`() = runTest {
+        val c = cenario { path, _ ->
+            if (path.endsWith("/me")) HttpStatusCode.OK to me(createdAt = "2026-11-18T13:05:00Z") else HttpStatusCode.NotFound to ""
+        }
+
+        val user = c.repo.signInWithEmail("ana@x.com", "s3nha").getOrThrow()
+
+        assertEquals("2026-11-18T13:05:00Z", user.createdAt)
+        assertEquals("2026-11-18T13:05:00Z", c.tm.session.value?.createdAt)
+        // Um /me sem a data não apaga a conhecida.
+        c.tm.applyProfile(OwnAuthProfile(id = "acc-1", email = "ana@x.com"))
+        assertEquals("2026-11-18T13:05:00Z", c.tm.session.value?.createdAt)
     }
 
     @Test

@@ -179,6 +179,8 @@ data class OwnAuthProfile(
     val email: String = "",
     val name: String? = null,
     val username: String? = null,
+    /** Criação da conta (2.371.0; backlib ≥ 0.273.0) — ISO-8601. `null` = o servidor não informa. */
+    val createdAt: String? = null,
 )
 
 /**

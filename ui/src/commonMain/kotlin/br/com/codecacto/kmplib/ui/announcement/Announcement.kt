@@ -64,7 +64,8 @@ import kotlin.time.Instant
 /**
  * O tipo do aviso — decide ícone, cor e prioridade ([announcementPriority]).
  *
- * Serializado em camelCase (`"news"`, `"update"`, `"maintenance"`, `"crossPlatform"`, `"info"`),
+ * Serializado em camelCase (`"news"`, `"update"`, `"maintenance"`, `"crossPlatform"`, `"info"`,
+ * `"welcome"` — 2.371.0),
  * igual à weblib. Valor desconhecido (servidor mais novo que o app) vira [INFO] em vez de derrubar a
  * lista inteira.
  */
@@ -84,6 +85,14 @@ enum class AnnouncementKind(val wireName: String) {
 
     /** Aviso geral, sem categoria. */
     INFO("info"),
+
+    /**
+     * Boas-vindas do 1º acesso de conta nova (2.371.0), com o contato de suporte (botão de WhatsApp).
+     * O servidor só devolve com `audience=newAccount`; quem pede é o `rememberWelcomeAnnouncement`
+     * / `RemoteAnnouncementHost(welcome = …)` da `kmplib-central`. App anterior à 2.371.0 nunca o
+     * recebe (não manda o `audience`) — e, se recebesse, leria como [INFO].
+     */
+    WELCOME("welcome"),
     ;
 
     companion object {

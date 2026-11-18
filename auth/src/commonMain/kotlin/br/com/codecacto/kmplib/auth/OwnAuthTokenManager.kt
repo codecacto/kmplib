@@ -104,8 +104,10 @@ class OwnAuthTokenManager(
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
         /** Nome de usuário já conhecido (2.229.0) — preservado ao trocar o par de tokens. */
         username: String? = null,
+        /** Criação da conta já conhecida (2.371.0) — preservada ao trocar o par de tokens. */
+        createdAt: String? = null,
     ) {
-        val session = tokens.toSession(email, name, providerId, username)
+        val session = tokens.toSession(email, name, providerId, username, createdAt)
         stateLock.withLock {
             store.save(session)
             publish(session)
@@ -128,7 +130,7 @@ class OwnAuthTokenManager(
             if (JwtDecoder.subject(tokens.accessToken).orEmpty() != expectedAccountId) {
                 return@withLock AdoptOutcome.OtherAccount
             }
-            val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
+            val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username, current.createdAt)
             store.save(renewed)
             publish(renewed)
             AdoptOutcome.Adopted(replaced = current)
@@ -165,6 +167,7 @@ class OwnAuthTokenManager(
             email = profile.email.trim().ifEmpty { current.email },
             name = profile.name?.trim()?.takeIf { it.isNotEmpty() } ?: current.name,
             username = profile.username?.trim()?.takeIf { it.isNotEmpty() } ?: current.username,
+            createdAt = profile.createdAt?.trim()?.takeIf { it.isNotEmpty() } ?: current.createdAt,
         )
         if (merged != current) {
             store.save(merged)
@@ -293,7 +296,7 @@ class OwnAuthTokenManager(
                     // O refresh preserva a identidade da sessão (inclusive a ORIGEM do login): renovar
                     // o token não converte um login social em login por senha. Lê da sessão CORRENTE,
                     // para não desfazer um perfil aplicado enquanto o pedido estava na rede.
-                    val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username)
+                    val renewed = tokens.toSession(current.email, current.name, current.providerId, current.username, current.createdAt)
                     store.save(renewed)
                     publish(renewed)
                     RefreshCommit.Saved(renewed.accessToken)
@@ -370,6 +373,7 @@ class OwnAuthTokenManager(
         name: String,
         providerId: String = OwnAuthSession.DEFAULT_PROVIDER_ID,
         username: String? = null,
+        createdAt: String? = null,
     ): OwnAuthSession {
         val accountId = JwtDecoder.subject(accessToken).orEmpty()
         val expiresAt = nowMillis() / 1000 + expiresInSeconds
@@ -383,6 +387,7 @@ class OwnAuthTokenManager(
             providerId = providerId,
             passwordChangeRequired = passwordChangeRequired,
             username = username,
+            createdAt = createdAt,
         )
     }
 

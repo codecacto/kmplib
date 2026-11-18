@@ -18,6 +18,7 @@ class AnnouncementSerializationTest {
             AnnouncementKind.MAINTENANCE to "maintenance",
             AnnouncementKind.CROSS_PLATFORM to "crossPlatform",
             AnnouncementKind.INFO to "info",
+            AnnouncementKind.WELCOME to "welcome",
         )
         expected.forEach { (kind, wire) ->
             val json = AnnouncementJson.encodeToString(AnnouncementKind.serializer(), kind)

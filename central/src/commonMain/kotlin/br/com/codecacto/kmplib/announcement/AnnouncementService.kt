@@ -81,15 +81,21 @@ class AnnouncementClient(
     suspend fun fetch(
         platform: String = currentPlatform,
         locale: String = appLanguageTag(),
-    ): List<Announcement> = fetchOrNull(platform, locale) ?: emptyList()
+        audience: String? = null,
+    ): List<Announcement> = fetchOrNull(platform, locale, audience) ?: emptyList()
 
     /**
      * Como [fetch], mas distingue a FALHA (`null`) da resposta vazia (`emptyList()`): o servidor dizer
      * "não há aviso" apaga o aviso; o servidor não responder não apaga nada.
+     *
+     * @param audience público pedido ao servidor (2.371.0): [AnnouncementAudience.NEW_ACCOUNT] inclui as
+     *   boas-vindas (`kind = welcome`), que sem ele NUNCA vêm. `null` (default) não manda o parâmetro —
+     *   a consulta de sempre. Quem pede é o [WelcomeAnnouncementLoader].
      */
     suspend fun fetchOrNull(
         platform: String = currentPlatform,
         locale: String = appLanguageTag(),
+        audience: String? = null,
     ): List<Announcement>? {
         val url = config.appsApiBaseUrl.trimEnd('/') + PATH
         val result: ApiResult<String> = handleApiCall {
@@ -98,6 +104,7 @@ class AnnouncementClient(
                 parameter("project", config.projectSlug)
                 parameter("platform", platform)
                 parameter("locale", locale)
+                if (!audience.isNullOrBlank()) parameter("audience", audience)
             }.bodyAsText()
         }
         return when (result) {
@@ -144,6 +151,12 @@ class AnnouncementClient(
         const val TAG = "AnnouncementService"
         const val PATH = "/public/announcements"
     }
+}
+
+/** Valores do parâmetro `audience` de `GET /public/announcements` (2.371.0). */
+object AnnouncementAudience {
+    /** Conta recém-criada: a resposta inclui as boas-vindas (`kind = welcome`). */
+    const val NEW_ACCOUNT: String = "newAccount"
 }
 
 /**

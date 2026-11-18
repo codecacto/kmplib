@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.371.0 — Boas-vindas do 1º acesso no app (`WelcomeAnnouncement`), par da weblib 0.328.1
+
+**Aditivo.** Regra da fábrica de 18/nov/2026 (constituição, "BOAS-VINDAS DO 1º ACESSO"): a conta que PAGA o produto,
+na 1ª entrada depois do cadastro, vê UMA vez o comunicado "Boas-vindas" do Nexus → Comunicados, com o WhatsApp do
+suporte em destaque. Só conta criada há até 7 dias e que ainda não viu (a marca fica NA CONTA).
+
+- **Como um app liga** (`kmplib-central`): `RemoteAnnouncementHost(welcome = WelcomeAnnouncementConfig(accountCreatedAt =
+  user?.createdAt, accountStore = <o store do tour na conta>))`. Para host próprio: `rememberWelcomeAnnouncement(config)`
+  → `announcements` + `listener` (`onEvent`). Regra pura testável: `WelcomeAnnouncementLoader` (`load`/`markShown`),
+  `isNewAccount(createdAt, now, days = 7)`, `parseAccountCreatedAt`, `pickWelcomeAnnouncement`, `WELCOME_SEEN_KEY = "welcome"`.
+  Sem data de criação, sem store, store que falha na leitura, conta antiga ou que já viu = não mostra e nem busca.
+  Marca `welcome` na conta quando o modal APARECE (evento `SHOWN`); falha ao gravar não quebra.
+- **Busca com público**: `AnnouncementClient.fetch`/`fetchOrNull(…, audience)` + `AnnouncementAudience.NEW_ACCOUNT`
+  (`&audience=newAccount` — o apps-api só manda `kind=welcome` com ele). Sem `audience`, a consulta de sempre.
+- **Tipo `welcome`** (`kmplib-ui`): `AnnouncementKind.WELCOME` (antes `"welcome"` virava `INFO`), rótulo "Boas-vindas"
+  nos 4 idiomas (`AnnouncementTexts.welcome`), ícone de celebração, cor `success` do tema, prioridade logo depois da
+  manutenção. ⚠️ `announcementPriority` de `MAINTENANCE` passou de 5 para 6 (WELCOME = 5); a ordem relativa dos demais
+  não mudou. `when (kind)` exaustivo no app ganha um ramo.
+- **Botão de WhatsApp no modal** (todo comunicado cuja ação abre `wa.me`/`api.whatsapp.com`/`web.whatsapp.com`): acima
+  do botão, bloco com o ícone oficial num círculo verde-petróleo, "WhatsApp", o número INTEIRO numa linha
+  (`(65) 99803-0240`; outro país `+<dígitos>`) e "Copiar" (→ "Copiado" por 2 s; no celular só o ícone; rótulo e anúncio
+  para o leitor de tela); o botão de ação vira verde-petróleo com texto branco e o glifo do WhatsApp. Puras:
+  `isWhatsAppActionUrl`, `whatsAppNumberFromUrl` → `AnnouncementWhatsAppNumber`, `Announcement.whatsAppAction`/`whatsAppNumber`.
+  Ids `aviso-modal-whatsapp`, `-numero`, `-copiar`. `AnnouncementDialogTexts` ganhou `copy`/`copied`/`copyWhatsAppDescription`/
+  `copiedWhatsAppDescription` (com default).
+- **Own-auth**: `User.createdAt` (ISO-8601) lido do `GET {authBasePath}/me` (backlib-auth-local ≥ 0.273.0), guardado
+  na sessão (`OwnAuthSession.createdAt`, `OwnAuthProfile.createdAt`) e preservado no refresh. Firebase: sempre `null`.
+- Fora do app (só web): a prévia `?previa=boas-vindas` — no app não há URL; para conferir, use uma conta nova.
+
 ## 2.370.0 — `AppTimeGridScheduler`: atendimento curto colado no seguinte não fica mais por cima dele
 
 **Correção visual, nada a fazer além do bump.** Achado no Meu Barbeiro (17/nov/2026). A grade empacotava as lanes

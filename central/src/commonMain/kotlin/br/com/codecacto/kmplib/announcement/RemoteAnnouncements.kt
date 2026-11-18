@@ -69,6 +69,10 @@ fun rememberRemoteAnnouncements(
  *   VINDOS DO SERVIDOR vão para a estatística do Nexus (`ModalEvents`, que o `CentralServices`
  *   inicializa; sem ele, nada sai). Os [local] nunca são enviados.
  * @param onEvent ouvinte próprio do app (recebe também os eventos dos [local]).
+ * @param welcome boas-vindas do 1º acesso (2.371.0): com a conta logada nova (≤ 7 dias) e o store do
+ *   tour, busca também `audience=newAccount` e mostra UMA vez o comunicado "Boas-vindas" do Nexus,
+ *   marcando `welcome` na conta quando o modal aparece ([rememberWelcomeAnnouncement]). `null`
+ *   (default) = sem boas-vindas. Ligue só onde a pessoa PAGA o produto (regra da fábrica).
  *
  * ```kotlin
  * RemoteAnnouncementHost(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -91,12 +95,25 @@ fun RemoteAnnouncementHost(
     recordEvents: Boolean = true,
     onEvent: AnnouncementEventListener? = null,
     dialogSuppressInAutomation: Boolean = true,
+    welcome: WelcomeAnnouncementConfig? = null,
 ) {
-    val remote = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
+    val remoteList = rememberRemoteAnnouncements(client = client, minRefreshInterval = minRefreshInterval).value
+    val welcomeState = rememberWelcomeAnnouncement(config = welcome, client = client)
+    val welcomeList = welcomeState.announcements
+    // Boas-vindas na frente (mesmo id que um remoto comum: vale a cópia `once` das boas-vindas).
+    val remote = remember(remoteList, welcomeList) { if (welcomeList.isEmpty()) remoteList else welcomeList + remoteList }
     val merged = remember(local, remote) { mergeAnnouncements(local, remote) }
     val remoteIds = remember(remote) { remote.mapTo(HashSet()) { it.id } }
-    val listener = remember(remoteIds, recordEvents, onEvent) {
-        if (recordEvents) AnnouncementEventsReporter.Shared.listener(remoteIds, onEvent) else onEvent
+    val listener = remember(remoteIds, recordEvents, onEvent, welcomeState.listener) {
+        val base = if (recordEvents) AnnouncementEventsReporter.Shared.listener(remoteIds, onEvent) else onEvent
+        if (welcome == null) {
+            base
+        } else {
+            AnnouncementEventListener { a, event ->
+                welcomeState.listener.onEvent(a, event)
+                base?.onEvent(a, event)
+            }
+        }
     }
     AnnouncementHost(
         announcements = merged,

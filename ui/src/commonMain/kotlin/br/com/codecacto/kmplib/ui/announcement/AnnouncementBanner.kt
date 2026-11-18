@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Celebration
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Info
@@ -72,6 +73,7 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_kind_info
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_kind_maintenance
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_kind_news
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_kind_update
+import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_kind_welcome
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_window_ongoing
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_window_range
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_window_same_day
@@ -131,6 +133,8 @@ data class AnnouncementTexts(
     val windowSameDay: String,
     val windowRange: String,
     val windowOngoing: String,
+    /** Rótulo do tipo [AnnouncementKind.WELCOME] (2.371.0). Default pt-BR só para quem monta à mão. */
+    val welcome: String = "Boas-vindas",
 ) {
     /** O rótulo do tipo (a linha pequena acima do título). */
     fun kindLabel(kind: AnnouncementKind): String = when (kind) {
@@ -139,6 +143,7 @@ data class AnnouncementTexts(
         AnnouncementKind.NEWS -> news
         AnnouncementKind.CROSS_PLATFORM -> crossPlatform
         AnnouncementKind.INFO -> info
+        AnnouncementKind.WELCOME -> welcome
     }
 }
 
@@ -154,6 +159,7 @@ fun rememberAnnouncementTexts(): AnnouncementTexts = AnnouncementTexts(
     windowSameDay = kmpStringResource(Res.string.kmplib_announcement_window_same_day),
     windowRange = kmpStringResource(Res.string.kmplib_announcement_window_range),
     windowOngoing = kmpStringResource(Res.string.kmplib_announcement_window_ongoing),
+    welcome = kmpStringResource(Res.string.kmplib_announcement_kind_welcome),
 )
 
 /**
@@ -202,7 +208,10 @@ fun announcementColors(
     )
 }
 
-/** A cor de destaque do tipo, do tema: manutenção = `warning`, aviso = `info`, os demais da marca. */
+/**
+ * A cor de destaque do tipo, do tema: manutenção = `warning`, aviso = `info`, boas-vindas = `success`
+ * (o verde do tema — o par do esmeralda da weblib, sem cor fixa), os demais da marca.
+ */
 @Composable
 fun announcementAccent(kind: AnnouncementKind): Color = when (kind) {
     AnnouncementKind.MAINTENANCE -> AppColors.current.warning
@@ -210,6 +219,7 @@ fun announcementAccent(kind: AnnouncementKind): Color = when (kind) {
     AnnouncementKind.CROSS_PLATFORM -> MaterialTheme.colorScheme.secondary
     AnnouncementKind.NEWS -> MaterialTheme.colorScheme.tertiary
     AnnouncementKind.INFO -> AppColors.current.info
+    AnnouncementKind.WELCOME -> AppColors.current.success
 }
 
 /** O ícone do tipo. */
@@ -219,6 +229,7 @@ fun announcementIcon(kind: AnnouncementKind): ImageVector = when (kind) {
     AnnouncementKind.CROSS_PLATFORM -> Icons.Outlined.Devices
     AnnouncementKind.NEWS -> Icons.Outlined.AutoAwesome
     AnnouncementKind.INFO -> Icons.Outlined.Info
+    AnnouncementKind.WELCOME -> Icons.Outlined.Celebration
 }
 
 /** Abre a URL da ação pelo [getUrlLauncher] da lib (passa pelo portão de pais em app infantil). */
@@ -488,7 +499,7 @@ fun rememberDefaultAnnouncementStore(): AnnouncementStore = remember { Preferenc
  * Escolhe o aviso da vez de [announcements] e lembra o que foi visto/dispensado em [store].
  *
  * Regras (ver [selectAnnouncement]): o primeiro PENDENTE dentro da janela de visibilidade, por
- * prioridade MAINTENANCE > UPDATE > CROSS_PLATFORM > NEWS > INFO (empate: ordem da lista). Reavalia
+ * prioridade MAINTENANCE > WELCOME > UPDATE > CROSS_PLATFORM > NEWS > INFO (empate: ordem da lista). Reavalia
  * sozinho quando um aviso entra/sai da janela ou a manutenção começa, e ao voltar ao primeiro plano.
  * Trocar a lista (ex.: chegou do servidor) reavalia na hora.
  *

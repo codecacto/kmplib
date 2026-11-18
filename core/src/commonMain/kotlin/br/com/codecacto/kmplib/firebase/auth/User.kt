@@ -24,6 +24,15 @@ data class User(
      * `OwnAuthService.refreshOwnProfile()`.
      */
     val username: String? = null,
+    /**
+     * **Quando a conta foi criada** (2.371.0) — ISO-8601 com fuso, como o servidor manda
+     * (`2026-11-18T13:05:00Z`). Aditivo e nulável: no own-auth vem do `GET {authBasePath}/me`
+     * (backlib-auth-local ≥ 0.273.0, `createdAt`), lido logo depois de cada login; `null` quando o
+     * backend não o informa, na sessão com senha temporária e sempre no Firebase. Uso: as
+     * boas-vindas do 1º acesso (`WelcomeAnnouncementConfig(accountCreatedAt = user.createdAt, …)`),
+     * que só aparecem para conta de até 7 dias — sem a data, não aparecem.
+     */
+    val createdAt: String? = null,
 ) {
     /**
      * Verifica se o usuário fez login com email/senha.

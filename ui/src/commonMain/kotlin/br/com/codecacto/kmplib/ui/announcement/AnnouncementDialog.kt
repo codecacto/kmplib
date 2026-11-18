@@ -86,6 +86,10 @@ import br.com.codecacto.kmplib.core.locale.RegionalFormat
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_auto_close
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_close
+import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_copied
+import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_copied_whatsapp_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_copy
+import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_copy_whatsapp_description
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_counter
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_duration_hours
 import br.com.codecacto.kmplib.generated.resources.kmplib_announcement_dialog_duration_hours_minutes
@@ -104,6 +108,19 @@ import br.com.codecacto.kmplib.ui.components.AppOutlinedButton
 import br.com.codecacto.kmplib.ui.locale.formatResourceArgs
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
 import br.com.codecacto.kmplib.ui.theme.ColorContrast
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import br.com.codecacto.kmplib.platform.getClipboard
+import br.com.codecacto.kmplib.ui.components.WhatsAppColors
+import br.com.codecacto.kmplib.ui.components.WhatsAppGlyph
+import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -137,6 +154,15 @@ object AnnouncementDialogTestTags {
     const val GOT_IT: String = "aviso-modal-entendi"
     const val CLOSE: String = "aviso-modal-fechar"
     const val AUTO_CLOSE: String = "aviso-modal-fecha-sozinho"
+
+    /** O bloco do número do WhatsApp (2.371.0) — só quando a ação abre o WhatsApp. */
+    const val WHATSAPP: String = "aviso-modal-whatsapp"
+
+    /** O número, inteiro, numa linha. */
+    const val WHATSAPP_NUMBER: String = "aviso-modal-whatsapp-numero"
+
+    /** O botão "Copiar" do número. */
+    const val WHATSAPP_COPY: String = "aviso-modal-whatsapp-copiar"
 }
 
 /**
@@ -163,6 +189,14 @@ data class AnnouncementDialogTexts(
     val durationHoursMinutes: String,
     val durationPrefix: String,
     val opensOutside: String,
+    /** "Copiar" — o botão do número do WhatsApp (2.371.0). */
+    val copy: String = "Copiar",
+    /** "Copiado" — o mesmo botão por 2 s depois de copiar. */
+    val copied: String = "Copiado",
+    /** Rótulo do botão Copiar para o leitor de tela ("Copiar o número do WhatsApp"). */
+    val copyWhatsAppDescription: String = "Copiar o número do WhatsApp",
+    /** O que o leitor de tela anuncia depois de copiar ("Número copiado"). */
+    val copiedWhatsAppDescription: String = "Número copiado",
 ) {
     fun counterText(position: Int, total: Int): String = formatResourceArgs(counter, arrayOf(position.toString(), total.toString()))
 }
@@ -184,6 +218,10 @@ fun rememberAnnouncementDialogTexts(): AnnouncementDialogTexts = AnnouncementDia
     durationHoursMinutes = kmpStringResource(Res.string.kmplib_announcement_dialog_duration_hours_minutes),
     durationPrefix = kmpStringResource(Res.string.kmplib_announcement_dialog_duration_prefix),
     opensOutside = kmpStringResource(Res.string.kmplib_announcement_dialog_opens_outside),
+    copy = kmpStringResource(Res.string.kmplib_announcement_dialog_copy),
+    copied = kmpStringResource(Res.string.kmplib_announcement_dialog_copied),
+    copyWhatsAppDescription = kmpStringResource(Res.string.kmplib_announcement_dialog_copy_whatsapp_description),
+    copiedWhatsAppDescription = kmpStringResource(Res.string.kmplib_announcement_dialog_copied_whatsapp_description),
 )
 
 /** Duração da janela em horas e minutos (pura). Arredonda o minuto para cima; mínimo 1 min. */
@@ -512,6 +550,10 @@ private fun DialogBody(
                     modifier = Modifier.testTag(AnnouncementDialogTestTags.MESSAGE),
                 )
             }
+            announcement.whatsAppNumber?.let { number ->
+                Spacer(Modifier.height(16.dp))
+                DialogWhatsAppContact(number, colors, texts, compact)
+            }
             announcement.window?.takeIf { it.end > it.start }?.let { window ->
                 Spacer(Modifier.height(16.dp))
                 DialogWindowBlock(announcement.kind, window, now, colors, texts, compact)
@@ -529,6 +571,102 @@ private fun DialogBody(
         }
     }
 }
+
+/**
+ * O número do WhatsApp em destaque (2.371.0, par do `ContatoWhatsApp` da weblib): ícone oficial num
+ * círculo verde-petróleo, rótulo "WhatsApp", o número INTEIRO numa linha (nunca quebra) e "Copiar",
+ * que vira "Copiado" por 2 s e anuncia ao leitor de tela. Copia pela área de transferência da lib.
+ */
+@Composable
+private fun DialogWhatsAppContact(
+    number: AnnouncementWhatsAppNumber,
+    colors: AnnouncementDialogColors,
+    texts: AnnouncementDialogTexts,
+    compact: Boolean,
+) {
+    var copied by remember(number.digits) { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(WHATSAPP_COPIED_MILLIS)
+            copied = false
+        }
+    }
+    val circle = WhatsAppColors.DarkGreen
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, ColorContrast.compositeOver(circle, 0.30f, colors.card), RoundedCornerShape(16.dp))
+            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
+            .testTag(AnnouncementDialogTestTags.WHATSAPP),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(40.dp).background(circle, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = WhatsAppGlyph,
+                contentDescription = null, // o rótulo "WhatsApp" ao lado diz o mesmo
+                tint = readableContentColorFor(circle),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = WHATSAPP_LABEL,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.secondaryContent,
+            )
+            Text(
+                text = number.display,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = if (compact) 16.sp else 18.sp,
+                    lineHeight = 24.sp,
+                    fontFeatureSettings = "tnum",
+                ),
+                fontWeight = FontWeight.SemiBold,
+                color = colors.content,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.testTag(AnnouncementDialogTestTags.WHATSAPP_NUMBER),
+            )
+        }
+        // Celular: só o ícone (o rótulo fica para o leitor de tela), para o número caber inteiro.
+        OutlinedButton(
+            onClick = {
+                getClipboard().copy(number.display, label = WHATSAPP_LABEL)
+                copied = true
+            },
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, colors.border),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.content),
+            contentPadding = PaddingValues(horizontal = if (compact) 10.dp else 12.dp),
+            modifier = Modifier
+                .defaultMinSize(minWidth = 44.dp, minHeight = 44.dp)
+                .testTag(AnnouncementDialogTestTags.WHATSAPP_COPY)
+                .semantics {
+                    contentDescription = if (copied) texts.copiedWhatsAppDescription else texts.copyWhatsAppDescription
+                    liveRegion = LiveRegionMode.Polite
+                },
+        ) {
+            Icon(
+                imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            if (!compact) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = if (copied) texts.copied else texts.copy,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
+        }
+    }
+}
+
+private const val WHATSAPP_LABEL = "WhatsApp"
+private const val WHATSAPP_COPIED_MILLIS = 2_000L
 
 @Composable
 private fun DialogWindowBlock(
@@ -650,12 +788,16 @@ private fun DialogFooter(
     }
     val actionButton: @Composable (Modifier) -> Unit = { m ->
         if (action != null) {
+            // WhatsApp (2.371.0, par da weblib 0.328.0): verde-petróleo da marca com texto branco
+            // (7,67:1) e o glifo oficial no lugar do "abre fora".
+            val whatsApp = isWhatsAppActionUrl(action.url)
             AppButton(
                 text = action.label,
                 onClick = { onAction(action) },
                 height = 48.dp,
                 fontSize = 15.sp,
-                icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                primaryColor = if (whatsApp) WhatsAppColors.DarkGreen else MaterialTheme.colorScheme.primary,
+                icon = if (whatsApp) WhatsAppGlyph else Icons.AutoMirrored.Outlined.OpenInNew,
                 modifier = m
                     .testTag(AnnouncementDialogTestTags.ACTION)
                     .semantics { contentDescription = "${action.label}, ${texts.opensOutside}" },

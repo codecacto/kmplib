@@ -15,12 +15,14 @@ import kotlin.time.Instant
 
 /**
  * Prioridade do tipo: maior aparece primeiro.
- * MAINTENANCE (5) > UPDATE (4) > CROSS_PLATFORM (3) > NEWS (2) > INFO (1).
+ * MAINTENANCE (6) > WELCOME (5) > UPDATE (4) > CROSS_PLATFORM (3) > NEWS (2) > INFO (1) — a mesma
+ * ordem da weblib (boas-vindas logo depois da manutenção, 2.371.0; a manutenção era 5 até a 2.370.0).
  * Empate: a ordem da lista (a ordem do servidor).
  */
 val AnnouncementKind.announcementPriority: Int
     get() = when (this) {
-        AnnouncementKind.MAINTENANCE -> 5
+        AnnouncementKind.MAINTENANCE -> 6
+        AnnouncementKind.WELCOME -> 5
         AnnouncementKind.UPDATE -> 4
         AnnouncementKind.CROSS_PLATFORM -> 3
         AnnouncementKind.NEWS -> 2

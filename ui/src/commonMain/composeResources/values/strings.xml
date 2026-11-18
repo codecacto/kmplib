@@ -579,6 +579,7 @@
     <string name="kmplib_announcement_kind_news">Novidade</string>
     <string name="kmplib_announcement_kind_cross_platform">Também disponível</string>
     <string name="kmplib_announcement_kind_info">Aviso</string>
+    <string name="kmplib_announcement_kind_welcome">Boas-vindas</string>
     <string name="kmplib_announcement_window_same_day">%1$s, das %2$s às %3$s</string>
     <string name="kmplib_announcement_window_range">De %1$s até %2$s</string>
     <string name="kmplib_announcement_window_ongoing">Em andamento — até %1$s</string>
@@ -595,6 +596,10 @@
     <string name="kmplib_announcement_dialog_duration_hours_minutes">%1$s h %2$s min</string>
     <string name="kmplib_announcement_dialog_duration_prefix">Duração: %1$s</string>
     <string name="kmplib_announcement_dialog_opens_outside">abre fora do app</string>
+    <string name="kmplib_announcement_dialog_copy">Copiar</string>
+    <string name="kmplib_announcement_dialog_copied">Copiado</string>
+    <string name="kmplib_announcement_dialog_copy_whatsapp_description">Copiar o número do WhatsApp</string>
+    <string name="kmplib_announcement_dialog_copied_whatsapp_description">Número copiado</string>
     <!-- Tela Sobre (AboutScreen) e tema (ThemeModeSelector) — 2.298.0 -->
     <string name="kmplib_about_title">Sobre</string>
     <string name="kmplib_about_version">Versão %1$s</string>

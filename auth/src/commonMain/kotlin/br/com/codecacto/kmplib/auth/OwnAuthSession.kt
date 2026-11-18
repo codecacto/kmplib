@@ -51,6 +51,11 @@ data class OwnAuthSession(
      * como `null`. O refresh preserva o valor.
      */
     val username: String? = null,
+    /**
+     * **Criação da conta** (2.371.0), ISO-8601, lida do `GET {authBasePath}/me` (backlib ≥ 0.273.0).
+     * `null` até a primeira leitura do perfil e quando o servidor não informa. O refresh preserva.
+     */
+    val createdAt: String? = null,
 ) {
     companion object {
         /** Login por e-mail e senha — mesmo valor que o `User.providerId` default. */
