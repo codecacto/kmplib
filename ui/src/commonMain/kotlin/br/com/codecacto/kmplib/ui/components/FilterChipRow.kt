@@ -34,6 +34,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Usa [FilterChip] do Material 3; cores vêm de [androidx.compose.material3.MaterialTheme]
  * via tema da kmplib. Cada chip expõe [contentDescription] para acessibilidade.
  *
+ * **Rótulo inteiro (2.373.0):** o chip mede pelo conteúdo, numa linha só — "Bianca Toledo", nunca
+ * "Bianca Toled…". Só o rótulo fora da curva (> [ChipLabel.MAX_CHARS]) é encurtado, no fim de uma palavra;
+ * a descrição de acessibilidade leva o texto completo.
+ *
  * @param options Rótulos das opções, na ordem de exibição.
  * @param selectedIndex Índice da opção atualmente selecionada.
  * @param onOptionSelected Callback com o índice da opção escolhida.
@@ -70,7 +74,8 @@ fun FilterChipRow(
             FilterChip(
                 selected = selected,
                 onClick = { onOptionSelected(index) },
-                label = { Text(text = label) },
+                // Nome inteiro: a fileira rola, o chip mede pelo conteúdo e não quebra linha (2.373.0).
+                label = { Text(text = ChipLabel.display(label), maxLines = 1, softWrap = false) },
                 modifier = Modifier.testTag(optionTags[index]).semantics {
                     this.selected = selected
                     contentDescription =

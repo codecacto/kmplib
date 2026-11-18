@@ -5,6 +5,21 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.373.0 — Fileira rolável de chips mostra o nome inteiro (`FilterChipRow` e chips do `AppTimeGridScheduler`)
+
+**Correção visual. Não é aviso** (nada deixa de funcionar). O chip da fileira que rola cortava o nome ("Bianca
+Toled…"). Agora:
+
+- **`ChipLabel.display(label, maxChars = ChipLabel.MAX_CHARS)`** (novo, `ui.components`, puro): espaço das pontas e
+  repetido some; **inteiro até 32 caracteres**; acima disso, as palavras que cabem + "…" (palavra única longa demais é
+  cortada nela mesma). É a régua dos dois componentes abaixo.
+- **`FilterChipRow`**: rótulo `ChipLabel.display(...)`, `maxLines = 1`, `softWrap = false` — mede pelo conteúdo numa
+  linha só; a descrição de acessibilidade segue com o texto completo.
+- **`AppTimeGridScheduler`** (celular com mais de um profissional/grupo): o chip deixou de usar `fillMaxSize` no miolo
+  (largura pelo conteúdo, altura de 40 dp), rótulo pela mesma régua, e ganhou `selected` + `contentDescription` com o
+  nome completo.
+- Piso em `docs/pisos.yaml` (`FilterChipRow`, `AppTimeGridScheduler`). Testes: `ChipLabelTest`.
+
 ## 2.372.0 — `RestProductTourAccountStore`: o "já viu" na conta pronto, sobre a API do produto
 
 **Aditivo.** O `ProductTourAccountStore` (tour, 2.346.0; boas-vindas, 2.371.0) era só interface — cada app escreveria

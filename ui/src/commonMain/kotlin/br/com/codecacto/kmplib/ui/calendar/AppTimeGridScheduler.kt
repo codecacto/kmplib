@@ -43,10 +43,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.ui.theme.LocalIsCompact
+import br.com.codecacto.kmplib.ui.components.ChipLabel
 
 /* ─────────────────────────── AppTimeGridScheduler (G-02a-M) ───────────────────────────
  * Par mobile do `TimeGridScheduler` da weblib e o CORAÇÃO da agenda. Grade temporal com N colunas de
@@ -693,13 +696,22 @@ private fun ResourceChips(
                 shape = RoundedCornerShape(50),
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.height(40.dp),
+                modifier = Modifier.height(40.dp).semantics {
+                    this.selected = selected
+                    contentDescription = r.label // completo, mesmo se o rótulo desenhado for encurtado
+                },
             ) {
+                // Largura pelo conteúdo e nome inteiro numa linha (2.373.0): "Bianca Toledo", nunca "Bianca Toled…".
                 Box(
-                    modifier = Modifier.padding(horizontal = 16.dp).fillMaxSize(),
+                    modifier = Modifier.padding(horizontal = 16.dp).fillMaxHeight(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = r.label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                    Text(
+                        text = ChipLabel.display(r.label),
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
                 }
             }
         }

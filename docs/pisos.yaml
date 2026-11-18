@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.373.0
+    motivo: "fileira de chips corta o nome (\"Bianca Toled…\"): chip passa a medir pelo conteúdo, nome inteiro numa linha"
+    simbolos: [FilterChipRow, AppTimeGridScheduler]
+
   - versao: 2.370.0
     motivo: "agenda: atendimento curto colado no seguinte desenhado por cima dele (altura mínima invadia o próximo)"
     simbolos: [AppTimeGridScheduler]
