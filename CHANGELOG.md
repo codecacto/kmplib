@@ -5,6 +5,15 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.372.0 — `RestProductTourAccountStore`: o "já viu" na conta pronto, sobre a API do produto
+
+**Aditivo.** O `ProductTourAccountStore` (tour, 2.346.0; boas-vindas, 2.371.0) era só interface — cada app escreveria
+o mesmo cliente do `backlib-product-tour`. Agora: `RestProductTourAccountStore(api: DomainApiClient, path =
+"/<slug>/v1/me/tours/seen")` — `GET {path}` → `{"seen": [...]}` (lido uma vez e guardado em memória até a próxima
+gravação: tour e boas-vindas na mesma abertura fazem um GET só), `PUT {path}/{key}`. Falha (rede, 401, corpo
+ilegível) LANÇA `ProductTourStoreException` — tour e boas-vindas tratam como "não sei" e não abrem. Par do
+`createProductTourAccountStore` da weblib. A casca-mobile registra um no Koin.
+
 ## 2.371.0 — Boas-vindas do 1º acesso no app (`WelcomeAnnouncement`), par da weblib 0.328.1
 
 **Aditivo.** Regra da fábrica de 18/nov/2026 (constituição, "BOAS-VINDAS DO 1º ACESSO"): a conta que PAGA o produto,
