@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,9 +55,11 @@ enum class CentralAccessState {
  * @param repository de onde ler — o [AdminApiEntitlementRepository] do app (`GET
  *   /v1/projects/{slug}/me/entitlement`, com o token da sessão: o tenant é o da própria conta).
  *   A liberação vale quando [Entitlement.isPremium]: categoria `isento`/`contrato` ou plano pago ativo.
- * @param accounts a conta da sessão (`null` = ninguém logado). Cada troca relê do zero e **nunca
- *   herda** a liberação da conta anterior. `null` aqui (o default) = app de conta única por
- *   instalação (ex.: uid anônimo estável) — lê uma vez e segue.
+ * @param accounts **obrigatório** (2.374.1): o id da conta da sessão, o MESMO que a central usa como
+ *   tenant (Firebase: o `uid`; `null` = ninguém logado). Cada troca relê do zero e **nunca herda** a
+ *   liberação da conta anterior, e a resposta cujo `tenant` não é esta conta é descartada. Emita o id
+ *   só DEPOIS de o token da conta nova estar pronto — senão a 1ª leitura sai com o token antigo (e é
+ *   descartada). App de conta única por instalação passa o fluxo do id dela (ex.: uid anônimo).
  * @param minRefreshInterval intervalo mínimo entre duas leituras bem-sucedidas no
  *   [refresh][br.com.codecacto.kmplib.monetization.MonetizationManager.refreshCentralAccess] sem
  *   `force` (o cache curto). Falha não conta: a próxima chamada tenta de novo.
@@ -67,12 +68,13 @@ enum class CentralAccessState {
  *   passado o teto, vira [CentralAccessState.UNAVAILABLE].
  * @param memory onde lembrar o último valor entre aberturas (app offline-first: o isento que abre o
  *   app sem rede continua liberado). `null` = só na memória do processo.
- * @param rememberFor validade do valor lembrado; mais velho que isso, a abertura começa em
- *   [CentralAccessState.PENDING].
+ * @param rememberFor validade do último "liberado" confirmado pela central — entre aberturas (mais
+ *   velho, a abertura começa em [CentralAccessState.PENDING]) e no processo (falha de leitura com o
+ *   liberado vencido vira [CentralAccessState.UNAVAILABLE]).
  */
 data class CentralAccessConfig(
     val repository: EntitlementRepository,
-    val accounts: Flow<String?>? = null,
+    val accounts: Flow<String?>,
     val minRefreshInterval: Duration = 60.seconds,
     val firstReadTimeout: Duration = PremiumStatus.DEFAULT_TIMEOUT,
     val memory: CentralAccessMemory? = null,
@@ -154,11 +156,13 @@ internal class CentralAccessTracker(
     private var generation = 0L
     private var hasAccount = false
     private var lastSuccess: TimeSource.Monotonic.ValueTimeMark? = null
+    /** Quando a central confirmou o "liberado" em vigor (leitura boa ou lembrança). `null` = não há. */
+    private var grantedAtEpochMillis: Long? = null
     private var job: Job? = null
 
     fun start(scope: CoroutineScope) {
         job?.cancel()
-        val accounts = config.accounts ?: flowOf(SINGLE_ACCOUNT)
+        val accounts = config.accounts
         publish(CentralAccessSnapshot(CentralAccessState.PENDING, null))
         job = scope.launch {
             // Fluxo de contas que demora a emitir não prende o gate: o mesmo teto da 1ª leitura.
@@ -189,6 +193,7 @@ internal class CentralAccessTracker(
         val gen = mutex.withLock {
             generation += 1
             lastSuccess = null
+            grantedAtEpochMillis = null
             hasAccount = account != null
             generation
         }
@@ -197,7 +202,8 @@ internal class CentralAccessTracker(
             return
         }
         val remembered = runCatching { config.memory?.load() }.getOrNull()
-            ?.takeIf { it.account == account && isFresh(it) }
+            ?.takeIf { it.account == account && isFresh(it.savedAtEpochMillis) }
+        if (remembered?.granted == true) mutex.withLock { if (gen == generation) grantedAtEpochMillis = remembered.savedAtEpochMillis }
         publish(
             CentralAccessSnapshot(
                 if (remembered?.granted == true) CentralAccessState.GRANTED else CentralAccessState.PENDING,
@@ -221,8 +227,8 @@ internal class CentralAccessTracker(
         }
     }
 
-    private fun isFresh(remembered: RememberedCentralAccess): Boolean {
-        val age = nowEpochMillis() - remembered.savedAtEpochMillis
+    private fun isFresh(savedAtEpochMillis: Long): Boolean {
+        val age = nowEpochMillis() - savedAtEpochMillis
         return age >= 0 && age <= config.rememberFor.inWholeMilliseconds
     }
 
@@ -245,25 +251,38 @@ internal class CentralAccessTracker(
         val toSave: RememberedCentralAccess? = mutex.withLock {
             if (gen != generation) return // conta trocou no meio: resposta de outra conta
             val current = _snapshot.value
-            when (result) {
-                is ApiResult.Success -> {
-                    lastSuccess = TimeSource.Monotonic.markNow()
-                    val granted = result.data.isPremium
-                    publish(
-                        current.copy(
-                            state = if (granted) CentralAccessState.GRANTED else CentralAccessState.NOT_GRANTED,
-                        ),
-                    )
-                    RememberedCentralAccess(account, granted, nowEpochMillis())
-                }
-                else -> {
-                    // Erro (ou Loading, que um repositório não devolve): mantém o último valor.
-                    AppLogger.w(TAG, "Leitura do acesso na central falhou: mantém o último valor")
-                    if (current.state == CentralAccessState.PENDING) {
+            // A resposta só vale se o servidor disser que é DESTA conta (token de outra conta ainda em
+            // cache, resposta trocada): de outra conta, ou sem dono, conta como leitura que falhou.
+            val own = (result as? ApiResult.Success)?.data?.takeIf { it.tenant == account }
+            if (result is ApiResult.Success && own == null) {
+                AppLogger.w(TAG, "Resposta da central de outra conta (ou sem tenant): descartada")
+            }
+            if (own != null) {
+                lastSuccess = TimeSource.Monotonic.markNow()
+                val granted = own.isPremium
+                val now = nowEpochMillis()
+                grantedAtEpochMillis = if (granted) now else null
+                publish(
+                    current.copy(
+                        state = if (granted) CentralAccessState.GRANTED else CentralAccessState.NOT_GRANTED,
+                    ),
+                )
+                RememberedCentralAccess(account, granted, now)
+            } else {
+                // Erro (ou resposta descartada): mantém o último valor — mas o "liberado" tem prazo
+                // também no processo ([CentralAccessConfig.rememberFor]).
+                val grantedAt = grantedAtEpochMillis
+                when {
+                    current.state == CentralAccessState.PENDING ->
+                        publish(current.copy(state = CentralAccessState.UNAVAILABLE))
+                    current.state == CentralAccessState.GRANTED && (grantedAt == null || !isFresh(grantedAt)) -> {
+                        AppLogger.w(TAG, "Liberação sem confirmação da central há mais de ${config.rememberFor}: suspensa")
+                        grantedAtEpochMillis = null
                         publish(current.copy(state = CentralAccessState.UNAVAILABLE))
                     }
-                    null
+                    else -> AppLogger.w(TAG, "Leitura do acesso na central falhou: mantém o último valor")
                 }
+                null
             }
         }
         if (toSave != null) {
@@ -273,9 +292,6 @@ internal class CentralAccessTracker(
 
     companion object {
         private const val TAG = "CentralAccess"
-
-        /** Conta única por instalação (quando o app não passa [CentralAccessConfig.accounts]). */
-        const val SINGLE_ACCOUNT: String = "__instalacao__"
     }
 }
 

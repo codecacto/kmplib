@@ -192,6 +192,8 @@
     <string name="kmplib_paywall_empty">No hay planes disponibles en este momento.</string>
     <string name="kmplib_paywall_active_title">Suscripción activa</string>
     <string name="kmplib_paywall_active_description">Tiene acceso a todas las funciones premium.</string>
+    <string name="kmplib_paywall_granted_title">Acceso habilitado</string>
+    <string name="kmplib_paywall_granted_description">Tu acceso a todas las funciones premium está habilitado.</string>
     <string name="kmplib_paywall_renews_at">Se renueva el</string>
     <string name="kmplib_paywall_expires_at">Vence el</string>
     <string name="kmplib_paywall_manage">Gestionar suscripción</string>

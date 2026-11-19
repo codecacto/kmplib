@@ -30,6 +30,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessSnapshot
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessTracker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlin.time.Duration.Companion.hours
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -49,6 +55,9 @@ import kotlin.time.Duration.Companion.seconds
  * Acesso liberado na central (2.374.0): premium = loja OU admin global. O manager coleta em
  * `Dispatchers.Default` — espera em tempo real, como o [PremiumStatusTest].
  */
+/** Conta única dos testes (o uid anônimo do Super 8, por exemplo). */
+private val contaUnica = MutableStateFlow<String?>("uid-1")
+
 class CentralAccessTest {
 
     private val purchaseConfig = PurchaseConfig(androidApiKey = "goog_x", iosApiKey = "appl_x")
@@ -100,7 +109,7 @@ class CentralAccessTest {
     fun `isento na central vira premium e some o anuncio`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = false))
         val central = CentralFalsa(resposta(isento()))
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(central))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contaUnica))
 
         assertTrue(aguardar { MonetizationManager.premiumStatus.value == PremiumStatus.Premium })
         assertTrue(MonetizationManager.isPremium.value)
@@ -114,14 +123,14 @@ class CentralAccessTest {
     fun `grant vitalicio conta como liberado e free nao`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = false))
         val central = CentralFalsa(resposta(Entitlement(plano = "premium", validoAte = null)))
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(central))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contaUnica))
         assertTrue(aguardar { MonetizationManager.isPremium.value })
 
         MonetizationManager.disableCentralAccess()
         assertTrue(aguardar { !MonetizationManager.isPremium.value })
         assertTrue(MonetizationManager.shouldShowAds.value)
 
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(Entitlement.FREE))))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(Entitlement.FREE)), accounts = contaUnica))
         assertTrue(aguardar { MonetizationManager.centralAccess.value == CentralAccessState.NOT_GRANTED })
         assertEquals(PremiumStatus.Free(FreeReason.STORE), MonetizationManager.premiumStatus.value)
         assertTrue(MonetizationManager.shouldShowAds.value)
@@ -139,7 +148,7 @@ class CentralAccessTest {
     fun `assinante da loja continua premium com a central fora do ar`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = true))
         MonetizationManager.enableCentralAccess(
-            CentralAccessConfig(CentralFalsa(ApiResult.Error(503, "fora")), firstReadTimeout = 100.milliseconds),
+            CentralAccessConfig(CentralFalsa(ApiResult.Error(503, "fora")), accounts = contaUnica, firstReadTimeout = 100.milliseconds),
         )
         assertTrue(aguardar { MonetizationManager.centralAccess.value == CentralAccessState.UNAVAILABLE })
         assertEquals(PremiumStatus.Premium, MonetizationManager.premiumStatus.value)
@@ -150,7 +159,7 @@ class CentralAccessTest {
     fun `falha na releitura mantem o liberado`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = false))
         val central = CentralFalsa(resposta(isento()))
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, minRefreshInterval = 0.milliseconds))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contaUnica, minRefreshInterval = 0.milliseconds))
         assertTrue(aguardar { MonetizationManager.isPremium.value })
 
         central.resposta = ApiResult.Error(-1, "sem rede")
@@ -170,7 +179,7 @@ class CentralAccessTest {
     fun `cache curto nao rele sem force`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = false))
         val central = CentralFalsa(resposta(Entitlement.FREE))
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, minRefreshInterval = 60.seconds))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contaUnica, minRefreshInterval = 60.seconds))
         assertTrue(aguardar { central.chamadas == 1 && MonetizationManager.centralAccess.value == CentralAccessState.NOT_GRANTED })
 
         MonetizationManager.refreshCentralAccess()
@@ -186,7 +195,7 @@ class CentralAccessTest {
         val trava = CompletableDeferred<Unit>()
         val central = CentralFalsa(resposta(Entitlement.FREE), antes = { trava.await() })
         // Central ligada ANTES da loja responder: a loja diz "grátis", mas o gate espera a central.
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, firstReadTimeout = 1.seconds))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contaUnica, firstReadTimeout = 1.seconds))
         iniciarSemEsperar(LojaLida(ativa = false))
         delay(300)
         assertEquals(PremiumStatus.Unknown, MonetizationManager.premiumStatus.value)
@@ -200,7 +209,7 @@ class CentralAccessTest {
     fun `troca de conta zera e resposta da conta anterior e descartada`() = runBlocking<Unit> {
         iniciarCom(LojaLida(ativa = false))
         val contas = MutableStateFlow<String?>("conta-a")
-        val central = CentralFalsa(resposta(isento()))
+        val central = CentralFalsa(resposta(isento()), dono = contas)
         MonetizationManager.enableCentralAccess(CentralAccessConfig(central, accounts = contas))
         assertTrue(aguardar { MonetizationManager.isPremium.value })
         assertTrue(MonetizationManager.isPremiumForSubject("conta-a"))
@@ -272,7 +281,7 @@ class CentralAccessTest {
         assertNull(memoria.load())
         iniciarCom(LojaLida(ativa = false))
         MonetizationManager.enableCentralAccess(
-            CentralAccessConfig(CentralFalsa(resposta(isento())), accounts = MutableStateFlow("uid-9"), memory = memoria),
+            CentralAccessConfig(CentralFalsa(resposta(isento()), dono = MutableStateFlow("uid-9")), accounts = MutableStateFlow("uid-9"), memory = memoria),
         )
         assertTrue(aguardar { runBlocking { memoria.load() }?.granted == true })
         assertEquals("uid-9", memoria.load()?.account)
@@ -283,7 +292,7 @@ class CentralAccessTest {
     @Test
     fun `AdsOnly ignora a central`() = runBlocking<Unit> {
         MonetizationManager.initialize(MonetizationConfig.AdsOnly)
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(isento()))))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(isento())), accounts = contaUnica))
         assertTrue(aguardar { MonetizationManager.centralAccess.value == CentralAccessState.GRANTED })
         assertFalse(MonetizationManager.isPremium.value)
         assertTrue(MonetizationManager.shouldShowAds.value)
@@ -291,8 +300,81 @@ class CentralAccessTest {
 
     @Test
     fun `central antes do initialize ja resolve o gate`() = runBlocking<Unit> {
-        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(isento()))))
+        MonetizationManager.enableCentralAccess(CentralAccessConfig(CentralFalsa(resposta(isento())), accounts = contaUnica))
         assertTrue(MonetizationManager.awaitPremiumResolved(2.seconds))
+    }
+
+    @Test
+    fun `resposta de outra conta ou sem tenant e descartada`() = runBlocking<Unit> {
+        iniciarCom(LojaLida(ativa = false))
+        val outraConta = MutableStateFlow<String?>("uid-outro")
+        // Token ainda da conta anterior: o servidor responde como "uid-outro", a sessão é "uid-1".
+        val central = CentralFalsa(resposta(isento()), dono = outraConta)
+        MonetizationManager.enableCentralAccess(
+            CentralAccessConfig(central, accounts = contaUnica, firstReadTimeout = 1.seconds),
+        )
+        assertTrue(aguardar { MonetizationManager.centralAccess.value == CentralAccessState.UNAVAILABLE })
+        assertFalse(MonetizationManager.isPremium.value)
+
+        central.carimbar = false // servidor sem `tenant`: também não vale
+        MonetizationManager.refreshCentralAccess(force = true)
+        assertFalse(MonetizationManager.isPremium.value)
+
+        outraConta.value = "uid-1" // agora é desta conta
+        central.carimbar = true
+        MonetizationManager.refreshCentralAccess(force = true)
+        assertTrue(MonetizationManager.isPremium.value)
+    }
+
+    @Test
+    fun `liberado sem confirmacao alem do rememberFor vence no processo`() = runBlocking<Unit> {
+        var agora = 1_000_000L
+        val estados = mutableListOf<CentralAccessState>()
+        val central = CentralFalsa(resposta(isento()))
+        val tracker = CentralAccessTracker(
+            CentralAccessConfig(central, accounts = contaUnica, minRefreshInterval = 0.milliseconds, rememberFor = 1.hours),
+            nowEpochMillis = { agora },
+            onChange = { snap: CentralAccessSnapshot -> estados += snap.state },
+        )
+        val escopo = CoroutineScope(Dispatchers.Default)
+        tracker.start(escopo)
+        assertTrue(aguardar { tracker.snapshot.value.state == CentralAccessState.GRANTED })
+
+        central.resposta = ApiResult.Error(-1, "sem rede")
+        agora += 30 * 60_000L // meia hora: ainda vale
+        tracker.refresh(force = true)
+        assertEquals(CentralAccessState.GRANTED, tracker.snapshot.value.state)
+
+        agora += 31 * 60_000L // passou de 1 h sem confirmação
+        tracker.refresh(force = true)
+        assertEquals(CentralAccessState.UNAVAILABLE, tracker.snapshot.value.state)
+
+        central.resposta = resposta(isento()) // a central confirma de novo
+        tracker.refresh(force = true)
+        assertEquals(CentralAccessState.GRANTED, tracker.snapshot.value.state)
+        escopo.cancel()
+    }
+
+    @Test
+    fun `paywall diz acesso liberado so sem assinatura da loja`() {
+        assertTrue(br.com.codecacto.kmplib.ui.screens.paywall.isGrantedByCentral(null, CentralAccessState.GRANTED))
+        assertTrue(
+            br.com.codecacto.kmplib.ui.screens.paywall.isGrantedByCentral(SubscriptionInfo(isActive = false), CentralAccessState.GRANTED),
+        )
+        assertFalse(
+            br.com.codecacto.kmplib.ui.screens.paywall.isGrantedByCentral(SubscriptionInfo(isActive = true), CentralAccessState.GRANTED),
+        )
+        assertFalse(br.com.codecacto.kmplib.ui.screens.paywall.isGrantedByCentral(null, CentralAccessState.NOT_GRANTED))
+        assertFalse(br.com.codecacto.kmplib.ui.screens.paywall.isGrantedByCentral(null, CentralAccessState.DISABLED))
+    }
+
+    @Test
+    fun `o tenant do fio chega ao modelo nas duas formas`() {
+        val livre = br.com.codecacto.kmplib.monetization.entitlement.EntitlementDto(tenant = "uid-1", ativo = false).toModel()
+        assertEquals("uid-1", livre.tenant)
+        val ativo = br.com.codecacto.kmplib.monetization.entitlement.EntitlementDto(tenant = "uid-1", plano = "premium", ativo = true).toModel()
+        assertEquals("uid-1", ativo.tenant)
+        assertNull(br.com.codecacto.kmplib.monetization.entitlement.EntitlementDto(tenant = " ").toModel().tenant)
     }
 
     // ------------------------------------------------------------------ apoio
@@ -321,9 +403,12 @@ class CentralAccessTest {
         } ?: false
     }
 
+    /** A central falsa carimba o `tenant` com a conta de [dono] (o que o servidor faria pelo token). */
     private class CentralFalsa(
         var resposta: ApiResult<Entitlement>,
         private val antes: suspend () -> Unit = {},
+        private val dono: StateFlow<String?> = contaUnica,
+        var carimbar: Boolean = true,
     ) : EntitlementRepository {
         var chamadas = 0
             private set
@@ -331,7 +416,8 @@ class CentralAccessTest {
         override suspend fun getEntitlement(): ApiResult<Entitlement> {
             chamadas++
             antes()
-            return resposta
+            val r = resposta
+            return if (carimbar && r is ApiResult.Success) ApiResult.Success(r.data.copy(tenant = dono.value)) else r
         }
 
         override suspend fun getUsage(feature: String): ApiResult<UsageSnapshot> = ApiResult.Error(501, "n/a")

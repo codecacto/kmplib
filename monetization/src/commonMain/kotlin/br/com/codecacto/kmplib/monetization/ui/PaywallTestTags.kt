@@ -47,6 +47,9 @@ object PaywallTestTags {
     /** Bloco "assinatura ativa" (só aparece para quem já assina). */
     const val ASSINATURA_ATIVA: String = "paywall-assinatura-ativa"
 
+    /** Cartão "Acesso liberado" — premium do admin global, sem loja (2.374.1). */
+    const val ACESSO_LIBERADO: String = "paywall-acesso-liberado"
+
     /** Botão "Gerenciar assinatura" dentro do bloco de assinatura ativa. */
     const val BOTAO_GERENCIAR: String = "paywall-btn-gerenciar-assinatura"
 

@@ -36,6 +36,12 @@ data class Entitlement(
      * [EntitlementCategory]); categoria desconhecida não libera nada.
      */
     @SerialName("categoria") val categoria: String? = null,
+    /**
+     * De QUEM é este entitlement, como o servidor afirmou (`EntitlementDto.tenant`, 2.374.1) — o tenant
+     * derivado do token. `null` = servidor/fonte que não informa. A leitura do acesso liberado na central
+     * descarta a resposta cujo `tenant` não é a conta da sessão.
+     */
+    @SerialName("tenant") val tenant: String? = null,
 ) {
     /** Conta por contrato — paga por fora, tudo liberado (2.300.0). */
     val isContract: Boolean get() = categoria == EntitlementCategory.CONTRACT

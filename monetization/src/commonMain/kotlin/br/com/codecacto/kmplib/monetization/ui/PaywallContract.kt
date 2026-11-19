@@ -15,6 +15,8 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_usage
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_empty
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_active_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_active_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_granted_description
+import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_granted_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_renews_at
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_expires_at
 import br.com.codecacto.kmplib.generated.resources.kmplib_paywall_manage
@@ -145,6 +147,12 @@ data class PaywallState(
      * Aditivo: [error] continua trazendo a frase de sempre para quem não lê este campo.
      */
     val pendingPurchasePlanId: String? = null,
+    /**
+     * O premium vem do ADMIN GLOBAL, não da loja (2.374.1): isenção, cortesia, vitalício, contrato
+     * (`MonetizationManager.enableCentralAccess`). A tela diz "Acesso liberado" — não há assinatura a
+     * gerenciar nem plano a trocar ([canChangePlan] fica `false`).
+     */
+    val grantedByCentral: Boolean = false,
 )
 
 /** Acoes do paywall disparadas pela UI stateless para o ViewModel do app. */
@@ -198,6 +206,9 @@ data class PaywallTexts(
     val renewsAtLabel: String = "Renova em",
     val expiresAtLabel: String = "Expira em",
     val manageSubscription: String = "Gerenciar assinatura",
+    /** Premium liberado pela central, sem assinatura na loja (2.374.1). */
+    val grantedTitle: String = "Acesso liberado",
+    val grantedDescription: String = "Seu acesso a todos os recursos premium está liberado.",
     // Disclosure legal (exigencia Apple/Google)
     val legalInfoTitle: String = "Informações legais",
     val autoRenewalNotice: String = "A assinatura renova automaticamente, salvo cancelamento até 24 horas antes do fim do período.",
@@ -299,6 +310,8 @@ fun rememberPaywallTexts(): PaywallTexts = PaywallTexts(
     renewsAtLabel = kmpStringResource(Res.string.kmplib_paywall_renews_at),
     expiresAtLabel = kmpStringResource(Res.string.kmplib_paywall_expires_at),
     manageSubscription = kmpStringResource(Res.string.kmplib_paywall_manage),
+    grantedTitle = kmpStringResource(Res.string.kmplib_paywall_granted_title),
+    grantedDescription = kmpStringResource(Res.string.kmplib_paywall_granted_description),
     legalInfoTitle = kmpStringResource(Res.string.kmplib_paywall_legal_title),
     autoRenewalNotice = kmpStringResource(Res.string.kmplib_paywall_auto_renewal),
     subscriptionDisclosure = kmpStringResource(Res.string.kmplib_paywall_disclosure),

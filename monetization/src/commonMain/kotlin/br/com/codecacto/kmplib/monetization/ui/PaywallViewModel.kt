@@ -255,6 +255,7 @@ class PaywallViewModel(
                     isPremium = isPremium,
                     pendingPurchasePlanId = paywall.pendingPurchasePlanId.takeUnless { isPremium },
                     subscription = if (isPremium) subscription else null,
+                    grantedByCentral = isPremium && isGrantedByCentral(subscription),
                     error = error,
                     selectedPlanId = selectedPlanFor(shown, paywall.selectedPlanId),
                 ),
@@ -353,12 +354,14 @@ class PaywallViewModel(
                     isPremium = isPremium,
                     pendingPurchasePlanId = paywall.pendingPurchasePlanId.takeUnless { isPremium },
                     subscription = if (isPremium) subscription else null,
+                    grantedByCentral = isPremium && isGrantedByCentral(subscription),
                     error = error,
                     selectedPlanId = selectedPlanFor(shown, paywall.selectedPlanId),
                     tiers = options,
                     selectedTierId = selected,
                     currentTierId = currentTierId,
-                    canChangePlan = isPremium && shown.isNotEmpty(),
+                    // Troca de plano só para assinatura DA LOJA — liberação da central não tem o que trocar.
+                    canChangePlan = subscription?.isActive == true && shown.isNotEmpty(),
                 ),
             )
         }
@@ -672,7 +675,7 @@ class PaywallViewModel(
         when (outcome) {
             PurchaseOutcome.Ativado -> {
                 val subscription = entitlementProvider.subscriptionInfo()
-                setState { copy(paywall = paywall.copy(isPremium = true, subscription = subscription, pendingPurchasePlanId = null)) }
+                setState { copy(paywall = paywall.copy(isPremium = true, subscription = subscription, pendingPurchasePlanId = null, grantedByCentral = false)) }
                 if (scheduled) sendEffect(PaywallHostEffect.ShowMessage(m.tierChangeScheduled))
                 try {
                     config.onPremiumActivated()
@@ -720,3 +723,13 @@ class PaywallViewModel(
                 ?: plans.firstOrNull()?.id
     }
 }
+
+/**
+ * Premium vindo da central (admin global) e não da loja (2.374.1): a central liberou e a loja não tem
+ * assinatura ativa. Regra pura do paywall.
+ */
+internal fun isGrantedByCentral(
+    subscription: br.com.codecacto.kmplib.monetization.purchase.SubscriptionInfo?,
+    central: br.com.codecacto.kmplib.monetization.entitlement.CentralAccessState =
+        br.com.codecacto.kmplib.monetization.MonetizationManager.centralAccess.value,
+): Boolean = central.isGranted && subscription?.isActive != true

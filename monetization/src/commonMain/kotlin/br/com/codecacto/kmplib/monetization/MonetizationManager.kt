@@ -791,7 +791,7 @@ object MonetizationManager {
      * MonetizationManager.enableCentralAccess(
      *     CentralAccessConfig(
      *         repository = koin.get<AdminApiEntitlementRepository>(),
-     *         accounts = auth.uid,                                   // ou omitir: conta única
+     *         accounts = auth.uid,   // OBRIGATÓRIO: o id = tenant na central, emitido depois do token
      *         memory = PreferencesCentralAccessMemory(appPreferences()),
      *     ),
      * )

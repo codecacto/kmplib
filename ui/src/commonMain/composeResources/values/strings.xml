@@ -201,6 +201,8 @@
     <string name="kmplib_paywall_empty">Nenhum plano disponível no momento.</string>
     <string name="kmplib_paywall_active_title">Assinatura ativa</string>
     <string name="kmplib_paywall_active_description">Você tem acesso a todos os recursos premium.</string>
+    <string name="kmplib_paywall_granted_title">Acesso liberado</string>
+    <string name="kmplib_paywall_granted_description">Seu acesso a todos os recursos premium está liberado.</string>
     <string name="kmplib_paywall_renews_at">Renova em</string>
     <string name="kmplib_paywall_expires_at">Expira em</string>
     <string name="kmplib_paywall_manage">Gerenciar assinatura</string>

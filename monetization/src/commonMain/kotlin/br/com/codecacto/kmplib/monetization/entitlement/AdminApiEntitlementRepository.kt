@@ -196,6 +196,7 @@ internal data class EntitlementDto(
         val trialUsadoEm = trialUsadoEm?.takeIf { it.isNotBlank() }
         val trialOrigem = trialOrigem?.takeIf { it.isNotBlank() }?.lowercase()
         val categoria = EntitlementCategory.normalize(categoria)
+        val tenant = tenant?.takeIf { it.isNotBlank() }
         // SEGURANCA: a autoridade do direito vigente e o campo `ativo` (calculado pelo servidor,
         // `isActive(now)`), NUNCA a mera presenca de um `plano` pago. Um entitlement expirado/cancelado
         // pode vir com `plano="premium"` e `ativo=false`; honra-lo provocaria autopromocao. Por isso,
@@ -208,6 +209,7 @@ internal data class EntitlementDto(
                 trialUsadoEm = trialUsadoEm,
                 trialOrigem = trialOrigem,
                 categoria = categoria,
+                tenant = tenant,
             )
         }
         return Entitlement(
@@ -219,6 +221,7 @@ internal data class EntitlementDto(
             trialUsadoEm = trialUsadoEm,
             trialOrigem = trialOrigem,
             categoria = categoria,
+            tenant = tenant,
         )
     }
 }

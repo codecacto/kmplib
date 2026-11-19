@@ -206,6 +206,7 @@ fun PaywallContent(
                 if (state.isPremium) {
                     ActiveSubscriptionCard(
                         subscription = state.subscription,
+                        grantedByCentral = state.grantedByCentral,
                         texts = texts,
                         isPurchasing = state.isPurchasing,
                         onManage = { onAction(PaywallAction.ManageSubscription) },
@@ -648,12 +649,14 @@ private fun RecommendedBadge(label: String) {
 @Composable
 private fun ActiveSubscriptionCard(
     subscription: SubscriptionInfo?,
+    grantedByCentral: Boolean,
     texts: PaywallTexts,
     isPurchasing: Boolean,
     onManage: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().testTag(PaywallTestTags.ASSINATURA_ATIVA),
+        modifier = Modifier.fillMaxWidth()
+            .testTag(if (grantedByCentral) PaywallTestTags.ACESSO_LIBERADO else PaywallTestTags.ASSINATURA_ATIVA),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
@@ -669,18 +672,21 @@ private fun ActiveSubscriptionCard(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = texts.activeTitle,
+                text = if (grantedByCentral) texts.grantedTitle else texts.activeTitle,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = texts.activeDescription,
+                text = if (grantedByCentral) texts.grantedDescription else texts.activeDescription,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 textAlign = TextAlign.Center,
             )
+
+            // Liberação da central não tem validade de loja nem nada a gerenciar na loja.
+            if (grantedByCentral) return@Column
 
             subscription?.expirationDate?.let { expiration ->
                 // Data no formato da REGIAO do aparelho (27/09/2026 no BR, 09/27/2026 nos EUA).

@@ -5,6 +5,23 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.374.1 — Acesso liberado na central: resposta só da PRÓPRIA conta, prazo no processo, "Acesso liberado" no paywall
+
+**Correção (security review da 2.374.0). Não é aviso** — a 2.374.0 só existe no Super 8 (`dev`, não publicado).
+**Quebra de assinatura de propósito:** `CentralAccessConfig.accounts` passou a ser **obrigatório** (era opcional, com
+uma chave fixa de "conta única" — app com login que o omitisse herdava a liberação da conta anterior). Piso em
+`docs/pisos.yaml` (`enableCentralAccess`).
+
+- **Resposta de outra conta é descartada:** `Entitlement.tenant` (novo, `@SerialName("tenant")`) vem do
+  `EntitlementDto.tenant` do admin-api (antes era jogado fora); a leitura só vale quando `tenant == conta da sessão`.
+  Sem `tenant` ou com outro = leitura que falhou (mantém o último valor da conta certa, nunca grava em nome dela).
+- **`rememberFor` vale também no processo:** falha de leitura com o "liberado" sem confirmação da central há mais
+  de `rememberFor` (7 dias) vira `UNAVAILABLE`.
+- **Paywall:** `PaywallState.grantedByCentral` + `PaywallTexts.grantedTitle`/`grantedDescription` ("Acesso
+  liberado", 4 idiomas) e tag `paywall-acesso-liberado` — sem "Gerenciar assinatura" nem validade; `canChangePlan`
+  só com assinatura ATIVA da loja. Regra pura `isGrantedByCentral(subscription, central)`.
+- Testes: `CentralAccessTest` (20).
+
 ## 2.374.0 — Premium = loja OU acesso liberado no admin global (`MonetizationManager.enableCentralAccess`)
 
 **Aditivo, opt-in. Não é aviso** (nada deixa de funcionar para quem não liga). Até a 2.373.0 `isPremium`,
