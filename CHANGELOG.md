@@ -5,6 +5,28 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.374.0 — Premium = loja OU acesso liberado no admin global (`MonetizationManager.enableCentralAccess`)
+
+**Aditivo, opt-in. Não é aviso** (nada deixa de funcionar para quem não liga). Até a 2.373.0 `isPremium`,
+`premiumStatus` e `shouldShowAds` vinham só da loja (RevenueCat): o tenant isento/presenteado no admin global
+continuava com house ad e paywall — e a saída errada era conceder premium promocional na RevenueCat (proibido).
+
+- **`MonetizationManager.enableCentralAccess(CentralAccessConfig(repository, accounts, minRefreshInterval = 60 s,
+  firstReadTimeout = 4 s, memory, rememberFor = 7 dias))`** — lê `Entitlement` da própria conta na central (o
+  `AdminApiEntitlementRepository` do app, `GET /v1/projects/{slug}/me/entitlement`) e libera quando
+  `Entitlement.isPremium`: `categoria` `isento`/`contrato` ou grant com `ativo` (cortesia, vitalício).
+- **Premium publicado = loja OU central** (regra pura `combinePremiumStatus`): a central nunca derruba a loja;
+  liberação da central vence até loja sem resposta; a 1ª leitura da central segura o gate em `Unknown` só enquanto nada
+  foi publicado, com teto.
+- Falha da central mantém o último valor (no processo e, com `PreferencesCentralAccessMemory(appPreferences())`,
+  entre aberturas, por conta); troca de conta (`accounts`) zera e descarta resposta atrasada; cache curto.
+- `refreshCentralAccess(force)` (chamar no `ON_RESUME`), `disableCentralAccess()`, `centralAccess:
+  StateFlow<CentralAccessState>` (`DISABLED`/`PENDING`/`GRANTED`/`NOT_GRANTED`/`UNAVAILABLE`).
+- `premiumForSubject` conta a central só se ela liberou exatamente aquela conta; `awaitPayingOrNull` continua SÓ da
+  loja (isento não é pagante); `AdsOnly`/`StoreItemsOnly` ignoram a central.
+- Internamente as saídas passam a ser recalculadas a partir de duas entradas (loja, central) — sem a central ligada, o
+  comportamento é idêntico ao da 2.373.0 (suíte `PremiumStatusTest` intacta). Testes: `CentralAccessTest`.
+
 ## 2.373.0 — Fileira rolável de chips mostra o nome inteiro (`FilterChipRow` e chips do `AppTimeGridScheduler`)
 
 **Correção visual. Não é aviso** (nada deixa de funcionar). O chip da fileira que rola cortava o nome ("Bianca

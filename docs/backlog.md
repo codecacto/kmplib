@@ -5775,3 +5775,15 @@ e põe frase própria no lugar do "limite atingido". Proposta (aditiva): no ramo
   `PushTapHost` registrar `push_open` com o id da campanha, quando a sessão do push fechar.
 - [ ] **GAP-ANALYTICS-02 (P3) — retenção no Umami:** o Umami não tem; cron de `DELETE` por idade no banco (estudo 02 §2.3)
   — é de infra, não da lib; anotado aqui porque o volume vem dos apps.
+
+## GAP-KM-WHATSAPP-ROTULO — botão de WhatsApp de cliente ESCRITO "WhatsApp" (17/nov/2026, Escuta M3)
+- [ ] A regra da fábrica (16/nov/2026) pede o botão com o rótulo "WhatsApp" + ícone oficial, nunca só o ícone; a weblib
+  ≥ 0.325.0 (`WhatsAppButton`) já sai escrita, a kmplib só tem `WhatsAppIconButton` (ícone). O Escuta montou
+  `core/ui/BotaoDoWhatsApp.kt` com as peças da lib (`WhatsAppGlyph`, `whatsAppIconTint`, `whatsAppPhoneNumber`,
+  `openWhatsApp`). Proposta: `WhatsAppButton(phone, contactName, message, modifier, label = rememberWhatsAppLabel())`
+  em `ui.components`, mesma régua do número e mesmo id `whatsapp-btn-conversar`; o app troca o primitivo pela lib.
+
+## GAP-KM-CENTRAL-ACCESS — app respeitar a liberação do admin global (18/nov/2026, Super 8) — ✅ 2.374.0
+- [x] `MonetizationManager.enableCentralAccess` (premium = loja OU central; isento/contrato/cortesia/vitalício).
+- [ ] Paywall (`PaywallViewModel`/`PaywallScreen`) ainda não diz "acesso liberado" para quem é isento sem loja —
+  mostra os planos. Proposta: estado `grantedByCentral` no `PaywallState` com cartão "Seu acesso está liberado".

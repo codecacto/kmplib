@@ -17,8 +17,8 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Com [PremiumStatus] o gate espera a resposta ([Unknown]) antes de bloquear. A espera tem **teto**
  * ([DEFAULT_TIMEOUT]): sem resposta da loja, vira [Free] com [FreeReason.TIMEOUT] — nunca prende a
- * UI. E é **fail-closed**: só a loja transforma alguém em [Premium]; falha e timeout resolvem como
- * [Free].
+ * UI. E é **fail-closed**: só a loja — ou, com `MonetizationManager.enableCentralAccess` (2.374.0), a
+ * liberação lida da central — transforma alguém em [Premium]; falha e timeout resolvem como [Free].
  *
  * ## Transições
  *
@@ -59,7 +59,7 @@ sealed interface PremiumStatus {
         override val isPremium: Boolean get() = false
     }
 
-    /** Assinatura ativa, dita pela loja. */
+    /** Assinatura ativa, dita pela loja — ou acesso liberado na central (isento/cortesia, 2.374.0, opt-in). */
     data object Premium : PremiumStatus {
         override val isResolved: Boolean get() = true
         override val isPremium: Boolean get() = true

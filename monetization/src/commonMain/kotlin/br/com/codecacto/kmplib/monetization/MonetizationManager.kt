@@ -4,6 +4,11 @@ import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.firebase.auth.IAuthRepository
 import br.com.codecacto.kmplib.firebase.auth.User
 import br.com.codecacto.kmplib.monetization.alert.PaymentAlertReporter
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessConfig
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessSnapshot
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessState
+import br.com.codecacto.kmplib.monetization.entitlement.CentralAccessTracker
+import br.com.codecacto.kmplib.monetization.entitlement.combinePremiumStatus
 import br.com.codecacto.kmplib.monetization.purchase.AppUserIdCheck
 import br.com.codecacto.kmplib.monetization.purchase.ConsumableItemPurchaseResult
 import br.com.codecacto.kmplib.monetization.purchase.ConsumablePurchase
@@ -87,6 +92,15 @@ object MonetizationManager {
     private val _shouldShowAds = MutableStateFlow(false)
 
     private val _premiumStatus = MutableStateFlow<PremiumStatus>(PremiumStatus.Unknown)
+
+    // Entradas do premium publicado (2.374.0): o que a LOJA disse e o que a CENTRAL disse. As saídas
+    // ([isPremium], [premiumStatus], [shouldShowAds]) são sempre recalculadas por [publish].
+    private val _storeStatus = MutableStateFlow<PremiumStatus>(PremiumStatus.Unknown)
+    private val _storeActive = MutableStateFlow(false)
+    private val _central = MutableStateFlow(CentralAccessSnapshot())
+    /** Publicado no FIM do [publish]: quem lê o estado da central já vê o premium coerente com ele. */
+    private val _centralState = MutableStateFlow(CentralAccessState.DISABLED)
+    private var centralTracker: CentralAccessTracker? = null
 
     /**
      * Escopo `Unconfined` só para derivar [isPremiumResolved]: o `map` roda na thread de quem mudou o
@@ -201,7 +215,8 @@ object MonetizationManager {
      * ```
      */
     suspend fun awaitPayingOrNull(timeout: Duration = PremiumStatus.DEFAULT_TIMEOUT): Boolean? =
-        awaitPremiumStatus(timeout).payingOrNull
+        // Só a LOJA diz quem paga: liberação da central (isento, cortesia) não é pagamento (2.374.0).
+        withTimeoutOrNull(timeout) { _storeStatus.first { it.isResolved } }?.payingOrNull
 
     /**
      * **App que não monetiza** (a `casca-mobile` em `MonetizationMode.NONE`): declara que não há loja
@@ -294,9 +309,9 @@ object MonetizationManager {
         }
 
         _config = config
-        _isPremium.value = false
-        // Valor inicial, antes do primeiro estado de assinatura chegar: o modo decide.
-        _shouldShowAds.value = config.shouldShowAds(isPremium = false)
+        _storeActive.value = false
+        // Valor inicial, antes do primeiro estado de assinatura chegar: o modo (e a central) decidem.
+        publish()
 
         config.purchaseConfig?.let { purchase ->
             // O sujeito que o app já declarou ([bindIdentity]) entra na CONFIGURAÇÃO do SDK — é o
@@ -618,13 +633,19 @@ object MonetizationManager {
      * Sujeito inválido para a loja (branco, reservado, anônimo do SDK) → sempre `false`.
      */
     fun premiumForSubject(subjectId: String): Flow<Boolean> =
-        combine(isPremium, storeIdentity.subject) { premium, subject ->
-            premium && subject == subjectId && isStoreBoundTo(subjectId)
+        combine(_storeActive, storeIdentity.subject, _central) { active, subject, central ->
+            (active && subject == subjectId && isStoreBoundTo(subjectId)) || centralGrants(central, subjectId)
         }.distinctUntilChanged()
 
     /** Leitura pontual de [premiumForSubject]. */
     fun isPremiumForSubject(subjectId: String): Boolean =
-        isPremium.value && storeIdentity.subject.value == subjectId && isStoreBoundTo(subjectId)
+        (_storeActive.value && storeIdentity.subject.value == subjectId && isStoreBoundTo(subjectId)) ||
+            centralGrants(_central.value, subjectId)
+
+    /** A central liberou EXATAMENTE esta conta (2.374.0; exige [CentralAccessConfig.accounts]). */
+    private fun centralGrants(central: CentralAccessSnapshot, subjectId: String): Boolean =
+        central.state.isGranted && central.account == subjectId &&
+            _config?.sellsSubscription != false
 
     private fun isStoreBoundTo(subjectId: String): Boolean =
         PurchaseIdentity.check(subjectId) is AppUserIdCheck.Valid &&
@@ -655,8 +676,7 @@ object MonetizationManager {
      * Sem loja (`repo == null`, `PurchaseTestHooks.limpar()`), resolve `Free(NOT_SOLD)`.
      */
     private fun applyStoreSnapshot(config: MonetizationConfig, snapshot: StoreSnapshot, timeout: Duration) {
-        _isPremium.value = snapshot.info.isActive
-        _shouldShowAds.value = config.shouldShowAds(snapshot.info.isActive)
+        _storeActive.value = snapshot.info.isActive
 
         val switched = !hasObservedRepository || snapshot.repo !== observedRepository
         if (!switched) {
@@ -685,7 +705,8 @@ object MonetizationManager {
                 }
             }
         } else {
-            _premiumStatus.value = fresh
+            _storeStatus.value = fresh
+            publish()
         }
         if (repo == null) return
 
@@ -711,10 +732,99 @@ object MonetizationManager {
 
     /** Aplica a transição garantindo que um estado resolvido nunca volta a `Unknown`. */
     internal fun updatePremiumStatus(transition: (PremiumStatus) -> PremiumStatus) {
-        _premiumStatus.update { current ->
+        _storeStatus.update { current ->
             val candidate = transition(current)
             if (current.isResolved && !candidate.isResolved) current else candidate
         }
+        publish()
+    }
+
+    /**
+     * Recalcula as saídas a partir das entradas (loja + central). Chamado de mais de uma corrotina:
+     * escreve e confere se as entradas mudaram no meio — se mudaram, recalcula. A última escrita
+     * sempre corresponde às entradas mais recentes.
+     */
+    private fun publish() {
+        while (true) {
+            val store = _storeStatus.value
+            val active = _storeActive.value
+            val central = _central.value
+            val cfg = _config
+            // Modo que não vende assinatura (AdsOnly, StoreItemsOnly) não tem "premium" a liberar.
+            val effective = if (cfg != null && !cfg.sellsSubscription) CentralAccessState.DISABLED else central.state
+            val premium = active || effective.isGranted
+            _premiumStatus.value = combinePremiumStatus(_premiumStatus.value, store, effective)
+            _isPremium.value = premium
+            _shouldShowAds.value = cfg?.shouldShowAds(premium) ?: false
+            _centralState.value = central.state
+            if (store == _storeStatus.value && active == _storeActive.value &&
+                central == _central.value && cfg === _config
+            ) return
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Acesso liberado na CENTRAL (2.374.0) — isenção/cortesia/contrato/vitalício do admin global.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Estado da leitura da central ([CentralAccessState.DISABLED] enquanto o app não chamar
+     * [enableCentralAccess]). Para diagnóstico; o gate continua lendo [premiumStatus].
+     */
+    val centralAccess: StateFlow<CentralAccessState> get() = _centralState.asStateFlow()
+
+    /**
+     * **Premium = loja OU acesso liberado no admin global** (2.374.0, opt-in). Lê o entitlement da
+     * própria conta na central ([CentralAccessConfig.repository], o `AdminApiEntitlementRepository`
+     * do app) e, quando a conta está isenta, por contrato ou com grant ativo (cortesia/vitalício),
+     * [isPremium], [premiumStatus] e [shouldShowAds] passam a tratá-la como premium — some o anúncio,
+     * abre o gate.
+     *
+     * - **Nunca derruba a loja:** assinatura ativa na loja continua premium com a central fora do ar.
+     * - **Falha da central mantém o último valor** (no processo e, com [CentralAccessConfig.memory],
+     *   entre aberturas). Primeira leitura sem resposta no teto = não liberado.
+     * - **Troca de conta zera** ([CentralAccessConfig.accounts]).
+     * - Só em modo que vende assinatura; `AdsOnly`/`StoreItemsOnly` ignoram.
+     * - [awaitPayingOrNull] continua só da loja (isento não é pagante).
+     *
+     * ```kotlin
+     * MonetizationManager.enableCentralAccess(
+     *     CentralAccessConfig(
+     *         repository = koin.get<AdminApiEntitlementRepository>(),
+     *         accounts = auth.uid,                                   // ou omitir: conta única
+     *         memory = PreferencesCentralAccessMemory(appPreferences()),
+     *     ),
+     * )
+     * // e no ON_RESUME da raiz: MonetizationManager.refreshCentralAccess()
+     * ```
+     * Chamar de novo troca a configuração. Exibição apenas: a autoridade de cobrança é o servidor.
+     */
+    fun enableCentralAccess(config: CentralAccessConfig) {
+        centralTracker?.stop()
+        val tracker = CentralAccessTracker(config, onChange = { snapshot ->
+            _central.value = snapshot
+            publish()
+        })
+        centralTracker = tracker
+        tracker.start(scope)
+    }
+
+    /**
+     * Relê a central — chame no `ON_RESUME` da raiz (e depois de o fundador liberar, para ver na
+     * hora). Respeita o cache curto ([CentralAccessConfig.minRefreshInterval]) salvo com [force].
+     * Sem [enableCentralAccess], não faz nada. Nunca lança.
+     */
+    suspend fun refreshCentralAccess(force: Boolean = false) {
+        runCatching { centralTracker?.refresh(force) }
+            .onFailure { AppLogger.w(TAG, "Releitura da central falhou: ${it.message}") }
+    }
+
+    /** Desliga a leitura da central: volta a valer só a loja. */
+    fun disableCentralAccess() {
+        centralTracker?.stop()
+        centralTracker = null
+        _central.value = CentralAccessSnapshot()
+        publish()
     }
 
     /** Reseta o estado (util para testes). */
@@ -729,6 +839,12 @@ object MonetizationManager {
         hasObservedRepository = false
         _config = null
         _initialized.value = false
+        centralTracker?.stop()
+        centralTracker = null
+        _central.value = CentralAccessSnapshot()
+        _centralState.value = CentralAccessState.DISABLED
+        _storeStatus.value = PremiumStatus.Unknown
+        _storeActive.value = false
         _isPremium.value = false
         _shouldShowAds.value = false
         _premiumStatus.value = PremiumStatus.Unknown
