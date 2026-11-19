@@ -69,8 +69,13 @@ import br.com.codecacto.kmplib.ui.theme.leituraMaxWidth
  * A conversa sobrevive a sair desta tela e voltar na mesma sessão do app (memória do processo, nunca disco) e some
  * com "Nova conversa" (top bar), com o fim do processo ou com [clearHelpConversations] (chame no logout).
  *
- * O suporte é sempre do app ([onSupport]): nesta tela nada abre navegador nem leva a pagamento.
+ * O suporte é do app ([onSupport]): nesta tela nada abre navegador nem leva a pagamento. Com [supportWhatsApp]
+ * (2.375.0, opt-in), o suporte vira o botão de destaque "Chamar o suporte no WhatsApp" — no rodapé da conversa e na
+ * bolha de sem resposta — e abre a conversa com a mensagem pronta; aí o [onSupport] NÃO é chamado (o toque já levou a
+ * pessoa ao WhatsApp, e chamar os dois abriria duas saídas de uma vez). Ele segue obrigatório: é o caminho quando o
+ * número do [HelpSupportWhatsApp] não é válido.
  *
+ * @param supportWhatsApp suporte pelo WhatsApp; `null` (default) = o botão "Falar com o suporte" de sempre.
  * @param bottomBar rodapé fixo (o lugar do banner); o campo de pergunta fica acima dele e do teclado.
  */
 @Composable
@@ -82,6 +87,7 @@ fun HelpScreen(
     modifier: Modifier = Modifier,
     bottomBar: @Composable () -> Unit = {},
     texts: HelpTexts = rememberHelpTexts(),
+    supportWhatsApp: HelpSupportWhatsApp? = null,
 ) {
     val contentKey = config.contentKey()
     val viewModel = viewModel(key = "kmplib-help-$contentKey") {
@@ -123,6 +129,7 @@ fun HelpScreen(
                 onSupport = onSupport,
                 onOpenLibrary = onOpenLibrary,
                 listState = listState,
+                supportWhatsApp = supportWhatsApp,
                 // O teclado empurra o campo; o que o Scaffold já descontou (banner, barra de gestos) não soma de novo.
                 modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding).imePadding(),
             )
@@ -149,7 +156,9 @@ internal fun HelpContent(
     onOpenLibrary: () -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    supportWhatsApp: HelpSupportWhatsApp? = null,
 ) {
+    val whatsAppPhone = remember(supportWhatsApp) { supportWhatsApp?.normalizedPhone }
     val inactive = state.status == HelpContentStatus.Inactive
     val maxWidth = leituraMaxWidth(LocalWindowSizeClass.current)
     Column(modifier = modifier.fillMaxSize()) {
@@ -174,6 +183,8 @@ internal fun HelpContent(
                                 texts = texts,
                                 onAction = onAction,
                                 onSupport = onSupport,
+                                supportWhatsApp = supportWhatsApp,
+                                whatsAppPhone = whatsAppPhone,
                             )
                         }
                     }
@@ -183,11 +194,21 @@ internal fun HelpContent(
                         modifier = Modifier.padding(top = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        AppOutlinedButton(
-                            text = texts.support,
-                            onClick = onSupport,
-                            modifier = Modifier.fillMaxWidth().testTag(HelpTestTags.SUPPORT_BUTTON),
-                        )
+                        if (supportWhatsApp != null && whatsAppPhone != null) {
+                            HelpSupportWhatsAppButton(
+                                support = supportWhatsApp,
+                                phone = whatsAppPhone,
+                                texts = texts,
+                                testTag = HelpTestTags.SUPPORT_WHATSAPP_BUTTON,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            AppOutlinedButton(
+                                text = texts.support,
+                                onClick = onSupport,
+                                modifier = Modifier.fillMaxWidth().testTag(HelpTestTags.SUPPORT_BUTTON),
+                            )
+                        }
                         if (!inactive) {
                             AppOutlinedButton(
                                 text = texts.openLibrary,
@@ -296,6 +317,8 @@ private fun HelpReplyBubble(
     texts: HelpTexts,
     onAction: (HelpAction) -> Unit,
     onSupport: () -> Unit,
+    supportWhatsApp: HelpSupportWhatsApp? = null,
+    whatsAppPhone: String? = null,
 ) {
     val status = turn.status
     val fill = status is HelpTurnStatus.Found
@@ -331,11 +354,20 @@ private fun HelpReplyBubble(
                                 if (status.needsDetails) HelpTestTags.NEEDS_DETAILS else HelpTestTags.NOT_FOUND,
                             ),
                         )
-                        AppOutlinedButton(
-                            text = texts.support,
-                            onClick = onSupport,
-                            modifier = Modifier.testTag(HelpTestTags.SUPPORT_IN_ANSWER_BUTTON),
-                        )
+                        if (supportWhatsApp != null && whatsAppPhone != null) {
+                            HelpSupportWhatsAppButton(
+                                support = supportWhatsApp,
+                                phone = whatsAppPhone,
+                                texts = texts,
+                                testTag = HelpTestTags.SUPPORT_WHATSAPP_IN_ANSWER_BUTTON,
+                            )
+                        } else {
+                            AppOutlinedButton(
+                                text = texts.support,
+                                onClick = onSupport,
+                                modifier = Modifier.testTag(HelpTestTags.SUPPORT_IN_ANSWER_BUTTON),
+                            )
+                        }
                     }
                     HelpTurnStatus.Failed -> {
                         Text(

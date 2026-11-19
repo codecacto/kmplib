@@ -89,7 +89,7 @@ object SubscriptionBlockedTestTags {
 /** Defaults da tela de bloqueio (2.300.0). */
 object SubscriptionBlockDefaults {
     /** O WhatsApp da CodeCacto (65 99803-0240), em E.164 sem o `+`. */
-    const val WHATSAPP_PHONE: String = "5565998030240"
+    const val WHATSAPP_PHONE: String = br.com.codecacto.kmplib.core.config.CodeCactoContact.WHATSAPP_PHONE
 }
 
 /**

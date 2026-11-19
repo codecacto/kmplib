@@ -72,7 +72,7 @@ internal fun List<DeveloperApp>.withoutCurrentApp(currentAppName: String?): List
  */
 @Serializable
 data class DeveloperContact(
-    val whatsapp: String = "5565998030240",
+    val whatsapp: String = br.com.codecacto.kmplib.core.config.CodeCactoContact.WHATSAPP_PHONE,
     val email: String = "contato@codecacto.com.br",
     val site: String = "https://codecacto.com.br",
 )

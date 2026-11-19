@@ -25,6 +25,9 @@ import br.com.codecacto.kmplib.generated.resources.kmplib_help_see_steps
 import br.com.codecacto.kmplib.generated.resources.kmplib_help_steps
 import br.com.codecacto.kmplib.generated.resources.kmplib_help_suggestions
 import br.com.codecacto.kmplib.generated.resources.kmplib_help_support
+import br.com.codecacto.kmplib.generated.resources.kmplib_help_support_whatsapp
+import br.com.codecacto.kmplib.generated.resources.kmplib_help_support_whatsapp_message
+import br.com.codecacto.kmplib.generated.resources.kmplib_help_support_whatsapp_message_product
 import br.com.codecacto.kmplib.generated.resources.kmplib_help_title
 import br.com.codecacto.kmplib.generated.resources.kmplib_help_you_asked
 import br.com.codecacto.kmplib.ui.locale.kmpStringResource
@@ -62,6 +65,12 @@ data class HelpTexts(
     val retry: String = "Tentar de novo",
     /** Rótulo de leitor de tela da bolha da pergunta (2.367.0). */
     val youAsked: String = "Você perguntou",
+    /** Rótulo do botão de suporte pelo WhatsApp ([HelpSupportWhatsApp], 2.375.0). */
+    val supportWhatsApp: String = "Chamar o suporte no WhatsApp",
+    /** Mensagem pronta do WhatsApp quando o produto é conhecido; `%1$s` = nome do produto (2.375.0). */
+    val supportWhatsAppMessageWithProductTemplate: String = "Olá! Uso o %1${'$'}s e gostaria de falar com o suporte.",
+    /** Mensagem pronta do WhatsApp sem nome de produto (2.375.0). */
+    val supportWhatsAppMessage: String = "Olá! Gostaria de falar com o suporte.",
 )
 
 /** Os textos da ajuda no idioma da tela (pt-BR, en, es, pt-PT). */
@@ -92,6 +101,10 @@ fun rememberHelpTexts(): HelpTexts = HelpTexts(
     seeSteps = kmpStringResource(Res.string.kmplib_help_see_steps),
     retry = kmpStringResource(Res.string.kmplib_help_retry),
     youAsked = kmpStringResource(Res.string.kmplib_help_you_asked),
+    supportWhatsApp = kmpStringResource(Res.string.kmplib_help_support_whatsapp),
+    // Sem argumento: o modelo chega com o `%1$s` cru e o [HelpSupportWhatsApp] troca pelo produto.
+    supportWhatsAppMessageWithProductTemplate = kmpStringResource(Res.string.kmplib_help_support_whatsapp_message_product),
+    supportWhatsAppMessage = kmpStringResource(Res.string.kmplib_help_support_whatsapp_message),
 )
 
 /** Ids de automação (`resource-id` no Android, `accessibilityIdentifier` no iOS). */
@@ -120,6 +133,12 @@ object HelpTestTags {
 
     /** "Falar com o suporte" dentro da bolha de sem resposta (o de baixo da conversa é [SUPPORT_BUTTON]). */
     const val SUPPORT_IN_ANSWER_BUTTON = "ajuda-btn-suporte-resposta"
+
+    /** Botão "Chamar o suporte no WhatsApp" do rodapé da conversa, com [HelpSupportWhatsApp] ligado (2.375.0). */
+    const val SUPPORT_WHATSAPP_BUTTON = "ajuda-btn-suporte-whatsapp"
+
+    /** O mesmo botão dentro da bolha de sem resposta (2.375.0). */
+    const val SUPPORT_WHATSAPP_IN_ANSWER_BUTTON = "ajuda-btn-suporte-whatsapp-resposta"
 
     fun suggestion(slug: String): String = "ajuda-sugestao-$slug"
 

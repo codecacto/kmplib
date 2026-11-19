@@ -956,6 +956,9 @@
     <string name="kmplib_help_see_steps">See step by step</string>
     <string name="kmplib_help_retry">Try again</string>
     <string name="kmplib_help_you_asked">You asked</string>
+    <string name="kmplib_help_support_whatsapp">Contact support on WhatsApp</string>
+    <string name="kmplib_help_support_whatsapp_message_product">Hi! I use %1$s and would like to talk to support.</string>
+    <string name="kmplib_help_support_whatsapp_message">Hi! I would like to talk to support.</string>
     <string name="kmplib_whatsapp_chat">Chat on WhatsApp</string>
     <string name="kmplib_whatsapp_chat_with">Chat on WhatsApp with %1$s</string>
     <!-- Seção "Notificações" de Configurações (push/ui/NotificationSettingsSection.kt, 2.360.0). -->

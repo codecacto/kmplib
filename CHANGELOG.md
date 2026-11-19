@@ -5,6 +5,26 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.375.0 — Ajuda: suporte pelo WhatsApp em destaque (`HelpScreen(supportWhatsApp = …)`)
+
+**Aditivo, opt-in. Não é aviso.** Pedido do fundador (19/nov/2026, piloto LocAki): "um dos cores do projeto é deixar
+o suporte fácil". Quem não passa nada fica idêntico; a assinatura antiga compila.
+
+- **`HelpScreen(…, supportWhatsApp: HelpSupportWhatsApp? = null)`** — ligado, o "Falar com o suporte" do rodapé da
+  conversa e o da bolha de sem resposta viram o botão de destaque **"Chamar o suporte no WhatsApp"** (4 idiomas): cheio,
+  largura toda, ≥ 56 dp, glifo oficial, verde-petróleo da marca `#075E54` com branco (7,67:1 — o mesmo do botão de
+  WhatsApp do comunicado, 2.371.0; `#25D366` com branco mede 1,98:1 e reprova o AA).
+- Toque abre a conversa por `UrlLauncher.openWhatsApp` (o caminho do `WhatsAppIconButton`; portão de pais vale) com a
+  mensagem pronta: "Olá! Uso o {produto} e gostaria de falar com o suporte." / sem produto "Olá! Gostaria de falar com o
+  suporte." (`HelpTexts.supportWhatsApp`/`supportWhatsAppMessageWithProductTemplate`/`supportWhatsAppMessage`).
+- **`onSupport` não é chamado com o WhatsApp ligado** (seriam duas saídas de uma vez); continua obrigatório e volta a
+  ser o botão quando o número não é válido (`HelpSupportWhatsApp.normalizedPhone` = `null`).
+- `HelpSupportWhatsApp(phone = CodeCactoContact.WHATSAPP_PHONE, message = null, productName = null)` + `messageFor(texts)`.
+- **`CodeCactoContact.WHATSAPP_PHONE`** (`kmplib-core`, `core.config`, novo): o número da CodeCacto num lugar só;
+  `SubscriptionBlockDefaults.WHATSAPP_PHONE` e o default de `DeveloperContact.whatsapp` passam a apontar para ele (mesmo valor).
+- Ids: `ajuda-btn-suporte-whatsapp`, `ajuda-btn-suporte-whatsapp-resposta` (`HelpTestTags`).
+- Testes: `HelpSupportWhatsAppTest` (common) e `HelpSupportWhatsAppResourcesTest` (mensagem nos 4 idiomas).
+
 ## 2.374.1 — Acesso liberado na central: resposta só da PRÓPRIA conta, prazo no processo, "Acesso liberado" no paywall
 
 **Correção (security review da 2.374.0). Não é aviso** — a 2.374.0 só existe no Super 8 (`dev`, não publicado).
