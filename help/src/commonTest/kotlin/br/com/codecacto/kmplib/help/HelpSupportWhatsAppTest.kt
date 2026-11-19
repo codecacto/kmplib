@@ -1,9 +1,13 @@
 package br.com.codecacto.kmplib.help
 
 import br.com.codecacto.kmplib.core.config.CodeCactoContact
+import androidx.compose.ui.graphics.Color
+import br.com.codecacto.kmplib.ui.components.WhatsAppColors
+import br.com.codecacto.kmplib.ui.theme.ColorContrast
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class HelpSupportWhatsAppTest {
 
@@ -65,5 +69,14 @@ class HelpSupportWhatsAppTest {
     fun `ids de automacao do botao`() {
         assertEquals("ajuda-btn-suporte-whatsapp", HelpTestTags.SUPPORT_WHATSAPP_BUTTON)
         assertEquals("ajuda-btn-suporte-whatsapp-resposta", HelpTestTags.SUPPORT_WHATSAPP_IN_ANSWER_BUTTON)
+    }
+
+    @Test
+    fun `fundo do botao e o verde dos botoes do WhatsApp com branco AA`() {
+        assertEquals(Color(0xFF008069), helpSupportWhatsAppContainer(pressed = false))
+        assertEquals(Color(0xFF075E54), helpSupportWhatsAppContainer(pressed = true))
+        assertEquals(WhatsAppColors.ActionGreen, helpSupportWhatsAppContainer(false))
+        assertTrue(ColorContrast.contrastRatio(Color.White, helpSupportWhatsAppContainer(false)) >= 4.5)
+        assertTrue(ColorContrast.contrastRatio(Color.White, helpSupportWhatsAppContainer(true)) >= 4.5)
     }
 }

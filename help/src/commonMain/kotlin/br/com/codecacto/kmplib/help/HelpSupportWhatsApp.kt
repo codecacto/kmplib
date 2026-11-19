@@ -1,15 +1,31 @@
 package br.com.codecacto.kmplib.help
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import br.com.codecacto.kmplib.core.config.CodeCactoContact
 import br.com.codecacto.kmplib.platform.getUrlLauncher
 import br.com.codecacto.kmplib.platform.whatsAppPhoneNumber
-import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.WhatsAppColors
 import br.com.codecacto.kmplib.ui.components.WhatsAppGlyph
 
@@ -59,9 +75,10 @@ data class HelpSupportWhatsApp(
 }
 
 /**
- * O botão de destaque do suporte: verde-petróleo da marca WhatsApp (`#075E54`) com texto e glifo brancos — 7,67:1, o
- * MESMO desenho do botão de WhatsApp do comunicado (2.371.0, par da weblib 0.328.0). O verde `#25D366` com branco mede
- * 1,98:1 e reprova o AA, por isso não é o fundo. Largura toda, altura mínima 56 dp.
+ * O botão de destaque do suporte (2.375.1, alinhado ao `SupportWhatsAppButton` da weblib 0.331.0): fundo
+ * [WhatsAppColors.ActionGreen] (`#008069`, o verde dos botões do WhatsApp) com texto e glifo brancos — 4,9:1, AA — e
+ * [WhatsAppColors.DarkGreen] (`#075E54`) enquanto pressionado. Largura toda, altura mínima 56 dp, cantos de 12 dp e
+ * rótulo como o `AppButton` (glifo 20 dp decorativo + texto que quebra centralizado).
  *
  * Abre pelo `UrlLauncher.openWhatsApp` da lib, resolvido no toque — o portão de pais do app infantil e o dublê de
  * teste valem aqui também.
@@ -75,13 +92,35 @@ internal fun HelpSupportWhatsAppButton(
     modifier: Modifier = Modifier,
 ) {
     val message = remember(support, texts) { support.messageFor(texts) }
-    AppButton(
-        text = texts.supportWhatsApp,
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    Button(
         onClick = { getUrlLauncher().openWhatsApp(phone, message) },
-        height = 56.dp,
-        primaryColor = WhatsAppColors.DarkGreen,
-        contentColor = Color.White,
-        icon = WhatsAppGlyph,
-        modifier = modifier.testTag(testTag),
-    )
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp).testTag(testTag),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = helpSupportWhatsAppContainer(pressed),
+            contentColor = Color.White,
+        ),
+        interactionSource = interactionSource,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Decorativo: quem lê o botão já ouviu o rótulo.
+            Icon(imageVector = WhatsAppGlyph, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(
+                text = texts.supportWhatsApp,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+    }
 }
+
+/** Fundo do botão de suporte: `#008069` em repouso, `#075E54` pressionado. Pura. */
+internal fun helpSupportWhatsAppContainer(pressed: Boolean): Color =
+    if (pressed) WhatsAppColors.DarkGreen else WhatsAppColors.ActionGreen

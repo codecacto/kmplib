@@ -35,6 +35,13 @@ object WhatsAppColors {
 
     /** Verde-petróleo da marca, `#075E54` — fundo para texto branco (7,67:1). */
     val DarkGreen: Color = Color(0xFF075E54)
+
+    /**
+     * Verde dos BOTÕES do próprio WhatsApp, `#008069` (o "Enviar"/"Iniciar conversa" do WhatsApp Web) —
+     * fundo de botão com texto branco (4,9:1, AA). Pressionado: [DarkGreen]. O mesmo
+     * `WHATSAPP_GREEN_ACTION` da weblib (2.375.1).
+     */
+    val ActionGreen: Color = Color(0xFF008069)
 }
 
 /**

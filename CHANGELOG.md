@@ -5,6 +5,16 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.375.1 — Ajuda: botão de suporte no WhatsApp com a cor da weblib (`#008069`)
+
+**Só cor. Não é aviso.** Alinha o botão "Chamar o suporte no WhatsApp" da `HelpScreen` ao `SupportWhatsAppButton` da
+weblib 0.331.0: fundo **`#008069`** (verde dos botões do WhatsApp; branco 4,9:1, AA) e **`#075E54` pressionado** — na
+2.375.0 era `#075E54` fixo. Rótulo, glifo, altura, ids e comportamento iguais (o `onSupport` segue NÃO sendo chamado
+com o WhatsApp ligado).
+
+- `WhatsAppColors.ActionGreen` (`kmplib-ui`, novo) = `#008069`, o `WHATSAPP_GREEN_ACTION` da weblib.
+- Teste: `HelpSupportWhatsAppTest` confere as duas cores e o contraste ≥ 4,5:1 com branco.
+
 ## 2.375.0 — Ajuda: suporte pelo WhatsApp em destaque (`HelpScreen(supportWhatsApp = …)`)
 
 **Aditivo, opt-in. Não é aviso.** Pedido do fundador (19/nov/2026, piloto LocAki): "um dos cores do projeto é deixar
