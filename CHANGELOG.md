@@ -5,6 +5,27 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.376.0 — Cadastro own-auth: `idioma` no corpo e recusa com código e erro no campo (`RegisterRejected`)
+
+**Aditivo. Não é aviso.** Para a regra "WhatsApp obrigatório no cadastro em pt-BR" (constituição, 16/nov/2026): o app
+manda `idioma` no `POST …/auth/register` e, em pt-BR sem número, o backend responde 400 `WHATSAPP_OBRIGATORIO` com
+`details.telefone`. Até a 2.375.1 a lib não mandava o campo e transformava esse 400 em `WeakPassword` (sem código).
+
+- **`idioma: String? = null`** em `RegisterBody`, `OwnAuthApi.register(…, locale, idioma)` e no novo overload
+  `OwnAuthService.register(name, email, password, acceptedTerms, phone, locale, idioma)` (default da interface ignora o
+  idioma). `null`/branco **não manda a chave**: o corpo de quem não pede é idêntico ao de antes. **Não é derivado do
+  `locale`** de propósito — quem já manda `locale` e ainda não exige o WhatsApp na tela teria o cadastro recusado só por
+  subir a lib. Passe `appLanguageTag()` quando a tela já exige o número.
+- **`OwnAuthException.RegisterRejected(message, code, serverCode, fieldErrors)`** + `fieldError(campo)` (molde da
+  `ProfileRejected`): 400/422 do cadastro com `code` próprio (≠ `VALIDATION_ERROR`) **ou** `details`. 400/422 genérico
+  (sem código específico e sem `details` — a senha curta da backlib) **continua `WeakPassword`**; 409 continua
+  `EmailAlreadyInUse`. Fora do `/register` nada muda.
+- **`OwnAuthService.registerWithPassword(…, phone, locale, idioma)`** — o cadastro com o erro TIPADO (`OwnAuthException`),
+  como o `signInWithPassword` da 2.366.0; o `register` de sempre segue devolvendo `AuthException` (a recusa de regra vira
+  `UnknownError` com a frase do servidor — antes saía "Senha muito fraca").
+- `OwnAuthErrorCodes.VALIDATION_ERROR` e `OwnAuthErrorCodes.WHATSAPP_OBRIGATORIO`.
+- Teste: `OwnAuthRegisterIdiomaTest` (corpo com/sem idioma, mapeamento, repositório tipado e canônico, defaults da porta).
+
 ## 2.375.1 — Ajuda: botão de suporte no WhatsApp com a cor da weblib (`#008069`)
 
 **Só cor. Não é aviso.** Alinha o botão "Chamar o suporte no WhatsApp" da `HelpScreen` ao `SupportWhatsAppButton` da

@@ -136,7 +136,29 @@ class EmailPasswordAuthRepository(
         acceptedTerms: Boolean,
         phone: String?,
         locale: String?,
-    ): Result<User> = api.register(name, email, password, acceptedTerms, phone, locale).mapAndAdopt(email, name)
+    ): Result<User> = register(name, email, password, acceptedTerms, phone, locale, idioma = null)
+
+    override suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String?,
+        locale: String?,
+        idioma: String?,
+    ): Result<User> = api.register(name, email, password, acceptedTerms, phone, locale, idioma).mapAndAdopt(email, name)
+
+    override suspend fun registerWithPassword(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String?,
+        locale: String?,
+        idioma: String?,
+    ): Result<User> =
+        api.register(name, email, password, acceptedTerms, phone, locale, idioma)
+            .mapAndAdopt(email, name, keepOwnAuthErrors = true)
 
     override suspend fun requestPasswordReset(email: String): Result<Unit> =
         api.requestPasswordReset(email).mapAuthError()

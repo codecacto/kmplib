@@ -53,6 +53,60 @@ interface OwnAuthService {
     ): Result<User> = register(name, email, password, acceptedTerms, phone)
 
     /**
+     * [register] com o **idioma da tela do cadastro** (2.376.0) — o campo `idioma` do corpo, que liga
+     * no backend a regra "WhatsApp obrigatório no cadastro em pt-BR" (constituição, 16/nov/2026): com
+     * idioma do Brasil e sem número, o servidor responde 400 `WHATSAPP_OBRIGATORIO` com
+     * `details.telefone`. `null` não manda o campo (corpo idêntico ao de antes).
+     *
+     * Os erros saem como [AuthException][br.com.codecacto.kmplib.firebase.auth.AuthException], como nos
+     * outros `register` (a recusa de regra vira `UnknownError` com a frase do servidor). Para o erro
+     * **no campo**, use [registerWithPassword].
+     *
+     * Implementação default ignora o idioma, para não quebrar quem implementa esta porta.
+     */
+    suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String?,
+        locale: String?,
+        idioma: String?,
+    ): Result<User> = register(name, email, password, acceptedTerms, phone, locale)
+
+    /**
+     * **Cadastro com o erro TIPADO** (2.376.0) — o mesmo [register] (adota a sessão do mesmo jeito),
+     * mas a falha chega como a [OwnAuthException] do [OwnAuthApi], em vez da `AuthException` canônica
+     * (constante, sem campo). É o caminho para a tela marcar o WhatsApp:
+     *
+     * ```kotlin
+     * service.registerWithPassword(nome, email, senha, aceitou, telefone, idioma = appLanguageTag())
+     *     .onFailure { e ->
+     *         val r = e as? OwnAuthException.RegisterRejected
+     *         if (r?.serverCode == OwnAuthErrorCodes.WHATSAPP_OBRIGATORIO) erroNoCampo = r.fieldError("telefone")
+     *     }
+     * ```
+     *
+     * ### Erros
+     * - [OwnAuthException.RegisterRejected] — 400/422 com `code` próprio ou `details` (por campo).
+     * - [OwnAuthException.WeakPassword] — 400/422 genérico (a senha curta da backlib).
+     * - [OwnAuthException.EmailAlreadyInUse], [OwnAuthException.TooManyRequests],
+     *   [OwnAuthException.Network], [OwnAuthException.Server].
+     *
+     * Implementação default cai no [register] com idioma (erros como `AuthException`), para não
+     * quebrar quem implementa esta porta — dublês de teste, por exemplo.
+     */
+    suspend fun registerWithPassword(
+        name: String,
+        email: String,
+        password: String,
+        acceptedTerms: Boolean,
+        phone: String? = null,
+        locale: String? = null,
+        idioma: String? = null,
+    ): Result<User> = register(name, email, password, acceptedTerms, phone, locale, idioma)
+
+    /**
      * Dispara o e-mail de definição/redefinição de senha (`password/forgot`). SEMPRE resolve como
      * sucesso genérico do lado do servidor (não revela se o e-mail existe). Serve tanto o "esqueci a
      * senha" quanto o **convite** de conta criada pelo dono.

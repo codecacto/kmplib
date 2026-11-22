@@ -99,6 +99,13 @@ internal data class RegisterBody(
      * anterior recebe o corpo de sempre.
      */
     val locale: String? = null,
+    /**
+     * Idioma da TELA do cadastro, BCP 47 (2.376.0) — o sinal da regra "WhatsApp obrigatório no
+     * cadastro em pt-BR" (constituição, 16/nov/2026): com idioma do Brasil e sem número, o backend do
+     * produto responde 400 `WHATSAPP_OBRIGATORIO` com `details.telefone`. Omitido quando nulo — sem
+     * ele o servidor aplica a regra antiga (API versionada: o app que não manda não muda nada).
+     */
+    val idioma: String? = null,
 )
 
 /**

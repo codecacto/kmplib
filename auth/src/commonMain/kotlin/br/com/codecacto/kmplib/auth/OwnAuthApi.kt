@@ -44,6 +44,15 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
      *   0.134.0. É por ele que o servidor escreve e-mail, PDF e push no idioma da pessoa. Passe
      *   `appLanguageTag()` (ou `uiLanguageTag()`); `null` (default) não manda o campo, e servidor
      *   anterior à 0.134.0 continua recebendo exatamente o corpo de antes.
+     * @param idioma idioma da TELA do cadastro, BCP 47 (2.376.0) — o campo `idioma` do corpo, que liga
+     *   no backend a regra "WhatsApp obrigatório em pt-BR" (400 `WHATSAPP_OBRIGATORIO`). `null`
+     *   (default) não manda o campo e o corpo fica idêntico ao de antes. **Não é derivado de [locale]
+     *   de propósito**: quem já manda `locale` e ainda não exige o WhatsApp na tela passaria a ter o
+     *   cadastro recusado só por subir a lib. Passe `appLanguageTag()` quando a tela já exige o número.
+     *
+     * Recusa de regra (400/422 com `code` próprio ou erro por campo) chega como
+     * [OwnAuthException.RegisterRejected]; 400/422 genérico (sem `code` específico nem `details` —
+     * caso da senha curta da backlib) continua [OwnAuthException.WeakPassword].
      */
     suspend fun register(
         name: String,
@@ -52,11 +61,20 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
         acceptedTerms: Boolean,
         phone: String? = null,
         locale: String? = null,
+        idioma: String? = null,
     ): Result<OwnAuthTokens> =
         postForTokens(
             "register",
             json.encodeToString(
-                RegisterBody(name, email, password, acceptedTerms, phone, locale?.trim()?.takeIf { it.isNotEmpty() }),
+                RegisterBody(
+                    name,
+                    email,
+                    password,
+                    acceptedTerms,
+                    phone,
+                    locale?.trim()?.takeIf { it.isNotEmpty() },
+                    idioma?.trim()?.takeIf { it.isNotEmpty() },
+                ),
             ),
         )
 
@@ -483,6 +501,7 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     private fun mapStatus(texts: OwnAuthTexts, suffix: String, status: Int, envelope: ServerErrorEnvelope?): OwnAuthException {
         val serverMessage = envelope?.message
         if (suffix == ME_SUFFIX) return mapProfileStatus(texts, status, envelope)
+        if (suffix == REGISTER_SUFFIX) mapRegisterRejection(texts, status, envelope)?.let { return it }
         // Social tem um vocabulário de recusa próprio: nonce vencido/reusado, `aud` inesperado,
         // `email_verified=false`, assinatura inválida. Todos significam a mesma coisa para a tela —
         // "esta prova de identidade não serve" —, e a mensagem do servidor é a única que diz qual
@@ -532,6 +551,27 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
     }
 
     /**
+     * Cadastro (2.376.0): 400/422 que traz `code` próprio (diferente do genérico `VALIDATION_ERROR`)
+     * **ou** erro por campo (`details`) vira [OwnAuthException.RegisterRejected] com o envelope
+     * inteiro — é o que leva `WHATSAPP_OBRIGATORIO` + `details.telefone` ao campo certo. O resto
+     * (`null` aqui) segue o mapeamento de sempre: 400/422 genérico = [OwnAuthException.WeakPassword],
+     * que é como a backlib recusa a senha curta (sem `code` específico, sem `details`).
+     */
+    private fun mapRegisterRejection(texts: OwnAuthTexts, status: Int, envelope: ServerErrorEnvelope?): OwnAuthException? {
+        if (status != 400 && status != 422) return null
+        val serverCode = envelope?.code?.takeIf { it.isNotBlank() }
+        val fieldErrors = envelope?.details.orEmpty()
+        val specificCode = serverCode != null && serverCode != OwnAuthErrorCodes.VALIDATION_ERROR
+        if (!specificCode && fieldErrors.isEmpty()) return null
+        return OwnAuthException.RegisterRejected(
+            message = envelope?.message?.takeIf { it.isNotBlank() } ?: fieldErrors.values.firstOrNull() ?: texts.weakPassword,
+            code = status,
+            serverCode = serverCode,
+            fieldErrors = fieldErrors,
+        )
+    }
+
+    /**
      * Perfil (`GET`/`PATCH /me`). Recusa de regra (400/403/409/422) carrega o envelope inteiro —
      * `code` e `details` — para a tela marcar o campo certo com a frase do servidor.
      */
@@ -567,5 +607,8 @@ class OwnAuthApi(private val config: OwnAuthConfig) {
 
         /** `GET`/`PATCH {authBasePath}/me` — perfil da conta autenticada. */
         private const val ME_SUFFIX = "me"
+
+        /** `POST {authBasePath}/register`. */
+        private const val REGISTER_SUFFIX = "register"
     }
 }

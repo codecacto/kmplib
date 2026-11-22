@@ -227,6 +227,36 @@ sealed class OwnAuthException(override val message: String, val code: Int) : Exc
         fun fieldError(field: String): String? = fieldErrors[field]
     }
 
+    /**
+     * **Cadastro recusado por regra** (`POST {authBasePath}/register`, 2.376.0) — 400 ou 422 com
+     * `code` próprio do servidor ou erro por campo, com o envelope da backlib por inteiro. Molde da
+     * [ProfileRejected].
+     *
+     * Caso que motivou: "WhatsApp obrigatório no cadastro em pt-BR" — o app manda `idioma` e, sem
+     * número, o backend responde `WHATSAPP_OBRIGATORIO` com `details.telefone`:
+     * ```kotlin
+     * service.registerWithPassword(nome, email, senha, aceitou, telefone, idioma = appLanguageTag())
+     *     .onFailure { e ->
+     *         val erroDoWhatsApp = (e as? OwnAuthException.RegisterRejected)?.fieldError("telefone")
+     *     }
+     * ```
+     *
+     * 400/422 **genérico** (sem `code` específico e sem `details` — a senha curta da backlib) continua
+     * [WeakPassword], para não quebrar quem já trata esse caso.
+     *
+     * @property serverCode o `code` do envelope (ex.: [OwnAuthErrorCodes.WHATSAPP_OBRIGATORIO]), ou `null`.
+     * @property fieldErrors `details` do envelope: campo → frase (`telefone`, `name`…).
+     */
+    class RegisterRejected(
+        message: String,
+        code: Int,
+        val serverCode: String? = null,
+        val fieldErrors: Map<String, String> = emptyMap(),
+    ) : OwnAuthException(message, code) {
+        /** A frase do servidor para [field] (`"telefone"`, `"name"`), ou `null`. */
+        fun fieldError(field: String): String? = fieldErrors[field]
+    }
+
     /** `true` para 4xx (erro do cliente/credencial) — o refresh deve **fail-closed** (derrubar sessão). */
     val isClientError: Boolean get() = code in 400..499
 
@@ -256,4 +286,16 @@ object OwnAuthErrorCodes {
 
     /** Nome de usuário já em uso por outra conta — 409, com a frase em `details.username`. */
     const val USERNAME_TAKEN: String = "USERNAME_TAKEN"
+
+    /**
+     * O `code` GENÉRICO da `ValidationException` da backlib (400). Sozinho, sem `details`, no
+     * cadastro continua virando `WeakPassword` (2.376.0).
+     */
+    const val VALIDATION_ERROR: String = "VALIDATION_ERROR"
+
+    /**
+     * Cadastro em pt-BR sem WhatsApp (constituição, 16/nov/2026) — 400, com a frase em
+     * `details.telefone`. Chega em `OwnAuthException.RegisterRejected` (2.376.0).
+     */
+    const val WHATSAPP_OBRIGATORIO: String = "WHATSAPP_OBRIGATORIO"
 }
