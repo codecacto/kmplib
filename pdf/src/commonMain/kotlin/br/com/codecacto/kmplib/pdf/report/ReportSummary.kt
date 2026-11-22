@@ -6,6 +6,7 @@ import br.com.codecacto.kmplib.pdf.DocumentCard
 import br.com.codecacto.kmplib.pdf.DocumentColumn
 import br.com.codecacto.kmplib.pdf.DocumentPdfCompany
 import br.com.codecacto.kmplib.pdf.DocumentPdfData
+import br.com.codecacto.kmplib.pdf.PdfLetterhead
 import br.com.codecacto.kmplib.pdf.DocumentRow
 import br.com.codecacto.kmplib.pdf.DocumentSection
 import br.com.codecacto.kmplib.pdf.defaultDocumentPdfFileName
@@ -131,6 +132,8 @@ object ReportSummaryPdf {
         texts: ReportSummaryTexts,
         /** Data/hora da emissão já formatada ("18/10/2026 14:32"). */
         generatedAt: String,
+        /** Timbrado do emissor em toda página (2.377.0). `null` = PDF de sempre. */
+        letterhead: PdfLetterhead? = null,
     ): DocumentPdfData {
         val cards = buildList {
             summary.hero?.let { add(it.toCard()) }
@@ -162,6 +165,7 @@ object ReportSummaryPdf {
             subtitle = summary.periodLabel,
             sections = sections,
             footer = texts.generatedAt(generatedAt),
+            letterhead = letterhead,
         )
     }
 
@@ -192,8 +196,10 @@ fun exportReportSummaryPdf(
     texts: ReportSummaryTexts,
     generatedAt: String,
     shareHandler: ShareHandler = getShareHandler(),
+    /** Timbrado do emissor (cabeçalho/rodapé em toda página, 2.377.0). `null` = PDF de sempre. */
+    letterhead: PdfLetterhead? = null,
 ): ByteArray = generateAndShareDocumentPdf(
-    data = ReportSummaryPdf.build(summary, company, texts, generatedAt),
+    data = ReportSummaryPdf.build(summary, company, texts, generatedAt, letterhead),
     shareHandler = shareHandler,
     fileName = ReportSummaryPdf.fileName(summary),
     shareTitle = texts.exportPdf,

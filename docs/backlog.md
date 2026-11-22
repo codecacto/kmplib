@@ -3,6 +3,13 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 22/nov/2026 — timbrado do emissor no PDF, Royal Doctor (entregue na 2.377.0)
+
+- [x] **ENTREGUE na 2.377.0:** `PdfLetterhead` (imagem PNG/JPEG e/ou texto, `LEFT`/`CENTER`, `replacesDefaultHeader`)
+      em toda página do `DocumentPdfData` e no export do resumo/DRE; alturas fixas, conteúdo entre as faixas.
+- [ ] Timbrado nos 8 geradores legados de layout fixo (OS, recibo, tabela, financeiro…) e um helper para o
+      `pdf.canvas` — quando um app pedir documento fixo timbrado.
+
 ### Registrado em 15/nov/2026 — minutos do bloqueio do login (`Retry-After`), FotuNex (entregue na 2.366.0)
 
 - [x] **ENTREGUE na 2.366.0:** `OwnAuthException.TooManyRequests.retryAfterSeconds` (segundos ou data HTTP, pelo

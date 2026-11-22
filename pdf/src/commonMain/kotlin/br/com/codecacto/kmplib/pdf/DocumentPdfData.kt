@@ -55,6 +55,11 @@ data class DocumentPdfData(
     val watermark: Boolean = false,
     /** Texto da marca d'água. Apps customizam (ex.: "RASCUNHO"). */
     val watermarkText: String = "Gerado com kmplib",
+    /**
+     * Timbrado do emissor (2.377.0): cabeçalho e rodapé próprios em TODA página, com altura fixa —
+     * o conteúdo encolhe para caber entre eles. `null` (ou timbrado vazio) = PDF idêntico ao de antes.
+     */
+    val letterhead: PdfLetterhead? = null,
 )
 
 /** Empresa/emissor do documento (cabeçalho). Espelha o mecanismo de logo do [OsPdfCompany]. */

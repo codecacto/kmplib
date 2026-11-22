@@ -3,6 +3,7 @@ package br.com.codecacto.kmplib.pdf.report
 import androidx.compose.runtime.Immutable
 import br.com.codecacto.kmplib.pdf.DocumentPdfCompany
 import br.com.codecacto.kmplib.pdf.DocumentPdfData
+import br.com.codecacto.kmplib.pdf.PdfLetterhead
 import br.com.codecacto.kmplib.pdf.defaultDocumentPdfFileName
 import br.com.codecacto.kmplib.pdf.generateAndShareDocumentPdf
 import br.com.codecacto.kmplib.platform.ShareHandler
@@ -149,7 +150,9 @@ object DreSummaryPdf {
         texts: ReportSummaryTexts,
         /** Data/hora da emissão já formatada ("18/10/2026 14:32"). */
         generatedAt: String,
-    ): DocumentPdfData = ReportSummaryPdf.build(summary.toReportSummary(texts.dreTitle), company, texts, generatedAt)
+        /** Timbrado do emissor em toda página (2.377.0). `null` = PDF de sempre. */
+        letterhead: PdfLetterhead? = null,
+    ): DocumentPdfData = ReportSummaryPdf.build(summary.toReportSummary(texts.dreTitle), company, texts, generatedAt, letterhead)
 
     /**
      * `DRE_Marco_de_2026.pdf` — o nome que aparece no compartilhar. O acento sai antes da limpeza do
@@ -170,8 +173,10 @@ fun exportDreSummaryPdf(
     texts: ReportSummaryTexts,
     generatedAt: String,
     shareHandler: ShareHandler = getShareHandler(),
+    /** Timbrado do emissor (cabeçalho/rodapé em toda página, 2.377.0). `null` = PDF de sempre. */
+    letterhead: PdfLetterhead? = null,
 ): ByteArray = generateAndShareDocumentPdf(
-    data = DreSummaryPdf.build(summary, company, texts, generatedAt),
+    data = DreSummaryPdf.build(summary, company, texts, generatedAt, letterhead),
     shareHandler = shareHandler,
     fileName = DreSummaryPdf.fileName(summary),
     shareTitle = texts.exportPdf,

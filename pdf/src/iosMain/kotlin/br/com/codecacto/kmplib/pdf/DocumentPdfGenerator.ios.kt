@@ -35,10 +35,22 @@ private class IosDocumentPdfGenerator : DocumentPdfGenerator {
 
     private data class ColBound(val xStart: Double, val xEnd: Double, val align: DocumentAlign)
 
+    /** Área do conteúdo da página — encolhe entre as faixas do timbrado quando há um. */
+    private var contentTop = MARGIN
+    private var contentBottom = PAGE_HEIGHT - MARGIN
+
     override fun generate(data: DocumentPdfData): ByteArray {
         val watermark = if (data.watermark) data.watermarkText else null
         return renderIosPdfPaged(PAGE_WIDTH, PAGE_HEIGHT, watermark) {
-            var y = drawHeader(canvas, data, MARGIN)
+            val letterhead = prepareIosLetterhead(data.letterhead, canvas, PAGE_WIDTH, PAGE_HEIGHT, MARGIN, COLOR_TEXT, COLOR_LINE)
+            contentTop = letterhead?.frame?.contentTop?.toDouble() ?: MARGIN
+            contentBottom = letterhead?.frame?.contentBottom?.toDouble() ?: (PAGE_HEIGHT - MARGIN)
+            if (letterhead != null) {
+                letterhead.drawOn(canvas)
+                onPageStart = { letterhead.drawOn(it) }
+            }
+            val hideCompany = data.letterhead?.replacesDefaultHeader == true && letterhead?.frame?.header != null
+            var y = drawHeader(canvas, data, contentTop, hideCompany)
 
             data.sections.forEach { section ->
                 y += 14.0
@@ -51,15 +63,45 @@ private class IosDocumentPdfGenerator : DocumentPdfGenerator {
                 }
             }
 
-            data.footer?.takeIf { it.isNotBlank() }?.let { drawFooter(canvas, it) }
+            data.footer?.takeIf { it.isNotBlank() }?.let { footer ->
+                // Com timbrado, o texto de rodapé do documento vai para a margem inferior, sem a linha.
+                if (letterhead != null) {
+                    canvas.text(footer, MARGIN, letterhead.frame.documentFooterBaseline.toDouble(), 9.0, bold = false, color = COLOR_MUTED)
+                } else {
+                    drawFooter(canvas, footer)
+                }
+            }
+            onPageStart = null
+            letterhead?.release()
         }
     }
 
     /** Abre página nova se [y] + [needed] estourar a área útil. Retorna o novo y. */
     private fun ensureSpace(flow: IosPageFlow, y: Double, needed: Double): Double =
-        if (y <= PAGE_HEIGHT - MARGIN - needed) y else { flow.newPage(); MARGIN }
+        if (y <= contentBottom - needed) y else { flow.newPage(); contentTop }
 
-    private fun drawHeader(c: IosPdfCanvas, data: DocumentPdfData, top: Double): Double {
+    /** Cabeçalho quando o timbrado substitui o bloco da empresa: título, subtítulo e metadados. */
+    private fun drawTitleOnlyHeader(c: IosPdfCanvas, data: DocumentPdfData, top: Double): Double {
+        var y = top + 16.0
+        c.text(data.title, MARGIN, y, 16.0, bold = true, color = COLOR_ACCENT)
+        data.subtitle?.takeIf { it.isNotBlank() }?.let {
+            y += 14.0
+            c.text(it, MARGIN, y, 10.0, bold = false, color = COLOR_MUTED)
+        }
+        var bottom = y + 10.0
+        if (data.headerInfo.isNotEmpty()) {
+            bottom += 4.0
+            data.headerInfo.forEach { row ->
+                c.text(row.label, left, bottom + 11.0, 9.0, bold = true, color = COLOR_MUTED)
+                c.text(row.value, left + 130.0, bottom + 11.0, 10.0, bold = false, color = COLOR_TEXT)
+                bottom += 16.0
+            }
+        }
+        return bottom
+    }
+
+    private fun drawHeader(c: IosPdfCanvas, data: DocumentPdfData, top: Double, hideCompany: Boolean): Double {
+        if (hideCompany) return drawTitleOnlyHeader(c, data, top)
         var textX = MARGIN
         var y = top
         data.company.logoBytes?.let {
@@ -168,7 +210,38 @@ private class IosDocumentPdfGenerator : DocumentPdfGenerator {
     private fun drawParagraphSection(flow: IosPageFlow, section: DocumentSection.Paragraph, top: Double): Double {
         var y = drawSectionTitle(flow, section.title, top)
         y = ensureSpace(flow, y, 40.0)
-        return flow.canvas.wrappedText(section.text, left, y + 12.0, right - left, 10.5, bold = false, color = COLOR_TEXT, lineHeight = 14.0)
+        return drawWrappedParagraph(flow, section.text, y + 12.0, 10.5, 14.0)
+    }
+
+    /**
+     * Parágrafo com quebra por palavra que PAGINA (par do Android): linha que passaria do fim da
+     * área do conteúdo abre página nova. `\n` força quebra, como no Android.
+     */
+    private fun drawWrappedParagraph(flow: IosPageFlow, text: String, startBaseline: Double, size: Double, lineHeight: Double): Double {
+        val maxW = right - left
+        var y = startBaseline
+        fun drawLine(line: String) {
+            if (y > contentBottom) {
+                flow.newPage()
+                y = contentTop + lineHeight - 2.0
+            }
+            flow.canvas.text(line, left, y, size, bold = false, color = COLOR_TEXT)
+            y += lineHeight
+        }
+        text.split("\n").forEach { para ->
+            var line = ""
+            for (w in para.split(Regex("\\s+")).filter { it.isNotEmpty() }) {
+                val candidate = if (line.isEmpty()) w else "$line $w"
+                if (flow.canvas.measure(candidate, size, false) > maxW && line.isNotEmpty()) {
+                    drawLine(line)
+                    line = w
+                } else {
+                    line = candidate
+                }
+            }
+            if (line.isNotEmpty()) drawLine(line)
+        }
+        return y
     }
 
     private fun drawTotalSection(flow: IosPageFlow, section: DocumentSection.Total, top: Double): Double {

@@ -21,6 +21,11 @@ kotlin {
             api(libs.ktor.client.core)
         }
 
+        androidMain.dependencies {
+            // Orientação EXIF da imagem JPEG do timbrado (2.377.0) — foto de celular vem deitada.
+            implementation(libs.androidx.exifinterface)
+        }
+
         commonTest.dependencies {
             // `MockEngine` — o caminho remoto do visualizador (cache primeiro, 404, resposta que
             // não é PDF) se prova sem rede.

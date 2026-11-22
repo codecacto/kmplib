@@ -43,9 +43,12 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
 
     override fun generate(data: DocumentPdfData): ByteArray {
         val doc = PdfDocument()
-        val ctx = RenderCtx(doc, data.watermark, data.watermarkText)
+        val letterhead = prepareAndroidLetterhead(
+            data.letterhead, PAGE_WIDTH.toFloat(), PAGE_HEIGHT.toFloat(), MARGIN, COLOR_TEXT, COLOR_LINE,
+        )
+        val ctx = RenderCtx(doc, data.watermark, data.watermarkText, letterhead)
 
-        ctx.y = drawHeader(ctx.canvas, data, MARGIN)
+        ctx.y = drawHeader(ctx.canvas, data, ctx.contentTop, hideCompany = data.letterhead?.replacesDefaultHeader == true && letterhead?.frame?.header != null)
 
         data.sections.forEach { section ->
             ctx.y += 14f
@@ -58,9 +61,18 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
             }
         }
 
-        data.footer?.takeIf { it.isNotBlank() }?.let { drawFooter(ctx.canvas, it) }
+        data.footer?.takeIf { it.isNotBlank() }?.let { footer ->
+            // Com timbrado, o texto de rodapé do documento vai para dentro da margem inferior, sem a
+            // linha: a área acima dela é do conteúdo e do rodapé do timbrado.
+            if (letterhead != null) {
+                ctx.canvas.drawText(footer, MARGIN, letterhead.frame.documentFooterBaseline, paint(COLOR_MUTED, 9f))
+            } else {
+                drawFooter(ctx.canvas, footer)
+            }
+        }
 
         ctx.finish()
+        letterhead?.recycle()
 
         val out = ByteArrayOutputStream()
         doc.writeTo(out)
@@ -72,16 +84,23 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
         val doc: PdfDocument,
         val watermark: Boolean,
         val watermarkText: String?,
+        val letterhead: AndroidLetterhead?,
     ) {
+        /** Primeiro y do conteúdo em toda página (abaixo do cabeçalho do timbrado, se houver). */
+        val contentTop: Float = letterhead?.frame?.contentTop ?: MARGIN
+
+        /** Último y do conteúdo em toda página (acima do rodapé do timbrado, se houver). */
+        val contentBottom: Float = letterhead?.frame?.contentBottom ?: (PAGE_HEIGHT - MARGIN)
+
         var pageNum = 1
         var pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum).create()
         var page = doc.startPage(pageInfo)
-        var canvas: Canvas = page.canvas
-        var y = MARGIN
+        var canvas: Canvas = page.canvas.also { letterhead?.drawOn(it) }
+        var y = contentTop
 
         /** Garante espaço para [needed] pt; abre nova página se necessário. */
         fun ensureSpace(needed: Float): Boolean {
-            if (y <= PAGE_HEIGHT - MARGIN - needed) return false
+            if (y <= contentBottom - needed) return false
             newPage()
             return true
         }
@@ -93,7 +112,8 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
             pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum).create()
             page = doc.startPage(pageInfo)
             canvas = page.canvas
-            y = MARGIN
+            letterhead?.drawOn(canvas)
+            y = contentTop
         }
 
         fun finish() {
@@ -117,7 +137,8 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
 
     // --- Header --------------------------------------------------------------
 
-    private fun drawHeader(canvas: Canvas, data: DocumentPdfData, top: Float): Float {
+    private fun drawHeader(canvas: Canvas, data: DocumentPdfData, top: Float, hideCompany: Boolean): Float {
+        if (hideCompany) return drawTitleOnlyHeader(canvas, data, top)
         var textX = MARGIN
         var y = top
 
@@ -149,6 +170,29 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
 
         if (data.headerInfo.isNotEmpty()) {
             bottom += 8f
+            data.headerInfo.forEach { row ->
+                canvas.drawText(row.label, left, bottom + 11f, paint(COLOR_MUTED, 9f, bold = true))
+                canvas.drawText(row.value, left + 130f, bottom + 11f, paint(COLOR_TEXT, 10f))
+                bottom += 16f
+            }
+        }
+        return bottom
+    }
+
+    /**
+     * Cabeçalho quando o timbrado substitui o bloco da empresa: só título, subtítulo e metadados,
+     * alinhados à esquerda.
+     */
+    private fun drawTitleOnlyHeader(canvas: Canvas, data: DocumentPdfData, top: Float): Float {
+        var y = top + 16f
+        canvas.drawText(data.title, MARGIN, y, paint(COLOR_ACCENT, 16f, bold = true))
+        data.subtitle?.takeIf { it.isNotBlank() }?.let {
+            y += 14f
+            canvas.drawText(it, MARGIN, y, paint(COLOR_MUTED, 10f))
+        }
+        var bottom = y + 10f
+        if (data.headerInfo.isNotEmpty()) {
+            bottom += 4f
             data.headerInfo.forEach { row ->
                 canvas.drawText(row.label, left, bottom + 11f, paint(COLOR_MUTED, 9f, bold = true))
                 canvas.drawText(row.value, left + 130f, bottom + 11f, paint(COLOR_TEXT, 10f))
@@ -234,7 +278,7 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
     private fun drawParagraphSection(ctx: RenderCtx, section: DocumentSection.Paragraph) {
         drawSectionTitle(ctx, section.title)
         ctx.ensureSpace(40f)
-        ctx.y = drawWrappedText(ctx.canvas, section.text, left, ctx.y + 12f, right, paint(COLOR_TEXT, 10.5f), 14f)
+        ctx.y = drawWrappedText(ctx, section.text, left, ctx.y + 12f, right, paint(COLOR_TEXT, 10.5f), 14f)
     }
 
     private fun drawTotalSection(ctx: RenderCtx, section: DocumentSection.Total) {
@@ -357,17 +401,28 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
         return text.substring(0, end).trimEnd() + ellipsis
     }
 
-    private fun drawWrappedText(canvas: Canvas, text: String, x: Float, top: Float, rightX: Float, paint: Paint, lineHeight: Float): Float {
+    /**
+     * Parágrafo com quebra por palavra que PAGINA: linha que passaria do fim da área do conteúdo
+     * abre página nova (até a 2.376.0 seguia desenhando por baixo do rodapé e fora da folha).
+     */
+    private fun drawWrappedText(ctx: RenderCtx, text: String, x: Float, top: Float, rightX: Float, paint: Paint, lineHeight: Float): Float {
         paint.textAlign = Paint.Align.LEFT
         val maxW = rightX - x
         var y = top
+        fun drawLine(line: String) {
+            if (y > ctx.contentBottom) {
+                ctx.newPage()
+                y = ctx.y + lineHeight - 2f
+            }
+            ctx.canvas.drawText(line, x, y, paint)
+        }
         text.split("\n").forEach { para ->
             val words = para.split(Regex("\\s+")).filter { it.isNotEmpty() }
             var line = StringBuilder()
             for (w in words) {
                 val candidate = if (line.isEmpty()) w else "$line $w"
                 if (paint.measureText(candidate) > maxW && line.isNotEmpty()) {
-                    canvas.drawText(line.toString(), x, y, paint)
+                    drawLine(line.toString())
                     y += lineHeight
                     line = StringBuilder(w)
                 } else {
@@ -375,7 +430,7 @@ class AndroidDocumentPdfGenerator : DocumentPdfGenerator {
                 }
             }
             if (line.isNotEmpty()) {
-                canvas.drawText(line.toString(), x, y, paint)
+                drawLine(line.toString())
                 y += lineHeight
             }
         }

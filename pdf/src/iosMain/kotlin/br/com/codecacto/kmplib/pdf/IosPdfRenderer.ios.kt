@@ -395,6 +395,12 @@ internal class IosPageFlow(
     lateinit var canvas: IosPdfCanvas
         private set
 
+    /**
+     * Desenhado no começo de CADA página nova aberta por [newPage] (o timbrado, 2.377.0). A página
+     * corrente quando ele é atribuído não é redesenhada — quem atribui desenha nela.
+     */
+    var onPageStart: ((IosPdfCanvas) -> Unit)? = null
+
     internal fun startFirstPage() = beginNewPage()
 
     /** Comita a página atual (com marca d'água) e abre uma nova. */
@@ -409,6 +415,7 @@ internal class IosPageFlow(
         context.beginPage()
         val cg = UIGraphicsGetCurrentContext()
         if (cg != null) canvas = IosPdfCanvas(cg, pageWidth, pageHeight)
+        if (::canvas.isInitialized) onPageStart?.invoke(canvas)
     }
 
     private fun drawWatermarkIfNeeded() {

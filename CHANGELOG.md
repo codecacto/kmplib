@@ -5,6 +5,35 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.377.0 — PDF: timbrado do emissor em toda página (`PdfLetterhead`)
+
+**Aditivo (+ 1 correção de paginação). Não é aviso.** Pedido do Royal Doctor: o cabeçalho e o rodapé configuráveis pela
+clínica (imagem e/ou texto) em todo PDF. Quem não passa timbrado gera o MESMO PDF de antes.
+
+- **`PdfLetterhead(headerImage: ByteArray?, headerText: String?, headerAlign = LEFT, replacesDefaultHeader = false,
+  footerImage: ByteArray?, footerText: String?, footerAlign = CENTER)`** + `PdfLetterheadAlign` (`LEFT`/`CENTER`).
+  Desenhado em **toda página**, cabeçalho até **72 pt** e rodapé até **44 pt** (`PdfLetterheadLayout.HEADER_MAX_HEIGHT`/
+  `FOOTER_MAX_HEIGHT`); a área do conteúdo encolhe entre as faixas (12 pt de folga, linha fina separadora) — **o conteúdo
+  nunca passa por baixo delas**. Texto quebra por palavra, até 3 linhas no cabeçalho e 2 no rodapé, "…" no excedente.
+  Imagem PNG/JPEG (pela assinatura), até **8 MB**; outra coisa é ignorada sem derrubar o PDF. Proporção mantida, nunca
+  ampliada além de 1 px = 1 pt. `replacesDefaultHeader = true` tira o bloco da empresa (logo/nome/contatos) e deixa
+  título e período; o "Gerado em…" vai para a margem inferior.
+- Onde entra: **`DocumentPdfData.letterhead`** (todo `generateDocumentPdfBytes`/`generateAndShareDocumentPdf`),
+  **`ReportSummaryPdf.build(…, letterhead)`**, **`exportReportSummaryPdf(…, letterhead)`**,
+  **`DreSummaryPdf.build(…, letterhead)`** e **`exportDreSummaryPdf(…, letterhead)`** — último parâmetro, default `null`.
+- Padrão-ouro por plataforma: Android `BitmapFactory` com `inJustDecodeBounds` + `inSampleSize` (nunca a imagem
+  inteira; maior lado ≤ 1600 px) + orientação EXIF (`androidx.exifinterface`, dependência nova do `kmplib-pdf` Android) e
+  embute ≈ 216 dpi; iOS ImageIO `CGImageSourceCreateThumbnailAtIndex` (`ThumbnailMaxPixelSize` + `WithTransform`) e
+  `UIImage.drawInRect` no `UIGraphicsPDFRenderer` (`IosPageFlow.onPageStart`, novo, interno).
+- Regra de layout em código comum (`PdfLetterheadLayout`: formato, sub-amostragem, encaixe, quebra de texto, faixas,
+  área da página) — Android e iOS dão a mesma página.
+- **Correção (piso):** o parágrafo do PDF de documento (as notas do resumo) **pagina** — até a 2.376.0 o texto longo no
+  fim da página seguia por baixo do rodapé e fora da folha; e no iOS o `\n` das notas não quebrava linha.
+- Testes: `PdfLetterheadLayoutTest` (19, commonTest); `DocumentPdfLetterheadIosRenderTest` (iosTest, roda no Mac:
+  cabeçalho e rodapé em toda página relidos pelo PDFKit).
+- Fora deste release: os 8 geradores legados de layout fixo (OS, recibo, tabela…) e o `pdf.canvas` não recebem o
+  timbrado — quem desenha no `pdf.canvas` põe o timbrado na própria página.
+
 ## 2.376.0 — Cadastro own-auth: `idioma` no corpo e recusa com código e erro no campo (`RegisterRejected`)
 
 **Aditivo. Não é aviso.** Para a regra "WhatsApp obrigatório no cadastro em pt-BR" (constituição, 16/nov/2026): o app
