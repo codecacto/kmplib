@@ -5,6 +5,19 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.378.0 — PDF: timbrado alinhado à DIREITA (`PdfLetterheadAlign.RIGHT`)
+
+**Aditivo. Não é aviso.** O backend do Royal Doctor permite o timbrado à direita; com só `LEFT`/`CENTER`, o PDF do app
+saía diferente do do servidor.
+
+- **`PdfLetterheadAlign.RIGHT`** — espelho do `LEFT`: imagem encostada na margem direita e o texto ao lado dela (à
+  esquerda da imagem), alinhado à direita; sem imagem, o texto encosta na margem direita. Vale no cabeçalho
+  (`headerAlign`) e no rodapé (`footerAlign`), Android (`Paint.Align.RIGHT`) e iOS (`PdfTextAlign.Right`), com a mesma
+  regra comum (`PdfLetterheadLayout.layoutBand`). Defaults não mudam (cabeçalho `LEFT`, rodapé `CENTER`).
+- ⚠️ Enum ganhou valor: `when` exaustivo sobre `PdfLetterheadAlign` no app precisa do ramo `RIGHT`.
+- Testes: `PdfLetterheadLayoutTest` 23 (+4: posição da imagem/âncora, quebra no espaço à esquerda da imagem, só texto e
+  só imagem, espelho da esquerda).
+
 ## 2.377.0 — PDF: timbrado do emissor em toda página (`PdfLetterhead`)
 
 **Aditivo (+ 1 correção de paginação). Não é aviso.** Pedido do Royal Doctor: o cabeçalho e o rodapé configuráveis pela

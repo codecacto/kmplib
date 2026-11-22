@@ -10,6 +10,12 @@ enum class PdfLetterheadAlign {
 
     /** Imagem centralizada e o texto centralizado embaixo dela. */
     CENTER,
+
+    /**
+     * Imagem à direita e o texto ao lado dela (à esquerda da imagem), alinhado à direita — espelho
+     * de [LEFT] (2.378.0).
+     */
+    RIGHT,
 }
 
 /**
@@ -114,7 +120,10 @@ internal data class LetterheadBandLayout(
     val lines: List<String>,
     /** Baseline de cada linha, relativa ao topo da faixa. */
     val baselines: List<Float>,
-    /** X da âncora do texto: a borda esquerda ([align] LEFT) ou o centro ([align] CENTER). */
+    /**
+     * X da âncora do texto: a borda esquerda ([align] LEFT), o centro ([align] CENTER) ou a borda
+     * direita ([align] RIGHT).
+     */
     val textAnchorX: Float,
     val align: PdfLetterheadAlign,
     val fontSize: Float,
@@ -339,6 +348,30 @@ object PdfLetterheadLayout {
                     baselines = baselines(lines.size, textTop, spec),
                     textAnchorX = textX,
                     align = PdfLetterheadAlign.LEFT,
+                    fontSize = spec.fontSize,
+                )
+            }
+            PdfLetterheadAlign.RIGHT -> {
+                val (imgW, imgH) = if (hasImage) {
+                    fitImage(
+                        imageWidthPx, imageHeightPx,
+                        maxWidth = if (hasText) minOf(spec.sideImageMaxWidth, width / 2f) else width,
+                        maxHeight = spec.imageMaxHeight,
+                    )
+                } else 0f to 0f
+                val right = left + width
+                val textRight = if (imgW > 0f) right - imgW - INNER_GAP else right
+                val lines = wrapText(text, textRight - left, spec.maxLines, measure)
+                val textH = lines.size * spec.lineHeight
+                val height = minOf(maxOf(imgH, textH), spec.maxHeight)
+                val textTop = (height - textH) / 2f
+                LetterheadBandLayout(
+                    height = height,
+                    image = if (imgW > 0f) LetterheadRect(right - imgW, (height - imgH) / 2f, imgW, imgH) else null,
+                    lines = lines,
+                    baselines = baselines(lines.size, textTop, spec),
+                    textAnchorX = textRight,
+                    align = PdfLetterheadAlign.RIGHT,
                     fontSize = spec.fontSize,
                 )
             }

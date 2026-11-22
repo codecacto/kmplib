@@ -46,7 +46,11 @@ internal class AndroidLetterhead(
             color = textColor
             textSize = band.fontSize
             typeface = Typeface.DEFAULT
-            textAlign = if (band.align == PdfLetterheadAlign.CENTER) Paint.Align.CENTER else Paint.Align.LEFT
+            textAlign = when (band.align) {
+                PdfLetterheadAlign.LEFT -> Paint.Align.LEFT
+                PdfLetterheadAlign.CENTER -> Paint.Align.CENTER
+                PdfLetterheadAlign.RIGHT -> Paint.Align.RIGHT
+            }
         }
         band.lines.forEachIndexed { i, text -> canvas.drawText(text, band.textAnchorX, top + band.baselines[i], paint) }
     }

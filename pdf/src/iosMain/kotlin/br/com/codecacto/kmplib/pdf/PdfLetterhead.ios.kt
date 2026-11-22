@@ -130,7 +130,11 @@ internal class IosLetterhead(
                 CGRectMake(rect.x.toDouble(), (top + rect.y).toDouble(), rect.width.toDouble(), rect.height.toDouble()),
             )
         }
-        val align = if (band.align == PdfLetterheadAlign.CENTER) PdfTextAlign.Center else PdfTextAlign.Left
+        val align = when (band.align) {
+            PdfLetterheadAlign.LEFT -> PdfTextAlign.Left
+            PdfLetterheadAlign.CENTER -> PdfTextAlign.Center
+            PdfLetterheadAlign.RIGHT -> PdfTextAlign.Right
+        }
         band.lines.forEachIndexed { i, text ->
             canvas.text(text, band.textAnchorX.toDouble(), (top + band.baselines[i]).toDouble(), band.fontSize.toDouble(), bold = false, color = textColor, align = align)
         }

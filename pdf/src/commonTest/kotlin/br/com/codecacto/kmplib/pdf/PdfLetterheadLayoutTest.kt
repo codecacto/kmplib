@@ -125,6 +125,59 @@ class PdfLetterheadLayoutTest {
     }
 
     @Test
+    fun direitaPoeImagemADireitaETextoAoLadoAlinhadoADireita() {
+        val band = assertNotNull(
+            PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, PdfLetterheadAlign.RIGHT, 40f, 515f, 600, 300, "Clinica Royal", measure),
+        )
+        val img = assertNotNull(band.image)
+        assertEquals(144f, img.width)
+        assertEquals(72f, img.height)
+        assertEquals(40f + 515f - 144f, img.x) // encostada na margem direita
+        assertEquals(PdfLetterheadAlign.RIGHT, band.align)
+        assertEquals(img.x - PdfLetterheadLayout.INNER_GAP, band.textAnchorX) // texto termina antes da imagem
+        assertEquals(listOf("Clinica Royal"), band.lines)
+        assertTrue(band.height <= PdfLetterheadLayout.HEADER_MAX_HEIGHT)
+    }
+
+    @Test
+    fun direitaQuebraOTextoNoEspacoAEsquerdaDaImagem() {
+        val band = assertNotNull(
+            PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, PdfLetterheadAlign.RIGHT, 40f, 515f, 600, 300, "palavra ".repeat(40), measure),
+        )
+        val disponivel = band.textAnchorX - 40f
+        assertTrue(band.lines.isNotEmpty())
+        assertTrue(band.lines.all { measure(it) <= disponivel }, band.lines.toString())
+    }
+
+    @Test
+    fun direitaSemImagemAncoraNaMargemDireitaESoTextoNoRodape() {
+        val band = assertNotNull(
+            PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.FOOTER, PdfLetterheadAlign.RIGHT, 40f, 515f, null, null, "Rua X, 100", measure),
+        )
+        assertNull(band.image)
+        assertEquals(40f + 515f, band.textAnchorX)
+        assertTrue(band.height <= PdfLetterheadLayout.FOOTER_MAX_HEIGHT)
+        // Só imagem: encosta à direita e pode ocupar a largura toda.
+        val soImagem = assertNotNull(
+            PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, PdfLetterheadAlign.RIGHT, 40f, 515f, 2000, 100, null, measure),
+        )
+        val img = assertNotNull(soImagem.image)
+        assertEquals(40f + 515f, img.x + img.width)
+    }
+
+    @Test
+    fun direitaEEspelhoDaEsquerda() {
+        val l = assertNotNull(PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, PdfLetterheadAlign.LEFT, 40f, 515f, 600, 300, "Clinica Royal Doctor CRM 1234", measure))
+        val r = assertNotNull(PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, PdfLetterheadAlign.RIGHT, 40f, 515f, 600, 300, "Clinica Royal Doctor CRM 1234", measure))
+        assertEquals(l.height, r.height)
+        assertEquals(l.lines, r.lines)
+        assertEquals(l.baselines, r.baselines)
+        assertEquals(l.image!!.width, r.image!!.width)
+        assertEquals(l.image!!.y, r.image!!.y)
+        assertEquals(l.image!!.x - 40f, 555f - (r.image!!.x + r.image!!.width))
+    }
+
+    @Test
     fun centroCentralizaImagemETextoEmbaixoSemPassarDaAltura() {
         val texto = "linha um\nlinha dois\nlinha tres\nlinha quatro"
         val band = assertNotNull(
@@ -154,7 +207,7 @@ class PdfLetterheadLayoutTest {
 
     @Test
     fun imagemAltaNuncaPassaDaAlturaMaxima() {
-        listOf(PdfLetterheadAlign.LEFT, PdfLetterheadAlign.CENTER).forEach { align ->
+        PdfLetterheadAlign.entries.forEach { align ->
             val h = assertNotNull(PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.HEADER, align, 40f, 515f, 100, 5000, null, measure))
             assertTrue(h.height <= PdfLetterheadLayout.HEADER_MAX_HEIGHT)
             val f = assertNotNull(PdfLetterheadLayout.layoutBand(PdfLetterheadLayout.FOOTER, align, 40f, 515f, 100, 5000, "x", measure))
