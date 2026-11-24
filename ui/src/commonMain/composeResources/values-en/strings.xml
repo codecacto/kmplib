@@ -964,4 +964,9 @@
     <!-- Seção "Notificações" de Configurações (push/ui/NotificationSettingsSection.kt, 2.360.0). -->
     <string name="kmplib_push_settings_title">Notifications</string>
     <string name="kmplib_push_marketing">Advertising notifications</string>
+    <!-- Guarda de formulário não salvo (ui/components/UnsavedChangesGuard.kt, 2.379.0). -->
+    <string name="kmplib_unsaved_title">Discard what you filled in?</string>
+    <string name="kmplib_unsaved_message">If you leave now, what you filled in will be lost.</string>
+    <string name="kmplib_unsaved_keep_editing">Keep editing</string>
+    <string name="kmplib_unsaved_discard">Discard</string>
 </resources>

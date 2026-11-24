@@ -5,6 +5,33 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.379.0 — UI: guarda de formulário não salvo (`UnsavedChangesGuard`)
+
+**Aditivo. Não é aviso.** Padrão da fábrica de 24/nov/2026: todo formulário de cadastro/edição do app que tem algo
+preenchido e não salvo, quando a pessoa tenta sair — voltar do sistema (gesto/botão do Android, swipe do iOS), seta do top
+bar, Cancelar, trocar de aba/menu, fechar o diálogo ou a folha (X, toque fora, arrastar para baixo) — pergunta antes:
+**"Descartar o que foi preenchido?"** / "Se sair agora, o que você preencheu será perdido." / **Continuar editando** ·
+**Descartar** (vermelho). Vazio ou já salvo: sai direto; depois de salvar com sucesso, a saída não pergunta.
+
+- **`rememberUnsavedChangesGuard(dirty: Boolean): UnsavedChangesGuardState`** — `dirty` = o rascunho difere do último
+  salvo. Estado: `isDirty`, `isConfirming`, **`requestExit(onExit)`** (seta do top bar, Cancelar, troca de aba),
+  `confirmDiscard()`, `cancelDiscard()`, **`markSaved()`** (antes de navegar depois do salvar). A liberação (salvou ou
+  descartou) volta a valer só até o `dirty` mudar. Construtor público para teste (`UnsavedChangesGuardState { dirty }`).
+- **`UnsavedChangesGuard(state, onBack, interceptSystemBack = true, texts)`** — intercepta o voltar do sistema com o
+  `BackHandler` multiplataforma do Compose (Android `OnBackPressedDispatcher`; iOS gesto de borda do
+  `ComposeUIViewController`), ligado só com algo não salvo, e desenha a confirmação (`ConfirmationDialog`, Descartar com
+  `colorScheme.error`). `@Suppress("DEPRECATION")` isolado, como no `FullScreenNotice` e no tour: o substituto
+  `navigationevent-compose` não publica variante Kotlin/Native.
+- **Diálogo:** `guard.dismissRequest(onClose)` como `onDismissRequest` (toque fora, voltar, X). **Folha:**
+  `rememberUnsavedChangesSheetState(guard, onDismiss, skipPartiallyExpanded = true)` como `sheetState` do
+  `AppModalBottomSheet` — arrastar para baixo, toque fora e voltar passam pelo `confirmValueChange` oficial; "Descartar"
+  anima a folha para baixo e chama `onDismiss`.
+- Textos `UnsavedChangesTexts`/`rememberUnsavedChangesTexts()` nos 4 idiomas (`kmplib_unsaved_*`); ids
+  `UnsavedChangesTestTags.DIALOGO` = `formulario-descartar` (+ `dialogo-btn-confirmar` = Descartar,
+  `dialogo-btn-cancelar` = Continuar editando).
+- Testes: `UnsavedChangesGuardTest` 12 (limpo sai direto, sujo pede confirmação, descartar chama a saída uma vez,
+  continuar não sai, última saída vale, salvar libera, mudança do dirty volta a guardar, regra da folha, `dismissRequest`).
+
 ## 2.378.0 — PDF: timbrado alinhado à DIREITA (`PdfLetterheadAlign.RIGHT`)
 
 **Aditivo. Não é aviso.** O backend do Royal Doctor permite o timbrado à direita; com só `LEFT`/`CENTER`, o PDF do app

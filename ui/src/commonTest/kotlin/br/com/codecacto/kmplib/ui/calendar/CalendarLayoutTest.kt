@@ -94,7 +94,7 @@ class CalendarLayoutTest {
     }
 
     @Test
-    fun `curto colado no seguinte, esticado pela altura minima, vai para a lane ao lado`() {
+    fun `curto colado no seguinte e esticado pela altura minima vai para a lane ao lado`() {
         // 30 min a ~0,93dp/min = 28dp; a altura mínima de 44dp ocupa ~48 min e invadiria o das 09:30.
         val out = packEventLanes(listOf(ev("a", 9, 0, 9, 30), ev("b", 9, 30, 10, 0)), minSpanMin = 48)
         val a = out.first { it.event.id == "a" }

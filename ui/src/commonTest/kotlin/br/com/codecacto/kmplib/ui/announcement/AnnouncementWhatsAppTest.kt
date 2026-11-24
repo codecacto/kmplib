@@ -17,7 +17,7 @@ class AnnouncementWhatsAppTest {
     }
 
     @Test
-    fun `nao reconhece outro esquema, outro host ou texto`() {
+    fun `nao reconhece outro esquema nem outro host nem texto`() {
         assertFalse(isWhatsAppActionUrl("http://wa.me/5565998030240"))
         assertFalse(isWhatsAppActionUrl("whatsapp://send?phone=5565998030240"))
         assertFalse(isWhatsAppActionUrl("https://wa.me.evil.com/5565998030240"))
