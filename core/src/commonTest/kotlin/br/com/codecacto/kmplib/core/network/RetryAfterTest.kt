@@ -17,7 +17,7 @@ class RetryAfterTest {
     }
 
     @Test
-    fun `ausente, vazio, negativo, fracionario e lixo viram null`() {
+    fun `ausente vazio negativo fracionario e lixo viram null`() {
         assertNull(parseRetryAfterSeconds(null, agora))
         assertNull(parseRetryAfterSeconds("", agora))
         assertNull(parseRetryAfterSeconds("   ", agora))
@@ -50,7 +50,7 @@ class RetryAfterTest {
     }
 
     @Test
-    fun `minutos para mostrar arredondam para cima, minimo 1`() {
+    fun `minutos para mostrar arredondam para cima com minimo 1`() {
         assertEquals(1L, retryAfterMinutesForDisplay(0))
         assertEquals(1L, retryAfterMinutesForDisplay(30))
         assertEquals(1L, retryAfterMinutesForDisplay(60))

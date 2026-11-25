@@ -63,6 +63,22 @@ class ServerErrorDetailsTest {
         assertNull(lista.detailList("a"))
     }
 
+    @Test
+    fun `envelope do Fiscal Central le o erro por campo em error_fields`() {
+        val env = parseServerErrorEnvelope(
+            """{"message":"Dados inválidos","code":"VALIDACAO","details":{"tomador.documento":"CPF inválido"},""" +
+                """"error":{"code":"VALIDACAO","message":"Dados inválidos","fields":{"tomador.documento":"CPF inválido"}}}""",
+        )!!
+        assertEquals("VALIDACAO", env.code)
+        assertEquals(mapOf("tomador.documento" to "CPF inválido"), env.details)
+    }
+
+    @Test
+    fun `envelope aninhado sem details nem fields usa o details da raiz`() {
+        val env = parseServerErrorEnvelope("""{"details":{"senha":"Informe a senha"},"error":{"code":"C","message":"m"}}""")!!
+        assertEquals(mapOf("senha" to "Informe a senha"), env.details)
+    }
+
     // ====== ServerErrorDetails (regras de leitura) ======
 
     @Test

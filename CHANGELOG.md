@@ -5,6 +5,46 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.380.0 — `kmplib-fiscal`: a NFS-e no app (par mobile do `/fiscal` da weblib 0.340.0)
+
+**Aditivo (módulo novo, OPT-IN, fora do umbrella). Não é aviso.** Constituição: "nada existe só no web" — o módulo
+fiscal que o portal do LocAki ganhou (T7/T8) agora tem o par no app. O app fala com o PRÓPRIO backend, nas rotas do
+produto que a `backlib-fiscal` ≥ 0.278.0 monta (`fiscalProductRoutes`, ex. `/locaki/v2/fiscal`), com o token da sessão
+(`DomainApiClient`) — nunca com o Fiscal Central.
+
+- **Fio:** `FiscalModels.kt` com os MESMOS nomes JSON da `backlib-fiscal` (`FiscalEmissor`/`FiscalEmissorInput`,
+  `FiscalRegime` + `RegimeApuracao`, `FiscalPadroes` com `cstPisCofins` e `FiscalTotaisAproximados`,
+  `numeroInicialDps`/`proximoNumeroDps`, `NfsePedido`, `NfsePrevia`, `FiscalDocumento`, `TomadorSugerido`…). Dinheiro e
+  alíquota como string decimal ("1250.00"); status como texto (`FiscalStatus`).
+- **`FiscalApi(DomainApiClient, basePath)`** — status (404 → `FiscalStatusResposta.DESABILITADO`), emissor (404
+  `FISCAL_EMISSOR_NAO_CADASTRADO` → `null`), salvar, certificado multipart `arquivo` + `senha`, catálogo, parâmetros
+  municipais, prévia, emitir/substituir com **`Idempotency-Key`**, lista com filtro, nota, cancelar, reconsultar,
+  PDF/XML, sugestão do tomador. Resultado `FiscalResult` (nunca lança) e erro `FiscalError` com `FiscalErrorKind` (a
+  mesma régua do `fiscalErrorOf` da weblib: incerto, fora do ar, credencial, ICP-Brasil, tentativas, em substituição).
+  **`FiscalRepository`** (interface dos ViewModels) + `RestFiscalRepository`.
+- **Regras puras (`FiscalRules.kt`)**, espelho do `core.ts`: regime em palavras ↔ códigos do leiaute
+  (`regimeToWire`/`regimeFromWire`), `approxTaxesForRegime`, `validateEmitterStep`/`validateInvoiceDraft` (erro por
+  caminho do campo), `toEmitterBody`/`emitterToDraft`, `initialInvoiceDraft` (padrões → sugestão do produto),
+  `substituteDraft`, `toInvoiceBody`, `toDecimalString` (sem ponto flutuante), `formatFiscalMoney`, `ibgeOf` (UF +
+  cidade → IBGE pela `kmplib-brdata`), `certificateDaysLeft`.
+- **ViewModels (MVI da lib):** `FiscalSettingsViewModel` (etapas, salvar e continuar, certificado, ambiente),
+  `FiscalInvoiceListViewModel` (busca com espera, filtro, página), `FiscalInvoiceDetailViewModel` (consulta sozinho
+  enquanto pendente, cancelar com motivo + 15 caracteres, conferir de novo, baixar), `FiscalIssueViewModel` (chave de
+  idempotência estável por ABERTURA — reenviar nunca emite duas notas; corrigir uma recusa gera chave nova;
+  acompanhamento do status até decidir, aviso de demora).
+- **Telas:** `FiscalSettingsScreen` (Empresa · Regime · Serviço padrão · Certificado · Ambiente; CNPJ/CPF, WhatsApp e
+  CEP com máscara, Estado/Cidade em seletores, certificado pelo seletor de ARQUIVOS + senha com o olho, passar a valer
+  com confirmação), `FiscalInvoiceListScreen` (puxar para atualizar, recarrega no `ON_RESUME`, linha clicável, "Nova
+  nota" no topo e no vazio), `FiscalInvoiceDetailScreen` (PDF/XML no visualizador do sistema, sem ele a folha de
+  compartilhar; cancelar; substituir), `FiscalIssueScreen` (tela inteira, prévia, avançado recolhido que abre sozinho
+  quando o erro é dele, motivo na substituição, acompanhamento). Aviso ao sair (`UnsavedChangesGuard`) no cadastro e na
+  emissão. Textos só pt-BR (`values/`), ids `fiscal-*` (`FiscalTestTags`).
+- **Core (aditivo):** `parseServerErrorEnvelope` lê o erro por campo do envelope do Fiscal Central (`error.fields`, ou o
+  `details` da raiz quando o `error` não traz `details`) — antes o campo recusado se perdia e a tela só mostrava a frase.
+
+Testes: `FiscalRulesTest` 22, `FiscalApiTest` 10 (MockEngine), `FiscalViewModelsTest` 16 (repositório dublê),
+`ServerErrorDetailsTest` +2.
+
 ## 2.379.0 — UI: guarda de formulário não salvo (`UnsavedChangesGuard`)
 
 **Aditivo. Não é aviso.** Padrão da fábrica de 24/nov/2026: todo formulário de cadastro/edição do app que tem algo

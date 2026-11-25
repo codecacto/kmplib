@@ -137,6 +137,12 @@ project(":kmplib-chat").projectDir = file("chat")
 include(":kmplib-inspection")
 project(":kmplib-inspection").projectDir = file("inspection")
 
+// `kmplib-fiscal` (2.380.0) — NFS-e no app: cliente das rotas do PRODUTO da `backlib-fiscal`
+// (`/<produto>/v2/fiscal`), ViewModels e telas (cadastro fiscal, notas, detalhe, emitir). OPT-IN, fora do
+// umbrella: só produto com o módulo fiscal declara.
+include(":kmplib-fiscal")
+project(":kmplib-fiscal").projectDir = file("fiscal")
+
 // 2.354.0 — família cristã (Onda 0), todos OPT-IN (fora do umbrella).
 include(":kmplib-bible")
 project(":kmplib-bible").projectDir = file("bible")

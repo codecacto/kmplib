@@ -1265,7 +1265,12 @@ fun parseServerErrorEnvelope(body: String?): ServerErrorEnvelope? = runCatching 
     val alvo = (raiz["error"] as? JsonObject) ?: raiz
     fun primitivo(nome: String): String? =
         (alvo[nome] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-    val detalhesCrus = alvo["details"] as? JsonObject
+    // 2.380.0: o envelope do Fiscal Central (`backlib-fiscal`) traz o erro por campo em `error.fields`, e o
+    // `ErrorResponse` da backlib o repete em `details` na RAIZ. Sem `details` dentro do `error`, vale um dos dois —
+    // antes o campo recusado se perdia e a tela só mostrava a frase geral.
+    val detalhesCrus = (alvo["details"] as? JsonObject)
+        ?: (alvo["fields"] as? JsonObject)
+        ?: (raiz["details"] as? JsonObject)?.takeIf { alvo !== raiz }
     val detalhes = detalhesCrus
         ?.mapNotNull { (campo, valor) ->
             val frase = (valor as? JsonPrimitive)?.contentOrNull?.trim()
