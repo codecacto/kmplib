@@ -26,6 +26,7 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import br.com.codecacto.kmplib.core.network.idempotent
 import kotlinx.coroutines.CancellationException
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
@@ -208,17 +209,21 @@ class DomainApiClient(
      *   ~60 s), sem baixar o teto do app inteiro. `null` (default) = os tetos do cliente; `<= 0` ou
      *   cliente sem `HttpTimeout` = ignorado. Vale igual em `getJson`, `getJsonWithEtag`, `putJson`,
      *   `patchJson`, `delete`, `deleteJson` e `postJsonForBytes`.
+     * @param idempotent `true` SÓ em POST que consulta sem gravar (simulação, prévia — 2.381.0): ganha nova tentativa
+     *   em falha de transporte, como o GET. Ver [br.com.codecacto.kmplib.core.network.idempotent].
      */
     suspend fun postJson(
         path: String,
         body: String,
         headers: Map<String, String> = emptyMap(),
         timeoutMillis: Long? = null,
+        idempotent: Boolean = false,
     ): DomainResult<String> {
         val extras = extraHeaders(headers)
         return execute(path) { token ->
             httpClient.post(url(path)) {
                 bearer(token); extras(this); callTimeout(timeoutMillis)
+                if (idempotent) idempotent()
                 contentType(ContentType.Application.Json); setBody(body)
             }
         }.texto()

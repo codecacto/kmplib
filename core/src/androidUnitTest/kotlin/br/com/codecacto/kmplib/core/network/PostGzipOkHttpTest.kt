@@ -9,11 +9,13 @@ import io.ktor.http.contentType
 import kotlinx.coroutines.runBlocking
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPOutputStream
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /**
  * POST com resposta 200 em GZIP (chunked, como o apps-api chega pela Cloudflare), pelo `createHttpClient`
@@ -24,6 +26,7 @@ import kotlin.test.assertEquals
 class PostGzipOkHttpTest {
 
     private lateinit var server: HttpServer
+    private val cortes = AtomicInteger()
 
     private val corpo: String = buildString {
         append("""{"id":"loc-1","itens":[""")
@@ -43,6 +46,19 @@ class PostGzipOkHttpTest {
             ex.sendResponseHeaders(200, 0) // chunked
             ex.responseBody.use { out ->
                 if (gz) GZIPOutputStream(out).use { it.write(corpo.toByteArray()) } else out.write(corpo.toByteArray())
+            }
+        }
+        // 1ª tentativa de cada POST: 200 + metade do corpo e a conexão cai (o corte do celular, 25/nov).
+        server.createContext("/v2/locacoes/simulacao") { ex ->
+            ex.requestBody.readBytes()
+            val n = cortes.incrementAndGet()
+            val b = corpo.toByteArray()
+            ex.responseHeaders.add("Content-Type", "application/json")
+            ex.sendResponseHeaders(200, b.size.toLong())
+            if (n % 2 == 1) {
+                ex.responseBody.write(b, 0, b.size / 2); ex.responseBody.flush(); ex.close()
+            } else {
+                ex.responseBody.use { it.write(b) }
             }
         }
         server.start()
@@ -69,4 +85,27 @@ class PostGzipOkHttpTest {
         assertEquals(0, falhas, "falhas em 300: $mensagens")
     }
 
+
+    @Test
+    fun `POST marcado idempotent se recupera do corpo cortado depois do 200`() = runBlocking {
+        val client = createHttpClient(HttpClientOptions())
+        val url = "http://127.0.0.1:${server.address.port}/v2/locacoes/simulacao"
+        repeat(20) {
+            val texto = client.post(url) { idempotent(); contentType(ContentType.Application.Json); setBody("{}") }.bodyAsText()
+            assertEquals(corpo, texto)
+        }
+        client.close()
+    }
+
+    @Test
+    fun `POST sem a marca continua sem repetir (nao duplica gravacao)`() = runBlocking {
+        val client = createHttpClient(HttpClientOptions())
+        val url = "http://127.0.0.1:${server.address.port}/v2/locacoes/simulacao"
+        cortes.set(0) // a próxima é a 1ª: corta
+        assertFailsWith<Exception> {
+            client.post(url) { contentType(ContentType.Application.Json); setBody("{}") }.bodyAsText()
+        }
+        assertEquals(1, cortes.get(), "POST sem marca não pode ter sido repetido")
+        client.close()
+    }
 }

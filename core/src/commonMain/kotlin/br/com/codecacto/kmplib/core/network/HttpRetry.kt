@@ -8,6 +8,9 @@ import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.api.Send
 import io.ktor.client.plugins.api.createClientPlugin
 import io.ktor.client.plugins.isSaved
+import io.ktor.client.request.HttpRequest
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.util.AttributeKey
 import io.ktor.client.utils.unwrapCancellationException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -114,21 +117,41 @@ data class HttpRetryPolicy(
     }
 }
 
-/** A resposta [status] a um [method] merece nova tentativa? */
+/**
+ * Marca o pedido como **idempotente** (2.381.0): repeti-lo não muda nada no servidor — um POST que só CONSULTA
+ * (simulação, prévia, cálculo). Ganha a mesma proteção do GET: nova tentativa em falha de transporte, inclusive com
+ * o corpo cortado depois do `200` ([ReadBodyInsideRetry]).
+ *
+ * **Nunca** em POST que grava (criar, cancelar, pagar): repetir duplicaria. Esses conferem o estado no servidor
+ * quando a conexão cai depois do envio. Caso: LocAki 1.8.0, Android — `POST /simulacao` com `RESPONSE: 200` e
+ * "Channel was cancelled" na leitura: o valor sugerido não era recalculado, sem aviso.
+ */
+fun HttpRequestBuilder.idempotent() {
+    attributes.put(IdempotentRequest, true)
+}
+
+/** Atributo que [idempotent] grava no pedido. */
+val IdempotentRequest: AttributeKey<Boolean> = AttributeKey("KmplibIdempotentRequest")
+
+internal val HttpRequestBuilder.isMarkedIdempotent: Boolean get() = attributes.getOrNull(IdempotentRequest) == true
+internal val HttpRequest.isMarkedIdempotent: Boolean get() = attributes.getOrNull(IdempotentRequest) == true
+
+/** A resposta [status] a um [method] merece nova tentativa? [idempotent] = pedido marcado com [idempotent]. */
 internal fun HttpRetryPolicy.shouldRetryResponse(
     method: HttpMethod,
     status: Int,
     retryAfterHeader: String?,
+    idempotent: Boolean = false,
 ): Boolean {
-    if (method !in methods || status !in retryOnStatus) return false
+    if ((method !in methods && !idempotent) || status !in retryOnStatus) return false
     // Retry-After maior que o nosso teto = o servidor avisa que vai demorar; não prender a tela.
     val retryAfterMillis = retryAfterHeader.retryAfterMillisOrNull() ?: return true
     return retryAfterMillis <= maxDelayMillis
 }
 
-/** A exceção [cause] num envio de [method] merece nova tentativa? */
-internal fun HttpRetryPolicy.shouldRetryException(method: HttpMethod, cause: Throwable): Boolean =
-    method in methods && isTransientTransportFailure(cause)
+/** A exceção [cause] num envio de [method] merece nova tentativa? [idempotent] = pedido marcado com [idempotent]. */
+internal fun HttpRetryPolicy.shouldRetryException(method: HttpMethod, cause: Throwable, idempotent: Boolean = false): Boolean =
+    (method in methods || idempotent) && isTransientTransportFailure(cause)
 
 /**
  * Falha de transporte que uma nova tentativa pode resolver. Cancelamento — inclusive o do teto da
@@ -200,9 +223,10 @@ private fun HttpClientConfig<*>.installRetryPlugin(
                 method = request.method,
                 status = response.status.value,
                 retryAfterHeader = response.headers[HttpHeaders.RetryAfter],
+                idempotent = request.isMarkedIdempotent,
             )
         }
-        retryOnExceptionIf { request, cause -> policy.shouldRetryException(request.method, cause) }
+        retryOnExceptionIf { request, cause -> policy.shouldRetryException(request.method, cause, request.isMarkedIdempotent) }
         delayMillis(respectRetryAfterHeader = false) { retry ->
             policy.retryDelayMillis(retry, response?.headers?.get(HttpHeaders.RetryAfter), random)
         }
@@ -245,7 +269,7 @@ internal val ReadBodyInsideRetry = createClientPlugin("KmplibReadBodyInsideRetry
     val methods = pluginConfig.methods
     on(Send) { request ->
         val call = proceed(request)
-        if (call.request.method !in methods || !call.response.isSaved) return@on call
+        if ((call.request.method !in methods && !call.request.isMarkedIdempotent) || !call.response.isSaved) return@on call
         try {
             call.save()
         } catch (e: IllegalStateException) {

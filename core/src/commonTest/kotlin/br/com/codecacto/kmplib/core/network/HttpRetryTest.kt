@@ -369,6 +369,9 @@ class HttpRetryTest {
         assertFalse(p.shouldRetryResponse(HttpMethod.Post, 503, null))
         assertFalse(p.shouldRetryException(HttpMethod.Post, IOException("reset")))
         assertTrue(p.shouldRetryException(HttpMethod.Get, IOException("reset")))
+        // 2.381.0: POST marcado `idempotent()` (consulta, não grava) repete como o GET.
+        assertTrue(p.shouldRetryException(HttpMethod.Post, IOException("reset"), idempotent = true))
+        assertTrue(p.shouldRetryResponse(HttpMethod.Post, 503, null, idempotent = true))
     }
 
     @Test
