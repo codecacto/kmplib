@@ -74,6 +74,16 @@ kotlin {
             // dubla a LOJA, e é o `PurchaseManager` dele que precisa ser amigo (abaixo). Depender
             // do umbrella traria a lib inteira para um artefato que só existe para builds de QA.
             api(project(":kmplib-monetization"))
+
+            // 2.381.0 — nível mínimo de testes: o dublê de REDE (`testing.net.ServidorDeTeste`, sobre o
+            // `MockEngine` oficial do Ktor) e o kit de ViewModel (`testing.vm`, coroutines-test + Turbine).
+            // `api`: os tipos deles (MockEngine, TestScope, ReceiveTurbine, HttpResponseData) estão na API
+            // pública daqui. Continua artefato SÓ DE TESTE — entra em `commonTestImplementation`, nunca no APK.
+            api(project(":kmplib-core"))
+            api(project(":kmplib-ui"))
+            api(libs.ktor.client.mock)
+            api(libs.kotlinx.coroutines.test)
+            api(libs.turbine)
         }
 
         commonTest.dependencies {

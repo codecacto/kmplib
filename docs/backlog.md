@@ -3,6 +3,17 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 25/nov/2026 — nível mínimo de testes, Fase 1 (entregue na 2.381.0)
+
+- [x] **ENTREGUE na 2.381.0:** `kmplib-testing` com `ServidorDeTeste` + `FalhaDeRede` (dublê de rede sobre o
+      `MockEngine`, cadeia real `createHttpClient`/`DomainApiClient`), kit `testing.vm` (`runViewModelTest`, `ateQue`,
+      `duploToque`, `efeitos`, `MarcaDeFluxo`) e o plugin `br.com.codecacto.kmplib.test-level` (Kover 0.9.11 com o
+      filtro da fábrica + `nivelDeTeste`). POST `idempotent()` com nova tentativa (LocAki 1.8.0).
+- [ ] **`Idempotency-Key` na fundação** (proposta do plano, sem pedido): `DomainApiClient` mandando a chave nas rotas
+      que gravam + `backlib-idempotency` devolvendo a resposta guardada — resolveria o "gravou e a resposta se perdeu"
+      e o duplo toque na raiz. Só com pedido do fundador.
+- [ ] `iosSimulatorArm64Test` do `kmplib-testing` no Mac, no release (o `commonTest` só roda Android aqui).
+
 ### Registrado em 22/nov/2026 — timbrado do emissor no PDF, Royal Doctor (entregue na 2.377.0)
 
 - [x] **ENTREGUE na 2.377.0:** `PdfLetterhead` (imagem PNG/JPEG e/ou texto, `LEFT`/`CENTER`, `replacesDefaultHeader`)

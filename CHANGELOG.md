@@ -5,6 +5,54 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.381.0 — nível mínimo de testes: `ServidorDeTeste`, kit de ViewModel e o plugin `test-level`; POST idempotente com nova tentativa
+
+**Aditivo. Não é aviso.** Fase 1 do plano `docs/tarefas/2026-11-25-nivel-minimo-de-testes.md` (fundador, 25/nov/2026:
+"para ir para produção, no mínimo 80% do código novo e 100% do que envolve dinheiro"; P1–P4 aprovadas). O caminho de
+falha vira uma linha em qualquer projeto.
+
+- **core/network — POST idempotente (consulta) ganha nova tentativa** — `HttpRequestBuilder.idempotent()` /
+  `IdempotentRequest`, `DomainApiClient.postJson(..., idempotent = true)`; a política de nova tentativa e o
+  `ReadBodyInsideRetry` tratam o POST marcado como o GET (falha de transporte, 502/503/504 e corpo cortado depois do
+  `200`). Só em POST que NÃO grava (simulação, prévia, cálculo). Caso LocAki 1.8.0: a simulação com o corpo cortado
+  depois do 200 ("Channel was cancelled") não recalculava o valor sugerido, sem aviso. Provas: `HttpRetryTest`,
+  `PostGzipOkHttpTest` (OkHttp real, servidor que corta) e `ServidorDeTesteTest` (MockEngine).
+- **core/network — `createHttpClient(engine, options, configure)` público**: o factory REAL sobre um engine dado
+  (o `MockEngine` do teste). A construção interna passou a se chamar `buildHttpClient` (testes da lib).
+- **`kmplib-testing` · `testing.net.ServidorDeTeste`** — dublê de REDE sobre o `MockEngine` oficial, falando com o
+  `createHttpClient` e o `DomainApiClient` reais: `rota(metodo, "/x/{id}") { chamada -> json(…) }` (a rota É o
+  "servidor gravou"), `falhar(metodo, caminho, FalhaDeRede, vezes)`, `chamadas` (as que chegaram) × `tentativas`
+  (todas), `chamadas(metodo, caminho)`, `naoDeclaradas` + `confirmarTodasDeclaradas()` (pedido sem rota = 404
+  `ROTA_NAO_DECLARADA`), `engine(dispatcher)`, `httpClient(dispatcher, opcoes)`, `domainApiClient(token,
+  tokenRenovado, dispatcher)`. Falhas: `SemConexao` (não chega, a rota não roda), `GravouERespostaSePerdeu` (roda e a
+  resposta some — o cancelar da 1.8.0), `CorpoCortado(bytes)` (status chega, corpo cai), `Demora(ms)` (tempo virtual;
+  acima de 30 s vira timeout). Consumidas por TENTATIVA: GET com uma falha termina bem na nova tentativa, como no
+  aparelho. Respostas no envelope da backlib: `json`, `vazio`, `recusa(status, codigo, mensagem, details)`,
+  `recusaNosCampos(mapa)`, `cotaEsgotada(recurso, limite, usado, upgradeUrl)` (402 `QUOTA_EXCEEDED` →
+  `DomainResult.Quota`), `assinaturaBloqueada(codigo)` (402 `TRIAL_EXPIRED`/`SUBSCRIPTION_REQUIRED`),
+  `naoAutorizado()` (401 → renova o token e repete). `ChamadaRecebida` (método, caminho, query, corpo, cabeçalhos,
+  `parametros` do `{id}`; `toString` sem corpo nem token).
+- **`kmplib-testing` · `testing.vm`** — `runViewModelTest { }` (runTest + UM `StandardTestDispatcher` como `Main`,
+  `resetMain` no fim; `dispatcher` para o servidor e o `RestConfig`), `ViewModelTestScope.manterQuente(state)`
+  (`stateIn(WhileSubscribed)`), `efeitos(vm)`/`efeitos(flow)` (Turbine), `ocioso()`/`agora()`;
+  `StateFlow.ateQue(timeout) { }` (tempo REAL, devolve o estado, reprova com o último estado); `duploToque(dispatch,
+  acao)` (2× sem o scheduler andar — prova a guarda síncrona do `onAction`). `Caminho` (`sucesso`, `recusa`,
+  `conexao-caiu`, `duplo-toque`), `Celula` (`regra`, `servidor`, `tela`, `e2e`) e **`MarcaDeFluxo`**: o compilador recusa
+  `.`/`[`/`]`/`|` em nome de função (JVM e K/N), então a marca no teste Kotlin é `fluxo locacao_cancelar tela
+  conexao-caiu - …` (ponto do id vira `_`); em nome de texto (Kotest/Vitest/Playwright) continua
+  `[locacao.cancelar|tela|conexao-caiu]`. `MarcaDeFluxo.nome`/`colchetes`/`ler` — a medição (Fase 2) lê as duas.
+  Dependências novas, `api` e só de teste: `kmplib-core`, `kmplib-ui`, `ktor-client-mock`, `kotlinx-coroutines-test`,
+  `app.cash.turbine:turbine` 1.2.1. Nomes em português de propósito: são a convenção dos testes da fábrica e o
+  vocabulário do plano (a medição e a constituição citam `ServidorDeTeste`, `duploToque`).
+- **`kmplib-gradle-plugin` · `br.com.codecacto.kmplib.test-level`** — uma linha no app: aplica o **Kover 0.9.11** com o
+  filtro da fábrica (decisão P1: `@Composable` por `annotatedBy`, `*ComposableSingletons*`, `*generated.resources*`,
+  `*.di.*`, `*Holder`, `*_Factory`, `androidGeneratedClasses()`; sem `minBound` — o mínimo é o das linhas novas,
+  calculado fora) e registra **`nivelDeTeste`** (roda `testDebugUnitTest` + `koverXmlReportDebug` e junta
+  `build/nivel-de-teste/kover.xml` + `junit/*.xml`). `kmplibTestLevel { variant; testTask; excludedClasses;
+  excludedAnnotations }`. Provado por TestKit num app KMP+AGP de verdade (a função `@Composable` some do XML; o código
+  não testado aparece descoberto).
+- Kover da própria lib 0.9.1 → 0.9.11 (a mesma versão que o plugin aplica no app).
+
 ## 2.380.0 — `kmplib-fiscal`: a NFS-e no app (par mobile do `/fiscal` da weblib 0.340.0)
 
 **Aditivo (módulo novo, OPT-IN, fora do umbrella). Não é aviso.** Constituição: "nada existe só no web" — o módulo

@@ -52,14 +52,27 @@ import io.ktor.client.plugins.logging.LogLevel as KtorLogLevel
 fun createHttpClient(
     options: HttpClientOptions = HttpClientOptions(),
     configure: HttpClientConfig<*>.() -> Unit = {},
-): HttpClient = createHttpClient(createPlatformHttpClientEngine(), options, configure = configure)
+): HttpClient = buildHttpClient(createPlatformHttpClientEngine(), options, configure = configure)
 
 /**
- * O mesmo [createHttpClient] sobre um [engine] dado — é por aqui que os testes passam o `MockEngine`
- * e provam a configuração REAL do factory (timeout, nova tentativa, log), não uma cópia dela.
- * [retryRandom]/[retryDelay] trocam o sorteio do jitter e a espera entre tentativas no teste.
+ * O mesmo [createHttpClient] sobre um [engine] dado (2.381.0, público) — é por aqui que um teste passa o
+ * `MockEngine` (o `ServidorDeTeste` da `kmplib-testing`) e prova a configuração REAL do factory (timeout,
+ * nova tentativa, leitura do corpo dentro da nova tentativa, gzip, detectores de 402/403), não uma cópia dela.
+ *
+ * Em produção use o [createHttpClient] sem engine: ele escolhe o da plataforma (OkHttp / Darwin / OkHttp no
+ * desktop). O cliente devolvido é dono do [engine] — `close()` fecha os dois.
  */
-internal fun createHttpClient(
+fun createHttpClient(
+    engine: HttpClientEngine,
+    options: HttpClientOptions = HttpClientOptions(),
+    configure: HttpClientConfig<*>.() -> Unit = {},
+): HttpClient = buildHttpClient(engine, options, configure = configure)
+
+/**
+ * A construção do factory. [retryRandom]/[retryDelay]/[logSink] trocam o sorteio do jitter, a espera entre
+ * tentativas e o destino do log nos testes da própria lib.
+ */
+internal fun buildHttpClient(
     engine: HttpClientEngine,
     options: HttpClientOptions,
     retryRandom: Random = Random.Default,

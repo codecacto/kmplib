@@ -4,7 +4,11 @@ kotlin = "2.3.0"
 android-minSdk = "24"
 android-compileSdk = "36"
 vanniktechMavenPublish = "0.34.0"
-kover = "0.9.1"
+# 2.381.0: 0.9.1 → 0.9.11 — a MESMA versão que o plugin `br.com.codecacto.kmplib.test-level` aplica no app
+# (filtro `annotatedBy` das telas, relatório XML JaCoCo do nível mínimo de testes).
+kover = "0.9.11"
+# Turbine (2.381.0, kmplib-testing): efeitos do ViewModel no teste — KMP, iOS inclusive.
+turbine = "1.2.1"
 
 # KMP dependencies
 coroutines = "1.10.2"
@@ -117,6 +121,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 # Serialization
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -257,6 +262,8 @@ sqldelight-dialect-sqlite = { module = "app.cash.sqldelight:sqlite-3-38-dialect"
 # e o build-logic nunca divergem de versão de plugin.
 plugin-kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 plugin-android-gradle = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+# 2.381.0: o kmplib-gradle-plugin APLICA o Kover no app (`test-level`), então ele vai no classpath do plugin.
+plugin-kover-gradle = { module = "org.jetbrains.kotlinx:kover-gradle-plugin", version.ref = "kover" }
 # API pública do AGP (Variant API/DSL) — compileOnly do `kmplib-gradle-plugin`.
 plugin-android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
 plugin-compose-multiplatform = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }

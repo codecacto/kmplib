@@ -41,6 +41,8 @@ dependencies {
     compileOnly(libs.plugin.android.gradle.api)
     compileOnly(libs.plugin.kotlin.gradle)
     compileOnly(kotlin("stdlib"))
+    // 2.381.0 (`test-level`): o plugin APLICA o Kover no app — vai no classpath de plugins dele, na versão da lib.
+    implementation(libs.plugin.kover.gradle)
 
     testImplementation(libs.kotlin.test)
     testImplementation(gradleTestKit())
@@ -65,6 +67,14 @@ gradlePlugin {
                 "reprova qualquer build publicável que o carregue (variante Android não-debuggable, " +
                 "framework iOS release, Archive do Xcode)."
         }
+        register("testLevel") {
+            id = "br.com.codecacto.kmplib.test-level"
+            implementationClass = "br.com.codecacto.kmplib.gradle.TestLevelPlugin"
+            displayName = "kmplib — nível mínimo de testes (Kover com o filtro da fábrica + nivelDeTeste)"
+            description = "Aplica o Kover com o filtro da fábrica (telas @Composable, DI e gerados fora da conta de " +
+                "linhas) e registra a tarefa nivelDeTeste, que junta o XML do Kover e os XML do JUnit em " +
+                "build/nivel-de-teste/ para a medição da fábrica."
+        }
     }
 }
 
@@ -87,7 +97,7 @@ mavenPublishing {
 
     pom {
         name = "kmplib-gradle-plugin"
-        description = "CodeCacto KMP — plugins Gradle que o app aplica (dublê da loja)"
+        description = "CodeCacto KMP — plugins Gradle que o app aplica (dublê da loja, nível de teste)"
         inceptionYear = "2026"
         url = "https://github.com/codecacto/kmplib"
         licenses {

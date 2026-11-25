@@ -46,7 +46,7 @@ class HttpRequestLogRedactionTest {
     fun clientLog_neverContainsQuery_butKeepsMethodPathAndStatus() = runTest {
         val linhas = mutableListOf<Pair<String, String>>()
         val engine = MockEngine { respond("[]", HttpStatusCode.OK) }
-        val http = createHttpClient(
+        val http = buildHttpClient(
             engine,
             HttpClientOptions(retry = HttpRetryPolicy.Disabled),
             logSink = { tag, msg -> linhas += tag to msg },

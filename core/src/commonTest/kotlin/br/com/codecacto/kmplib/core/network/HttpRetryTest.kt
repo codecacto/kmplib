@@ -65,7 +65,7 @@ class HttpRetryTest {
         servidor: Servidor,
         options: HttpClientOptions = HttpClientOptions(enableLogging = false),
         esperas: MutableList<Long> = mutableListOf(),
-    ): HttpClient = createHttpClient(
+    ): HttpClient = buildHttpClient(
         engine = servidor.engine,
         options = options,
         retryRandom = Random(42),
@@ -292,7 +292,7 @@ class HttpRetryTest {
             delay(10_000) // a 2a tentativa trava
             ok()
         }
-        val http = createHttpClient(
+        val http = buildHttpClient(
             engine = servidor.engine,
             options = HttpClientOptions(enableLogging = false, requestTimeoutMillis = 400),
             retryDelay = { },
