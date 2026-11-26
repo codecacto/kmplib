@@ -5,6 +5,32 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.382.0 — `map`: imagem georreferenciada (`groundOverlays`) e folga (`contentPadding`) no `NativeMap`
+
+**Aditivo. Não é aviso.** Pedido do CampoRaiz (mapa da chuva, `Raiz/docs/design/telas/2026-11-26-clima.md` §8.1). Padrão-ouro:
+API oficial do Google Maps SDK nas duas plataformas, nada de WebView.
+
+- **`NativeMap(groundOverlays = listOf(MapGroundOverlay(id, image, bounds, opacity, zIndex, visible)))`** — imagem presa a
+  um `LatLngBounds` (sul-oeste → nordeste), por baixo de polígonos, círculos, rotas e pinos. `image` =
+  `MapOverlayImage.Bytes(bytes, cacheKey)` (o PNG que o app guardou — modo sem sinal) ou `MapOverlayImage.Url(url, headers)`
+  (a lib baixa com cliente próprio da `kmplib-core`; memória LRU de 6 imagens, pedidos iguais viram um só). Trocar
+  imagem/opacidade/retângulo/visibilidade de um `id` atualiza **no lugar**, sem recriar o mapa; enquanto a imagem nova
+  carrega, a anterior fica; se ela falhar, o overlay some (log sem a URL inteira; `toString` sem query nem valor de
+  cabeçalho). Não entram no `fitOnFirstLoad`; não são tocáveis (o toque vai ao `onMapClick`, que já existia e devolve a
+  `LatLng` — é o "valor exato do ponto"). A imagem é esticada no plano Web Mercator (gere nessa projeção).
+  Android = `GroundOverlay` do maps-compose (`transparency = 1 − opacity`, imagem amostrada acima de 2048 px);
+  iOS pela ponte = **interface OPCIONAL nova `IosNativeMapGroundOverlays`** (`setGroundOverlays([IosMapGroundOverlayData])`
+  → `GMSGroundOverlay` reconciliada por id); fallback MapKit = `MKOverlayRenderer` que desenha a imagem no retângulo.
+- **`NativeMap(contentPadding = PaddingValues(…))`** — folga do mapa: o SDK afasta da área coberta (legenda, botões)
+  o **logo e a atribuição do Google** e os controles, e centra a câmera/`fitTo` na área livre. Android =
+  `GoogleMap(contentPadding)`; iOS pela ponte = **interface OPCIONAL nova `IosNativeMapPadding`**
+  (`setContentPadding(top, left, bottom, right)` → `GMSMapView.padding`; o enquadramento da lib desconta a folga);
+  fallback MapKit = `layoutMargins`.
+- **Sem as interfaces novas no `MapBridge.swift`**, o iPhone segue igual (sem imagens e sem folga) e avisa no log uma vez
+  por processo (`IosMapGroundNotice`). Modelo atualizado: `Cascas/casca-mobile/iosApp/mapa-google/MapBridge.swift`.
+- Testes: `MapGroundOverlayTest` (ordem/zIndex abaixo dos polígonos, área inválida, opacidade, igualdade dos bytes,
+  `toString` redigido, carregador: cache, dedupe, falha, teto; folga e área útil; aviso) e `OverlaySampleSizeTest`.
+
 ## 2.381.0 — nível mínimo de testes: `ServidorDeTeste`, kit de ViewModel e o plugin `test-level`; POST idempotente com nova tentativa
 
 **Aditivo. Não é aviso.** Fase 1 do plano `docs/tarefas/2026-11-25-nivel-minimo-de-testes.md` (fundador, 25/nov/2026:

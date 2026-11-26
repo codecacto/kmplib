@@ -1,5 +1,6 @@
 package br.com.codecacto.kmplib.map
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import br.com.codecacto.kmplib.ui.theme.ColorContrast
 
 /** Pino com a aparência já resolvida (tema aplicado, glifo cortado, contraste escolhido). */
@@ -145,6 +147,16 @@ internal fun defaultClusterTap(members: List<MapItem>): ClusterTapAction? {
  *   arredondados) e, por isso, **sem agrupamento** — todos os pinos desenhados, o mais grave por cima;
  *   no iOS os gestos saem da `GMSMapView` (ponte) ou do MapKit (fallback). Toque no pino continua
  *   chegando ao [onItemClick].
+ * @param groundOverlays imagens presas a um retângulo geográfico (2.382.0 — mapa de chuva, mapa de
+ *   calor; chave = [MapGroundOverlay.id]), **por baixo de tudo** (polígonos, círculos, rotas, pinos).
+ *   Trocar imagem/opacidade atualiza no lugar, sem recriar o mapa; não entram no enquadramento.
+ *   Android = `GroundOverlay` do Maps SDK; iOS = `GMSGroundOverlay` pela ponte
+ *   ([IosNativeMapGroundOverlays]) ou imagem no MapKit (fallback). Detalhe em [MapGroundOverlay].
+ * @param contentPadding folga do mapa (2.382.0): a área coberta por legenda, botões ou barra do app.
+ *   O SDK afasta dela o **logo e a atribuição do Google** (que não podem ficar cobertos — termos do
+ *   Maps) e os controles, e o centro da câmera e o `fitTo` passam a ser o da área livre. Android =
+ *   `GoogleMap(contentPadding)`; iOS = `GMSMapView.padding` pela ponte ([IosNativeMapPadding]) ou
+ *   `layoutMargins` do MapKit (fallback).
  */
 @Composable
 fun NativeMap(
@@ -160,6 +172,8 @@ fun NativeMap(
     polygons: List<MapPolygon> = emptyList(),
     mapType: MapType = MapType.NORMAL,
     onPolygonClick: ((MapPolygon) -> Unit)? = null,
+    groundOverlays: List<MapGroundOverlay> = emptyList(),
+    contentPadding: PaddingValues = PaddingValues(),
     onItemClick: (MapItem) -> Unit = {},
     onClusterClick: ((List<MapItem>) -> Unit)? = null,
     onMapClick: ((LatLng) -> Unit)? = null,
@@ -175,6 +189,10 @@ fun NativeMap(
     val areas = remember(polygons, primary) { polygons.mapNotNull { resolvePolygon(it, primary) } }
     val polygonsById = remember(polygons) { polygons.associateBy { it.id } }
     val polygonClick by rememberUpdatedState(onPolygonClick)
+    val resolvedOverlays = remember(groundOverlays, areas.size) { resolveGroundOverlays(groundOverlays, areas.size) }
+    val readyOverlays = rememberReadyGroundOverlays(resolvedOverlays)
+    val layoutDirection = LocalLayoutDirection.current
+    val padding = remember(contentPadding, layoutDirection) { contentPadding.toMapPadding(layoutDirection) }
 
     var fitted by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(items, polylines, circles, polygons, fitOnFirstLoad) {
@@ -210,6 +228,8 @@ fun NativeMap(
         circles = rings,
         polygons = areas,
         mapType = mapType,
+        groundOverlays = readyOverlays,
+        padding = padding,
         onPolygonClick = if (onPolygonClick == null) {
             null
         } else {
@@ -236,6 +256,8 @@ internal expect fun PlatformNativeMap(
     circles: List<ResolvedCircle>,
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
+    groundOverlays: List<ReadyGroundOverlay>,
+    padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,

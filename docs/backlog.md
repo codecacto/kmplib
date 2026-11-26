@@ -3,6 +3,12 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 26/nov/2026 — origem: **CampoRaiz** (mapa da chuva; `Raiz/docs/design/telas/2026-11-26-clima.md` §8.1) — entregue na 2.382.0
+
+- [x] **ENTREGUE na 2.382.0:** `NativeMap(groundOverlays = listOf(MapGroundOverlay(id, image = MapOverlayImage.Bytes|Url, bounds, opacity, zIndex, visible)))` (Android `GroundOverlay`; iOS `GMSGroundOverlay` pela interface opcional `IosNativeMapGroundOverlays`; MapKit de fallback) e `contentPadding` (logo/atribuição do Google fora da legenda; iOS `IosNativeMapPadding`). `onMapClick` já existia. Pedido original:
+- [x] **`map`: `groundOverlays` no `NativeMap`** — `MapGroundOverlay(id, image: Url | Bytes, bounds, opacity, zIndex)`; Android `GroundOverlay` (maps-compose), iOS `GMSGroundOverlay` por interface OPCIONAL do `MapBridge.swift` (modelo: `IosNativeMapLayers`); aceitar bytes em cache (modo sem sinal); abaixo de polígonos e pinos; atualizar por id sem recriar. Sem WebView.
+- [x] **`map`: `onMapClick((LatLng) -> Unit)`** no `NativeMap` (toque no mapa devolve a coordenada) — já existia desde a 2.220.0.
+
 ### Registrado em 25/nov/2026 — nível mínimo de testes, Fase 1 (entregue na 2.381.0)
 
 - [x] **ENTREGUE na 2.381.0:** `kmplib-testing` com `ServidorDeTeste` + `FalhaDeRede` (dublê de rede sobre o

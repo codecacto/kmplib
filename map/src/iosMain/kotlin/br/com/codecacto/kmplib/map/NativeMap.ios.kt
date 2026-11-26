@@ -28,6 +28,8 @@ internal actual fun PlatformNativeMap(
     circles: List<ResolvedCircle>,
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
+    groundOverlays: List<ReadyGroundOverlay>,
+    padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,
@@ -49,6 +51,8 @@ internal actual fun PlatformNativeMap(
             circles = circles,
             polygons = polygons,
             mapType = mapType,
+            groundOverlays = groundOverlays,
+            padding = padding,
             onPolygonClick = onPolygonClick,
             controller = controller,
             clustering = clustering,
@@ -77,6 +81,7 @@ internal actual fun PlatformNativeMap(
             host.setInteractive(interactive)
             host.setShowsUserLocation(showUserLocation)
             host.updateLayers(polygons, mapType, tappable = onPolygonClick != null)
+            host.updateGround(groundOverlays, padding)
             host.update(markers, polylines, circles, clustering, defaultColor)
         },
     )
@@ -116,6 +121,13 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
     private val layers: IosNativeMapLayers? = map as? IosNativeMapLayers
     private var sentPolygons: Pair<List<ResolvedPolygon>, Boolean>? = null
     private var sentMapType: MapType? = null
+    /** Imagens e folga (2.382.0), também opcionais. */
+    private val groundLayer: IosNativeMapGroundOverlays? = map as? IosNativeMapGroundOverlays
+    private val paddingLayer: IosNativeMapPadding? = map as? IosNativeMapPadding
+    private var sentGround: List<ReadyGroundOverlay>? = null
+    private var sentPadding: MapPadding? = null
+    /** A folga que a `GMSMapView` está usando (o enquadramento desconta). */
+    private var appliedPadding: MapPadding = MapPadding.Zero
     private val sink = MapCameraSink { command -> applyCommand(command) }
 
     init {
@@ -155,6 +167,46 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
                         strokeWidth = area.strokeWidthDp.toDouble(),
                         zIndex = polygonZIndex(index, polygons.size),
                         tappable = tappable,
+                    )
+                },
+            )
+        }
+    }
+
+    /** Imagens georreferenciadas e folga — pelas interfaces opcionais; sem elas, avisa uma vez e segue. */
+    fun updateGround(overlays: List<ReadyGroundOverlay>, padding: MapPadding) {
+        val overlaysTarget = groundLayer
+        val paddingTarget = paddingLayer
+        if (IosMapGroundNotice.claim(
+                missingOverlays = overlaysTarget == null && overlays.isNotEmpty(),
+                missingPadding = paddingTarget == null && !padding.isZero,
+            )
+        ) {
+            AppLogger.w(IosMapGroundNotice.TAG, IosMapGroundNotice.MESSAGE)
+        }
+        if (paddingTarget != null && padding != sentPadding) {
+            sentPadding = padding
+            appliedPadding = padding
+            paddingTarget.setContentPadding(
+                padding.top.toDouble(), padding.left.toDouble(), padding.bottom.toDouble(), padding.right.toDouble(),
+            )
+        }
+        if (overlaysTarget != null && overlays != sentGround) {
+            sentGround = overlays
+            overlaysTarget.setGroundOverlays(
+                overlays.map { ready ->
+                    val o = ready.overlay
+                    IosMapGroundOverlayData(
+                        id = o.id,
+                        image = (ready.image as IosOverlayImage).image,
+                        imageKey = ready.imageKey,
+                        south = o.bounds.southwest.latitude,
+                        west = o.bounds.southwest.longitude,
+                        north = o.bounds.northeast.latitude,
+                        east = o.bounds.northeast.longitude,
+                        opacity = o.opacity.toDouble(),
+                        visible = o.visible,
+                        zIndex = o.sdkZIndex,
                     )
                 },
             )
@@ -296,7 +348,8 @@ internal class GoogleBridgeMapHost(val map: IosNativeRichMap, private val contro
             is MapCameraCommand.Move ->
                 map.moveCamera(command.position.target.latitude, command.position.target.longitude, command.position.zoom, animate)
             is MapCameraCommand.Fit -> {
-                val (w, h) = viewSize()
+                // Com folga, a câmera centra na área livre: o enquadramento é calculado nela.
+                val (w, h) = viewSize().let { (vw, vh) -> appliedPadding.innerSize(vw, vh) }
                 val camera = cameraToFit(command.bounds, w, h, command.paddingDp.toDouble(), command.maxZoom)
                 map.moveCamera(camera.target.latitude, camera.target.longitude, camera.zoom, animate)
             }

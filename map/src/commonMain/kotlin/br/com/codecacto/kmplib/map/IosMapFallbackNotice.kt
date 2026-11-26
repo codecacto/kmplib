@@ -64,3 +64,32 @@ internal object IosMapLayersNotice {
         warned = false
     }
 }
+
+/**
+ * Aviso (2.382.0) de que o `NativeMap` recebeu imagens georreferenciadas ou folga, mas a ponte do
+ * Google do app não implementa `IosNativeMapGroundOverlays`/`IosNativeMapPadding` — então não
+ * aparecem no iPhone. Uma vez por processo. Puro e testado aqui; quem chama é o iOS.
+ */
+internal object IosMapGroundNotice {
+    const val TAG: String = IosMapFallbackNotice.TAG
+
+    const val MESSAGE: String =
+        "NativeMap com groundOverlays ou contentPadding, mas a ponte do Google Maps do app não implementa " +
+            "IosNativeMapGroundOverlays/IosNativeMapPadding: as imagens e a folga NÃO aparecem no iPhone. " +
+            "Acrescente as duas ao GoogleMapController (setGroundOverlays com GMSGroundOverlay por id; " +
+            "setContentPadding com GMSMapView.padding) — modelo no MapBridge.swift da casca-mobile (kmplib ≥ 2.382.0)."
+
+    private var warned: Boolean = false
+
+    /** Precisa avisar? Só quando há algo que a ponte não desenha, e só na primeira vez do processo. */
+    fun claim(missingOverlays: Boolean, missingPadding: Boolean): Boolean {
+        if (!missingOverlays && !missingPadding) return false
+        if (warned) return false
+        warned = true
+        return true
+    }
+
+    internal fun resetForTest() {
+        warned = false
+    }
+}

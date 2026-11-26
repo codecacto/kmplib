@@ -7,12 +7,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.UIKitView
 import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.useContents
+import platform.CoreGraphics.CGContextRef
 import platform.CoreGraphics.CGLineCap
 import platform.CoreGraphics.CGLineJoin
 import platform.CoreLocation.CLLocationCoordinate2D
@@ -28,6 +30,7 @@ import platform.MapKit.MKFeatureDisplayPriorityDefaultHigh
 import platform.MapKit.MKFeatureDisplayPriorityRequired
 import platform.MapKit.MKFeatureVisibility
 import platform.MapKit.MKMapPointForCoordinate
+import platform.MapKit.MKMapRect
 import platform.MapKit.MKMapRectMake
 import platform.MapKit.MKMapView
 import platform.MapKit.MKMapViewDelegateProtocol
@@ -47,6 +50,9 @@ import platform.MapKit.addOverlay
 import platform.MapKit.insertOverlay
 import platform.MapKit.removeOverlay
 import platform.UIKit.UIColor
+import platform.UIKit.UIGraphicsPopContext
+import platform.UIKit.UIGraphicsPushContext
+import platform.UIKit.UIImage
 import platform.UIKit.accessibilityLabel
 import platform.UIKit.UIEdgeInsetsMake
 import platform.UIKit.UIGestureRecognizer
@@ -58,6 +64,7 @@ import platform.UIKit.UITapGestureRecognizer
 import platform.UIKit.UIView
 import platform.darwin.NSObject
 import platform.objc.sel_registerName
+import kotlin.concurrent.AtomicReference
 import kotlin.math.abs
 import kotlin.math.pow
 
@@ -90,6 +97,8 @@ internal fun MapKitMap(
     polygons: List<ResolvedPolygon> = emptyList(),
     mapType: MapType = MapType.NORMAL,
     onPolygonClick: ((String) -> Unit)? = null,
+    groundOverlays: List<ReadyGroundOverlay> = emptyList(),
+    padding: MapPadding = MapPadding.Zero,
 ) {
     val host = remember { MapKitHost(controller) }
     host.callbacks = MapKitCallbacks(onMarkerClick, onClusterClick, onMapClick, onMapLongClick, onLoaded, onPolygonClick)
@@ -111,6 +120,8 @@ internal fun MapKitMap(
             host.mapView.pitchEnabled = interactive
             host.mapView.showsUserLocation = showUserLocation
             host.setMapType(mapType)
+            host.setPadding(padding)
+            host.updateGroundOverlays(groundOverlays)
             host.updatePolygons(polygons)
             host.updateCircles(circles)
             host.updatePolylines(polylines)
@@ -157,6 +168,9 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     private val circleOverlays = mutableMapOf<String, Pair<MKCircle, ResolvedCircle>>()
     /** Polígonos na ordem da lista (o último por cima) — e é nesta ordem que ficam no fundo do mapa. */
     private var polygonOverlays: List<Pair<MKPolygon, ResolvedPolygon>> = emptyList()
+    /** Imagens georreferenciadas (2.382.0), no fundo de tudo, já na ordem do `sdkZIndex`. */
+    private var groundEntries: List<GroundEntry> = emptyList()
+    private var currentPadding: MapPadding = MapPadding.Zero
     private var currentMapType: MapType? = null
     private var clustering = true
     private var loadedNotified = false
@@ -267,9 +281,48 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
         if (areas == polygonOverlays.map { it.second }) return
         polygonOverlays.forEach { mapView.removeOverlay(it.first) }
         polygonOverlays = areas.map { area -> buildPolygon(area.points, area.holes) to area }
+        // Logo acima das imagens (índices 0…g-1), abaixo dos círculos.
         polygonOverlays.forEachIndexed { index, (polygon, _) ->
-            mapView.insertOverlay(polygon, atIndex = index.toULong())
+            mapView.insertOverlay(polygon, atIndex = (groundEntries.size + index).toULong())
         }
+    }
+
+    /**
+     * Folga (2.382.0): o MapKit posiciona o logo "Mapas" e o selo "Legal" pelas `layoutMargins` da
+     * vista — é a forma pública de tirá-los de baixo da legenda/botões do app.
+     */
+    fun setPadding(padding: MapPadding) {
+        if (padding == currentPadding) return
+        currentPadding = padding
+        mapView.layoutMargins = UIEdgeInsetsMake(
+            padding.top.toDouble(), padding.left.toDouble(), padding.bottom.toDouble(), padding.right.toDouble(),
+        )
+    }
+
+    /**
+     * Imagens georreferenciadas no fallback MapKit: um retângulo (`MKPolygon`) de suporte por imagem,
+     * desenhado por um [GroundImageRenderer]. Mesmo conjunto de ids e retângulos na mesma ordem = troca
+     * imagem/opacidade no renderizador existente (sem recriar); senão o conjunto entra de novo no fundo.
+     */
+    fun updateGroundOverlays(ready: List<ReadyGroundOverlay>) {
+        val sameShape = ready.size == groundEntries.size &&
+            ready.zip(groundEntries).all { (r, e) -> r.overlay.id == e.id && r.overlay.bounds == e.bounds }
+        if (sameShape) {
+            ready.zip(groundEntries).forEach { (r, e) -> e.apply(r) }
+            return
+        }
+        groundEntries.forEach { mapView.removeOverlay(it.carrier) }
+        groundEntries = ready.map { r -> GroundEntry(r.overlay.id, r.overlay.bounds, groundCarrier(r.overlay.bounds)).also { it.apply(r) } }
+        groundEntries.forEachIndexed { index, entry -> mapView.insertOverlay(entry.carrier, atIndex = index.toULong()) }
+    }
+
+    private fun groundCarrier(bounds: LatLngBounds): MKPolygon {
+        val sw = bounds.southwest
+        val ne = bounds.northeast
+        return buildPolygon(
+            listOf(LatLng(sw.latitude, sw.longitude), LatLng(ne.latitude, sw.longitude), LatLng(ne.latitude, ne.longitude), LatLng(sw.latitude, ne.longitude)),
+            emptyList(),
+        )
     }
 
     private fun buildPolygon(points: List<LatLng>, holes: List<List<LatLng>>): MKPolygon {
@@ -307,7 +360,7 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
             circle.setTitle(id)
             circleOverlays[id] = circle to ring
             // Logo acima dos polígonos (que ocupam os índices 0…n-1), abaixo das rotas.
-            mapView.insertOverlay(circle, atIndex = polygonOverlays.size.toULong())
+            mapView.insertOverlay(circle, atIndex = (groundEntries.size + polygonOverlays.size).toULong())
         }
     }
 
@@ -427,6 +480,9 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
     }
 
     override fun mapView(mapView: MKMapView, rendererForOverlay: MKOverlayProtocol): MKOverlayRenderer {
+        groundEntries.firstOrNull { it.carrier === rendererForOverlay }?.let { entry ->
+            return entry.renderer
+        }
         (rendererForOverlay as? MKPolygon)?.let { polygon ->
             val area = polygonOverlays.firstOrNull { it.first === polygon }?.second
                 ?: return MKOverlayRenderer(overlay = rendererForOverlay)
@@ -506,6 +562,48 @@ internal class MapKitHost(private val controller: MapController) : NSObject(), M
             }
         }
         cb?.invoke(coordinate)
+    }
+}
+
+/**
+ * Uma imagem no fallback MapKit: o retângulo de suporte e o renderizador (criado uma vez e reaproveitado
+ * pelo MapKit a cada pedido de `rendererFor`).
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal class GroundEntry(val id: String, val bounds: LatLngBounds, val carrier: MKPolygon) {
+    val renderer = GroundImageRenderer(carrier)
+
+    fun apply(ready: ReadyGroundOverlay) {
+        val alpha = if (ready.overlay.visible) ready.overlay.opacity.toDouble() else 0.0
+        val image = (ready.image as IosOverlayImage).image
+        val changedImage = renderer.setImage(image)
+        if (renderer.alpha != alpha) renderer.alpha = alpha
+        if (changedImage) renderer.setNeedsDisplay()
+    }
+}
+
+/**
+ * Renderizador de imagem do MapKit: desenha a `UIImage` esticada no retângulo do overlay — o mesmo
+ * que a `GMSGroundOverlay`/`GroundOverlay` do Google fazem. O MapKit chama [drawMapRect] em várias
+ * threads; a imagem fica numa referência atômica.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal class GroundImageRenderer(overlay: MKOverlayProtocol) : MKOverlayRenderer(overlay = overlay) {
+    private val current = AtomicReference<UIImage?>(null)
+
+    /** `true` se a imagem mudou (precisa redesenhar). */
+    fun setImage(image: UIImage): Boolean {
+        val previous = current.getAndSet(image)
+        return previous !== image
+    }
+
+    override fun drawMapRect(mapRect: CValue<MKMapRect>, zoomScale: Double, inContext: CGContextRef?) {
+        val context = inContext ?: return
+        val image = current.value ?: return
+        val rect = rectForMapRect(overlay.boundingMapRect)
+        UIGraphicsPushContext(context)
+        image.drawInRect(rect)
+        UIGraphicsPopContext()
     }
 }
 

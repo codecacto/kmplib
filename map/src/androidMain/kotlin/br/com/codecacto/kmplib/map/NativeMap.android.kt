@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.util.LruCache
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -48,6 +50,8 @@ import com.google.maps.android.clustering.view.DefaultClusterRenderer
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.GroundOverlay
+import com.google.maps.android.compose.GroundOverlayPosition
 import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -80,6 +84,8 @@ internal actual fun PlatformNativeMap(
     circles: List<ResolvedCircle>,
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
+    groundOverlays: List<ReadyGroundOverlay>,
+    padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
     clustering: Boolean,
@@ -140,11 +146,34 @@ internal actual fun PlatformNativeMap(
                 mapToolbarEnabled = false,
             ),
         ),
+        // Folga (2.382.0): o SDK afasta logo, atribuição e controles da área coberta pelo app.
+        contentPadding = PaddingValues.Absolute(padding.left.dp, padding.top.dp, padding.right.dp, padding.bottom.dp),
         onMapLoaded = { loaded = true },
         onMapClick = { latLng -> onMapClick?.invoke(latLng.toCommon()) },
         onMapLongClick = { latLng -> onMapLongClick?.invoke(latLng.toCommon()) },
     ) {
-        // Polígonos no fundo de tudo (abaixo do círculo, −1); o que vem depois na lista fica por cima.
+        // Imagens georreferenciadas por baixo de tudo (zIndex abaixo do polígono mais baixo). O
+        // `GroundOverlay` do maps-compose troca imagem, posição, transparência e zIndex no lugar.
+        groundOverlays.forEach { ready ->
+            key(ready.overlay.id) {
+                val bitmap = (ready.image as AndroidOverlayImage).bitmap
+                val descriptor = remember(bitmap) { BitmapDescriptorFactory.fromBitmap(bitmap) }
+                val o = ready.overlay
+                GroundOverlay(
+                    position = GroundOverlayPosition.create(
+                        GmsLatLngBounds(o.bounds.southwest.toGms(), o.bounds.northeast.toGms()),
+                    ),
+                    image = descriptor,
+                    transparency = 1f - o.opacity,
+                    visible = o.visible,
+                    zIndex = o.sdkZIndex.toFloat(),
+                    clickable = false,
+                    tag = o.id,
+                )
+            }
+        }
+
+        // Polígonos acima das imagens e abaixo do círculo (−1); o que vem depois na lista fica por cima.
         // Tocáveis só quando o app quer o toque — senão o toque passa para o `onMapClick`.
         val polygonTap by rememberUpdatedState(onPolygonClick)
         polygons.forEachIndexed { index, area ->

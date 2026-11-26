@@ -183,6 +183,68 @@ interface IosNativeMapLayers {
 }
 
 /**
+ * Imagem georreferenciada do [NativeMap] (2.382.0) já pronta para a `GMSGroundOverlay`: a imagem
+ * decodificada, o retângulo (`GMSCoordinateBounds(coordinate: sul-oeste, coordinate: nordeste)`), a
+ * opacidade (`GMSGroundOverlay.opacity`), a visibilidade (sem visível = `map = nil`, mantendo o objeto) e
+ * o [zIndex] já decidido pela lib (abaixo de todo polígono). [imageKey] muda só quando a imagem muda —
+ * compare com o anterior para trocar o `icon` só então.
+ */
+@ObjCName("IosMapGroundOverlayData")
+data class IosMapGroundOverlayData(
+    val id: String,
+    val image: UIImage,
+    val imageKey: String,
+    val south: Double,
+    val west: Double,
+    val north: Double,
+    val east: Double,
+    val opacity: Double,
+    val visible: Boolean,
+    val zIndex: Int,
+)
+
+/**
+ * Imagens georreferenciadas do [NativeMap] no mapa Google do iPhone (2.382.0) — interface OPCIONAL, pelo
+ * mesmo motivo da [IosNativeMapLayers] (método novo num protocolo existente quebraria todo
+ * `MapBridge.swift`). Sem ela, o mapa segue igual, **sem** as imagens, com um aviso no log uma vez por
+ * processo.
+ *
+ * Não nomeie propriedade Swift `groundOverlays` (colide com o seletor `setGroundOverlays:`). Reconciliar
+ * POR `id`, no lugar — é o que faz trocar a imagem/opacidade sem recriar nada:
+ * ```swift
+ * func setGroundOverlays(overlays: [IosMapGroundOverlayData]) {
+ *     let ids = Set(overlays.map(\.id))
+ *     for (id, o) in imagens where !ids.contains(id) { o.map = nil; imagens[id] = nil }
+ *     for d in overlays {
+ *         let bounds = GMSCoordinateBounds(
+ *             coordinate: CLLocationCoordinate2D(latitude: d.south, longitude: d.west),
+ *             coordinate: CLLocationCoordinate2D(latitude: d.north, longitude: d.east))
+ *         let o = imagens[d.id] ?? GMSGroundOverlay(bounds: bounds, icon: d.image)
+ *         if chavesDasImagens[d.id] != d.imageKey { o.icon = d.image; chavesDasImagens[d.id] = d.imageKey }
+ *         o.bounds = bounds; o.opacity = Float(d.opacity); o.zIndex = d.zIndex; o.isTappable = false
+ *         o.map = d.visible ? mapView : nil
+ *         imagens[d.id] = o
+ *     }
+ * }
+ * ```
+ */
+@ObjCName("IosNativeMapGroundOverlays")
+interface IosNativeMapGroundOverlays {
+    /** O conjunto inteiro de imagens; a lib só chama quando algo mudou. */
+    fun setGroundOverlays(overlays: List<IosMapGroundOverlayData>)
+}
+
+/**
+ * Folga do mapa (2.382.0) — `GMSMapView.padding = UIEdgeInsets(top:left:bottom:right:)`, em pontos. O SDK
+ * afasta dela o logo e a atribuição do Google e passa a centrar a câmera na área livre. Interface OPCIONAL
+ * (mesmo motivo da [IosNativeMapLayers]); sem ela, folga diferente de zero só gera um aviso no log.
+ */
+@ObjCName("IosNativeMapPadding")
+interface IosNativeMapPadding {
+    fun setContentPadding(top: Double, left: Double, bottom: Double, right: Double)
+}
+
+/**
  * Ponto de injeção do mapa nativo iOS — **o padrão da fábrica** (mapa = Google Maps, nenhum outro;
  * fundador, 27/out/2026). No `AppDelegate`, depois de `GMSServices.provideAPIKey(...)` e antes de
  * qualquer tela:
