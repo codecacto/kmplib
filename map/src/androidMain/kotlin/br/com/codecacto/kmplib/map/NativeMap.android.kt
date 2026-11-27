@@ -85,6 +85,7 @@ internal actual fun PlatformNativeMap(
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
     groundOverlays: List<ReadyGroundOverlay>,
+    hasGroundOverlays: Boolean,
     padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
@@ -133,10 +134,14 @@ internal actual fun PlatformNativeMap(
     // Só leitura = modo lite: imagem do mapa (respeita cantos arredondados) e, por isso, sem
     // agrupamento — o `ClusterManager` refaz os grupos quando a câmera para, e o lite não move câmera.
     val clustered = clustering && interactive
-    key(interactive) { GoogleMap(
+    // O modo lite NÃO desenha `GroundOverlay` (doc. do Google: addGroundOverlay não é suportado no lite). Com imagem
+    // pedida, o só-leitura vira o mapa completo com os gestos desligados (`mapUiSettingsFor`), não o lite — senão o
+    // mapa da chuva aparecia sem a chuva (CampoRaiz, 27/nov/2026).
+    val lite = liteModeFor(interactive, hasGroundOverlays)
+    key(interactive, lite) { GoogleMap(
         modifier = modifier,
         cameraPositionState = cameraState,
-        googleMapOptionsFactory = { GoogleMapOptions().liteMode(!interactive) },
+        googleMapOptionsFactory = { GoogleMapOptions().liteMode(lite) },
         properties = MapProperties(isMyLocationEnabled = myLocation && interactive, mapType = mapType.toGms()),
         uiSettings = mapUiSettingsFor(
             interactive,
@@ -476,3 +481,6 @@ internal fun MapCameraCommand.withoutAnimation(): MapCameraCommand = when (this)
     is MapCameraCommand.Move -> copy(animate = false)
     is MapCameraCommand.Fit -> copy(animate = false)
 }
+
+/** Modo lite só para o mapa só-leitura SEM imagem georreferenciada (o lite não desenha `GroundOverlay`). */
+internal fun liteModeFor(interactive: Boolean, hasGroundOverlays: Boolean): Boolean = !interactive && !hasGroundOverlays

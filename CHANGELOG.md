@@ -5,6 +5,15 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.382.1 — `map`: mapa só leitura com imagem deixa de ser o modo lite no Android
+
+**Correção. Não é aviso** (só o CampoRaiz usa `groundOverlays`, e a 2.382.0 é de hoje). No Android, `NativeMap(interactive =
+false)` usava o **modo lite** do Google Maps, que **não desenha `GroundOverlay`** (doc. do Google: `addGroundOverlay` não é
+suportado no lite) — o mapa da chuva do cartão aparecia como mapa comum, sem a chuva. Agora o só-leitura **com imagem pedida**
+é o mapa completo com os gestos desligados (os mesmos `MapUiSettings` de antes); sem imagem, continua lite. A decisão vem da
+lista pedida (não da decodificada), então o mapa não é recriado quando a imagem chega. `liteModeFor` + `LiteModeTest`. iOS
+sem mudança (não tem modo lite).
+
 ## 2.382.0 — `map`: imagem georreferenciada (`groundOverlays`) e folga (`contentPadding`) no `NativeMap`
 
 **Aditivo. Não é aviso.** Pedido do CampoRaiz (mapa da chuva, `Raiz/docs/design/telas/2026-11-26-clima.md` §8.1). Padrão-ouro:

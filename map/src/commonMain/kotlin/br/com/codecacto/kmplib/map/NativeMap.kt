@@ -229,6 +229,7 @@ fun NativeMap(
         polygons = areas,
         mapType = mapType,
         groundOverlays = readyOverlays,
+        hasGroundOverlays = resolvedOverlays.isNotEmpty(),
         padding = padding,
         onPolygonClick = if (onPolygonClick == null) {
             null
@@ -257,6 +258,8 @@ internal expect fun PlatformNativeMap(
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
     groundOverlays: List<ReadyGroundOverlay>,
+    /** Há imagem PEDIDA (decodificada ou não): no Android, o só-leitura não pode ser o modo lite, que não desenha imagem. */
+    hasGroundOverlays: Boolean,
     padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,

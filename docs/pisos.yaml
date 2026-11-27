@@ -49,6 +49,10 @@
 # Formato: lista em ordem decrescente de versão; `motivo` curto (vai na mensagem da falta).
 
 pisos:
+  - versao: 2.382.1
+    motivo: "mapa só leitura com imagem (mapa da chuva) aparecia sem a imagem no Android (modo lite)"
+    simbolos: [MapGroundOverlay]
+
   - versao: 2.377.0
     motivo: "PDF de documento/resumo: parágrafo longo no fim da página saía por baixo do rodapé e fora da folha; no iOS as notas com quebra de linha saíam numa linha só"
     simbolos: [exportReportSummaryPdf, exportDreSummaryPdf, ReportSummaryPdf, DreSummaryPdf, generateDocumentPdfBytes, generateAndShareDocumentPdf]

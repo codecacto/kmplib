@@ -29,6 +29,7 @@ internal actual fun PlatformNativeMap(
     polygons: List<ResolvedPolygon>,
     mapType: MapType,
     groundOverlays: List<ReadyGroundOverlay>,
+    hasGroundOverlays: Boolean,
     padding: MapPadding,
     onPolygonClick: ((String) -> Unit)?,
     controller: MapController,
