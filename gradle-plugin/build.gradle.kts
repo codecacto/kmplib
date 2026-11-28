@@ -43,6 +43,8 @@ dependencies {
     compileOnly(kotlin("stdlib"))
     // 2.381.0 (`test-level`): o plugin APLICA o Kover no app — vai no classpath de plugins dele, na versão da lib.
     implementation(libs.plugin.kover.gradle)
+    // 2.384.0 (`licenses`): o plugin APLICA o AboutLibraries no app — na versão do runtime da kmplib.
+    implementation(libs.plugin.aboutlibraries)
 
     testImplementation(libs.kotlin.test)
     testImplementation(gradleTestKit())
@@ -66,6 +68,13 @@ gradlePlugin {
             description = "Liga o dublê da loja (kmplib-testing) por -Pqa.paywallDemo / QA_PAYWALL_DEMO e " +
                 "reprova qualquer build publicável que o carregue (variante Android não-debuggable, " +
                 "framework iOS release, Archive do Xcode)."
+        }
+        register("licenses") {
+            id = "br.com.codecacto.kmplib.licenses"
+            implementationClass = "br.com.codecacto.kmplib.gradle.LicensesPlugin"
+            displayName = "kmplib — licenças de código aberto (AboutLibraries na versão da kmplib)"
+            description = "Aplica o AboutLibraries na versão do runtime da kmplib-licenses, grava o JSON em " +
+                "src/commonMain/composeResources/files/aboutlibraries.json e o refaz no build quando as dependências mudam."
         }
         register("testLevel") {
             id = "br.com.codecacto.kmplib.test-level"
@@ -97,7 +106,7 @@ mavenPublishing {
 
     pom {
         name = "kmplib-gradle-plugin"
-        description = "CodeCacto KMP — plugins Gradle que o app aplica (dublê da loja, nível de teste)"
+        description = "CodeCacto KMP — plugins Gradle que o app aplica (dublê da loja, nível de teste, licenças)"
         inceptionYear = "2026"
         url = "https://github.com/codecacto/kmplib"
         licenses {

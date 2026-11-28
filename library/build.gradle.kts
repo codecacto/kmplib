@@ -150,6 +150,9 @@ kotlin {
             api(project(":kmplib-map"))
             api(project(":kmplib-qr"))
             api(project(":kmplib-central"))
+            // 2.384.0: tela "Licenças de código aberto" (AboutLibraries). O JSON é do app (plugin
+            // `br.com.codecacto.kmplib.licenses`); sem ele a tela diz que a lista não está disponível.
+            api(project(":kmplib-licenses"))
             // 2.361.0 — telas e eventos no Umami; no-op até `Analytics.initialize` com o id do app.
             api(project(":kmplib-analytics"))
             api(project(":kmplib-sync"))

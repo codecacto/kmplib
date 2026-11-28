@@ -93,6 +93,9 @@ project(":kmplib-sync").projectDir = file("sync")
 include(":kmplib-central")
 project(":kmplib-central").projectDir = file("central")
 
+include(":kmplib-licenses")
+project(":kmplib-licenses").projectDir = file("licenses")
+
 include(":kmplib-qr")
 project(":kmplib-qr").projectDir = file("qr")
 

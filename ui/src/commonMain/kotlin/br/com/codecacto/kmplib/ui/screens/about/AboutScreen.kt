@@ -32,11 +32,15 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import br.com.codecacto.kmplib.core.config.KmpLibProvider
+import br.com.codecacto.kmplib.core.config.ProviderIdentity
 import br.com.codecacto.kmplib.core.util.AppLogger
 import br.com.codecacto.kmplib.core.util.BuildInfo
 import br.com.codecacto.kmplib.generated.resources.Res
 import br.com.codecacto.kmplib.generated.resources.kmplib_about_developed_by
 import br.com.codecacto.kmplib.generated.resources.kmplib_about_open_in_browser
+import br.com.codecacto.kmplib.generated.resources.kmplib_about_open_source_licenses
+import br.com.codecacto.kmplib.generated.resources.kmplib_about_refund_policy
 import br.com.codecacto.kmplib.generated.resources.kmplib_about_privacy
 import br.com.codecacto.kmplib.generated.resources.kmplib_about_terms
 import br.com.codecacto.kmplib.generated.resources.kmplib_about_title
@@ -57,6 +61,8 @@ import br.com.codecacto.kmplib.ui.locale.kmpStringResource
  * @property version "Versão 1.4.2" a partir da versão.
  * @property versionWithBuild "Versão 1.4.2 (37)" a partir da versão e do build.
  * @property openInBrowser rótulo da AÇÃO dos links legais para o leitor de tela ("abrir no navegador").
+ * @property refundPolicy "Política de reembolso" (2.384.0).
+ * @property openSourceLicenses "Licenças de código aberto" (2.384.0).
  */
 data class AboutTexts(
     val title: String = "Sobre",
@@ -66,6 +72,8 @@ data class AboutTexts(
     val privacy: String = "Política de privacidade",
     val developedBy: String = "Desenvolvido por",
     val openInBrowser: String = "abrir no navegador",
+    val refundPolicy: String = "Política de reembolso",
+    val openSourceLicenses: String = "Licenças de código aberto",
 )
 
 /** [AboutTexts] no idioma do aparelho. */
@@ -83,6 +91,8 @@ fun rememberAboutTexts(): AboutTexts {
         privacy = kmpStringResource(Res.string.kmplib_about_privacy),
         developedBy = kmpStringResource(Res.string.kmplib_about_developed_by),
         openInBrowser = kmpStringResource(Res.string.kmplib_about_open_in_browser),
+        refundPolicy = kmpStringResource(Res.string.kmplib_about_refund_policy),
+        openSourceLicenses = kmpStringResource(Res.string.kmplib_about_open_source_licenses),
     )
 }
 
@@ -98,6 +108,8 @@ suspend fun loadAboutTexts(): AboutTexts {
         privacy = kmpGetString(Res.string.kmplib_about_privacy),
         developedBy = kmpGetString(Res.string.kmplib_about_developed_by),
         openInBrowser = kmpGetString(Res.string.kmplib_about_open_in_browser),
+        refundPolicy = kmpGetString(Res.string.kmplib_about_refund_policy),
+        openSourceLicenses = kmpGetString(Res.string.kmplib_about_open_source_licenses),
     )
 }
 
@@ -133,13 +145,26 @@ object AboutTestTags {
     const val BTN_TERMOS: String = "sobre-btn-termos"
     const val BTN_PRIVACIDADE: String = "sobre-btn-privacidade"
     const val BTN_DESENVOLVIDO_POR: String = "sobre-btn-desenvolvido-por"
+    /** "Política de reembolso" (2.384.0). */
+    const val BTN_REEMBOLSO: String = "sobre-btn-reembolso"
+    /** "Licenças de código aberto" (2.384.0). */
+    const val BTN_LICENCAS: String = "sobre-btn-licencas"
+    /** A linha de identificação do fornecedor (2.384.0). */
+    const val FORNECEDOR: String = PROVIDER_LEGAL_NOTICE_TEST_TAG
 
-    val all: List<String> = listOf(TELA, VERSAO, BTN_TERMOS, BTN_PRIVACIDADE, BTN_DESENVOLVIDO_POR)
+    val all: List<String> = listOf(
+        TELA, VERSAO, BTN_TERMOS, BTN_PRIVACIDADE, BTN_DESENVOLVIDO_POR, BTN_REEMBOLSO, BTN_LICENCAS, FORNECEDOR,
+    )
 }
 
 /**
  * Tela **Sobre** — padrão da fábrica para TODO app (fundador, 13/out/2026): **ícone do app, nome,
- * versão, Termos de uso, Política de privacidade e "Desenvolvido por"** — e só.
+ * versão, Termos de uso, Política de privacidade e "Desenvolvido por"** — e só. Desde a 2.384.0
+ * (conformidade jurídica, 27/nov/2026), também: **Política de reembolso** (quando o app passa a URL),
+ * **Licenças de código aberto** (quando o app liga a tela — `kmplib-licenses`) e, embaixo, a linha
+ * discreta de **identificação do fornecedor** (Decreto 7.962/2013 art. 2º: razão social, CNPJ,
+ * endereço e e-mails — [KmpLibProvider.current], CodeCacto por default), que aparece sozinha em todo
+ * app que bumpa.
  *
  * Os três últimos **moram aqui dentro, nunca soltos no menu principal**. O único item que fica fora,
  * visível no menu, é o **Enviar feedback** (logo acima de "Sobre"). Nada de explicar arquitetura
@@ -175,6 +200,14 @@ object AboutTestTags {
  * @param bottomBar rodapé fixo (ex.: banner de house ad) — o conteúdo desconta a altura dele.
  * @param texts textos; default no idioma do aparelho.
  * @param extraLinks linhas a mais no fim da lista (2.354.0) — só crédito obrigatório (ex.: "Sobre a tradução"). Ver [AboutExtraLink].
+ * @param refundPolicyUrl URL da Política de reembolso (2.384.0), logo depois da Privacidade. Em branco
+ *   (default) = a linha não aparece.
+ * @param onOpenSourceLicensesClick abre a tela "Licenças de código aberto" (2.384.0) — o app navega até
+ *   a `OpenSourceLicensesScreen` (`kmplib-licenses`). `null` (default) = a linha não aparece.
+ * @param provider quem aparece na linha de identificação do fornecedor (2.384.0). Default:
+ *   [KmpLibProvider.current] (CodeCacto, ou o que o app de cliente configurou); `null` esconde — só
+ *   para projeto cujo fornecedor já aparece em outro lugar da mesma tela.
+ * @param providerTexts textos da linha do fornecedor; default no idioma do aparelho.
  */
 @Composable
 fun AboutScreen(
@@ -192,6 +225,10 @@ fun AboutScreen(
     bottomBar: @Composable () -> Unit = {},
     texts: AboutTexts = rememberAboutTexts(),
     extraLinks: List<AboutExtraLink> = emptyList(),
+    refundPolicyUrl: String = "",
+    onOpenSourceLicensesClick: (() -> Unit)? = null,
+    provider: ProviderIdentity? = KmpLibProvider.current,
+    providerTexts: ProviderLegalTexts = rememberProviderLegalTexts(),
 ) {
     val versionLabel = aboutVersionLabel(versionName, buildNumber, showBuildNumber, texts)
 
@@ -246,7 +283,13 @@ fun AboutScreen(
                             if (privacyUrl.isNotBlank()) {
                                 add(AboutRow(texts.privacy, AboutTestTags.BTN_PRIVACIDADE, external = true) { onOpenUrl(privacyUrl) })
                             }
+                            if (refundPolicyUrl.isNotBlank()) {
+                                add(AboutRow(texts.refundPolicy, AboutTestTags.BTN_REEMBOLSO, external = true) { onOpenUrl(refundPolicyUrl) })
+                            }
                             add(AboutRow(texts.developedBy, AboutTestTags.BTN_DESENVOLVIDO_POR, external = false, onDevelopedByClick))
+                            if (onOpenSourceLicensesClick != null) {
+                                add(AboutRow(texts.openSourceLicenses, AboutTestTags.BTN_LICENCAS, external = false, onOpenSourceLicensesClick))
+                            }
                             extraLinks.forEach { add(AboutRow(it.label, it.testTag, it.external, it.onClick)) }
                         }
                         rows.forEachIndexed { index, row ->
@@ -254,6 +297,14 @@ fun AboutScreen(
                             AboutListItem(row, texts)
                         }
                     }
+                }
+
+                if (provider != null) {
+                    ProviderLegalNotice(
+                        provider = provider,
+                        texts = providerTexts,
+                        modifier = Modifier.padding(top = 24.dp),
+                    )
                 }
             }
         }

@@ -66,7 +66,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import br.com.codecacto.kmplib.core.config.ProviderIdentity
 import br.com.codecacto.kmplib.core.util.BuildInfo
+import br.com.codecacto.kmplib.ui.screens.about.ProviderLegalNotice
 import br.com.codecacto.kmplib.developer.withoutCurrentApp
 import br.com.codecacto.kmplib.ui.theme.readableContentColorFor
 import coil3.compose.AsyncImagePainter
@@ -83,8 +85,10 @@ object DeveloperTestTags {
     const val BTN_SITE: String = "desenvolvedor-btn-site"
     const val BTN_WHATSAPP: String = "desenvolvedor-btn-whatsapp"
     const val PROJETO: String = "desenvolvedor-projeto"
+    /** A linha de identificação da empresa (2.384.0). */
+    const val EMPRESA: String = "fornecedor-identificacao"
 
-    val all: List<String> = listOf(TELA, BTN_SITE, BTN_WHATSAPP, PROJETO)
+    val all: List<String> = listOf(TELA, BTN_SITE, BTN_WHATSAPP, PROJETO, EMPRESA)
 }
 
 /**
@@ -126,6 +130,10 @@ object DeveloperTestTags {
  * @param phoneFormat sem efeito desde a 2.323.0.
  * @param currentAppName nome do app em execução, para tirá-lo de "Nossos projetos" (2.336.0).
  *   Default: o nome que o sistema mostra ([BuildInfo.appName]); `null` mostra todos.
+ * @param company a empresa por trás da marca, na linha discreta do fim da tela (2.384.0) —
+ *   "CodeCacto é uma marca de RAPHAEL AMORIM MARQUES TECNOLOGIA DA INFORMAÇÃO LTDA · CNPJ … · endereço"
+ *   + contato e encarregado (Decreto 7.962/2013 art. 2º). Default: [ProviderIdentity.CodeCacto] — esta
+ *   tela fala de quem DESENVOLVEU, então não segue o `KmpLibProvider` do app de cliente. `null` esconde.
  */
 @Composable
 fun DeveloperScreen(
@@ -140,6 +148,7 @@ fun DeveloperScreen(
     bottomBar: @Composable () -> Unit = {},
     phoneFormat: PhoneInputFormat = rememberDevicePhoneInputFormat(),
     currentAppName: String? = remember { BuildInfo.appName },
+    company: ProviderIdentity? = ProviderIdentity.CodeCacto,
 ) {
     @Suppress("NAME_SHADOWING")
     val texts: DeveloperTexts = texts ?: rememberDeveloperTexts(phoneFormat)
@@ -218,6 +227,10 @@ fun DeveloperScreen(
                         )
                         else -> ListaDeProjetos(apps, cardColor, texts.appsOpenLabel)
                     }
+                }
+
+                if (company != null) {
+                    ProviderLegalNotice(provider = company)
                 }
             }
         }

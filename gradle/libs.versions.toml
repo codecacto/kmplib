@@ -7,6 +7,10 @@ vanniktechMavenPublish = "0.34.0"
 # 2.381.0: 0.9.1 → 0.9.11 — a MESMA versão que o plugin `br.com.codecacto.kmplib.test-level` aplica no app
 # (filtro `annotatedBy` das telas, relatório XML JaCoCo do nível mínimo de testes).
 kover = "0.9.11"
+# Licenças de código aberto (2.384.0, `kmplib-licenses` + plugin `br.com.codecacto.kmplib.licenses`). 13.2.1 é a
+# última linha feita EXATAMENTE para Kotlin 2.3.0 / Compose 1.10.0 / serialization 1.9.0 (a da lib); a 14.x pede
+# Kotlin 2.3.20 e Compose 1.10.3, a 15.x Kotlin 2.4. O plugin Gradle e o runtime vão SEMPRE na mesma versão.
+aboutlibraries = "13.2.1"
 # Turbine (2.381.0, kmplib-testing): efeitos do ViewModel no teste — KMP, iOS inclusive.
 turbine = "1.2.1"
 
@@ -264,6 +268,13 @@ plugin-kotlin-gradle = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 plugin-android-gradle = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 # 2.381.0: o kmplib-gradle-plugin APLICA o Kover no app (`test-level`), então ele vai no classpath do plugin.
 plugin-kover-gradle = { module = "org.jetbrains.kotlinx:kover-gradle-plugin", version.ref = "kover" }
+# Só no Gradle Plugin Portal (não está no Maven Central).
+plugin-aboutlibraries = { module = "com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin", version.ref = "aboutlibraries" }
+aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutlibraries" }
+aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
+# Só em teste (androidUnitTest do kmplib-licenses): o parser Android do AboutLibraries usa `org.json`, que no
+# android.jar da JVM de teste é stub ("not mocked") — com o real, o teste prova o JSON de verdade.
+json-org = { module = "org.json:json", version = "20260814" }
 # API pública do AGP (Variant API/DSL) — compileOnly do `kmplib-gradle-plugin`.
 plugin-android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
 plugin-compose-multiplatform = { module = "org.jetbrains.compose:compose-gradle-plugin", version.ref = "composeMultiplatform" }

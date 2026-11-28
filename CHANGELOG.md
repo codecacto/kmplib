@@ -5,6 +5,48 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.384.0 — conformidade jurídica: identificação do fornecedor no Sobre e tela de licenças de código aberto (`kmplib-licenses`)
+
+**Aditivo. Não é aviso** (nada deixa de funcionar; é obrigação legal que passa a ser cumprida no próximo bump).
+Estudo: `docs/estudos/conformidade-juridica-2026-11-27/` (01 quadro legal, 03 checklist da fábrica).
+
+**1. Identificação do fornecedor (Decreto 7.962/2013 art. 2º; LGPD art. 41).**
+- `kmplib-core`, `core.config`: **`ProviderIdentity(brandName, legalName, cnpj, address, contactEmail, dpoEmail)`** +
+  **`ProviderAddress(…).formatted()`** + **`ProviderIdentity.CodeCacto`** (RAPHAEL AMORIM MARQUES TECNOLOGIA DA
+  INFORMAÇÃO LTDA · CNPJ 61.927.873/0001-39 · Rua Pais Leme, 215, Conj. 1713 — Pinheiros — São Paulo/SP — CEP
+  05424-150 · contato@ / dpo@codecacto.com.br) e **`KmpLibProvider`** (`current`, `configure`, `reset`) — fonte única;
+  app de cliente/parceria troca no boot.
+- `kmplib-ui`: a **`AboutScreen` mostra sozinha**, embaixo da lista, a linha discreta "CodeCacto é uma marca de … · CNPJ
+  … · endereço" + "Contato: … · Encarregado de dados (LGPD): …" (`ProviderLegalNotice`, selecionável, id
+  `fornecedor-identificacao`) — **app que só bumpa ganha a linha**. Parâmetros novos no fim: `refundPolicyUrl = ""`
+  (item **"Política de reembolso"**, `sobre-btn-reembolso`), `onOpenSourceLicensesClick = null` (item **"Licenças de
+  código aberto"**, `sobre-btn-licencas`), `provider = KmpLibProvider.current` (`null` esconde), `providerTexts`.
+  `AboutTexts.refundPolicy`/`openSourceLicenses`. Peças: `providerLegalLines` (pura), `ProviderLegalTexts`,
+  `rememberProviderLegalTexts`/`loadProviderLegalTexts`. 4 idiomas.
+- `kmplib-central`: a **`DeveloperScreen`** mostra a mesma linha no fim — `company: ProviderIdentity? =
+  ProviderIdentity.CodeCacto` (sempre a CodeCacto: a tela fala de quem desenvolveu), `DeveloperTestTags.EMPRESA`.
+
+**2. Licenças de código aberto (MIT/Apache/BSD/OFL exigem atribuição).**
+- Artefato novo **`kmplib-licenses`** (no umbrella) sobre o **AboutLibraries 13.2.1** (mikepenz) — a solução padrão
+  do Compose Multiplatform; 13.2.1 é a última feita exatamente para Kotlin 2.3.0 / Compose 1.10.0 / serialization
+  1.9.0 (14.x pede Kotlin 2.3.20, 15.x Kotlin 2.4). **`OpenSourceLicensesScreen(onBack, librariesJson, modifier,
+  bottomBar, texts)`**: lista (nome, versão, autor, selo da licença), toque abre o texto da licença (`AppAlertDialog`,
+  visível ao Maestro) ou, sem texto embutido, a URL da licença; JSON ausente/ilegível = "A lista de licenças não está
+  disponível nesta versão." (nunca derruba). `OPEN_SOURCE_LICENSES_RESOURCE_PATH`, `parseOpenSourceLicenses`,
+  `licenseTextOf`, `licenseUrlOf`, `OpenSourceLicensesTexts`, `OpenSourceLicensesTestTags` (`licencas-*`).
+- `kmplib-gradle-plugin`: plugin novo **`br.com.codecacto.kmplib.licenses`** — aplica o AboutLibraries na versão do
+  runtime, grava `src/commonMain/composeResources/files/aboutlibraries.json` (commitado, indentado) e faz as tarefas
+  `*Resource*ForCommonMain` dependerem de `exportLibraryDefinitions` (o JSON se refaz quando as dependências mudam;
+  opt-out `kmplib.licenses.autoExport=false`). O AboutLibraries só está no Gradle Plugin Portal: o `pluginManagement`
+  do app precisa de `gradlePluginPortal()` (a casca já tem).
+
+**O que o app faz para ligar:** plugin `alias(libs.plugins.kmplib.licenses)` + `api(libs.kmplib.licenses)` + rota
+`OpenSourceLicensesScreen(librariesJson = { Res.readBytes(OPEN_SOURCE_LICENSES_RESOURCE_PATH).decodeToString() })` +
+`AboutScreen(onOpenSourceLicensesClick = …, refundPolicyUrl = …)`. A `casca-mobile` nasce assim.
+
+Testes: `ProviderIdentityTest` (core), `ProviderLegalNoticeTest` (ui), `OpenSourceLicensesTest` (licenses),
+`LicensesRulesTest` (gradle-plugin).
+
 ## 2.383.0 — `ui`: o seletor de foto/anexo entrega a DATA EM QUE A FOTO FOI TIRADA (`PickedImage.takenAt`)
 
 **Aditivo. Não é aviso.** Pedido do Mais que atleta (relatório mensal do professor: até 8 fotos datadas, data editável —

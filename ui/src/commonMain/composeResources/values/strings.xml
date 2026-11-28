@@ -980,4 +980,13 @@
     <string name="kmplib_unsaved_message">Se sair agora, o que você preencheu será perdido.</string>
     <string name="kmplib_unsaved_keep_editing">Continuar editando</string>
     <string name="kmplib_unsaved_discard">Descartar</string>
+    <!-- 2.384.0: identificação do fornecedor (Decreto 7.962/2013) e licenças de código aberto -->
+    <string name="kmplib_about_refund_policy">Política de reembolso</string>
+    <string name="kmplib_about_open_source_licenses">Licenças de código aberto</string>
+    <string name="kmplib_provider_brand_of">%1$s é uma marca de %2$s</string>
+    <string name="kmplib_provider_tax_id">CNPJ %1$s</string>
+    <string name="kmplib_provider_contact">Contato: %1$s</string>
+    <string name="kmplib_provider_dpo">Encarregado de dados (LGPD): %1$s</string>
+    <string name="kmplib_licenses_unavailable">A lista de licenças não está disponível nesta versão.</string>
+    <string name="kmplib_licenses_close">Fechar</string>
 </resources>
