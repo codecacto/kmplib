@@ -5,6 +5,40 @@
 > `lib-evolution`, passo 6-A). O selo "Revisão da fábrica" só cobra bump de quem está abaixo de um piso
 > que o atinge — estar fora da última versão, sozinho, não reprova mais app nenhum.
 
+## 2.383.0 — `ui`: o seletor de foto/anexo entrega a DATA EM QUE A FOTO FOI TIRADA (`PickedImage.takenAt`)
+
+**Aditivo. Não é aviso.** Pedido do Mais que atleta (relatório mensal do professor: até 8 fotos datadas, data editável —
+hoje toda foto de galeria/arquivo pedia a data à mão). O seletor recodifica a foto em JPEG sem metadados (sem GPS, sem
+modelo) e, com isso, a data também se perdia. Agora ela é lida da fonte **antes** da recodificação e viaja ao lado dos
+bytes; o JPEG continua limpo.
+
+- **`PickedImage.takenAt: PhotoTakenAt?`** (último parâmetro, default `null`) e o atalho **`PickedAttachment.Photo.takenAt`**.
+  Vale para `rememberAttachmentPicker` (câmera, galeria e o "Arquivo" de `ImagesOnly`), `rememberImagePickerLauncher`,
+  `rememberMultiImagePickerLauncher` e a `GuidedCamera`.
+- **`PhotoTakenAt(dateTime: LocalDateTime, utcOffset: UtcOffset?, source: PhotoTakenAtSource)`** — o relógio de parede do
+  lugar em que a foto foi tirada (é o que vai para a tela: `date`), o fuso quando a fonte informa, e de onde veio.
+  `toInstantOrNull()` (só com fuso — não se inventa um), `toInstant(fallbackTimeZone)` (para gravar), `fromInstant(…)`,
+  `fromExif(dateTimeOriginal, offsetTimeOriginal, dateTimeDigitized, offsetTimeDigitized, dateTime, offsetTime)`.
+- **`PhotoTakenAtSource`** = `CAMERA` · `EXIF_ORIGINAL` · `EXIF_DIGITIZED` · `PHOTO_LIBRARY` · `EXIF_MODIFIED` (da mais
+  confiável para a menos).
+- **Android:** `androidx.exifinterface` sobre o fluxo ORIGINAL (o `content://` do Photo Picker, o arquivo da câmera, os
+  bytes do "Arquivo"), na mesma leitura que já tirava a orientação: `TAG_DATETIME_ORIGINAL` + `TAG_OFFSET_TIME_ORIGINAL`,
+  depois `TAG_DATETIME_DIGITIZED`, depois `TAG_DATETIME`.
+- **iOS:** ImageIO `CGImageSourceCopyPropertiesAtIndex` da MESMA fonte que é reduzida (`{Exif}` `DateTimeOriginal`/
+  `OffsetTimeOriginal`, `DateTimeDigitized`, `{TIFF}` `DateTime`). Na galeria, o `PHPicker` passou a ser configurado com a
+  fototeca (`PHPickerConfiguration(photoLibrary:)`, continua sem permissão) e traz o `assetIdentifier`: quando a foto não
+  tem `DateTimeOriginal`, vale o `PHAsset.creationDate` — **só se o app JÁ tem acesso de leitura à fototeca** (buscar o
+  asset sem acesso faria o sistema pedir a permissão; a lib não pede nada só pela data).
+- **Câmera:** o instante da captura (origem `CAMERA`, com fuso). Android: o `DateTimeOriginal` gravado pelo app de câmera
+  (fuso do aparelho se faltar) ou o instante da volta; iOS `UIImagePickerController`: o instante da volta; `GuidedCamera`:
+  o instante do disparo.
+- `null` = a fonte não tinha data (print, imagem baixada, arquivo sem EXIF, desktop) — só então peça à pessoa.
+- Fora: o `PickedAttachment.File` (arquivo como está, em `AnyFile`/`forMimeTypes`) não lê data; a foto ORIGINAL
+  (`OriginalPhoto`, `platform.photos`) também não.
+- Testes: `PhotoTakenAtTest` (parser EXIF tolerante — `-`/`/`/`T`, `NUL`, fração, segundos ausentes, zerado/vazio/fora da
+  faixa = `null`; fuso `±HH:MM`/`±HHMM`/`±HH`/`Z`; prioridade entre os campos e as fontes; câmera; igualdade do
+  `PickedImage`). `compileKotlinIosArm64` de `kmplib-ui` e `kmplib-camera` sem SKIPPED.
+
 ## 2.382.1 — `map`: mapa só leitura com imagem deixa de ser o modo lite no Android
 
 **Correção. Não é aviso** (só o CampoRaiz usa `groundOverlays`, e a 2.382.0 é de hoje). No Android, `NativeMap(interactive =

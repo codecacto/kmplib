@@ -26,6 +26,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Clock
 
 /**
  * Só a câmera (2.332.0): permissão `CAMERA` → `TakePicture` num arquivo do `FileProvider` da lib →
@@ -63,7 +64,9 @@ internal actual fun rememberCameraPhotoLauncher(
                 deleteCameraTempFile(arquivo)
             }
             resultado.fold(
-                onSuccess = { currentOnImagePicked(it) },
+                // A data é a do disparo: o EXIF original da câmera (com o fuso do aparelho se faltar) ou,
+                // sem ele, o instante em que a foto voltou.
+                onSuccess = { currentOnImagePicked(it.copy(takenAt = cameraPhotoTakenAt(it.takenAt, Clock.System.now()))) },
                 onFailure = { currentOnError(ImagePickerError.IMAGE_UNREADABLE) },
             )
         }

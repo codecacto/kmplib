@@ -62,13 +62,24 @@ expect class ImagePickerLauncher {
  * @param bytes o JPEG pronto para subir.
  * @param widthPx largura, em pixels, da imagem contida em [bytes].
  * @param heightPx altura, idem.
+ * ### A data em que a foto foi tirada (2.383.0) — [takenAt]
+ * O EXIF não viaja nos [bytes], mas a **data da captura** é lida da fonte ANTES da recodificação e
+ * vem aqui, à parte: Android pelo `ExifInterface` do arquivo original (`DateTimeOriginal` +
+ * `OffsetTimeOriginal`, depois `DateTimeDigitized`, depois `DateTime`); iOS pelo ImageIO
+ * (`CGImageSourceCopyPropertiesAtIndex`, mesmos campos) e, na galeria, pelo `PHAsset.creationDate`
+ * quando a foto não tem `DateTimeOriginal` e o app JÁ tem acesso de leitura à fototeca (a lib não pede
+ * essa permissão); câmera aberta pelo app: o instante da captura. `null` = a fonte não tinha data
+ * (print de tela, imagem baixada, arquivo sem EXIF) — peça a data à pessoa só nesse caso.
+ *
  * @param mimeType sempre `image/jpeg` — o seletor recodifica o que escolhem (ver acima).
+ * @param takenAt quando a foto foi tirada, se a fonte informou (ver acima).
  */
 data class PickedImage(
     val bytes: ByteArray,
     val widthPx: Int,
     val heightPx: Int,
     val mimeType: String = "image/jpeg",
+    val takenAt: PhotoTakenAt? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -77,6 +88,7 @@ data class PickedImage(
         if (widthPx != other.widthPx) return false
         if (heightPx != other.heightPx) return false
         if (mimeType != other.mimeType) return false
+        if (takenAt != other.takenAt) return false
         return true
     }
 
@@ -85,6 +97,7 @@ data class PickedImage(
         result = 31 * result + widthPx
         result = 31 * result + heightPx
         result = 31 * result + mimeType.hashCode()
+        result = 31 * result + (takenAt?.hashCode() ?: 0)
         return result
     }
 }

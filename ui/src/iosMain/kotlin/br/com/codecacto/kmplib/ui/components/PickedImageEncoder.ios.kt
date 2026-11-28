@@ -58,6 +58,8 @@ import platform.posix.memcpy
  * - O JPEG é recodificado a partir do `CGImage` sem metadados: **EXIF/GPS não viajam**, e HEIC vira
  *   JPEG.
  * - A imagem nunca é ampliada (a miniatura não passa da medida original).
+ * - A data da captura (`{Exif}` `DateTimeOriginal`…) é lida da mesma fonte e vai em
+ *   [PickedImage.takenAt] (2.383.0).
  *
  * @return `null` quando os bytes não são uma imagem legível — o log já nomeou o motivo.
  */
@@ -105,6 +107,9 @@ fun NSData.toPickedImage(
 
     val miniatura = CGImageSourceCreateThumbnailAtIndex(fonte, 0u, opcoes)
     CFRelease(opcoes)
+    // A data da captura sai dos metadados da MESMA fonte, antes de ela ser liberada: o JPEG recodificado
+    // abaixo não leva EXIF (2.383.0).
+    val tiradaEm = fonte.photoTakenAtFromMetadata()
     CFRelease(fonte)
     if (miniatura == null) {
         AppLogger.w(TAG, "A foto não pôde ser decodificada.")
@@ -119,7 +124,7 @@ fun NSData.toPickedImage(
             AppLogger.w(TAG, "Não foi possível codificar a foto em JPEG.")
             null
         } else {
-            PickedImage(bytes = jpeg.toByteArray(), widthPx = largura, heightPx = altura)
+            PickedImage(bytes = jpeg.toByteArray(), widthPx = largura, heightPx = altura, takenAt = tiradaEm)
         }
     } finally {
         // `Create` = referência +1, e o Kotlin/Native não gerencia tipo Core Foundation.

@@ -216,6 +216,13 @@ sealed interface PickedAttachment {
     ) : PickedAttachment {
         override val mimeType: String get() = image.mimeType
 
+        /**
+         * Quando a foto foi tirada (2.383.0) — o mesmo [PickedImage.takenAt]: câmera = o instante da
+         * captura; galeria e "Arquivo" = o EXIF do original (e, no iOS, a fototeca). `null` = a fonte
+         * não tinha data: só então peça à pessoa.
+         */
+        val takenAt: PhotoTakenAt? get() = image.takenAt
+
         override fun equals(other: Any?): Boolean =
             other is Photo && other.image == image && other.origin == origin && other.fileName == fileName
 

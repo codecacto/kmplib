@@ -69,7 +69,10 @@ fun encodePickedImage(
         return null
     }
 
-    val orientacao = exifOrientation ?: readExifOrientation(open)
+    // Uma leitura do EXIF do ORIGINAL (o JPEG que sai não tem EXIF): orientação e data da captura.
+    // Com a orientação já informada (CameraX), a data é de quem chama (câmera = instante do disparo).
+    val exif = if (exifOrientation == null) readExif(open) else null
+    val orientacao = exifOrientation ?: exif?.orientation ?: ExifInterface.ORIENTATION_NORMAL
     val emPe = applyExifOrientation(original, orientacao)
     val reduzida = scaleToMaxDimension(emPe, teto)
 
@@ -83,7 +86,7 @@ fun encodePickedImage(
     if (emPe !== original) emPe.recycle()
     original.recycle()
 
-    return PickedImage(bytes = saida.toByteArray(), widthPx = largura, heightPx = altura)
+    return PickedImage(bytes = saida.toByteArray(), widthPx = largura, heightPx = altura, takenAt = exif?.takenAt)
 }
 
 /**
@@ -114,14 +117,34 @@ internal fun encodePickedImage(
     )
 }
 
-private fun readExifOrientation(open: () -> InputStream?): Int = try {
-    open()?.use { ExifInterface(it) }
-        ?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-        ?: ExifInterface.ORIENTATION_NORMAL
+/** O que se lê do EXIF do original: a orientação e a data da captura. */
+private class OriginalExif(val orientation: Int, val takenAt: PhotoTakenAt?)
+
+/**
+ * Lê o EXIF do arquivo ORIGINAL (`androidx.exifinterface`, a forma oficial — JPEG, HEIF, PNG, WebP,
+ * DNG), ANTES da recodificação. Arquivo sem EXIF legível é foto sem rotação e sem data, não foto
+ * ilegível: `null`.
+ */
+private fun readExif(open: () -> InputStream?): OriginalExif? = try {
+    open()?.use { ExifInterface(it) }?.let { exif ->
+        OriginalExif(
+            orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL),
+            takenAt = exif.photoTakenAt(),
+        )
+    }
 } catch (_: Exception) {
-    // Arquivo sem EXIF legível é foto sem rotação, não foto ilegível.
-    ExifInterface.ORIENTATION_NORMAL
+    null
 }
+
+/** A data da captura pelos campos EXIF — a escolha entre eles é a do código comum ([PhotoTakenAt.fromExif]). */
+internal fun ExifInterface.photoTakenAt(): PhotoTakenAt? = PhotoTakenAt.fromExif(
+    dateTimeOriginal = getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL),
+    offsetTimeOriginal = getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL),
+    dateTimeDigitized = getAttribute(ExifInterface.TAG_DATETIME_DIGITIZED),
+    offsetTimeDigitized = getAttribute(ExifInterface.TAG_OFFSET_TIME_DIGITIZED),
+    dateTime = getAttribute(ExifInterface.TAG_DATETIME),
+    offsetTime = getAttribute(ExifInterface.TAG_OFFSET_TIME),
+)
 
 /**
  * Aplica as OITO orientações EXIF aos pixels. Até a 2.277.x só as três rotações eram tratadas, e

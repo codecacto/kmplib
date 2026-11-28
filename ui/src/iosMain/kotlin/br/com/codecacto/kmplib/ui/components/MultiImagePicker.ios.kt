@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import br.com.codecacto.kmplib.core.util.AppLogger
 import platform.Foundation.NSData
+import platform.Photos.PHPhotoLibrary
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
@@ -76,7 +77,8 @@ private fun abrirGaleriaMultipla(
     onImagesPicked: (List<PickedImage>) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
-    val configuracao = PHPickerConfiguration().apply {
+    // Fototeca na configuração = `assetIdentifier` no resultado (data do `PHAsset`, 2.383.0); sem permissão.
+    val configuracao = PHPickerConfiguration(photoLibrary = PHPhotoLibrary.sharedPhotoLibrary()).apply {
         selectionLimit = teto.toLong()
         filter = PHPickerFilter.imagesFilter
     }
@@ -120,6 +122,7 @@ private fun abrirGaleriaMultipla(
                     // Uma imagem ilegível no meio da seleção não pode custar as outras: ela vira
                     // `null` na posição dela e o conjunto segue.
                     val foto = converter(data, erro?.localizedDescription, maxDimension, jpegQuality)
+                        ?.withPhotoLibraryDate(resultado.assetIdentifier)
                     registrar(indice, foto)
                 }
             }

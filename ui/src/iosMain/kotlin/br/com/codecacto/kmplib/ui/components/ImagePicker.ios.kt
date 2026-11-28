@@ -14,6 +14,7 @@ import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.authorizationStatusForMediaType
 import platform.AVFoundation.requestAccessForMediaType
+import platform.Photos.PHPhotoLibrary
 import platform.PhotosUI.PHPickerConfiguration
 import platform.PhotosUI.PHPickerFilter
 import platform.PhotosUI.PHPickerResult
@@ -38,6 +39,7 @@ import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_global_queue
 import platform.darwin.dispatch_get_main_queue
+import kotlin.time.Clock
 
 actual class ImagePickerLauncher(
     private val onLaunch: () -> Unit
@@ -133,7 +135,9 @@ private fun abrirGaleriaDeFotos(
     onImagePicked: (PickedImage) -> Unit,
     onError: (ImagePickerError) -> Unit,
 ) {
-    val configuracao = PHPickerConfiguration().apply {
+    // Com a fototeca na configuração o resultado traz o `assetIdentifier` (para a data do `PHAsset`, 2.383.0).
+    // Continua sem pedir permissão: o seletor roda fora do processo.
+    val configuracao = PHPickerConfiguration(photoLibrary = PHPhotoLibrary.sharedPhotoLibrary()).apply {
         selectionLimit = 1
         filter = PHPickerFilter.imagesFilter
     }
@@ -162,6 +166,7 @@ private fun abrirGaleriaDeFotos(
                 // Já numa fila de fundo (a do `NSItemProvider`): a redução pelo ImageIO roda aqui,
                 // e só o retorno vai para a fila principal, onde a tela vive.
                 val foto = data.toPickedImage(codificacao.maxDimension, codificacao.jpegQuality)
+                    ?.withPhotoLibraryDate(escolhido.assetIdentifier)
                 naFilaPrincipal {
                     if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
                 }
@@ -232,6 +237,8 @@ private fun apresentarCameraDeFoto(
             didFinishPickingMediaWithInfo: Map<Any?, *>,
         ) {
             picker.dismissViewControllerAnimated(true, null)
+            // A foto acabou de ser tirada: o instante da captura é agora (a `UIImage` não traz EXIF).
+            val disparo = Clock.System.now()
             val imagem = (
                 didFinishPickingMediaWithInfo[UIImagePickerControllerEditedImage]
                     ?: didFinishPickingMediaWithInfo[UIImagePickerControllerOriginalImage]
@@ -241,6 +248,7 @@ private fun apresentarCameraDeFoto(
             // retorno de volta à principal.
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH.toLong(), 0u)) {
                 val foto = imagem.toPickedImage(codificacao.maxDimension, codificacao.jpegQuality)
+                    ?.let { it.copy(takenAt = cameraPhotoTakenAt(null, disparo)) }
                 naFilaPrincipal {
                     if (foto == null) onError(ImagePickerError.IMAGE_UNREADABLE) else onImagePicked(foto)
                 }

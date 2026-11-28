@@ -77,8 +77,11 @@ import br.com.codecacto.kmplib.platform.permission.rememberPermissionState
 import br.com.codecacto.kmplib.ui.components.AppButton
 import br.com.codecacto.kmplib.ui.components.PICKED_IMAGE_JPEG_QUALITY
 import br.com.codecacto.kmplib.ui.components.PICKED_IMAGE_MAX_DIMENSION
+import br.com.codecacto.kmplib.ui.components.PhotoTakenAt
+import br.com.codecacto.kmplib.ui.components.PhotoTakenAtSource
 import br.com.codecacto.kmplib.ui.components.PickedImage
 import kotlinx.coroutines.delay
+import kotlin.time.Clock
 
 /**
  * **Câmera com guia sobreposto** (2.278.0) — a tela de foto da própria lib, com uma silhueta (ou
@@ -402,10 +405,14 @@ class GuidedCameraController internal constructor(
     internal fun captureNow() {
         if (isCapturing || state !is GuidedCameraState.Live) return
         isCapturing = true
+        // O instante do disparo é a data da foto (2.383.0): `PickedImage.takenAt`, origem CAMERA.
+        val disparo = Clock.System.now()
         handle.trigger { resultado ->
             isCapturing = false
             when (resultado) {
-                is GuidedCaptureResult.Success -> onCapturedResult(resultado.image)
+                is GuidedCaptureResult.Success -> onCapturedResult(
+                    resultado.image.copy(takenAt = PhotoTakenAt.fromInstant(disparo, PhotoTakenAtSource.CAMERA)),
+                )
                 is GuidedCaptureResult.Failure -> {
                     captureFailed = true
                     onErrorResult(GuidedCameraError.CAPTURE_FAILED)

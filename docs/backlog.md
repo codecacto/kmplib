@@ -3,6 +3,14 @@
 > Dono: lib-mobile. Itens para fazer a kmplib crescer. Priorizar o que serve a ≥2 apps.
 > Processo: skill `lib-evolution`. Detecção em massa: comando `/lib-audit`.
 
+### Registrado em 27/nov/2026 — origem: **Mais que atleta** (relatório mensal do professor, fotos datadas) — entregue na 2.383.0
+
+- [x] **ENTREGUE na 2.383.0:** `PickedImage.takenAt: PhotoTakenAt?` (+ `PickedAttachment.Photo.takenAt`) — data da captura lida
+      ANTES da recodificação: Android `ExifInterface` (`DateTimeOriginal`+`OffsetTimeOriginal` → `Digitized` → `DateTime`),
+      iOS ImageIO + `PHAsset.creationDate` (só com acesso já concedido), câmera = instante da captura.
+- [ ] Data também no `PickedAttachment.File` (imagem escolhida como arquivo em `AnyFile`) e na `OriginalPhoto` — quando um app pedir.
+- [ ] Desktop (`jvm`): ler `DateTimeOriginal` do JPEG no `DesktopImageEncoding` — quando houver app desktop com foto datada.
+
 ### Registrado em 26/nov/2026 — origem: **CampoRaiz** (mapa da chuva; `Raiz/docs/design/telas/2026-11-26-clima.md` §8.1) — entregue na 2.382.0
 
 - [x] **ENTREGUE na 2.382.0:** `NativeMap(groundOverlays = listOf(MapGroundOverlay(id, image = MapOverlayImage.Bytes|Url, bounds, opacity, zIndex, visible)))` (Android `GroundOverlay`; iOS `GMSGroundOverlay` pela interface opcional `IosNativeMapGroundOverlays`; MapKit de fallback) e `contentPadding` (logo/atribuição do Google fora da legenda; iOS `IosNativeMapPadding`). `onMapClick` já existia. Pedido original:
